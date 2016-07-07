@@ -15,25 +15,26 @@
 
 #pragma once
 
-#include <string>
+#include <sys/stat.h>
 
 namespace lightscan {
 
-class DatabaseConfig {
- public:
-  virtual ~DatabaseConfig() {};
+class Logger {
+public:
+  void spew(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+  void debug(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+  void info(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+  void print(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+  void warning(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+  void error(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+  void fatal(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
 
-  static DatabaseConfig *make_sql_config(
-    const std::string &unix_socket,
-    const std::string &db_name,
-    const std::string &user,
-    const std::string &password);
 
-  static DatabaseConfig *make_disk_config(
-    const std::string &root_directory,
-    const std::string &database_name);
-
-  virtual std::string name() = 0;
 };
+
+extern Logger log_ls;
+
+int mkdir_p(const char *path, mode_t mode);
+
 
 }

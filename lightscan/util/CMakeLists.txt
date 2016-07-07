@@ -13,6 +13,7 @@
 # limitations under the License.
 
 set(SOURCE_FILES
+  common.cpp
   caffe.cpp
   video.cpp)
 

@@ -18,14 +18,8 @@ set(STORAGE_SOURCE_FILES
   disk_storage.cpp
   gcs_storage.cpp)
 
-set(DATABASE_SOURCE_FILES
-  database_config.cpp
-  database_backend.cpp
-  disk_database.cpp)
-
 add_library(storage OBJECT
-  ${STORAGE_SOURCE_FILES}
-  ${DATABASE_SOURCE_FILES})
+  ${STORAGE_SOURCE_FILES})
 
 add_dependencies(storage
   GoogleAPICppClient)

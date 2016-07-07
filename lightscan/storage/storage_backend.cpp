@@ -16,6 +16,7 @@
 #include "lightscan/storage/storage_backend.h"
 #include "lightscan/storage/gcs_storage.h"
 #include "lightscan/storage/disk_storage.h"
+#include "lightscan/util/common.h"
 
 #include <cstdlib>
 
@@ -144,5 +145,4 @@ void exit_on_error(StoreResult result) {
   std::exit(EXIT_FAILURE);
 }
 
-}
 }

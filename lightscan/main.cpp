@@ -1,4 +1,4 @@
-#include "ligthscan/util/caffe.h"
+#include "lightscan/util/caffe.h"
 
 #include <mpi.h>
 #include <pthread.h>
@@ -9,23 +9,16 @@ using namespace lightscan;
 
 const int NUM_GPUS = 1;
 
-#define THREAD_RETURN(status__) \
+#define THREAD_RETURN_SUCCESS() \
   do {                                           \
     void* val = malloc(sizeof(int));             \
-    *((int*)val) = status__;                     \
+    *((int*)val) = EXIT_SUCCESS;                 \
     return val;                                  \
   } while (0);
 
 
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
-}
-
-void master() {
-  int num_nodes;
-  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
-
-  printf("%d\n", num_nodes);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,6 +29,7 @@ struct LoadVideoArgs {
 
 void* load_video_thread(void* arg) {
   // Setup connection to load video
+  THREAD_RETURN_SUCCESS();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,6 +39,7 @@ struct SaveVideoArgs {
 
 void* save_video_thread(void* arg) {
   // Setup connection to save video
+  THREAD_RETURN_SUCCESS();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -55,11 +50,10 @@ struct ProcessArgs {
 
 void* process_thread(void* arg) {
   ProcessArgs& args = *reinterpret_cast<ProcessArgs*>(arg);
-  int* ret_val = new int;
 
   // Create IO threads for reading and writing
-  pthread_t* load_thread;
-  pthread_create(load_thread, NULL, load_video_thread, NULL);
+  pthread_t load_thread;
+  pthread_create(&load_thread, NULL, load_video_thread, NULL);
 
   // pthread_t* save_thread;
   // pthread_create(save_thread, NULL, save_video_thread, NULL);
@@ -80,7 +74,7 @@ void* process_thread(void* arg) {
   }
 
   // Cleanup
-  THREAD_RETURN(EXIT_SUCCESSS);
+  THREAD_RETURN_SUCCESS();
 }
 
 void worker_process() {
@@ -100,10 +94,10 @@ void worker_process() {
   // Wait till done
   for (int i = 0; i < NUM_GPUS; ++i) {
     void* result;
-    int err = pthread_join(processing_threads[tnum], &result);
+    int err = pthread_join(processing_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join\n");
-      pthread_exit(EXIT_FAILURE);
+      exit(EXIT_FAILURE);
     }
 
     printf("Joined with thread %d; returned value was %d\n",
@@ -112,6 +106,14 @@ void worker_process() {
   }
 
   // Cleanup
+}
+
+void master() {
+  int num_nodes;
+  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
+
+  printf("%d\n", num_nodes);
+  worker_process();
 }
 
 void shutdown() {
@@ -132,6 +134,4 @@ int main(int argc, char **argv) {
   shutdown();
 
   return EXIT_SUCCESS;
-}
-
 }

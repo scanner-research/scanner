@@ -23,10 +23,10 @@ if(WIN32)
     PATHS ${CAFFE_ROOT_DIR}/src/windows)
 else()
   find_path(CAFFE_INCLUDE_DIR caffe/caffe.hpp
-    PATHS ${CAFFE_ROOT_DIR})
+    PATHS ${CAFFE_ROOT_DIR}/include)
 endif()
 
-find_library(CAFFE_LIBRARY caffe PATHS ${CAFFE_ROOT_DIR})
+find_library(CAFFE_LIBRARY caffe PATHS ${CAFFE_ROOT_DIR}/lib)
 
 find_package_handle_standard_args(CAFFE DEFAULT_MSG
     CAFFE_INCLUDE_DIR CAFFE_LIBRARY)

@@ -13,18 +13,18 @@
  * limitations under the License.
  */
 
-#include "vale/storage/storage_config.h"
-#include "vale/storage/gcs_storage.h"
-#include "vale/storage/disk_storage.h"
+#include "lightscan/storage/storage_config.h"
+#include "lightscan/storage/gcs_storage.h"
+#include "lightscan/storage/disk_storage.h"
 
-namespace vale {
+namespace lightscan {
 
 StorageConfig *StorageConfig::make_gcs_config(
   const std::string &certificates_path,
   const std::string &key,
   const std::string &bucket)
 {
-  internal::GCSConfig *config = new internal::GCSConfig;
+  GCSConfig *config = new GCSConfig;
   config->certificates_path = certificates_path;
   config->key = key;
   config->bucket = bucket;
@@ -34,7 +34,7 @@ StorageConfig *StorageConfig::make_gcs_config(
 StorageConfig *StorageConfig::make_disk_config(
   const std::string &data_directory)
 {
-  internal::DiskConfig *config = new internal::DiskConfig;
+  DiskConfig *config = new DiskConfig;
   config->data_directory = data_directory;
   return config;
 }

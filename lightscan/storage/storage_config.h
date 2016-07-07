@@ -18,7 +18,7 @@
 #include <string>
 #include <memory>
 
-namespace vale {
+namespace lightscan {
 
 class StorageConfig {
  public:

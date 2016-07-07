@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include "vale/storage/gcs_storage.h"
-#include "vale/util/util.h"
+#include "lightscan/storage/gcs_storage.h"
+#include "lightscan/util/common.h"
 
 #include "googleapis/client/auth/file_credential_store.h"
 #include "googleapis/client/auth/oauth2_authorization.h"
@@ -32,6 +32,7 @@
 #include "googleapis/strings/strcat.h"
 #include "googleapis/util/status.h"
 
+#include <iostream>
 #include <cassert>
 
 using googleapis::client::HttpTransport;
@@ -48,8 +49,7 @@ using googleapis::client::OAuth2Credential;
 using google_storage_api::ObjectsResource_InsertMethod;
 using google_storage_api::ObjectsResource_GetMethod;
 
-namespace vale {
-namespace internal {
+namespace lightscan {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// GCSRandomReadFile
@@ -100,7 +100,7 @@ public:
         size_read = 0;
         return StoreResult::EndOfFile;
       }
-      log_vale.fatal("GCSRandomRead (offset %lu, size %lu) error: %s\n",
+      log_ls.fatal("GCSRandomRead (offset %lu, size %lu) error: %s\n",
                      offset, size, status.error_message().c_str());
       assert(status.ok());
     }
@@ -179,7 +179,7 @@ public:
       }
       }
 
-      log_vale.fatal("GCSWriteFile: save failed for object %s: %s",
+      log_ls.fatal("GCSWriteFile: save failed for object %s: %s",
                       object_name_.c_str(), status.error_message().c_str());
       assert(status.ok());
     }
@@ -261,7 +261,7 @@ StoreResult GCSStorage::make_random_read_file(
     } default: {
     }
     }
-    log_vale.fatal("GCSStorage: FATAL: make_random_read_file (%s) error: %s\n",
+    log_ls.fatal("GCSStorage: FATAL: make_random_read_file (%s) error: %s\n",
                    name.c_str(), status.error_message().c_str());
     assert(status.ok());
   }
@@ -282,5 +282,4 @@ StoreResult GCSStorage::make_write_file(
   return StoreResult::Success;
 }
 
-}
 }

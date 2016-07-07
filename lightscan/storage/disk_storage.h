@@ -15,11 +15,10 @@
 
 #pragma once
 
-#include "vale/storage/storage_backend.h"
-#include "vale/storage/storage_config.h"
+#include "lightscan/storage/storage_backend.h"
+#include "lightscan/storage/storage_config.h"
 
-namespace vale {
-namespace internal {
+namespace lightscan {
 
 struct DiskConfig : public StorageConfig {
   std::string data_directory;
@@ -49,5 +48,4 @@ protected:
   const std::string data_directory_;
 };
 
-}
 }

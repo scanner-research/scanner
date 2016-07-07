@@ -22,7 +22,6 @@
 #include <unistd.h>
 
 namespace lightscan {
-namespace internal {
 
 namespace {
 
@@ -285,5 +284,4 @@ void DiskDatabase::setup_database_directory() {
   }
 }
 
-}
 }

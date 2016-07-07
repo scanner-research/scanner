@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "vale/storage/storage_config.h"
-#include "vale/storage/storage_backend.h"
+#include "lightscan/storage/storage_config.h"
+#include "lightscan/storage/storage_backend.h"
 
 #include "googleapis/client/transport/http_transport.h"
 #include "googleapis/client/auth/oauth2_service_authorization.h"
@@ -25,8 +25,7 @@
 
 #include <string>
 
-namespace vale {
-namespace internal {
+namespace lightscan {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// GCSConfig
@@ -71,5 +70,4 @@ private:
   googleapis::client::OAuth2Credential credential_;
 };
 
-}
 }

@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "vale/storage/storage_config.h"
+#include "lightscan/storage/storage_config.h"
 
 #include <vector>
 #include <string>
@@ -117,10 +117,10 @@ void exit_on_error(StoreResult result);
         if (sleep_debt__ < 64) {                                        \
           sleep_debt__ *= 2;                                            \
         } else {                                                        \
-          log_vale.fatal("EXP_BACKOFF: FATAL, reached max backoff");    \
+          log_ls.fatal("EXP_BACKOFF: FATAL, reached max backoff");    \
           exit(1);                                                      \
         }                                                               \
-        log_vale.warning("EXP_BACKOFF: transient failure, sleeping %fs\n", \
+        log_ls.warning("EXP_BACKOFF: transient failure, sleeping %fs\n", \
                          sleep_time__);                                 \
         usleep(sleep_time__ * 1000000);                                   \
         continue;                                                       \

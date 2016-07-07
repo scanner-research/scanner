@@ -14,6 +14,7 @@
  */
 
 #include "lightscan/util/caffe.h"
+#include <opencv2/opencv.hpp>
 
 using caffe::Blob;
 using caffe::BlobProto;
@@ -72,9 +73,9 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
 
     for (int i = 0; i < dim * dim; ++i) {
       size_t offset = i * 3;
-      mean[offset + 0] = 103.939;
-      mean[offset + 1] = 116.779;
-      mean[offset + 2] = 123.68;
+      mean_image[offset + 0] = 103.939;
+      mean_image[offset + 1] = 116.779;
+      mean_image[offset + 2] = 123.68;
     }
     break;
   }
@@ -91,9 +92,9 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
 
     for (int i = 0; i < dim * dim; ++i) {
       size_t offset = i * 3;
-      mean[offset + 0] = 93.5940;
-      mean[offset + 1] = 104.7624;
-      mean[offset + 2] = 129.1863;
+      mean_image[offset + 0] = 93.5940;
+      mean_image[offset + 1] = 104.7624;
+      mean_image[offset + 2] = 129.1863;
     }
     break;
   }
@@ -102,14 +103,14 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
   // Transform mean into same size as input to network
   size_t size = mean_height * mean_width * 3 * sizeof(float);
   void* buf = malloc(size);
-  memcpy(buf, mean.data.data(), size);
-  mean_mat = cv::Mat(mean.height, mean.width, CV_32FC3, buf);
+  memcpy(buf, mean_image, size);
+  cv::Mat mean_mat = cv::Mat(mean_height, mean_width, CV_32FC3, buf);
 
   // Initialize our network
   caffe::Net<float>* net = new Net<float>(model_path, caffe::TEST);
   net->CopyTrainedLayersFrom(model_weights_path);
-  const shared_ptr<Blob<float>> data_blob = net->blob_by_name("data");
-  data_blob->Reshape({BATCH_SIZE, 3, dim, dim});
+  //const shared_ptr<Blob<float>> data_blob = net->blob_by_name("data");
+  //data_blob->Reshape({BATCH_SIZE, 3, dim, dim});
 
   NetInfo info;
   info.net = net;
@@ -118,8 +119,6 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
   info.mean_width = mean_width;
   info.mean_height = mean_height;
   return info;
-}
-
 }
 
 }

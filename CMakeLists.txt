@@ -120,7 +120,14 @@ set(GTEST_LIB_MAIN
   "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
 ###### PROJECT LIBRARIES #######
-find_package(CUDA REQUIRED)
+find_package(OpenCV QUIET COMPONENTS core highgui imgproc imgcodecs)
+if(NOT OpenCV_FOUND) # if not OpenCV 3.x, then imgcodecs are not found
+  find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc)
+endif()
+include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
+add_definitions(-DUSE_OPENCV)
+
 find_package(CUDA REQUIRED)
 find_package(MPI REQUIRED)
 find_package(Caffe REQUIRED)
@@ -137,12 +144,19 @@ include_directories(
   "."
   ${PUBLIC_INCLUDE_DIRECTORIES}
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
+  "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
   "${CUDA_INCLUDE_DIRS}"
+  "${CAFFE_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
   "${GTEST_INCLUDE_DIRS}"
   )
+
+if (APPLE)
+  include_directories(
+    "/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Versions/Current/Headers/")
+endif()
 
 add_subdirectory(lightscan)
 
@@ -163,6 +177,7 @@ if(APPLE)
     "-framework Security"
     "-framework VideoDecodeAcceleration"
     "-framework VideoToolbox"
+    "-framework Accelerate"
     "-undefined dynamic_lookup"
     )
 elseif(UNIX)
@@ -178,6 +193,7 @@ set(PUBLIC_LIBRARIES
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_curl_http.a"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_utils.a"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_internal.a"
+  "${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavformat.a"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
@@ -189,6 +205,7 @@ set(LIGHTSCAN_LIBRARIES
   ${PUBLIC_LIBRARIES}
   "${MPI_LIBRARIES}"
   "${CUDA_LIBRARIES}"
+  "${CAFFE_LIBRARIES}"
   "${LIBLZMA_LIBRARIES}"
   "${OPENSSL_LIBRARIES}"
   "${BZIP2_LIBRARIES}"

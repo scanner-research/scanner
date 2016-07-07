@@ -25,7 +25,9 @@
 namespace lightscan {
 
 enum class NetType {
-  VGG_NET,
+  ALEX_NET,
+  VGG,
+  VGG_FACE,
 };
 
 struct NetInfo {
