@@ -79,6 +79,18 @@ public:
     }
   }
 
+  StoreResult get_size(uint64_t& size) override {
+    int fd = fileno(fp_);
+    struct stat stat_buf;
+    int rc = fstat(fd, &stat_buf);
+    if (rc == 0) {
+      size = stat_buf.st_size;
+      return StoreResult::Success;
+    } else {
+      return StoreResult::FileDoesNotExist;
+    }
+  }
+
 private:
   const std::string file_path_;
   FILE* fp_;
@@ -147,6 +159,21 @@ DiskStorage::DiskStorage(DiskConfig config)
 }
 
 DiskStorage::~DiskStorage() {
+}
+
+StoreResult DiskStorage::get_file_info(
+  const std::string &name,
+  FileInfo &file_info)
+{
+  std::string filename = data_directory_ + "/" + name;
+  struct stat stat_buf;
+  int rc = stat(filename.c_str(), &stat_buf);
+  if (rc == 0) {
+    file_info.size = stat_buf.st_size;
+    return StoreResult::Success;
+  } else {
+    return StoreResult::FileDoesNotExist;
+  }
 }
 
 StoreResult DiskStorage::make_random_read_file(

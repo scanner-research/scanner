@@ -16,6 +16,7 @@
 #pragma once
 
 #include "lightscan/storage/storage_config.h"
+#include "lightscan/util/common.h"
 
 #include <vector>
 #include <string>
@@ -37,6 +38,12 @@ enum class StoreResult {
 std::string store_result_to_string(StoreResult result);
 
 ////////////////////////////////////////////////////////////////////////////////
+/// FileInfo
+struct FileInfo {
+  uint64_t size;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 /// RandomReadFile
 class RandomReadFile {
 public:
@@ -52,6 +59,8 @@ public:
     size_t size,
     char *data,
     size_t &size_read) = 0;
+
+  virtual StoreResult get_size(uint64_t& size) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +84,13 @@ public:
 
   static StorageBackend *make_from_config(
     const StorageConfig *config);
+
+  /* get_file_info
+   *
+   */
+  virtual StoreResult get_file_info(
+    const std::string &name,
+    FileInfo &file_info) = 0;
 
   /* make_random_read_file
    *

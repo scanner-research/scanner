@@ -90,6 +90,9 @@ ExternalProject_Add(Ffmpeg
       --disable-programs
       --disable-doc
       --enable-shared
+      --enable-libx264
+      --enable-vda
+      --enable-gpl
       --extra-cflags="-fPIC"
       --extra-cxxflags="${CMAKE_CXX_FLAGS}"
       --prefix=${GLOBAL_OUTPUT_PATH}/ffmpeg
@@ -143,7 +146,8 @@ find_package(Iconv REQUIRED)
 include_directories(
   "."
   ${PUBLIC_INCLUDE_DIRECTORIES}
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
+  "${THIRDPARTY_SOURCE_DIR}/ffmpeg/"
+  #"${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
   "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
   "${CUDA_INCLUDE_DIRS}"
@@ -214,6 +218,7 @@ set(LIGHTSCAN_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
+  "-lx264"
   "${PLATFORM_LINK_FLAGS}")
 
 target_link_libraries(lightscanner

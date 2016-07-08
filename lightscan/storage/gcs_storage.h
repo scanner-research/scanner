@@ -43,6 +43,10 @@ public:
 
   ~GCSStorage();
 
+  StoreResult get_file_info(
+    const std::string &name,
+    FileInfo &file_info) override;
+
   /* make_random_read_file
    *
    */

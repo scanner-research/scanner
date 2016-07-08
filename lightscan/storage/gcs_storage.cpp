@@ -118,6 +118,10 @@ public:
     }
   }
 
+  StoreResult get_size(uint64_t& size) override {
+    return StoreResult::FileDoesNotExist;
+  }
+
 private:
   HttpTransport* transport_;
   OAuth2Credential* credential_;
@@ -238,6 +242,15 @@ GCSStorage::GCSStorage(
 
 GCSStorage::~GCSStorage() {
 }
+
+StoreResult GCSStorage::get_file_info(
+  const std::string &name,
+  FileInfo &file_info)
+{
+  assert(false);
+  return StoreResult::FileDoesNotExist;
+}
+
 
 StoreResult GCSStorage::make_random_read_file(
   const std::string& name,

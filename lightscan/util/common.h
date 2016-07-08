@@ -15,7 +15,9 @@
 
 #pragma once
 
+#include <string>
 #include <sys/stat.h>
+#include <stdio.h>
 
 namespace lightscan {
 
@@ -29,12 +31,12 @@ public:
   void error(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
   void fatal(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
 
-
 };
 
 extern Logger log_ls;
 
 int mkdir_p(const char *path, mode_t mode);
 
+void temp_file(FILE** file, std::string& name);
 
 }

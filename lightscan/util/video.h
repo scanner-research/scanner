@@ -15,6 +15,15 @@
 
 #pragma once
 
+#include "lightscan/storage/storage_backend.h"
+#include <string>
+
 namespace lightscan {
+
+void preprocess_video(
+  StorageBackend* storage,
+  const std::string& video_path,
+  const std::string& processed_video_path,
+  const std::string& iframe_path);
 
 }
