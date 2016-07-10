@@ -40,8 +40,7 @@ const std::string DB_PATH = "/Users/abpoms/kcam";
 const std::string IFRAME_PATH_POSTFIX = "_iframes";
 const std::string METADATA_PATH_POSTFIX = "_metadata";
 const std::string PROCESSED_VIDEO_POSTFIX = "_processed";
-const int NUM_GPUS = 1;
-const int BATCH_SIZE = 8;
+int global_batch_size;
 
 #define THREAD_RETURN_SUCCESS() \
   do {                                           \
@@ -164,7 +163,7 @@ struct LoadVideoArgs {
   // Output arguments
   size_t frames_buffer_size;
   char* decoded_frames_buffer; // Should have space for start - end frames
-  std::atomic<int>* frames_written;
+  std::atomic<int>* frames_loaded;
 };
 
 void* load_video_thread(void* arg) {
@@ -215,7 +214,7 @@ void* load_video_thread(void* arg) {
 
     convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
 
-    *args.frames_written += 1;
+    *args.frames_loaded += 1;
     current_frame += 1;
   }
 
@@ -258,7 +257,7 @@ void* process_thread(void* arg) {
                              1);
   size_t frame_buffer_size = frame_size * (args.frame_end - args.frame_start);
   char* frame_buffer = new char[frame_buffer_size];
-  std::atomic<int> frames_written{0};
+  std::atomic<int> frames_loaded{0};
 
   // Create IO threads for reading and writing
   LoadVideoArgs load_args;
@@ -270,7 +269,7 @@ void* process_thread(void* arg) {
   load_args.metadata = args.metadata;
   load_args.frames_buffer_size = frame_buffer_size;
   load_args.decoded_frames_buffer = frame_buffer;
-  load_args.frames_written = &frames_written;
+  load_args.frames_loaded = &frames_loaded;
   pthread_t load_thread;
   pthread_create(&load_thread, NULL, load_video_thread, &load_args);
 
@@ -284,9 +283,9 @@ void* process_thread(void* arg) {
   // Resize net input blob for batch size
   const boost::shared_ptr<caffe::Blob<float>> data_blob{
     net->blob_by_name("data")};
-  if (data_blob->shape(0) != BATCH_SIZE) {
+  if (data_blob->shape(0) != global_batch_size) {
     data_blob->Reshape({
-        BATCH_SIZE, 3, net_info.input_size, net_info.input_size});
+        global_batch_size, 3, net_info.input_size, net_info.input_size});
   }
 
   int dim = net_info.input_size;
@@ -297,20 +296,23 @@ void* process_thread(void* arg) {
   cv::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
 
   int current_frame = args.frame_start;
-  while (current_frame + BATCH_SIZE < args.frame_end) {
+  while (current_frame + global_batch_size < args.frame_end) {
+    int frames_processed = current_frame - args.frame_start;
     // Read batch of frames
-    if ((current_frame + BATCH_SIZE - args.frame_start) >= frames_written)
+    if ((frames_processed + global_batch_size) >= frames_loaded)
       continue;
 
     int frame_offset = current_frame - args.frame_start;
     // Decompress batch of frame
-    printf("processing frame %d\n", current_frame);
+    if (frames_processed % 100 == 0) {
+      printf("Processing frame %d\n", current_frame);
+    }
 
     // Process batch of frames
-    caffe::Blob<float> net_input{BATCH_SIZE, 3, dim, dim};
+    caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
     float* net_input_buffer = net_input.mutable_cpu_data();
 
-    for (int i = 0; i < BATCH_SIZE; ++i) {
+    for (int i = 0; i < global_batch_size; ++i) {
       char* buffer = frame_buffer + frame_size * (i + frame_offset);
       cv::Mat input_mat(
         args.metadata.height, args.metadata.width, CV_8UC3, buffer);
@@ -330,7 +332,7 @@ void* process_thread(void* arg) {
 
     // Save batch of frames
 
-    current_frame += BATCH_SIZE;
+    current_frame += global_batch_size;
   }
 
   // Epilogue for processing less than a batch of frames
@@ -347,6 +349,14 @@ void shutdown() {
 }
 
 int main(int argc, char **argv) {
+  if (argc != 3) {
+    printf("Usage: %s <gpus_per_node> <batch_size>\n", argv[0]);
+    exit(EXIT_FAILURE);
+  }
+
+  int gpus_per_node = atoi(argv[1]);
+  global_batch_size = atoi(argv[2]);
+
   startup(argc, argv);
 
   int rank;
@@ -392,14 +402,14 @@ int main(int argc, char **argv) {
     // Parse args to determine video offset
 
     // Create processing threads for each gpu
-    ProcessArgs processing_thread_args[NUM_GPUS];
-    pthread_t processing_threads[NUM_GPUS];
+    ProcessArgs* processing_thread_args = new ProcessArgs[gpus_per_node];
+    pthread_t* processing_threads = new pthread_t[gpus_per_node];
 
     int total_frames = 2000;
     int frames_allocated = 0;
-    for (int i = 0; i < NUM_GPUS; ++i) {
-      int frames =
-        std::ceil((total_frames - frames_allocated) * 1.0 / (NUM_GPUS - i));
+    for (int i = 0; i < gpus_per_node; ++i) {
+      int frames = std::ceil(
+          (total_frames - frames_allocated) * 1.0 / (gpus_per_node - i));
       int frame_start = frames_allocated;
       int frame_end = frame_start + frames;
       frames_allocated += frames;
@@ -419,7 +429,7 @@ int main(int argc, char **argv) {
     }
 
     // Wait till done
-    for (int i = 0; i < NUM_GPUS; ++i) {
+    for (int i = 0; i < gpus_per_node; ++i) {
       void* result;
 
       int err = pthread_join(processing_threads[i], &result);
