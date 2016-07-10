@@ -134,7 +134,7 @@ void set_video_stream_settings(AVStream* stream,
   //c->sample_aspect_ratio = sample_aspect_ratio;
 }
 
-CodecState setup_video_codec(BufferData buffer) {
+CodecState setup_video_codec(BufferData* buffer) {
   printf("Setting up video codec\n");
   CodecState state;
   av_init_packet(&state.av_packet);
@@ -146,7 +146,7 @@ CodecState setup_video_codec(BufferData buffer) {
     static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
   state.io_context =
     avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
-                       0, &buffer, &read_packet, NULL, &seek);
+                       0, buffer, &read_packet, NULL, &seek);
   state.format_context->pb = state.io_context;
 
   // Read file header
@@ -596,7 +596,7 @@ void preprocess_video(
   buffer.orig_ptr = buffer.ptr;
   buffer.initial_size = buffer.size;
 
-  CodecState state = setup_video_codec(buffer);
+  CodecState state = setup_video_codec(&buffer);
 
   VideoMetadata video_metadata;
   video_metadata.width = state.in_cc->coded_width;
