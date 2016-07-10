@@ -187,6 +187,8 @@ CodecState setup_video_codec(BufferData* buffer) {
   }
 
   // Setup output codec and stream that we will use to reencode the input video
+
+#ifdef HAVE_X264_ENCODER
   AVOutputFormat* output_format = av_guess_format("mp4", NULL, NULL);
   if (output_format == NULL) {
     fprintf(stderr, "output format could not be guessed\n");
@@ -258,6 +260,8 @@ CodecState setup_video_codec(BufferData* buffer) {
 
   mov = (MOVMuxContext *)state.out_format_context->priv_data;
   mov->flags |= FF_MOV_FLAG_FASTSTART;
+
+#endif
 
   return state;
 }
@@ -601,6 +605,7 @@ void preprocess_video(
   video_metadata.width = state.in_cc->coded_width;
   video_metadata.height = state.in_cc->coded_height;
 
+#ifdef HAVE_X264_ENCODER
   FILE* fp;
   std::string filename;
   temp_file(&fp, filename);
@@ -612,10 +617,10 @@ void preprocess_video(
 
   strcpy(state.out_format_context->filename, filename.c_str());
 
-
   AVPacket out_packet = {0};
   av_init_packet(&out_packet);
   int got_out_packet = 0;
+#endif
 
   std::vector<int> iframe_positions;
   std::vector<int64_t> iframe_timestamps;
@@ -667,6 +672,8 @@ void preprocess_video(
       }
       if (got_picture) {
         state.picture->pts = frame;
+
+#ifdef HAVE_X264_ENCODER
         int ret = avcodec_encode_video2(state.out_cc,
                                         &out_packet,
                                         state.picture,
@@ -694,6 +701,7 @@ void preprocess_video(
                  out_packet.pts, out_packet.dts);
           av_interleaved_write_frame(state.out_format_context, &out_packet);
         }
+#endif
 
         if (state.picture->key_frame == 1) {
           printf("keyframe dts %d\n",
@@ -735,19 +743,27 @@ void preprocess_video(
     }
   } while (got_picture);
 
+#ifdef HAVE_X264_ENCODER
   av_write_trailer(state.out_format_context);
 
   if (!(state.out_format_context->oformat->flags & AVFMT_NOFILE) &&
       state.out_format_context->pb)
     avio_close(state.out_format_context->pb);
+#endif
 
   {
     // We will process the input video and write it to this output file
+#ifdef HAVE_X264_ENCODER
+    std::string temp_output = filename;
+#else
+    std::string temp_output = video_path;
+#endif
+
     std::unique_ptr<WriteFile> output_file{};
     exit_on_error(
       make_unique_write_file(storage, processed_video_path, output_file));
 
-    FILE* read_fp = fopen(filename.c_str(), "r");
+    FILE* read_fp = fopen(temp_output.c_str(), "r");
     assert(read_fp != nullptr);
     const size_t WRITE_SIZE = 16 * 1024;
     char buffer[WRITE_SIZE];
@@ -766,7 +782,11 @@ void preprocess_video(
     }
     output_file->save();
     fclose(read_fp);
+
+#ifdef HAVE_X264_ENCODER
     remove(filename.c_str());
+#endif
+
   }
 
   {
