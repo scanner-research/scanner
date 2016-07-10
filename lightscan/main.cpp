@@ -41,7 +41,7 @@ const std::string IFRAME_PATH_POSTFIX = "_iframes";
 const std::string METADATA_PATH_POSTFIX = "_metadata";
 const std::string PROCESSED_VIDEO_POSTFIX = "_processed";
 const int NUM_GPUS = 1;
-const int BATCH_SIZE = 1;
+const int BATCH_SIZE = 8;
 
 #define THREAD_RETURN_SUCCESS() \
   do {                                           \
@@ -393,14 +393,23 @@ int main(int argc, char **argv) {
     // Create processing threads for each gpu
     ProcessArgs processing_thread_args[NUM_GPUS];
     pthread_t processing_threads[NUM_GPUS];
+
+    int total_frames = 2000;
+    int frames_allocated = 0;
     for (int i = 0; i < NUM_GPUS; ++i) {
+      int frames =
+        std::ceil((total_frames - frames_allocated) * 1.0 / (NUM_GPUS - i));
+      int frame_start = frames_allocated;
+      int frame_end = frame_start + frames;
+      frames_allocated += frames;
+
       ProcessArgs& args = processing_thread_args[i];
       args.gpu_device_id = i;
       args.storage_config = config;
       args.video_path = video_path;
       args.iframe_path = iframe_path(video_path);
-      args.frame_start = 0;
-      args.frame_end = 2000;
+      args.frame_start = frame_start;
+      args.frame_end = frame_end;
       args.metadata = metadata;
       pthread_create(&processing_threads[i],
                      NULL,
