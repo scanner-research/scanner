@@ -302,6 +302,7 @@ void* process_thread(void* arg) {
     if ((current_frame + BATCH_SIZE - args.frame_start) >= frames_written)
       continue;
 
+    int frame_offset = current_frame - args.frame_start;
     // Decompress batch of frame
     printf("processing frame %d\n", current_frame);
 
@@ -310,7 +311,7 @@ void* process_thread(void* arg) {
     float* net_input_buffer = net_input.mutable_cpu_data();
 
     for (int i = 0; i < BATCH_SIZE; ++i) {
-      char* buffer = frame_buffer + frame_size * (i + current_frame);
+      char* buffer = frame_buffer + frame_size * (i + frame_offset);
       cv::Mat input_mat(
         args.metadata.height, args.metadata.width, CV_8UC3, buffer);
       cv::cvtColor(input_mat, input_mat, CV_RGB2BGR);
