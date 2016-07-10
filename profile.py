@@ -48,7 +48,7 @@ def main(args):
     print(' =================================== ')
     print(' Nodes | GPUs/n | Batch |       Time ')
     for settings, t in zip(batch_size_trial_settings, batch_size_times):
-        if (t < fastest_batch_size_time):
+        if (t != -1 and t < fastest_batch_size_time):
             fastest_batch_size = settings[2]
             fastest_batch_size_time = t
         print(' {:>5d} | {:>6d} | {:>5d} | {:>9.3f}s '.format(
