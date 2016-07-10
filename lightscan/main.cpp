@@ -19,6 +19,8 @@
 #include "lightscan/util/video.h"
 #include "lightscan/util/caffe.h"
 
+#include <opencv2/opencv.hpp>
+
 #include <mpi.h>
 #include <pthread.h>
 #include <cstdlib>
@@ -27,14 +29,18 @@
 
 extern "C" {
 #include "libavformat/avformat.h"
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
 }
 
 using namespace lightscan;
 
 const std::string DB_PATH = "/Users/abpoms/kcam";
 const std::string IFRAME_PATH_POSTFIX = "_iframes";
+const std::string METADATA_PATH_POSTFIX = "_metadata";
 const std::string PROCESSED_VIDEO_POSTFIX = "_processed";
 const int NUM_GPUS = 1;
+const int BATCH_SIZE = 1;
 
 #define THREAD_RETURN_SUCCESS() \
   do {                                           \
@@ -63,6 +69,11 @@ std::string processed_video_path(const std::string& video_path) {
     basename_s(video_path) + PROCESSED_VIDEO_POSTFIX + ".mp4";
 }
 
+std::string metadata_path(const std::string& video_path) {
+  return dirname_s(video_path) + "/" +
+    basename_s(video_path) + METADATA_PATH_POSTFIX + ".bin";
+}
+
 std::string iframe_path(const std::string& video_path) {
   return dirname_s(video_path) + "/" +
     basename_s(video_path) + IFRAME_PATH_POSTFIX + ".bin";
@@ -80,17 +91,79 @@ inline bool is_master(int rank) {
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
+  FLAGS_minloglevel = 2;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
+void convert_av_frame_to_rgb(
+  SwsContext*& sws_context,
+  AVFrame* frame,
+  char* buffer)
+{
+  size_t buffer_size =
+    av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame->width, frame->height, 1);
+
+  // Convert image to RGB
+  sws_context = sws_getCachedContext(
+    sws_context,
+
+    frame->width, frame->height,
+    static_cast<AVPixelFormat>(frame->format),
+
+    frame->width, frame->height, AV_PIX_FMT_RGB24,
+    SWS_BICUBIC, 0, 0, 0);
+
+  if (sws_context == nullptr) {
+    fprintf(stderr, "Error trying to get sws context\n");
+    assert(false);
+  }
+
+  AVFrame rgb_format;
+  int alloc_fail = av_image_alloc(rgb_format.data,
+                                  rgb_format.linesize,
+                                  frame->width,
+                                  frame->height,
+                                  AV_PIX_FMT_RGB24,
+                                  1);
+
+  if (alloc_fail < 0) {
+    fprintf(stderr, "Error while allocating avpicture for conversion\n");
+    assert(false);
+  }
+
+  sws_scale(sws_context,
+            frame->data /* input data */,
+            frame->linesize /* input layout */,
+            0 /* x start location */,
+            frame->height /* height of input image */,
+            rgb_format.data /* output data */,
+            rgb_format.linesize /* output layout */);
+
+  av_image_copy_to_buffer(reinterpret_cast<uint8_t*>(buffer),
+                          buffer_size,
+                          rgb_format.data,
+                          rgb_format.linesize,
+                          AV_PIX_FMT_RGB24,
+                          frame->width,
+                          frame->height,
+                          1);
+
+  av_freep(&rgb_format.data[0]);
+}
+
 struct LoadVideoArgs {
   // Input arguments
   StorageConfig* storage_config;
   std::string video_path;
-  int frame_offset;
+  std::string iframe_path;
+  int frame_start;
+  int frame_end;
+  VideoMetadata metadata;
   // Output arguments
-  int x;
+  size_t frames_buffer_size;
+  char* decoded_frames_buffer; // Should have space for start - end frames
+  std::atomic<int>* frames_written;
 };
 
 void* load_video_thread(void* arg) {
@@ -101,9 +174,49 @@ void* load_video_thread(void* arg) {
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
 
+  // Open the iframe file to setup keyframe data
+  std::vector<int> keyframe_positions;
+  std::vector<int64_t> keyframe_timestamps;
+  {
+    RandomReadFile* iframe_file;
+    storage->make_random_read_file(args.iframe_path, iframe_file);
+
+    (void)read_keyframe_info(
+      iframe_file, 0, keyframe_positions, keyframe_timestamps);
+
+    delete iframe_file;
+  }
+
   // Open the video file for reading
   RandomReadFile* file;
   storage->make_random_read_file(args.video_path, file);
+
+  VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
+  decoder.seek(args.frame_start);
+
+  size_t frame_size =
+    av_image_get_buffer_size(AV_PIX_FMT_RGB24,
+                             args.metadata.width,
+                             args.metadata.height,
+                             1);
+
+  SwsContext* sws_context;
+  int current_frame = args.frame_start;
+  while (current_frame < args.frame_end) {
+    AVFrame* frame = decoder.decode();
+    assert(frame != nullptr);
+
+    size_t frames_buffer_offset =
+      frame_size * (current_frame - args.frame_start);
+    assert(frames_buffer_offset < args.frames_buffer_size);
+    char* current_frame_buffer_pos =
+      args.decoded_frames_buffer + frames_buffer_offset;
+
+    convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
+
+    *args.frames_written += 1;
+    current_frame += 1;
+  }
 
   // Cleanup
   delete file;
@@ -128,17 +241,35 @@ struct ProcessArgs {
   int gpu_device_id;
   StorageConfig* storage_config;
   std::string video_path;
-  int frame_offset;
+  std::string iframe_path;
+  int frame_start;
+  int frame_end;
+  VideoMetadata metadata;
 };
 
 void* process_thread(void* arg) {
   ProcessArgs& args = *reinterpret_cast<ProcessArgs*>(arg);
 
+  size_t frame_size =
+    av_image_get_buffer_size(AV_PIX_FMT_RGB24,
+                             args.metadata.width,
+                             args.metadata.height,
+                             1);
+  size_t frame_buffer_size = frame_size * (args.frame_end - args.frame_start);
+  char* frame_buffer = new char[frame_buffer_size];
+  std::atomic<int> frames_written{0};
+
   // Create IO threads for reading and writing
   LoadVideoArgs load_args;
   load_args.storage_config = args.storage_config;
   load_args.video_path = args.video_path;
-  load_args.frame_offset = args.frame_offset;
+  load_args.iframe_path = args.iframe_path;
+  load_args.frame_start = args.frame_start;
+  load_args.frame_end = args.frame_end;
+  load_args.metadata = args.metadata;
+  load_args.frames_buffer_size = frame_buffer_size;
+  load_args.decoded_frames_buffer = frame_buffer;
+  load_args.frames_written = &frames_written;
   pthread_t load_thread;
   pthread_create(&load_thread, NULL, load_video_thread, &load_args);
 
@@ -146,22 +277,65 @@ void* process_thread(void* arg) {
   // pthread_create(save_thread, NULL, save_video_thread, NULL);
 
   // Setup caffe net
-  NetInfo net_info = load_neural_net(NetType::VGG, args.gpu_device_id);
+  NetInfo net_info = load_neural_net(NetType::ALEX_NET, args.gpu_device_id);
   caffe::Net<float>* net = net_info.net;
 
-  // Load
-  while (true) {
-    // Read batch of frames
-
-    // Decompress batch of frame
-
-    // Process batch of frames
-
-    // Save batch of frames
-    break;
+  // Resize net input blob for batch size
+  const boost::shared_ptr<caffe::Blob<float>> data_blob{
+    net->blob_by_name("data")};
+  if (data_blob->shape(0) != BATCH_SIZE) {
+    data_blob->Reshape({
+        BATCH_SIZE, 3, net_info.input_size, net_info.input_size});
   }
 
+  int dim = net_info.input_size;
+
+  cv::Mat unsized_mean_mat(
+    net_info.mean_width, net_info.mean_height, CV_32FC3, net_info.mean_image);
+  cv::Mat mean_mat;
+  cv::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
+
+  int current_frame = args.frame_start;
+  while (current_frame + BATCH_SIZE < args.frame_end) {
+    // Read batch of frames
+    if ((current_frame - args.frame_start) >= frames_written) continue;
+
+    // Decompress batch of frame
+    printf("processing frame %d\n", current_frame);
+
+    // Process batch of frames
+    caffe::Blob<float> net_input{BATCH_SIZE, 3, dim, dim};
+    float* net_input_buffer = net_input.mutable_cpu_data();
+
+    for (int i = 0; i < BATCH_SIZE; ++i) {
+      char* buffer = frame_buffer + frame_size * (i + current_frame);
+      cv::Mat input_mat(
+        args.metadata.height, args.metadata.width, CV_8UC3, buffer);
+      cv::cvtColor(input_mat, input_mat, CV_RGB2BGR);
+      cv::Mat conv_input;
+      cv::resize(input_mat, conv_input, cv::Size(dim, dim));
+      cv::Mat float_conv_input;
+      conv_input.convertTo(float_conv_input, CV_32FC3);
+      cv::Mat normed_input = float_conv_input - mean_mat;
+      //to_conv_input(&std::get<0>(in_vec[i]), &conv_input, &mean);
+      memcpy(net_input_buffer + i * (dim * dim * 3),
+             normed_input.data,
+             dim * dim * 3 * sizeof(float));
+    }
+
+    net->Forward({&net_input});
+
+    // Save batch of frames
+
+    current_frame += BATCH_SIZE;
+  }
+
+  // Epilogue for processing less than a batch of frames
+
   // Cleanup
+  delete[] frame_buffer;
+  delete net;
+
   THREAD_RETURN_SUCCESS();
 }
 
@@ -191,13 +365,26 @@ int main(int argc, char **argv) {
     // Preprocess video and then exit
     if (is_master(rank)) {
       log_ls.print("Video not processed yet. Processing now...\n");
+      //video_path = "../../../tmp/lightscan3n1YnH";
+      //video_path = "../../../tmp/lightscanLNaRk3";
       preprocess_video(storage,
                        video_path,
                        processed_video_path(video_path),
+                       metadata_path(video_path),
                        iframe_path(video_path));
     }
   } else {
-    // Determine video size
+    // Get video metadata to pass to all workers and determine work distribution
+    // from frame count
+    VideoMetadata metadata;
+    {
+      std::unique_ptr<RandomReadFile> metadata_file;
+      exit_on_error(
+        make_unique_random_read_file(storage,
+                                     metadata_path(video_path),
+                                     metadata_file));
+      (void) read_video_metadata(metadata_file.get(), 0, metadata);
+    }
 
     // Parse args to determine video offset
 
@@ -209,7 +396,10 @@ int main(int argc, char **argv) {
       args.gpu_device_id = i;
       args.storage_config = config;
       args.video_path = video_path;
-      args.frame_offset = 0;
+      args.iframe_path = iframe_path(video_path);
+      args.frame_start = 0;
+      args.frame_end = 2000;
+      args.metadata = metadata;
       pthread_create(&processing_threads[i],
                      NULL,
                      process_thread,

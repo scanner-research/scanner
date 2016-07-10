@@ -18,12 +18,77 @@
 #include "lightscan/storage/storage_backend.h"
 #include <string>
 
+extern "C" {
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include "libavformat/avio.h"
+#include "libavformat/movenc.h"
+#include "libavutil/error.h"
+#include "libswscale/swscale.h"
+}
+
 namespace lightscan {
+
+class VideoDecoder {
+public:
+  VideoDecoder(RandomReadFile* file,
+               const std::vector<int>& keyframe_positions,
+               const std::vector<int64_t>& keyframe_timestamps);
+  ~VideoDecoder();
+
+  void seek(int frame_position);
+
+  AVFrame* decode();
+
+private:
+  struct RandomReadFileData {
+    RandomReadFile* file;
+    uint64_t pos; // current position
+    uint64_t total_size;
+  } buffer_;
+
+  static int read_packet_fn(void *opaque, uint8_t *buf, int buf_size);
+
+  static int64_t seek_fn(void *opaque, int64_t offset, int whence);
+
+  RandomReadFile* file_;
+  std::vector<int> keyframe_positions_;
+  std::vector<int64_t> keyframe_timestamps_;
+
+  AVPacket packet_;
+  AVFrame* frame_;
+  AVFormatContext* format_context_;
+  AVIOContext* io_context_;
+  AVCodec* codec_;
+  AVCodecContext* cc_;
+  int video_stream_index_;
+
+  int current_frame_;
+  bool near_eof_;
+};
 
 void preprocess_video(
   StorageBackend* storage,
   const std::string& video_path,
   const std::string& processed_video_path,
+  const std::string& video_metadata_path,
   const std::string& iframe_path);
+
+struct VideoMetadata {
+  int32_t frames;
+  int32_t width;
+  int32_t height;
+};
+
+uint64_t read_video_metadata(
+  RandomReadFile* file,
+  uint64_t file_pos,
+  VideoMetadata& meta);
+
+uint64_t read_keyframe_info(
+  RandomReadFile* file,
+  uint64_t file_pos,
+  std::vector<int>& keyframe_postions,
+  std::vector<int64_t>& keyframe_timestamps);
 
 }
