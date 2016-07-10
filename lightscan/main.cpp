@@ -299,7 +299,8 @@ void* process_thread(void* arg) {
   int current_frame = args.frame_start;
   while (current_frame + BATCH_SIZE < args.frame_end) {
     // Read batch of frames
-    if ((current_frame - args.frame_start) >= frames_written) continue;
+    if ((current_frame + BATCH_SIZE - args.frame_start) >= frames_written)
+      continue;
 
     // Decompress batch of frame
     printf("processing frame %d\n", current_frame);
