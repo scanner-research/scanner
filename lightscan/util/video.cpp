@@ -396,7 +396,6 @@ VideoDecoder::VideoDecoder(
 
 VideoDecoder::~VideoDecoder() {
   avcodec_close(cc_);
-  av_free(cc_);
   avformat_close_input(&format_context_);
   av_freep(&io_context_->buffer);
   av_freep(&io_context_);
@@ -612,6 +611,7 @@ void preprocess_video(
   avformat_write_header(state.out_format_context, NULL);
 
   strcpy(state.out_format_context->filename, filename.c_str());
+
 
   AVPacket out_packet = {0};
   av_init_packet(&out_packet);
