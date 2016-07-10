@@ -56,14 +56,16 @@ private:
   std::vector<int64_t> keyframe_timestamps_;
 
   AVPacket packet_;
-  AVFrame* frame_;
+  std::vector<AVFrame*> buffered_frames_;
   AVFormatContext* format_context_;
   AVIOContext* io_context_;
   AVCodec* codec_;
   AVCodecContext* cc_;
   int video_stream_index_;
 
-  int current_frame_;
+  int next_frame_;
+  int next_buffered_frame_;
+  int buffered_frame_pos_;
   bool near_eof_;
 };
 

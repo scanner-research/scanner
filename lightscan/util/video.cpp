@@ -342,11 +342,15 @@ VideoDecoder::VideoDecoder(
   : file_(file),
     keyframe_positions_(keyframe_positions),
     keyframe_timestamps_(keyframe_timestamps),
-    current_frame_(0),
+    next_frame_(0),
+    next_buffered_frame_(1),
+    buffered_frame_pos_(0),
     near_eof_(false)
 {
   av_init_packet(&packet_);
-  frame_ = av_frame_alloc();
+  buffered_frames_.resize(1);
+  buffered_frames_[0] = av_frame_alloc();
+
   format_context_ = avformat_alloc_context();
 
   uint64_t size;
@@ -429,11 +433,27 @@ void VideoDecoder::seek(int frame_position) {
     exit(EXIT_FAILURE);
   }
 
-  current_frame_ = frame_position;
+  next_frame_ = keyframe_pos;
+  next_buffered_frame_ = 1;
+  buffered_frame_pos_ = 0;
   near_eof_ = false;
+
+  while (next_frame_ != frame_position) {
+    if (decode() == nullptr) break;
+  }
 }
 
 AVFrame* VideoDecoder::decode() {
+  if (next_buffered_frame_ < buffered_frame_pos_) {
+    int i = next_buffered_frame_++;
+    if (next_buffered_frame_ >= buffered_frame_pos_) {
+      next_buffered_frame_ = 1;
+      buffered_frame_pos_ = 0;
+    }
+    next_frame_++;
+    return buffered_frames_[i];
+  }
+
   AVFrame* ret = nullptr;
   while (true) {
     // Read from format context
@@ -471,29 +491,34 @@ AVFrame* VideoDecoder::decode() {
     while (packet_.size > 0) {
       int got_picture = 0;
       int len = avcodec_decode_video2(cc_,
-                                      frame_,
+                                      buffered_frames_[buffered_frame_pos_],
                                       &got_picture,
                                       &packet_);
       if (len < 0) {
         char err_msg[256];
         av_strerror(len, err_msg, 256);
         fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-                current_frame_, len, err_msg);
+                next_frame_, len, err_msg);
         exit(EXIT_FAILURE);
       }
       if (got_picture) {
         // the picture is allocated by the decoder. no need to free
-        ret = frame_;
-        current_frame_++;
+        if (ret == nullptr) {
+          ret = buffered_frames_[buffered_frame_pos_];
+        }
+        buffered_frame_pos_ += 1;
+        if (buffered_frame_pos_ == buffered_frames_.size()) {
+          buffered_frames_.resize(buffered_frame_pos_ + 1);
+          buffered_frames_[buffered_frame_pos_] = av_frame_alloc();
+        }
+
+        next_frame_++;
       }
       packet_.size -= len;
       packet_.data += len;
     }
     packet_.data = orig_data;
     av_packet_unref(&packet_);
-
-    // We found a frame, so return to user instead of looking for more data
-    if (ret != nullptr) break;
   }
 
   if (near_eof_) {
@@ -506,12 +531,23 @@ AVFrame* VideoDecoder::decode() {
     int got_picture;
     do {
       got_picture = 0;
-      int len = avcodec_decode_video2(cc_, frame_, &got_picture, &packet_);
+      int len = avcodec_decode_video2(
+        cc_,
+        buffered_frames_[buffered_frame_pos_],
+        &got_picture, &packet_);
       (void)len;
       if (got_picture) {
         // the picture is allocated by the decoder. no need to free
-        ret = frame_;
-        current_frame_++;
+        if (ret == nullptr) {
+          ret = buffered_frames_[buffered_frame_pos_];
+        }
+        buffered_frame_pos_ += 1;
+        if (buffered_frame_pos_ == buffered_frames_.size()) {
+          buffered_frames_.resize(buffered_frame_pos_ + 1);
+          buffered_frames_[buffered_frame_pos_] = av_frame_alloc();
+        }
+
+        next_frame_++;
       }
     } while (got_picture);
   }

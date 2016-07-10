@@ -304,7 +304,7 @@ void* process_thread(void* arg) {
 
     int frame_offset = current_frame - args.frame_start;
     // Decompress batch of frame
-    if (frames_processed % 100 == 0) {
+    if (frames_processed % 1024 == 0) {
       printf("Processing frame %d\n", current_frame);
     }
 
@@ -442,6 +442,9 @@ int main(int argc, char **argv) {
              i, *((int *)result));
       free(result);      /* Free memory allocated by thread */
     }
+
+    delete[] processing_thread_args;
+    delete[] processing_threads;
   }
 
  // Cleanup
