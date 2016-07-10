@@ -151,6 +151,7 @@ include_directories(
   "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
   "${CUDA_INCLUDE_DIRS}"
+  "${MPI_INCLUDE_PATH}"
   "${CAFFE_INCLUDE_DIRS}"
   "${OpenCV_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
@@ -216,11 +217,13 @@ set(LIGHTSCAN_LIBRARIES
   "${OPENSSL_LIBRARIES}"
   "${BZIP2_LIBRARIES}"
   "${Boost_THREAD_LIBRARY}"
+  "${Boost_SYSTEM_LIBRARY}"
   "${GFLAGS_LIBRARIES}"
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
   "-lx264"
+  "-lz"
   "${PLATFORM_LINK_FLAGS}")
 
 target_link_libraries(lightscanner

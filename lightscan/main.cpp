@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <string>
 #include <libgen.h>
+#include <atomic>
 
 extern "C" {
 #include "libavformat/avformat.h"

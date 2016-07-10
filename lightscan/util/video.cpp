@@ -672,7 +672,8 @@ void preprocess_video(
                                         state.picture,
                                         &got_out_packet);
         if (ret < 0) {
-          fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+          //fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+          fprintf(stderr, "Error encoding video frame\n");
           exit(1);
         }
 

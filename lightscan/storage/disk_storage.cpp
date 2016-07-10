@@ -16,6 +16,7 @@
 #include "lightscan/storage/disk_storage.h"
 #include "lightscan/util/common.h"
 
+#include <string.h>
 #include <libgen.h>
 #include <cstdlib>
 #include <sys/stat.h>
