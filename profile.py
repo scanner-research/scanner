@@ -5,6 +5,7 @@ import os.path
 import time
 import subprocess
 import sys
+from collections import defaultdict
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -34,50 +35,64 @@ def run_trial(node_count, gpus_per_node, batch_size):
 
 
 def main(args):
-    batch_size_trial_settings = [[nodes, gpus, batch_size]
+    batch_size_trial_settings = [[nodes, gpus, batch]
                                  for nodes in [1]
                                  for gpus in GPUS
-                                 for batch_size in BATCH_SIZES]
+                                 for batch in BATCH_SIZES]
     batch_size_times = []
     for settings in batch_size_trial_settings:
         t = run_trial(settings[0], settings[1], settings[2])
         batch_size_times.append(t)
 
-    fastest_batch_size = 1
-    fastest_batch_size_time = float('Inf')
-    print('         Batch Size trials           ')
-    print(' =================================== ')
-    print(' Nodes | GPUs/n | Batch |       Time ')
+    fastest_batch_sizes = defaultdict(lambda: 1)
+    fastest_batch_size_times = defaultdict(lambda: float('Inf'))
+    print('                  Batch Size trials                    ')
+    print(' ===================================================== ')
+    print(' Nodes | GPUs/n | Batch | Normalized Time | Total Time ')
     for settings, t in zip(batch_size_trial_settings, batch_size_times):
-        if (t != -1 and t < fastest_batch_size_time):
-            fastest_batch_size = settings[2]
-            fastest_batch_size_time = t
-        print(' {:>5d} | {:>6d} | {:>5d} | {:>9.3f}s '.format(
-            settings[0],
-            settings[1],
-            settings[2],
-            t))
-    print('Fastest batch size: {:>4d}, {:>4.3f}s'.format(
-        fastest_batch_size,
-        fastest_batch_size_time))
+        num_nodes = settings[0]
+        num_gpus = settings[1]
+        batch_size = settings[2]
 
-    trial_settings = [[nodes, gpus, batch_size]
+        normalized_t = t / (num_nodes * num_gpus)
+        if (t != -1 and normalized_t < fastest_batch_size_times[num_gpus]):
+            fastest_batch_sizes[num_gpus] = batch_size
+            fastest_batch_size_times[num_gpus] = normalized_t
+        print(' {:>5d} | {:>6d} | {:>5d} | {:>14.3f}s | {:>9.3f}s'.format(
+            num_nodes,
+            num_gpus,
+            batch_size,
+            normalized_t,
+            t))
+    for gpu in GPUS:
+        print('Fastest batch size for %d GPUs: {:>4d}, {:>4.3f}s'.format(
+            gpu,
+            fastest_batch_sizes[gpu],
+            fastest_batch_size_times[gpu]))
+
+    trial_settings = [[nodes, gpus, batch]
                       for nodes in NODES
                       for gpus in GPUS
-                      for batch_size in [fastest_batch_size]]
+                      for batch in [fastest_batch_sizes[gpus]]]
     times = []
     for settings in trial_settings:
         t = run_trial(settings[0], settings[1], settings[2])
         times.append(t)
 
-    print('         Node count trials           ')
-    print(' =================================== ')
-    print(' Nodes | GPUs/N | Batch |       Time ')
+    print('                  Node count trials                    ')
+    print(' ===================================================== ')
+    print(' Nodes | GPUs/n | Batch | Normalized Time | Total Time ')
     for settings, t in zip(trial_settings, times):
-        print(' {:>5d} | {:>6d} | {:>5d} | {:>9.3f}s '.format(
-            settings[0],
-            settings[1],
-            settings[2],
+        num_nodes = settings[0]
+        num_gpus = settings[1]
+        batch_size = settings[2]
+
+        normalized_t = t / (num_nodes * num_gpus)
+        print(' {:>5d} | {:>6d} | {:>5d} | {:>14.3f}s | {:>9.3f}s'.format(
+            num_nodes,
+            num_gpus,
+            batch_size,
+            normalized_t,
             t))
 
 

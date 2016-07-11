@@ -248,6 +248,9 @@ struct ProcessArgs {
 };
 
 void* process_thread(void* arg) {
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   ProcessArgs& args = *reinterpret_cast<ProcessArgs*>(arg);
 
   size_t frame_size =
@@ -304,8 +307,9 @@ void* process_thread(void* arg) {
 
     int frame_offset = current_frame - args.frame_start;
     // Decompress batch of frame
-    if (frames_processed % 1024 == 0) {
-      printf("Processing frame %d\n", current_frame);
+    if (frames_processed % 128 == 0) {
+      printf("Node %d, GPU %d, frame %d\n",
+             rank, args.gpu_device_id, current_frame);
     }
 
     // Process batch of frames
@@ -472,8 +476,8 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
       }
 
-      printf("Joined with thread %d; returned value was %d\n",
-             i, *((int *)result));
+      printf("Node %d, GPU %d finished; ret=%d\n",
+             rank, i, *((int *)result));
       free(result);      /* Free memory allocated by thread */
     }
 
