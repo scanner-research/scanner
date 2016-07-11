@@ -455,7 +455,7 @@ AVFrame* VideoDecoder::decode() {
   }
 
   AVFrame* ret = nullptr;
-  while (true) {
+  while (ret == nullptr) {
     // Read from format context
     int err = av_read_frame(format_context_, &packet_);
     if (err == AVERROR_EOF) {
@@ -779,6 +779,8 @@ void preprocess_video(
     }
   } while (got_picture);
 
+  video_metadata.frames = frame;
+
 #ifdef HAVE_X264_ENCODER
   av_write_trailer(state.out_format_context);
 
@@ -788,16 +790,13 @@ void preprocess_video(
 #endif
 
   {
-    // We will process the input video and write it to this output file
-#ifdef HAVE_X264_ENCODER
-    std::string temp_output = filename;
-#else
-    std::string temp_output = video_path;
-#endif
-
     std::unique_ptr<WriteFile> output_file{};
     exit_on_error(
       make_unique_write_file(storage, processed_video_path, output_file));
+
+    // We will process the input video and write it to this output file
+#ifdef HAVE_X264_ENCODER
+    std::string temp_output = filename;
 
     FILE* read_fp = fopen(temp_output.c_str(), "r");
     assert(read_fp != nullptr);
@@ -818,6 +817,8 @@ void preprocess_video(
     }
     output_file->save();
     fclose(read_fp);
+#endif
+
 
 #ifdef HAVE_X264_ENCODER
     remove(filename.c_str());

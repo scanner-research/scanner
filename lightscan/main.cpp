@@ -362,6 +362,9 @@ int main(int argc, char **argv) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  int num_nodes;
+  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
+
   std::string video_path =
     "kcam-videos-20140910_195012_247.mp4";
 
@@ -399,18 +402,49 @@ int main(int argc, char **argv) {
       (void) read_video_metadata(metadata_file.get(), 0, metadata);
     }
 
-    // Parse args to determine video offset
+    // Determine distribution of frames to nodes
+    int node_frames_start;
+    int node_frames_end;
+    if (is_master(rank)) {
+      int total_video_frames = metadata.frames;
+      int frames_allocated = 0;
+      for (int i = 0; i < num_nodes; ++i) {
+        int frames = std::ceil(
+          (total_video_frames - frames_allocated) * 1.0 / (num_nodes - i));
+
+        int frame_start = frames_allocated;
+        int frame_end = frame_start + frames;
+
+        printf("Distributing frames %d-%d to node %d\n",
+               frame_start, frame_end, i);
+
+        if (i == 0) {
+          node_frames_start = frame_start;
+          node_frames_end = frame_end;
+        } else {
+          MPI_Send(&frame_start, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+          MPI_Send(&frame_end, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }
+
+        frames_allocated += frames;
+      }
+    } else {
+      MPI_Recv(&node_frames_start, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD,
+               MPI_STATUS_IGNORE);
+      MPI_Recv(&node_frames_end, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD,
+               MPI_STATUS_IGNORE);
+    }
 
     // Create processing threads for each gpu
     ProcessArgs* processing_thread_args = new ProcessArgs[gpus_per_node];
     pthread_t* processing_threads = new pthread_t[gpus_per_node];
 
-    int total_frames = 2000;
+    int total_frames = node_frames_end - node_frames_start;
     int frames_allocated = 0;
     for (int i = 0; i < gpus_per_node; ++i) {
       int frames = std::ceil(
           (total_frames - frames_allocated) * 1.0 / (gpus_per_node - i));
-      int frame_start = frames_allocated;
+      int frame_start = node_frames_start + frames_allocated;
       int frame_end = frame_start + frames;
       frames_allocated += frames;
 
