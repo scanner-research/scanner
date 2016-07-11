@@ -20,6 +20,8 @@ enable_testing()
 
 include(ExternalProject)
 
+#add_definitions(-DHARDWARE_DECODE)
+
 ######################
 ###     Setup     ####
 ######################

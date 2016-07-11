@@ -17,6 +17,7 @@
 
 #include "lightscan/storage/storage_backend.h"
 #include <string>
+#include <pthread.h>
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -28,6 +29,8 @@ extern "C" {
 }
 
 namespace lightscan {
+
+extern pthread_mutex_t av_mutex;
 
 class VideoDecoder {
 public:

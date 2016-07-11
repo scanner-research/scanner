@@ -93,6 +93,7 @@ void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 2;
+  av_mutex = PTHREAD_MUTEX_INITIALIZER;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -346,7 +347,6 @@ void* process_thread(void* arg) {
     net->Forward({&net_input});
 
     // Save batch of frames
-
     current_frame += global_batch_size;
   }
 
