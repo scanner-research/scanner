@@ -340,10 +340,59 @@ void* process_thread(void* arg) {
   }
 
   // Epilogue for processing less than a batch of frames
+  if (current_frame < args.frame_end) {
+    int batch_size = args.frame_end - current_frame;
+
+    // Resize for our smaller batch size
+    if (data_blob->shape(0) != batch_size) {
+      data_blob->Reshape({
+          batch_size, 3, net_info.input_size, net_info.input_size});
+    }
+
+    // Wait for the rest of the frames to be loaded
+    while (frames_loaded < (args.frame_end - args.frame_start));
+
+    int frame_offset = current_frame - args.frame_start;
+
+    // Process batch of frames
+    caffe::Blob<float> net_input{batch_size, 3, dim, dim};
+    float* net_input_buffer = net_input.mutable_cpu_data();
+
+    for (int i = 0; i < batch_size; ++i) {
+      char* buffer = frame_buffer + frame_size * (i + frame_offset);
+      cv::Mat input_mat(
+        args.metadata.height, args.metadata.width, CV_8UC3, buffer);
+      cv::cvtColor(input_mat, input_mat, CV_RGB2BGR);
+      cv::Mat conv_input;
+      cv::resize(input_mat, conv_input, cv::Size(dim, dim));
+      cv::Mat float_conv_input;
+      conv_input.convertTo(float_conv_input, CV_32FC3);
+      cv::Mat normed_input = float_conv_input - mean_mat;
+      //to_conv_input(&std::get<0>(in_vec[i]), &conv_input, &mean);
+      memcpy(net_input_buffer + i * (dim * dim * 3),
+             normed_input.data,
+             dim * dim * 3 * sizeof(float));
+    }
+
+    net->Forward({&net_input});
+
+    // Save batch of frames
+    current_frame += batch_size;
+  }
 
   // Cleanup
   delete[] frame_buffer;
   delete net;
+
+  {
+    void* result;
+    int err = pthread_join(load_thread, &result);
+    if (err != 0) {
+      fprintf(stderr, "error in pthread_join of load thread\n");
+      exit(EXIT_FAILURE);
+    }
+    free(result);
+  }
 
   THREAD_RETURN_SUCCESS();
 }
