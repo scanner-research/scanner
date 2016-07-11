@@ -52,7 +52,7 @@ def print_trial_times(title, trial_settings, trial_times):
         num_nodes = settings[0]
         num_gpus = settings[1]
         batch_size = settings[2]
-        normalized_t = t / (num_nodes * num_gpus)
+        normalized_t = t * (num_nodes * num_gpus)
         print(' {:>5d} | {:>6d} | {:>5d} | {:>14.3f}s | {:>9.3f}s'.format(
             num_nodes,
             num_gpus,
@@ -82,7 +82,7 @@ def main(args):
         num_nodes = settings[0]
         num_gpus = settings[1]
         batch_size = settings[2]
-        normalized_t = t / (num_nodes * num_gpus)
+        normalized_t = t * (num_nodes * num_gpus)
         if (t != -1 and normalized_t < fastest_batch_size_times[num_gpus]):
             fastest_batch_sizes[num_gpus] = batch_size
             fastest_batch_size_times[num_gpus] = normalized_t
