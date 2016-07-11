@@ -35,10 +35,10 @@ def run_trial(node_count, gpus_per_node, batch_size):
     pid, rc, ru = os.wait4(p.pid, 0)
     elapsed = time.time() - start
     if rc != 0:
-        print('Trial FAILED after {.3f}s'.format(elapsed))
+        print('Trial FAILED after {:.3f}s'.format(elapsed))
         elapsed = -1
     else:
-        print('Trial succeeded, took {.3f}s'.format(elapsed))
+        print('Trial succeeded, took {:.3f}s'.format(elapsed))
     return elapsed
 
 

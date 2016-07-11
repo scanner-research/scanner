@@ -36,6 +36,7 @@ extern "C" {
 
 using namespace lightscan;
 
+const bool NO_PCIE_TRANSFER = false;
 const std::string DB_PATH = "/Users/abpoms/kcam";
 const std::string IFRAME_PATH_POSTFIX = "_iframes";
 const std::string METADATA_PATH_POSTFIX = "_metadata";
@@ -298,6 +299,11 @@ void* process_thread(void* arg) {
   cv::Mat mean_mat;
   cv::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
 
+
+  caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
+  // For avoiding transferring over PCIE
+  caffe::Blob<float> no_pcie_dummy{global_batch_size, 3, dim, dim};
+
   int current_frame = args.frame_start;
   while (current_frame + global_batch_size < args.frame_end) {
     int frames_processed = current_frame - args.frame_start;
@@ -312,10 +318,15 @@ void* process_thread(void* arg) {
              rank, args.gpu_device_id, current_frame);
     }
 
-    // Process batch of frames
-    caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
-    float* net_input_buffer = net_input.mutable_cpu_data();
+    float* net_input_buffer;
+    if (NO_PCIE_TRANSFER) {
+      net_input_buffer = no_pcie_dummy.mutable_cpu_data();
+      net_input.mutable_gpu_data();
+    } else {
+      net_input_buffer = net_input.mutable_cpu_data();
+    }
 
+    // Process batch of frames
     for (int i = 0; i < global_batch_size; ++i) {
       char* buffer = frame_buffer + frame_size * (i + frame_offset);
       cv::Mat input_mat(
@@ -356,7 +367,15 @@ void* process_thread(void* arg) {
 
     // Process batch of frames
     caffe::Blob<float> net_input{batch_size, 3, dim, dim};
-    float* net_input_buffer = net_input.mutable_cpu_data();
+    caffe::Blob<float> no_pcie_dummy{batch_size, 3, dim, dim};
+
+    float* net_input_buffer;
+    if (NO_PCIE_TRANSFER) {
+      net_input_buffer = no_pcie_dummy.mutable_cpu_data();
+      net_input.mutable_gpu_data();
+    } else {
+      net_input_buffer = net_input.mutable_cpu_data();
+    }
 
     for (int i = 0; i < batch_size; ++i) {
       char* buffer = frame_buffer + frame_size * (i + frame_offset);
