@@ -27,7 +27,9 @@ def run_trial(node_count, gpus_per_node, batch_size):
     ))
     current_env = os.environ.copy()
     start = time.time()
-    p = subprocess.Popen(['mpirun', '-n', str(node_count),
+    p = subprocess.Popen(['mpirun',
+                          '-n', str(node_count),
+                          '--bind-to none',
                           PROGRAM_PATH, str(gpus_per_node), str(batch_size)],
                          env=current_env,
                          stdout=DEVNULL,
