@@ -19,3 +19,6 @@ set(SOURCE_FILES
 
 add_library(util OBJECT
   ${SOURCE_FILES})
+
+add_dependencies(util
+  Ffmpeg)

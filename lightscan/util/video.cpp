@@ -354,8 +354,24 @@ typedef struct VDPAUContext {
   VdpDevice device_id;
 } VDPAUContext;
 
+typedef struct CodecHardwareInfo {
+    /* hwaccel options */
+    enum HWAccelID hwaccel_id;
+    char  *hwaccel_device;
+    enum AVPixelFormat hwaccel_output_format;
+
+    /* hwaccel context */
+    void  *hwaccel_ctx;
+    void (*hwaccel_uninit)(AVCodecContext *s);
+    int  (*hwaccel_get_buffer)(AVCodecContext *s, AVFrame *frame, int flags);
+    int  (*hwaccel_retrieve_data)(AVCodecContext *s, AVFrame *frame);
+    enum AVPixelFormat hwaccel_pix_fmt;
+    enum AVPixelFormat hwaccel_retrieved_pix_fmt;
+    AVBufferRef *hw_frames_ctx;
+} CodecHardwareInfo;
+
 void vdpau_uninit(AVCodecContext *s) {
-  InputStream  *ist = s->opaque;
+  CodecHardwareInfo *ist = s->opaque;
   VDPAUContext *ctx = ist->hwaccel_ctx;
 
   ist->hwaccel_uninit        = NULL;
@@ -367,14 +383,16 @@ void vdpau_uninit(AVCodecContext *s) {
 
   av_freep(&ist->hwaccel_ctx);
   av_freep(&s->hwaccel_context);
+
+  av_freep(&s->opaque);
 }
 
 int vdpau_alloc(AVCodecContext *s) {
-  InputStream  *ist = s->opaque;
-  int loglevel =
-    (ist->hwaccel_id == HWACCEL_AUTO) ? AV_LOG_VERBOSE : AV_LOG_ERROR;
+  CodecHardwareInfo *ist = s->opaque;
   VDPAUContext *ctx;
   int ret;
+
+  int loglevel = AV_LOG_ERROR;
 
   AVBufferRef          *device_ref = NULL;
   AVHWDeviceContext    *device_ctx;
@@ -422,22 +440,24 @@ int vdpau_alloc(AVCodecContext *s) {
                             device_hwctx->get_proc_address, 0))
     goto fail;
 
-  av_log(NULL, AV_LOG_VERBOSE, "Using VDPAU to decode input stream #%d:%d.\n",
-         ist->file_index, ist->st->index);
-
   return 0;
 
 fail:
-  av_log(NULL, loglevel, "VDPAU init failed for stream #%d:%d.\n",
-         ist->file_index, ist->st->index);
+  av_log(NULL, loglevel, "VDPAU init failed\n");
   av_buffer_unref(&device_ref);
   vdpau_uninit(s);
   return AVERROR(EINVAL);
 }
 
 int vdpau_init(AVCodecContext *s) {
-  InputStream *ist = s->opaque;
+  CodecHardwareInfo *ist = s->opaque;
 
+  if (!ist) {
+    s->opaque = av_mallocz(sizeof(*ist));
+    ist = s->opaque;
+    if (!ist)
+      return AVERROR(ENOMEM);
+  }
   if (!ist->hwaccel_ctx) {
     int ret = vdpau_alloc(s);
     if (ret < 0)
@@ -553,7 +573,7 @@ VideoDecoder::~VideoDecoder() {
 
 void VideoDecoder::set_gpu_device(int gpu_device_id) {
 #ifdef HARDWARE_DECODE
-  InputStream *ist = cc_->opaque;
+  CodecHardwareInfo *ist = cc_->opaque;
   VDPAUContext *ctx = ist->hwaccel_ctx;
   AVBufferRef *device_ref = ctx->hw_frames_ctx->device_ref;
   AVHWDeviceContext *device_ctx = (AVHWDeviceContext*)device_ref->data;
@@ -977,10 +997,6 @@ void preprocess_video(
     }
     output_file->save();
     fclose(read_fp);
-#endif
-
-
-#ifdef HAVE_X264_ENCODER
     remove(filename.c_str());
 #endif
 
@@ -1097,4 +1113,3 @@ uint64_t read_keyframe_info(
 }
 
 }
-
