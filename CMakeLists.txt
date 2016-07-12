@@ -145,6 +145,52 @@ find_package(Glog REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 
+set(PUBLIC_LIBRARIES
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogle_storage_api.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_oauth2.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_jsoncpp.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_json.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_http.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_curl_http.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_utils.a"
+  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_internal.a"
+  "${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a"
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavformat.a"
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswresample.a"
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a"
+  )
+
+set(LIGHTSCAN_LIBRARIES
+  ${PUBLIC_LIBRARIES}
+  "${MPI_LIBRARIES}"
+  "${CUDA_LIBRARIES}"
+  "${CAFFE_LIBRARIES}"
+  "${OpenCV_LIBRARIES}"
+  "${LIBLZMA_LIBRARIES}"
+  "${OPENSSL_LIBRARIES}"
+  "${BZIP2_LIBRARIES}"
+  "${Boost_THREAD_LIBRARY}"
+  "${Boost_SYSTEM_LIBRARY}"
+  "${GFLAGS_LIBRARIES}"
+  "${GLOG_LIBRARIES}"
+  "${CURL_LIBRARIES}"
+  "${ICONV_LIBRARIES}"
+  "-lx264"
+  "-lz"
+  "${PLATFORM_LINK_FLAGS}")
+
+if (ENABLE_HARDWARE_DECODE)
+  find_package(VDPAU REQUIRED)
+  include_directories(
+    "${VDPAU_INCLUDE_DIRS}"
+    )
+  set(LIGHTSCAN_LIBRARIES
+    "${LIGHTSCAN_LIBRARIES}"
+    "${VDPAU_LIBRARIES}")
+endif()
+
 include_directories(
   "."
   ${PUBLIC_INCLUDE_DIRECTORIES}
@@ -191,42 +237,6 @@ if(APPLE)
 elseif(UNIX)
   set(PLATFORM_LINK_FLAGS "-pthread -ldl -lrt")
 endif()
-
-set(PUBLIC_LIBRARIES
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogle_storage_api.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_oauth2.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_jsoncpp.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_json.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_http.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_curl_http.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_utils.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_internal.a"
-  "${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavformat.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswresample.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a"
-  )
-
-set(LIGHTSCAN_LIBRARIES
-  ${PUBLIC_LIBRARIES}
-  "${MPI_LIBRARIES}"
-  "${CUDA_LIBRARIES}"
-  "${CAFFE_LIBRARIES}"
-  "${OpenCV_LIBRARIES}"
-  "${LIBLZMA_LIBRARIES}"
-  "${OPENSSL_LIBRARIES}"
-  "${BZIP2_LIBRARIES}"
-  "${Boost_THREAD_LIBRARY}"
-  "${Boost_SYSTEM_LIBRARY}"
-  "${GFLAGS_LIBRARIES}"
-  "${GLOG_LIBRARIES}"
-  "${CURL_LIBRARIES}"
-  "${ICONV_LIBRARIES}"
-  "-lx264"
-  "-lz"
-  "${PLATFORM_LINK_FLAGS}")
 
 target_link_libraries(lightscanner
   ${LIGHTSCAN_LIBRARIES})
