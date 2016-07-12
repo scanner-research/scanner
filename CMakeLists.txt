@@ -90,7 +90,7 @@ endif()
 
 # ffmpeg
 ExternalProject_Add(Ffmpeg
-  URL "http://ffmpeg.org/releases/ffmpeg-3.0.2.tar.gz"
+  URL "http://ffmpeg.org/releases/ffmpeg-3.1.1.tar.gz"
   #URL_HASH SHA256=
   UPDATE_COMMAND ""
 
@@ -99,7 +99,6 @@ ExternalProject_Add(Ffmpeg
       --disable-programs
       --disable-doc
       --enable-shared
-      --enable-vda
       "${FFMPEG_BUILD_FLAGS}"
       --extra-cflags="-fPIC"
       --extra-cxxflags="${CMAKE_CXX_FLAGS}"
@@ -182,8 +181,7 @@ set(LIGHTSCAN_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
-  "-lz"
-  "${PLATFORM_LINK_FLAGS}")
+  "-lz")
 
 if (ENABLE_HARDWARE_DECODE)
   find_package(VDPAU REQUIRED)
@@ -251,4 +249,5 @@ elseif(UNIX)
 endif()
 
 target_link_libraries(lightscanner
-  ${LIGHTSCAN_LIBRARIES})
+  ${LIGHTSCAN_LIBRARIES}
+  "${PLATFORM_LINK_FLAGS}")
