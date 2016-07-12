@@ -88,6 +88,22 @@ if(ENABLE_H264_ENCODE)
     --enable-gpl)
 endif()
 
+if (ENABLE_HARDWARE_DECODE)
+  find_package(VDPAU REQUIRED)
+  include_directories(
+    "${VDPAU_INCLUDE_DIRS}"
+    )
+  set(LIGHTSCAN_LIBRARIES
+    "${LIGHTSCAN_LIBRARIES}"
+    "${VDPAU_LIBRARIES}")
+  add_definitions(-DHARDWARE_DECODE)
+
+  set(FFMPEG_BUILD_FLAGS
+    --extra-cflags="${VDPAU_INCLUDE_DIRS}"
+    --extra-cxxflags="${VDPAU_INCLUDE_DIRS}"
+    "${FFMPEG_BUILD_FLAGS}")
+endif()
+
 # ffmpeg
 ExternalProject_Add(Ffmpeg
   URL "http://ffmpeg.org/releases/ffmpeg-3.1.1.tar.gz"
@@ -181,18 +197,8 @@ set(LIGHTSCAN_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
+  "${LIGHTSCAN_LIBRARIES}"
   "-lz")
-
-if (ENABLE_HARDWARE_DECODE)
-  find_package(VDPAU REQUIRED)
-  include_directories(
-    "${VDPAU_INCLUDE_DIRS}"
-    )
-  set(LIGHTSCAN_LIBRARIES
-    "${LIGHTSCAN_LIBRARIES}"
-    "${VDPAU_LIBRARIES}")
-  add_definitions(-DHARDWARE_DECODE)
-endif()
 
 if (ENABLE_H264_ENCODE)
   set(LIGHTSCAN_LIBRARIES

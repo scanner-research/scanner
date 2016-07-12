@@ -122,29 +122,29 @@ StoreResult make_unique_write_file(
 
 void exit_on_error(StoreResult result);
 
-#define EXP_BACKOFF(expression, status)                                 \
+#define EXP_BACKOFF(expression__, status__)                             \
   do {                                                                  \
     int sleep_debt__ = 1;                                               \
     while (true) {                                                      \
-      const StoreResult result__ = (expression);                        \
+      const StoreResult result__ = (expression__);                      \
       if (result__ == StoreResult::TransientFailure) {                  \
         double sleep_time__ =                                           \
           (sleep_debt__ + (static_cast<double>(rand()) / RAND_MAX));    \
         if (sleep_debt__ < 64) {                                        \
           sleep_debt__ *= 2;                                            \
         } else {                                                        \
-          log_ls.fatal("EXP_BACKOFF: FATAL, reached max backoff");    \
+          log_ls.fatal("EXP_BACKOFF: FATAL, reached max backoff");      \
           exit(1);                                                      \
         }                                                               \
         log_ls.warning("EXP_BACKOFF: transient failure, sleeping %fs\n", \
                          sleep_time__);                                 \
-        usleep(sleep_time__ * 1000000);                                   \
+        usleep(sleep_time__ * 1000000);                                 \
         continue;                                                       \
       }                                                                 \
-      status = result__;                                                \
+      status__ = result__;                                              \
       break;                                                            \
     }                                                                   \
-  } while (0)
+  } while (0);
 
 
 #define RETURN_ON_ERROR(expression)             \
@@ -153,6 +153,6 @@ void exit_on_error(StoreResult result);
     if (result != StoresResult::Success) {      \
       return result;                            \
     }                                           \
-  } while (0)
+  } while (0);
 
 }

@@ -40,6 +40,12 @@ extern "C" {
 #include "libavutil/hwcontext.h"
 #include "libavutil/hwcontext_vdpau.h"
 #include <cuda_runtime_api.h>
+
+// Not defined in cuda header for some reason
+extern __host__ cudaError_t cudaVDPAUSetVDPAUDevice(
+  int device,
+  VdpDevice vdpDevice,
+  VdpGetProcAddress* vdpGetProcAddress);
 #endif
 }
 
@@ -466,7 +472,8 @@ int vdpau_alloc(AVCodecContext *s) {
   ctx->device_id = device_hwctx->device;
   if (av_vdpau_bind_context(s,
                             device_hwctx->device,
-                            device_hwctx->get_proc_address, 0))
+                            device_hwctx->get_proc_address,
+                            0))
     goto fail;
 
   return 0;
@@ -483,7 +490,7 @@ int vdpau_init(AVCodecContext *s) {
 
   if (!ist) {
     s->opaque = av_mallocz(sizeof(*ist));
-    ist = s->opaque;
+    ist = (CodecHardwareInfo*)s->opaque;
     if (!ist)
       return AVERROR(ENOMEM);
   }
@@ -564,7 +571,7 @@ VideoDecoder::VideoDecoder(
   AVStream const* const stream =
     format_context_->streams[video_stream_index_];
 
-  cc_ = stream->codec;
+  cc_ = (AVCodecContext*)stream->codec;
 
 #ifdef HARDWARE_DECODE
   codec_ = avcodec_find_decoder_by_name("h264_vdpau");
