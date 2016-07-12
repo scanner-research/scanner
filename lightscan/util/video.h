@@ -39,6 +39,9 @@ public:
                const std::vector<int64_t>& keyframe_timestamps);
   ~VideoDecoder();
 
+  // Sets the GPU device to decode frames into when using hardware decode
+  void set_gpu_device(int gpu_device_id);
+
   void seek(int frame_position);
 
   AVFrame* decode();

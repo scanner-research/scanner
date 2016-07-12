@@ -156,6 +156,7 @@ void convert_av_frame_to_rgb(
 
 struct LoadVideoArgs {
   // Input arguments
+  int gpu_device_id; // for hardware decode, need to know gpu
   StorageConfig* storage_config;
   std::string video_path;
   std::string iframe_path;
@@ -194,6 +195,9 @@ void* load_video_thread(void* arg) {
   storage->make_random_read_file(args.video_path, file);
 
   VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
+#ifdef HARDWARE_DECODE
+  decoder.set_gpu_device(args.gpu_device_id);
+#endif
   decoder.seek(args.frame_start);
 
   size_t frame_size =
@@ -266,6 +270,7 @@ void* process_thread(void* arg) {
 
   // Create IO threads for reading and writing
   LoadVideoArgs load_args;
+  load_args.gpu_device_id = args.gpu_device_id;
   load_args.storage_config = args.storage_config;
   load_args.video_path = args.video_path;
   load_args.iframe_path = args.iframe_path;

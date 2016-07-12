@@ -20,7 +20,7 @@ enable_testing()
 
 include(ExternalProject)
 
-#add_definitions(-DHARDWARE_DECODE)
+set(ENABLE_HARDWARE_DECODE OFF CACHE BOOL "Turn on hardware decode")
 
 ######################
 ###     Setup     ####

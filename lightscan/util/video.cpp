@@ -551,6 +551,24 @@ VideoDecoder::~VideoDecoder() {
   av_freep(&io_context_);
 }
 
+void VideoDecoder::set_gpu_device(int gpu_device_id) {
+#ifdef HARDWARE_DECODE
+  InputStream *ist = cc_->opaque;
+  VDPAUContext *ctx = ist->hwaccel_ctx;
+  AVBufferRef *device_ref = ctx->hw_frames_ctx->device_ref;
+  AVHWDeviceContext *device_ctx = (AVHWDeviceContext*)device_ref->data;
+  AVVDPAUDeviceContext *device_hwctx = device_ctx->hwctx;
+
+  cudaError_t err = cudaVDPAUSetVDPAUDevice(gpu_device_id,
+                                            device_hwctx->device,
+                                            device_hwctx->get_proc_address);
+  if (err != cudaSuccess) {
+    fprintf(stderr, "Error setting VDPAU device on gpu %d\n", gpu_device_id);
+    exit(EXIT_FAILURE);
+  }
+#endif
+}
+
 void VideoDecoder::seek(int frame_position) {
   int keyframe_pos = -1;
   int64_t keyframe_timestamp = -1;;
