@@ -21,6 +21,7 @@ enable_testing()
 include(ExternalProject)
 
 set(ENABLE_HARDWARE_DECODE OFF CACHE BOOL "Turn on hardware decode")
+set(ENABLE_H264_ENCODE OFF CACHE BOOL "Turn on video encoding using libx264")
 
 ######################
 ###     Setup     ####
@@ -81,6 +82,12 @@ ExternalProject_Add(GoogleAPICppClient
       -DGFLAGS_ROOT_DIR:FILEPATH=${GFLAGS_ROOT_DIR}
 )
 
+if(ENABLE_H264_ENCODE)
+  set(FFMPEG_BUILD_FLAGS
+    --enable-libx264
+    --enable-gpl)
+endif()
+
 # ffmpeg
 ExternalProject_Add(Ffmpeg
   URL "http://ffmpeg.org/releases/ffmpeg-3.0.2.tar.gz"
@@ -92,9 +99,8 @@ ExternalProject_Add(Ffmpeg
       --disable-programs
       --disable-doc
       --enable-shared
-      --enable-libx264
       --enable-vda
-      --enable-gpl
+      "${FFMPEG_BUILD_FLAGS}"
       --extra-cflags="-fPIC"
       --extra-cxxflags="${CMAKE_CXX_FLAGS}"
       --prefix=${GLOBAL_OUTPUT_PATH}/ffmpeg
@@ -159,8 +165,7 @@ set(PUBLIC_LIBRARIES
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswresample.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a"
-  )
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a")
 
 set(LIGHTSCAN_LIBRARIES
   ${PUBLIC_LIBRARIES}
@@ -177,7 +182,6 @@ set(LIGHTSCAN_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
-  "-lx264"
   "-lz"
   "${PLATFORM_LINK_FLAGS}")
 
@@ -189,6 +193,14 @@ if (ENABLE_HARDWARE_DECODE)
   set(LIGHTSCAN_LIBRARIES
     "${LIGHTSCAN_LIBRARIES}"
     "${VDPAU_LIBRARIES}")
+  add_definitions(-DHARDWARE_DECODE)
+endif()
+
+if (ENABLE_H264_ENCODE)
+  set(LIGHTSCAN_LIBRARIES
+    "${LIGHTSCAN_LIBRARIES}"
+    "-lx264")
+  add_definitions(-DHAVE_X264_ENCODER)
 endif()
 
 include_directories(
