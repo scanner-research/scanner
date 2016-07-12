@@ -39,6 +39,7 @@ extern "C" {
 #include "libavcodec/vdpau.h"
 #include "libavutil/hwcontext.h"
 #include "libavutil/hwcontext_vdpau.h"
+#include <cuda_runtime_api.h>
 #endif
 }
 
@@ -356,7 +357,6 @@ typedef struct VDPAUContext {
 
 typedef struct CodecHardwareInfo {
     /* hwaccel options */
-    enum HWAccelID hwaccel_id;
     char  *hwaccel_device;
     enum AVPixelFormat hwaccel_output_format;
 
@@ -371,8 +371,8 @@ typedef struct CodecHardwareInfo {
 } CodecHardwareInfo;
 
 void vdpau_uninit(AVCodecContext *s) {
-  CodecHardwareInfo *ist = s->opaque;
-  VDPAUContext *ctx = ist->hwaccel_ctx;
+  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
+  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
 
   ist->hwaccel_uninit        = NULL;
   ist->hwaccel_get_buffer    = NULL;
@@ -387,8 +387,37 @@ void vdpau_uninit(AVCodecContext *s) {
   av_freep(&s->opaque);
 }
 
+int vdpau_get_buffer(AVCodecContext *s, AVFrame *frame, int flags) {
+  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
+  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
+
+  return av_hwframe_get_buffer(ctx->hw_frames_ctx, frame, 0);
+}
+
+int vdpau_retrieve_data(AVCodecContext *s, AVFrame *frame) {
+  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
+  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
+
+  int ret;
+
+  ret = av_hwframe_transfer_data(ctx->tmp_frame, frame, 0);
+  if (ret < 0)
+    return ret;
+
+  ret = av_frame_copy_props(ctx->tmp_frame, frame);
+  if (ret < 0) {
+    av_frame_unref(ctx->tmp_frame);
+    return ret;
+  }
+
+  av_frame_unref(frame);
+  av_frame_move_ref(frame, ctx->tmp_frame);
+
+  return 0;
+}
+
 int vdpau_alloc(AVCodecContext *s) {
-  CodecHardwareInfo *ist = s->opaque;
+  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
   VDPAUContext *ctx;
   int ret;
 
@@ -399,7 +428,7 @@ int vdpau_alloc(AVCodecContext *s) {
   AVVDPAUDeviceContext *device_hwctx;
   AVHWFramesContext    *frames_ctx;
 
-  ctx = av_mallocz(sizeof(*ctx));
+  ctx = (VDPAUContext*)av_mallocz(sizeof(*ctx));
   if (!ctx)
     return AVERROR(ENOMEM);
 
@@ -417,7 +446,7 @@ int vdpau_alloc(AVCodecContext *s) {
   if (ret < 0)
     goto fail;
   device_ctx   = (AVHWDeviceContext*)device_ref->data;
-  device_hwctx = device_ctx->hwctx;
+  device_hwctx = (AVVDPAUDeviceContext*)device_ctx->hwctx;
 
   ctx->hw_frames_ctx = av_hwframe_ctx_alloc(device_ref);
   if (!ctx->hw_frames_ctx)
@@ -450,7 +479,7 @@ fail:
 }
 
 int vdpau_init(AVCodecContext *s) {
-  CodecHardwareInfo *ist = s->opaque;
+  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
 
   if (!ist) {
     s->opaque = av_mallocz(sizeof(*ist));
@@ -573,11 +602,11 @@ VideoDecoder::~VideoDecoder() {
 
 void VideoDecoder::set_gpu_device(int gpu_device_id) {
 #ifdef HARDWARE_DECODE
-  CodecHardwareInfo *ist = cc_->opaque;
-  VDPAUContext *ctx = ist->hwaccel_ctx;
-  AVBufferRef *device_ref = ctx->hw_frames_ctx->device_ref;
+  CodecHardwareInfo *ist = (CodecHardwareInfo*)cc_->opaque;
+  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
+  AVBufferRef *device_ref = ctx->hw_frames_ctx;
   AVHWDeviceContext *device_ctx = (AVHWDeviceContext*)device_ref->data;
-  AVVDPAUDeviceContext *device_hwctx = device_ctx->hwctx;
+  AVVDPAUDeviceContext *device_hwctx = (AVVDPAUDeviceContext*)device_ctx->hwctx;
 
   cudaError_t err = cudaVDPAUSetVDPAUDevice(gpu_device_id,
                                             device_hwctx->device,
