@@ -384,12 +384,13 @@ void cuvid_uninit(AVCodecContext *s) {
 }
 
 void cuvid_ctx_free(AVHWDeviceContext *ctx) {
-    AVCUDADeviceContext *hwctx = ctx->hwctx;
-    cuCtxDestroy(hwctx->cuda_ctx);
+  AVCUDADeviceContext *hwctx = (AVCUDADeviceContext*)ctx->hwctx;
+  cuCtxDestroy(hwctx->cuda_ctx);
 }
 
 int cuvid_init(AVCodecContext *cc) {
   CodecHardwareInfo *ist;
+  CUVIDContext *ctx = NULL;
   AVBufferRef *hw_device_ctx = NULL;
   AVCUDADeviceContext *device_hwctx;
   AVHWDeviceContext *device_ctx;
@@ -402,9 +403,17 @@ int cuvid_init(AVCodecContext *cc) {
 
   ist = (CodecHardwareInfo*)cc->opaque;
 
+  if (!ist) {
+    ist = (CodecHardwareInfo*)av_mallocz(sizeof(*ist));
+    if (!ist) {
+      ret = AVERROR(ENOMEM);
+      goto error;
+    }
+    ist->hwaccel_ctx = NULL;
+  }
+
   av_log(NULL, AV_LOG_VERBOSE, "Setting up CUVID decoder\n");
 
-  CUVIDContext *ctx = NULL;
   if (ist->hwaccel_ctx) {
     ctx = (CUVIDContext*)ist->hwaccel_ctx;
   } else {
@@ -718,6 +727,16 @@ AVFrame* VideoDecoder::decode() {
                 next_frame_, len, err_msg);
         exit(EXIT_FAILURE);
       }
+#ifdef HARDWARE_DECODE
+      else {
+        // cuvid decoder consumes entire packet but then returns a zero len
+        // value on success instead of the size consumed.
+        // We set it to the entire packet size here to align with how other
+        // decoders work
+        len = packet_.size;
+      }
+#endif
+
       if (got_picture) {
         // the picture is allocated by the decoder. no need to free
         if (ret == nullptr) {
@@ -731,6 +750,7 @@ AVFrame* VideoDecoder::decode() {
 
         next_frame_++;
       }
+
       packet_.size -= len;
       packet_.data += len;
     }
