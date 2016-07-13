@@ -36,16 +36,10 @@ extern "C" {
 
 // For hardware decode
 #ifdef HARDWARE_DECODE
-#include "libavcodec/vdpau.h"
 #include "libavutil/hwcontext.h"
-#include "libavutil/hwcontext_vdpau.h"
-#include <cuda_runtime_api.h>
-
-// Not defined in cuda header for some reason
-extern __host__ cudaError_t cudaVDPAUSetVDPAUDevice(
-  int device,
-  VdpDevice vdpDevice,
-  VdpGetProcAddress* vdpGetProcAddress);
+#include "libavutil/hwcontext_cuda.h"
+#include <cuda.h>
+#include <nvcuvid.h>
 #endif
 }
 
@@ -353,13 +347,10 @@ void write_keyframe_info(
 namespace {
 
 #ifdef HARDWARE_DECODE
-// Taken directly from
-// https://www.ffmpeg.org/doxygen/trunk/ffmpeg__vdpau_8c_source.html
-typedef struct VDPAUContext {
-  AVBufferRef *hw_frames_ctx;
-  AVFrame *tmp_frame;
-  VdpDevice device_id;
-} VDPAUContext;
+// Taken directly from ffmpeg_cuvid.c
+typedef struct CUVIDContext {
+    AVBufferRef *hw_frames_ctx;
+} CUVIDContext;
 
 typedef struct CodecHardwareInfo {
     /* hwaccel options */
@@ -376,16 +367,15 @@ typedef struct CodecHardwareInfo {
     AVBufferRef *hw_frames_ctx;
 } CodecHardwareInfo;
 
-void vdpau_uninit(AVCodecContext *s) {
+void cuvid_uninit(AVCodecContext *s) {
   CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
-  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
+  CUVIDContext *ctx = (CUVIDContext*)ist->hwaccel_ctx;
 
   ist->hwaccel_uninit        = NULL;
   ist->hwaccel_get_buffer    = NULL;
   ist->hwaccel_retrieve_data = NULL;
 
   av_buffer_unref(&ctx->hw_frames_ctx);
-  av_frame_free(&ctx->tmp_frame);
 
   av_freep(&ist->hwaccel_ctx);
   av_freep(&s->hwaccel_context);
@@ -393,118 +383,137 @@ void vdpau_uninit(AVCodecContext *s) {
   av_freep(&s->opaque);
 }
 
-int vdpau_get_buffer(AVCodecContext *s, AVFrame *frame, int flags) {
-  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
-  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
+int cuvid_init(AVCodecContext *cc) {
+  CodecHardwareInfo *ist;
+  AVBufferRef *hw_device_ctx = NULL;
+  AVCUDADeviceContext *device_hwctx;
+  AVHWDeviceContext *device_ctx;
+  AVHWFramesContext *hwframe_ctx;
+  CUdevice device;
+  CUcontext cuda_ctx = NULL;
+  CUcontext dummy;
+  CUresult err;
+  int ret = 0;
 
-  return av_hwframe_get_buffer(ctx->hw_frames_ctx, frame, 0);
-}
+  ist = (CodecHardwareInfo*)cc->opaque;
 
-int vdpau_retrieve_data(AVCodecContext *s, AVFrame *frame) {
-  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
-  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
+  av_log(NULL, AV_LOG_VERBOSE, "Setting up CUVID decoder\n");
 
-  int ret;
-
-  ret = av_hwframe_transfer_data(ctx->tmp_frame, frame, 0);
-  if (ret < 0)
-    return ret;
-
-  ret = av_frame_copy_props(ctx->tmp_frame, frame);
-  if (ret < 0) {
-    av_frame_unref(ctx->tmp_frame);
-    return ret;
+  CUVIDContext *ctx = NULL;
+  if (ist->hwaccel_ctx) {
+    ctx = (CUVIDContext*)ist->hwaccel_ctx;
+  } else {
+    ctx = (CUVIDContext*)av_mallocz(sizeof(*ctx));
+    if (!ctx) {
+      ret = AVERROR(ENOMEM);
+      goto error;
+    }
   }
 
-  av_frame_unref(frame);
-  av_frame_move_ref(frame, ctx->tmp_frame);
+  if (!hw_device_ctx) {
+    hw_device_ctx = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA);
+    if (!hw_device_ctx) {
+      av_log(NULL, AV_LOG_ERROR, "av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA) failed\n");
+      ret = AVERROR(ENOMEM);
+      goto error;
+    }
+
+    err = cuInit(0);
+    if (err != CUDA_SUCCESS) {
+      av_log(NULL, AV_LOG_ERROR, "Could not initialize the CUDA driver API\n");
+      ret = AVERROR_UNKNOWN;
+      goto error;
+    }
+
+    err = cuDeviceGet(&device, 0); ///TODO: Make device index configurable
+    if (err != CUDA_SUCCESS) {
+      av_log(NULL, AV_LOG_ERROR, "Could not get the device number %d\n", 0);
+      ret = AVERROR_UNKNOWN;
+      goto error;
+    }
+
+    err = cuCtxCreate(&cuda_ctx, CU_CTX_SCHED_BLOCKING_SYNC, device);
+    if (err != CUDA_SUCCESS) {
+      av_log(NULL, AV_LOG_ERROR, "Error creating a CUDA context\n");
+      ret = AVERROR_UNKNOWN;
+      goto error;
+    }
+
+    device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
+    device_ctx->free = cuvid_ctx_free;
+
+    device_hwctx = (AVCUDADeviceContext*)device_ctx->hwctx;
+    device_hwctx->cuda_ctx = cuda_ctx;
+
+    err = cuCtxPopCurrent(&dummy);
+    if (err != CUDA_SUCCESS) {
+      av_log(NULL, AV_LOG_ERROR, "cuCtxPopCurrent failed\n");
+      ret = AVERROR_UNKNOWN;
+      goto error;
+    }
+
+    ret = av_hwdevice_ctx_init(hw_device_ctx);
+    if (ret < 0) {
+      av_log(NULL, AV_LOG_ERROR, "av_hwdevice_ctx_init failed\n");
+      goto error;
+    }
+  } else {
+    device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
+    device_hwctx = (AVCudaDeviceContext*)device_ctx->hwctx;
+    cuda_ctx = device_hwctx->cuda_ctx;
+  }
+
+  if (device_ctx->type != AV_HWDEVICE_TYPE_CUDA) {
+    av_log(NULL, AV_LOG_ERROR, "Hardware device context is already initialized for a diffrent hwaccel.\n");
+    ret = AVERROR(EINVAL);
+    goto error;
+  }
+
+  if (!ctx->hw_frames_ctx) {
+    ctx->hw_frames_ctx = av_hwframe_ctx_alloc(hw_device_ctx);
+    if (!ctx->hw_frames_ctx) {
+      av_log(NULL, AV_LOG_ERROR, "av_hwframe_ctx_alloc failed\n");
+      ret = AVERROR(ENOMEM);
+      goto error;
+    }
+  }
+
+  /* This is a bit hacky, av_hwframe_ctx_init is called by the cuvid decoder
+   * once it has probed the neccesary format information. But as filters/nvenc
+   * need to know the format/sw_format, set them here so they are happy.
+   * This is fine as long as CUVID doesn't add another supported pix_fmt.
+   */
+  hwframe_ctx = (AVHWFramesContext*)ctx->hw_frames_ctx->data;
+  hwframe_ctx->format = AV_PIX_FMT_CUDA;
+  hwframe_ctx->sw_format = AV_PIX_FMT_NV12;
+  //hwframe_ctx->width     = cc_->coded_width;
+  //hwframe_ctx->height    = cc_->coded_height;
+
+  if (!ist->hwaccel_ctx) {
+    ist->hwaccel_ctx = ctx;
+    ist->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
+
+    ist->hwaccel_uninit = cuvid_uninit;
+
+    if (!ist->hw_frames_ctx) {
+      av_log(NULL, AV_LOG_ERROR, "av_buffer_ref failed\n");
+      ret = AVERROR(ENOMEM);
+      goto error;
+    }
+  }
 
   return 0;
-}
 
-int vdpau_alloc(AVCodecContext *s) {
-  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
-  VDPAUContext *ctx;
-  int ret;
+error:
+  av_freep(&ctx);
+  return ret;
 
-  int loglevel = AV_LOG_ERROR;
-
-  AVBufferRef          *device_ref = NULL;
-  AVHWDeviceContext    *device_ctx;
-  AVVDPAUDeviceContext *device_hwctx;
-  AVHWFramesContext    *frames_ctx;
-
-  ctx = (VDPAUContext*)av_mallocz(sizeof(*ctx));
-  if (!ctx)
-    return AVERROR(ENOMEM);
-
-  ist->hwaccel_ctx           = ctx;
-  ist->hwaccel_uninit        = vdpau_uninit;
-  ist->hwaccel_get_buffer    = vdpau_get_buffer;
-  ist->hwaccel_retrieve_data = vdpau_retrieve_data;
-
-  ctx->tmp_frame = av_frame_alloc();
-  if (!ctx->tmp_frame)
-    goto fail;
-
-  ret = av_hwdevice_ctx_create(&device_ref, AV_HWDEVICE_TYPE_VDPAU,
-                               ist->hwaccel_device, NULL, 0);
-  if (ret < 0)
-    goto fail;
-  device_ctx   = (AVHWDeviceContext*)device_ref->data;
-  device_hwctx = (AVVDPAUDeviceContext*)device_ctx->hwctx;
-
-  ctx->hw_frames_ctx = av_hwframe_ctx_alloc(device_ref);
-  if (!ctx->hw_frames_ctx)
-    goto fail;
-  av_buffer_unref(&device_ref);
-
-  frames_ctx            = (AVHWFramesContext*)ctx->hw_frames_ctx->data;
-  frames_ctx->format    = AV_PIX_FMT_VDPAU;
-  frames_ctx->sw_format = s->sw_pix_fmt;
-  frames_ctx->width     = s->coded_width;
-  frames_ctx->height    = s->coded_height;
-
-  ret = av_hwframe_ctx_init(ctx->hw_frames_ctx);
-  if (ret < 0)
-    goto fail;
-
-  ctx->device_id = device_hwctx->device;
-  if (av_vdpau_bind_context(s,
-                            device_hwctx->device,
-                            device_hwctx->get_proc_address,
-                            0))
-    goto fail;
-
-  return 0;
-
-fail:
-  av_log(NULL, loglevel, "VDPAU init failed\n");
-  av_buffer_unref(&device_ref);
-  vdpau_uninit(s);
+cancel:
+  av_log(NULL, AV_LOG_ERROR,
+         "CUVID hwaccel requested, but impossible to achive.\n");
   return AVERROR(EINVAL);
 }
 
-int vdpau_init(AVCodecContext *s) {
-  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
-
-  if (!ist) {
-    s->opaque = av_mallocz(sizeof(*ist));
-    ist = (CodecHardwareInfo*)s->opaque;
-    if (!ist)
-      return AVERROR(ENOMEM);
-  }
-  if (!ist->hwaccel_ctx) {
-    int ret = vdpau_alloc(s);
-    if (ret < 0)
-      return ret;
-  }
-
-  ist->hwaccel_get_buffer    = vdpau_get_buffer;
-  ist->hwaccel_retrieve_data = vdpau_retrieve_data;
-
-  return 0;
-}
 #endif
 
 }
@@ -574,7 +583,7 @@ VideoDecoder::VideoDecoder(
   cc_ = (AVCodecContext*)stream->codec;
 
 #ifdef HARDWARE_DECODE
-  codec_ = avcodec_find_decoder_by_name("h264_vdpau");
+  codec_ = avcodec_find_decoder_by_name("h264_cuvid");
   if (codec_ == NULL) {
     fprintf(stderr, "could not find hardware decoder\n");
     exit(EXIT_FAILURE);
@@ -591,8 +600,8 @@ VideoDecoder::VideoDecoder(
   }
 
 #ifdef HARDWARE_DECODE
-  if (vdpau_init(cc_) < 0) {
-    fprintf(stderr, "could not init vdpau codec context\n");
+  if (cuvid_init(cc_) < 0) {
+    fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
   }
 #endif
@@ -609,19 +618,6 @@ VideoDecoder::~VideoDecoder() {
 
 void VideoDecoder::set_gpu_device(int gpu_device_id) {
 #ifdef HARDWARE_DECODE
-  CodecHardwareInfo *ist = (CodecHardwareInfo*)cc_->opaque;
-  VDPAUContext *ctx = (VDPAUContext*)ist->hwaccel_ctx;
-  AVBufferRef *device_ref = ctx->hw_frames_ctx;
-  AVHWDeviceContext *device_ctx = (AVHWDeviceContext*)device_ref->data;
-  AVVDPAUDeviceContext *device_hwctx = (AVVDPAUDeviceContext*)device_ctx->hwctx;
-
-  cudaError_t err = cudaVDPAUSetVDPAUDevice(gpu_device_id,
-                                            device_hwctx->device,
-                                            device_hwctx->get_proc_address);
-  if (err != cudaSuccess) {
-    fprintf(stderr, "Error setting VDPAU device on gpu %d\n", gpu_device_id);
-    exit(EXIT_FAILURE);
-  }
 #endif
 }
 

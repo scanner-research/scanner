@@ -82,6 +82,9 @@ ExternalProject_Add(GoogleAPICppClient
       -DGFLAGS_ROOT_DIR:FILEPATH=${GFLAGS_ROOT_DIR}
 )
 
+set(FFMPEG_CFLAGS
+  -fPIC)
+
 if(ENABLE_H264_ENCODE)
   set(FFMPEG_BUILD_FLAGS
     --enable-libx264
@@ -89,19 +92,13 @@ if(ENABLE_H264_ENCODE)
 endif()
 
 if (ENABLE_HARDWARE_DECODE)
-  find_package(VDPAU REQUIRED)
-  include_directories(
-    "${VDPAU_INCLUDE_DIRS}"
-    )
-  set(LIGHTSCAN_LIBRARIES
-    "${LIGHTSCAN_LIBRARIES}"
-    "${VDPAU_LIBRARIES}")
-  add_definitions(-DHARDWARE_DECODE)
-
   set(FFMPEG_BUILD_FLAGS
-    --extra-cflags="${VDPAU_INCLUDE_DIRS}"
-    --extra-cxxflags="${VDPAU_INCLUDE_DIRS}"
-    "${FFMPEG_BUILD_FLAGS}")
+    ${FFMPEG_BUILD_FLAGS}
+    --enable-nonfree
+    --enable-cuda
+    --enable-cuvid)
+
+  add_definitions(-DHARDWARE_DECODE)
 endif()
 
 # ffmpeg
@@ -116,8 +113,6 @@ ExternalProject_Add(Ffmpeg
       --disable-doc
       --enable-shared
       "${FFMPEG_BUILD_FLAGS}"
-      --extra-cflags="-fPIC"
-      --extra-cxxflags="${CMAKE_CXX_FLAGS}"
       --prefix=${GLOBAL_OUTPUT_PATH}/ffmpeg
 
   BUILD_COMMAND make -j4
