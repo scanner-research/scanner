@@ -19,6 +19,10 @@
 #include <string>
 #include <pthread.h>
 
+#ifdef HARDWARE_DECODE
+#include <cuda.h>
+#endif
+
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
@@ -40,7 +44,9 @@ public:
   ~VideoDecoder();
 
   // Sets the GPU device to decode frames into when using hardware decode
-  void set_gpu_device(int gpu_device_id);
+#ifdef HARDWARE_DECODE
+  void set_gpu_context(CUcontext ctx);
+#endif
 
   void seek(int frame_position);
 

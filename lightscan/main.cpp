@@ -21,6 +21,10 @@
 
 #include <opencv2/opencv.hpp>
 
+#ifdef HARDWARE_DECODE
+#include <cuda.h>
+#endif
+
 #include <mpi.h>
 #include <pthread.h>
 #include <cstdlib>
@@ -163,6 +167,9 @@ struct LoadVideoArgs {
   int frame_start;
   int frame_end;
   VideoMetadata metadata;
+#ifdef HARDWARE_DECODE
+  CUcontext cuda_ctx; // context to use to decode frames
+#endif
   // Output arguments
   size_t frames_buffer_size;
   char* decoded_frames_buffer; // Should have space for start - end frames
@@ -196,7 +203,7 @@ void* load_video_thread(void* arg) {
 
   VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
 #ifdef HARDWARE_DECODE
-  decoder.set_gpu_device(args.gpu_device_id);
+  decoder.set_gpu_context(cuda_ctx);
 #endif
   decoder.seek(args.frame_start);
 
@@ -268,6 +275,12 @@ void* process_thread(void* arg) {
   char* frame_buffer = new char[frame_buffer_size];
   std::atomic<int> frames_loaded{0};
 
+  // Retain primary context to use for decoder
+#ifdef HARDWARE_DECODE
+  CUcontext cuda_ctx;
+  cuDevicePrimaryCtxRetain(&cuda_ctx, args.gpu_device_id);
+#endif 
+
   // Create IO threads for reading and writing
   LoadVideoArgs load_args;
   load_args.gpu_device_id = args.gpu_device_id;
@@ -277,6 +290,10 @@ void* process_thread(void* arg) {
   load_args.frame_start = args.frame_start;
   load_args.frame_end = args.frame_end;
   load_args.metadata = args.metadata;
+#ifdef HARDWARE_DECODE
+  load_args.cuda_ctx = cuda_ctx;
+#endif
+
   load_args.frames_buffer_size = frame_buffer_size;
   load_args.decoded_frames_buffer = frame_buffer;
   load_args.frames_loaded = &frames_loaded;
@@ -405,6 +422,10 @@ void* process_thread(void* arg) {
   }
 
   // Cleanup
+#ifdef HARDWARE_DECODE
+  cuDevicePrimaryCtxRelease(cuda_ctx);
+#endif
+
   delete[] frame_buffer;
   delete net;
 
@@ -417,6 +438,7 @@ void* process_thread(void* arg) {
     }
     free(result);
   }
+
 
   THREAD_RETURN_SUCCESS();
 }

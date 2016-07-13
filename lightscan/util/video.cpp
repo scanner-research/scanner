@@ -18,6 +18,11 @@
 
 #include <cassert>
 
+#ifdef HARDWARE_DECODE
+#include <cuda.h>
+#include <nvcuvid.h>
+#endif
+
 // For video
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -38,8 +43,6 @@ extern "C" {
 #ifdef HARDWARE_DECODE
 #include "libavutil/hwcontext.h"
 #include "libavutil/hwcontext_cuda.h"
-#include <cuda.h>
-#include <nvcuvid.h>
 #endif
 }
 
@@ -388,7 +391,7 @@ void cuvid_ctx_free(AVHWDeviceContext *ctx) {
   cuCtxDestroy(hwctx->cuda_ctx);
 }
 
-int cuvid_init(AVCodecContext *cc, int gpu_device_id) {
+int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
   CodecHardwareInfo *ist;
   CUVIDContext *ctx = NULL;
   AVBufferRef *hw_device_ctx = NULL;
@@ -396,7 +399,6 @@ int cuvid_init(AVCodecContext *cc, int gpu_device_id) {
   AVHWDeviceContext *device_ctx;
   AVHWFramesContext *hwframe_ctx;
   CUdevice device;
-  CUcontext cuda_ctx = NULL;
   CUcontext dummy;
   CUresult err;
   int ret = 0;
@@ -439,19 +441,19 @@ int cuvid_init(AVCodecContext *cc, int gpu_device_id) {
       goto error;
     }
 
-    err = cuDeviceGet(&device, gpu_device_id); 
-    if (err != CUDA_SUCCESS) {
-      av_log(NULL, AV_LOG_ERROR, "Could not get the device number %d\n", 0);
-      ret = AVERROR_UNKNOWN;
-      goto error;
-    }
+    // err = cuDeviceGet(&device, gpu_device_id); 
+    // if (err != CUDA_SUCCESS) {
+    //   av_log(NULL, AV_LOG_ERROR, "Could not get the device number %d\n", 0);
+    //   ret = AVERROR_UNKNOWN;
+    //   goto error;
+    // }
 
-    err = cuCtxCreate(&cuda_ctx, CU_CTX_SCHED_BLOCKING_SYNC, device);
-    if (err != CUDA_SUCCESS) {
-      av_log(NULL, AV_LOG_ERROR, "Error creating a CUDA context\n");
-      ret = AVERROR_UNKNOWN;
-      goto error;
-    }
+    // err = cuCtxCreate(&cuda_ctx, CU_CTX_SCHED_BLOCKING_SYNC, device);
+    // if (err != CUDA_SUCCESS) {
+    //   av_log(NULL, AV_LOG_ERROR, "Error creating a CUDA context\n");
+    //   ret = AVERROR_UNKNOWN;
+    //   goto error;
+    // }
 
     device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
     device_ctx->free = cuvid_ctx_free;
@@ -623,14 +625,14 @@ VideoDecoder::~VideoDecoder() {
   av_freep(&io_context_);
 }
 
-void VideoDecoder::set_gpu_device(int gpu_device_id) {
 #ifdef HARDWARE_DECODE
-  if (cuvid_init(cc_, gpu_device_id) < 0) {
+void VideoDecoder::set_gpu_device(CUcontext cuda_ctx) {
+  if (cuvid_init(cc_, cuda_ctx) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
   }
-#endif
 }
+#endif
 
 void VideoDecoder::seek(int frame_position) {
   int keyframe_pos = -1;
