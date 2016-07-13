@@ -388,7 +388,7 @@ void cuvid_ctx_free(AVHWDeviceContext *ctx) {
   cuCtxDestroy(hwctx->cuda_ctx);
 }
 
-int cuvid_init(AVCodecContext *cc) {
+int cuvid_init(AVCodecContext *cc, int gpu_device_id) {
   CodecHardwareInfo *ist;
   CUVIDContext *ctx = NULL;
   AVBufferRef *hw_device_ctx = NULL;
@@ -439,7 +439,7 @@ int cuvid_init(AVCodecContext *cc) {
       goto error;
     }
 
-    err = cuDeviceGet(&device, 0); ///TODO: Make device index configurable
+    err = cuDeviceGet(&device, gpu_device_id); 
     if (err != CUDA_SUCCESS) {
       av_log(NULL, AV_LOG_ERROR, "Could not get the device number %d\n", 0);
       ret = AVERROR_UNKNOWN;
@@ -612,13 +612,6 @@ VideoDecoder::VideoDecoder(
   } else {
     pthread_mutex_unlock(&av_mutex);
   }
-
-#ifdef HARDWARE_DECODE
-  if (cuvid_init(cc_) < 0) {
-    fprintf(stderr, "could not init cuvid codec context\n");
-    exit(EXIT_FAILURE);
-  }
-#endif
 }
 
 VideoDecoder::~VideoDecoder() {
@@ -632,6 +625,10 @@ VideoDecoder::~VideoDecoder() {
 
 void VideoDecoder::set_gpu_device(int gpu_device_id) {
 #ifdef HARDWARE_DECODE
+  if (cuvid_init(cc_, gpu_device_id) < 0) {
+    fprintf(stderr, "could not init cuvid codec context\n");
+    exit(EXIT_FAILURE);
+  }
 #endif
 }
 
