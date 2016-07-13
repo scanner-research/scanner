@@ -383,6 +383,11 @@ void cuvid_uninit(AVCodecContext *s) {
   av_freep(&s->opaque);
 }
 
+void cuvid_ctx_free(AVHWDeviceContext *ctx) {
+    AVCUDADeviceContext *hwctx = ctx->hwctx;
+    cuCtxDestroy(hwctx->cuda_ctx);
+}
+
 int cuvid_init(AVCodecContext *cc) {
   CodecHardwareInfo *ist;
   AVBufferRef *hw_device_ctx = NULL;
@@ -459,7 +464,7 @@ int cuvid_init(AVCodecContext *cc) {
     }
   } else {
     device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
-    device_hwctx = (AVCudaDeviceContext*)device_ctx->hwctx;
+    device_hwctx = (AVCUDADeviceContext*)device_ctx->hwctx;
     cuda_ctx = device_hwctx->cuda_ctx;
   }
 
