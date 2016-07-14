@@ -461,12 +461,12 @@ int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
     device_hwctx = (AVCUDADeviceContext*)device_ctx->hwctx;
     device_hwctx->cuda_ctx = cuda_ctx;
 
-    err = cuCtxPopCurrent(&dummy);
-    if (err != CUDA_SUCCESS) {
-      av_log(NULL, AV_LOG_ERROR, "cuCtxPopCurrent failed\n");
-      ret = AVERROR_UNKNOWN;
-      goto error;
-    }
+    // err = cuCtxPopCurrent(&dummy);
+    // if (err != CUDA_SUCCESS) {
+    //   av_log(NULL, AV_LOG_ERROR, "cuCtxPopCurrent failed\n");
+    //   ret = AVERROR_UNKNOWN;
+    //   goto error;
+    // }
 
     ret = av_hwdevice_ctx_init(hw_device_ctx);
     if (ret < 0) {
@@ -626,7 +626,7 @@ VideoDecoder::~VideoDecoder() {
 }
 
 #ifdef HARDWARE_DECODE
-void VideoDecoder::set_gpu_device(CUcontext cuda_ctx) {
+void VideoDecoder::set_gpu_context(CUcontext cuda_ctx) {
   if (cuvid_init(cc_, cuda_ctx) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);

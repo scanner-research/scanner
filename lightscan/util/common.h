@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <sys/stat.h>
 #include <stdio.h>
@@ -35,8 +36,30 @@ public:
 
 extern Logger log_ls;
 
+class SpinLock {
+    std::atomic_flag locked = ATOMIC_FLAG_INIT ;
+public:
+    void lock() {
+        while (locked.test_and_set(std::memory_order_acquire)) { ; }
+    }
+    void unlock() {
+        locked.clear(std::memory_order_release);
+    }
+};
+
 int mkdir_p(const char *path, mode_t mode);
 
 void temp_file(FILE** file, std::string& name);
+
+inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
+  return std::chrono::high_resolution_clock::now();
+}
+
+inline double nano_since(
+  std::chrono::time_point<std::chrono::high_resolution_clock> then)
+{
+  return
+    std::chrono::duration_cast<std::chrono::nanoseconds>(now() - then).count();
+}
 
 }
