@@ -25,6 +25,7 @@
 #include <cuda.h>
 #endif
 
+#include <thread>
 #include <mpi.h>
 #include <pthread.h>
 #include <cstdlib>
@@ -39,6 +40,10 @@ extern "C" {
 }
 
 using namespace lightscan;
+
+const int WORK_ITEM_AMPLIFICATION = 4;
+const int LOAD_EVAL_BUFFERS = 4;
+const int WORK_SURPLUS_FACTOR = 2;
 
 const bool NO_PCIE_TRANSFER = false;
 const std::string DB_PATH = "/Users/abpoms/kcam";
@@ -100,7 +105,7 @@ struct VideoWorkItem {
 };
 
 inline int max_work_item_size() {
-  return global_batch_size * 4;
+  return global_batch_size * WORK_ITEM_AMPLIFICATION;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -251,7 +256,9 @@ void* load_video_thread(void* arg) {
 
     // Wait for next buffer to have been consumed by eval thread before
     // overwritting
-    while (args.buffer_ready_for_eval[next_buffer]) {}
+    while (args.buffer_ready_for_eval[next_buffer]) {
+      std::this_thread::yield();
+    }
 
     char* frame_buffer = args.frame_buffers[next_buffer];
     args.work_item_index[next_buffer] = work_item_index;
@@ -335,10 +342,11 @@ void* evaluate_thread(void* arg) {
   int next_buffer = 0;
   while (true) {
     // Wait for buffer to process
-    if (args.load_finished && !args.buffer_ready_for_eval[next_buffer]) {
-      break;
+    while (!args.buffer_ready_for_eval[next_buffer]) {
+      if (args.load_finished) break;
+      std::this_thread::yield();
     }
-    while (!args.buffer_ready_for_eval[next_buffer]) {}
+    if (args.load_finished && !args.buffer_ready_for_eval[next_buffer]) break;
 
     VideoWorkItem work_item =
       args.work_items[args.work_item_index[next_buffer]];
@@ -490,7 +498,7 @@ void* process_thread(void* arg) {
                              args.metadata[0].height,
                              1);
   size_t frame_buffer_size = frame_size * max_work_item_size();
-  const int frame_buffers_count = 2;
+  const int frame_buffers_count = LOAD_EVAL_BUFFERS;
   char* frame_buffers[frame_buffers_count];
   std::atomic<bool> buffer_ready_for_eval[frame_buffers_count];
   int buffer_work_item_index[frame_buffers_count];
@@ -619,6 +627,7 @@ int main(int argc, char **argv) {
     while (fs) {
       std::string path;
       fs >> path;
+      if (path.empty()) continue;
       video_paths.push_back(path);
     }
   }
@@ -692,6 +701,7 @@ int main(int argc, char **argv) {
     std::vector<ProcessArgs> processing_thread_args;
     std::vector<pthread_t> processing_threads(gpus_per_node);
 
+    processing_thread_args.reserve(gpus_per_node);
     for (int i = 0; i < gpus_per_node; ++i) {
       processing_thread_args.emplace_back(ProcessArgs{
         i, // gpu device id
@@ -720,23 +730,27 @@ int main(int argc, char **argv) {
       while (next_work_item_to_allocate < static_cast<int>(work_items.size())) {
         // Check if we need to allocate work to our own processing thread
         int items_left = allocated_work_items.size() - num_processed_items;
-        if (items_left < gpus_per_node * 2) {
+        if (items_left < gpus_per_node * WORK_SURPLUS_FACTOR) {
           item_lock.lock();
           allocated_work_items.push_back(next_work_item_to_allocate++);
           item_lock.unlock();
+          std::this_thread::yield();
           continue;
         }
 
-        int more_work;
-        MPI_Status status;
-        MPI_Recv(&more_work, 1, MPI_INT,
-                 MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-        int next_item = next_work_item_to_allocate++;
-        MPI_Send(&next_item, 1, MPI_INT,
-                 status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+        if (num_nodes > 1) {
+          int more_work;
+          MPI_Status status;
+          MPI_Recv(&more_work, 1, MPI_INT,
+                   MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+          int next_item = next_work_item_to_allocate++;
+          MPI_Send(&next_item, 1, MPI_INT,
+                   status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+        }
+        std::this_thread::yield();
       }
       finished = true;
-      int workers_done = 0;
+      int workers_done = 1;
       while (workers_done < num_nodes) {
         int more_work;
         MPI_Status status;
@@ -745,12 +759,13 @@ int main(int argc, char **argv) {
         int next_item = -1;
         MPI_Send(&next_item, 1, MPI_INT,
                  status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+        std::this_thread::yield();
       }
     } else {
       // Monitor amount of work left and request more when running low
       while (true) {
         int items_left = allocated_work_items.size() - num_processed_items;
-        if (items_left < gpus_per_node * 2) {
+        if (items_left < gpus_per_node * WORK_SURPLUS_FACTOR) {
           // Request work when there is only a few unprocessed items left
           int more_work = true;
           MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -766,6 +781,7 @@ int main(int argc, char **argv) {
             item_lock.unlock();
           }
         }
+        std::this_thread::yield();
       }
       finished = true;
     }
