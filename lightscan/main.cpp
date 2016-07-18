@@ -272,7 +272,22 @@ void* load_video_thread(void* arg) {
       char* current_frame_buffer_pos =
         frame_buffer + frames_buffer_offset;
 
+#ifdef HARDWARE_DECODE
+      // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
+      //              on that here to copy the data properly
+      for (i = 0; i < 2; i++) {
+        cudaMemcpy2D(
+          current_frame_buffer_pos + i * metadata.width * metadata.height,
+          metadata.width, // dst pitch
+          frame->data[i], // src
+          frame->linesize[i], // src pitch
+          frame->width, // width
+          frame->height, // height
+          cudaMemcpyDeviceToDevice);
+      }
+#else
       convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
+#endif
       current_frame++;
     }
 
@@ -305,10 +320,13 @@ void* evaluate_thread(void* arg) {
 
   int dim = net_info.input_size;
 
-  cv::Mat unsized_mean_mat(
+  cv::cuda::setDevice(args.gpu_device_id);
+
+  cv::Mat cpu_mean_mat(
     net_info.mean_width, net_info.mean_height, CV_32FC3, net_info.mean_image);
-  cv::Mat mean_mat;
-  cv::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
+  cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
+  cv::cuda::GpuMat mean_mat;
+  cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
 
 
   caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
@@ -365,17 +383,25 @@ void* evaluate_thread(void* arg) {
       // Process batch of frames
       for (int i = 0; i < global_batch_size; ++i) {
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
-        cv::Mat input_mat(metadata.height, metadata.width, CV_8UC3, buffer);
-        cv::cvtColor(input_mat, input_mat, CV_RGB2BGR);
-        cv::Mat conv_input;
+#ifdef HARDWARE_DECODE
+        cv::cuda::GpuMat input_mat(
+          metadata.height, metadata.width, CV_8UC3, buffer);
+#else
+        cv::Mat cpu_mat(
+          metadata.height, metadata.width, CV_8UC3, buffer);
+        cv::cuda::GpuMat input_mat(cpu_mat);
+#endif
+        cv::cvtColor(input_mat, input_mat, CV_YUV2BGR_NV12);
+        cv::cuda::GpuMat conv_input;
         cv::resize(input_mat, conv_input, cv::Size(dim, dim));
-        cv::Mat float_conv_input;
+        cv::cuda::GpuMat float_conv_input;
         conv_input.convertTo(float_conv_input, CV_32FC3);
-        cv::Mat normed_input = float_conv_input - mean_mat;
+        cv::cuda::GpuMat normed_input = float_conv_input - mean_mat;
         //to_conv_input(&std::get<0>(in_vec[i]), &conv_input, &mean);
-        memcpy(net_input_buffer + i * (dim * dim * 3),
-               normed_input.data,
-               dim * dim * 3 * sizeof(float));
+        cudaMemcpy(net_input_buffer + i * (dim * dim * 3),
+                   normed_input.data,
+                   dim * dim * 3 * sizeof(float),
+                   cudaMemcpyHostToDevice);
       }
 
       net->Forward({&net_input});
@@ -565,7 +591,7 @@ int main(int argc, char **argv) {
     // multiple sizes or analyze all the videos an allocate buffers for the
     // largest possible size
     size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
+      av_image_get_buffer_size(AV_PIX_FMT_NV12,
                                video_metadata[0].width,
                                video_metadata[0].height,
                                1);
@@ -573,7 +599,11 @@ int main(int argc, char **argv) {
     const int LOAD_BUFFERS = gpus_per_node * WORK_SURPLUS_FACTOR;
     char** frame_buffers = new char*[LOAD_BUFFERS];
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
+#ifdef HARDWARE_DECODE
+      cudaMalloc(&frame_buffers[i], frame_buffer_size);
+#else
       frame_buffers[i] = new char[frame_buffer_size];
+#endif
       // Add the buffer index into the empty buffer queue so workers can
       // fill it to pass to the eval worker
       empty_load_buffers.emplace(LoadBufferEntry{i});
@@ -726,6 +756,11 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
       }
       free(result);
+
+      // Cleanup
+#ifdef HARDWARE_DECODE
+      cuDevicePrimaryCtxRelease(i);
+#endif
     }
 
     // Push sentinel work entries into queue to terminate eval threads
@@ -746,11 +781,15 @@ int main(int argc, char **argv) {
       free(result);
     }
 
-    // Cleanup
-#ifdef HARDWARE_DECODE
-    cuDevicePrimaryCtxRelease(args.gpu_device_id);
-#endif
 
+    for (int i = 0; i < LOAD_BUFFERS; ++i) {
+#ifdef HARDWARE_DECODE
+      cudaFree(frame_buffers[i]);
+#else
+      delete[] frame_buffers[i];
+      frame_buffers[i] = new char[frame_buffer_size];
+#endif
+    }
     delete[] frame_buffers;
   }
 
