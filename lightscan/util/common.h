@@ -15,11 +15,12 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <string>
 #include <sys/stat.h>
 #include <stdio.h>
-#include <atomic>
+#include <libgen.h>
 
 namespace lightscan {
 
@@ -48,10 +49,6 @@ public:
     }
 };
 
-int mkdir_p(const char *path, mode_t mode);
-
-void temp_file(FILE** file, std::string& name);
-
 inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
   return std::chrono::high_resolution_clock::now();
 }
@@ -61,6 +58,39 @@ inline double nano_since(
 {
   return
     std::chrono::duration_cast<std::chrono::nanoseconds>(now() - then).count();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Path utils
+inline std::string dirname_s(const std::string& path) {
+  char* path_copy = strdup(path.c_str());
+  char* dir = dirname(path_copy);
+  return std::string(dir);
+}
+
+inline std::string basename_s(const std::string& path) {
+  char* path_copy = strdup(path.c_str());
+  char* base = basename(path_copy);
+  return std::string(base);
+}
+
+int mkdir_p(const char *path, mode_t mode);
+
+void temp_file(FILE** file, std::string& name);
+
+///////////////////////////////////////////////////////////////////////////////
+/// pthread utils
+#define THREAD_RETURN_SUCCESS() \
+  do {                                           \
+    void* val = malloc(sizeof(int));             \
+    *((int*)val) = EXIT_SUCCESS;                 \
+    pthread_exit(val);                           \
+  } while (0);
+
+///////////////////////////////////////////////////////////////////////////////
+/// MPI utils
+inline bool is_master(int rank) {
+  return rank == 0;
 }
 
 }

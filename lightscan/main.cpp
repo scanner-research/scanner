@@ -18,6 +18,7 @@
 #include "lightscan/util/common.h"
 #include "lightscan/util/video.h"
 #include "lightscan/util/caffe.h"
+#include "lightscan/util/queue.h"
 
 #include <opencv2/opencv.hpp>
 
@@ -41,9 +42,14 @@ extern "C" {
 
 using namespace lightscan;
 
-const int WORK_ITEM_AMPLIFICATION = 4;
-const int LOAD_EVAL_BUFFERS = 4;
-const int WORK_SURPLUS_FACTOR = 2;
+///////////////////////////////////////////////////////////////////////////////
+/// Global constants
+
+const int WORK_ITEM_AMPLIFICATION = 8;
+const int WORK_SURPLUS_FACTOR = 8;
+
+const int LOAD_BUFFERS = 4;
+const int LOAD_WORKERS_PER_NODE = 2;
 
 const bool NO_PCIE_TRANSFER = false;
 const std::string DB_PATH = "/Users/abpoms/kcam";
@@ -52,27 +58,8 @@ const std::string METADATA_PATH_POSTFIX = "_metadata";
 const std::string PROCESSED_VIDEO_POSTFIX = "_processed";
 int global_batch_size;
 
-#define THREAD_RETURN_SUCCESS() \
-  do {                                           \
-    void* val = malloc(sizeof(int));             \
-    *((int*)val) = EXIT_SUCCESS;                 \
-    pthread_exit(val);                           \
-  } while (0);
-
 ///////////////////////////////////////////////////////////////////////////////
-/// Path utils
-
-std::string dirname_s(const std::string& path) {
-  char* path_copy = strdup(path.c_str());
-  char* dir = dirname(path_copy);
-  return std::string(dir);
-}
-
-std::string basename_s(const std::string& path) {
-  char* path_copy = strdup(path.c_str());
-  char* base = basename(path_copy);
-  return std::string(base);
-}
+/// Helper functions
 
 std::string processed_video_path(const std::string& video_path) {
   return dirname_s(video_path) + "/" +
@@ -89,24 +76,72 @@ std::string iframe_path(const std::string& video_path) {
     basename_s(video_path) + IFRAME_PATH_POSTFIX + ".bin";
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// MPI utils
-inline bool is_master(int rank) {
-  return rank == 0;
+inline int max_work_item_size() {
+  return global_batch_size * WORK_ITEM_AMPLIFICATION;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Misc
-
+/// Work structs
 struct VideoWorkItem {
   int video_index;
   int start_frame;
   int end_frame;
 };
 
-inline int max_work_item_size() {
-  return global_batch_size * WORK_ITEM_AMPLIFICATION;
-}
+struct LoadWorkEntry {
+  int work_item_index;
+};
+
+struct LoadBufferEntry {
+  int buffer_index;
+};
+
+struct EvalWorkEntry {
+  int work_item_index;
+  int buffer_index;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Worker thread arguments
+struct LoadThreadArgs {
+  // Uniform arguments
+  const std::vector<std::string>& video_paths;
+  const std::vector<VideoMetadata>& metadata;
+  const std::vector<VideoWorkItem>& work_items;
+
+  // Per worker arguments
+  int gpu_device_id; // for hardware decode, need to know gpu
+  StorageConfig* storage_config;
+#ifdef HARDWARE_DECODE
+  CUcontext cuda_ctx; // context to use to decode frames
+#endif
+
+  // Queues for communicating work
+  Queue<LoadWorkEntry>& load_work;
+  Queue<LoadBufferEntry>& empty_load_buffers;
+  Queue<EvalWorkEntry>& eval_work;
+
+  // Buffers for loading frames into
+  size_t buffer_size;
+  char** frame_buffers;
+};
+
+struct EvaluateThreadArgs {
+  // Uniform arguments
+  const std::vector<VideoMetadata>& metadata;
+  const std::vector<VideoWorkItem>& work_items;
+
+  // Per worker arguments
+  int gpu_device_id; // for hardware decode, need to know gpu
+
+  // Queues for communicating work
+  Queue<EvalWorkEntry>& eval_work;
+  Queue<LoadBufferEntry>& empty_load_buffers;
+
+  // Buffers for reading frames from
+  size_t buffer_size;
+  char** frame_buffers;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
@@ -166,33 +201,8 @@ void convert_av_frame_to_rgb(
   av_freep(&rgb_format.data[0]);
 }
 
-struct LoadVideoArgs {
-  // Input arguments
-  int gpu_device_id; // for hardware decode, need to know gpu
-  StorageConfig* storage_config;
-  const std::vector<std::string>& video_paths;
-  const std::vector<VideoMetadata>& metadata;
-  const std::vector<VideoWorkItem>& work_items;
-
-  SpinLock& item_lock;
-  std::vector<int>& allocated_work_items;
-  std::atomic<int>& next_unprocessed_item;
-  std::atomic<bool>& finished;
-
-#ifdef HARDWARE_DECODE
-  CUcontext cuda_ctx; // context to use to decode frames
-#endif
-
-  // Output arguments
-  size_t buffer_size;
-  size_t frame_buffers_count;
-  char** frame_buffers;
-  std::atomic<bool>* buffer_ready_for_eval;
-  int* work_item_index;
-};
-
 void* load_video_thread(void* arg) {
-  LoadVideoArgs& args = *reinterpret_cast<LoadVideoArgs*>(arg);
+  LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
@@ -200,26 +210,15 @@ void* load_video_thread(void* arg) {
 
   int next_buffer = 0;
   while (true) {
-    args.item_lock.lock();
-    int work_items_left =
-      args.allocated_work_items.size() - args.next_unprocessed_item;
-    // Check if we are done
-    if (args.finished && work_items_left == 0) {
-      // Need to check if finished first because there is a race condition if
-      // work_items_left == 0 is checked before finished.
-      args.item_lock.unlock();
+    LoadWorkEntry load_work_entry;
+    args.load_work.pop(load_work_entry);
+
+    if (load_work_entry.work_item_index == -1) {
       break;
-    } else if (work_items_left == 0) {
-      args.item_lock.unlock();
-      continue;
     }
-    // Process next item
-    int next_item = args.next_unprocessed_item++;
-    int work_item_index = args.allocated_work_items[next_item];
-    VideoWorkItem work_item = args.work_items[work_item_index];
-    // Keep locked until this point so we do not have multiple threads try to
-    // process another item simultaneously and go over the allocated work
-    args.item_lock.unlock();
+
+    const VideoWorkItem& work_item =
+      args.work_items[load_work_entry.work_item_index];
 
     const std::string& video_path = args.video_paths[work_item.video_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
@@ -242,10 +241,13 @@ void* load_video_thread(void* arg) {
     RandomReadFile* file;
     storage->make_random_read_file(video_path, file);
 
-    VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
 #ifdef HARDWARE_DECODE
-    decoder.set_gpu_context(args.cuda_ctx);
+    VideoDecoder decoder(args.cuda_ctx,
+                         file, keyframe_positions, keyframe_timestamps);
+#else
+    VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
 #endif
+
     decoder.seek(work_item.start_frame);
 
     size_t frame_size =
@@ -254,14 +256,10 @@ void* load_video_thread(void* arg) {
                                metadata.height,
                                1);
 
-    // Wait for next buffer to have been consumed by eval thread before
-    // overwritting
-    while (args.buffer_ready_for_eval[next_buffer]) {
-      std::this_thread::yield();
-    }
+    LoadBufferEntry buffer_entry;
+    args.empty_load_buffers.pop(buffer_entry);
 
-    char* frame_buffer = args.frame_buffers[next_buffer];
-    args.work_item_index[next_buffer] = work_item_index;
+    char* frame_buffer = args.frame_buffers[buffer_entry.buffer_index];
 
     SwsContext* sws_context;
     int current_frame = work_item.start_frame;
@@ -276,13 +274,14 @@ void* load_video_thread(void* arg) {
         frame_buffer + frames_buffer_offset;
 
       convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
+      current_frame++;
     }
 
-    args.buffer_ready_for_eval[next_buffer] = true;
-    next_buffer += 1;
-    if (next_buffer >= args.frame_buffers_count) {
-      next_buffer = 0;
-    }
+    EvalWorkEntry eval_work_entry;
+    eval_work_entry.work_item_index = load_work_entry.work_item_index;
+    eval_work_entry.buffer_index = buffer_entry.buffer_index;
+
+    args.eval_work.push(eval_work_entry);
 
     delete file;
   }
@@ -295,22 +294,8 @@ void* load_video_thread(void* arg) {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to run net evaluation
-struct EvaluateArgs {
-  int gpu_device_id; // for hardware decode, need to know gpu
-  const std::vector<VideoMetadata>& metadata;
-  const std::vector<VideoWorkItem>& work_items;
-
-  std::atomic<int>& num_processed_items;
-  std::atomic<bool>& load_finished;
-  size_t buffer_size;
-  size_t frame_buffers_count;
-  char** frame_buffers;
-  std::atomic<bool>* buffer_ready_for_eval;
-  int* work_item_index;
-};
-
 void* evaluate_thread(void* arg) {
-  EvaluateArgs& args = *reinterpret_cast<EvaluateArgs*>(arg);
+  EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -318,14 +303,6 @@ void* evaluate_thread(void* arg) {
   // Setup caffe net
   NetInfo net_info = load_neural_net(NetType::ALEX_NET, args.gpu_device_id);
   caffe::Net<float>* net = net_info.net;
-
-  // Resize net input blob for batch size
-  const boost::shared_ptr<caffe::Blob<float>> data_blob{
-    net->blob_by_name("data")};
-  if (data_blob->shape(0) != global_batch_size) {
-    data_blob->Reshape({
-        global_batch_size, 3, net_info.input_size, net_info.input_size});
-  }
 
   int dim = net_info.input_size;
 
@@ -339,17 +316,17 @@ void* evaluate_thread(void* arg) {
   // For avoiding transferring over PCIE
   caffe::Blob<float> no_pcie_dummy{global_batch_size, 3, dim, dim};
 
-  int next_buffer = 0;
   while (true) {
     // Wait for buffer to process
-    while (!args.buffer_ready_for_eval[next_buffer]) {
-      if (args.load_finished) break;
-      std::this_thread::yield();
-    }
-    if (args.load_finished && !args.buffer_ready_for_eval[next_buffer]) break;
+    EvalWorkEntry work_entry;
+    args.eval_work.pop(work_entry);
 
-    VideoWorkItem work_item =
-      args.work_items[args.work_item_index[next_buffer]];
+    if (work_entry.work_item_index == -1) {
+      break;
+    }
+
+    const VideoWorkItem& work_item =
+      args.work_items[work_entry.work_item_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     size_t frame_size =
@@ -358,6 +335,16 @@ void* evaluate_thread(void* arg) {
                                metadata.height,
                                1);
 
+    // Resize net input blob for batch size
+    const boost::shared_ptr<caffe::Blob<float>> data_blob{
+      net->blob_by_name("data")};
+    if (data_blob->shape(0) != global_batch_size) {
+      data_blob->Reshape({
+          global_batch_size, 3, net_info.input_size, net_info.input_size});
+    }
+
+    char* frame_buffer = args.frame_buffers[work_entry.buffer_index];
+
     int current_frame = work_item.start_frame;
     while (current_frame + global_batch_size < work_item.end_frame) {
       int frame_offset = current_frame - work_item.start_frame;
@@ -365,6 +352,7 @@ void* evaluate_thread(void* arg) {
         printf("Node %d, GPU %d, frame %d\n",
                rank, args.gpu_device_id, current_frame);
       }
+
       // Decompress batch of frame
 
       float* net_input_buffer;
@@ -376,7 +364,6 @@ void* evaluate_thread(void* arg) {
       }
 
       // Process batch of frames
-      char* frame_buffer = args.frame_buffers[next_buffer];
       for (int i = 0; i < global_batch_size; ++i) {
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
         cv::Mat input_mat(metadata.height, metadata.width, CV_8UC3, buffer);
@@ -422,7 +409,6 @@ void* evaluate_thread(void* arg) {
         net_input_buffer = net_input.mutable_cpu_data();
       }
 
-      char* frame_buffer = args.frame_buffers[next_buffer];
       for (int i = 0; i < batch_size; ++i) {
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
         cv::Mat input_mat(metadata.height, metadata.width, CV_8UC3, buffer);
@@ -443,13 +429,10 @@ void* evaluate_thread(void* arg) {
       // Save batch of frames
       current_frame += batch_size;
     }
-    args.buffer_ready_for_eval[next_buffer] = false;
-    args.num_processed_items += 1;
-    next_buffer++;
-    if (next_buffer >= args.frame_buffers_count) {
-      next_buffer = 0;
-    }
+    LoadBufferEntry empty_buffer_entry;
+    empty_buffer_entry.buffer_index = work_entry.buffer_index;
   }
+
   delete net;
 
   THREAD_RETURN_SUCCESS();
@@ -462,126 +445,6 @@ struct SaveVideoArgs {
 
 void* save_video_thread(void* arg) {
   // Setup connection to save video
-  THREAD_RETURN_SUCCESS();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// Main processing thread that runs the read, evaluate net, write loop
-struct ProcessArgs {
-  int gpu_device_id;
-  StorageConfig* storage_config;
-  const std::vector<std::string>& video_paths;
-  const std::vector<VideoMetadata>& metadata;
-  const std::vector<VideoWorkItem>& work_items;
-
-  SpinLock& item_lock;
-  std::vector<int>& allocated_work_items;
-  std::atomic<int>& next_unprocessed_item;
-  std::atomic<int>& num_processed_items;
-  std::atomic<bool>& finished;
-};
-
-void* process_thread(void* arg) {
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  ProcessArgs& args = *reinterpret_cast<ProcessArgs*>(arg);
-
-  // Allocate several buffers to hold the intermediate of an entire work item
-  // to allow pipelining of load/eval
-
-  // HACK(apoms): we are assuming that all videos have the same frame size here
-  // alternatively, we should allocate the buffer in the load thread instead
-  size_t frame_size =
-    av_image_get_buffer_size(AV_PIX_FMT_RGB24,
-                             args.metadata[0].width,
-                             args.metadata[0].height,
-                             1);
-  size_t frame_buffer_size = frame_size * max_work_item_size();
-  const int frame_buffers_count = LOAD_EVAL_BUFFERS;
-  char* frame_buffers[frame_buffers_count];
-  std::atomic<bool> buffer_ready_for_eval[frame_buffers_count];
-  int buffer_work_item_index[frame_buffers_count];
-  for (int i = 0; i < frame_buffers_count; ++i) {
-    frame_buffers[i] = new char[frame_buffer_size];
-    buffer_ready_for_eval[i] = false;
-    buffer_work_item_index[i] = -1;
-  }
-
-  std::atomic<bool> load_finished{false};
-
-  // Retain primary context to use for decoder
-#ifdef HARDWARE_DECODE
-  CUcontext cuda_ctx;
-  cuDevicePrimaryCtxRetain(&cuda_ctx, args.gpu_device_id);
-#endif
-
-  // Create IO thread for reading and decoding data
-  LoadVideoArgs load_args = {
-    args.gpu_device_id,
-    args.storage_config,
-    args.video_paths,
-    args.metadata,
-    args.work_items,
-
-    args.item_lock,
-    args.allocated_work_items,
-    args.next_unprocessed_item,
-    args.finished,
-
-#ifdef HARDWARE_DECODE
-    cuda_ctx,
-#endif
-    frame_buffer_size,
-    frame_buffers_count,
-    frame_buffers,
-    buffer_ready_for_eval,
-    buffer_work_item_index
-  };
-  pthread_t load_thread;
-  pthread_create(&load_thread, NULL, load_video_thread, &load_args);
-
-  // Create eval thread for passing data through neural net
-  EvaluateArgs eval_args = {
-    args.gpu_device_id,
-    args.metadata,
-    args.work_items,
-
-    args.num_processed_items,
-    load_finished,
-    frame_buffer_size,
-    frame_buffers_count,
-    frame_buffers,
-    buffer_ready_for_eval,
-    buffer_work_item_index
-  };
-  pthread_t eval_thread;
-  pthread_create(&eval_thread, NULL, evaluate_thread, &eval_args);
-
-  // Wait until load has finished
-  void* result;
-  int err = pthread_join(load_thread, &result);
-  if (err != 0) {
-    fprintf(stderr, "error in pthread_join of load thread\n");
-    exit(EXIT_FAILURE);
-  }
-  free(result);
-
-  load_finished = true;
-
-  // Wait until eval has finished
-  err = pthread_join(eval_thread, &result);
-  if (err != 0) {
-    fprintf(stderr, "error in pthread_join of eval thread\n");
-    exit(EXIT_FAILURE);
-  }
-  free(result);
-
-  // Cleanup
-#ifdef HARDWARE_DECODE
-  cuDevicePrimaryCtxRelease(args.gpu_device_id);
-#endif
-
   THREAD_RETURN_SUCCESS();
 }
 
@@ -680,7 +543,7 @@ int main(int argc, char **argv) {
         VideoWorkItem item;
         item.video_index = i;
         item.start_frame = allocated_frames;
-        item.start_frame = allocated_frames + frames_to_allocate;
+        item.end_frame = allocated_frames + frames_to_allocate;
         work_items.push_back(item);
 
         allocated_frames += frames_to_allocate;
@@ -691,50 +554,108 @@ int main(int argc, char **argv) {
     }
 
     // Setup shared resources for distributing work to processing threads
-    SpinLock item_lock;
-    std::vector<int> allocated_work_items;
-    std::atomic<int> next_unprocessed_item{0};
-    std::atomic<int> num_processed_items{0};
-    std::atomic<bool> finished{false};
+    Queue<LoadWorkEntry> load_work;
+    Queue<LoadBufferEntry> empty_load_buffers;
+    Queue<EvalWorkEntry> eval_work;
 
-    // Create processing threads for each gpu
-    std::vector<ProcessArgs> processing_thread_args;
-    std::vector<pthread_t> processing_threads(gpus_per_node);
+    // Allocate several buffers to hold the intermediate of an entire work item
+    // to allow pipelining of load/eval
+    // HACK(apoms): we are assuming that all videos have the same frame size
+    // We should allocate the buffer in the load thread if we need to support
+    // multiple sizes or analyze all the videos an allocate buffers for the
+    // largest possible size
+    size_t frame_size =
+      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
+                               video_metadata[0].width,
+                               video_metadata[0].height,
+                               1);
+    size_t frame_buffer_size = frame_size * max_work_item_size();
+    char* frame_buffers[LOAD_BUFFERS];
+    for (int i = 0; i < LOAD_BUFFERS; ++i) {
+      frame_buffers[i] = new char[frame_buffer_size];
+      // Add the buffer index into the empty buffer queue so workers can
+      // fill it to pass to the eval worker
+      empty_load_buffers.emplace(LoadBufferEntry{i});
+    }
 
-    processing_thread_args.reserve(gpus_per_node);
-    for (int i = 0; i < gpus_per_node; ++i) {
-      processing_thread_args.emplace_back(ProcessArgs{
-        i, // gpu device id
-        config, // storage config
+    // Setup load workers
+    std::vector<LoadThreadArgs> load_thread_args;
+    std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
+    for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+      int gpu_device_id = i;
+
+      // Retain primary context to use for decoder
+#ifdef HARDWARE_DECODE
+      CUcontext cuda_ctx;
+      cuDevicePrimaryCtxRetain(&cuda_ctx, gpu_device_id);
+#endif
+
+      // Create IO thread for reading and decoding data
+      load_thread_args.emplace_back(LoadThreadArgs{
+        // Uniform arguments
         video_paths,
         video_metadata,
         work_items,
-        item_lock,
-        allocated_work_items,
-        next_unprocessed_item,
-        num_processed_items,
-        finished
+
+        // Per worker arguments
+        gpu_device_id,
+        config,
+#ifdef HARDWARE_DECODE
+        cuda_ctx,
+#endif
+
+        // Queues
+        load_work,
+        empty_load_buffers,
+        eval_work,
+
+        // Buffers
+        frame_buffer_size,
+        frame_buffers,
       });
-
-      pthread_create(&processing_threads[i],
-                     NULL,
-                     process_thread,
-                     &processing_thread_args[i]);
-
+      pthread_create(&load_threads[i], NULL, load_video_thread,
+                     &load_thread_args[i]);
     }
 
-    // Begin distributing work
+    // Setup evaluate workers
+    std::vector<EvaluateThreadArgs> eval_thread_args;
+    std::vector<pthread_t> eval_threads(gpus_per_node);
+    for (int i = 0; i < gpus_per_node; ++i) {
+      int gpu_device_id = i;
+
+      // Create eval thread for passing data through neural net
+      eval_thread_args.emplace_back(EvaluateThreadArgs{
+        // Uniform arguments
+        video_metadata,
+        work_items,
+
+        // Per worker arguments
+        gpu_device_id,
+
+        // Queues
+        eval_work,
+        empty_load_buffers,
+
+        // Buffers
+        frame_buffer_size,
+        frame_buffers,
+      });
+      pthread_create(&eval_threads[i], NULL, evaluate_thread,
+                     &eval_thread_args[i]);
+    }
+
+    // Push work into load queues
     if (is_master(rank)) {
+      // Begin distributing work on master node
       int next_work_item_to_allocate = 0;
       // Wait for clients to ask for work
       while (next_work_item_to_allocate < static_cast<int>(work_items.size())) {
         // Check if we need to allocate work to our own processing thread
-        int items_left = allocated_work_items.size() - num_processed_items;
-        if (items_left < gpus_per_node * WORK_SURPLUS_FACTOR) {
-          item_lock.lock();
-          allocated_work_items.push_back(next_work_item_to_allocate++);
-          item_lock.unlock();
-          std::this_thread::yield();
+        int local_work = load_work.size() + eval_work.size();
+        if (local_work < gpus_per_node * WORK_SURPLUS_FACTOR) {
+          LoadWorkEntry entry;
+          entry.work_item_index = next_work_item_to_allocate++;
+          load_work.push(entry);
           continue;
         }
 
@@ -749,7 +670,6 @@ int main(int argc, char **argv) {
         }
         std::this_thread::yield();
       }
-      finished = true;
       int workers_done = 1;
       while (workers_done < num_nodes) {
         int more_work;
@@ -764,8 +684,8 @@ int main(int argc, char **argv) {
     } else {
       // Monitor amount of work left and request more when running low
       while (true) {
-        int items_left = allocated_work_items.size() - num_processed_items;
-        if (items_left < gpus_per_node * WORK_SURPLUS_FACTOR) {
+        int local_work = load_work.size() + eval_work.size();
+        if (local_work < gpus_per_node * WORK_SURPLUS_FACTOR) {
           // Request work when there is only a few unprocessed items left
           int more_work = true;
           MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -776,37 +696,63 @@ int main(int argc, char **argv) {
             // No more work left
             break;
           } else {
-            item_lock.lock();
-            allocated_work_items.push_back(next_item);
-            item_lock.unlock();
+            LoadWorkEntry entry;
+            entry.work_item_index = next_item;
+            load_work.push(entry);
           }
         }
         std::this_thread::yield();
       }
-      finished = true;
     }
 
-    // Wait till done
-    for (int i = 0; i < gpus_per_node; ++i) {
-      void* result;
+    // Push sentinel work entries into queue to terminate load threads
+    for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+      LoadWorkEntry entry;
+      entry.work_item_index = -1;
+      load_work.push(entry);
+    }
 
-      int err = pthread_join(processing_threads[i], &result);
+    for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+      // Wait until load has finished
+      void* result;
+      int err = pthread_join(load_threads[i], &result);
       if (err != 0) {
-        fprintf(stderr, "error in pthread_join\n");
+        fprintf(stderr, "error in pthread_join of load thread\n");
         exit(EXIT_FAILURE);
       }
-
-      printf("Node %d, GPU %d finished; ret=%d\n",
-             rank, i, *((int *)result));
-      free(result);      /* Free memory allocated by thread */
+      free(result);
     }
+
+    // Push sentinel work entries into queue to terminate eval threads
+    for (int i = 0; i < gpus_per_node; ++i) {
+      EvalWorkEntry entry;
+      entry.work_item_index = -1;
+      eval_work.push(entry);
+    }
+
+    for (int i = 0; i < gpus_per_node; ++i) {
+      // Wait until eval has finished
+      void* result;
+      int err = pthread_join(eval_threads[i], &result);
+      if (err != 0) {
+        fprintf(stderr, "error in pthread_join of eval thread\n");
+        exit(EXIT_FAILURE);
+      }
+      free(result);
+    }
+
+    // Cleanup
+#ifdef HARDWARE_DECODE
+    cuDevicePrimaryCtxRelease(args.gpu_device_id);
+#endif
+
   }
 
- // Cleanup
- delete storage;
- delete config;
+  // Cleanup
+  delete storage;
+  delete config;
 
- shutdown();
+  shutdown();
 
- return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }

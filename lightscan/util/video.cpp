@@ -424,6 +424,7 @@ int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
       ret = AVERROR(ENOMEM);
       goto error;
     }
+    memset(ctx, 0, sizeof(*ctx));
   }
 
   if (!hw_device_ctx) {
@@ -492,6 +493,7 @@ int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
       ret = AVERROR(ENOMEM);
       goto error;
     }
+    cc->hw_frames_ctx = ctx->hw_frames_ctx;
   }
 
   /* This is a bit hacky, av_hwframe_ctx_init is called by the cuvid decoder
@@ -550,61 +552,9 @@ VideoDecoder::VideoDecoder(
   buffered_frames_.resize(1);
   buffered_frames_[0] = av_frame_alloc();
 
-  format_context_ = avformat_alloc_context();
+  setup_format_context();
 
-  uint64_t size;
-  StoreResult result;
-  EXP_BACKOFF(file->get_size(size), result);
-  exit_on_error(result);
-
-  buffer_.file = file;
-  buffer_.pos = 0;
-  buffer_.total_size = size;
-
-  size_t avio_context_buffer_size = 4096;
-  uint8_t* avio_context_buffer =
-    static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
-  io_context_ =
-    avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
-                       0, &buffer_, &read_packet_fn, NULL, &seek_fn);
-  format_context_->pb = io_context_;
-
-  pthread_mutex_lock(&av_mutex);
-  if (avformat_open_input(&format_context_, NULL, NULL, NULL) < 0) {
-    pthread_mutex_unlock(&av_mutex);
-    fprintf(stderr, "open input failed\n");
-    exit(EXIT_FAILURE);
-  }
-  if (avformat_find_stream_info(format_context_, NULL) < 0) {
-    fprintf(stderr, "find stream info failed\n");
-    exit(EXIT_FAILURE);
-  }
-  pthread_mutex_unlock(&av_mutex);
-
-  video_stream_index_ =
-    av_find_best_stream(format_context_,
-                        AVMEDIA_TYPE_VIDEO,
-                        -1 /* auto select */,
-                        -1 /* no related stream */,
-                        &codec_,
-                        0 /* flags */);
-  if (video_stream_index_ < 0) {
-    fprintf(stderr, "could not find best stream\n");
-    exit(EXIT_FAILURE);
-  }
-
-  AVStream const* const stream =
-    format_context_->streams[video_stream_index_];
-
-  cc_ = (AVCodecContext*)stream->codec;
-
-#ifdef HARDWARE_DECODE
-  codec_ = avcodec_find_decoder_by_name("h264_cuvid");
-  if (codec_ == NULL) {
-    fprintf(stderr, "could not find hardware decoder\n");
-    exit(EXIT_FAILURE);
-  }
-#endif
+  setup_video_stream_codec();
 
   pthread_mutex_lock(&av_mutex);
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
@@ -616,6 +566,50 @@ VideoDecoder::VideoDecoder(
   }
 }
 
+#ifdef HARDWARE_DECODE
+VideoDecoder::VideoDecoder(
+  CUcontext cuda_context,
+  RandomReadFile* file,
+  const std::vector<int>& keyframe_positions,
+  const std::vector<int64_t>& keyframe_timestamps)
+  : file_(file),
+    keyframe_positions_(keyframe_positions),
+    keyframe_timestamps_(keyframe_timestamps),
+    next_frame_(0),
+    next_buffered_frame_(1),
+    buffered_frame_pos_(0),
+    near_eof_(false)
+{
+  av_init_packet(&packet_);
+  buffered_frames_.resize(1);
+  buffered_frames_[0] = av_frame_alloc();
+
+  setup_format_context();
+
+  setup_video_stream_codec();
+
+  codec_ = avcodec_find_decoder_by_name("h264_cuvid");
+  if (codec_ == NULL) {
+    fprintf(stderr, "could not find hardware decoder\n");
+    exit(EXIT_FAILURE);
+  }
+  if (cuvid_init(cc_, cuda_ctx) < 0) {
+    fprintf(stderr, "could not init cuvid codec context\n");
+    exit(EXIT_FAILURE);
+  }
+
+  pthread_mutex_lock(&av_mutex);
+  if (avcodec_open2(cc_, codec_, NULL) < 0) {
+    pthread_mutex_unlock(&av_mutex);
+    fprintf(stderr, "could not open codec\n");
+    exit(EXIT_FAILURE);
+  } else {
+    pthread_mutex_unlock(&av_mutex);
+  }
+  cc_->pix_fmt = AV_PIX_FMT_CUDA;
+}
+#endif
+
 VideoDecoder::~VideoDecoder() {
   pthread_mutex_lock(&av_mutex);
   avcodec_close(cc_);
@@ -624,15 +618,6 @@ VideoDecoder::~VideoDecoder() {
   av_freep(&io_context_->buffer);
   av_freep(&io_context_);
 }
-
-#ifdef HARDWARE_DECODE
-void VideoDecoder::set_gpu_context(CUcontext cuda_ctx) {
-  if (cuvid_init(cc_, cuda_ctx) < 0) {
-    fprintf(stderr, "could not init cuvid codec context\n");
-    exit(EXIT_FAILURE);
-  }
-}
-#endif
 
 void VideoDecoder::seek(int frame_position) {
   int keyframe_pos = -1;
@@ -827,6 +812,58 @@ int64_t VideoDecoder::seek_fn(void *opaque, int64_t offset, int whence) {
     }
     return bd->total_size - bd->pos;
   }
+}
+
+void VideoDecoder::setup_format_context() {
+  format_context_ = avformat_alloc_context();
+
+  uint64_t size;
+  StoreResult result;
+  EXP_BACKOFF(file_->get_size(size), result);
+  exit_on_error(result);
+
+  buffer_.file = file_;
+  buffer_.pos = 0;
+  buffer_.total_size = size;
+
+  size_t avio_context_buffer_size = 4096;
+  uint8_t* avio_context_buffer =
+    static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
+  io_context_ =
+    avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
+                       0, &buffer_, &read_packet_fn, NULL, &seek_fn);
+  format_context_->pb = io_context_;
+
+  pthread_mutex_lock(&av_mutex);
+  if (avformat_open_input(&format_context_, NULL, NULL, NULL) < 0) {
+    pthread_mutex_unlock(&av_mutex);
+    fprintf(stderr, "open input failed\n");
+    exit(EXIT_FAILURE);
+  }
+  if (avformat_find_stream_info(format_context_, NULL) < 0) {
+    fprintf(stderr, "find stream info failed\n");
+    exit(EXIT_FAILURE);
+  }
+  pthread_mutex_unlock(&av_mutex);
+}
+
+void VideoDecoder::setup_video_stream_codec() {
+  video_stream_index_ =
+    av_find_best_stream(format_context_,
+                        AVMEDIA_TYPE_VIDEO,
+                        -1 /* auto select */,
+                        -1 /* no related stream */,
+                        &codec_,
+                        0 /* flags */);
+  if (video_stream_index_ < 0) {
+    fprintf(stderr, "could not find best stream\n");
+    exit(EXIT_FAILURE);
+  }
+
+  AVStream const* const stream =
+    format_context_->streams[video_stream_index_];
+
+  cc_ = (AVCodecContext*)stream->codec;
 }
 
 void preprocess_video(

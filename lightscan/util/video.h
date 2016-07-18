@@ -38,15 +38,20 @@ extern pthread_mutex_t av_mutex;
 
 class VideoDecoder {
 public:
-  VideoDecoder(RandomReadFile* file,
-               const std::vector<int>& keyframe_positions,
-               const std::vector<int64_t>& keyframe_timestamps);
-  ~VideoDecoder();
+  VideoDecoder(
+    RandomReadFile* file,
+    const std::vector<int>& keyframe_positions,
+    const std::vector<int64_t>& keyframe_timestamps);
 
-  // Sets the GPU device to decode frames into when using hardware decode
 #ifdef HARDWARE_DECODE
-  void set_gpu_context(CUcontext ctx);
+  VideoDecoder(
+    CUcontext cuda_context,
+    RandomReadFile* file,
+    const std::vector<int>& keyframe_positions,
+    const std::vector<int64_t>& keyframe_timestamps);
 #endif
+
+  ~VideoDecoder();
 
   void seek(int frame_position);
 
@@ -62,6 +67,10 @@ private:
   static int read_packet_fn(void *opaque, uint8_t *buf, int buf_size);
 
   static int64_t seek_fn(void *opaque, int64_t offset, int whence);
+
+  void setup_format_context();
+
+  void setup_video_stream_codec();
 
   RandomReadFile* file_;
   std::vector<int> keyframe_positions_;
