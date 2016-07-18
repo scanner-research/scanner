@@ -20,6 +20,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <stdio.h>
+#include <cstring>
 #include <libgen.h>
 
 namespace lightscan {

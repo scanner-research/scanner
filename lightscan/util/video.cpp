@@ -593,7 +593,7 @@ VideoDecoder::VideoDecoder(
     fprintf(stderr, "could not find hardware decoder\n");
     exit(EXIT_FAILURE);
   }
-  if (cuvid_init(cc_, cuda_ctx) < 0) {
+  if (cuvid_init(cc_, cuda_context) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
   }

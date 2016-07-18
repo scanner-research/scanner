@@ -216,6 +216,7 @@ void* load_video_thread(void* arg) {
     if (load_work_entry.work_item_index == -1) {
       break;
     }
+    printf("work item index %d\n", load_work_entry.work_item_index);
 
     const VideoWorkItem& work_item =
       args.work_items[load_work_entry.work_item_index];
@@ -580,7 +581,6 @@ int main(int argc, char **argv) {
 
     // Setup load workers
     std::vector<LoadThreadArgs> load_thread_args;
-    std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
       int gpu_device_id = i;
 
@@ -613,13 +613,15 @@ int main(int argc, char **argv) {
         frame_buffer_size,
         frame_buffers,
       });
+    }
+    std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
+    for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
       pthread_create(&load_threads[i], NULL, load_video_thread,
                      &load_thread_args[i]);
     }
 
     // Setup evaluate workers
     std::vector<EvaluateThreadArgs> eval_thread_args;
-    std::vector<pthread_t> eval_threads(gpus_per_node);
     for (int i = 0; i < gpus_per_node; ++i) {
       int gpu_device_id = i;
 
@@ -640,6 +642,9 @@ int main(int argc, char **argv) {
         frame_buffer_size,
         frame_buffers,
       });
+    }
+    std::vector<pthread_t> eval_threads(gpus_per_node);
+    for (int i = 0; i < gpus_per_node; ++i) {
       pthread_create(&eval_threads[i], NULL, evaluate_thread,
                      &eval_thread_args[i]);
     }

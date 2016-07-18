@@ -25,8 +25,6 @@ class Queue {
 public:
   Queue();
 
-  ~Queue();
-
   int size();
 
   template <typename... Args>
