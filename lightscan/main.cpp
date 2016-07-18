@@ -620,7 +620,7 @@ int main(int argc, char **argv) {
       // Retain primary context to use for decoder
 #ifdef HARDWARE_DECODE
       CUcontext cuda_ctx;
-      CU_CHECK(cuDevicePrimaryCtxRetain(&cuda_ctx, gpu_device_id));
+      CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_ctx, gpu_device_id));
 #endif
 
       // Create IO thread for reading and decoding data
@@ -762,7 +762,7 @@ int main(int argc, char **argv) {
 
       // Cleanup
 #ifdef HARDWARE_DECODE
-      CU_CHECK(cuDevicePrimaryCtxRelease(i));
+      CUD_CHECK(cuDevicePrimaryCtxRelease(i));
 #endif
     }
 

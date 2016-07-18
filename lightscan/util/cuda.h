@@ -13,9 +13,12 @@
  * limitations under the License.
  */
 
-#define CU_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
-inline void gpuAssert(cudaError_t code,
+#define CU_CHECK(ans) { cuAssert((ans), __FILE__, __LINE__); }
+
+inline void cudAssert(cudaError_t code,
                       const char *file,
                       int line,
                       bool abort=true)
@@ -25,4 +28,18 @@ inline void gpuAssert(cudaError_t code,
               cudaGetErrorString(code), file, line);
       if (abort) exit(code);
    }
+}
+
+#define CUD_CHECK(ans) { cudAssert((ans), __FILE__, __LINE__); }
+
+inline void cudAssert(CUresult code,
+                      const char *file,
+                      int line,
+                      bool abort=true)
+{
+  if (code != cudaSuccess) {
+    fprintf(stderr,"GPUassert: %s %s %d\n",
+            cuGetErrorString(code), file, line);
+    if (abort) exit(code);
+  }
 }
