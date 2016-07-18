@@ -46,9 +46,8 @@ using namespace lightscan;
 /// Global constants
 
 const int WORK_ITEM_AMPLIFICATION = 8;
-const int WORK_SURPLUS_FACTOR = 8;
+const int WORK_SURPLUS_FACTOR = 4;
 
-const int LOAD_BUFFERS = 4;
 const int LOAD_WORKERS_PER_NODE = 2;
 
 const bool NO_PCIE_TRANSFER = false;
@@ -216,7 +215,6 @@ void* load_video_thread(void* arg) {
     if (load_work_entry.work_item_index == -1) {
       break;
     }
-    printf("work item index %d\n", load_work_entry.work_item_index);
 
     const VideoWorkItem& work_item =
       args.work_items[load_work_entry.work_item_index];
@@ -432,6 +430,7 @@ void* evaluate_thread(void* arg) {
     }
     LoadBufferEntry empty_buffer_entry;
     empty_buffer_entry.buffer_index = work_entry.buffer_index;
+    args.empty_load_buffers.push(empty_buffer_entry);
   }
 
   delete net;
@@ -571,7 +570,8 @@ int main(int argc, char **argv) {
                                video_metadata[0].height,
                                1);
     size_t frame_buffer_size = frame_size * max_work_item_size();
-    char* frame_buffers[LOAD_BUFFERS];
+    const int LOAD_BUFFERS = gpus_per_node * WORK_SURPLUS_FACTOR;
+    char** frame_buffers = new char*[LOAD_BUFFERS];
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
       frame_buffers[i] = new char[frame_buffer_size];
       // Add the buffer index into the empty buffer queue so workers can
@@ -751,6 +751,7 @@ int main(int argc, char **argv) {
     cuDevicePrimaryCtxRelease(args.gpu_device_id);
 #endif
 
+    delete[] frame_buffers;
   }
 
   // Cleanup
