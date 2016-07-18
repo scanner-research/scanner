@@ -24,6 +24,7 @@
 
 #ifdef HARDWARE_DECODE
 #include <cuda.h>
+#include "lightscan/util/cuda.h"
 #endif
 
 #include <thread>
@@ -276,14 +277,14 @@ void* load_video_thread(void* arg) {
       // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
       //              on that here to copy the data properly
       for (i = 0; i < 2; i++) {
-        cudaMemcpy2D(
+        CU_CHECK(cudaMemcpy2D(
           current_frame_buffer_pos + i * metadata.width * metadata.height,
           metadata.width, // dst pitch
           frame->data[i], // src
           frame->linesize[i], // src pitch
           frame->width, // width
           frame->height, // height
-          cudaMemcpyDeviceToDevice);
+          cudaMemcpyDeviceToDevice));
       }
 #else
       convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
@@ -398,7 +399,8 @@ void* evaluate_thread(void* arg) {
         conv_input.convertTo(float_conv_input, CV_32FC3);
         cv::cuda::GpuMat normed_input = float_conv_input - mean_mat;
         //to_conv_input(&std::get<0>(in_vec[i]), &conv_input, &mean);
-        cudaMemcpy(net_input_buffer + i * (dim * dim * 3),
+        CU_CHECK(cudaMemcpy(
+                   net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
                    dim * dim * 3 * sizeof(float),
                    cudaMemcpyHostToDevice);
@@ -600,7 +602,7 @@ int main(int argc, char **argv) {
     char** frame_buffers = new char*[LOAD_BUFFERS];
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
 #ifdef HARDWARE_DECODE
-      cudaMalloc(&frame_buffers[i], frame_buffer_size);
+      CU_CHECK(cudaMalloc(&frame_buffers[i], frame_buffer_size));
 #else
       frame_buffers[i] = new char[frame_buffer_size];
 #endif
@@ -617,7 +619,7 @@ int main(int argc, char **argv) {
       // Retain primary context to use for decoder
 #ifdef HARDWARE_DECODE
       CUcontext cuda_ctx;
-      cuDevicePrimaryCtxRetain(&cuda_ctx, gpu_device_id);
+      CU_CHECK(cuDevicePrimaryCtxRetain(&cuda_ctx, gpu_device_id));
 #endif
 
       // Create IO thread for reading and decoding data
@@ -759,7 +761,7 @@ int main(int argc, char **argv) {
 
       // Cleanup
 #ifdef HARDWARE_DECODE
-      cuDevicePrimaryCtxRelease(i);
+      CU_CHECK(cuDevicePrimaryCtxRelease(i));
 #endif
     }
 
@@ -784,7 +786,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
 #ifdef HARDWARE_DECODE
-      cudaFree(frame_buffers[i]);
+      CU_CHECK(cudaFree(frame_buffers[i]));
 #else
       delete[] frame_buffers[i];
       frame_buffers[i] = new char[frame_buffer_size];
