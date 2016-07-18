@@ -141,10 +141,11 @@ set(GTEST_LIB_MAIN
   "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
 ###### PROJECT LIBRARIES #######
-find_package(OpenCV QUIET COMPONENTS core highgui imgproc imgcodecs)
-if(NOT OpenCV_FOUND) # if not OpenCV 3.x, then imgcodecs are not found
-  find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc)
-endif()
+
+# Require opencv3
+find_package(OpenCV REQUIRED COMPONENTS
+  core highgui imgproc imgcodecs
+  cudaimgproc cudafilters)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
 add_definitions(-DUSE_OPENCV)
