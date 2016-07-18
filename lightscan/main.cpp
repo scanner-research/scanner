@@ -22,6 +22,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
+#include <opencv2/cudawarping.hpp>
 
 #ifdef HARDWARE_DECODE
 #include <cuda.h>
@@ -439,17 +440,25 @@ void* evaluate_thread(void* arg) {
 
       for (int i = 0; i < batch_size; ++i) {
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
-        cv::Mat input_mat(metadata.height, metadata.width, CV_8UC3, buffer);
-        cv::cvtColor(input_mat, input_mat, CV_RGB2BGR);
-        cv::Mat conv_input;
+#ifdef HARDWARE_DECODE
+        cv::cuda::GpuMat input_mat(
+          metadata.height, metadata.width, CV_8UC3, buffer);
+#else
+        cv::Mat cpu_mat(
+          metadata.height, metadata.width, CV_8UC3, buffer);
+        cv::cuda::GpuMat input_mat(cpu_mat);
+#endif
+        cv::cvtColor(input_mat, input_mat, CV_YUV2BGR_NV12);
+        cv::cuda::GpuMat conv_input;
         cv::resize(input_mat, conv_input, cv::Size(dim, dim));
-        cv::Mat float_conv_input;
+        cv::cuda::GpuMat float_conv_input;
         conv_input.convertTo(float_conv_input, CV_32FC3);
-        cv::Mat normed_input = float_conv_input - mean_mat;
-        //to_conv_input(&std::get<0>(in_vec[i]), &conv_input, &mean);
-        memcpy(net_input_buffer + i * (dim * dim * 3),
-               normed_input.data,
-               dim * dim * 3 * sizeof(float));
+        cv::cuda::GpuMat normed_input = float_conv_input - mean_mat;
+        CU_CHECK(cudaMemcpy(
+                   net_input_buffer + i * (dim * dim * 3),
+                   normed_input.data,
+                   dim * dim * 3 * sizeof(float),
+                   cudaMemcpyHostToDevice));
       }
 
       net->Forward({&net_input});

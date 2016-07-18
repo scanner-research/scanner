@@ -145,7 +145,7 @@ set(GTEST_LIB_MAIN
 # Require opencv3
 find_package(OpenCV REQUIRED COMPONENTS
   core highgui imgproc imgcodecs
-  cudaimgproc cudafilters)
+  cudawarping cudaimgproc cudafilters)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
 add_definitions(-DUSE_OPENCV)

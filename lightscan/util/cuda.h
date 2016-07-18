@@ -18,16 +18,16 @@
 
 #define CU_CHECK(ans) { cuAssert((ans), __FILE__, __LINE__); }
 
-inline void cudAssert(cudaError_t code,
-                      const char *file,
-                      int line,
-                      bool abort=true)
+inline void cuAssert(cudaError_t code,
+                     const char *file,
+                     int line,
+                     bool abort=true)
 {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"GPUassert: %s %s %d\n",
-              cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
+  if (code != cudaSuccess) {
+    fprintf(stderr,"GPUassert: %s %s %d\n",
+            cudaGetErrorString(code), file, line);
+    if (abort) exit(code);
+  }
 }
 
 #define CUD_CHECK(ans) { cudAssert((ans), __FILE__, __LINE__); }
@@ -37,9 +37,11 @@ inline void cudAssert(CUresult code,
                       int line,
                       bool abort=true)
 {
-  if (code != cudaSuccess) {
+  if (code != CUDA_SUCCESS) {
+    const char* err_str;
+    cuGetErrorString(code, &err_str);
     fprintf(stderr,"GPUassert: %s %s %d\n",
-            cuGetErrorString(code), file, line);
+            err_str, file, line);
     if (abort) exit(code);
   }
 }
