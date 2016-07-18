@@ -21,6 +21,7 @@
 #include "lightscan/util/queue.h"
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/cuda.hpp>
 
 #ifdef HARDWARE_DECODE
 #include <cuda.h>
@@ -276,7 +277,7 @@ void* load_video_thread(void* arg) {
 #ifdef HARDWARE_DECODE
       // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
       //              on that here to copy the data properly
-      for (i = 0; i < 2; i++) {
+      for (int i = 0; i < 2; i++) {
         CU_CHECK(cudaMemcpy2D(
           current_frame_buffer_pos + i * metadata.width * metadata.height,
           metadata.width, // dst pitch
@@ -403,7 +404,7 @@ void* evaluate_thread(void* arg) {
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
                    dim * dim * 3 * sizeof(float),
-                   cudaMemcpyHostToDevice);
+                   cudaMemcpyHostToDevice));
       }
 
       net->Forward({&net_input});
