@@ -601,8 +601,8 @@ int main(int argc, char **argv) {
 
     // Setup shared resources for distributing work to processing threads
     Queue<LoadWorkEntry> load_work;
-    Queue<LoadBufferEntry> empty_load_buffers;
-    Queue<EvalWorkEntry> eval_work;
+    std::vector<Queue<LoadBufferEntry>> empty_load_buffers(gpus_per_node);
+    std::vector<Queue<EvalWorkEntry>> eval_work(gpus_per_node);
 
     // Allocate several buffers to hold the intermediate of an entire work item
     // to allow pipelining of load/eval
@@ -616,17 +616,22 @@ int main(int argc, char **argv) {
                                video_metadata[0].height,
                                1);
     size_t frame_buffer_size = frame_size * max_work_item_size();
-    const int LOAD_BUFFERS = gpus_per_node * WORK_SURPLUS_FACTOR;
-    char** frame_buffers = new char*[LOAD_BUFFERS];
-    for (int i = 0; i < LOAD_BUFFERS; ++i) {
+    const int LOAD_BUFFERS = WORK_SURPLUS_FACTOR;
+    char*** gpu_frame_buffers = new char**[gpus_per_node];
+    for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+      CU_CHECK(cudaSetDevice(gpu));
+      gpu_frame_buffers[gpu] = new char*[LOAD_BUFFERS];
+      char** frame_buffers = gpu_frame_buffers[gpu];
+      for (int i = 0; i < LOAD_BUFFERS; ++i) {
 #ifdef HARDWARE_DECODE
-      CU_CHECK(cudaMalloc(&frame_buffers[i], frame_buffer_size));
+        CU_CHECK(cudaMalloc(&frame_buffers[i], frame_buffer_size));
 #else
-      frame_buffers[i] = new char[frame_buffer_size];
+        frame_buffers[i] = new char[frame_buffer_size];
 #endif
-      // Add the buffer index into the empty buffer queue so workers can
-      // fill it to pass to the eval worker
-      empty_load_buffers.emplace(LoadBufferEntry{i});
+        // Add the buffer index into the empty buffer queue so workers can
+        // fill it to pass to the eval worker
+        empty_load_buffers[gpu].emplace(LoadBufferEntry{i});
+      }
     }
 
     // Setup load workers
@@ -656,12 +661,12 @@ int main(int argc, char **argv) {
 
         // Queues
         load_work,
-        empty_load_buffers,
-        eval_work,
+        empty_load_buffers[i],
+        eval_work[i],
 
         // Buffers
         frame_buffer_size,
-        frame_buffers,
+        gpu_frame_buffers[i],
       });
     }
     std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
@@ -685,12 +690,12 @@ int main(int argc, char **argv) {
         gpu_device_id,
 
         // Queues
-        eval_work,
-        empty_load_buffers,
+        eval_work[i],
+        empty_load_buffers[i],
 
         // Buffers
         frame_buffer_size,
-        frame_buffers,
+        gpu_frame_buffers[i],
       });
     }
     std::vector<pthread_t> eval_threads(gpus_per_node);
@@ -706,7 +711,10 @@ int main(int argc, char **argv) {
       // Wait for clients to ask for work
       while (next_work_item_to_allocate < static_cast<int>(work_items.size())) {
         // Check if we need to allocate work to our own processing thread
-        int local_work = load_work.size() + eval_work.size();
+        int local_work = load_work.size();
+        for (size_t i = 0; i < eval_work.size(); ++i) {
+          local_work += eval_work[i].size();
+        }
         if (local_work < gpus_per_node * WORK_SURPLUS_FACTOR) {
           LoadWorkEntry entry;
           entry.work_item_index = next_work_item_to_allocate++;
@@ -739,7 +747,10 @@ int main(int argc, char **argv) {
     } else {
       // Monitor amount of work left and request more when running low
       while (true) {
-        int local_work = load_work.size() + eval_work.size();
+        int local_work = load_work.size();
+        for (size_t i = 0; i < eval_work.size(); ++i) {
+          local_work += eval_work[i].size();
+        }
         if (local_work < gpus_per_node * WORK_SURPLUS_FACTOR) {
           // Request work when there is only a few unprocessed items left
           int more_work = true;
@@ -787,7 +798,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < gpus_per_node; ++i) {
       EvalWorkEntry entry;
       entry.work_item_index = -1;
-      eval_work.push(entry);
+      eval_work[i].push(entry);
     }
 
     for (int i = 0; i < gpus_per_node; ++i) {
@@ -802,15 +813,19 @@ int main(int argc, char **argv) {
     }
 
 
-    for (int i = 0; i < LOAD_BUFFERS; ++i) {
+    for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+      char** frame_buffers = gpu_frame_buffers[gpu];
+      for (int i = 0; i < LOAD_BUFFERS; ++i) {
 #ifdef HARDWARE_DECODE
-      CU_CHECK(cudaFree(frame_buffers[i]));
+        CU_CHECK(cudaSetDevice(gpu));
+        CU_CHECK(cudaFree(frame_buffers[i]));
 #else
-      delete[] frame_buffers[i];
-      frame_buffers[i] = new char[frame_buffer_size];
+        delete[] frame_buffers[i];
 #endif
+      }
+      delete[] frame_buffers;
     }
-    delete[] frame_buffers;
+    delete[] gpu_frame_buffers;
   }
 
   // Cleanup

@@ -378,7 +378,8 @@ void cuvid_uninit(AVCodecContext *s) {
   ist->hwaccel_get_buffer    = NULL;
   ist->hwaccel_retrieve_data = NULL;
 
-  av_buffer_unref(&ctx->hw_frames_ctx);
+  //av_buffer_unref(&ctx->hw_frames_ctx);
+  av_buffer_unref(&ist->hw_frames_ctx);
 
   av_freep(&ist->hwaccel_ctx);
   av_freep(&s->hwaccel_context);
@@ -411,7 +412,7 @@ int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
       ret = AVERROR(ENOMEM);
       goto error;
     }
-    ist->hwaccel_ctx = NULL;
+    cc->opaque = ist;
   }
 
   av_log(NULL, AV_LOG_VERBOSE, "Setting up CUVID decoder\n");
@@ -424,7 +425,6 @@ int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
       ret = AVERROR(ENOMEM);
       goto error;
     }
-    memset(ctx, 0, sizeof(*ctx));
   }
 
   if (!hw_device_ctx) {
