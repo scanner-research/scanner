@@ -20,7 +20,7 @@ set(SOURCE_FILES
 add_library(util OBJECT
   ${SOURCE_FILES})
 
-cuda_add_library(util_cuda OBJECT
+cuda_add_library(util_cuda 
   opencv.cu)
 
 add_dependencies(util

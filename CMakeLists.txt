@@ -230,7 +230,7 @@ add_executable(lightscanner
   lightscan/main.cpp
   $<TARGET_OBJECTS:storage>
   $<TARGET_OBJECTS:util>
-  $<TARGET_OBJECTS:util_cuda>)
+  util_cuda)
 
 add_dependencies(lightscanner
   GoogleAPICppClient

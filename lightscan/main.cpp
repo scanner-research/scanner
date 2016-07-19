@@ -401,7 +401,7 @@ void* evaluate_thread(void* arg) {
         convertNV12toRGBA(input_mat, rgba_mat, metadata.height, metadata.width);
         cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
         cv::cuda::GpuMat conv_input;
-        cv::resize(input_mat, conv_input, cv::Size(dim, dim));
+        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim));
         cv::cuda::GpuMat float_conv_input;
         conv_input.convertTo(float_conv_input, CV_32FC3);
         cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
@@ -458,7 +458,7 @@ void* evaluate_thread(void* arg) {
         convertNV12toRGBA(input_mat, rgba_mat, metadata.height, metadata.width);
         cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
         cv::cuda::GpuMat conv_input;
-        cv::resize(input_mat, conv_input, cv::Size(dim, dim));
+        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim));
         cv::cuda::GpuMat float_conv_input;
         conv_input.convertTo(float_conv_input, CV_32FC3);
         cv::cuda::GpuMat normed_input(metadata.height, metadata.width,

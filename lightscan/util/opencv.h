@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 
@@ -20,4 +22,4 @@ void convertNV12toRGBA(
   const cv::cuda::GpuMat& in,
   cv::OutputArray out,
   int width,
-  int height)
+  int height);

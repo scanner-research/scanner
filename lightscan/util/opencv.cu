@@ -186,6 +186,9 @@ namespace
     }
 }
 
+__host__ __device__ __forceinline__ int divUp(int total, int grain) {
+    return (total + grain - 1) / grain;
+}
 // End OpenCV code
 
 void convertNV12toRGBA(
@@ -200,9 +203,9 @@ void convertNV12toRGBA(
   dim3 block(32, 8);
   dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
 
-  NV12_to_RGB<<<grid, block>>>(decodedFrame.ptr<uchar>(), decodedFrame.step,
+  NV12_to_RGB<<<grid, block>>>(in.ptr<uchar>(), in.step,
                                outFrame.ptr<uint>(), outFrame.step,
                                width, height);
-  CV_CHECK(cudaGetLastError());
-  CV_CHECK(cudaDeviceSynchronize());
+  CU_CHECK(cudaGetLastError());
+  CU_CHECK(cudaDeviceSynchronize());
 }
