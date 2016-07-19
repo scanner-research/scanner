@@ -200,7 +200,6 @@ void convertNV12toRGBA(
   int height,
   cv::cuda::Stream& stream)
 {
-  out.create(height, width, CV_8UC4);
   GpuMat outFrame = out.getGpuMat();
 
   dim3 block(32, 8);

@@ -21,7 +21,6 @@
 #include "lightscan/util/queue.h"
 
 #include <opencv2/opencv.hpp>
-#include <opencv2/imgproc.hpp
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/cudaarithm.hpp>
@@ -344,7 +343,34 @@ void* evaluate_thread(void* arg) {
 
 
   caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
+
+  // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
+
+#ifndef HARDWARE_DECODE
+  std::vector<cv::cuda::GpuMat> input_mats(
+    NUM_CUDA_STREAMS,
+    cv::cuda::GpuMat(metadata.height + metadata.height / 2,
+                     metadata.width,
+                     CV_8UC1));
+#endif
+
+  std::vector<cv::cuda::GpuMat> rgba_mat(
+    NUM_CUDA_STREAMS,
+    cv::cuda::GpuMat(metadata.height, metadata.width, CV_8UC4));
+
+  std::vector<cv::cuda::GpuMat> conv_input(
+    NUM_CUDA_STREAMS,
+    cv::cuda::GpuMat conv_input(dim, dim, CV_8UC4));
+
+  std::vector<cv::cuda::GpuMat> float_conv_input(
+    NUM_CUDA_STREAMS,
+    cv::cuda::GpuMat(dim, dim, CV_32FC3));
+
+  std::vector<cv::cuda::GpuMat> normed_input(
+    NUM_CUDA_STREAMS,
+    cv::cuda::GpuMat(dim, dim, CV_32FC3));
+
   while (true) {
     // Wait for buffer to process
     EvalWorkEntry work_entry;
@@ -388,7 +414,8 @@ void* evaluate_thread(void* arg) {
 
       // Process batch of frames
       for (int i = 0; i < global_batch_size; ++i) {
-        cv::cuda::Stream& cv_stream = cv_streams[i % NUM_CUDA_STREAMS];
+        int sid = i & NUM_CUDA_STREAMS;
+        cv::cuda::Stream& cv_stream = cv_streams[sid];
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
 #ifdef HARDWARE_DECODE
         cv::cuda::GpuMat input_mat(
@@ -402,25 +429,22 @@ void* evaluate_thread(void* arg) {
           metadata.width,
           CV_8UC1,
           buffer);
-        cv::cuda::GpuMat input_mat(cpu_mat);
+        input_mats[sid].upload(cpu_mat, cv_stream);
+        cv::cuda::GpuMat& input_mat = input_mats[sid];
 #endif
-        cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
-        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height,
+        convertNV12toRGBA(input_mat, rgba_mat[sid],
+                          metadata.width, metadata.height,
                           cv_stream);
-        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR, 0, cv_stream);
-        cv::cuda::GpuMat conv_input;
-        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim), 0, 0,
+        cv::cuda::cvtColor(rgba_mat[sid], input_mat, CV_RGBA2BGR, 0, cv_stream);
+        cv::cuda::resize(input_mat, conv_input[sid], cv::Size(dim, dim), 0, 0,
                          cv::INTER_LINEAR, cv_stream);
-        cv::cuda::GpuMat float_conv_input;
-        conv_input.convertTo(float_conv_input, CV_32FC3, cv_stream);
-        cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
-                                      CV_32FC3);
-        cv::cuda::subtract(float_conv_input, mean_mat, normed_input,
+        conv_input[sid].convertTo(float_conv_input[sid], CV_32FC3, cv_stream);
+        cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
                            cv::noArray(), -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
         CU_CHECK(cudaMemcpyAsync(
                    net_input_buffer + i * (dim * dim * 3),
-                   normed_input.data,
+                   normed_input[sid].data,
                    dim * dim * 3 * sizeof(float),
                    cudaMemcpyDeviceToDevice,
                    s));
@@ -452,7 +476,8 @@ void* evaluate_thread(void* arg) {
       net_input_buffer = net_input.mutable_gpu_data();
 
       for (int i = 0; i < batch_size; ++i) {
-        cv::cuda::Stream& cv_stream = cv_streams[i % NUM_CUDA_STREAMS];
+        int sid = i & NUM_CUDA_STREAMS;
+        cv::cuda::Stream& cv_stream = cv_streams[sid];
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
 #ifdef HARDWARE_DECODE
         cv::cuda::GpuMat input_mat(
@@ -466,25 +491,22 @@ void* evaluate_thread(void* arg) {
           metadata.width,
           CV_8UC1,
           buffer);
-        cv::cuda::GpuMat input_mat(cpu_mat);
+        input_mats[sid].upload(cpu_mat, cv_stream);
+        cv::cuda::GpuMat& input_mat = input_mats[sid];
 #endif
-        cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
-        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height,
+        convertNV12toRGBA(input_mat, rgba_mat[sid],
+                          metadata.width, metadata.height,
                           cv_stream);
-        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR, 0, cv_stream);
-        cv::cuda::GpuMat conv_input;
-        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim), 0, 0,
+        cv::cuda::cvtColor(rgba_mat[sid], input_mat, CV_RGBA2BGR, 0, cv_stream);
+        cv::cuda::resize(input_mat, conv_input[sid], cv::Size(dim, dim), 0, 0,
                          cv::INTER_LINEAR, cv_stream);
-        cv::cuda::GpuMat float_conv_input;
-        conv_input.convertTo(float_conv_input, CV_32FC3, cv_stream);
-        cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
-                                      CV_32FC3);
-        cv::cuda::subtract(float_conv_input, mean_mat, normed_input,
+        conv_input[sid].convertTo(float_conv_input[sid], CV_32FC3, cv_stream);
+        cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
                            cv::noArray(), -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
         CU_CHECK(cudaMemcpyAsync(
                    net_input_buffer + i * (dim * dim * 3),
-                   normed_input.data,
+                   normed_input[sid].data,
                    dim * dim * 3 * sizeof(float),
                    cudaMemcpyDeviceToDevice,
                    s));
