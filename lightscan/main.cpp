@@ -98,6 +98,7 @@ struct LoadWorkEntry {
 };
 
 struct LoadBufferEntry {
+  int gpu_device_id;
   int buffer_index;
 };
 
@@ -115,20 +116,19 @@ struct LoadThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  int gpu_device_id; // for hardware decode, need to know gpu
   StorageConfig* storage_config;
 #ifdef HARDWARE_DECODE
-  CUcontext cuda_ctx; // context to use to decode frames
+  std::vector<CUcontext> cuda_ctx; // context to use to decode frames
 #endif
 
   // Queues for communicating work
   Queue<LoadWorkEntry>& load_work;
   Queue<LoadBufferEntry>& empty_load_buffers;
-  Queue<EvalWorkEntry>& eval_work;
+  std::vector<Queue<EvalWorkEntry>>& eval_work;
 
   // Buffers for loading frames into
   size_t buffer_size;
-  char** frame_buffers;
+  char*** gpu_frame_buffers;
 };
 
 struct EvaluateThreadArgs {
@@ -209,8 +209,6 @@ void convert_av_frame_to_rgb(
 void* load_video_thread(void* arg) {
   LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
-  CU_CHECK(cudaSetDevice(args.gpu_device_id));
-
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
@@ -248,8 +246,16 @@ void* load_video_thread(void* arg) {
     RandomReadFile* file;
     storage->make_random_read_file(video_path, file);
 
+    LoadBufferEntry buffer_entry;
+    args.empty_load_buffers.pop(buffer_entry);
+
+    CU_CHECK(cudaSetDevice(buffer_entry.gpu_device_id));
+
+    char** frame_buffers = args.gpu_frame_buffers[buffer_entry.gpu_device_id];
+    char* frame_buffer = frame_buffers[buffer_entry.buffer_index];
+
 #ifdef HARDWARE_DECODE
-    VideoDecoder decoder(args.cuda_ctx,
+    VideoDecoder decoder(args.cuda_contexts[buffer_entry.gpu_device_id],
                          file, keyframe_positions, keyframe_timestamps);
 #else
     VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
@@ -263,10 +269,6 @@ void* load_video_thread(void* arg) {
                                metadata.height,
                                1);
 
-    LoadBufferEntry buffer_entry;
-    args.empty_load_buffers.pop(buffer_entry);
-
-    char* frame_buffer = args.frame_buffers[buffer_entry.buffer_index];
 
     SwsContext* sws_context;
     int current_frame = work_item.start_frame;
@@ -303,7 +305,7 @@ void* load_video_thread(void* arg) {
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
     eval_work_entry.buffer_index = buffer_entry.buffer_index;
 
-    args.eval_work.push(eval_work_entry);
+    args.eval_work[buffer_entry.gpu_device_id].push(eval_work_entry);
 
     delete file;
   }
@@ -478,22 +480,13 @@ void* evaluate_thread(void* arg) {
       current_frame += batch_size;
     }
     LoadBufferEntry empty_buffer_entry;
+    empty_buffer_entry.gpu_device_id = args.gpu_device_id;
     empty_buffer_entry.buffer_index = work_entry.buffer_index;
     args.empty_load_buffers.push(empty_buffer_entry);
   }
 
   delete net;
 
-  THREAD_RETURN_SUCCESS();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// Thread to asynchronously save out results
-struct SaveVideoArgs {
-};
-
-void* save_video_thread(void* arg) {
-  // Setup connection to save video
   THREAD_RETURN_SUCCESS();
 }
 
@@ -604,7 +597,7 @@ int main(int argc, char **argv) {
 
     // Setup shared resources for distributing work to processing threads
     Queue<LoadWorkEntry> load_work;
-    std::vector<Queue<LoadBufferEntry>> empty_load_buffers(gpus_per_node);
+    Queue<LoadBufferEntry> empty_load_buffers;
     std::vector<Queue<EvalWorkEntry>> eval_work(gpus_per_node);
 
     // Allocate several buffers to hold the intermediate of an entire work item
@@ -633,19 +626,19 @@ int main(int argc, char **argv) {
 #endif
         // Add the buffer index into the empty buffer queue so workers can
         // fill it to pass to the eval worker
-        empty_load_buffers[gpu].emplace(LoadBufferEntry{i});
+        empty_load_buffers.emplace(LoadBufferEntry{gpu, i});
       }
     }
 
     // Setup load workers
     std::vector<LoadThreadArgs> load_thread_args;
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-      int gpu_device_id = i;
-
       // Retain primary context to use for decoder
 #ifdef HARDWARE_DECODE
-      CUcontext cuda_ctx;
-      CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_ctx, gpu_device_id));
+      std::vector<CUcontext> cuda_contexts(gpus_per_node);
+      for (int gpu = 0; i < gpus_per_node; ++gpu) {
+        CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context[gpu], gpu));
+      }
 #endif
 
       // Create IO thread for reading and decoding data
@@ -656,20 +649,19 @@ int main(int argc, char **argv) {
         work_items,
 
         // Per worker arguments
-        gpu_device_id,
         config,
 #ifdef HARDWARE_DECODE
-        cuda_ctx,
+        cuda_contexts,
 #endif
 
         // Queues
         load_work,
-        empty_load_buffers[i],
-        eval_work[i],
+        empty_load_buffers,
+        eval_work,
 
         // Buffers
         frame_buffer_size,
-        gpu_frame_buffers[i],
+        gpu_frame_buffers,
       });
     }
     std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
@@ -694,7 +686,7 @@ int main(int argc, char **argv) {
 
         // Queues
         eval_work[i],
-        empty_load_buffers[i],
+        empty_load_buffers,
 
         // Buffers
         frame_buffer_size,
@@ -793,7 +785,9 @@ int main(int argc, char **argv) {
 
       // Cleanup
 #ifdef HARDWARE_DECODE
-      CUD_CHECK(cuDevicePrimaryCtxRelease(i));
+      for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+        CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
+      }
 #endif
     }
 
