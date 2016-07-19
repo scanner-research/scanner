@@ -22,4 +22,5 @@ void convertNV12toRGBA(
   const cv::cuda::GpuMat& in,
   cv::OutputArray out,
   int width,
-  int height);
+  int height,
+  cv::cuda::Stream& stream = cv::cuda::Stream::Null());

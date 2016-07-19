@@ -118,7 +118,7 @@ struct LoadThreadArgs {
   // Per worker arguments
   StorageConfig* storage_config;
 #ifdef HARDWARE_DECODE
-  std::vector<CUcontext> cuda_ctx; // context to use to decode frames
+  std::vector<CUcontext> cuda_contexts; // context to use to decode frames
 #endif
 
   // Queues for communicating work
@@ -372,6 +372,7 @@ void* evaluate_thread(void* arg) {
     char* frame_buffer = args.frame_buffers[work_entry.buffer_index];
 
     int current_frame = work_item.start_frame;
+    std::vector<cv::cuda::Stream> cv_streams(global_batch_size);
     while (current_frame + global_batch_size < work_item.end_frame) {
       int frame_offset = current_frame - work_item.start_frame;
       if (frame_offset % 128 == 0) {
@@ -381,7 +382,7 @@ void* evaluate_thread(void* arg) {
 
       // Decompress batch of frame
 
-      float* net_input_buffer= net_input.mutable_gpu_data();
+      float* net_input_buffer = net_input.mutable_gpu_data();
 
       // Process batch of frames
       for (int i = 0; i < global_batch_size; ++i) {
@@ -401,22 +402,28 @@ void* evaluate_thread(void* arg) {
         cv::cuda::GpuMat input_mat(cpu_mat);
 #endif
         cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
-        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height);
-        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
+        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height,
+                          cv_streams[i]);
+        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR, cv_streams[i]);
         cv::cuda::GpuMat conv_input;
-        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim));
+        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim),
+                         cv_streams[i]);
         cv::cuda::GpuMat float_conv_input;
-        conv_input.convertTo(float_conv_input, CV_32FC3);
+        conv_input.convertTo(float_conv_input, CV_32FC3, cv_streams[i]);
         cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
                                       CV_32FC3);
-        cv::cuda::subtract(float_conv_input, mean_mat, normed_input);
-        CU_CHECK(cudaMemcpy(
+        cv::cuda::subtract(float_conv_input, mean_mat, normed_input,
+                           cv_streams[i]);
+        cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_streams[i]);
+        CU_CHECK(cudaMemcpyAsync(
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
                    dim * dim * 3 * sizeof(float),
-                   cudaMemcpyDeviceToDevice));
+                   cudaMemcpyDeviceToDevice,
+                   s));
       }
 
+      CU_CHECK(cudaDeviceSynchronize());
       net->Forward({&net_input});
 
       // Save batch of frames
@@ -458,22 +465,28 @@ void* evaluate_thread(void* arg) {
         cv::cuda::GpuMat input_mat(cpu_mat);
 #endif
         cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
-        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height);
-        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
+        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height,
+                          cv_streams[i]);
+        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR, cv_streams[i]);
         cv::cuda::GpuMat conv_input;
-        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim));
+        cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim),
+                         cv_streams[i]);
         cv::cuda::GpuMat float_conv_input;
-        conv_input.convertTo(float_conv_input, CV_32FC3);
+        conv_input.convertTo(float_conv_input, CV_32FC3, cv_streams[i]);
         cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
                                       CV_32FC3);
-        cv::cuda::subtract(float_conv_input, mean_mat, normed_input);
-        CU_CHECK(cudaMemcpy(
+        cv::cuda::subtract(float_conv_input, mean_mat, normed_input,
+                           cv_streams[i]);
+        cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_streams[i]);
+        CU_CHECK(cudaMemcpyAsync(
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
                    dim * dim * 3 * sizeof(float),
-                   cudaMemcpyDeviceToDevice));
+                   cudaMemcpyDeviceToDevice,
+                   s));
       }
 
+      CU_CHECK(cudaDeviceSynchronize());
       net->Forward({&net_input});
 
       // Save batch of frames
@@ -636,8 +649,8 @@ int main(int argc, char **argv) {
       // Retain primary context to use for decoder
 #ifdef HARDWARE_DECODE
       std::vector<CUcontext> cuda_contexts(gpus_per_node);
-      for (int gpu = 0; i < gpus_per_node; ++gpu) {
-        CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context[gpu], gpu));
+      for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+        CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_contexts[gpu], gpu));
       }
 #endif
 

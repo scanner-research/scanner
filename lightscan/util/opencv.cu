@@ -19,6 +19,8 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+#include <opencv2/core/cuda_stream_accessor.hpp>
+
 // Taken from https://github.com/opencv/opencv/blob/master/modules/cudacodec/src/cuda/nv12_to_rgb.cu
 /*M///////////////////////////////////////////////////////////////////////////////////////
 //
@@ -195,7 +197,8 @@ void convertNV12toRGBA(
   const cv::cuda::GpuMat& in,
   cv::OutputArray out,
   int width,
-  int height)
+  int height,
+  cv::cuda::Stream& stream)
 {
   out.create(height, width, CV_8UC4);
   GpuMat outFrame = out.getGpuMat();
@@ -203,9 +206,11 @@ void convertNV12toRGBA(
   dim3 block(32, 8);
   dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
 
-  NV12_to_RGB<<<grid, block>>>(in.ptr<uchar>(), in.step,
-                               outFrame.ptr<uint>(), outFrame.step,
-                               width, height);
+  cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
+
+  NV12_to_RGB<<<grid, block, s>>>(in.ptr<uchar>(), in.step,
+                                  outFrame.ptr<uint>(), outFrame.step,
+                                  width, height);
   CU_CHECK(cudaGetLastError());
   CU_CHECK(cudaDeviceSynchronize());
 }
