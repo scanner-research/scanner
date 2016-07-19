@@ -256,7 +256,7 @@ void* load_video_thread(void* arg) {
     decoder.seek(work_item.start_frame);
 
     size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
+      av_image_get_buffer_size(AV_PIX_FMT_NV12,
                                metadata.width,
                                metadata.height,
                                1);
@@ -336,8 +336,6 @@ void* evaluate_thread(void* arg) {
 
 
   caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
-  // For avoiding transferring over PCIE
-  caffe::Blob<float> no_pcie_dummy{global_batch_size, 3, dim, dim};
 
   while (true) {
     // Wait for buffer to process
@@ -353,7 +351,7 @@ void* evaluate_thread(void* arg) {
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
+      av_image_get_buffer_size(AV_PIX_FMT_NV12,
                                metadata.width,
                                metadata.height,
                                1);
@@ -378,27 +376,27 @@ void* evaluate_thread(void* arg) {
 
       // Decompress batch of frame
 
-      float* net_input_buffer;
-      if (NO_PCIE_TRANSFER) {
-        net_input_buffer = no_pcie_dummy.mutable_cpu_data();
-        net_input.mutable_gpu_data();
-      } else {
-        net_input_buffer = net_input.mutable_cpu_data();
-      }
+      float* net_input_buffer= net_input.mutable_gpu_data();
 
       // Process batch of frames
       for (int i = 0; i < global_batch_size; ++i) {
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
 #ifdef HARDWARE_DECODE
         cv::cuda::GpuMat input_mat(
-          metadata.height, metadata.width, CV_8UC3, buffer);
+          metadata.height + metadata.height / 2,
+          metadata.width,
+          CV_8UC1,
+          buffer);
 #else
         cv::Mat cpu_mat(
-          metadata.height, metadata.width, CV_8UC3, buffer);
+          metadata.height + metadata.height / 2,
+          metadata.width,
+          CV_8UC1,
+          buffer);
         cv::cuda::GpuMat input_mat(cpu_mat);
 #endif
         cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
-        convertNV12toRGBA(input_mat, rgba_mat, metadata.height, metadata.width);
+        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height);
         cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
         cv::cuda::GpuMat conv_input;
         cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim));
@@ -411,7 +409,7 @@ void* evaluate_thread(void* arg) {
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
                    dim * dim * 3 * sizeof(float),
-                   cudaMemcpyHostToDevice));
+                   cudaMemcpyDeviceToDevice));
       }
 
       net->Forward({&net_input});
@@ -434,28 +432,28 @@ void* evaluate_thread(void* arg) {
 
       // Process batch of frames
       caffe::Blob<float> net_input{batch_size, 3, dim, dim};
-      caffe::Blob<float> no_pcie_dummy{batch_size, 3, dim, dim};
 
       float* net_input_buffer;
-      if (NO_PCIE_TRANSFER) {
-        net_input_buffer = no_pcie_dummy.mutable_cpu_data();
-        net_input.mutable_gpu_data();
-      } else {
-        net_input_buffer = net_input.mutable_cpu_data();
-      }
+      net_input_buffer = net_input.mutable_gpu_data();
 
       for (int i = 0; i < batch_size; ++i) {
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
 #ifdef HARDWARE_DECODE
         cv::cuda::GpuMat input_mat(
-          metadata.height, metadata.width, CV_8UC3, buffer);
+          metadata.height + metadata.height / 2,
+          metadata.width,
+          CV_8UC1,
+          buffer);
 #else
         cv::Mat cpu_mat(
-          metadata.height, metadata.width, CV_8UC3, buffer);
+          metadata.height + metadata.height / 2,
+          metadata.width,
+          CV_8UC1,
+          buffer);
         cv::cuda::GpuMat input_mat(cpu_mat);
 #endif
         cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
-        convertNV12toRGBA(input_mat, rgba_mat, metadata.height, metadata.width);
+        convertNV12toRGBA(input_mat, rgba_mat, metadata.width, metadata.height);
         cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
         cv::cuda::GpuMat conv_input;
         cv::cuda::resize(input_mat, conv_input, cv::Size(dim, dim));
@@ -468,7 +466,7 @@ void* evaluate_thread(void* arg) {
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
                    dim * dim * 3 * sizeof(float),
-                   cudaMemcpyHostToDevice));
+                   cudaMemcpyDeviceToDevice));
       }
 
       net->Forward({&net_input});
