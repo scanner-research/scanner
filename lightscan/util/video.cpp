@@ -611,6 +611,11 @@ VideoDecoder::VideoDecoder(
 #endif
 
 VideoDecoder::~VideoDecoder() {
+#ifdef HARDWARE_DECODE
+  if (cc_->pix_fmt == AV_PIX_FMT_CUDA) {
+    cuvid_uninit(cc_);
+  }
+#endif
   pthread_mutex_lock(&av_mutex);
   avcodec_close(cc_);
   avformat_close_input(&format_context_);
