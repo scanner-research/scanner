@@ -23,6 +23,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudawarping.hpp>
+#include <opencv2/cudaarithm.hpp>
 
 #ifdef HARDWARE_DECODE
 #include <cuda.h>
@@ -399,8 +400,9 @@ void* evaluate_thread(void* arg) {
         cv::resize(input_mat, conv_input, cv::Size(dim, dim));
         cv::cuda::GpuMat float_conv_input;
         conv_input.convertTo(float_conv_input, CV_32FC3);
-        cv::cuda::GpuMat normed_input = float_conv_input - mean_mat;
-        //to_conv_input(&std::get<0>(in_vec[i]), &conv_input, &mean);
+        cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
+                                      CV_32FC3);
+        cv::cuda::subtract(float_conv_input, mean_mat, normed_input);
         CU_CHECK(cudaMemcpy(
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
@@ -453,7 +455,9 @@ void* evaluate_thread(void* arg) {
         cv::resize(input_mat, conv_input, cv::Size(dim, dim));
         cv::cuda::GpuMat float_conv_input;
         conv_input.convertTo(float_conv_input, CV_32FC3);
-        cv::cuda::GpuMat normed_input = float_conv_input - mean_mat;
+        cv::cuda::GpuMat normed_input(metadata.height, metadata.width,
+                                      CV_32FC3);
+        cv::cuda::subtract(float_conv_input, mean_mat, normed_input);
         CU_CHECK(cudaMemcpy(
                    net_input_buffer + i * (dim * dim * 3),
                    normed_input.data,
