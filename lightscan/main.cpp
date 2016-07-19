@@ -209,6 +209,8 @@ void convert_av_frame_to_rgb(
 void* load_video_thread(void* arg) {
   LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
+  CU_CHECK(cudaSetDevice(args.gpu_device_id));
+
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
@@ -320,6 +322,7 @@ void* evaluate_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  CU_CHECK(cudaSetDevice(args.gpu_device_id));
   // Setup caffe net
   NetInfo net_info = load_neural_net(NetType::ALEX_NET, args.gpu_device_id);
   caffe::Net<float>* net = net_info.net;
