@@ -24,6 +24,8 @@
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudaimgproc.hpp>
+#include "lightscan/util/opencv.h"
 
 #ifdef HARDWARE_DECODE
 #include <cuda.h>
@@ -49,7 +51,7 @@ using namespace lightscan;
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
 
-const int WORK_ITEM_AMPLIFICATION = 8;
+const int WORK_ITEM_AMPLIFICATION = 4;
 const int WORK_SURPLUS_FACTOR = 4;
 
 const int LOAD_WORKERS_PER_NODE = 2;
@@ -395,7 +397,9 @@ void* evaluate_thread(void* arg) {
           metadata.height, metadata.width, CV_8UC3, buffer);
         cv::cuda::GpuMat input_mat(cpu_mat);
 #endif
-        cv::cvtColor(input_mat, input_mat, CV_YUV2BGR_NV12);
+        cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
+        convertNV12toRGBA(input_mat, rgba_mat, metadata.height, metadata.width);
+        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
         cv::cuda::GpuMat conv_input;
         cv::resize(input_mat, conv_input, cv::Size(dim, dim));
         cv::cuda::GpuMat float_conv_input;
@@ -450,7 +454,9 @@ void* evaluate_thread(void* arg) {
           metadata.height, metadata.width, CV_8UC3, buffer);
         cv::cuda::GpuMat input_mat(cpu_mat);
 #endif
-        cv::cvtColor(input_mat, input_mat, CV_YUV2BGR_NV12);
+        cv::cuda::GpuMat rgba_mat(metadata.height, metadata.width, CV_8UC4);
+        convertNV12toRGBA(input_mat, rgba_mat, metadata.height, metadata.width);
+        cv::cuda::cvtColor(rgba_mat, input_mat, CV_RGBA2BGR);
         cv::cuda::GpuMat conv_input;
         cv::resize(input_mat, conv_input, cv::Size(dim, dim));
         cv::cuda::GpuMat float_conv_input;
