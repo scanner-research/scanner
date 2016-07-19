@@ -211,6 +211,4 @@ void convertNV12toRGBA(
   NV12_to_RGB<<<grid, block, 0, s>>>(in.ptr<uchar>(), in.step,
                                      outFrame.ptr<uint>(), outFrame.step,
                                      width, height);
-  CU_CHECK(cudaGetLastError());
-  CU_CHECK(cudaDeviceSynchronize());
 }
