@@ -206,11 +206,11 @@ void convertNV12toRGBA(
   dim3 block(32, 8);
   dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
 
-  cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
+  cudaStream_t s = cv::cuda::StreamAccessor::getStream(stream);
 
-  NV12_to_RGB<<<grid, block, s>>>(in.ptr<uchar>(), in.step,
-                                  outFrame.ptr<uint>(), outFrame.step,
-                                  width, height);
+  NV12_to_RGB<<<grid, block, 0, s>>>(in.ptr<uchar>(), in.step,
+                                     outFrame.ptr<uint>(), outFrame.step,
+                                     width, height);
   CU_CHECK(cudaGetLastError());
   CU_CHECK(cudaDeviceSynchronize());
 }
