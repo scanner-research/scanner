@@ -195,13 +195,11 @@ __host__ __device__ __forceinline__ int divUp(int total, int grain) {
 
 void convertNV12toRGBA(
   const cv::cuda::GpuMat& in,
-  cv::OutputArray out,
+  cv::cuda::GpuMat& outFrame,
   int width,
   int height,
   cv::cuda::Stream& stream)
 {
-  GpuMat outFrame = out.getGpuMat();
-
   dim3 block(32, 8);
   dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
 
