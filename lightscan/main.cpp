@@ -21,6 +21,10 @@
 #include "lightscan/util/queue.h"
 #include "lightscan/util/jpeg/JPEGWriter.h"
 
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/variables_map.hpp>
+#include <boost/program_options/errors.hpp>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudawarping.hpp>
@@ -49,6 +53,7 @@ extern "C" {
 }
 
 using namespace lightscan;
+namespace po = boost::program_options;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
@@ -683,7 +688,7 @@ int main(int argc, char **argv) {
 
       video_paths_file = std::string{vm["video_paths_file"]};
 
-    } catch (const boost::program_options::required_option & e) {
+    } catch (const po::required_option& e) {
       if (vm.count("help")) {
         std::cout << desc << std::endl;
         return 1;
