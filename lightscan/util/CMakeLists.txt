@@ -15,12 +15,14 @@
 set(SOURCE_FILES
   common.cpp
   caffe.cpp
-  video.cpp)
+  video.cpp
+  jpeg/JPEGReader.cpp
+  jpeg/JPEGWriter.cpp)
 
 add_library(util OBJECT
   ${SOURCE_FILES})
 
-cuda_add_library(util_cuda 
+cuda_add_library(util_cuda
   opencv.cu)
 
 add_dependencies(util

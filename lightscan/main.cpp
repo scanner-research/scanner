@@ -453,6 +453,22 @@ void* evaluate_thread(void* arg) {
                    dim * dim * 3 * sizeof(float),
                    cudaMemcpyDeviceToDevice,
                    s));
+
+        // For checking for proper encoding
+        // if (((current_frame + i) % 512) == 0) {
+        //   size_t image_size = metadata.width * metadata.height * 3;
+        //   uint8_t* image_buff = new uint8_t[image_size];
+        //   CU_CHECK(cudaMemcpy(image_buff, rgb_mat[sid].data, image_size,
+        //                       cudaMemcpyDevicetoHost));
+        //   JPEGWriter writer(metadata.width, metadata.height, 3,
+        //                     JpEG::COLOR_RGB);
+        //   std::vector<uint8_t*> rows(metadata.height);
+        //   for (int i = 0; i < metadata.height; ++i) {
+        //     rows[i] = image_buff + metadata.width * 3 * i;
+        //   }
+        //   writer.write("frame" + std::to_string(current_frame + i) + ".jpg");
+        //   delete[] image_buff;
+        // }
       }
 
       CU_CHECK(cudaDeviceSynchronize());
