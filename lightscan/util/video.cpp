@@ -546,7 +546,9 @@ VideoDecoder::VideoDecoder(
     next_frame_(0),
     next_buffered_frame_(1),
     buffered_frame_pos_(0),
-    near_eof_(false)
+    near_eof_(false),
+    io_time_(0),
+    decode_time_(0)
 {
   av_init_packet(&packet_);
   buffered_frames_.resize(1);
@@ -578,7 +580,9 @@ VideoDecoder::VideoDecoder(
     next_frame_(0),
     next_buffered_frame_(1),
     buffered_frame_pos_(0),
-    near_eof_(false)
+    near_eof_(false),
+    io_time_(0),
+    decode_time_(0)
 {
   av_init_packet(&packet_);
   buffered_frames_.resize(1);
@@ -705,10 +709,12 @@ AVFrame* VideoDecoder::decode() {
     uint8_t* orig_data = packet_.data;
     while (packet_.size > 0) {
       int got_picture = 0;
+      auto decode_start = now();
       int len = avcodec_decode_video2(cc_,
                                       buffered_frames_[buffered_frame_pos_],
                                       &got_picture,
                                       &packet_);
+      decode_time_ += nano_since(decode_start);
       if (len < 0) {
         char err_msg[256];
         av_strerror(len, err_msg, 256);
@@ -757,10 +763,12 @@ AVFrame* VideoDecoder::decode() {
     int got_picture;
     do {
       got_picture = 0;
+      auto decode_start = now();
       int len = avcodec_decode_video2(
         cc_,
         buffered_frames_[buffered_frame_pos_],
         &got_picture, &packet_);
+      decode_time_ += nano_since(decode_start);
       (void)len;
       if (got_picture) {
         // the picture is allocated by the decoder. no need to free
@@ -781,16 +789,26 @@ AVFrame* VideoDecoder::decode() {
   return ret;
 }
 
+double VideoDecoder::time_spent_on_io() {
+  return io_time_;
+}
+
+double VideoDecoder::time_spent_on_decode() {
+  return decode_time_;
+}
+
 int VideoDecoder::read_packet_fn(void *opaque, uint8_t *buf, int buf_size) {
   RandomReadFileData* bd = (RandomReadFileData*)opaque;
   buf_size =
     std::min(static_cast<uint64_t>(buf_size), bd->total_size - bd->pos);
   /* copy internal buffer data to buf */
+  auto start = now();
   size_t size_read;
   StoreResult result;
   EXP_BACKOFF(
     bd->file->read(bd->pos, buf_size, reinterpret_cast<char*>(buf), size_read),
     result);
+  io_time_ += nano_since(start);
   assert(result == StoreResult::Success || result == StoreResult::EndOfFile);
   bd->pos += size_read;
   assert(bd->pos <= bd->total_size);

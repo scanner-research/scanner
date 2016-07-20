@@ -225,7 +225,10 @@ void* load_video_thread(void* arg) {
 
   std::vector<double> task_times;
   std::vector<double> idle_times;
+
+  std::vector<double> io_times;
   std::vector<double> decode_times;
+  std::vector<double> video_times;
   std::vector<double> memcpy_times;
   while (true) {
     auto idle_start1 = now();
@@ -297,18 +300,18 @@ void* load_video_thread(void* arg) {
                                1);
 
 
-    double decode_time = 0;
+    double video_time = 0;
     double memcpy_time = 0;
 
     SwsContext* sws_context;
     int current_frame = work_item.start_frame;
     while (current_frame < work_item.end_frame) {
-      auto decode_start = now();
+      auto video_start = now();
 
       AVFrame* frame = decoder.decode();
       assert(frame != nullptr);
 
-      decode_time += nano_since(decode_start);
+      video_time += nano_since(video_start);
 
       size_t frames_buffer_offset =
         frame_size * (current_frame - work_item.start_frame);
@@ -337,7 +340,9 @@ void* load_video_thread(void* arg) {
       current_frame++;
     }
 
-    decode_times.push_back(decode_time);
+    video_times.push_back(decode_time);
+    io_times.push_back(decoder.time_spent_on_io());
+    decode_times.push_back(decoder.time_spent_on_decode());
     memcpy_times.push_back(memcpy_time);
 
     task_times.push_back(task_time + nano_since(start2));
@@ -369,27 +374,41 @@ void* load_video_thread(void* arg) {
   }
   total_idle_time /= 1000000; // convert from ns to ms
 
-  double total_decode_time = 0;
-  for (double t : decode_times) {
-    total_decode_time += t;
-  }
-  total_decode_time /= 1000000;
-
   double total_memcpy_time = 0;
   for (double t : memcpy_times) {
     total_memcpy_time += t;
   }
   total_mempcy_time /= 1000000;
 
+  double total_video_time = 0;
+  for (double t : video_times) {
+    total_video_time += t;
+  }
+  total_video_time /= 1000000;
+
+  double total_decode_time = 0;
+  for (double t : decode_times) {
+    total_decode_time += t;
+  }
+  total_decode_time /= 1000000;
+
+  double total_io_time = 0;
+  for (double t : io_times) {
+    total_io_time += t;
+  }
+  total_io_time /= 1000000;
 
   printf("(N: %d) Load thread finished. "
          "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Idle: %.3fms %3.2f\%, Memcpy: %3.2f\%, Decode: %3.2f\%\n",
+         "Idle: %.3fms %3.2f\%\n"
+         "Memcpy: %3.2f\%, Video: %3.2f\%, IO: %3.2f\%, Decode: %3.2f\%\n",
          rank,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_idle_time,
          total_idle_time / (total_idle_time + total_task_time) * 100,
          total_mempcy_time / (total_task_time) * 100,
+         total_video_time / (total_task_time) * 100,
+         total_io_time / (total_task_time) * 100,
          total_decode_time / (total_task_time) * 100);
 
   // Cleanup

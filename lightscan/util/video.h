@@ -57,6 +57,10 @@ public:
 
   AVFrame* decode();
 
+  double time_spent_on_io();
+
+  double time_spent_on_decode();
+
 private:
   struct RandomReadFileData {
     RandomReadFile* file;
@@ -88,6 +92,9 @@ private:
   int next_buffered_frame_;
   int buffered_frame_pos_;
   bool near_eof_;
+
+  double io_time_;
+  double decode_time_;
 };
 
 void preprocess_video(
