@@ -219,11 +219,10 @@ void* load_video_thread(void* arg) {
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
 
-  int total_tasks = 0;
-  double total_task_time = 0;
-  double total_idle_time = 0;
+  std::vector<double> task_times;
+  std::vector<double> idle_times;
   while (true) {
-    auto idle_time = now();
+    auto idle_start1 = now();
 
     LoadWorkEntry load_work_entry;
     args.load_work.pop(load_work_entry);
@@ -232,7 +231,7 @@ void* load_video_thread(void* arg) {
       break;
     }
 
-    total_idle_time += nano_since(idle_time);
+    double idle_time = nano_since(idle_start1);
 
     auto start1 = now();
 
@@ -260,10 +259,14 @@ void* load_video_thread(void* arg) {
     RandomReadFile* file;
     storage->make_random_read_file(video_path, file);
 
-    total_task_time += nano_since(start1);
+    double task_time = nano_since(start1);
+
+    auto idle_start2 = now();
 
     LoadBufferEntry buffer_entry;
     args.empty_load_buffers.pop(buffer_entry);
+
+    idle_times.push_bac(idle_time + nano_since(idle_start2));
 
     auto start2 = now();
 
@@ -319,8 +322,7 @@ void* load_video_thread(void* arg) {
       current_frame++;
     }
 
-    total_task_time += nano_since(start2);
-    total_tasks += 1;
+    task_times.push_back(task_time + nano_since(start2));
 
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
