@@ -52,19 +52,17 @@ using namespace lightscan;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
+int GPUS_PER_NODE = 1;           // Number of available GPUs per node
+int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
+int BATCHES_PER_WORK_ITEM = 4;   // How many batches per work item
+int TASKS_IN_QUEUE_PER_GPU = 4;  // How many tasks per GPU to allocate to a node
+int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
+int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
 
-const int WORK_ITEM_AMPLIFICATION = 4;
-const int WORK_SURPLUS_FACTOR = 4;
-
-const int LOAD_WORKERS_PER_NODE = 2;
-const int NUM_CUDA_STREAMS = 32;
-
-const bool NO_PCIE_TRANSFER = false;
 const std::string DB_PATH = "/Users/abpoms/kcam";
 const std::string IFRAME_PATH_POSTFIX = "_iframes";
 const std::string METADATA_PATH_POSTFIX = "_metadata";
 const std::string PROCESSED_VIDEO_POSTFIX = "_processed";
-int global_batch_size;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Helper functions
@@ -84,8 +82,8 @@ std::string iframe_path(const std::string& video_path) {
     basename_s(video_path) + IFRAME_PATH_POSTFIX + ".bin";
 }
 
-inline int max_work_item_size() {
-  return global_batch_size * WORK_ITEM_AMPLIFICATION;
+inline int frames_per_work_item() {
+  return GLOBAL_BATCH_SIZE * BATCHES_PER_WORK_ITEM;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -389,7 +387,7 @@ void* evaluate_thread(void* arg) {
   cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
 
 
-  caffe::Blob<float> net_input{global_batch_size, 3, dim, dim};
+  caffe::Blob<float> net_input{GLOBAL_BATCH_SIZE, 3, dim, dim};
 
   // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
@@ -451,27 +449,21 @@ void* evaluate_thread(void* arg) {
     // Resize net input blob for batch size
     const boost::shared_ptr<caffe::Blob<float>> data_blob{
       net->blob_by_name("data")};
-    if (data_blob->shape(0) != global_batch_size) {
+    if (data_blob->shape(0) != GLOBAL_BATCH_SIZE) {
       data_blob->Reshape({
-          global_batch_size, 3, net_info.input_size, net_info.input_size});
+          GLOBAL_BATCH_SIZE, 3, net_info.input_size, net_info.input_size});
     }
 
     char* frame_buffer = args.frame_buffers[work_entry.buffer_index];
 
     int current_frame = work_item.start_frame;
-    while (current_frame + global_batch_size < work_item.end_frame) {
+    while (current_frame + GLOBAL_BATCH_SIZE < work_item.end_frame) {
       int frame_offset = current_frame - work_item.start_frame;
-      if (frame_offset % 128 == 0) {
-        printf("Node %d, GPU %d, frame %d\n",
-               rank, args.gpu_device_id, current_frame);
-      }
-
-      // Decompress batch of frame
 
       float* net_input_buffer = net_input.mutable_gpu_data();
 
       // Process batch of frames
-      for (int i = 0; i < global_batch_size; ++i) {
+      for (int i = 0; i < GLOBAL_BATCH_SIZE; ++i) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
@@ -531,7 +523,7 @@ void* evaluate_thread(void* arg) {
       net->Forward({&net_input});
 
       // Save batch of frames
-      current_frame += global_batch_size;
+      current_frame += GLOBAL_BATCH_SIZE;
     }
 
     // Epilogue for processing less than a batch of frames
@@ -648,15 +640,58 @@ void shutdown() {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 4) {
-    printf("Usage: %s <gpus_per_node> <batch_size> <video_paths_file>\n",
-           argv[0]);
-    exit(EXIT_FAILURE);
-  }
+  std::string video_paths_file;
+  {
+    po::variables_map vm;
+    po::options_description desc("Allowed options");
+    desc.add_options()
+      ("help", "Produce help message")
+      ("video_paths_file", po::value<std::string>()->required(),
+       "File which contains paths to video files to process")
+      ("gpus_per_node", po::value<int>(), "Number of GPUs per node")
+      ("batch_size", po::value<int>(), "Neural Net input batch size")
+      ("batches_per_work_item", po::value<int>(),
+       "Number of batches in each work item")
+      ("tasks_in_queue_per_gpu", po::value<int>(),
+       "Number of tasks a node will try to maintain in the work queue per GPU")
+      ("load_workers_per_node", po::value<int>(),
+       "Number of worker threads processing load jobs per node");
+    try {
+      po::store(po::parse_command_line(argc, argv, desc), vm);
+      po::notify(vm);
 
-  int gpus_per_node = atoi(argv[1]);
-  global_batch_size = atoi(argv[2]);
-  std::string video_paths_file{argv[3]};
+      if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        return 1;
+      }
+
+      if (vm.count("gpus_per_node")) {
+        GPUS_PER_NODE = vm["gpus_per_node"];
+      }
+      if (vm.count("batch_size")) {
+        GLOBAL_BATCH_SIZE = vm["batch_size"];
+      }
+      if (vm.count("batches_per_work_item")) {
+        BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"];
+      }
+      if (vm.count("tasks_in_queue_per_gpu")) {
+        TASKS_IN_QUEUE_PER_GPU = vm["tasks_in_queue_per_gpu"];
+      }
+      if (vm.count("load_workers_per_node")) {
+        LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"];
+      }
+
+      video_paths_file = std::string{vm["video_paths_file"]};
+
+    } catch (const boost::program_options::required_option & e) {
+      if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        return 1;
+      } else {
+        throw e;
+      }
+    }
+  }
 
   startup(argc, argv);
 
@@ -718,7 +753,7 @@ int main(int argc, char **argv) {
     }
 
     // Break up videos and their frames into equal sized work items
-    const int WORK_ITEM_SIZE = max_work_item_size();
+    const int WORK_ITEM_SIZE = frames_per_work_item();
     std::vector<VideoWorkItem> work_items;
     for (size_t i = 0; i < video_paths.size(); ++i) {
       const VideoMetadata& meta = video_metadata[i];
@@ -757,7 +792,7 @@ int main(int argc, char **argv) {
                                video_metadata[0].width,
                                video_metadata[0].height,
                                1);
-    size_t frame_buffer_size = frame_size * max_work_item_size();
+    size_t frame_buffer_size = frame_size * frames_per_work_item();
     const int LOAD_BUFFERS = WORK_SURPLUS_FACTOR;
     char*** gpu_frame_buffers = new char**[gpus_per_node];
     for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
@@ -851,6 +886,11 @@ int main(int argc, char **argv) {
       int next_work_item_to_allocate = 0;
       // Wait for clients to ask for work
       while (next_work_item_to_allocate < static_cast<int>(work_items.size())) {
+        if (next_work_item_to_allocate % 10 == 0) {
+          printf("Work items left: %d\n",
+                 static_cast<int>(work_items.size()) -
+                 next_work_item_to_allocate);
+        }
         // Check if we need to allocate work to our own processing thread
         int local_work = load_work.size();
         for (size_t i = 0; i < eval_work.size(); ++i) {
