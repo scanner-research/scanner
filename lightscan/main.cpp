@@ -19,6 +19,7 @@
 #include "lightscan/util/video.h"
 #include "lightscan/util/caffe.h"
 #include "lightscan/util/queue.h"
+#include "lightscan/util/jpeg/JPEGWriter.h"
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
@@ -211,19 +212,27 @@ void convert_av_frame_to_rgb(
 void* load_video_thread(void* arg) {
   LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
 
   int total_tasks = 0;
   double total_task_time = 0;
+  double total_idle_time = 0;
   while (true) {
+    auto idle_time = now();
+
     LoadWorkEntry load_work_entry;
     args.load_work.pop(load_work_entry);
 
     if (load_work_entry.work_item_index == -1) {
       break;
     }
+
+    total_idle_time += nano_since(idle_time);
 
     auto start1 = now();
 
@@ -322,11 +331,31 @@ void* load_video_thread(void* arg) {
     delete file;
   }
 
+  double total_task_time = 0;
+  for (double t : task_times) {
+    total_task_time += t;
+  }
   total_task_time /= 1000000; // convert from ns to ms
+  double mean_task_time = total_task_time / task_times.size();
+  double std_dev_task_time = 0;
+  for (double t : task_times) {
+    std_dev_task_time += std::pow(t / 1000000 - mean_task_time, 2);
+  }
+  std_dev_task_time = std::sqrt(std_dev_task_time / task_times.size());
+
+  double total_idle_time = 0;
+  for (double t : idle_times) {
+    total_idle_time += t;
+  }
+  total_idle_time /= 1000000; // convert from ns to ms
+
   printf("(N: %d) Load thread finished. "
-         " # Tasks: %d, Total Time: %.3fms, Time per Task: %.3fms\n",
+         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms",
+         "Idle: %.3fms, Idle %: %3.2f\n",
          rank,
-         total_tasks, total_task_time, total_task_time / total_tasks);
+         total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
+         total_idle_time,
+         total_idle_time / (total_idle_time + total_task_time));
 
   // Cleanup
   delete storage;
@@ -391,9 +420,10 @@ void* evaluate_thread(void* arg) {
     NUM_CUDA_STREAMS,
     cv::cuda::GpuMat(dim, dim, CV_32FC3));
 
-  int total_tasks = 0;
-  double total_task_time = 0;
+  std::vector<double> task_times;
+  std::vector<double> idle_times;
   while (true) {
+    auto idle_start = now();
     // Wait for buffer to process
     EvalWorkEntry work_entry;
     args.eval_work.pop(work_entry);
@@ -401,6 +431,8 @@ void* evaluate_thread(void* arg) {
     if (work_entry.work_item_index == -1) {
       break;
     }
+
+    idle_times.push_back(nano_since(idle_start));
 
     auto start = now();
 
@@ -475,20 +507,22 @@ void* evaluate_thread(void* arg) {
                    s));
 
         // For checking for proper encoding
-        // if (((current_frame + i) % 512) == 0) {
-        //   size_t image_size = metadata.width * metadata.height * 3;
-        //   uint8_t* image_buff = new uint8_t[image_size];
-        //   CU_CHECK(cudaMemcpy(image_buff, rgb_mat[sid].data, image_size,
-        //                       cudaMemcpyDevicetoHost));
-        //   JPEGWriter writer(metadata.width, metadata.height, 3,
-        //                     JpEG::COLOR_RGB);
-        //   std::vector<uint8_t*> rows(metadata.height);
-        //   for (int i = 0; i < metadata.height; ++i) {
-        //     rows[i] = image_buff + metadata.width * 3 * i;
-        //   }
-        //   writer.write("frame" + std::to_string(current_frame + i) + ".jpg");
-        //   delete[] image_buff;
-        // }
+        if (false && ((current_frame + i) % 512) == 0) {
+          size_t image_size = metadata.width * metadata.height * 3;
+          uint8_t* image_buff = new uint8_t[image_size];
+          CU_CHECK(cudaMemcpy(image_buff, rgb_mat[sid].data, image_size,
+                              cudaMemcpyDeviceToHost));
+          JPEGWriter writer;
+          writer.header(metadata.width, metadata.height, 3, JPEG::COLOR_RGB);
+          std::vector<uint8_t*> rows(metadata.height);
+          for (int i = 0; i < metadata.height; ++i) {
+            rows[i] = image_buff + metadata.width * 3 * i;
+          }
+          std::string image_path =
+            "frame" + std::to_string(current_frame + i) + ".jpg";
+          writer.write(image_path, rows.begin());
+          delete[] image_buff;
+        }
       }
 
       CU_CHECK(cudaDeviceSynchronize());
@@ -561,8 +595,7 @@ void* evaluate_thread(void* arg) {
       current_frame += batch_size;
     }
 
-    total_task_time += nano_since(start);
-    total_tasks += 1;
+    task_times.push_back(nano_since(start));
 
     LoadBufferEntry empty_buffer_entry;
     empty_buffer_entry.gpu_device_id = args.gpu_device_id;
@@ -572,11 +605,31 @@ void* evaluate_thread(void* arg) {
 
   delete net;
 
+  double total_task_time = 0;
+  for (double t : task_times) {
+    total_task_time += t;
+  }
   total_task_time /= 1000000; // convert from ns to ms
+  double mean_task_time = total_task_time / task_times.size();
+  double std_dev_task_time = 0;
+  for (double t : task_times) {
+    std_dev_task_time += std::pow(t / 1000000 - mean_task_time, 2);
+  }
+  std_dev_task_time = std::sqrt(std_dev_task_time / task_times.size());
+
+  double total_idle_time = 0;
+  for (double t : idle_times) {
+    total_idle_time += t;
+  }
+  total_idle_time /= 1000000; // convert from ns to ms
+
   printf("(N/GPU: %d/%d) Evaluate thread finished. "
-         " # Tasks: %d, Total Time: %.3fms, Time per Task: %.3fms\n",
+         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms",
+         "Idle: %.3fms, Idle %: %3.2f\n",
          rank, args.gpu_device_id,
-         total_tasks, total_task_time, total_task_time / total_tasks);
+         total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
+         total_idle_time,
+         total_idle_time / (total_idle_time + total_task_time));
 
   THREAD_RETURN_SUCCESS();
 }
