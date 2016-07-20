@@ -66,6 +66,8 @@ private:
     RandomReadFile* file;
     uint64_t pos; // current position
     uint64_t total_size;
+
+    double io_time;
   } buffer_;
 
   static int read_packet_fn(void *opaque, uint8_t *buf, int buf_size);
@@ -93,7 +95,6 @@ private:
   int buffered_frame_pos_;
   bool near_eof_;
 
-  double io_time_;
   double decode_time_;
 };
 

@@ -790,7 +790,7 @@ AVFrame* VideoDecoder::decode() {
 }
 
 double VideoDecoder::time_spent_on_io() {
-  return io_time_;
+  return buffer_->io_time;
 }
 
 double VideoDecoder::time_spent_on_decode() {
@@ -808,7 +808,7 @@ int VideoDecoder::read_packet_fn(void *opaque, uint8_t *buf, int buf_size) {
   EXP_BACKOFF(
     bd->file->read(bd->pos, buf_size, reinterpret_cast<char*>(buf), size_read),
     result);
-  io_time_ += nano_since(start);
+  bd->io_time += nano_since(start);
   assert(result == StoreResult::Success || result == StoreResult::EndOfFile);
   bd->pos += size_read;
   assert(bd->pos <= bd->total_size);
@@ -848,6 +848,7 @@ void VideoDecoder::setup_format_context() {
   buffer_.file = file_;
   buffer_.pos = 0;
   buffer_.total_size = size;
+  buffer_.io_time = 0;
 
   size_t avio_context_buffer_size = 4096;
   uint8_t* avio_context_buffer =
