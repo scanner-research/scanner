@@ -266,7 +266,7 @@ void* load_video_thread(void* arg) {
     LoadBufferEntry buffer_entry;
     args.empty_load_buffers.pop(buffer_entry);
 
-    idle_times.push_bac(idle_time + nano_since(idle_start2));
+    idle_times.push_back(idle_time + nano_since(idle_start2));
 
     auto start2 = now();
 
@@ -352,7 +352,7 @@ void* load_video_thread(void* arg) {
   total_idle_time /= 1000000; // convert from ns to ms
 
   printf("(N: %d) Load thread finished. "
-         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms",
+         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
          "Idle: %.3fms, Idle %: %3.2f\n",
          rank,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
@@ -626,7 +626,7 @@ void* evaluate_thread(void* arg) {
   total_idle_time /= 1000000; // convert from ns to ms
 
   printf("(N/GPU: %d/%d) Evaluate thread finished. "
-         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms",
+         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
          "Idle: %.3fms, Idle %: %3.2f\n",
          rank, args.gpu_device_id,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
