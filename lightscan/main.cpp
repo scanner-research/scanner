@@ -671,22 +671,22 @@ int main(int argc, char **argv) {
       }
 
       if (vm.count("gpus_per_node")) {
-        GPUS_PER_NODE = vm["gpus_per_node"];
+        GPUS_PER_NODE = vm["gpus_per_node"].as<int>();
       }
       if (vm.count("batch_size")) {
-        GLOBAL_BATCH_SIZE = vm["batch_size"];
+        GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
       }
       if (vm.count("batches_per_work_item")) {
-        BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"];
+        BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"].as<int>();
       }
       if (vm.count("tasks_in_queue_per_gpu")) {
-        TASKS_IN_QUEUE_PER_GPU = vm["tasks_in_queue_per_gpu"];
+        TASKS_IN_QUEUE_PER_GPU = vm["tasks_in_queue_per_gpu"].as<int>();
       }
       if (vm.count("load_workers_per_node")) {
-        LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"];
+        LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"].as<int>();
       }
 
-      video_paths_file = std::string{vm["video_paths_file"]};
+      video_paths_file = vm["video_paths_file"].as<std::string>();
 
     } catch (const po::required_option& e) {
       if (vm.count("help")) {
