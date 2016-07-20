@@ -215,7 +215,8 @@ void* load_video_thread(void* arg) {
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
 
-  int next_buffer = 0;
+  int total_tasks = 0;
+  double total_task_time = 0;
   while (true) {
     LoadWorkEntry load_work_entry;
     args.load_work.pop(load_work_entry);
@@ -223,6 +224,8 @@ void* load_video_thread(void* arg) {
     if (load_work_entry.work_item_index == -1) {
       break;
     }
+
+    auto start1 = now();
 
     const VideoWorkItem& work_item =
       args.work_items[load_work_entry.work_item_index];
@@ -248,8 +251,12 @@ void* load_video_thread(void* arg) {
     RandomReadFile* file;
     storage->make_random_read_file(video_path, file);
 
+    total_task_time += nano_since(start1);
+
     LoadBufferEntry buffer_entry;
     args.empty_load_buffers.pop(buffer_entry);
+
+    auto start2 = now();
 
     CU_CHECK(cudaSetDevice(buffer_entry.gpu_device_id));
 
@@ -303,6 +310,9 @@ void* load_video_thread(void* arg) {
       current_frame++;
     }
 
+    total_task_time += nano_since(start2);
+    total_tasks += 1;
+
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
     eval_work_entry.buffer_index = buffer_entry.buffer_index;
@@ -311,6 +321,12 @@ void* load_video_thread(void* arg) {
 
     delete file;
   }
+
+  total_task_time /= 1000000; // convert from ns to ms
+  printf("(N: %d) Load thread finished. "
+         " # Tasks: %d, Total Time: %.3fms, Time per Task: %.3fms\n",
+         rank,
+         total_tasks, total_task_time, total_task_time / total_tasks);
 
   // Cleanup
   delete storage;
@@ -375,6 +391,8 @@ void* evaluate_thread(void* arg) {
     NUM_CUDA_STREAMS,
     cv::cuda::GpuMat(dim, dim, CV_32FC3));
 
+  int total_tasks = 0;
+  double total_task_time = 0;
   while (true) {
     // Wait for buffer to process
     EvalWorkEntry work_entry;
@@ -383,6 +401,8 @@ void* evaluate_thread(void* arg) {
     if (work_entry.work_item_index == -1) {
       break;
     }
+
+    auto start = now();
 
     const VideoWorkItem& work_item =
       args.work_items[work_entry.work_item_index];
@@ -540,6 +560,10 @@ void* evaluate_thread(void* arg) {
       // Save batch of frames
       current_frame += batch_size;
     }
+
+    total_task_time += nano_since(start);
+    total_tasks += 1;
+
     LoadBufferEntry empty_buffer_entry;
     empty_buffer_entry.gpu_device_id = args.gpu_device_id;
     empty_buffer_entry.buffer_index = work_entry.buffer_index;
@@ -547,6 +571,12 @@ void* evaluate_thread(void* arg) {
   }
 
   delete net;
+
+  total_task_time /= 1000000; // convert from ns to ms
+  printf("(N/GPU: %d/%d) Evaluate thread finished. "
+         " # Tasks: %d, Total Time: %.3fms, Time per Task: %.3fms\n",
+         rank, args.gpu_device_id,
+         total_tasks, total_task_time, total_task_time / total_tasks);
 
   THREAD_RETURN_SUCCESS();
 }
