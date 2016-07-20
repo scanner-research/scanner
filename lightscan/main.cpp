@@ -784,7 +784,7 @@ int main(int argc, char **argv) {
     // Setup shared resources for distributing work to processing threads
     Queue<LoadWorkEntry> load_work;
     Queue<LoadBufferEntry> empty_load_buffers;
-    std::vector<Queue<EvalWorkEntry>> eval_work(gpus_per_node);
+    std::vector<Queue<EvalWorkEntry>> eval_work(GPUS_PER_NODE);
 
     // Allocate several buffers to hold the intermediate of an entire work item
     // to allow pipelining of load/eval
@@ -798,9 +798,9 @@ int main(int argc, char **argv) {
                                video_metadata[0].height,
                                1);
     size_t frame_buffer_size = frame_size * frames_per_work_item();
-    const int LOAD_BUFFERS = WORK_SURPLUS_FACTOR;
-    char*** gpu_frame_buffers = new char**[gpus_per_node];
-    for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+    const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_GPU;
+    char*** gpu_frame_buffers = new char**[GPUS_PER_NODE];
+    for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
       CU_CHECK(cudaSetDevice(gpu));
       gpu_frame_buffers[gpu] = new char*[LOAD_BUFFERS];
       char** frame_buffers = gpu_frame_buffers[gpu];
@@ -821,8 +821,8 @@ int main(int argc, char **argv) {
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
       // Retain primary context to use for decoder
 #ifdef HARDWARE_DECODE
-      std::vector<CUcontext> cuda_contexts(gpus_per_node);
-      for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+      std::vector<CUcontext> cuda_contexts(GPUS_PER_NODE);
+      for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
         CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_contexts[gpu], gpu));
       }
 #endif
@@ -858,7 +858,7 @@ int main(int argc, char **argv) {
 
     // Setup evaluate workers
     std::vector<EvaluateThreadArgs> eval_thread_args;
-    for (int i = 0; i < gpus_per_node; ++i) {
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
       int gpu_device_id = i;
 
       // Create eval thread for passing data through neural net
@@ -879,8 +879,8 @@ int main(int argc, char **argv) {
         gpu_frame_buffers[i],
       });
     }
-    std::vector<pthread_t> eval_threads(gpus_per_node);
-    for (int i = 0; i < gpus_per_node; ++i) {
+    std::vector<pthread_t> eval_threads(GPUS_PER_NODE);
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
       pthread_create(&eval_threads[i], NULL, evaluate_thread,
                      &eval_thread_args[i]);
     }
@@ -901,7 +901,7 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < eval_work.size(); ++i) {
           local_work += eval_work[i].size();
         }
-        if (local_work < gpus_per_node * WORK_SURPLUS_FACTOR) {
+        if (local_work < GPUS_PER_NODE * TASKS_IN_QUEUE_PER_GPU) {
           LoadWorkEntry entry;
           entry.work_item_index = next_work_item_to_allocate++;
           load_work.push(entry);
@@ -938,7 +938,7 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < eval_work.size(); ++i) {
           local_work += eval_work[i].size();
         }
-        if (local_work < gpus_per_node * WORK_SURPLUS_FACTOR) {
+        if (local_work < GPUS_PER_NODE * TASKS_IN_QUEUE_PER_GPU) {
           // Request work when there is only a few unprocessed items left
           int more_work = true;
           MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -977,20 +977,20 @@ int main(int argc, char **argv) {
 
       // Cleanup
 #ifdef HARDWARE_DECODE
-      for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+      for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
         CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
       }
 #endif
     }
 
     // Push sentinel work entries into queue to terminate eval threads
-    for (int i = 0; i < gpus_per_node; ++i) {
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
       EvalWorkEntry entry;
       entry.work_item_index = -1;
       eval_work[i].push(entry);
     }
 
-    for (int i = 0; i < gpus_per_node; ++i) {
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
       // Wait until eval has finished
       void* result;
       int err = pthread_join(eval_threads[i], &result);
@@ -1002,7 +1002,7 @@ int main(int argc, char **argv) {
     }
 
 
-    for (int gpu = 0; gpu < gpus_per_node; ++gpu) {
+    for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
       char** frame_buffers = gpu_frame_buffers[gpu];
       for (int i = 0; i < LOAD_BUFFERS; ++i) {
 #ifdef HARDWARE_DECODE
