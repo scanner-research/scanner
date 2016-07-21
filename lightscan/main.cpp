@@ -330,7 +330,7 @@ void* load_video_thread(void* arg) {
           frame->data[i], // src
           frame->linesize[i], // src pitch
           frame->width, // width
-          frame->height, // height
+          i == 0 ? frame->height : frame->height / 2, // height
           cudaMemcpyDeviceToDevice));
       }
       memcpy_time += nano_since(memcpy_start);
@@ -340,7 +340,7 @@ void* load_video_thread(void* arg) {
       current_frame++;
     }
 
-    video_times.push_back(decode_time);
+    video_times.push_back(video_time);
     io_times.push_back(decoder.time_spent_on_io());
     decode_times.push_back(decoder.time_spent_on_decode());
     memcpy_times.push_back(memcpy_time);
@@ -378,7 +378,7 @@ void* load_video_thread(void* arg) {
   for (double t : memcpy_times) {
     total_memcpy_time += t;
   }
-  total_mempcy_time /= 1000000;
+  total_memcpy_time /= 1000000;
 
   double total_video_time = 0;
   for (double t : video_times) {
@@ -406,7 +406,7 @@ void* load_video_thread(void* arg) {
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_idle_time,
          total_idle_time / (total_idle_time + total_task_time) * 100,
-         total_mempcy_time / (total_task_time) * 100,
+         total_memcpy_time / (total_task_time) * 100,
          total_video_time / (total_task_time) * 100,
          total_io_time / (total_task_time) * 100,
          total_decode_time / (total_task_time) * 100);
@@ -940,11 +940,6 @@ int main(int argc, char **argv) {
       int next_work_item_to_allocate = 0;
       // Wait for clients to ask for work
       while (next_work_item_to_allocate < static_cast<int>(work_items.size())) {
-        if (next_work_item_to_allocate % 10 == 0) {
-          printf("Work items left: %d\n",
-                 static_cast<int>(work_items.size()) -
-                 next_work_item_to_allocate);
-        }
         // Check if we need to allocate work to our own processing thread
         int local_work = load_work.size();
         for (size_t i = 0; i < eval_work.size(); ++i) {
@@ -954,6 +949,12 @@ int main(int argc, char **argv) {
           LoadWorkEntry entry;
           entry.work_item_index = next_work_item_to_allocate++;
           load_work.push(entry);
+
+          if (next_work_item_to_allocate % 10 == 0) {
+            printf("Work items left: %d\n",
+                   static_cast<int>(work_items.size()) -
+                   next_work_item_to_allocate);
+          }
           continue;
         }
 
@@ -965,6 +966,12 @@ int main(int argc, char **argv) {
           int next_item = next_work_item_to_allocate++;
           MPI_Send(&next_item, 1, MPI_INT,
                    status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+
+          if (next_work_item_to_allocate % 10 == 0) {
+            printf("Work items left: %d\n",
+                   static_cast<int>(work_items.size()) -
+                   next_work_item_to_allocate);
+          }
         }
         std::this_thread::yield();
       }

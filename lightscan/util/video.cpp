@@ -547,7 +547,6 @@ VideoDecoder::VideoDecoder(
     next_buffered_frame_(1),
     buffered_frame_pos_(0),
     near_eof_(false),
-    io_time_(0),
     decode_time_(0)
 {
   av_init_packet(&packet_);
@@ -581,7 +580,6 @@ VideoDecoder::VideoDecoder(
     next_buffered_frame_(1),
     buffered_frame_pos_(0),
     near_eof_(false),
-    io_time_(0),
     decode_time_(0)
 {
   av_init_packet(&packet_);
@@ -790,7 +788,7 @@ AVFrame* VideoDecoder::decode() {
 }
 
 double VideoDecoder::time_spent_on_io() {
-  return buffer_->io_time;
+  return buffer_.io_time;
 }
 
 double VideoDecoder::time_spent_on_decode() {
