@@ -45,9 +45,9 @@ def run_trial(node_count,
         '--video_paths_file', VIDEO_FILE,
         '--gpus_per_node', str(gpus_per_node),
         '--batch_size', str(batch_size),
-        '--batches_per_work_item', str(BATCHES_PER_WORK_ITEM),
-        '--tasks_in_queue_per_gpu', str(TASKS_IN_QUEUE_PER_GPU),
-        '--load_workers_per_node', str(LOAD_WORKERS_PER_NODE)
+        '--batches_per_work_item', str(batches_per_work_item),
+        '--tasks_in_queue_per_gpu', str(tasks_in_queue_per_gpu),
+        '--load_workers_per_node', str(load_workers_per_node)
     ], env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
     pid, rc, ru = os.wait4(p.pid, 0)
     elapsed = time.time() - start
