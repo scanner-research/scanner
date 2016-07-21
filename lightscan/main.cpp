@@ -226,6 +226,7 @@ void* load_video_thread(void* arg) {
   std::vector<double> task_times;
   std::vector<double> idle_times;
 
+  std::vector<double> setup_times;
   std::vector<double> io_times;
   std::vector<double> decode_times;
   std::vector<double> video_times;
@@ -284,12 +285,14 @@ void* load_video_thread(void* arg) {
     char** frame_buffers = args.gpu_frame_buffers[buffer_entry.gpu_device_id];
     char* frame_buffer = frame_buffers[buffer_entry.buffer_index];
 
+    auto setup_start = now();
 #ifdef HARDWARE_DECODE
     VideoDecoder decoder(args.cuda_contexts[buffer_entry.gpu_device_id],
                          file, keyframe_positions, keyframe_timestamps);
 #else
     VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
 #endif
+    setup_times.push_back(nano_since(setup_start));
 
     decoder.seek(work_item.start_frame);
 
@@ -398,14 +401,22 @@ void* load_video_thread(void* arg) {
   }
   total_io_time /= 1000000;
 
+  double total_setup_time = 0;
+  for (double t : setup_times) {
+    total_setup_time += t;
+  }
+  total_setup_time /= 1000000;
+
   printf("(N: %d) Load thread finished. "
          "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
          "Idle: %.3fms %3.2f\%\n"
-         "Memcpy: %3.2f\%, Video: %3.2f\%, IO: %3.2f\%, Decode: %3.2f\%\n",
+         "Setup: %3.2f\%, Memcpy: %3.2f\%, Video: %3.2f\%, IO: %3.2f\%, "
+         "Decode: %3.2f\%\n",
          rank,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_idle_time,
          total_idle_time / (total_idle_time + total_task_time) * 100,
+         total_setup_time / (total_task_time) * 100,
          total_memcpy_time / (total_task_time) * 100,
          total_video_time / (total_task_time) * 100,
          total_io_time / (total_task_time) * 100,
