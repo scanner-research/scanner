@@ -673,11 +673,11 @@ void* evaluate_thread(void* arg) {
 
   printf("(N/GPU: %d/%d) Evaluate thread finished. "
          "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Idle: %.3fms, Idle %: %3.2f\n",
+         "Idle: %.3fms, Idle: %3.2f\%\n",
          rank, args.gpu_device_id,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_idle_time,
-         total_idle_time / (total_idle_time + total_task_time));
+         total_idle_time / (total_idle_time + total_task_time) * 100);
 
   THREAD_RETURN_SUCCESS();
 }
@@ -809,6 +809,7 @@ int main(int argc, char **argv) {
     // Break up videos and their frames into equal sized work items
     const int WORK_ITEM_SIZE = frames_per_work_item();
     std::vector<VideoWorkItem> work_items;
+    uint32_t total_frames = 0;
     for (size_t i = 0; i < video_paths.size(); ++i) {
       const VideoMetadata& meta = video_metadata[i];
 
@@ -825,9 +826,12 @@ int main(int argc, char **argv) {
 
         allocated_frames += frames_to_allocate;
       }
+      total_frames += meta.frames;
     }
     if (is_master(rank)) {
-      printf("Total work items: %lu\n", work_items.size());
+      printf("Total work items: %lu, Total frames: %u\n",
+             work_items.size(),
+             total_frames);
     }
 
     // Setup shared resources for distributing work to processing threads
