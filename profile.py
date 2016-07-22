@@ -93,6 +93,26 @@ def load_workers_trials():
         times)
 
 
+def work_item_size_trials():
+    trial_settings = [{'node_count': 1,
+                       'gpus_per_node': gpus,
+                       'batch_size': 256,
+                       'batches_per_work_item': work_item_size,
+                       'tasks_in_queue_per_gpu': 3,
+                       'load_workers_per_node': workers}
+                      for gpus, workers in zip([1, 2, 4, 8], [2, 4, 8, 16])
+                      for work_item_size in [4, 8, 16, 32, 64, 128, 256]]
+    times = []
+    for settings in trial_settings:
+        t = run_trial(**settings)
+        times.append(t)
+
+    print_trial_times(
+        'Work item trials',
+        trial_settings,
+        times)
+
+
 def batch_size_trials():
     batch_size_trial_settings = [[nodes, gpus, batch]
                                  for nodes in [1]
