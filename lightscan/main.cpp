@@ -259,6 +259,16 @@ void* load_video_thread(void* arg) {
     double task_time;
     LoadBufferEntry buffer_entry;
     if (decoder == nullptr || video_path != last_video_path) {
+      if (video_file != nullptr) {
+        delete video_file;
+        video_file = nullptr;
+      }
+
+      if (decoder != nullptr) {
+        delete decoder;
+        decoder = nullptr;
+      }
+
       // Open the iframe file to setup keyframe data
       std::string iframe_file_path = iframe_path(video_path);
       std::vector<int> keyframe_positions;
@@ -288,16 +298,6 @@ void* load_video_thread(void* arg) {
       auto start2 = now();
 
       CU_CHECK(cudaSetDevice(buffer_entry.gpu_device_id));
-
-      if (decoder != nullptr) {
-        delete decoder;
-        decoder = nullptr;
-      }
-
-      if (video_file != nullptr) {
-        delete video_file;
-        video_file = nullptr;
-      }
 
       auto setup_start = now();
 #ifdef HARDWARE_DECODE
