@@ -234,6 +234,7 @@ void* load_video_thread(void* arg) {
 
   std::string last_video_path;
   int last_gpu_device_id = -1;
+  RandomReadFile* video_file = nullptr;;
   VideoDecoder* decoder = nullptr;
   while (true) {
     auto idle_start1 = now();
@@ -273,8 +274,7 @@ void* load_video_thread(void* arg) {
       }
 
       // Open the video file for reading
-      RandomReadFile* file;
-      storage->make_random_read_file(video_path, file);
+      storage->make_random_read_file(video_path, video__file);
 
       task_time = nano_since(start1);
 
@@ -294,12 +294,19 @@ void* load_video_thread(void* arg) {
         decoder = nullptr;
       }
 
+      if (video_file != nullptr) {
+        delete video_file;
+        video_file = nullptr;
+      }
+
       auto setup_start = now();
 #ifdef HARDWARE_DECODE
       decoder = new VideoDecoder(args.cuda_contexts[buffer_entry.gpu_device_id],
-                                 file, keyframe_positions, keyframe_timestamps);
+                                 video_file,
+                                 keyframe_positions, keyframe_timestamps);
 #else
-      decoder = new VideoDecoder(file, keyframe_positions, keyframe_timestamps);
+      decoder = new VideoDecoder(video_file,
+                                 keyframe_positions, keyframe_timestamps);
 #endif
       setup_times.push_back(nano_since(setup_start));
     } else {
@@ -385,8 +392,6 @@ void* load_video_thread(void* arg) {
     eval_work_entry.buffer_index = buffer_entry.buffer_index;
 
     args.eval_work[buffer_entry.gpu_device_id].push(eval_work_entry);
-
-    delete file;
   }
 
   double total_task_time = 0;
@@ -455,6 +460,9 @@ void* load_video_thread(void* arg) {
   // Cleanup
   if (decoder != nullptr) {
     delete decoder;
+  }
+  if (video_file != nullptr) {
+    delete video_file;
   }
   delete storage;
 
