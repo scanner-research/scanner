@@ -123,6 +123,7 @@ struct LoadThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
+  int gpu_device_id;
   StorageConfig* storage_config;
 #ifdef HARDWARE_DECODE
   std::vector<CUcontext> cuda_contexts; // context to use to decode frames
@@ -219,6 +220,8 @@ void* load_video_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  CU_CHECK(cudaSetDevice(args.gpu_device_id));
+
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
@@ -233,7 +236,6 @@ void* load_video_thread(void* arg) {
   std::vector<double> memcpy_times;
 
   std::string last_video_path;
-  int last_gpu_device_id = -1;
   RandomReadFile* video_file = nullptr;;
   VideoDecoder* decoder = nullptr;
   while (true) {
@@ -290,18 +292,20 @@ void* load_video_thread(void* arg) {
 
       auto idle_start2 = now();
 
-      LoadBufferEntry buffer_entry;
+      // Loop until we find a free buffer on the same GPU
       args.empty_load_buffers.pop(buffer_entry);
+      while (buffer_entry.gpu_device_id != args.gpu_device_id) {
+        args.empty_load_buffers.push(buffer_entry);
+        args.empty_load_buffers.pop(buffer_entry);
+      }
 
       idle_times.push_back(idle_time + nano_since(idle_start2));
 
       auto start2 = now();
 
-      CU_CHECK(cudaSetDevice(buffer_entry.gpu_device_id));
-
       auto setup_start = now();
 #ifdef HARDWARE_DECODE
-      decoder = new VideoDecoder(args.cuda_contexts[buffer_entry.gpu_device_id],
+      decoder = new VideoDecoder(args.cuda_contexts[args.gpu_device_id],
                                  video_file,
                                  keyframe_positions, keyframe_timestamps);
 #else
@@ -319,7 +323,7 @@ void* load_video_thread(void* arg) {
 
       // Loop until we find a free buffer on the same GPU
       args.empty_load_buffers.pop(buffer_entry);
-      while (buffer_entry.gpu_device_id != last_gpu_device_id) {
+      while (buffer_entry.gpu_device_id != args.gpu_device_id) {
         args.empty_load_buffers.push(buffer_entry);
         args.empty_load_buffers.pop(buffer_entry);
       }
@@ -329,7 +333,6 @@ void* load_video_thread(void* arg) {
     auto start3 = now();
 
     last_video_path = video_path;
-    last_gpu_device_id = buffer_entry.gpu_device_id;
     decoder->reset_timing();
 
     char** frame_buffers = args.gpu_frame_buffers[buffer_entry.gpu_device_id];
@@ -944,6 +947,7 @@ int main(int argc, char **argv) {
         work_items,
 
         // Per worker arguments
+        i % GPUS_PER_NDOE,
         config,
 #ifdef HARDWARE_DECODE
         cuda_contexts,
