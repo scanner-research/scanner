@@ -231,6 +231,10 @@ void* load_video_thread(void* arg) {
   std::vector<double> decode_times;
   std::vector<double> video_times;
   std::vector<double> memcpy_times;
+
+  std::string last_video_path;
+  int last_gpu_device_id = -1;
+  VideoDecoder* decoder = nullptr;
   while (true) {
     auto idle_start1 = now();
 
@@ -251,50 +255,76 @@ void* load_video_thread(void* arg) {
     const std::string& video_path = args.video_paths[work_item.video_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
-    // Open the iframe file to setup keyframe data
-    std::string iframe_file_path = iframe_path(video_path);
-    std::vector<int> keyframe_positions;
-    std::vector<int64_t> keyframe_timestamps;
-    {
-      RandomReadFile* iframe_file;
-      storage->make_random_read_file(iframe_file_path, iframe_file);
-
-      (void)read_keyframe_info(
-        iframe_file, 0, keyframe_positions, keyframe_timestamps);
-
-      delete iframe_file;
-    }
-
-    // Open the video file for reading
-    RandomReadFile* file;
-    storage->make_random_read_file(video_path, file);
-
-    double task_time = nano_since(start1);
-
-    auto idle_start2 = now();
-
+    double task_time;
     LoadBufferEntry buffer_entry;
-    args.empty_load_buffers.pop(buffer_entry);
+    if (decoder == nullptr || video_path != last_video_path) {
+      // Open the iframe file to setup keyframe data
+      std::string iframe_file_path = iframe_path(video_path);
+      std::vector<int> keyframe_positions;
+      std::vector<int64_t> keyframe_timestamps;
+      {
+        RandomReadFile* iframe_file;
+        storage->make_random_read_file(iframe_file_path, iframe_file);
 
-    idle_times.push_back(idle_time + nano_since(idle_start2));
+        (void)read_keyframe_info(
+          iframe_file, 0, keyframe_positions, keyframe_timestamps);
 
-    auto start2 = now();
+        delete iframe_file;
+      }
 
-    CU_CHECK(cudaSetDevice(buffer_entry.gpu_device_id));
+      // Open the video file for reading
+      RandomReadFile* file;
+      storage->make_random_read_file(video_path, file);
+
+      task_time = nano_since(start1);
+
+      auto idle_start2 = now();
+
+      LoadBufferEntry buffer_entry;
+      args.empty_load_buffers.pop(buffer_entry);
+
+      idle_times.push_back(idle_time + nano_since(idle_start2));
+
+      auto start2 = now();
+
+      CU_CHECK(cudaSetDevice(buffer_entry.gpu_device_id));
+
+      if (decoder != nullptr) {
+        delete decoder;
+        decoder = nullptr;
+      }
+
+      auto setup_start = now();
+#ifdef HARDWARE_DECODE
+      decoder = new VideoDecoder(args.cuda_contexts[buffer_entry.gpu_device_id],
+                                 file, keyframe_positions, keyframe_timestamps);
+#else
+      decoder = new VideoDecoder(file, keyframe_positions, keyframe_timestamps);
+#endif
+      setup_times.push_back(nano_since(setup_start));
+    } else {
+      // We can keep the same decoder because it is the same video as last time
+      task_time = nano_since(start1);
+
+      auto idle_start2 = now();
+
+      // Loop until we find a free buffer on the same GPU
+      args.empty_load_buffers.pop(buffer_entry);
+      while (buffer_entry.gpu_device_id != last_gpu_device_id) {
+        args.empty_load_buffers.push(buffer_entry);
+        args.empty_load_buffers.pop(buffer_entry);
+      }
+
+      idle_times.push_back(idle_time + nano_since(idle_start2));
+    }
+    last_video_path = video_path;
+    last_gpu_device_id = buffer_entry.gpu_device_id;
+    decoder->reset_timing();
 
     char** frame_buffers = args.gpu_frame_buffers[buffer_entry.gpu_device_id];
     char* frame_buffer = frame_buffers[buffer_entry.buffer_index];
 
-    auto setup_start = now();
-#ifdef HARDWARE_DECODE
-    VideoDecoder decoder(args.cuda_contexts[buffer_entry.gpu_device_id],
-                         file, keyframe_positions, keyframe_timestamps);
-#else
-    VideoDecoder decoder(file, keyframe_positions, keyframe_timestamps);
-#endif
-    setup_times.push_back(nano_since(setup_start));
-
-    decoder.seek(work_item.start_frame);
+    decoder->seek(work_item.start_frame);
 
     size_t frame_size =
       av_image_get_buffer_size(AV_PIX_FMT_NV12,
@@ -311,7 +341,7 @@ void* load_video_thread(void* arg) {
     while (current_frame < work_item.end_frame) {
       auto video_start = now();
 
-      AVFrame* frame = decoder.decode();
+      AVFrame* frame = decoder->decode();
       assert(frame != nullptr);
 
       video_time += nano_since(video_start);
@@ -344,8 +374,8 @@ void* load_video_thread(void* arg) {
     }
 
     video_times.push_back(video_time);
-    io_times.push_back(decoder.time_spent_on_io());
-    decode_times.push_back(decoder.time_spent_on_decode());
+    io_times.push_back(decoder->time_spent_on_io());
+    decode_times.push_back(decoder->time_spent_on_decode());
     memcpy_times.push_back(memcpy_time);
 
     task_times.push_back(task_time + nano_since(start2));
@@ -423,6 +453,9 @@ void* load_video_thread(void* arg) {
          total_decode_time / (total_task_time) * 100);
 
   // Cleanup
+  if (decoder != nullptr) {
+    delete decoder;
+  }
   delete storage;
 
   THREAD_RETURN_SUCCESS();

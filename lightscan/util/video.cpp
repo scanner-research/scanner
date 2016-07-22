@@ -795,6 +795,11 @@ double VideoDecoder::time_spent_on_decode() {
   return decode_time_;
 }
 
+void VideoDecoder::reset_timing() {
+  buffer_.io_time = 0;
+  decode_time_ = 0;
+}
+
 int VideoDecoder::read_packet_fn(void *opaque, uint8_t *buf, int buf_size) {
   RandomReadFileData* bd = (RandomReadFileData*)opaque;
   buf_size =
