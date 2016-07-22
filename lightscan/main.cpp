@@ -274,7 +274,7 @@ void* load_video_thread(void* arg) {
       }
 
       // Open the video file for reading
-      storage->make_random_read_file(video_path, video__file);
+      storage->make_random_read_file(video_path, video_file);
 
       task_time = nano_since(start1);
 
@@ -309,6 +309,8 @@ void* load_video_thread(void* arg) {
                                  keyframe_positions, keyframe_timestamps);
 #endif
       setup_times.push_back(nano_since(setup_start));
+
+      task_time += nano_since(start2);
     } else {
       // We can keep the same decoder because it is the same video as last time
       task_time = nano_since(start1);
@@ -324,6 +326,8 @@ void* load_video_thread(void* arg) {
 
       idle_times.push_back(idle_time + nano_since(idle_start2));
     }
+    auto start3 = now();
+
     last_video_path = video_path;
     last_gpu_device_id = buffer_entry.gpu_device_id;
     decoder->reset_timing();
@@ -385,7 +389,7 @@ void* load_video_thread(void* arg) {
     decode_times.push_back(decoder->time_spent_on_decode());
     memcpy_times.push_back(memcpy_time);
 
-    task_times.push_back(task_time + nano_since(start2));
+    task_times.push_back(task_time + nano_since(start3));
 
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
