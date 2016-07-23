@@ -379,7 +379,7 @@ void* decode_thread(void* arg) {
     task_times.push_back(nano_since(start1));
 
     EvalWorkEntry eval_work_entry;
-    eval_work_entry.work_item_index = load_work_entry.work_item_index;
+    eval_work_entry.work_item_index = decode_work_entry.work_item_index;
     eval_work_entry.decoded_frames_size = decoded_buffer_size;
     eval_work_entry.buffer = decoded_buffer;
     args.eval_work.push(eval_work_entry);
