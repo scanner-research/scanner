@@ -186,6 +186,8 @@ void* load_video_thread(void* arg) {
 
   std::string last_video_path;
   RandomReadFile* video_file = nullptr;;
+  std::vector<int> keyframe_positions;
+  std::vector<int64_t> keyframe_byte_offsets;
   while (true) {
     auto idle_start1 = now();
 
@@ -212,16 +214,17 @@ void* load_video_thread(void* arg) {
         video_file = nullptr;
       }
 
+      keyframe_positions.clear();
+      keyframe_byte_offsets.clear();
+
       // Open the iframe file to setup keyframe data
       std::string iframe_file_path = iframe_path(video_path);
-      std::vector<int> keyframe_positions;
-      std::vector<int64_t> keyframe_timestamps;
       {
         RandomReadFile* iframe_file;
         storage->make_random_read_file(iframe_file_path, iframe_file);
 
         (void)read_keyframe_info(
-          iframe_file, 0, keyframe_positions, keyframe_timestamps);
+          iframe_file, 0, keyframe_positions, keyframe_byte_offsets);
 
         delete iframe_file;
       }
@@ -237,10 +240,46 @@ void* load_video_thread(void* arg) {
     // interested and will continue up to the bytes before the iframe at or
     // after the last frame we are interested in.
 
+    size_t start_keyframe_index = 0;
+    for (size_t i = 1; i < keyframe_positions.size(); ++i) {
+      if (keyframe_positions[i] > work_item.start_frame) {
+        start_keyframe_index = i - 1;
+        break;
+      }
+    }
+
+    size_t end_keyframe_index = 0;
+    for (size_t i = start_keyframe; i < keyframe_positions.size(); ++i) {
+      if (keyframe_positions[i] > work_item.end_frame) {
+        end_keyframe_index = i;
+        break;
+      }
+    }
+
+    uint64_t start_keyframe_byte_offset =
+      static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
+    uint64_t end_keyframe_byte_offset =
+      static_cast<uint64_t>(keyframe_byte_offsets[end_keyframe_index]);
+    size_t data_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
+
+    char* buffer = new char[data_size];
+
+    auto io_start = now();
+    size_t size_read;
+    StoreResult result;
+    EXP_BACKOFF(
+      video_file->read(
+        start_keyframe_byte_offset, data_size, buffer, size_read),
+      result);
+    assert(size_read == data_size);
+    assert(result == StoreResult::Success ||
+           result == StoreResult::EndOfFile);
+    io_times.push_back(nano_since(io_start));
+
     DecodeWorkEntry decode_work_entry;
     decode_work_entry.work_item_index = load_work_entry.work_item_index;
-    decode_work_entry.encoded_data_size = 0;
-    decode_work_entry.buffer = nullptr;;
+    decode_work_entry.encoded_data_size = data_size;
+    decode_work_entry.buffer = buffer;
     args.decode_work.push(decode_work_entry);
   }
 
@@ -341,7 +380,7 @@ void* decode_thread(void* arg) {
     while (current_frame < work_item.end_frame) {
       auto video_start = now();
 
-      AVFrame* frame = decoder.decode(nullptr, 0);
+      AVFrame* frame = decoder.decode(encoded_buffer, encoded_buffer_size);
       assert(frame != nullptr);
 
       video_time += nano_since(video_start);
@@ -372,6 +411,9 @@ void* decode_thread(void* arg) {
 #endif
       current_frame++;
     }
+
+    // Must clean up buffer allocated by load thread
+    delete[] encoded_buffer;
 
     decode_times.push_back(decoder.time_spent_on_decode());
     memcpy_times.push_back(memcpy_time);
