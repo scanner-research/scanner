@@ -232,7 +232,8 @@ void* load_video_thread(void* arg) {
       }
 
       // Open the video file for reading
-      storage->make_random_read_file(video_path, video_file);
+      storage->make_random_read_file(processed_video_path(video_path),
+                                     video_file);
     }
     last_video_path = video_path;
 
@@ -807,10 +808,6 @@ int main(int argc, char **argv) {
     }
   }
   if (all_preprocessed) {
-    std::vector<std::string> processed_video_paths;
-    for (const std::string& path : video_paths) {
-      processed_video_paths.push_back(processed_video_path(path));
-    }
     // Get video metadata for all videos for distributing with work items
     std::vector<VideoMetadata> video_metadata;
     for (const std::string& path : video_paths) {
@@ -895,7 +892,7 @@ int main(int argc, char **argv) {
       // Create IO thread for reading and decoding data
       load_thread_args.emplace_back(LoadThreadArgs{
         // Uniform arguments
-        processed_video_paths,
+        video_paths,
         video_metadata,
         work_items,
 
