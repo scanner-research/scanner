@@ -36,61 +36,33 @@ namespace lightscan {
 
 extern pthread_mutex_t av_mutex;
 
+struct VideoMetadata {
+  int32_t frames;
+  int32_t width;
+  int32_t height;
+};
+
 class VideoDecoder {
 public:
-  VideoDecoder(
-    RandomReadFile* file,
-    const std::vector<int>& keyframe_positions,
-    const std::vector<int64_t>& keyframe_timestamps);
+  VideoDecoder(VideoMetadata metadata);
 
 #ifdef HARDWARE_DECODE
-  VideoDecoder(
-    CUcontext cuda_context,
-    RandomReadFile* file,
-    const std::vector<int>& keyframe_positions,
-    const std::vector<int64_t>& keyframe_timestamps);
+  VideoDecoder(CUcontext cuda_context, VideoMetadata metadata);
 #endif
 
   ~VideoDecoder();
 
-  void seek(int frame_position);
-
-  AVFrame* decode();
-
-  double time_spent_on_io();
+  AVFrame* decode(char* buffer, size_t size);
 
   double time_spent_on_decode();
 
-  void reset_timing();
-
 private:
-  struct RandomReadFileData {
-    RandomReadFile* file;
-    uint64_t pos; // current position
-    uint64_t total_size;
-
-    double io_time;
-  } buffer_;
-
-  static int read_packet_fn(void *opaque, uint8_t *buf, int buf_size);
-
-  static int64_t seek_fn(void *opaque, int64_t offset, int whence);
-
-  void setup_format_context();
-
-  void setup_video_stream_codec();
-
-  RandomReadFile* file_;
-  std::vector<int> keyframe_positions_;
-  std::vector<int64_t> keyframe_timestamps_;
+  VideoMetadata metadata_;
 
   AVPacket packet_;
   std::vector<AVFrame*> buffered_frames_;
-  AVFormatContext* format_context_;
-  AVIOContext* io_context_;
   AVCodec* codec_;
   AVCodecContext* cc_;
-  int video_stream_index_;
 
   int next_frame_;
   int next_buffered_frame_;
@@ -106,12 +78,6 @@ void preprocess_video(
   const std::string& processed_video_path,
   const std::string& video_metadata_path,
   const std::string& iframe_path);
-
-struct VideoMetadata {
-  int32_t frames;
-  int32_t width;
-  int32_t height;
-};
 
 uint64_t read_video_metadata(
   RandomReadFile* file,

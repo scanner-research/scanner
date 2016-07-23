@@ -536,13 +536,8 @@ cancel:
 
 }
 
-VideoDecoder::VideoDecoder(
-  RandomReadFile* file,
-  const std::vector<int>& keyframe_positions,
-  const std::vector<int64_t>& keyframe_timestamps)
-  : file_(file),
-    keyframe_positions_(keyframe_positions),
-    keyframe_timestamps_(keyframe_timestamps),
+VideoDecoder::VideoDecoder(VideoMetadata metadata)
+  : metadata_(metadata),
     next_frame_(0),
     next_buffered_frame_(1),
     buffered_frame_pos_(0),
@@ -553,10 +548,7 @@ VideoDecoder::VideoDecoder(
   buffered_frames_.resize(1);
   buffered_frames_[0] = av_frame_alloc();
 
-  setup_format_context();
-
-  setup_video_stream_codec();
-
+  codec_ = avcodec_find_decoder_by_name("h264");
   pthread_mutex_lock(&av_mutex);
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     pthread_mutex_unlock(&av_mutex);
@@ -570,12 +562,8 @@ VideoDecoder::VideoDecoder(
 #ifdef HARDWARE_DECODE
 VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
-  RandomReadFile* file,
-  const std::vector<int>& keyframe_positions,
-  const std::vector<int64_t>& keyframe_timestamps)
-  : file_(file),
-    keyframe_positions_(keyframe_positions),
-    keyframe_timestamps_(keyframe_timestamps),
+  VideoMetadata metadata)
+  : metadata_(metadata),
     next_frame_(0),
     next_buffered_frame_(1),
     buffered_frame_pos_(0),
@@ -585,10 +573,6 @@ VideoDecoder::VideoDecoder(
   av_init_packet(&packet_);
   buffered_frames_.resize(1);
   buffered_frames_[0] = av_frame_alloc();
-
-  setup_format_context();
-
-  setup_video_stream_codec();
 
   codec_ = avcodec_find_decoder_by_name("h264_cuvid");
   if (codec_ == NULL) {
@@ -620,47 +604,10 @@ VideoDecoder::~VideoDecoder() {
 #endif
   pthread_mutex_lock(&av_mutex);
   avcodec_close(cc_);
-  avformat_close_input(&format_context_);
   pthread_mutex_unlock(&av_mutex);
-  av_freep(&io_context_->buffer);
-  av_freep(&io_context_);
 }
 
-void VideoDecoder::seek(int frame_position) {
-  int keyframe_pos = -1;
-  int64_t keyframe_timestamp = -1;;
-  for (size_t i = 1; i < keyframe_positions_.size(); ++i) {
-    if (frame_position < keyframe_positions_[i]) {
-      keyframe_pos = keyframe_positions_[i - 1];
-      keyframe_timestamp = keyframe_timestamps_[i - 1];
-      break;
-    }
-  }
-  if (keyframe_pos == -1) {
-    keyframe_pos = keyframe_positions_[keyframe_positions_.size() - 1];
-    keyframe_timestamp = keyframe_timestamps_[keyframe_timestamps_.size() - 1];
-  }
-
-  if (av_seek_frame(format_context_,
-                    video_stream_index_,
-                    keyframe_timestamp,
-                    AVSEEK_FLAG_ANY) < 0)
-  {
-    fprintf(stderr, "Error seeking to frame %d", frame_position);
-    exit(EXIT_FAILURE);
-  }
-
-  next_frame_ = keyframe_pos;
-  next_buffered_frame_ = 1;
-  buffered_frame_pos_ = 0;
-  near_eof_ = false;
-
-  while (next_frame_ != frame_position) {
-    if (decode() == nullptr) break;
-  }
-}
-
-AVFrame* VideoDecoder::decode() {
+AVFrame* VideoDecoder::decode(char* buffer, size_t size) {
   if (next_buffered_frame_ < buffered_frame_pos_) {
     int i = next_buffered_frame_++;
     if (next_buffered_frame_ >= buffered_frame_pos_) {
@@ -671,24 +618,16 @@ AVFrame* VideoDecoder::decode() {
     return buffered_frames_[i];
   }
 
+  AVPacket packet;
+  int err =
+    av_packet_from_data(&packet, reinterpret_cast<uint8_t*>(buffer), size);
+  if (err < 0) {
+    fprintf(stderr, "Could not create packet from data\n");
+    exit(EXIT_FAILURE);
+  }
+
   AVFrame* ret = nullptr;
   while (ret == nullptr) {
-    // Read from format context
-    int err = av_read_frame(format_context_, &packet_);
-    if (err == AVERROR_EOF) {
-      av_packet_unref(&packet_);
-      near_eof_ = true;
-      break;
-    } else if (err != 0) {
-      printf("err %d\n", err);
-      assert(err == 0);
-    }
-
-    if (packet_.stream_index != video_stream_index_) {
-      av_packet_unref(&packet_);
-      continue;
-    }
-
     /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
        and this is the only method to use them because you cannot
        know the compressed data size before analysing it.
@@ -704,14 +643,14 @@ AVFrame* VideoDecoder::decode() {
 
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
-    uint8_t* orig_data = packet_.data;
-    while (packet_.size > 0) {
+    uint8_t* orig_data = packet.data;
+    while (packet.size > 0) {
       int got_picture = 0;
       auto decode_start = now();
       int len = avcodec_decode_video2(cc_,
                                       buffered_frames_[buffered_frame_pos_],
                                       &got_picture,
-                                      &packet_);
+                                      &packet);
       decode_time_ += nano_since(decode_start);
       if (len < 0) {
         char err_msg[256];
@@ -726,10 +665,9 @@ AVFrame* VideoDecoder::decode() {
         // value on success instead of the size consumed.
         // We set it to the entire packet size here to align with how other
         // decoders work
-        len = packet_.size;
+        len = packet.size;
       }
 #endif
-
       if (got_picture) {
         // the picture is allocated by the decoder. no need to free
         if (ret == nullptr) {
@@ -744,19 +682,19 @@ AVFrame* VideoDecoder::decode() {
         next_frame_++;
       }
 
-      packet_.size -= len;
-      packet_.data += len;
+      packet.size -= len;
+      packet.data += len;
     }
-    packet_.data = orig_data;
-    av_packet_unref(&packet_);
+    packet.data = orig_data;
+    av_packet_unref(&packet);
   }
 
   if (near_eof_) {
 // /* some codecs, such as MPEG, transmit the I and P frame with a
 //    latency of one frame. You must do the following to have a
 //    chance to get the last frame of the video */
-    packet_.data = NULL;
-    packet_.size = 0;
+    packet.data = NULL;
+    packet.size = 0;
 
     int got_picture;
     do {
@@ -765,7 +703,7 @@ AVFrame* VideoDecoder::decode() {
       int len = avcodec_decode_video2(
         cc_,
         buffered_frames_[buffered_frame_pos_],
-        &got_picture, &packet_);
+        &got_picture, &packet);
       decode_time_ += nano_since(decode_start);
       (void)len;
       if (got_picture) {
@@ -787,110 +725,12 @@ AVFrame* VideoDecoder::decode() {
   return ret;
 }
 
-double VideoDecoder::time_spent_on_io() {
-  return buffer_.io_time;
-}
-
 double VideoDecoder::time_spent_on_decode() {
   return decode_time_;
 }
 
 void VideoDecoder::reset_timing() {
-  buffer_.io_time = 0;
   decode_time_ = 0;
-}
-
-int VideoDecoder::read_packet_fn(void *opaque, uint8_t *buf, int buf_size) {
-  RandomReadFileData* bd = (RandomReadFileData*)opaque;
-  buf_size =
-    std::min(static_cast<uint64_t>(buf_size), bd->total_size - bd->pos);
-  /* copy internal buffer data to buf */
-  auto start = now();
-  size_t size_read;
-  StoreResult result;
-  EXP_BACKOFF(
-    bd->file->read(bd->pos, buf_size, reinterpret_cast<char*>(buf), size_read),
-    result);
-  bd->io_time += nano_since(start);
-  assert(result == StoreResult::Success || result == StoreResult::EndOfFile);
-  bd->pos += size_read;
-  assert(bd->pos <= bd->total_size);
-  return size_read;
-}
-
-int64_t VideoDecoder::seek_fn(void *opaque, int64_t offset, int whence) {
-  RandomReadFileData* bd = (RandomReadFileData*)opaque;
-  {
-    switch (whence)
-    {
-    case SEEK_SET:
-      bd->pos = offset;
-      break;
-    case SEEK_CUR:
-      bd->pos += offset;
-      break;
-    case SEEK_END:
-      bd->pos = bd->total_size;
-      break;
-    case AVSEEK_SIZE:
-      return bd->total_size;
-      break;
-    }
-    return bd->total_size - bd->pos;
-  }
-}
-
-void VideoDecoder::setup_format_context() {
-  format_context_ = avformat_alloc_context();
-
-  uint64_t size;
-  StoreResult result;
-  EXP_BACKOFF(file_->get_size(size), result);
-  exit_on_error(result);
-
-  buffer_.file = file_;
-  buffer_.pos = 0;
-  buffer_.total_size = size;
-  buffer_.io_time = 0;
-
-  size_t avio_context_buffer_size = 4096;
-  uint8_t* avio_context_buffer =
-    static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
-  io_context_ =
-    avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
-                       0, &buffer_, &read_packet_fn, NULL, &seek_fn);
-  format_context_->pb = io_context_;
-
-  pthread_mutex_lock(&av_mutex);
-  if (avformat_open_input(&format_context_, NULL, NULL, NULL) < 0) {
-    pthread_mutex_unlock(&av_mutex);
-    fprintf(stderr, "open input failed\n");
-    exit(EXIT_FAILURE);
-  }
-  if (avformat_find_stream_info(format_context_, NULL) < 0) {
-    fprintf(stderr, "find stream info failed\n");
-    exit(EXIT_FAILURE);
-  }
-  pthread_mutex_unlock(&av_mutex);
-}
-
-void VideoDecoder::setup_video_stream_codec() {
-  video_stream_index_ =
-    av_find_best_stream(format_context_,
-                        AVMEDIA_TYPE_VIDEO,
-                        -1 /* auto select */,
-                        -1 /* no related stream */,
-                        &codec_,
-                        0 /* flags */);
-  if (video_stream_index_ < 0) {
-    fprintf(stderr, "could not find best stream\n");
-    exit(EXIT_FAILURE);
-  }
-
-  AVStream const* const stream =
-    format_context_->streams[video_stream_index_];
-
-  cc_ = (AVCodecContext*)stream->codec;
 }
 
 void preprocess_video(
@@ -941,25 +781,9 @@ void preprocess_video(
   video_metadata.width = state.in_cc->coded_width;
   video_metadata.height = state.in_cc->coded_height;
 
-#ifdef HAVE_X264_ENCODER
-  FILE* fp;
-  std::string filename;
-  temp_file(&fp, filename);
-  fclose(fp);
-
-  avio_open2(&state.out_format_context->pb, filename.c_str(), AVIO_FLAG_WRITE,
-             NULL, NULL);
-  avformat_write_header(state.out_format_context, NULL);
-
-  strcpy(state.out_format_context->filename, filename.c_str());
-
-  AVPacket out_packet = {0};
-  av_init_packet(&out_packet);
-  int got_out_packet = 0;
-#endif
-
+  std::vector<char> demuxed_video_stream;
   std::vector<int> iframe_positions;
-  std::vector<int64_t> iframe_timestamps;
+  std::vector<int64_t> iframe_byte_offset;
   int frame = 0;
   while (true) {
     // Read from format context
@@ -993,6 +817,7 @@ void preprocess_video(
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
     uint8_t* orig_data = state.av_packet.data;
+    int orig_size = state.av_packet.size;
     while (state.av_packet.size > 0) {
       int got_picture = 0;
       int len = avcodec_decode_video2(state.in_cc,
@@ -1009,41 +834,11 @@ void preprocess_video(
       if (got_picture) {
         state.picture->pts = frame;
 
-#ifdef HAVE_X264_ENCODER
-        int ret = avcodec_encode_video2(state.out_cc,
-                                        &out_packet,
-                                        state.picture,
-                                        &got_out_packet);
-        if (ret < 0) {
-          //fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
-          fprintf(stderr, "Error encoding video frame\n");
-          exit(1);
-        }
-
-        if (got_out_packet) {
-          printf("writing frame %d, pts %ld, dts %ld\n",
-                 frame, out_packet.pts, out_packet.dts);
-          out_packet.pts = state.av_packet.pts;
-          out_packet.dts = state.av_packet.dts;
-          out_packet.pts =
-            av_rescale_q(out_packet.pts,
-                         state.out_cc->time_base,
-                         state.out_stream->time_base);
-          out_packet.dts =
-            av_rescale_q(out_packet.dts,
-                         state.out_cc->time_base,
-                         state.out_stream->time_base);
-          printf("after rescale pts %ld, dts %ld\n",
-                 out_packet.pts, out_packet.dts);
-          av_interleaved_write_frame(state.out_format_context, &out_packet);
-        }
-#endif
-
         if (state.picture->key_frame == 1) {
           printf("keyframe dts %d\n",
                  state.picture->pkt_dts);
           iframe_positions.push_back(frame);
-          iframe_timestamps.push_back(state.picture->pkt_dts);
+          iframe_byte_offset.push_back(demuxed_video_stream.size());
         }
         // the picture is allocated by the decoder. no need to free
         frame++;
@@ -1052,6 +847,20 @@ void preprocess_video(
       state.av_packet.data += len;
     }
     state.av_packet.data = orig_data;
+    state.av_packet.size = orig_size;
+
+    // Copy the packet size and data into our demuxed video data output so we
+    // can decode it directly later without demuxing
+    size_t prev_size = demuxed_video_stream.size();
+    demuxed_video_stream.resize(
+      prev_size + sizeof(int) + state.av_packet.size));
+    memcpy(demuxed_video_stream.data() + prev_size,
+           &state.av_packet.size,
+           sizeof(int));
+    memcpy(demuxed_video_stream.data() + prev_size + sizeof(int),
+           state.av_packet.data,
+           state.av_packet.size);
+
     av_packet_unref(&state.av_packet);
   }
 
@@ -1072,7 +881,7 @@ void preprocess_video(
     if (got_picture) {
       if (state.picture->key_frame == 1) {
         iframe_positions.push_back(frame);
-        iframe_timestamps.push_back(state.picture->pkt_dts);
+        iframe_byte_offset.push_back(demuxed_video_stream.size());
       }
       // the picture is allocated by the decoder. no need to free
       frame++;
@@ -1081,45 +890,28 @@ void preprocess_video(
 
   video_metadata.frames = frame;
 
-#ifdef HAVE_X264_ENCODER
-  av_write_trailer(state.out_format_context);
-
-  if (!(state.out_format_context->oformat->flags & AVFMT_NOFILE) &&
-      state.out_format_context->pb)
-    avio_close(state.out_format_context->pb);
-#endif
-
+  // Write out our demuxed video stream
   {
     std::unique_ptr<WriteFile> output_file{};
     exit_on_error(
       make_unique_write_file(storage, processed_video_path, output_file));
 
     // We will process the input video and write it to this output file
-#ifdef HAVE_X264_ENCODER
-    std::string temp_output = filename;
-
-    FILE* read_fp = fopen(temp_output.c_str(), "r");
-    assert(read_fp != nullptr);
     const size_t WRITE_SIZE = 16 * 1024;
     char buffer[WRITE_SIZE];
     size_t pos = 0;
-    while (true) {
-      size_t size_read = fread(buffer, 1, WRITE_SIZE, read_fp);
+    while (pos != demuxed_video_stream.size()) {
+      const size_t size_to_write =
+        std::min(WRITE_SIZE, demuxed_video_stream.size() - pos);
       StoreResult result;
       EXP_BACKOFF(
-        output_file->append(size_read, buffer), result);
+        output_file->append(size_to_write, demuxed_video_stream.data() + pos),
+        result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
-      pos += size_read;
-      if (size_read == 0) {
-        break;
-      }
+      pos += size_to_write;
     }
     output_file->save();
-    fclose(read_fp);
-    remove(filename.c_str());
-#endif
-
   }
 
   {

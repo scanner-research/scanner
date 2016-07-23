@@ -104,14 +104,21 @@ struct LoadWorkEntry {
   int work_item_index;
 };
 
-struct LoadBufferEntry {
-  int gpu_device_id;
-  int buffer_index;
+struct DecodeWorkEntry {
+  int work_item_index;
+  size_t encoded_data_size;
+  char* buffer;
+};
+
+struct DecodeBufferEntry {
+  size_t buffer_size;
+  char* buffer;
 };
 
 struct EvalWorkEntry {
   int work_item_index;
-  int buffer_index;
+  size_t decoded_frames_size;
+  char* buffer;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -123,20 +130,28 @@ struct LoadThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  int gpu_device_id;
   StorageConfig* storage_config;
-#ifdef HARDWARE_DECODE
-  std::vector<CUcontext> cuda_contexts; // context to use to decode frames
-#endif
 
   // Queues for communicating work
   Queue<LoadWorkEntry>& load_work;
-  Queue<LoadBufferEntry>& empty_load_buffers;
-  std::vector<Queue<EvalWorkEntry>>& eval_work;
+  Queue<DecodeWorkEntry>& decode_work;
+};
 
-  // Buffers for loading frames into
-  size_t buffer_size;
-  char*** gpu_frame_buffers;
+struct DecodeThreadArgs {
+  // Uniform arguments
+  const std::vector<VideoMetadata>& metadata;
+  const std::vector<VideoWorkItem>& work_items;
+
+  // Per worker arguments
+  int gpu_device_id;
+#ifdef HARDWARE_DECODE
+  CUcontext cuda_context; // context to use to decode frames
+#endif
+
+  // Queues for communicating work
+  Queue<DecodeWorkEntry>& decode_work;
+  Queue<DecodeBufferEntry>& empty_decode_buffers;
+  Queue<EvalWorkEntry>& eval_work;
 };
 
 struct EvaluateThreadArgs {
@@ -149,78 +164,16 @@ struct EvaluateThreadArgs {
 
   // Queues for communicating work
   Queue<EvalWorkEntry>& eval_work;
-  Queue<LoadBufferEntry>& empty_load_buffers;
-
-  // Buffers for reading frames from
-  size_t buffer_size;
-  char** frame_buffers;
+  Queue<DecodeBufferEntry>& empty_decode_buffers;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
-void convert_av_frame_to_rgb(
-  SwsContext*& sws_context,
-  AVFrame* frame,
-  char* buffer)
-{
-  size_t buffer_size =
-    av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame->width, frame->height, 1);
-
-  // Convert image to RGB
-  sws_context = sws_getCachedContext(
-    sws_context,
-
-    frame->width, frame->height,
-    static_cast<AVPixelFormat>(frame->format),
-
-    frame->width, frame->height, AV_PIX_FMT_RGB24,
-    SWS_BICUBIC, 0, 0, 0);
-
-  if (sws_context == nullptr) {
-    fprintf(stderr, "Error trying to get sws context\n");
-    assert(false);
-  }
-
-  AVFrame rgb_format;
-  int alloc_fail = av_image_alloc(rgb_format.data,
-                                  rgb_format.linesize,
-                                  frame->width,
-                                  frame->height,
-                                  AV_PIX_FMT_RGB24,
-                                  1);
-
-  if (alloc_fail < 0) {
-    fprintf(stderr, "Error while allocating avpicture for conversion\n");
-    assert(false);
-  }
-
-  sws_scale(sws_context,
-            frame->data /* input data */,
-            frame->linesize /* input layout */,
-            0 /* x start location */,
-            frame->height /* height of input image */,
-            rgb_format.data /* output data */,
-            rgb_format.linesize /* output layout */);
-
-  av_image_copy_to_buffer(reinterpret_cast<uint8_t*>(buffer),
-                          buffer_size,
-                          rgb_format.data,
-                          rgb_format.linesize,
-                          AV_PIX_FMT_RGB24,
-                          frame->width,
-                          frame->height,
-                          1);
-
-  av_freep(&rgb_format.data[0]);
-}
-
 void* load_video_thread(void* arg) {
   LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  CU_CHECK(cudaSetDevice(args.gpu_device_id));
 
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
@@ -229,15 +182,9 @@ void* load_video_thread(void* arg) {
   std::vector<double> task_times;
   std::vector<double> idle_times;
 
-  std::vector<double> setup_times;
   std::vector<double> io_times;
-  std::vector<double> decode_times;
-  std::vector<double> video_times;
-  std::vector<double> memcpy_times;
 
-  std::string last_video_path;
   RandomReadFile* video_file = nullptr;;
-  VideoDecoder* decoder = nullptr;
   while (true) {
     auto idle_start1 = now();
 
@@ -258,17 +205,10 @@ void* load_video_thread(void* arg) {
     const std::string& video_path = args.video_paths[work_item.video_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
-    double task_time;
-    LoadBufferEntry buffer_entry;
-    if (decoder == nullptr || video_path != last_video_path) {
+    if (video_path != last_video_path) {
       if (video_file != nullptr) {
         delete video_file;
         video_file = nullptr;
-      }
-
-      if (decoder != nullptr) {
-        delete decoder;
-        decoder = nullptr;
       }
 
       // Open the iframe file to setup keyframe data
@@ -287,118 +227,20 @@ void* load_video_thread(void* arg) {
 
       // Open the video file for reading
       storage->make_random_read_file(video_path, video_file);
-
-      task_time = nano_since(start1);
-
-      auto idle_start2 = now();
-
-      // Loop until we find a free buffer on the same GPU
-      args.empty_load_buffers.pop(buffer_entry);
-      while (buffer_entry.gpu_device_id != args.gpu_device_id) {
-        args.empty_load_buffers.push(buffer_entry);
-        args.empty_load_buffers.pop(buffer_entry);
-      }
-
-      idle_times.push_back(idle_time + nano_since(idle_start2));
-
-      auto start2 = now();
-
-      auto setup_start = now();
-#ifdef HARDWARE_DECODE
-      decoder = new VideoDecoder(args.cuda_contexts[args.gpu_device_id],
-                                 video_file,
-                                 keyframe_positions, keyframe_timestamps);
-#else
-      decoder = new VideoDecoder(video_file,
-                                 keyframe_positions, keyframe_timestamps);
-#endif
-      setup_times.push_back(nano_since(setup_start));
-
-      task_time += nano_since(start2);
-    } else {
-      // We can keep the same decoder because it is the same video as last time
-      task_time = nano_since(start1);
-
-      auto idle_start2 = now();
-
-      // Loop until we find a free buffer on the same GPU
-      args.empty_load_buffers.pop(buffer_entry);
-      while (buffer_entry.gpu_device_id != args.gpu_device_id) {
-        args.empty_load_buffers.push(buffer_entry);
-        args.empty_load_buffers.pop(buffer_entry);
-      }
-
-      idle_times.push_back(idle_time + nano_since(idle_start2));
     }
-    auto start3 = now();
-
     last_video_path = video_path;
-    decoder->reset_timing();
 
-    char** frame_buffers = args.gpu_frame_buffers[buffer_entry.gpu_device_id];
-    char* frame_buffer = frame_buffers[buffer_entry.buffer_index];
+    // Read the bytes from the file that correspond to the sequences
+    // of frames we are interested in decoding. This sequence will contain
+    // the bytes starting at the iframe at or preceding the first frame we are
+    // interested and will continue up to the bytes before the iframe at or
+    // after the last frame we are interested in.
 
-    decoder->seek(work_item.start_frame);
-
-    size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_NV12,
-                               metadata.width,
-                               metadata.height,
-                               1);
-
-
-    double video_time = 0;
-    double memcpy_time = 0;
-
-    SwsContext* sws_context;
-    int current_frame = work_item.start_frame;
-    while (current_frame < work_item.end_frame) {
-      auto video_start = now();
-
-      AVFrame* frame = decoder->decode();
-      assert(frame != nullptr);
-
-      video_time += nano_since(video_start);
-
-      size_t frames_buffer_offset =
-        frame_size * (current_frame - work_item.start_frame);
-      assert(frames_buffer_offset < args.buffer_size);
-      char* current_frame_buffer_pos =
-        frame_buffer + frames_buffer_offset;
-
-#ifdef HARDWARE_DECODE
-      // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
-      //              on that here to copy the data properly
-      auto memcpy_start = now();
-      for (int i = 0; i < 2; i++) {
-        CU_CHECK(cudaMemcpy2D(
-          current_frame_buffer_pos + i * metadata.width * metadata.height,
-          metadata.width, // dst pitch
-          frame->data[i], // src
-          frame->linesize[i], // src pitch
-          frame->width, // width
-          i == 0 ? frame->height : frame->height / 2, // height
-          cudaMemcpyDeviceToDevice));
-      }
-      memcpy_time += nano_since(memcpy_start);
-#else
-      convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
-#endif
-      current_frame++;
-    }
-
-    video_times.push_back(video_time);
-    io_times.push_back(decoder->time_spent_on_io());
-    decode_times.push_back(decoder->time_spent_on_decode());
-    memcpy_times.push_back(memcpy_time);
-
-    task_times.push_back(task_time + nano_since(start3));
-
-    EvalWorkEntry eval_work_entry;
-    eval_work_entry.work_item_index = load_work_entry.work_item_index;
-    eval_work_entry.buffer_index = buffer_entry.buffer_index;
-
-    args.eval_work[buffer_entry.gpu_device_id].push(eval_work_entry);
+    DecodeWorkEntry decode_work_entry;
+    decode_work_entry.work_item_index = load_work_entry.work_item_index;
+    decode_work_entry.encoded_data_size = 0;
+    decode_work_entry.buffer = nullptr;;
+    args.decode_work.push(decode_work_entry);
   }
 
   double total_task_time = 0;
@@ -419,61 +261,129 @@ void* load_video_thread(void* arg) {
   }
   total_idle_time /= 1000000; // convert from ns to ms
 
-  double total_memcpy_time = 0;
-  for (double t : memcpy_times) {
-    total_memcpy_time += t;
-  }
-  total_memcpy_time /= 1000000;
-
-  double total_video_time = 0;
-  for (double t : video_times) {
-    total_video_time += t;
-  }
-  total_video_time /= 1000000;
-
-  double total_decode_time = 0;
-  for (double t : decode_times) {
-    total_decode_time += t;
-  }
-  total_decode_time /= 1000000;
-
   double total_io_time = 0;
   for (double t : io_times) {
     total_io_time += t;
   }
   total_io_time /= 1000000;
 
-  double total_setup_time = 0;
-  for (double t : setup_times) {
-    total_setup_time += t;
-  }
-  total_setup_time /= 1000000;
-
   printf("(N: %d) Load thread finished. "
          "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Idle: %.3fms %3.2f\%\n"
-         "Setup: %3.2f\%, Memcpy: %3.2f\%, Video: %3.2f\%, IO: %3.2f\%, "
-         "Decode: %3.2f\%\n",
+         "Idle: %.3fms %3.2f\%, IO: %3.2f\%\n",
          rank,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_idle_time,
          total_idle_time / (total_idle_time + total_task_time) * 100,
-         total_setup_time / (total_task_time) * 100,
-         total_memcpy_time / (total_task_time) * 100,
-         total_video_time / (total_task_time) * 100,
-         total_io_time / (total_task_time) * 100,
-         total_decode_time / (total_task_time) * 100);
+         total_io_time / (total_task_time) * 100)
 
   // Cleanup
-  if (decoder != nullptr) {
-    delete decoder;
-  }
   if (video_file != nullptr) {
     delete video_file;
   }
   delete storage;
 
   THREAD_RETURN_SUCCESS();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Thread to decode video
+void* decode_thread(void* arg) {
+  DecodeThreadArgs& args = *reinterpret_cast<DecodeThreadArgs*>(arg);
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  VideoDecoder decoder(VideoMetadata());
+
+  std::vector<double> task_times;
+  std::vector<double> idle_times;
+
+  std::vector<double> decode_times;
+  while (true) {
+    auto idle_start1 = now();
+
+    DecodeWorkEntry decode_work_entry;
+    args.decode_work.pop(load_work_entry);
+
+    if (decode_work_entry.work_item_index == -1) {
+      break;
+    }
+
+    double idle_time = nano_since(idle_start1);
+
+    auto start1 = now();
+
+    const VideoWorkItem& work_item =
+      args.work_items[decode_work_entry.work_item_index];
+    const VideoMetadata& metadata = args.metadata[work_item.video_index];
+
+    size_t encoded_buffer_size = decode_work_entry.encoded_data_size;
+    char* encoded_buffer = decode_work_entry.buffer;
+
+    DecodeBufferEntry decode_buffer_entry;
+    empty_decode_buffers.pop(decode_buffer_entry);
+
+    size_t decoded_buffer_size = decode_buffer_entry.buffer_size;
+    char* decoded_buffer = decode_buffer_entry.buffer;
+
+    size_t frame_size =
+      av_image_get_buffer_size(AV_PIX_FMT_NV12,
+                               metadata.width,
+                               metadata.height,
+                               1);
+
+    double video_time = 0;
+    double memcpy_time = 0;
+
+    int current_frame = work_item.start_frame;
+    while (current_frame < work_item.end_frame) {
+      auto video_start = now();
+
+      AVFrame* frame = decoder.decode(nullptr, 0);
+      assert(frame != nullptr);
+
+      video_time += nano_since(video_start);
+
+      size_t frames_buffer_offset =
+        frame_size * (current_frame - work_item.start_frame);
+      assert(frames_buffer_offset < decoded_buffer_size);
+      char* current_frame_buffer_pos =
+        decoded_buffer + frames_buffer_offset;
+
+#ifdef HARDWARE_DECODE
+      // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
+      //              on that here to copy the data properly
+      auto memcpy_start = now();
+      for (int i = 0; i < 2; i++) {
+        CU_CHECK(cudaMemcpy2D(
+                   current_frame_buffer_pos + i * metadata.width * metadata.height,
+                   metadata.width, // dst pitch
+                   frame->data[i], // src
+                   frame->linesize[i], // src pitch
+                   frame->width, // width
+                   i == 0 ? frame->height : frame->height / 2, // height
+                   cudaMemcpyDeviceToDevice));
+      }
+      memcpy_time += nano_since(memcpy_start);
+#else
+      convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
+#endif
+      current_frame++;
+    }
+
+    video_times.push_back(video_time);
+    io_times.push_back(decoder->time_spent_on_io());
+    decode_times.push_back(decoder->time_spent_on_decode());
+    memcpy_times.push_back(memcpy_time);
+
+    task_times.push_back(task_time + nano_since(start3));
+
+    EvalWorkEntry eval_work_entry;
+    eval_work_entry.work_item_index = load_work_entry.work_item_index;
+    eval_work_entry.decoded_frames_size = decoded_buffer_size;
+    eval_work_entry.buffer = decoded_buffer;
+    args.eval_work.push(eval_work_entry);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -567,7 +477,7 @@ void* evaluate_thread(void* arg) {
           GLOBAL_BATCH_SIZE, 3, net_info.input_size, net_info.input_size});
     }
 
-    char* frame_buffer = args.frame_buffers[work_entry.buffer_index];
+    char* frame_buffer = work_entry.buffer;
 
     int current_frame = work_item.start_frame;
     while (current_frame + GLOBAL_BATCH_SIZE < work_item.end_frame) {
@@ -704,9 +614,9 @@ void* evaluate_thread(void* arg) {
 
     task_times.push_back(nano_since(start));
 
-    LoadBufferEntry empty_buffer_entry;
-    empty_buffer_entry.gpu_device_id = args.gpu_device_id;
-    empty_buffer_entry.buffer_index = work_entry.buffer_index;
+    DecodeBufferEntry empty_buffer_entry;
+    empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
+    empty_buffer_entry.buffer = frame_buffer;
     args.empty_load_buffers.push(empty_buffer_entry);
   }
 
@@ -745,7 +655,6 @@ void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 2;
-  av_mutex = PTHREAD_MUTEX_INITIALIZER;
 }
 
 void shutdown() {
@@ -895,7 +804,8 @@ int main(int argc, char **argv) {
 
     // Setup shared resources for distributing work to processing threads
     Queue<LoadWorkEntry> load_work;
-    Queue<LoadBufferEntry> empty_load_buffers;
+    Queue<DecodeWorkEntry> decode_work;
+    std::vector<Queue<DecodeBufferEntry>> empty_decode_buffers(GPUS_PER_NODE);
     std::vector<Queue<EvalWorkEntry>> eval_work(GPUS_PER_NODE);
 
     // Allocate several buffers to hold the intermediate of an entire work item
@@ -924,21 +834,14 @@ int main(int argc, char **argv) {
 #endif
         // Add the buffer index into the empty buffer queue so workers can
         // fill it to pass to the eval worker
-        empty_load_buffers.emplace(LoadBufferEntry{gpu, i});
+        empty_decode_buffers[gpu].emplace(
+          DecodeBufferEntry{frame_buffer_size, frame_buffers[i]});
       }
     }
 
     // Setup load workers
     std::vector<LoadThreadArgs> load_thread_args;
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-      // Retain primary context to use for decoder
-#ifdef HARDWARE_DECODE
-      std::vector<CUcontext> cuda_contexts(GPUS_PER_NODE);
-      for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
-        CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_contexts[gpu], gpu));
-      }
-#endif
-
       // Create IO thread for reading and decoding data
       load_thread_args.emplace_back(LoadThreadArgs{
         // Uniform arguments
@@ -947,26 +850,49 @@ int main(int argc, char **argv) {
         work_items,
 
         // Per worker arguments
-        i % GPUS_PER_NDOE,
         config,
-#ifdef HARDWARE_DECODE
-        cuda_contexts,
-#endif
 
         // Queues
         load_work,
-        empty_load_buffers,
-        eval_work,
-
-        // Buffers
-        frame_buffer_size,
-        gpu_frame_buffers,
+        decode_work,
       });
     }
     std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
       pthread_create(&load_threads[i], NULL, load_video_thread,
                      &load_thread_args[i]);
+    }
+
+    // Setup load workers
+    std::vector<DecodeThreadArgs> decode_thread_args;
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
+      // Retain primary context to use for decoder
+#ifdef HARDWARE_DECODE
+      CUcontext cuda_context;
+      CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, i));
+#endif
+      // Create IO thread for reading and decoding data
+      decode_thread_args.emplace_back(DecodeThreadArgs{
+        // Uniform arguments
+        video_metadata,
+        work_items,
+
+        // Per worker arguments
+        i % GPUS_PER_NODE,
+#ifdef HARDWARE_DECODE
+        cuda_context,
+#endif
+
+        // Queues
+        decode_work,
+        empty_decode_buffers[i],
+        eval_work[i],
+      });
+    }
+    std::vector<pthread_t> decode_threads(GPUS_PER_NODE);
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
+      pthread_create(&decode_threads[i], NULL, decode_video_thread,
+                     &decode_thread_args[i]);
     }
 
     // Setup evaluate workers
@@ -985,11 +911,7 @@ int main(int argc, char **argv) {
 
         // Queues
         eval_work[i],
-        empty_load_buffers,
-
-        // Buffers
-        frame_buffer_size,
-        gpu_frame_buffers[i],
+        empty_decode_buffers[i],
       });
     }
     std::vector<pthread_t> eval_threads(GPUS_PER_NODE);
@@ -1095,13 +1017,30 @@ int main(int argc, char **argv) {
       }
       free(result);
 
-      // Cleanup
-#ifdef HARDWARE_DECODE
-      for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
-        CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
-      }
-#endif
     }
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
+      DecodeWorkEntry entry;
+      entry.work_item_index = -1;
+      decode_work[i].push(entry);
+    }
+
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
+      // Wait until eval has finished
+      void* result;
+      int err = pthread_join(decode_threads[i], &result);
+      if (err != 0) {
+        fprintf(stderr, "error in pthread_join of decode thread\n");
+        exit(EXIT_FAILURE);
+      }
+      free(result);
+    }
+
+    // Cleanup
+#ifdef HARDWARE_DECODE
+    for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
+      CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
+    }
+#endif
 
     // Push sentinel work entries into queue to terminate eval threads
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
@@ -1120,7 +1059,6 @@ int main(int argc, char **argv) {
       }
       free(result);
     }
-
 
     for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
       char** frame_buffers = gpu_frame_buffers[gpu];
