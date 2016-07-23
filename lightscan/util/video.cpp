@@ -783,7 +783,7 @@ void preprocess_video(
 
   std::vector<char> demuxed_video_stream;
   std::vector<int> iframe_positions;
-  std::vector<int64_t> iframe_byte_offset;
+  std::vector<int64_t> iframe_byte_offsets;
   int frame = 0;
   while (true) {
     // Read from format context
@@ -838,7 +838,7 @@ void preprocess_video(
           printf("keyframe dts %d\n",
                  state.picture->pkt_dts);
           iframe_positions.push_back(frame);
-          iframe_byte_offset.push_back(demuxed_video_stream.size());
+          iframe_byte_offsets.push_back(demuxed_video_stream.size());
         }
         // the picture is allocated by the decoder. no need to free
         frame++;
@@ -853,7 +853,7 @@ void preprocess_video(
     // can decode it directly later without demuxing
     size_t prev_size = demuxed_video_stream.size();
     demuxed_video_stream.resize(
-      prev_size + sizeof(int) + state.av_packet.size));
+      prev_size + sizeof(int) + state.av_packet.size);
     memcpy(demuxed_video_stream.data() + prev_size,
            &state.av_packet.size,
            sizeof(int));
@@ -881,7 +881,7 @@ void preprocess_video(
     if (got_picture) {
       if (state.picture->key_frame == 1) {
         iframe_positions.push_back(frame);
-        iframe_byte_offset.push_back(demuxed_video_stream.size());
+        iframe_byte_offsets.push_back(demuxed_video_stream.size());
       }
       // the picture is allocated by the decoder. no need to free
       frame++;
@@ -919,7 +919,7 @@ void preprocess_video(
     exit_on_error(
       make_unique_write_file(storage, iframe_path, iframe_file));
 
-    write_keyframe_info(iframe_file.get(), iframe_positions, iframe_timestamps);
+    write_keyframe_info(iframe_file.get(), iframe_positions, iframe_byte_offset);
 
     std::unique_ptr<WriteFile> metadata_file;
     exit_on_error(

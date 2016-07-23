@@ -56,6 +56,8 @@ public:
 
   double time_spent_on_decode();
 
+  void reset_timing();
+
 private:
   VideoMetadata metadata_;
 
