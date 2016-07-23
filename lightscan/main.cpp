@@ -184,6 +184,7 @@ void* load_video_thread(void* arg) {
 
   std::vector<double> io_times;
 
+  std::string last_video_path;
   RandomReadFile* video_file = nullptr;;
   while (true) {
     auto idle_start1 = now();
@@ -274,7 +275,7 @@ void* load_video_thread(void* arg) {
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_idle_time,
          total_idle_time / (total_idle_time + total_task_time) * 100,
-         total_io_time / (total_task_time) * 100)
+         total_io_time / (total_task_time) * 100);
 
   // Cleanup
   if (video_file != nullptr) {
@@ -293,17 +294,18 @@ void* decode_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  VideoDecoder decoder(VideoMetadata());
+  VideoDecoder decoder{VideoMetadata()};
 
   std::vector<double> task_times;
   std::vector<double> idle_times;
 
   std::vector<double> decode_times;
+  std::vector<double> memcpy_times;
   while (true) {
     auto idle_start1 = now();
 
     DecodeWorkEntry decode_work_entry;
-    args.decode_work.pop(load_work_entry);
+    args.decode_work.pop(decode_work_entry);
 
     if (decode_work_entry.work_item_index == -1) {
       break;
@@ -321,7 +323,7 @@ void* decode_thread(void* arg) {
     char* encoded_buffer = decode_work_entry.buffer;
 
     DecodeBufferEntry decode_buffer_entry;
-    empty_decode_buffers.pop(decode_buffer_entry);
+    args.empty_decode_buffers.pop(decode_buffer_entry);
 
     size_t decoded_buffer_size = decode_buffer_entry.buffer_size;
     char* decoded_buffer = decode_buffer_entry.buffer;
@@ -371,12 +373,10 @@ void* decode_thread(void* arg) {
       current_frame++;
     }
 
-    video_times.push_back(video_time);
-    io_times.push_back(decoder->time_spent_on_io());
-    decode_times.push_back(decoder->time_spent_on_decode());
+    decode_times.push_back(decoder.time_spent_on_decode());
     memcpy_times.push_back(memcpy_time);
 
-    task_times.push_back(task_time + nano_since(start3));
+    task_times.push_back(nano_since(start1));
 
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
@@ -617,7 +617,7 @@ void* evaluate_thread(void* arg) {
     DecodeBufferEntry empty_buffer_entry;
     empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
     empty_buffer_entry.buffer = frame_buffer;
-    args.empty_load_buffers.push(empty_buffer_entry);
+    args.empty_decode_buffers.push(empty_buffer_entry);
   }
 
   delete net;
@@ -891,7 +891,7 @@ int main(int argc, char **argv) {
     }
     std::vector<pthread_t> decode_threads(GPUS_PER_NODE);
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
-      pthread_create(&decode_threads[i], NULL, decode_video_thread,
+      pthread_create(&decode_threads[i], NULL, decode_thread,
                      &decode_thread_args[i]);
     }
 
@@ -1021,7 +1021,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       DecodeWorkEntry entry;
       entry.work_item_index = -1;
-      decode_work[i].push(entry);
+      decode_work.push(entry);
     }
 
     for (int i = 0; i < GPUS_PER_NODE; ++i) {

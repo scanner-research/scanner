@@ -919,7 +919,8 @@ void preprocess_video(
     exit_on_error(
       make_unique_write_file(storage, iframe_path, iframe_file));
 
-    write_keyframe_info(iframe_file.get(), iframe_positions, iframe_byte_offset);
+    write_keyframe_info(iframe_file.get(), iframe_positions,
+                        iframe_byte_offsets);
 
     std::unique_ptr<WriteFile> metadata_file;
     exit_on_error(
