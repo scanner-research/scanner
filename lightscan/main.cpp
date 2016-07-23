@@ -106,6 +106,8 @@ struct LoadWorkEntry {
 
 struct DecodeWorkEntry {
   int work_item_index;
+  int start_keyframe;
+  int end_keyframe;
   size_t encoded_data_size;
   char* buffer;
 };
@@ -249,7 +251,7 @@ void* load_video_thread(void* arg) {
     }
 
     size_t end_keyframe_index = 0;
-    for (size_t i = start_keyframe; i < keyframe_positions.size(); ++i) {
+    for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
       if (keyframe_positions[i] > work_item.end_frame) {
         end_keyframe_index = i;
         break;
@@ -278,6 +280,8 @@ void* load_video_thread(void* arg) {
 
     DecodeWorkEntry decode_work_entry;
     decode_work_entry.work_item_index = load_work_entry.work_item_index;
+    decode_work_entry.start_keyframe = keyframe_positions[start_keyframe_index];
+    decode_work_entry.end_keyframe = keyframe_positions[end_keyframe_index];
     decode_work_entry.encoded_data_size = data_size;
     decode_work_entry.buffer = buffer;
     args.decode_work.push(decode_work_entry);
