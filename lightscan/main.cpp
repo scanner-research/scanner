@@ -338,7 +338,7 @@ void* decode_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  VideoDecoder decoder{VideoMetadata()};
+  VideoDecoder decoder{args.cuda_context, VideoMetadata()};
 
   std::vector<double> task_times;
   std::vector<double> idle_times;

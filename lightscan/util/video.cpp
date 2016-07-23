@@ -549,6 +549,14 @@ VideoDecoder::VideoDecoder(VideoMetadata metadata)
   buffered_frames_[0] = av_frame_alloc();
 
   codec_ = avcodec_find_decoder_by_name("h264");
+
+  cc_ = avcodec_alloc_context3(codec_);
+
+  if (cc_ == NULL) {
+    fprintf(stderr, "could not create codec context\n");
+    exit(EXIT_FAILURE);
+  }
+
   pthread_mutex_lock(&av_mutex);
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     pthread_mutex_unlock(&av_mutex);
@@ -579,6 +587,13 @@ VideoDecoder::VideoDecoder(
     fprintf(stderr, "could not find hardware decoder\n");
     exit(EXIT_FAILURE);
   }
+
+  cc_ = avcodec_alloc_context3(codec_);
+  if (cc_ == NULL) {
+    fprintf(stderr, "could not create codec context\n");
+    exit(EXIT_FAILURE);
+  }
+
   if (cuvid_init(cc_, cuda_context) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
