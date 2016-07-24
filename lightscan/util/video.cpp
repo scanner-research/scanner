@@ -635,74 +635,73 @@ AVFrame* VideoDecoder::decode(char* buffer, size_t size) {
 
   AVPacket packet;
   int err =
-    av_packet_from_data(&packet, reinterpret_cast<uint8_t*>(buffer), size);
+    av_packet_new_packet(&packet, size);
   if (err < 0) {
     fprintf(stderr, "Could not create packet from data\n");
     exit(EXIT_FAILURE);
   }
+  memcpy(packet.data, reinterpret_cast<uint8_t*>(buffer), size);
 
   AVFrame* ret = nullptr;
-  while (ret == nullptr) {
-    /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
-       and this is the only method to use them because you cannot
-       know the compressed data size before analysing it.
+  /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
+     and this is the only method to use them because you cannot
+     know the compressed data size before analysing it.
 
-       BUT some other codecs (msmpeg4, mpeg4) are inherently frame
-       based, so you must call them with all the data for one
-       frame exactly. You must also initialize 'width' and
-       'height' before initializing them. */
+     BUT some other codecs (msmpeg4, mpeg4) are inherently frame
+     based, so you must call them with all the data for one
+     frame exactly. You must also initialize 'width' and
+     'height' before initializing them. */
 
-    /* NOTE2: some codecs allow the raw parameters (frame size,
-       sample rate) to be changed at any frame. We handle this, so
-       you should also take care of it */
+  /* NOTE2: some codecs allow the raw parameters (frame size,
+     sample rate) to be changed at any frame. We handle this, so
+     you should also take care of it */
 
-    /* here, we use a stream based decoder (mpeg1video), so we
-       feed decoder and see if it could decode a frame */
-    uint8_t* orig_data = packet.data;
-    while (packet.size > 0) {
-      int got_picture = 0;
-      auto decode_start = now();
-      int len = avcodec_decode_video2(cc_,
-                                      buffered_frames_[buffered_frame_pos_],
-                                      &got_picture,
-                                      &packet);
-      decode_time_ += nano_since(decode_start);
-      if (len < 0) {
-        char err_msg[256];
-        av_strerror(len, err_msg, 256);
-        fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-                next_frame_, len, err_msg);
-        exit(EXIT_FAILURE);
-      }
-#ifdef HARDWARE_DECODE
-      else {
-        // cuvid decoder consumes entire packet but then returns a zero len
-        // value on success instead of the size consumed.
-        // We set it to the entire packet size here to align with how other
-        // decoders work
-        len = packet.size;
-      }
-#endif
-      if (got_picture) {
-        // the picture is allocated by the decoder. no need to free
-        if (ret == nullptr) {
-          ret = buffered_frames_[buffered_frame_pos_];
-        }
-        buffered_frame_pos_ += 1;
-        if (buffered_frame_pos_ == buffered_frames_.size()) {
-          buffered_frames_.resize(buffered_frame_pos_ + 1);
-          buffered_frames_[buffered_frame_pos_] = av_frame_alloc();
-        }
-
-        next_frame_++;
-      }
-
-      packet.size -= len;
-      packet.data += len;
+  /* here, we use a stream based decoder (mpeg1video), so we
+     feed decoder and see if it could decode a frame */
+  uint8_t* orig_data = packet.data;
+  while (packet.size > 0) {
+    int got_picture = 0;
+    auto decode_start = now();
+    int len = avcodec_decode_video2(cc_,
+                                    buffered_frames_[buffered_frame_pos_],
+                                    &got_picture,
+                                    &packet);
+    decode_time_ += nano_since(decode_start);
+    if (len < 0) {
+      char err_msg[256];
+      av_strerror(len, err_msg, 256);
+      fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
+              next_frame_, len, err_msg);
+      exit(EXIT_FAILURE);
     }
-    packet.data = orig_data;
-    av_packet_unref(&packet);
+#ifdef HARDWARE_DECODE
+    else {
+      // cuvid decoder consumes entire packet but then returns a zero len
+      // value on success instead of the size consumed.
+      // We set it to the entire packet size here to align with how other
+      // decoders work
+      len = packet.size;
+    }
+#endif
+    if (got_picture) {
+      // the picture is allocated by the decoder. no need to free
+      if (ret == nullptr) {
+        ret = buffered_frames_[buffered_frame_pos_];
+      }
+      buffered_frame_pos_ += 1;
+      if (buffered_frame_pos_ == buffered_frames_.size()) {
+        buffered_frames_.resize(buffered_frame_pos_ + 1);
+        buffered_frames_[buffered_frame_pos_] = av_frame_alloc();
+      }
+
+      next_frame_++;
+    }
+
+    packet.size -= len;
+    packet.data += len;
   }
+  packet.data = orig_data;
+  av_packet_unref(&packet);
 
   if (near_eof_) {
 // /* some codecs, such as MPEG, transmit the I and P frame with a
