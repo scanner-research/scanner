@@ -187,7 +187,7 @@ void* load_video_thread(void* arg) {
   std::vector<double> io_times;
 
   std::string last_video_path;
-  RandomReadFile* video_file = nullptr;;
+  RandomReadFile* video_file = nullptr;
   std::vector<int> keyframe_positions;
   std::vector<int64_t> keyframe_byte_offsets;
   while (true) {
@@ -278,6 +278,8 @@ void* load_video_thread(void* arg) {
     assert(result == StoreResult::Success ||
            result == StoreResult::EndOfFile);
     io_times.push_back(nano_since(io_start));
+
+    task_times.push_back(nano_since(start1));
 
     DecodeWorkEntry decode_work_entry;
     decode_work_entry.work_item_index = load_work_entry.work_item_index;
@@ -381,11 +383,24 @@ void* decode_thread(void* arg) {
     double video_time = 0;
     double memcpy_time = 0;
 
+    size_t encoded_buffer_offset = 0;
+
     int current_frame = work_item.start_frame;
     while (current_frame < work_item.end_frame) {
       auto video_start = now();
 
-      AVFrame* frame = decoder.decode(encoded_buffer, encoded_buffer_size);
+      size_t encoded_packet_size =
+        *reinterpret_cast<size_t*>(encoded_buffer + encoded_buffer_offset);
+      encoded_buffer_offset += sizeof(size_t);
+      char* encoded_packet = encoded_buffer + encoded_buffer_offset;
+      encoded_buffer_offset += encoded_packet_size;
+
+      AVFrame* frame = decoder.decode(encoded_packet, encoded_packet_size);
+
+      if (frame == nullptr) {
+        continue;
+      }
+
       assert(frame != nullptr);
 
       video_time += nano_since(video_start);
