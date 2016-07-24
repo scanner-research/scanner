@@ -389,9 +389,11 @@ void* decode_thread(void* arg) {
     while (current_frame < work_item.end_frame) {
       auto video_start = now();
 
-      size_t encoded_packet_size =
-        *reinterpret_cast<size_t*>(encoded_buffer + encoded_buffer_offset);
-      encoded_buffer_offset += sizeof(size_t);
+      printf("packet offset %lu\n", encoded_buffer_offset);
+
+      int encoded_packet_size =
+        *reinterpret_cast<int*>(encoded_buffer + encoded_buffer_offset);
+      encoded_buffer_offset += sizeof(int);
       char* encoded_packet = encoded_buffer + encoded_buffer_offset;
       encoded_buffer_offset += encoded_packet_size;
 
