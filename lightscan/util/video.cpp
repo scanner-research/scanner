@@ -399,6 +399,8 @@ CodecState setup_video_codec(BufferData* buffer) {
     exit(EXIT_FAILURE);
   }
 
+  CUD_CHECK(cuInit(0));
+
   CUcontext cuda_context;
   CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
