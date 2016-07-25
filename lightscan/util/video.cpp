@@ -626,7 +626,7 @@ VideoDecoder::~VideoDecoder() {
 bool VideoDecoder::decode(
   char* encoded_buffer,
   size_t encoded_size,
-  char*& decoded_buffer,
+  char* decoded_buffer,
   size_t decoded_size)
 {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));

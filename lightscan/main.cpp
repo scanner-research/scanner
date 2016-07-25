@@ -393,36 +393,38 @@ void* decode_thread(void* arg) {
       char* encoded_packet = encoded_buffer + encoded_buffer_offset;
       encoded_buffer_offset += encoded_packet_size;
 
-      AVFrame* frame = decoder.decode(encoded_packet, encoded_packet_size);
-
-      if (frame == nullptr) {
-        continue;
-      }
-
-      assert(frame != nullptr);
-
-      video_time += nano_since(video_start);
-
       size_t frames_buffer_offset =
         frame_size * (current_frame - work_item.start_frame);
       assert(frames_buffer_offset < decoded_buffer_size);
       char* current_frame_buffer_pos =
         decoded_buffer + frames_buffer_offset;
 
+      bool new_frame = decoder.decode(
+        encoded_packet,
+        encoded_packet_size,
+        current_frame_buffer_pos,
+        frame_size);
+
+      video_time += nano_since(video_start);
+
+      if (!new_frame) {
+        continue;
+      }
+
       // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
       //              on that here to copy the data properly
-      auto memcpy_start = now();
-      for (int i = 0; i < 2; i++) {
-        CU_CHECK(cudaMemcpy2D(
-                   current_frame_buffer_pos + i * metadata.width * metadata.height,
-                   metadata.width, // dst pitch
-                   frame->data[i], // src
-                   frame->linesize[i], // src pitch
-                   frame->width, // width
-                   i == 0 ? frame->height : frame->height / 2, // height
-                   cudaMemcpyDeviceToDevice));
-      }
-      memcpy_time += nano_since(memcpy_start);
+      // auto memcpy_start = now();
+      // for (int i = 0; i < 2; i++) {
+      //   CU_CHECK(cudaMemcpy2D(
+      //              current_frame_buffer_pos + i * metadata.width * metadata.height,
+      //              metadata.width, // dst pitch
+      //              frame->data[i], // src
+      //              frame->linesize[i], // src pitch
+      //              frame->width, // width
+      //              i == 0 ? frame->height : frame->height / 2, // height
+      //              cudaMemcpyDeviceToDevice));
+      // }
+      // memcpy_time += nano_since(memcpy_start);
       current_frame++;
     }
 
