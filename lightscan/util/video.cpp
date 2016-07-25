@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/video.h"
+#include "lightscan/storage/storage_backend.h"
+#include "lightscan/util/cuda.h"
 
 #include <cassert>
 
@@ -556,8 +557,6 @@ void write_keyframe_info(
 //   pthread_mutex_unlock(&av_mutex);
 //   av_freep(&io_context->buffer);
 //   av_freep(&io_context);
-
-}
 
 VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
