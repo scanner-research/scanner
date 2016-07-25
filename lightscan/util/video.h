@@ -44,6 +44,42 @@ struct VideoMetadata {
   cudaVideoChromaFormat chroma_format;
 };
 
+class VideoSeparator {
+public:
+  VideoSeparator(CUcontext cuda_context, AVCodecContext* cc);
+
+  ~VideoSeparator();
+
+  bool decode(AVPacket packet);
+
+private:
+  static int cuvid_handle_video_sequence(
+    void *opaque,
+    CUVIDEOFORMAT* format);
+
+  static int cuvid_handle_picture_decode(
+    void *opaque,
+    CUVIDPICPARAMS* picparams);
+
+  static int cuvid_handle_picture_display(
+    void *opaque,
+    CUVIDPARSERDISPINFO* dispinfo);
+
+  CUcontext cuda_context_;
+  AVCodecContext* cc_;
+
+  CUvideoparser parser_;
+  CUVIDDECODECREATEINFO decoder_info_;
+
+  Queue<CUVIDPARSERDISPINFO> frame_queue_;
+
+  int next_frame_;
+  bool near_eof_;
+
+  double decode_time_;
+};
+
+
 class VideoDecoder {
 public:
   VideoDecoder(CUcontext cuda_context, VideoMetadata metadata);

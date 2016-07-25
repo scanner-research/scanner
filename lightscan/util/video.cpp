@@ -564,6 +564,134 @@ void write_keyframe_info(
 
 }
 
+VideoSeparator::VideoSeparator(
+  CUcontext cuda_context,
+  AVCodecContext* cc)
+  : cuda_context_(cuda_context),
+    cc_(cc),
+    parser_(nullptr),
+    decoder_(nullptr),
+    next_frame_(0),
+    near_eof_(false),
+    decode_time_(0)
+{
+  CUcontext dummy;
+
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
+  CUVIDPARSERPARAMS cuparseinfo = {};
+
+  cuparseinfo.CodecType = cudaVideoCodec_H264;
+  cuparseinfo.ulMaxNumDecodeSurfaces = 20;
+  cuparseinfo.ulMaxDisplayDelay = 4;
+  cuparseinfo.pUserData = this;
+  cuparseinfo.pfnSequenceCallback =
+    VideoSeparator::cuvid_handle_video_sequence;
+  cuparseinfo.pfnDecodePicture =
+    VideoSeparator::cuvid_handle_picture_decode;
+  cuparseinfo.pfnDisplayPicture =
+    VideoSeparator::cuvid_handle_picture_display;
+
+  CUVIDEOFORMATEX cuparse_ext = {};
+  cuparseinfo.pExtVideoInfo = &cuparse_ext;
+
+  CuvidContext *ctx = cc->priv_data;
+  if (cc->codec->id == AV_CODEC_ID_H264 || cc->codec->id == AV_CODEC_ID_HEVC) {
+    cuparse_ext.format.seqhdr_data_length = ctx->bsf->par_out->extradata_size;
+    memcpy(cuparse_ext.raw_seqhdr_data,
+           ctx->bsf->par_out->extradata,
+           FFMIN(sizeof(cuparse_ext.raw_seqhdr_data), ctx->bsf->par_out->extradata_size));
+  } else if (cc->extradata_size > 0) {
+    cuparse_ext.format.seqhdr_data_length = cc->extradata_size;
+    memcpy(cuparse_ext.raw_seqhdr_data,
+           cc->extradata,
+           FFMIN(sizeof(cuparse_ext.raw_seqhdr_data), cc->extradata_size));
+  }
+
+  CUD_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
+
+  CUVIDSOURCEDATAPACKET seq_pkt;
+  seq_pkt.payload = cuparse_ext.raw_seqhdr_data;
+  seq_pkt.payload_size = cuparse_ext.format.seqhdr_data_length;
+
+  if (seq_pkt.payload && seq_pkt.payload_size) {
+    CUD_CHECK(cuvidParseVideoData(parser_, &seq_pkt));
+  }
+
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
+}
+
+VideoSeparator::~VideoSeparator() {
+  if (parser_) {
+    cuvidDestroyVideoParser(parser_);
+  }
+}
+
+bool VideoSeparator::decode(AVPacket packet) {
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
+  CUVIDSOURCEDATAPACKET cupkt = {};
+  cupkt.payload_size = packet.size;
+  cupkt.payload = reinterpret_cast<uint8_t*>(packet.data);
+
+  CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
+
+  CUcontext dummy;
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
+
+  return false;
+}
+
+int VideoSeparator::cuvid_handle_video_sequence(
+  void *opaque,
+  CUVIDEOFORMAT* format)
+{
+  VideoSeparator& video_separator =
+    *reinterpret_cast<VideoSeparator*>(opaque);
+  printf("separator handle video squene\n");
+
+  CUVIDDECODECREATEINFO cuinfo = {};
+  cuinfo.CodecType = format->codec;
+  cuinfo.ChromaFormat = format->chroma_format;
+  cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
+
+  cuinfo.ulWidth = format->coded_width;
+  cuinfo.ulHeight = format->coded_height;
+  cuinfo.ulTargetWidth = cuinfo.ulWidth;
+  cuinfo.ulTargetHeight = cuinfo.ulHeight;
+
+  cuinfo.target_rect.left = 0;
+  cuinfo.target_rect.top = 0;
+  cuinfo.target_rect.right = cuinfo.ulWidth;
+  cuinfo.target_rect.bottom = cuinfo.ulHeight;
+
+  cuinfo.ulNumDecodeSurfaces = 20;
+  cuinfo.ulNumOutputSurfaces = 1;
+  cuinfo.ulCreationFlags = cudaVideoCreate_PreferCUVID;
+
+  cuinfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
+
+  video_separator.decoder_info_ = cuinfo;
+}
+
+int VideoSeparator::cuvid_handle_picture_decode(
+  void *opaque,
+  CUVIDPICPARAMS* picparams)
+{
+  VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
+
+  printf("separator handle picture decode\n");
+}
+
+int VideoSeparator::cuvid_handle_picture_display(
+  void *opaque,
+  CUVIDPARSERDISPINFO* dispinfo)
+{
+  VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
+  printf("separator handle picture display\n");
+}
+
+
 //   // avcodec_close(codec_context);
 //   // av_free(codec_context);
 
@@ -645,7 +773,7 @@ bool VideoDecoder::decode(
 {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
-  CUVIDSOURCEDATAPACKET cupkt = {0};
+  CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = encoded_size;
   cupkt.payload = reinterpret_cast<uint8_t*>(encoded_buffer);
 
@@ -737,6 +865,17 @@ void preprocess_video(
   VideoMetadata video_metadata;
   video_metadata.width = state.in_cc->coded_width;
   video_metadata.height = state.in_cc->coded_height;
+  video_metadata.chroma_format = cudaVideoChromaFormat_420;
+  video_metadata.codec_type = cudaVideoCodec_H264;
+
+  CUcontext cuda_context;
+  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
+  CUD_CHECK(cuCtxPushCurrent(cuda_context));
+
+  VideoSeparator separator(cuda_context, state.in_cc);
+
+  CuvidContext *cuvid_ctx =
+    reinterpret_cast<CuvidContext*>(state.in_cc->priv_data);
 
   std::vector<char> demuxed_video_stream;
   std::vector<int> iframe_positions;
@@ -777,6 +916,9 @@ void preprocess_video(
     int orig_size = state.av_packet.size;
     while (state.av_packet.size > 0) {
       int got_picture = 0;
+      char* dec;
+      size_t size;
+      separator.decode(state.av_packet);
       int len = avcodec_decode_video2(state.in_cc,
                                       state.picture,
                                       &got_picture,
@@ -844,9 +986,6 @@ void preprocess_video(
       frame++;
     }
   } while (got_picture);
-
-  CuvidContext *cuvid_ctx =
-    reinterpret_cast<CuvidContext*>(state.in_cc->priv_data);
 
   video_metadata.frames = frame;
   video_metadata.codec_type = cuvid_ctx->codec_type;

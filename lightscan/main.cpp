@@ -254,7 +254,6 @@ void* load_video_thread(void* arg) {
         break;
       }
     }
-
     uint64_t start_keyframe_byte_offset =
       static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
     uint64_t end_keyframe_byte_offset =
@@ -338,7 +337,7 @@ void* decode_thread(void* arg) {
 
   // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
   //              codec type) all videos should be the same for now so just use
-  //              the first. 
+  //              the first.
   VideoDecoder decoder{args.cuda_context, args.metadata[0]};
 
   std::vector<double> task_times;
