@@ -279,9 +279,6 @@ cancel:
   return AVERROR(EINVAL);
 }
 
-
-}
-
 // For custom AVIOContext that loads from memory
 
 struct CodecState {
@@ -376,8 +373,8 @@ CodecState setup_video_codec(BufferData* buffer) {
 
   state.in_cc = in_stream->codec;
 
-  state.in_cc = avcodec_find_decoder_by_name("h264_cuvid");
-  if (state.in_cc == NULL) {
+  state.in_codec = avcodec_find_decoder_by_name("h264_cuvid");
+  if (state.in_codec == NULL) {
     fprintf(stderr, "could not find hardware decoder\n");
     exit(EXIT_FAILURE);
   }
@@ -546,7 +543,6 @@ void write_keyframe_info(
 }
 
 }
-
 
 //   // avcodec_close(codec_context);
 //   // av_free(codec_context);
