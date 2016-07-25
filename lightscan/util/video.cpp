@@ -682,7 +682,7 @@ int VideoDecoder::cuvid_handle_picture_decode(
   printf("handle picture decode\n");
 }
 
-int cuvid_handle_picture_display(
+int VideoDecoder::cuvid_handle_picture_display(
   void *opaque,
   CUVIDPARSERDISPINFO* dispinfo)
 {
