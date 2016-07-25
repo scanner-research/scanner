@@ -16,12 +16,12 @@
 #pragma once
 
 #include "lightscan/storage/storage_backend.h"
+#include "lightscan/util/queue.h"
 #include <string>
 #include <pthread.h>
 
-#ifdef HARDWARE_DECODE
 #include <cuda.h>
-#endif
+#include <nvcuvid.h>
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -40,35 +40,48 @@ struct VideoMetadata {
   int32_t frames;
   int32_t width;
   int32_t height;
+  cudaVideoCodec codec_type;
+  cudaVideoChromaFormat chroma_format;
 };
 
 class VideoDecoder {
 public:
-  VideoDecoder(VideoMetadata metadata);
-
-#ifdef HARDWARE_DECODE
   VideoDecoder(CUcontext cuda_context, VideoMetadata metadata);
-#endif
 
   ~VideoDecoder();
 
-  AVFrame* decode(char* buffer, size_t size);
+  bool decode(
+    char* encoded_buffer,
+    size_t encoded_size,
+    char*& decoded_buffer,
+    size_t decoded_size);
 
   double time_spent_on_decode();
 
   void reset_timing();
 
 private:
+  static int cuvid_handle_video_sequence(
+    void *opaque,
+    CUVIDEOFORMAT* format);
+
+  static int cuvid_handle_picture_decode(
+    void *opaque,
+    CUVIDPICPARAMS* picparams);
+
+  static int cuvid_handle_picture_display(
+    void *opaque,
+    CUVIDPARSERDISPINFO* dispinfo);
+
+  CUcontext cuda_context_;
   VideoMetadata metadata_;
 
-  AVPacket packet_;
-  std::vector<AVFrame*> buffered_frames_;
-  AVCodec* codec_;
-  AVCodecContext* cc_;
+  CUvideoparser parser_;
+  CUvideodecoder decoder_;
+
+  Queue<CUVIDPARSERDISPINFO> frame_queue_;
 
   int next_frame_;
-  int next_buffered_frame_;
-  int buffered_frame_pos_;
   bool near_eof_;
 
   double decode_time_;

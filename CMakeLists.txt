@@ -20,7 +20,7 @@ enable_testing()
 
 include(ExternalProject)
 
-set(ENABLE_HARDWARE_DECODE OFF CACHE BOOL "Turn on hardware decode")
+set(ENABLE_HARDWARE_DECODE ON CACHE BOOL "Turn on hardware decode")
 set(ENABLE_H264_ENCODE OFF CACHE BOOL "Turn on video encoding using libx264")
 
 ######################

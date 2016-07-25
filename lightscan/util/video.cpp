@@ -18,10 +18,8 @@
 
 #include <cassert>
 
-#ifdef HARDWARE_DECODE
 #include <cuda.h>
 #include <nvcuvid.h>
-#endif
 
 // For video
 extern "C" {
@@ -40,10 +38,8 @@ extern "C" {
 #include "libavutil/opt.h"
 
 // For hardware decode
-#ifdef HARDWARE_DECODE
 #include "libavutil/hwcontext.h"
 #include "libavutil/hwcontext_cuda.h"
-#endif
 }
 
 // Stolen from libavformat/movenc.h
@@ -100,256 +96,6 @@ int64_t seek(void *opaque, int64_t offset, int whence) {
   }
 }
 
-// For custom AVIOContext that loads from memory
-
-struct CodecState {
-  AVPacket av_packet;
-  AVFrame* picture;
-  // Input objects
-  AVFormatContext* format_context;
-  AVIOContext* io_context;
-  AVCodec* in_codec;
-  AVCodecContext* in_cc;
-  int video_stream_index;
-  // Output objets
-  AVStream* out_stream;
-  AVFormatContext* out_format_context;
-  AVCodecContext* out_cc;
-};
-
-void set_video_stream_settings(AVStream* stream,
-                               AVCodecContext* c,
-                               AVCodec* codec,
-                               int width, int height,
-                               AVRational avg_frame_rate,
-                               AVRational time_base,
-                               int bit_rate,
-                               int bit_rate_tolerance,
-                               int gop_size,
-                               AVRational sample_aspect_ratio)
-{
-  stream->r_frame_rate.num = avg_frame_rate.num;
-  stream->r_frame_rate.den = avg_frame_rate.den;
-  stream->time_base = avg_frame_rate;
-
-  c->codec_id = codec->id;
-  c->codec_type = AVMEDIA_TYPE_VIDEO;
-  c->profile = FF_PROFILE_H264_HIGH;
-  c->pix_fmt = AV_PIX_FMT_YUV420P;
-  c->width = width;
-  c->height = height;
-  c->time_base.num = time_base.num;
-  c->time_base.den = time_base.den;
-  av_opt_set_int(c, "crf", 15, AV_OPT_SEARCH_CHILDREN);
-  // c->bit_rate_tolerance = bit_rate_tolerance;
-  // c->gop_size = gop_size;
-
-  //c->sample_aspect_ratio = sample_aspect_ratio;
-}
-
-CodecState setup_video_codec(BufferData* buffer) {
-  printf("Setting up video codec\n");
-  CodecState state;
-  av_init_packet(&state.av_packet);
-  state.picture = av_frame_alloc();
-  state.format_context = avformat_alloc_context();
-
-  size_t avio_context_buffer_size = 4096;
-  uint8_t* avio_context_buffer =
-    static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
-  state.io_context =
-    avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
-                       0, buffer, &read_packet, NULL, &seek);
-  state.format_context->pb = state.io_context;
-
-  // Read file header
-  printf("Opening input file to read format\n");
-  if (avformat_open_input(&state.format_context, NULL, NULL, NULL) < 0) {
-    fprintf(stderr, "open input failed\n");
-    assert(false);
-  }
-  // Some formats don't have a header
-  if (avformat_find_stream_info(state.format_context, NULL) < 0) {
-    fprintf(stderr, "find stream info failed\n");
-    assert(false);
-  }
-
-  av_dump_format(state.format_context, 0, NULL, 0);
-
-  // Find the best video stream in our input video
-  state.video_stream_index =
-    av_find_best_stream(state.format_context,
-                        AVMEDIA_TYPE_VIDEO,
-                        -1 /* auto select */,
-                        -1 /* no related stream */,
-                        &state.in_codec,
-                        0 /* flags */);
-  if (state.video_stream_index < 0) {
-    fprintf(stderr, "could not find best stream\n");
-    assert(false);
-  }
-
-  AVStream const* const in_stream =
-    state.format_context->streams[state.video_stream_index];
-
-  state.in_cc = in_stream->codec;
-
-  if (avcodec_open2(state.in_cc, state.in_codec, NULL) < 0) {
-    fprintf(stderr, "could not open codec\n");
-    assert(false);
-  }
-
-  // Setup output codec and stream that we will use to reencode the input video
-
-#ifdef HAVE_X264_ENCODER
-  AVOutputFormat* output_format = av_guess_format("mp4", NULL, NULL);
-  if (output_format == NULL) {
-    fprintf(stderr, "output format could not be guessed\n");
-    assert(false);
-  }
-  avformat_alloc_output_context2(&state.out_format_context,
-                                 output_format,
-                                 NULL,
-                                 NULL);
-  printf("output format\n");
-  fflush(stdout);
-
-  AVCodec* out_codec = avcodec_find_encoder_by_name("libx264");
-  if (out_codec == NULL) {
-    fprintf(stderr, "could not find encoder for codec name\n");
-    assert(false);
-  }
-
-  state.out_stream =
-    avformat_new_stream(state.out_format_context, out_codec);
-  if (state.out_stream == NULL) {
-    fprintf(stderr, "Could not allocate stream\n");
-    exit(1);
-  }
-
-  state.out_stream->id = state.out_format_context->nb_streams - 1;
-  AVCodecContext* out_cc = state.out_stream->codec;
-  state.out_cc = out_cc;
-  avcodec_get_context_defaults3(out_cc, out_codec);
-
-  set_video_stream_settings(
-    state.out_stream,
-    out_cc,
-    out_codec,
-    state.in_cc->coded_width, state.in_cc->coded_height,
-    in_stream->avg_frame_rate,
-    in_stream->time_base,
-    state.in_cc->bit_rate,
-    state.in_cc->bit_rate_tolerance,
-    state.in_cc->gop_size,
-    in_stream->sample_aspect_ratio);
-
-  if (output_format->flags & AVFMT_GLOBALHEADER)
-    state.out_cc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-
-  state.out_stream->sample_aspect_ratio = in_stream->sample_aspect_ratio;
-
-  if (avcodec_open2(out_cc, out_codec, NULL) < 0) {
-    fprintf(stderr, "Could not open video codec\n");
-    exit(1);
-  }
-
-  // if (codec->capabilities & CODEC_CAP_TRUNCATED) {
-  //   codec_context->flags |= CODEC_FLAG_TRUNCATED;
-  // }
-
-/* For some codecs, such as msmpeg4 and mpeg4, width and height
-   MUST be initialized there because this information is not
-   available in the bitstream. */
-
-/* the codec gives us the frame size, in samples */
-  // codec_context->width = width;
-  // codec_context->height = height;
-  // codec_context->pix_fmt = AV_AV_PIX_FMT_YUV420P;
-  // codec_context->bit_rate = format_;
-
-  // Set fast start to move mov to the end
-  MOVMuxContext *mov = NULL;
-
-  mov = (MOVMuxContext *)state.out_format_context->priv_data;
-  mov->flags |= FF_MOV_FLAG_FASTSTART;
-
-#endif
-
-  return state;
-}
-
-void cleanup_video_codec(CodecState state) {
-  avformat_free_context(state.out_format_context);
-}
-
-void write_video_metadata(
-  WriteFile* file,
-  const VideoMetadata& metadata)
-{
-  // Frames
-  StoreResult result;
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&metadata.frames)),
-    result);
-  assert(result == StoreResult::Success);
-
-  // Width
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&metadata.width)),
-    result);
-  assert(result == StoreResult::Success);
-
-  // Height
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&metadata.height)),
-    result);
-  assert(result == StoreResult::Success);
-}
-
-void write_keyframe_info(
-  WriteFile* file,
-  const std::vector<int>& keyframe_positions,
-  const std::vector<int64_t>& keyframe_timestamps)
-{
-  assert(keyframe_positions.size() == keyframe_timestamps.size());
-
-  size_t num_keyframes = keyframe_positions.size();
-
-  StoreResult result;
-  EXP_BACKOFF(
-    file->append(sizeof(size_t), reinterpret_cast<char*>(&num_keyframes)),
-    result);
-  assert(result == StoreResult::Success);
-
-  EXP_BACKOFF(
-    file->append(sizeof(int) * num_keyframes,
-                 reinterpret_cast<const char*>(keyframe_positions.data())),
-    result);
-  EXP_BACKOFF(
-    file->append(sizeof(int64_t) * num_keyframes,
-                 reinterpret_cast<const char*>(keyframe_timestamps.data())),
-    result);
-}
-
-}
-
-
-//   // avcodec_close(codec_context);
-//   // av_free(codec_context);
-
-//   // Cleanup
-//   pthread_mutex_lock(&av_mutex);
-//   avformat_close_input(&format_context);
-//   pthread_mutex_unlock(&av_mutex);
-//   av_freep(&io_context->buffer);
-//   av_freep(&io_context);
-namespace {
-
-#ifdef HARDWARE_DECODE
 // Taken directly from ffmpeg_cuvid.c
 typedef struct CUVIDContext {
     AVBufferRef *hw_frames_ctx;
@@ -532,55 +278,102 @@ cancel:
   return AVERROR(EINVAL);
 }
 
-#endif
 
 }
 
-VideoDecoder::VideoDecoder(VideoMetadata metadata)
-  : metadata_(metadata),
-    next_frame_(0),
-    next_buffered_frame_(1),
-    buffered_frame_pos_(0),
-    near_eof_(false),
-    decode_time_(0)
+// For custom AVIOContext that loads from memory
+
+struct CodecState {
+  AVPacket av_packet;
+  AVFrame* picture;
+  // Input objects
+  AVFormatContext* format_context;
+  AVIOContext* io_context;
+  AVCodec* in_codec;
+  AVCodecContext* in_cc;
+  int video_stream_index;
+  // Output objets
+  AVStream* out_stream;
+  AVFormatContext* out_format_context;
+  AVCodecContext* out_cc;
+};
+
+void set_video_stream_settings(AVStream* stream,
+                               AVCodecContext* c,
+                               AVCodec* codec,
+                               int width, int height,
+                               AVRational avg_frame_rate,
+                               AVRational time_base,
+                               int bit_rate,
+                               int bit_rate_tolerance,
+                               int gop_size,
+                               AVRational sample_aspect_ratio)
 {
-  av_init_packet(&packet_);
-  buffered_frames_.resize(1);
-  buffered_frames_[0] = av_frame_alloc();
+  stream->r_frame_rate.num = avg_frame_rate.num;
+  stream->r_frame_rate.den = avg_frame_rate.den;
+  stream->time_base = avg_frame_rate;
 
-  codec_ = avcodec_find_decoder_by_name("h264");
+  c->codec_id = codec->id;
+  c->codec_type = AVMEDIA_TYPE_VIDEO;
+  c->profile = FF_PROFILE_H264_HIGH;
+  c->pix_fmt = AV_PIX_FMT_YUV420P;
+  c->width = width;
+  c->height = height;
+  c->time_base.num = time_base.num;
+  c->time_base.den = time_base.den;
+  av_opt_set_int(c, "crf", 15, AV_OPT_SEARCH_CHILDREN);
+  // c->bit_rate_tolerance = bit_rate_tolerance;
+  // c->gop_size = gop_size;
 
-  cc_ = avcodec_alloc_context3(codec_);
-
-  if (cc_ == NULL) {
-    fprintf(stderr, "could not create codec context\n");
-    exit(EXIT_FAILURE);
-  }
-
-  pthread_mutex_lock(&av_mutex);
-  if (avcodec_open2(cc_, codec_, NULL) < 0) {
-    pthread_mutex_unlock(&av_mutex);
-    fprintf(stderr, "could not open codec\n");
-    exit(EXIT_FAILURE);
-  } else {
-    pthread_mutex_unlock(&av_mutex);
-  }
+  //c->sample_aspect_ratio = sample_aspect_ratio;
 }
 
-#ifdef HARDWARE_DECODE
-VideoDecoder::VideoDecoder(
-  CUcontext cuda_context,
-  VideoMetadata metadata)
-  : metadata_(metadata),
-    next_frame_(0),
-    next_buffered_frame_(1),
-    buffered_frame_pos_(0),
-    near_eof_(false),
-    decode_time_(0)
-{
-  av_init_packet(&packet_);
-  buffered_frames_.resize(1);
-  buffered_frames_[0] = av_frame_alloc();
+CodecState setup_video_codec(BufferData* buffer) {
+  printf("Setting up video codec\n");
+  CodecState state;
+  av_init_packet(&state.av_packet);
+  state.picture = av_frame_alloc();
+  state.format_context = avformat_alloc_context();
+
+  size_t avio_context_buffer_size = 4096;
+  uint8_t* avio_context_buffer =
+    static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
+  state.io_context =
+    avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
+                       0, buffer, &read_packet, NULL, &seek);
+  state.format_context->pb = state.io_context;
+
+  // Read file header
+  printf("Opening input file to read format\n");
+  if (avformat_open_input(&state.format_context, NULL, NULL, NULL) < 0) {
+    fprintf(stderr, "open input failed\n");
+    assert(false);
+  }
+  // Some formats don't have a header
+  if (avformat_find_stream_info(state.format_context, NULL) < 0) {
+    fprintf(stderr, "find stream info failed\n");
+    assert(false);
+  }
+
+  av_dump_format(state.format_context, 0, NULL, 0);
+
+  // Find the best video stream in our input video
+  state.video_stream_index =
+    av_find_best_stream(state.format_context,
+                        AVMEDIA_TYPE_VIDEO,
+                        -1 /* auto select */,
+                        -1 /* no related stream */,
+                        &state.in_codec,
+                        0 /* flags */);
+  if (state.video_stream_index < 0) {
+    fprintf(stderr, "could not find best stream\n");
+    assert(false);
+  }
+
+  AVStream const* const in_stream =
+    state.format_context->streams[state.video_stream_index];
+
+  state.in_cc = in_stream->codec;
 
   codec_ = avcodec_find_decoder_by_name("h264_cuvid");
   if (codec_ == NULL) {
@@ -588,41 +381,256 @@ VideoDecoder::VideoDecoder(
     exit(EXIT_FAILURE);
   }
 
-  cc_ = avcodec_alloc_context3(codec_);
-  if (cc_ == NULL) {
-    fprintf(stderr, "could not create codec context\n");
-    exit(EXIT_FAILURE);
-  }
+  CUcontext cuda_context;
+  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
   if (cuvid_init(cc_, cuda_context) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
   }
 
-  pthread_mutex_lock(&av_mutex);
-  if (avcodec_open2(cc_, codec_, NULL) < 0) {
-    pthread_mutex_unlock(&av_mutex);
+  if (avcodec_open2(state.in_cc, state.in_codec, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");
-    exit(EXIT_FAILURE);
-  } else {
-    pthread_mutex_unlock(&av_mutex);
+    assert(false);
   }
-  cc_->pix_fmt = AV_PIX_FMT_CUDA;
-}
+
+  // Setup output codec and stream that we will use to reencode the input video
+
+#ifdef HAVE_X264_ENCODER
+  AVOutputFormat* output_format = av_guess_format("mp4", NULL, NULL);
+  if (output_format == NULL) {
+    fprintf(stderr, "output format could not be guessed\n");
+    assert(false);
+  }
+  avformat_alloc_output_context2(&state.out_format_context,
+                                 output_format,
+                                 NULL,
+                                 NULL);
+  printf("output format\n");
+  fflush(stdout);
+
+  AVCodec* out_codec = avcodec_find_encoder_by_name("libx264");
+  if (out_codec == NULL) {
+    fprintf(stderr, "could not find encoder for codec name\n");
+    assert(false);
+  }
+
+  state.out_stream =
+    avformat_new_stream(state.out_format_context, out_codec);
+  if (state.out_stream == NULL) {
+    fprintf(stderr, "Could not allocate stream\n");
+    exit(1);
+  }
+
+  state.out_stream->id = state.out_format_context->nb_streams - 1;
+  AVCodecContext* out_cc = state.out_stream->codec;
+  state.out_cc = out_cc;
+  avcodec_get_context_defaults3(out_cc, out_codec);
+
+  set_video_stream_settings(
+    state.out_stream,
+    out_cc,
+    out_codec,
+    state.in_cc->coded_width, state.in_cc->coded_height,
+    in_stream->avg_frame_rate,
+    in_stream->time_base,
+    state.in_cc->bit_rate,
+    state.in_cc->bit_rate_tolerance,
+    state.in_cc->gop_size,
+    in_stream->sample_aspect_ratio);
+
+  if (output_format->flags & AVFMT_GLOBALHEADER)
+    state.out_cc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+  state.out_stream->sample_aspect_ratio = in_stream->sample_aspect_ratio;
+
+  if (avcodec_open2(out_cc, out_codec, NULL) < 0) {
+    fprintf(stderr, "Could not open video codec\n");
+    exit(1);
+  }
+
+  // if (codec->capabilities & CODEC_CAP_TRUNCATED) {
+  //   codec_context->flags |= CODEC_FLAG_TRUNCATED;
+  // }
+
+/* For some codecs, such as msmpeg4 and mpeg4, width and height
+   MUST be initialized there because this information is not
+   available in the bitstream. */
+
+/* the codec gives us the frame size, in samples */
+  // codec_context->width = width;
+  // codec_context->height = height;
+  // codec_context->pix_fmt = AV_AV_PIX_FMT_YUV420P;
+  // codec_context->bit_rate = format_;
+
+  // Set fast start to move mov to the end
+  MOVMuxContext *mov = NULL;
+
+  mov = (MOVMuxContext *)state.out_format_context->priv_data;
+  mov->flags |= FF_MOV_FLAG_FASTSTART;
+
 #endif
+
+  return state;
+}
+
+void cleanup_video_codec(CodecState state) {
+  avformat_free_context(state.out_format_context);
+}
+
+void write_video_metadata(
+  WriteFile* file,
+  const VideoMetadata& metadata)
+{
+  // Frames
+  StoreResult result;
+  EXP_BACKOFF(
+    file->append(sizeof(int32_t),
+                 reinterpret_cast<const char*>(&metadata.frames)),
+    result);
+  assert(result == StoreResult::Success);
+
+  // Width
+  EXP_BACKOFF(
+    file->append(sizeof(int32_t),
+                 reinterpret_cast<const char*>(&metadata.width)),
+    result);
+  assert(result == StoreResult::Success);
+
+  // Height
+  EXP_BACKOFF(
+    file->append(sizeof(int32_t),
+                 reinterpret_cast<const char*>(&metadata.height)),
+    result);
+  assert(result == StoreResult::Success);
+
+  // Codec type
+  EXP_BACKOFF(
+    file->append(sizeof(cudaVideoCodec),
+                 reinterpret_cast<const char*>(&metadata.codec_type)),
+    result);
+  assert(result == StoreResult::Success);
+
+  // Chroma format
+  EXP_BACKOFF(
+    file->append(sizeof(cudaVideoChromaFormat),
+                 reinterpret_cast<const char*>(&metadata.chroma_format)),
+    result);
+  assert(result == StoreResult::Success);
+}
+
+void write_keyframe_info(
+  WriteFile* file,
+  const std::vector<int>& keyframe_positions,
+  const std::vector<int64_t>& keyframe_timestamps)
+{
+  assert(keyframe_positions.size() == keyframe_timestamps.size());
+
+  size_t num_keyframes = keyframe_positions.size();
+
+  StoreResult result;
+  EXP_BACKOFF(
+    file->append(sizeof(size_t), reinterpret_cast<char*>(&num_keyframes)),
+    result);
+  assert(result == StoreResult::Success);
+
+  EXP_BACKOFF(
+    file->append(sizeof(int) * num_keyframes,
+                 reinterpret_cast<const char*>(keyframe_positions.data())),
+    result);
+  EXP_BACKOFF(
+    file->append(sizeof(int64_t) * num_keyframes,
+                 reinterpret_cast<const char*>(keyframe_timestamps.data())),
+    result);
+}
+
+}
+
+
+//   // avcodec_close(codec_context);
+//   // av_free(codec_context);
+
+//   // Cleanup
+//   pthread_mutex_lock(&av_mutex);
+//   avformat_close_input(&format_context);
+//   pthread_mutex_unlock(&av_mutex);
+//   av_freep(&io_context->buffer);
+//   av_freep(&io_context);
+
+}
+
+VideoDecoder::VideoDecoder(
+  CUcontext cuda_context,
+  VideoMetadata metadata)
+  : cuda_context_(cuda_context),
+    metadata_(metadata),
+    parser_(nullptr),
+    decoder_(nullptr),
+    next_frame_(0),
+    near_eof_(false),
+    decode_time_(0)
+{
+  CUcontext dummy;
+
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
+  CUVIDPARSERPARAMS cuparseinfo = {0};
+
+  cuparseinfo.CodecType = metadata.codec_type;
+  cuparseinfo.ulMaxNumDecodeSurfaces = MAX_FRAME_COUNT;
+  cuparseinfo.ulMaxDisplayDelay = 4;
+  cuparseinfo.pUserData = this;
+  cuparseinfo.pfnSequenceCallback = VideoDecoder::cuvid_handle_video_sequence;
+  cuparseinfo.pfnDecodePicture = VideoDecoder::cuvid_handle_picture_decode;
+  cuparseinfo.pfnDisplayPicture = VideoDecoder::cuvid_handle_picture_display;
+
+  CU_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
+
+  CUVIDDECODECREATEINFO cuinfo = {0};
+  // HACK(apoms): Hardcode for kcam videos for now
+  cuinfo.CodecType = metadata.codec_type;
+  cuinfo.ChromaFormat = metadata.chroma_format;
+  cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
+
+  cuinfo.ulWidth = metadata.width;
+  cuinfo.ulHeight = metadata.height;
+  cuinfo.ulTargetWidth = cuinfo.ulWidth;
+  cuinfo.ulTargetHeight = cuinfo.ulHeight;
+
+  cuinfo.target_rect.left = 0;
+  cuinfo.target_rect.top = 0;
+  cuinfo.target_rect.right = cuinfo.ulWidth;
+  cuinfo.target_rect.bottom = cuinfo.ulHeight;
+
+  cuinfo.ulNumDecodeSurfaces = 20;
+  cuinfo.ulNumOutputSurfaces = 1;
+  cuinfo.ulCreationFlags = cudaVideoCreate_PreferCUVID;
+
+  cuinfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
+
+  CU_CHECK(cuvidCreateDecoder(&decoder_, &cuinfo));
+
+  CU_CHECK(cuCtxPopCurrent(&dummy));
+}
 
 VideoDecoder::~VideoDecoder() {
-#ifdef HARDWARE_DECODE
-  if (cc_->pix_fmt == AV_PIX_FMT_CUDA) {
-    cuvid_uninit(cc_);
+  if (parser_) {
+    cuvidDestroyVideoParser(parser_);
   }
-#endif
-  pthread_mutex_lock(&av_mutex);
-  avcodec_close(cc_);
-  pthread_mutex_unlock(&av_mutex);
+
+  if (decoder_) {
+    cuvidDestroyDecoder(decoder_);
+  }
 }
 
-AVFrame* VideoDecoder::decode(char* buffer, size_t size) {
+bool VideoDecoder::decode(
+  char* encoded_buffer,
+  size_t encoded_size,
+  char*& decoded_buffer,
+  size_t decoded_size)
+{
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
   if (next_buffered_frame_ < buffered_frame_pos_) {
     int i = next_buffered_frame_++;
     if (next_buffered_frame_ >= buffered_frame_pos_) {
@@ -633,110 +641,16 @@ AVFrame* VideoDecoder::decode(char* buffer, size_t size) {
     return buffered_frames_[i];
   }
 
-  AVPacket packet;
-  int err =
-    av_packet_new_packet(&packet, size);
-  if (err < 0) {
-    fprintf(stderr, "Could not create packet from data\n");
-    exit(EXIT_FAILURE);
-  }
-  memcpy(packet.data, reinterpret_cast<uint8_t*>(buffer), size);
+  CUVIDSOURCEDATAPACKET cupkt = {0};
+  cupkt.payload_size = encoded_size;
+  cupkt.payload = encoded_buffer;
 
-  AVFrame* ret = nullptr;
-  /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
-     and this is the only method to use them because you cannot
-     know the compressed data size before analysing it.
+  CU_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
-     BUT some other codecs (msmpeg4, mpeg4) are inherently frame
-     based, so you must call them with all the data for one
-     frame exactly. You must also initialize 'width' and
-     'height' before initializing them. */
+  CUcontext dummy;
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
 
-  /* NOTE2: some codecs allow the raw parameters (frame size,
-     sample rate) to be changed at any frame. We handle this, so
-     you should also take care of it */
-
-  /* here, we use a stream based decoder (mpeg1video), so we
-     feed decoder and see if it could decode a frame */
-  uint8_t* orig_data = packet.data;
-  while (packet.size > 0) {
-    int got_picture = 0;
-    auto decode_start = now();
-    int len = avcodec_decode_video2(cc_,
-                                    buffered_frames_[buffered_frame_pos_],
-                                    &got_picture,
-                                    &packet);
-    decode_time_ += nano_since(decode_start);
-    if (len < 0) {
-      char err_msg[256];
-      av_strerror(len, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-              next_frame_, len, err_msg);
-      exit(EXIT_FAILURE);
-    }
-#ifdef HARDWARE_DECODE
-    else {
-      // cuvid decoder consumes entire packet but then returns a zero len
-      // value on success instead of the size consumed.
-      // We set it to the entire packet size here to align with how other
-      // decoders work
-      len = packet.size;
-    }
-#endif
-    if (got_picture) {
-      // the picture is allocated by the decoder. no need to free
-      if (ret == nullptr) {
-        ret = buffered_frames_[buffered_frame_pos_];
-      }
-      buffered_frame_pos_ += 1;
-      if (buffered_frame_pos_ == buffered_frames_.size()) {
-        buffered_frames_.resize(buffered_frame_pos_ + 1);
-        buffered_frames_[buffered_frame_pos_] = av_frame_alloc();
-      }
-
-      next_frame_++;
-    }
-
-    packet.size -= len;
-    packet.data += len;
-  }
-  packet.data = orig_data;
-  av_packet_unref(&packet);
-
-  if (near_eof_) {
-// /* some codecs, such as MPEG, transmit the I and P frame with a
-//    latency of one frame. You must do the following to have a
-//    chance to get the last frame of the video */
-    packet.data = NULL;
-    packet.size = 0;
-
-    int got_picture;
-    do {
-      got_picture = 0;
-      auto decode_start = now();
-      int len = avcodec_decode_video2(
-        cc_,
-        buffered_frames_[buffered_frame_pos_],
-        &got_picture, &packet);
-      decode_time_ += nano_since(decode_start);
-      (void)len;
-      if (got_picture) {
-        // the picture is allocated by the decoder. no need to free
-        if (ret == nullptr) {
-          ret = buffered_frames_[buffered_frame_pos_];
-        }
-        buffered_frame_pos_ += 1;
-        if (buffered_frame_pos_ == buffered_frames_.size()) {
-          buffered_frames_.resize(buffered_frame_pos_ + 1);
-          buffered_frames_[buffered_frame_pos_] = av_frame_alloc();
-        }
-
-        next_frame_++;
-      }
-    } while (got_picture);
-  }
-
-  return ret;
+  return false;
 }
 
 double VideoDecoder::time_spent_on_decode() {
@@ -746,6 +660,31 @@ double VideoDecoder::time_spent_on_decode() {
 void VideoDecoder::reset_timing() {
   decode_time_ = 0;
 }
+
+int VideoDecoder::cuvid_handle_video_sequence(
+  void *opaque,
+  CUVIDEOFORMAT* format)
+{
+  VideoDecoder& video_decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  printf("handle video squene\n");
+}
+
+int VideoDecoder::cuvid_handle_picture_decode(
+  void *opaque,
+  CUVIDPICPARAMS* picparams)
+{
+  VideoDecoder& video_decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  printf("handle picture decode\n");
+}
+
+int cuvid_handle_picture_display(
+  void *opaque,
+  CUVIDPARSERDISPINFO* dispinfo)
+{
+  VideoDecoder& video_decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  printf("handle picture display\n");
+}
+
 
 void preprocess_video(
   StorageBackend* storage,
@@ -902,7 +841,12 @@ void preprocess_video(
     }
   } while (got_picture);
 
+  CuvidContext *cuvid_ctx =
+    reinterpret_cast<CuvidContext*>(state.in_cc->priv_data);
+
   video_metadata.frames = frame;
+  video_metadata.codec_type = cuvid_ctx->codec_type;
+  video_metadata.chroma_format = cuvid_ctx->chroma_format;
 
   // Write out our demuxed video stream
   {
@@ -942,6 +886,8 @@ void preprocess_video(
 
     write_video_metadata(metadata_file.get(), video_metadata);
   }
+
+  CUD_CHECK(cuDevicePrimaryCtxRelease(0));
 }
 
 uint64_t read_video_metadata(
@@ -983,6 +929,28 @@ uint64_t read_video_metadata(
     result);
   assert(result == StoreResult::Success);
   assert(size_read == sizeof(int32_t));
+  pos += size_read;
+
+  // Codec type
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(cudaVideoCodec),
+               reinterpret_cast<char*>(&meta.codec_type),
+               size_read),
+    result);
+  assert(result == StoreResult::Success);
+  assert(size_read == sizeof(cudaVideoCodec));
+  pos += size_read;
+
+  // Chroma format
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(cudaVideoChromaFormat),
+               reinterpret_cast<char*>(&meta.chroma_format),
+               size_read),
+    result);
+  assert(result == StoreResult::Success);
+  assert(size_read == sizeof(cudaVideoChromaFormat));
   pos += size_read;
 
   return pos;

@@ -34,10 +34,8 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include "lightscan/util/opencv.h"
 
-#ifdef HARDWARE_DECODE
 #include <cuda.h>
 #include "lightscan/util/cuda.h"
-#endif
 
 #include <thread>
 #include <mpi.h>
@@ -146,9 +144,7 @@ struct DecodeThreadArgs {
 
   // Per worker arguments
   int gpu_device_id;
-#ifdef HARDWARE_DECODE
   CUcontext cuda_context; // context to use to decode frames
-#endif
 
   // Queues for communicating work
   Queue<DecodeWorkEntry>& decode_work;
@@ -413,7 +409,6 @@ void* decode_thread(void* arg) {
       char* current_frame_buffer_pos =
         decoded_buffer + frames_buffer_offset;
 
-#ifdef HARDWARE_DECODE
       // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
       //              on that here to copy the data properly
       auto memcpy_start = now();
@@ -428,9 +423,6 @@ void* decode_thread(void* arg) {
                    cudaMemcpyDeviceToDevice));
       }
       memcpy_time += nano_since(memcpy_start);
-#else
-      convert_av_frame_to_rgb(sws_context, frame, current_frame_buffer_pos);
-#endif
       current_frame++;
     }
 
@@ -554,21 +546,12 @@ void* evaluate_thread(void* arg) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
-#ifdef HARDWARE_DECODE
         cv::cuda::GpuMat input_mat(
           metadata.height + metadata.height / 2,
           metadata.width,
           CV_8UC1,
           buffer);
-#else
-        cv::Mat cpu_mat(
-          metadata.height + metadata.height / 2,
-          metadata.width,
-          CV_8UC1,
-          buffer);
-        input_mats[sid].upload(cpu_mat, cv_stream);
-        cv::cuda::GpuMat& input_mat = input_mats[sid];
-#endif
+
         convertNV12toRGBA(input_mat, rgba_mat[sid],
                           metadata.width, metadata.height,
                           cv_stream);
@@ -635,21 +618,12 @@ void* evaluate_thread(void* arg) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
-#ifdef HARDWARE_DECODE
         cv::cuda::GpuMat input_mat(
           metadata.height + metadata.height / 2,
           metadata.width,
           CV_8UC1,
           buffer);
-#else
-        cv::Mat cpu_mat(
-          metadata.height + metadata.height / 2,
-          metadata.width,
-          CV_8UC1,
-          buffer);
-        input_mats[sid].upload(cpu_mat, cv_stream);
-        cv::cuda::GpuMat& input_mat = input_mats[sid];
-#endif
+
         convertNV12toRGBA(input_mat, rgba_mat[sid],
                           metadata.width, metadata.height,
                           cv_stream);
@@ -891,11 +865,7 @@ int main(int argc, char **argv) {
       gpu_frame_buffers[gpu] = new char*[LOAD_BUFFERS];
       char** frame_buffers = gpu_frame_buffers[gpu];
       for (int i = 0; i < LOAD_BUFFERS; ++i) {
-#ifdef HARDWARE_DECODE
         CU_CHECK(cudaMalloc(&frame_buffers[i], frame_buffer_size));
-#else
-        frame_buffers[i] = new char[frame_buffer_size];
-#endif
         // Add the buffer index into the empty buffer queue so workers can
         // fill it to pass to the eval worker
         empty_decode_buffers[gpu].emplace(
@@ -931,10 +901,8 @@ int main(int argc, char **argv) {
     std::vector<DecodeThreadArgs> decode_thread_args;
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       // Retain primary context to use for decoder
-#ifdef HARDWARE_DECODE
       CUcontext cuda_context;
       CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, i));
-#endif
       // Create IO thread for reading and decoding data
       decode_thread_args.emplace_back(DecodeThreadArgs{
         // Uniform arguments
@@ -943,9 +911,7 @@ int main(int argc, char **argv) {
 
         // Per worker arguments
         i % GPUS_PER_NODE,
-#ifdef HARDWARE_DECODE
         cuda_context,
-#endif
 
         // Queues
         decode_work,
@@ -1100,11 +1066,9 @@ int main(int argc, char **argv) {
     }
 
     // Cleanup
-#ifdef HARDWARE_DECODE
     for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
       CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
     }
-#endif
 
     // Push sentinel work entries into queue to terminate eval threads
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
@@ -1127,12 +1091,8 @@ int main(int argc, char **argv) {
     for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
       char** frame_buffers = gpu_frame_buffers[gpu];
       for (int i = 0; i < LOAD_BUFFERS; ++i) {
-#ifdef HARDWARE_DECODE
         CU_CHECK(cudaSetDevice(gpu));
         CU_CHECK(cudaFree(frame_buffers[i]));
-#else
-        delete[] frame_buffers[i];
-#endif
       }
       delete[] frame_buffers;
     }
