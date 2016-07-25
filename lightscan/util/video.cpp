@@ -375,8 +375,8 @@ CodecState setup_video_codec(BufferData* buffer) {
 
   state.in_cc = in_stream->codec;
 
-  codec_ = avcodec_find_decoder_by_name("h264_cuvid");
-  if (codec_ == NULL) {
+  state.in_cc = avcodec_find_decoder_by_name("h264_cuvid");
+  if (state.in_cc == NULL) {
     fprintf(stderr, "could not find hardware decoder\n");
     exit(EXIT_FAILURE);
   }
@@ -384,7 +384,7 @@ CodecState setup_video_codec(BufferData* buffer) {
   CUcontext cuda_context;
   CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
-  if (cuvid_init(cc_, cuda_context) < 0) {
+  if (cuvid_init(state.in_cc, cuda_context) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
   }
