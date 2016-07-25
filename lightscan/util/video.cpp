@@ -52,6 +52,24 @@ pthread_mutex_t av_mutex;
 
 namespace {
 
+typedef struct CuvidContext
+{
+    CUvideodecoder cudecoder;
+    CUvideoparser cuparser;
+
+    AVBufferRef *hwdevice;
+    AVBufferRef *hwframe;
+
+    AVBSFContext *bsf;
+
+    AVFifoBuffer *frame_queue;
+
+    int internal_error;
+
+    cudaVideoCodec codec_type;
+    cudaVideoChromaFormat chroma_format;
+} CuvidContext;
+
 struct BufferData {
   uint8_t *ptr;
   size_t size; // size left in the buffer
@@ -569,7 +587,7 @@ VideoDecoder::VideoDecoder(
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
-  CUVIDPARSERPARAMS cuparseinfo = {0};
+  CUVIDPARSERPARAMS cuparseinfo = {};
 
   cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.ulMaxNumDecodeSurfaces = MAX_FRAME_COUNT;
@@ -579,9 +597,9 @@ VideoDecoder::VideoDecoder(
   cuparseinfo.pfnDecodePicture = VideoDecoder::cuvid_handle_picture_decode;
   cuparseinfo.pfnDisplayPicture = VideoDecoder::cuvid_handle_picture_display;
 
-  CU_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
+  CUD_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
 
-  CUVIDDECODECREATEINFO cuinfo = {0};
+  CUVIDDECODECREATEINFO cuinfo = {};
   // HACK(apoms): Hardcode for kcam videos for now
   cuinfo.CodecType = metadata.codec_type;
   cuinfo.ChromaFormat = metadata.chroma_format;
@@ -603,9 +621,9 @@ VideoDecoder::VideoDecoder(
 
   cuinfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
 
-  CU_CHECK(cuvidCreateDecoder(&decoder_, &cuinfo));
+  CUD_CHECK(cuvidCreateDecoder(&decoder_, &cuinfo));
 
-  CU_CHECK(cuCtxPopCurrent(&dummy));
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
 }
 
 VideoDecoder::~VideoDecoder() {
@@ -626,21 +644,11 @@ bool VideoDecoder::decode(
 {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
-  if (next_buffered_frame_ < buffered_frame_pos_) {
-    int i = next_buffered_frame_++;
-    if (next_buffered_frame_ >= buffered_frame_pos_) {
-      next_buffered_frame_ = 1;
-      buffered_frame_pos_ = 0;
-    }
-    next_frame_++;
-    return buffered_frames_[i];
-  }
-
   CUVIDSOURCEDATAPACKET cupkt = {0};
   cupkt.payload_size = encoded_size;
-  cupkt.payload = encoded_buffer;
+  cupkt.payload = reinterpret_cast<uint8_t*>(encoded_buffer);
 
-  CU_CHECK(cuvidParseVideoData(parser_, &cupkt));
+  CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
