@@ -336,7 +336,10 @@ void* decode_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  VideoDecoder decoder{args.cuda_context, VideoMetadata()};
+  // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
+  //              codec type) all videos should be the same for now so just use
+  //              the first. 
+  VideoDecoder decoder{args.cuda_context, args.metadata[0]};
 
   std::vector<double> task_times;
   std::vector<double> idle_times;

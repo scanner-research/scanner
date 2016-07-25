@@ -602,7 +602,6 @@ VideoDecoder::VideoDecoder(
   CUD_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
 
   CUVIDDECODECREATEINFO cuinfo = {};
-  // HACK(apoms): Hardcode for kcam videos for now
   cuinfo.CodecType = metadata.codec_type;
   cuinfo.ChromaFormat = metadata.chroma_format;
   cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
