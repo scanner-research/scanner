@@ -570,7 +570,6 @@ VideoSeparator::VideoSeparator(
   : cuda_context_(cuda_context),
     cc_(cc),
     parser_(nullptr),
-    decoder_(nullptr),
     next_frame_(0),
     near_eof_(false),
     decode_time_(0)
@@ -595,7 +594,7 @@ VideoSeparator::VideoSeparator(
   CUVIDEOFORMATEX cuparse_ext = {};
   cuparseinfo.pExtVideoInfo = &cuparse_ext;
 
-  CuvidContext *ctx = cc->priv_data;
+  CuvidContext *ctx = reinterpret_cast<CuvidContext*>(cc->priv_data);
   if (cc->codec->id == AV_CODEC_ID_H264 || cc->codec->id == AV_CODEC_ID_HEVC) {
     cuparse_ext.format.seqhdr_data_length = ctx->bsf->par_out->extradata_size;
     memcpy(cuparse_ext.raw_seqhdr_data,
@@ -629,6 +628,30 @@ VideoSeparator::~VideoSeparator() {
 
 bool VideoSeparator::decode(AVPacket packet) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
+  AVPacket filter_packet = { 0 };
+  AVPacket filtered_packet = { 0 };
+  CUdeviceptr mapped_frame = 0;
+  int ret = 0, eret = 0;
+
+  CuvidContext *ctx = reinterpret_cast<CuvidContext*>(cc->priv_data);
+  int ret;
+  if (ctx->bsf && packet->size) {
+    if ((ret = av_packet_ref(&filter_packet, packet)) < 0) {
+      return ret;
+    }
+
+    if ((ret = av_bsf_send_packet(ctx->bsf, &filter_packet)) < 0) {
+      av_packet_unref(&filter_packet);
+      return ret;
+    }
+
+    if ((ret = av_bsf_receive_packet(ctx->bsf, &filtered_packet)) < 0) {
+      return ret;
+    }
+
+    packet = &filtered_packet;
+  }
 
   CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = packet.size;
