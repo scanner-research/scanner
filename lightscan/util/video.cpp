@@ -52,6 +52,8 @@ pthread_mutex_t av_mutex;
 
 namespace {
 
+class AVFifoBuffer;
+
 typedef struct CuvidContext
 {
     CUvideodecoder cudecoder;
@@ -590,7 +592,7 @@ VideoDecoder::VideoDecoder(
   CUVIDPARSERPARAMS cuparseinfo = {};
 
   cuparseinfo.CodecType = metadata.codec_type;
-  cuparseinfo.ulMaxNumDecodeSurfaces = MAX_FRAME_COUNT;
+  cuparseinfo.ulMaxNumDecodeSurfaces = 20;
   cuparseinfo.ulMaxDisplayDelay = 4;
   cuparseinfo.pUserData = this;
   cuparseinfo.pfnSequenceCallback = VideoDecoder::cuvid_handle_video_sequence;
