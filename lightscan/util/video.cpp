@@ -399,8 +399,6 @@ CodecState setup_video_codec(BufferData* buffer) {
     exit(EXIT_FAILURE);
   }
 
-  CUD_CHECK(cuInit(0));
-
   CUcontext cuda_context;
   CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
@@ -803,8 +801,8 @@ void preprocess_video(
         // the picture is allocated by the decoder. no need to free
         frame++;
       }
-      state.av_packet.size -= len;
-      state.av_packet.data += len;
+      // cuvid decoder uses entire packet without setting size or returning len
+      state.av_packet.size = 0;
     }
     state.av_packet.data = orig_data;
     state.av_packet.size = orig_size;

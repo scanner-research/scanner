@@ -695,6 +695,7 @@ void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 2;
+  CUD_CHECK(cuInit(0));
 }
 
 void shutdown() {
