@@ -899,7 +899,6 @@ int VideoDecoder::cuvid_handle_video_sequence(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
 
-  printf("decoder handle video sequence %d\n", decoder.prev_frame_);
 }
 
 int VideoDecoder::cuvid_handle_picture_decode(
@@ -907,8 +906,6 @@ int VideoDecoder::cuvid_handle_picture_decode(
   CUVIDPICPARAMS* picparams)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  printf("decoder handle picture decode %d, keyframe %d\n",
-         decoder.prev_frame_, picparams->intra_pic_flag);
   decoder.prev_frame_++;
   decoder.new_frame_ = true;
 }
@@ -918,8 +915,6 @@ int VideoDecoder::cuvid_handle_picture_display(
   CUVIDPARSERDISPINFO* dispinfo)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  printf("decoder handle picture display %d, index %d\n",
-         decoder.prev_frame_, dispinfo->picture_index);
 }
 
 
