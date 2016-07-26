@@ -448,6 +448,32 @@ void* decode_thread(void* arg) {
     eval_work_entry.buffer = decoded_buffer;
     args.eval_work.push(eval_work_entry);
   }
+
+  double total_task_time = 0;
+  for (double t : task_times) {
+    total_task_time += t;
+  }
+  total_task_time /= 1000000; // convert from ns to ms
+  double mean_task_time = total_task_time / task_times.size();
+  double std_dev_task_time = 0;
+  for (double t : task_times) {
+    std_dev_task_time += std::pow(t / 1000000 - mean_task_time, 2);
+  }
+  std_dev_task_time = std::sqrt(std_dev_task_time / task_times.size());
+
+  double total_idle_time = 0;
+  for (double t : idle_times) {
+    total_idle_time += t;
+  }
+  total_idle_time /= 1000000; // convert from ns to ms
+
+  printf("(N/GPU: %d/%d) Decode thread finished. "
+         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
+         "Idle: %.3fms, Idle: %3.2f\%\n",
+         rank, args.gpu_device_id,
+         total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
+         total_idle_time,
+         total_idle_time / (total_idle_time + total_task_time) * 100);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
