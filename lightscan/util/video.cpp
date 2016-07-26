@@ -827,7 +827,7 @@ VideoDecoder::~VideoDecoder() {
 }
 
 bool VideoDecoder::decode(
-  char* encoded_buffer,
+  const char* encoded_buffer,
   size_t encoded_size,
   char* decoded_buffer,
   size_t decoded_size)
@@ -836,7 +836,7 @@ bool VideoDecoder::decode(
 
   CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = encoded_size;
-  cupkt.payload = reinterpret_cast<uint8_t*>(encoded_buffer);
+  cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
 
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
@@ -1053,7 +1053,7 @@ void preprocess_video(
     while (pos < metadata_bytes.size()) {
       size_t buffer_size = *((size_t*)(metadata_bytes.data() + pos));
       pos += sizeof(size_t);
-      char* buffer = metadata_bytes.data() + pos;
+      const char* buffer = metadata_bytes.data() + pos;
       pos += buffer_size;
 
       char* decoded_buffer = nullptr;
@@ -1066,7 +1066,7 @@ void preprocess_video(
     while (pos < demuxed_video_stream.size()) {
       size_t buffer_size = *((size_t*)(demuxed_video_stream.data() + pos));
       pos += sizeof(size_t);
-      char* buffer = demuxed_video_stream.data() + pos;
+      const char* buffer = demuxed_video_stream.data() + pos;
       pos += buffer_size;
 
       char* decoded_buffer = nullptr;

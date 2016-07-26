@@ -101,7 +101,7 @@ public:
   ~VideoDecoder();
 
   bool decode(
-    char* encoded_buffer,
+    const char* encoded_buffer,
     size_t encoded_size,
     char* decoded_buffer,
     size_t decoded_size);
