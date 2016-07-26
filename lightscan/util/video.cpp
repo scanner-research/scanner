@@ -661,17 +661,16 @@ bool VideoSeparator::decode(AVPacket packet) {
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
   if (is_metadata_) {
-    printf("separator decode is meta %d\n", prev_frame);
     size_t prev_size = metadata_packets_.size();
-    metadata_packets_.resize(prev_size + packet.size);
-    memcpy(metadata_packets_.data(), packet.data, packet.size);
+    metadata_packets_.resize(prev_size + packet.size + sizeof(int));
+    memcpy(metadata_packets_.data(), &packet.size, sizeof(int));
+    memcpy(metadata_packets_.data() + sizeof(int), packet.data, packet.size);
   } else {
-    printf("separator decode is frame %d\n", prev_frame);
-    size_t prev_size = bistream_packets_.size();
-    bistream_packets_.resize(prev_size + packet.size);
-    memcpy(bitstream_packets_.data(), packet.data, packet.size);
+    size_t prev_size = bitstream_packets_.size();
+    bitstream_packets_.resize(prev_size + packet.size + sizeof(int));
+    memcpy(bitstream_packets_.data(), &packet.size, sizeof(int));
+    memcpy(bitstream_packets_.data() + sizeof(int), packet.data, packet.size);
     if (is_keyframe_) {
-      printf("separator decode is keyframe %d\n", prev_frame);
       keyframe_positions_.push_back(prev_frame_ - 1);
       keyframe_byte_offsets_.push_back(prev_size);
     }
@@ -683,13 +682,29 @@ bool VideoSeparator::decode(AVPacket packet) {
   return false;
 }
 
+const std::vector<char>& VideoSeparator::get_metadata_bytes() {
+  return metadata_packets_;
+}
+
+const std::vector<char>& VideoSeparator::get_bitstream_bytes() {
+  return bistream_packets_;
+}
+
+const std::vector<char>& VideoSeparator::get_keyframe_positions() {
+  return keyframe_positions_;
+}
+
+const std::vector<int64_t>& VideoSeparator::get_keyframe_byte_offsets() {
+  return keyframe_byte_offsets_;
+}
+
+
 int VideoSeparator::cuvid_handle_video_sequence(
   void *opaque,
   CUVIDEOFORMAT* format)
 {
-  VideoSeparator& video_separator =
+  VideoSeparator& separator =
     *reinterpret_cast<VideoSeparator*>(opaque);
-  printf("separator handle video squene\n");
 
   CUVIDDECODECREATEINFO cuinfo = {};
   cuinfo.CodecType = format->codec;
@@ -712,9 +727,9 @@ int VideoSeparator::cuvid_handle_video_sequence(
 
   cuinfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
 
-  video_separator.decoder_info_ = cuinfo;
+  separator.decoder_info_ = cuinfo;
 
-  is_metadata_ = false;
+  separator.is_metadata_ = false;
 }
 
 int VideoSeparator::cuvid_handle_picture_decode(
@@ -724,13 +739,11 @@ int VideoSeparator::cuvid_handle_picture_decode(
   VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
 
   if (picparams->intra_pic_flag) {
-    printf("separator handle picture decode keyframe %d\n", prev_frame);
-    is_keyframe_ = true;
+    seperator.is_keyframe_ = true;
   } else {
-    printf("separator handle picture decode non-keyframe %d\n", prev_frame);
-    is_keyframe_ = false;
+    seperator.is_keyframe_ = false;
   }
-  prev_frame_ += 1;
+  seperator.prev_frame_ += 1;
 }
 
 int VideoSeparator::cuvid_handle_picture_display(
@@ -738,7 +751,6 @@ int VideoSeparator::cuvid_handle_picture_display(
   CUVIDPARSERDISPINFO* dispinfo)
 {
   VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
-  printf("separator handle picture display\n");
 }
 
 
@@ -759,8 +771,7 @@ VideoDecoder::VideoDecoder(
     metadata_(metadata),
     parser_(nullptr),
     decoder_(nullptr),
-    next_frame_(0),
-    near_eof_(false),
+    prev_frame_(0),
     decode_time_(0)
 {
   CUcontext dummy;
@@ -847,24 +858,28 @@ int VideoDecoder::cuvid_handle_video_sequence(
   void *opaque,
   CUVIDEOFORMAT* format)
 {
-  VideoDecoder& video_decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  printf("handle video squene\n");
+  VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+
+  printf("decoder handle video sequence %d\n", decoder.prev_frame_);
 }
 
 int VideoDecoder::cuvid_handle_picture_decode(
   void *opaque,
   CUVIDPICPARAMS* picparams)
 {
-  VideoDecoder& video_decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  printf("handle picture decode\n");
+  VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  printf("decoder handle picture decode %d, keyframe %d\n",
+         decoder.prev_frame_, picparams->intra_pic_flag);
+  decoder.prev_frame_++;
 }
 
 int VideoDecoder::cuvid_handle_picture_display(
   void *opaque,
   CUVIDPARSERDISPINFO* dispinfo)
 {
-  VideoDecoder& video_decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  printf("handle picture display\n");
+  VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  printf("decoder handle picture display %d, index %d\n",
+         decoder.prev_frame_, dispinfo->picture_index);
 }
 
 
@@ -927,9 +942,6 @@ void preprocess_video(
   CuvidContext *cuvid_ctx =
     reinterpret_cast<CuvidContext*>(state.in_cc->priv_data);
 
-  std::vector<char> demuxed_video_stream;
-  std::vector<int> iframe_positions;
-  std::vector<int64_t> iframe_byte_offsets;
   int frame = 0;
   while (true) {
     // Read from format context
@@ -1041,6 +1053,45 @@ void preprocess_video(
   video_metadata.codec_type = cuvid_ctx->codec_type;
   video_metadata.chroma_format = cuvid_ctx->chroma_format;
 
+  const std::vector<char>& metadata_bytes =
+    separator.get_metadata_bytes();
+  const std::vector<char>& demuxed_video_stream =
+    separator.get_bitstream_bytes();
+  const std::vector<int>& iframe_positions =
+    separator.get_keyframe_positions();
+  const std::vector<int64_t>& iframe_byte_offsets =
+    separator.get_keyframe_byte_offsets();
+
+  printf("trying out decoder\n");
+  VideoDecoder decoder(cuda_context, video_metadata);
+  {
+    size_t pos = 0;
+    while (pos < metadata_bytes.size()) {
+      size_t buffer_size = *((size_t*)(metadata_bytes.data() + pos));
+      pos += sizeof(size_t);
+      char* buffer = metadata_bytes.data() + pos;
+      pos += buffer_size;
+
+      char* decoded_buffer = nullptr;
+      size_t decoded_size = 0;
+      decoder.decode(buffer, buffer_size, decoded_buffer, decoded_size);
+    }
+  }
+  {
+    size_t pos = 0;
+    while (pos < demuxed_video_stream.size()) {
+      size_t buffer_size = *((size_t*)(demuxed_video_stream.data() + pos));
+      pos += sizeof(size_t);
+      char* buffer = demuxed_video_stream.data() + pos;
+      pos += buffer_size;
+
+      char* decoded_buffer = nullptr;
+      size_t decoded_size = 0;
+      decoder.decode(buffer, buffer_size, decoded_buffer, decoded_size);
+    }
+  }
+
+  // Write out our metadata video stream
   // Write out our demuxed video stream
   {
     std::unique_ptr<WriteFile> output_file{};

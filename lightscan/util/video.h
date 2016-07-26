@@ -52,6 +52,14 @@ public:
 
   bool decode(AVPacket packet);
 
+  const std::vector<char>& get_metadata_bytes();
+
+  const std::vector<char>& get_bitstream_bytes();
+
+  const std::vector<char>& get_keyframe_positions();
+
+  const std::vector<int64_t>& get_keyframe_byte_offsets();
+
 private:
   static int cuvid_handle_video_sequence(
     void *opaque,
@@ -123,8 +131,7 @@ private:
 
   Queue<CUVIDPARSERDISPINFO> frame_queue_;
 
-  int next_frame_;
-  bool near_eof_;
+  int prev_frame_;
 
   double decode_time_;
 };
