@@ -627,7 +627,7 @@ VideoSeparator::~VideoSeparator() {
   }
 }
 
-bool VideoSeparator::decode(AVPacket packet) {
+bool VideoSeparator::decode(AVPacket* packet) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   AVPacket filter_packet = { 0 };
@@ -655,29 +655,29 @@ bool VideoSeparator::decode(AVPacket packet) {
   }
 
   CUVIDSOURCEDATAPACKET cupkt = {};
-  cupkt.payload_size = packet.size;
-  cupkt.payload = reinterpret_cast<uint8_t*>(packet.data);
+  cupkt.payload_size = packet->size;
+  cupkt.payload = reinterpret_cast<uint8_t*>(packet->data);
 
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
   if (is_metadata_) {
     size_t prev_size = metadata_packets_.size();
-    metadata_packets_.resize(prev_size + packet.size + sizeof(int));
+    metadata_packets_.resize(prev_size + packet->size + sizeof(int));
     memcpy(metadata_packets_.data() + prev_size,
-           &packet.size,
+           &packet->size,
            sizeof(int));
     memcpy(metadata_packets_.data() + prev_size + sizeof(int),
-           packet.data,
-           packet.size);
+           packet->data,
+           packet->size);
   } else {
     size_t prev_size = bitstream_packets_.size();
-    bitstream_packets_.resize(prev_size + packet.size + sizeof(int));
+    bitstream_packets_.resize(prev_size + packet->size + sizeof(int));
     memcpy(bitstream_packets_.data() + prev_size,
-           &packet.size,
+           &packet->size,
            sizeof(int));
     memcpy(bitstream_packets_.data() + prev_size + sizeof(int),
-           packet.data,
-           packet.size);
+           packet->data,
+           packet->size);
     if (is_keyframe_) {
       keyframe_positions_.push_back(prev_frame_ - 1);
       keyframe_byte_offsets_.push_back(prev_size);
@@ -988,7 +988,7 @@ void preprocess_video(
       int got_picture = 0;
       char* dec;
       size_t size;
-      separator.decode(state.av_packet);
+      separator.decode(&state.av_packet);
       int len = avcodec_decode_video2(state.in_cc,
                                       state.picture,
                                       &got_picture,
