@@ -498,7 +498,8 @@ void cleanup_video_codec(CodecState state) {
 
 void write_video_metadata(
   WriteFile* file,
-  const VideoMetadata& metadata)
+  const VideoMetadata& metadata,
+  const std::vector<char>& metadata_packets)
 {
   // Frames
   StoreResult result;
@@ -533,6 +534,21 @@ void write_video_metadata(
   EXP_BACKOFF(
     file->append(sizeof(cudaVideoChromaFormat),
                  reinterpret_cast<const char*>(&metadata.chroma_format)),
+    result);
+  assert(result == StoreResult::Success);
+
+  // Size of metadata
+  size_t metadata_packets_size = metadata_packets.size();
+  EXP_BACKOFF(
+    file->append(sizeof(size_t),
+                 reinterpret_cast<const char*>(metadata_packets.size())),
+    result);
+  assert(result == StoreResult::Success);
+
+  // Metadata packets
+  EXP_BACKOFF(
+    file->append(metadata_packets_size,
+                 reinterpret_cast<const char*>(metadata_packets.data())),
     result);
   assert(result == StoreResult::Success);
 }
@@ -774,7 +790,8 @@ int VideoSeparator::cuvid_handle_picture_display(
 
 VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
-  VideoMetadata metadata)
+  VideoMetadata metadata,
+  std::vector<char> metadata_bytes)
   : cuda_context_(cuda_context),
     metadata_(metadata),
     parser_(nullptr),
@@ -822,6 +839,19 @@ VideoDecoder::VideoDecoder(
   CUD_CHECK(cuvidCreateDecoder(&decoder_, &cuinfo));
 
   CUD_CHECK(cuCtxPopCurrent(&dummy));
+
+  size_t pos = 0;
+  while (pos < metadata_packets.size()) {
+    int encoded_packet_size =
+      *reinterpret_cast<int*>(metadata_packets.data() + pos);
+    pos += sizeof(int);
+    char* encoded_packet = metadata_packets.data() + pos;
+    pos += encoded_packet_size;
+
+    size_t dummy_size = 0;
+    char* dummy_buffer = nullptr;
+    decode(encoded_packet, encoded_packet_size, dummy_buffer, dummy_size);
+  }
 }
 
 VideoDecoder::~VideoDecoder() {
@@ -1054,38 +1084,6 @@ void preprocess_video(
   const std::vector<int64_t>& iframe_byte_offsets =
     separator.get_keyframe_byte_offsets();
 
-  printf("trying out decoder\n");
-  VideoDecoder decoder(cuda_context, video_metadata);
-  {
-    size_t pos = 0;
-    while (pos < metadata_bytes.size()) {
-      int buffer_size = *((int*)(metadata_bytes.data() + pos));
-      pos += sizeof(int);
-      const char* buffer = metadata_bytes.data() + pos;
-      pos += buffer_size;
-
-      printf("packet size %d\n", buffer_size);
-
-      char* decoded_buffer = nullptr;
-      size_t decoded_size = 0;
-      decoder.decode(buffer, buffer_size, decoded_buffer, decoded_size);
-    }
-  }
-  {
-    size_t pos = 0;
-    while (pos < demuxed_video_stream.size()) {
-      int buffer_size = *((int*)(demuxed_video_stream.data() + pos));
-      pos += sizeof(int);
-      const char* buffer = demuxed_video_stream.data() + pos;
-      pos += buffer_size;
-      printf("packet size %d\n", buffer_size);
-
-      char* decoded_buffer = nullptr;
-      size_t decoded_size = 0;
-      decoder.decode(buffer, buffer_size, decoded_buffer, decoded_size);
-    }
-  }
-
   // Write out our metadata video stream
   // Write out our demuxed video stream
   {
@@ -1123,7 +1121,7 @@ void preprocess_video(
     exit_on_error(
       make_unique_write_file(storage, video_metadata_path, metadata_file));
 
-    write_video_metadata(metadata_file.get(), video_metadata);
+    write_video_metadata(metadata_file.get(), video_metadata, metadata_bytes);
   }
 
   CUD_CHECK(cuDevicePrimaryCtxRelease(0));
@@ -1190,6 +1188,30 @@ uint64_t read_video_metadata(
     result);
   assert(result == StoreResult::Success);
   assert(size_read == sizeof(cudaVideoChromaFormat));
+  pos += size_read;
+
+  // Size of metadata
+  size_t metadata_size;
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(size_t),
+               reinterpret_cast<char*>(&metadata_size),
+               size_read),
+    result);
+  assert(result == StoreResult::Success);
+  assert(size_read == sizeof(size_t));
+  pos += size_read;
+
+  // Metadata packets
+  metadata_packets.resize(metadata_size);
+  EXP_BACKOFF(
+    file->read(pos,
+               metadata_size,
+               reinterpret_cast<char*>(metadata_packets.size()),
+               size_read),
+    result);
+  assert(result == StoreResult::Success);
+  assert(size_read == metadata_size);
   pos += size_read;
 
   return pos;

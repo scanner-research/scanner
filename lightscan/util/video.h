@@ -50,7 +50,7 @@ public:
 
   ~VideoSeparator();
 
-  bool decode(AVPacket packet);
+  bool decode(AVPacket* packet);
 
   const std::vector<char>& get_metadata_bytes();
 
@@ -93,10 +93,11 @@ private:
   double decode_time_;
 };
 
-
 class VideoDecoder {
 public:
-  VideoDecoder(CUcontext cuda_context, VideoMetadata metadata);
+  VideoDecoder(CUcontext cuda_context,
+               VideoMetadata metadata,
+               std::vector<char> metadata_bytes);
 
   ~VideoDecoder();
 
@@ -146,7 +147,8 @@ void preprocess_video(
 uint64_t read_video_metadata(
   RandomReadFile* file,
   uint64_t file_pos,
-  VideoMetadata& meta);
+  VideoMetadata& meta,
+  std::vector<char>& metadata_packets);
 
 uint64_t read_keyframe_info(
   RandomReadFile* file,

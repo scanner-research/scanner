@@ -140,6 +140,7 @@ struct LoadThreadArgs {
 struct DecodeThreadArgs {
   // Uniform arguments
   const std::vector<VideoMetadata>& metadata;
+  const std::vector<std::vector<char>>& metadata_packets;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -338,7 +339,10 @@ void* decode_thread(void* arg) {
   // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
   //              codec type) all videos should be the same for now so just use
   //              the first.
-  VideoDecoder decoder{args.cuda_context, args.metadata[0]};
+  VideoDecoder decoder{
+    args.cuda_context,
+    args.metadata[0],
+    args.metadata_packets[0]};
 
   std::vector<double> task_times;
   std::vector<double> idle_times;
@@ -805,16 +809,18 @@ int main(int argc, char **argv) {
   }
   if (all_preprocessed) {
     // Get video metadata for all videos for distributing with work items
-    std::vector<VideoMetadata> video_metadata;
-    for (const std::string& path : video_paths) {
+    std::vector<VideoMetadata> video_metadata(video_paths.size());
+    std::vector<std::vector<char>> metadata_packets(video_paths.size());
+    for (size_t i = 0; i < video_paths.size(); ++i) {
+      const std::string& path = video_paths[i];
       std::unique_ptr<RandomReadFile> metadata_file;
       exit_on_error(
         make_unique_random_read_file(storage,
                                      metadata_path(path),
                                      metadata_file));
-      VideoMetadata metadata;
-      (void) read_video_metadata(metadata_file.get(), 0, metadata);
-      video_metadata.push_back(metadata);
+      (void) read_video_metadata(metadata_file.get(), 0,
+                                 video_metadata[i],
+                                 metadata_packets[i]);
     }
 
     // Break up videos and their frames into equal sized work items
@@ -912,6 +918,7 @@ int main(int argc, char **argv) {
       decode_thread_args.emplace_back(DecodeThreadArgs{
         // Uniform arguments
         video_metadata,
+        metadata_packets,
         work_items,
 
         // Per worker arguments
