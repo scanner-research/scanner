@@ -663,13 +663,21 @@ bool VideoSeparator::decode(AVPacket packet) {
   if (is_metadata_) {
     size_t prev_size = metadata_packets_.size();
     metadata_packets_.resize(prev_size + packet.size + sizeof(int));
-    memcpy(metadata_packets_.data(), &packet.size, sizeof(int));
-    memcpy(metadata_packets_.data() + sizeof(int), packet.data, packet.size);
+    memcpy(metadata_packets_.data() + prev_size,
+           &packet.size,
+           sizeof(int));
+    memcpy(metadata_packets_.data() + prev_size + sizeof(int),
+           packet.data,
+           packet.size);
   } else {
     size_t prev_size = bitstream_packets_.size();
     bitstream_packets_.resize(prev_size + packet.size + sizeof(int));
-    memcpy(bitstream_packets_.data(), &packet.size, sizeof(int));
-    memcpy(bitstream_packets_.data() + sizeof(int), packet.data, packet.size);
+    memcpy(bitstream_packets_.data() + prev_size,
+           &packet.size,
+           sizeof(int));
+    memcpy(bitstream_packets_.data() + prev_size + sizeof(int),
+           packet.data,
+           packet.size);
     if (is_keyframe_) {
       keyframe_positions_.push_back(prev_frame_ - 1);
       keyframe_byte_offsets_.push_back(prev_size);
