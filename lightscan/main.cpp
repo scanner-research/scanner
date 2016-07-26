@@ -185,6 +185,7 @@ void* load_video_thread(void* arg) {
 
   std::string last_video_path;
   RandomReadFile* video_file = nullptr;
+  uint64_t file_size;
   std::vector<int> keyframe_positions;
   std::vector<int64_t> keyframe_byte_offsets;
   while (true) {
@@ -231,6 +232,8 @@ void* load_video_thread(void* arg) {
       // Open the video file for reading
       storage->make_random_read_file(processed_video_path(video_path),
                                      video_file);
+
+      video_file->get_size(file_size);
     }
     last_video_path = video_path;
 
@@ -257,8 +260,13 @@ void* load_video_thread(void* arg) {
     }
     uint64_t start_keyframe_byte_offset =
       static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
-    uint64_t end_keyframe_byte_offset =
-      static_cast<uint64_t>(keyframe_byte_offsets[end_keyframe_index]);
+    uint64_t end_keyframe_byte_offset;
+    if (end_keyframe_index == keyframe_positions.size()) {
+      end_keyframe_byte_offset = file_size;
+    } else {
+      end_keyframe_byte_offset =
+        static_cast<uint64_t>(keyframe_byte_offsets[end_keyframe_index]);
+    }
     size_t data_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
 
     char* buffer = new char[data_size];
