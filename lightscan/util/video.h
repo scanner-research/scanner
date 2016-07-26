@@ -71,10 +71,16 @@ private:
   CUvideoparser parser_;
   CUVIDDECODECREATEINFO decoder_info_;
 
-  Queue<CUVIDPARSERDISPINFO> frame_queue_;
+  int prev_frame_;
 
-  int next_frame_;
-  bool near_eof_;
+  bool is_metadata_;
+  bool is_keyframe_;
+
+  std::vector<char> metadata_packets_;
+  std::vector<char> bitstream_packets_;
+
+  std::vector<char> keyframe_positions_;
+  std::vector<int64_t> keyframe_byte_offsets_;
 
   double decode_time_;
 };

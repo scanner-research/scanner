@@ -570,8 +570,9 @@ VideoSeparator::VideoSeparator(
   : cuda_context_(cuda_context),
     cc_(cc),
     parser_(nullptr),
-    next_frame_(0),
-    near_eof_(false),
+    prev_frame_(0),
+    is_metadata_(true),
+    is_keyframe_(false),
     decode_time_(0)
 {
   CUcontext dummy;
@@ -659,6 +660,23 @@ bool VideoSeparator::decode(AVPacket packet) {
 
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
+  if (is_metadata_) {
+    printf("separator decode is meta %d\n", prev_frame);
+    size_t prev_size = metadata_packets_.size();
+    metadata_packets_.resize(prev_size + packet.size);
+    memcpy(metadata_packets_.data(), packet.data, packet.size);
+  } else {
+    printf("separator decode is frame %d\n", prev_frame);
+    size_t prev_size = bistream_packets_.size();
+    bistream_packets_.resize(prev_size + packet.size);
+    memcpy(bitstream_packets_.data(), packet.data, packet.size);
+    if (is_keyframe_) {
+      printf("separator decode is keyframe %d\n", prev_frame);
+      keyframe_positions_.push_back(prev_frame_ - 1);
+      keyframe_byte_offsets_.push_back(prev_size);
+    }
+  }
+
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
@@ -695,6 +713,8 @@ int VideoSeparator::cuvid_handle_video_sequence(
   cuinfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
 
   video_separator.decoder_info_ = cuinfo;
+
+  is_metadata_ = false;
 }
 
 int VideoSeparator::cuvid_handle_picture_decode(
@@ -703,7 +723,14 @@ int VideoSeparator::cuvid_handle_picture_decode(
 {
   VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
 
-  printf("separator handle picture decode\n");
+  if (picparams->intra_pic_flag) {
+    printf("separator handle picture decode keyframe %d\n", prev_frame);
+    is_keyframe_ = true;
+  } else {
+    printf("separator handle picture decode non-keyframe %d\n", prev_frame);
+    is_keyframe_ = false;
+  }
+  prev_frame_ += 1;
 }
 
 int VideoSeparator::cuvid_handle_picture_display(
