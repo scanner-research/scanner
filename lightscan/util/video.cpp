@@ -541,7 +541,7 @@ void write_video_metadata(
   size_t metadata_packets_size = metadata_packets.size();
   EXP_BACKOFF(
     file->append(sizeof(size_t),
-                 reinterpret_cast<const char*>(metadata_packets.size())),
+                 reinterpret_cast<const char*>(&metadata_packets_size)),
     result);
   assert(result == StoreResult::Success);
 
@@ -791,12 +791,13 @@ int VideoSeparator::cuvid_handle_picture_display(
 VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
   VideoMetadata metadata,
-  std::vector<char> metadata_bytes)
+  std::vector<char> metadata_packets)
   : cuda_context_(cuda_context),
     metadata_(metadata),
     parser_(nullptr),
     decoder_(nullptr),
     prev_frame_(0),
+    new_frame_(false),
     decode_time_(0)
 {
   CUcontext dummy;
@@ -876,12 +877,13 @@ bool VideoDecoder::decode(
   cupkt.payload_size = encoded_size;
   cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
 
+  new_frame_ = false;
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
-  return false;
+  return new_frame_;
 }
 
 double VideoDecoder::time_spent_on_decode() {
@@ -909,6 +911,7 @@ int VideoDecoder::cuvid_handle_picture_decode(
   printf("decoder handle picture decode %d, keyframe %d\n",
          decoder.prev_frame_, picparams->intra_pic_flag);
   decoder.prev_frame_++;
+  decoder.new_frame_ = true;
 }
 
 int VideoDecoder::cuvid_handle_picture_display(
@@ -1130,7 +1133,8 @@ void preprocess_video(
 uint64_t read_video_metadata(
   RandomReadFile* file,
   uint64_t pos,
-  VideoMetadata& meta)
+  VideoMetadata& meta,
+  std::vector<char>& metadata_packets)
 {
   StoreResult result;
   size_t size_read;
@@ -1207,7 +1211,7 @@ uint64_t read_video_metadata(
   EXP_BACKOFF(
     file->read(pos,
                metadata_size,
-               reinterpret_cast<char*>(metadata_packets.size()),
+               reinterpret_cast<char*>(metadata_packets.data()),
                size_read),
     result);
   assert(result == StoreResult::Success);

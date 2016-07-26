@@ -134,6 +134,8 @@ private:
 
   int prev_frame_;
 
+  int new_frame_;
+
   double decode_time_;
 };
 
