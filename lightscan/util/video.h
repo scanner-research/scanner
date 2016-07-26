@@ -56,7 +56,7 @@ public:
 
   const std::vector<char>& get_bitstream_bytes();
 
-  const std::vector<char>& get_keyframe_positions();
+  const std::vector<int>& get_keyframe_positions();
 
   const std::vector<int64_t>& get_keyframe_byte_offsets();
 
@@ -87,7 +87,7 @@ private:
   std::vector<char> metadata_packets_;
   std::vector<char> bitstream_packets_;
 
-  std::vector<char> keyframe_positions_;
+  std::vector<int> keyframe_positions_;
   std::vector<int64_t> keyframe_byte_offsets_;
 
   double decode_time_;

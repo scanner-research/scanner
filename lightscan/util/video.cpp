@@ -687,10 +687,10 @@ const std::vector<char>& VideoSeparator::get_metadata_bytes() {
 }
 
 const std::vector<char>& VideoSeparator::get_bitstream_bytes() {
-  return bistream_packets_;
+  return bitstream_packets_;
 }
 
-const std::vector<char>& VideoSeparator::get_keyframe_positions() {
+const std::vector<int>& VideoSeparator::get_keyframe_positions() {
   return keyframe_positions_;
 }
 
