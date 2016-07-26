@@ -998,8 +998,6 @@ void preprocess_video(
         if (state.picture->key_frame == 1) {
           printf("keyframe dts %d\n",
                  state.picture->pkt_dts);
-          iframe_positions.push_back(frame);
-          iframe_byte_offsets.push_back(demuxed_video_stream.size());
         }
         // the picture is allocated by the decoder. no need to free
         frame++;
@@ -1009,18 +1007,6 @@ void preprocess_video(
     }
     state.av_packet.data = orig_data;
     state.av_packet.size = orig_size;
-
-    // Copy the packet size and data into our demuxed video data output so we
-    // can decode it directly later without demuxing
-    size_t prev_size = demuxed_video_stream.size();
-    demuxed_video_stream.resize(
-      prev_size + sizeof(int) + state.av_packet.size);
-    memcpy(demuxed_video_stream.data() + prev_size,
-           &state.av_packet.size,
-           sizeof(int));
-    memcpy(demuxed_video_stream.data() + prev_size + sizeof(int),
-           state.av_packet.data,
-           state.av_packet.size);
 
     av_packet_unref(&state.av_packet);
   }
@@ -1041,8 +1027,6 @@ void preprocess_video(
     (void)len;
     if (got_picture) {
       if (state.picture->key_frame == 1) {
-        iframe_positions.push_back(frame);
-        iframe_byte_offsets.push_back(demuxed_video_stream.size());
       }
       // the picture is allocated by the decoder. no need to free
       frame++;
