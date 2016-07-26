@@ -1051,10 +1051,12 @@ void preprocess_video(
   {
     size_t pos = 0;
     while (pos < metadata_bytes.size()) {
-      size_t buffer_size = *((size_t*)(metadata_bytes.data() + pos));
-      pos += sizeof(size_t);
+      int buffer_size = *((int*)(metadata_bytes.data() + pos));
+      pos += sizeof(int);
       const char* buffer = metadata_bytes.data() + pos;
       pos += buffer_size;
+
+      printf("packet size %d\n", buffer_size);
 
       char* decoded_buffer = nullptr;
       size_t decoded_size = 0;
@@ -1064,10 +1066,11 @@ void preprocess_video(
   {
     size_t pos = 0;
     while (pos < demuxed_video_stream.size()) {
-      size_t buffer_size = *((size_t*)(demuxed_video_stream.data() + pos));
-      pos += sizeof(size_t);
+      int buffer_size = *((int*)(demuxed_video_stream.data() + pos));
+      pos += sizeof(int);
       const char* buffer = demuxed_video_stream.data() + pos;
       pos += buffer_size;
+      printf("packet size %d\n", buffer_size);
 
       char* decoded_buffer = nullptr;
       size_t decoded_size = 0;
