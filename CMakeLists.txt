@@ -206,7 +206,7 @@ include_directories(
   "."
   ${PUBLIC_INCLUDE_DIRECTORIES}
   "${THIRDPARTY_SOURCE_DIR}/ffmpeg/"
-  #"${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
+  "${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
   "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
   "${CUDA_INCLUDE_DIRS}"
@@ -228,8 +228,7 @@ add_subdirectory(lightscan)
 add_executable(lightscanner
   lightscan/main.cpp
   $<TARGET_OBJECTS:storage>
-  $<TARGET_OBJECTS:util>
-  util_cuda)
+  $<TARGET_OBJECTS:util>)
 
 add_dependencies(lightscanner
   GoogleAPICppClient
@@ -252,4 +251,5 @@ endif()
 
 target_link_libraries(lightscanner
   ${LIGHTSCAN_LIBRARIES}
+  util_cuda
   "${PLATFORM_LINK_FLAGS}")

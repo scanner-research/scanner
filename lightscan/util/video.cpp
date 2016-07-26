@@ -651,8 +651,7 @@ bool VideoSeparator::decode(AVPacket* packet) {
   CUdeviceptr mapped_frame = 0;
   int ret = 0, eret = 0;
 
-  CuvidContext *ctx = reinterpret_cast<CuvidContext*>(cc->priv_data);
-  int ret;
+  CuvidContext *ctx = reinterpret_cast<CuvidContext*>(cc_->priv_data);
   if (ctx->bsf && packet->size) {
     if ((ret = av_packet_ref(&filter_packet, packet)) < 0) {
       return ret;
@@ -760,7 +759,7 @@ int VideoSeparator::cuvid_handle_picture_decode(
   void *opaque,
   CUVIDPICPARAMS* picparams)
 {
-  VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
+  VideoSeparator& separator = *reinterpret_cast<VideoSeparator*>(opaque);
 
   if (picparams->intra_pic_flag) {
     seperator.is_keyframe_ = true;
@@ -774,7 +773,7 @@ int VideoSeparator::cuvid_handle_picture_display(
   void *opaque,
   CUVIDPARSERDISPINFO* dispinfo)
 {
-  VideoSeparator& video_separator = *reinterpret_cast<VideoSeparator*>(opaque);
+  VideoSeparator& separator = *reinterpret_cast<VideoSeparator*>(opaque);
 }
 
 
