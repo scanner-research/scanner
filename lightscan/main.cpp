@@ -590,8 +590,8 @@ void* evaluate_thread(void* arg) {
     const boost::shared_ptr<caffe::Blob<float>> data_blob{
       net->blob_by_name("data")};
     if (data_blob->shape(0) != GLOBAL_BATCH_SIZE) {
-      data_blob->Reshape({
-          GLOBAL_BATCH_SIZE, 3, net_info.input_size, net_info.input_size});
+      data_blob->Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
+      net_input.Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
     }
     resize_times.push_back(nano_since(resize_start));
 
