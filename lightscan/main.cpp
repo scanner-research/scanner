@@ -90,6 +90,20 @@ inline int frames_per_work_item() {
   return GLOBAL_BATCH_SIZE * BATCHES_PER_WORK_ITEM;
 }
 
+template <typename T>
+T sum(const std::vector<T>& v) {
+  T result{};
+  for (const T& v: v) {
+    result += v;
+  }
+  return result;
+}
+
+template <typename T>
+T nano_to_ms(T ns) {
+  return ns / 1000000;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Work structs
 struct VideoWorkItem {
@@ -542,6 +556,9 @@ void* evaluate_thread(void* arg) {
   std::vector<double> task_times;
   std::vector<double> idle_times;
 
+  std::vector<double> resize_times;
+  std::vector<double> resize_two_times;
+  std::vector<double> alloc_times;
   std::vector<double> net_times;
   std::vector<double> cv_times;
   while (true) {
@@ -568,6 +585,7 @@ void* evaluate_thread(void* arg) {
                                metadata.height,
                                1);
 
+    auto resize_start = now();
     // Resize net input blob for batch size
     const boost::shared_ptr<caffe::Blob<float>> data_blob{
       net->blob_by_name("data")};
@@ -575,6 +593,7 @@ void* evaluate_thread(void* arg) {
       data_blob->Reshape({
           GLOBAL_BATCH_SIZE, 3, net_info.input_size, net_info.input_size});
     }
+    resize_times.push_back(nano_since(resize_start));
 
     char* frame_buffer = work_entry.buffer;
 
@@ -659,15 +678,19 @@ void* evaluate_thread(void* arg) {
       int batch_size = work_item.end_frame - current_frame;
 
       // Resize for our smaller batch size
+      auto resize_two_start = now();
       if (data_blob->shape(0) != batch_size) {
         data_blob->Reshape({
             batch_size, 3, net_info.input_size, net_info.input_size});
       }
+      resize_two_times.push_back(nano_since(resize_two_start));
 
       int frame_offset = current_frame - work_item.start_frame;
 
       // Process batch of frames
+      auto alloc_start = now();
       caffe::Blob<float> net_input{batch_size, 3, dim, dim};
+      alloc_times.push_back(nano_since(alloc_start));
 
       float* net_input_buffer;
       net_input_buffer = net_input.mutable_gpu_data();
@@ -759,17 +782,31 @@ void* evaluate_thread(void* arg) {
   }
   total_cv_time /= 1000000; // convert from ns to ms
 
+  double total_resize_time = nano_to_ms(sum(resize_times));;
+
+  double total_resize_two_time = nano_to_ms(sum(resize_two_times));
+
+  double total_alloc_time = nano_to_ms(sum(alloc_times));
+
   printf("(N/GPU: %d/%d) Evaluate thread finished. "
          "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
          "Net: %.3fms (%3.2f\%), CV: %.3fms (%3.2f\%), "
+         "Resize: %.3fms (%3.2f\%), Resize two: %.3fms (%3.2f\%), "
+         "Alloc: %.3fms (%3.2f\%), "
          "Idle: %.3fms (%3.2f\%)\n",
          rank, args.gpu_device_id,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
-         total_net_time,
+         total_net_time / task_times.size(),
          total_net_time / (total_task_time) * 100,
-         total_cv_time,
+         total_cv_time / task_times.size(),
          total_cv_time / (total_task_time) * 100,
-         total_idle_time,
+         total_resize_time / task_times.size(),
+         total_resize_time / (total_task_time) * 100,
+         total_resize_two_time / task_times.size(),
+         total_resize_two_time / (total_task_time) * 100,
+         total_alloc_time / task_times.size(),
+         total_alloc_time / (total_task_time) * 100,
+         total_idle_time / task_times.size(),
          total_idle_time / (total_idle_time + total_task_time) * 100);
 
   THREAD_RETURN_SUCCESS();
