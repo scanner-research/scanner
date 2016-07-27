@@ -91,9 +91,9 @@ inline int frames_per_work_item() {
 }
 
 template <typename T>
-T sum(const std::vector<T>& v) {
+T sum(const std::vector<T>& vec) {
   T result{};
-  for (const T& v: v) {
+  for (const T& v: vec) {
     result += v;
   }
   return result;
@@ -690,10 +690,11 @@ void* evaluate_thread(void* arg) {
       // Process batch of frames
       auto alloc_start = now();
       caffe::Blob<float> net_input{batch_size, 3, dim, dim};
-      alloc_times.push_back(nano_since(alloc_start));
 
       float* net_input_buffer;
       net_input_buffer = net_input.mutable_gpu_data();
+
+      alloc_times.push_back(nano_since(alloc_start));
 
       auto cv_start = now();
       for (int i = 0; i < batch_size; ++i) {
