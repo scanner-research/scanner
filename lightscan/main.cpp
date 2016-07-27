@@ -597,6 +597,7 @@ void* evaluate_thread(void* arg) {
 
     char* frame_buffer = work_entry.buffer;
 
+    double alloc_time = 0;
     double net_time = 0;
     double cv_time = 0;
 
@@ -604,7 +605,11 @@ void* evaluate_thread(void* arg) {
     while (current_frame + GLOBAL_BATCH_SIZE < work_item.end_frame) {
       int frame_offset = current_frame - work_item.start_frame;
 
+      auto alloc_start = now();
+
       float* net_input_buffer = net_input.mutable_gpu_data();
+
+      alloc_time += nano_since(alloc_start);
 
       // Process batch of frames
       auto cv_start = now();
@@ -694,7 +699,7 @@ void* evaluate_thread(void* arg) {
 
       float* net_input_buffer = net_input.mutable_gpu_data();
 
-      alloc_times.push_back(nano_since(alloc_start));
+      alloc_times.push_back(alloc_time + nano_since(alloc_start));
 
       auto cv_start = now();
       for (int i = 0; i < batch_size; ++i) {
