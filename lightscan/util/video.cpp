@@ -762,11 +762,11 @@ int VideoSeparator::cuvid_handle_picture_decode(
   VideoSeparator& separator = *reinterpret_cast<VideoSeparator*>(opaque);
 
   if (picparams->intra_pic_flag) {
-    seperator.is_keyframe_ = true;
+    separator.is_keyframe_ = true;
   } else {
-    seperator.is_keyframe_ = false;
+    separator.is_keyframe_ = false;
   }
-  seperator.prev_frame_ += 1;
+  separator.prev_frame_ += 1;
 }
 
 int VideoSeparator::cuvid_handle_picture_display(
