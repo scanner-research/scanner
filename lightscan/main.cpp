@@ -617,6 +617,10 @@ void* evaluate_thread(void* arg) {
                    cudaMemcpyDeviceToDevice,
                    s));
 
+        if (sid == 0 && i != 0) {
+          CU_CHECK(cudaDeviceSynchronize());
+        }
+
         // For checking for proper encoding
         if (false && ((current_frame + i) % 512) == 0) {
           size_t image_size = metadata.width * metadata.height * 3;
@@ -696,6 +700,9 @@ void* evaluate_thread(void* arg) {
                    dim * dim * 3 * sizeof(float),
                    cudaMemcpyDeviceToDevice,
                    s));
+        if (sid == 0 && i != 0) {
+          CU_CHECK(cudaDeviceSynchronize());
+        }
       }
 
       CU_CHECK(cudaDeviceSynchronize());
