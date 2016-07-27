@@ -261,7 +261,7 @@ void* load_video_thread(void* arg) {
     uint64_t start_keyframe_byte_offset =
       static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
     uint64_t end_keyframe_byte_offset;
-    if (end_keyframe_index == keyframe_positions.size()) {
+    if (end_keyframe_index == 0) {
       end_keyframe_byte_offset = file_size;
     } else {
       end_keyframe_byte_offset =
@@ -543,6 +543,7 @@ void* evaluate_thread(void* arg) {
   std::vector<double> idle_times;
 
   std::vector<double> net_times;
+  std::vector<double> cv_times;
   while (true) {
     auto idle_start = now();
     // Wait for buffer to process
@@ -578,6 +579,7 @@ void* evaluate_thread(void* arg) {
     char* frame_buffer = work_entry.buffer;
 
     double net_time = 0;
+    double cv_time = 0;
 
     int current_frame = work_item.start_frame;
     while (current_frame + GLOBAL_BATCH_SIZE < work_item.end_frame) {
@@ -586,6 +588,7 @@ void* evaluate_thread(void* arg) {
       float* net_input_buffer = net_input.mutable_gpu_data();
 
       // Process batch of frames
+      auto cv_start = now();
       for (int i = 0; i < GLOBAL_BATCH_SIZE; ++i) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
@@ -635,6 +638,8 @@ void* evaluate_thread(void* arg) {
 
       CU_CHECK(cudaDeviceSynchronize());
 
+      cv_time += nano_since(cv_start);
+
       auto net_start = now();
 
       net->Forward({&net_input});
@@ -663,6 +668,7 @@ void* evaluate_thread(void* arg) {
       float* net_input_buffer;
       net_input_buffer = net_input.mutable_gpu_data();
 
+      auto cv_start = now();
       for (int i = 0; i < batch_size; ++i) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
@@ -693,6 +699,7 @@ void* evaluate_thread(void* arg) {
       }
 
       CU_CHECK(cudaDeviceSynchronize());
+      cv_time += nano_since(cv_start);
 
       auto net_start = now();
       net->Forward({&net_input});
@@ -705,6 +712,7 @@ void* evaluate_thread(void* arg) {
     task_times.push_back(nano_since(start));
 
     net_times.push_back(net_time);
+    cv_times.push_back(cv_time);
 
     DecodeBufferEntry empty_buffer_entry;
     empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
@@ -738,13 +746,22 @@ void* evaluate_thread(void* arg) {
   }
   total_net_time /= 1000000; // convert from ns to ms
 
+  double total_cv_time = 0;
+  for (double t : cv_times) {
+    total_cv_time += t;
+  }
+  total_cv_time /= 1000000; // convert from ns to ms
+
   printf("(N/GPU: %d/%d) Evaluate thread finished. "
          "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Net: %.3fms (%.32f\%), Idle: %.3fms (%3.2f\%)\n",
+         "Net: %.3fms (%3.2f\%), CV: %.3fms (%3.2f\%), "
+         "Idle: %.3fms (%3.2f\%)\n",
          rank, args.gpu_device_id,
          total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
          total_net_time,
-         total_net_time / (total_task_time) * 100);
+         total_net_time / (total_task_time) * 100,
+         total_cv_time,
+         total_cv_time / (total_task_time) * 100,
          total_idle_time,
          total_idle_time / (total_idle_time + total_task_time) * 100);
 
