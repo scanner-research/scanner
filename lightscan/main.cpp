@@ -681,7 +681,9 @@ void* evaluate_thread(void* arg) {
       auto resize_two_start = now();
       if (data_blob->shape(0) != batch_size) {
         data_blob->Reshape({
-            batch_size, 3, net_info.input_size, net_info.input_size});
+            batch_size, 3, dim ,dim});
+        net_input.Reshape({
+            batch_size, 3, dim, dim});
       }
       resize_two_times.push_back(nano_since(resize_two_start));
 
@@ -689,10 +691,8 @@ void* evaluate_thread(void* arg) {
 
       // Process batch of frames
       auto alloc_start = now();
-      caffe::Blob<float> net_input{batch_size, 3, dim, dim};
 
-      float* net_input_buffer;
-      net_input_buffer = net_input.mutable_gpu_data();
+      float* net_input_buffer = net_input.mutable_gpu_data();
 
       alloc_times.push_back(nano_since(alloc_start));
 
