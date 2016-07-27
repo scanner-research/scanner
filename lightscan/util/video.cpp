@@ -985,8 +985,11 @@ void preprocess_video(
       av_packet_unref(&state.av_packet);
       break;
     } else if (err != 0) {
-      printf("err %d\n", err);
-      assert(err == 0);
+      char err_msg[256];
+      av_strerror(err, err_msg, 256);
+      fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
+              frame, err, err_msg);
+      assert(false);
     }
 
     if (state.av_packet.stream_index != state.video_stream_index) {
