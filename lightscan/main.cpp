@@ -1102,7 +1102,7 @@ int main(int argc, char **argv) {
       // Wait for clients to ask for work
       while (next_work_item_to_allocate < static_cast<int>(work_items.size())) {
         // Check if we need to allocate work to our own processing thread
-        int local_work = load_work.size();
+        int local_work = load_work.size() + decode_work.size();
         for (size_t i = 0; i < eval_work.size(); ++i) {
           local_work += eval_work[i].size();
         }
@@ -1151,7 +1151,7 @@ int main(int argc, char **argv) {
     } else {
       // Monitor amount of work left and request more when running low
       while (true) {
-        int local_work = load_work.size();
+        int local_work = load_work.size() + decode_work.size();
         for (size_t i = 0; i < eval_work.size(); ++i) {
           local_work += eval_work[i].size();
         }
