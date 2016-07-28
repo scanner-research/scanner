@@ -990,8 +990,8 @@ bool preprocess_video(
       av_strerror(err, err_msg, 256);
       fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
               frame, err, err_msg);
-      succeeded = false;
-      goto cleanup;
+      CUD_CHECK(cuDevicePrimaryCtxRelease(0));
+      return false;
     }
 
     if (state.av_packet.stream_index != state.video_stream_index) {
@@ -1126,7 +1126,6 @@ bool preprocess_video(
     write_video_metadata(metadata_file.get(), video_metadata, metadata_bytes);
   }
 
-cleanup:
   CUD_CHECK(cuDevicePrimaryCtxRelease(0));
 
   return succeeded;
