@@ -910,6 +910,7 @@ int main(int argc, char **argv) {
 
   // Check if we have already preprocessed the videos
   bool all_preprocessed = true;
+  std::vector<std::string> bad_paths;
   for (const std::string& path : video_paths) {
     FileInfo video_info;
     StoreResult result =
@@ -920,15 +921,26 @@ int main(int argc, char **argv) {
       if (is_master(rank)) {
         log_ls.print("Video %s not processed yet. Processing now...\n",
                      path.c_str());
-        preprocess_video(storage,
-                         path,
-                         processed_video_path(path),
-                         metadata_path(path),
-                         iframe_path(path));
+        bool valid_video = preprocess_video(storage,
+                                            path,
+                                            processed_video_path(path),
+                                            metadata_path(path),
+                                            iframe_path(path));
+        if (!valid_video) {
+          bad_paths.push_back(path);
+        }
       }
     }
   }
-  if (all_preprocessed) {
+  if (!all_preprocessed) {
+    if (!bad_paths.empty()) {
+      std::fstream bad_paths_file("bad_videos.txt", std::fstream::out);
+      for (const std::string& bad_path : bad_paths) {
+        bad_paths_file << bad_path << std::endl;
+      }
+      bad_paths_file.close();
+    }
+  } else {
     // Get video metadata for all videos for distributing with work items
     std::vector<VideoMetadata> video_metadata(video_paths.size());
     std::vector<std::vector<char>> metadata_packets(video_paths.size());

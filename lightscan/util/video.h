@@ -139,7 +139,7 @@ private:
   double decode_time_;
 };
 
-void preprocess_video(
+bool preprocess_video(
   StorageBackend* storage,
   const std::string& video_path,
   const std::string& processed_video_path,

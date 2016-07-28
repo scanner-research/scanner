@@ -918,7 +918,7 @@ int VideoDecoder::cuvid_handle_picture_display(
 }
 
 
-void preprocess_video(
+bool preprocess_video(
   StorageBackend* storage,
   const std::string& video_path,
   const std::string& processed_video_path,
@@ -977,6 +977,7 @@ void preprocess_video(
   CuvidContext *cuvid_ctx =
     reinterpret_cast<CuvidContext*>(state.in_cc->priv_data);
 
+  bool succeeded = true;
   int frame = 0;
   while (true) {
     // Read from format context
@@ -989,7 +990,8 @@ void preprocess_video(
       av_strerror(err, err_msg, 256);
       fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
               frame, err, err_msg);
-      assert(false);
+      succeeded = false;
+      goto cleanup;
     }
 
     if (state.av_packet.stream_index != state.video_stream_index) {
@@ -1124,7 +1126,10 @@ void preprocess_video(
     write_video_metadata(metadata_file.get(), video_metadata, metadata_bytes);
   }
 
+cleanup:
   CUD_CHECK(cuDevicePrimaryCtxRelease(0));
+
+  return succeeded;
 }
 
 uint64_t read_video_metadata(
