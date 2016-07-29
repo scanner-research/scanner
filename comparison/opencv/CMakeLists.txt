@@ -8,4 +8,5 @@ add_executable(opencv_compare
 
 target_link_libraries(opencv_compare
   "${LIBRARIES}"
+  "${PUBLIC_LIBRARIES}"
   "${PLATFORM_LINK_FLAGS}")

@@ -109,18 +109,19 @@ int main(int argc, char** argv) {
   {
     video.open(KCAM_DIRECTORY + "/" + video_paths[video_index]);
     int total_frames = static_cast<int>(video.get(cv::CAP_PROP_FRAME_COUNT));
+    printf("total frames %d\n");
 
     int frame_index = 0;
     while (frame_index < total_frames) {
       int batch_size = std::min(GLOBAL_BATCH_SIZE, total_frames - frame_index);
       if (data_blob->shape(0) != batch_size) {
-        data_blob->Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
-        net_input.Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
+        data_blob->Reshape({batch_size, 3, dim, dim});
+        net_input.Reshape({batch_size, 3, dim, dim});
       }
 
       float* net_input_buffer = net_input.mutable_cpu_data();
       // Get batch of frames and convert into proper net input format
-      for (int i = 0; i < GLOBAL_BATCH_SIZE; ++i) {
+      for (int i = 0; i < batch_size; ++i) {
         bool valid_frame = video.read(frame);
         (void) valid_frame; assert(valid_frame);
 
