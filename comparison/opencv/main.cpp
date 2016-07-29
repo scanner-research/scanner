@@ -83,8 +83,12 @@ int main(int argc, char** argv) {
   }
 
   // Setup caffe
-  NetInfo net_info = load_neural_net(NetType::ALEX_NET, 0);
+  lightscan::NetInfo net_info =
+    load_neural_net(lightscan::NetType::ALEX_NET, 0);
   caffe::Net<float>* net = net_info.net;
+
+  cv::Mat mean_frame(
+    net_info.mean_width, net_info.mean_height, CV_32FC3, net_info.mean_image);
 
   int dim = net_info.input_size;
 
@@ -114,6 +118,7 @@ int main(int argc, char** argv) {
         net_input.Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
       }
 
+      float* net_input_buffer = net_input.mutable_cpu_data();
       // Get batch of frames and convert into proper net input format
       for (int i = 0; i < GLOBAL_BATCH_SIZE; ++i) {
         bool valid_frame = video.read(frame);
