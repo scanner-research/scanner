@@ -227,6 +227,7 @@ if (APPLE)
 endif()
 
 add_subdirectory(lightscan)
+add_subdirectory(comparison)
 
 add_executable(lightscanner
   lightscan/main.cpp
