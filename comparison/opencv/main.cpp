@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#include "lightscan/util/caffe.h"
+
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -24,6 +26,10 @@
 #include <opencv2/cudaarithm.hpp>
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
+
+#include <fstream>
+
+namespace po = boost::program_options;
 
 int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
 
@@ -97,8 +103,8 @@ int main(int argc, char** argv) {
        video_index < video_paths.size();
        ++video_index)
   {
-    video.open(video_paths[video_index]);
-    int total_frames = static_cast<int>(video.get(CAP_PROP_FRAME_COUNT));
+    video.open(KCAM_DIRECTORY + "/" + video_paths[video_index]);
+    int total_frames = static_cast<int>(video.get(cv::CAP_PROP_FRAME_COUNT));
 
     int frame_index = 0;
     while (frame_index < total_frames) {
