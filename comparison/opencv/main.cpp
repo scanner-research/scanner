@@ -111,18 +111,19 @@ int main(int argc, char** argv) {
     int total_frames = static_cast<int>(video.get(cv::CAP_PROP_FRAME_COUNT));
     printf("total frames %d\n");
 
+    bool done = false;
     int frame_index = 0;
-    while (frame_index < total_frames) {
-      int batch_size = std::min(GLOBAL_BATCH_SIZE, total_frames - frame_index);
-      if (data_blob->shape(0) != batch_size) {
-        data_blob->Reshape({batch_size, 3, dim, dim});
-        net_input.Reshape({batch_size, 3, dim, dim});
-      }
-
+    while (!done) {
+      int batch_size = GLOBAL_BATCH_SIZE;
       float* net_input_buffer = net_input.mutable_cpu_data();
       // Get batch of frames and convert into proper net input format
-      for (int i = 0; i < batch_size; ++i) {
+      int i = 0;
+      for (; i < batch_size; ++i) {
         bool valid_frame = video.read(frame);
+        if (!valid_frame) {
+          done = true;
+          break;
+        }
         (void) valid_frame; assert(valid_frame);
 
         // Resize frame to net input, convert to float, and subract mean image
@@ -136,9 +137,15 @@ int main(int argc, char** argv) {
 
         frame_index += 1;
       }
-    }
+      batch_size = i;
 
-    // Evaluate net on batch of frames
-    net->Forward({&net_input});
+      if (data_blob->shape(0) != batch_size) {
+        data_blob->Reshape({batch_size, 3, dim, dim});
+        net_input.Reshape({batch_size, 3, dim, dim});
+      }
+
+      // Evaluate net on batch of frames
+      net->Forward({&net_input});
+    }
   }
 }
