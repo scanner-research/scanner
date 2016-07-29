@@ -525,13 +525,11 @@ void* evaluate_thread(void* arg) {
   // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
 
-#ifndef HARDWARE_DECODE
   std::vector<cv::cuda::GpuMat> input_mats(
     NUM_CUDA_STREAMS,
     cv::cuda::GpuMat(args.metadata[0].height + args.metadata[0].height / 2,
                      args.metadata[0].width,
                      CV_8UC1));
-#endif
 
   std::vector<cv::cuda::GpuMat> rgba_mat(
     NUM_CUDA_STREAMS,
@@ -829,7 +827,7 @@ void shutdown() {
   MPI_Finalize();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::string video_paths_file;
   {
     po::variables_map vm;
