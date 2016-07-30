@@ -87,8 +87,11 @@ int main(int argc, char** argv) {
     load_neural_net(lightscan::NetType::ALEX_NET, 0);
   caffe::Net<float>* net = net_info.net;
 
-  cv::Mat mean_frame(
+  cv::Mat base_mean_frame(
     net_info.mean_width, net_info.mean_height, CV_32FC3, net_info.mean_image);
+
+  cv::Mat mean_frame;
+  cv::resize(base_mean_frame, mean_frame, cv::Size(dim, dim));
 
   int dim = net_info.input_size;
 
@@ -108,8 +111,6 @@ int main(int argc, char** argv) {
        ++video_index)
   {
     video.open(KCAM_DIRECTORY + "/" + video_paths[video_index]);
-    int total_frames = static_cast<int>(video.get(cv::CAP_PROP_FRAME_COUNT));
-    printf("total frames %d\n");
 
     bool done = false;
     int frame_index = 0;
