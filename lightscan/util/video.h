@@ -101,9 +101,11 @@ public:
 
   ~VideoDecoder();
 
-  bool decode(
+  bool feed(
     const char* encoded_buffer,
-    size_t encoded_size,
+    size_t encoded_size);
+
+  bool get_frame(
     char* decoded_buffer,
     size_t decoded_size);
 

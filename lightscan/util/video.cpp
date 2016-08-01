@@ -864,11 +864,9 @@ VideoDecoder::~VideoDecoder() {
   }
 }
 
-bool VideoDecoder::decode(
+bool VideoDecoder::feed(
   const char* encoded_buffer,
-  size_t encoded_size,
-  char* decoded_buffer,
-  size_t decoded_size)
+  size_t encoded_size)
 {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
@@ -884,6 +882,51 @@ bool VideoDecoder::decode(
 
   return new_frame_;
 }
+
+bool VideoDecoder::get_frame(
+  char* decoded_buffer,
+  size_t decoded_size)
+{
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
+  if (frame_queue_.size() > 0) {
+    CUVIDPARSERDISPINFO dispinfo;
+    frame_queue_.pop(dispinfo);
+
+    CUVIDPROCPARAMS params = {};
+    params.progressive_frame = dispinfo.progressive_frame;
+    params.second_field = 0;
+    params.top_field_first = dispinfo.top_field_first;
+
+    CUdeviceptr mapped_frame = 0;
+    unsigned int pitch = 0;
+    CUD_CHECK(cuvidMapVideoFrame(decoder_,
+                                 dispinfo.picture_index,
+                                 &mapped_frame,
+                                 &pitch,
+                                 &params));
+    // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
+    //              on that here to copy the data properly
+    auto memcpy_start = now();
+    for (int i = 0; i < 2; i++) {
+      CU_CHECK(cudaMemcpy2D(
+                 decoded_buffer + i * metadata_.width * metadata_.height
+                 metadata_.width, // dst pitch
+                 mapped_frame + pitch * metadata_.height, // src
+                 pitch, // src pitch
+                 metadata_.width, // width
+                 i == 0 ? metadata_.height : metadata_.height / 2, // height
+                 cudaMemcpyDeviceToDevice));
+    }
+    //memcpy_time += nano_since(memcpy_start);
+  }
+
+  CUcontext dummy;
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
+
+  return frame_queue_.size() > 0;
+}
+
 
 double VideoDecoder::time_spent_on_decode() {
   return decode_time_;
@@ -915,6 +958,8 @@ int VideoDecoder::cuvid_handle_picture_display(
   CUVIDPARSERDISPINFO* dispinfo)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  frame_queue_.push(*dispinfo);
+  CUVIDPARSERDISPINFO dispinfo;
 }
 
 
