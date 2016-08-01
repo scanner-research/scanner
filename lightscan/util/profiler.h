@@ -38,13 +38,13 @@ public:
     timepoint_t start,
     timepoint_t end);
 
+  const std::vector<TaskRecord>& get_records() const;
+
   struct TaskRecord {
     std::string key;
     int64_t start;
     int64_t end;
   };
-
-  const std::vector<TaskRecord>& get_records() const;
 
 protected:
   void spin_lock();

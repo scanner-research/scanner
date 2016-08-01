@@ -30,5 +30,9 @@ Profiler::Profiler(const Profiler& other)
 Profiler::~Profiler(void) {
 }
 
+const std::vector<TaskRecord>& Profiler::get_records() const {
+  return records_;
+}
+
 }
 }
