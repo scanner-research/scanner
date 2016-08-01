@@ -608,7 +608,7 @@ void* evaluate_thread(void* arg) {
 
       auto net_start = now();
       net->Forward({&net_input});
-      args.profiler.add_interval("net", idle_start, now());
+      args.profiler.add_interval("net", net_start, now());
 
       // Save batch of frames
       current_frame += batch_size;
@@ -1072,12 +1072,14 @@ int main(int argc, char** argv) {
 
     int64_t start_time_ns =
       std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
-      .count()});
+      .time_since_epoch()
+      .count();
     int64_t end_time_ns =
       std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
-      .count()});
-    profiler_output.write((char*)&start_time_ns, sizeof(node));
-    profiler_output.write((char*)&end_time_ns, sizeof(node));
+      .time_since_epoch()
+      .count();
+    profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
+    profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
 
     // Function to write out profiler info
     auto write_profiler_to_file = [&profiler_output]
@@ -1111,7 +1113,7 @@ int main(int argc, char** argv) {
                 "max key id (%lu). Recorded intervals will alias in "
                 "profiler file.\n",
                 key_names.size(),
-                std::pow(2, sizeof(record_key_id) * 8))
+                std::pow(2, sizeof(record_key_id) * 8));
       }
       // Write out key name dictionary
       int64_t num_keys = static_cast<int64_t>(key_names.size());
