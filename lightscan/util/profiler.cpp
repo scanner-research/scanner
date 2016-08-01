@@ -22,6 +22,10 @@ namespace lightscan {
 Profiler::Profiler(timepoint_t base_time)
   : base_time_(base_time) {}
 
+Profiler::Profiler(const Profiler& other)
+  : base_time_(other.base_time_),
+    records_(other.records_)
+}
 
 Profiler::~Profiler(void) {
 }

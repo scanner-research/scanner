@@ -29,6 +29,8 @@ class Profiler {
 public:
   Profiler(timepoint_t base_time);
 
+  Profiler(const Profiler& other);
+
   ~Profiler(void);
 
   void add_interval(
