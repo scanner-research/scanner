@@ -26,7 +26,7 @@ inline void Profiler::add_interval(
 {
   spin_lock();
   records_.emplace_back(
-    task_name,
+    key,
     std::chrono::duration_cast<std::chrono::nanoseconds>(
       start - base_time_).count(),
     std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -42,5 +42,4 @@ inline void Profiler::unlock() {
   lock_.clear(std::memory_order_release);
 }
 
-}
 }

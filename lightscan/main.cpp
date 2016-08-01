@@ -20,6 +20,7 @@
 #include "lightscan/util/caffe.h"
 #include "lightscan/util/queue.h"
 #include "lightscan/util/jpeg/JPEGWriter.h"
+#include "lightscan/util/profiler.h"
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -827,6 +828,9 @@ int main(int argc, char** argv) {
           DecodeBufferEntry{frame_buffer_size, frame_buffers[i]});
       }
     }
+
+    // Establish base time to use for profilers
+    timepoint_t base_time = now();
 
     // Setup load workers
     std::vector<Profiler> load_thread_profilers(
