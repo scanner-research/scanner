@@ -19,8 +19,6 @@
 
 #include <vector>
 #include <string>
-#include <sstream>
-#include <unordered_map>
 #include <atomic>
 
 namespace lightscan {

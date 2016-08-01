@@ -1084,20 +1084,25 @@ int main(int argc, char** argv) {
       const std::vector<lightscan::Profiler::TaskRecord>& records =
         profiler.get_records();
       // Perform dictionary compression on interval key names
-      int64_t record_key_id = 0;
-      std::map<std::string, int64_t> key_names;
+      uint8_t record_key_id = 0;
+      std::map<std::string, uint8_t> key_names;
       for (size_t j = 0; j < records.size(); j++) {
         const std::string& key = records[j].key;
         if (key_names.count(key) == 0) {
           key_names.insert({key, record_key_id++});
         }
       }
+      if (key_names.size() > std::pow(2, sizeof(record_key_id))) {
+        fprintf(stderr,
+                "WARNING: Number of record keys greater than max key id. "
+                "Recorded intervals will alias in profiler file.\n");
+      }
       // Write out key name dictionary
       int64_t num_keys = static_cast<int64_t>(key_names.size());
       profiler_output.write((char*)&num_keys, sizeof(num_keys));
       for (auto& kv : key_names) {
         std::string key = kv.first;
-        int64_t key_index = kv.second;
+        uint8_t key_index = kv.second;
         profiler_output.write(key.c_str(), key.size() + 1);
         profiler_output.write((char*)&key_index, sizeof(key_index));
       }
@@ -1106,7 +1111,7 @@ int main(int argc, char** argv) {
       profiler_output.write((char*)&num_records, sizeof(num_records));
       for (size_t j = 0; j < records.size(); j++) {
         const lightscan::Profiler::TaskRecord& record = records[j];
-        int64_t key_index = key_names[record.key];
+        uint8_t key_index = key_names[record.key];
         int64_t start = record.start;
         int64_t end = record.end;
         profiler_output.write((char*)&key_index, sizeof(key_index));
@@ -1115,18 +1120,27 @@ int main(int argc, char** argv) {
       }
     };
 
-    // Load worker profilers
     int64_t out_rank = rank;
+
+    // Load worker profilers
+    uint8_t load_worker_count = LOAD_WORKERS_PER_NODE;
+    profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
       write_profiler_to_file(out_rank, "load", i, load_thread_profilers[i]);
     }
 
     // Decode worker profilers
+    uint8_t decode_worker_count = GPUS_PER_NODE;
+    profiler_output.write((char*)&decode_worker_count,
+                          sizeof(decode_worker_count));
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       write_profiler_to_file(out_rank, "decode", i, decode_thread_profilers[i]);
     }
 
     // Evaluate worker profilers
+    uint8_t eval_worker_count = GPUS_PER_NODE;
+    profiler_output.write((char*)&eval_worker_count,
+                          sizeof(eval_worker_count));
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       write_profiler_to_file(out_rank, "eval", i, eval_thread_profilers[i]);
     }

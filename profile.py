@@ -5,6 +5,7 @@ import os.path
 import time
 import subprocess
 import sys
+import struct
 from collections import defaultdict
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -21,6 +22,88 @@ VIDEO_FILE = 'kcam_videos_small.txt'
 BATCHES_PER_WORK_ITEM = 4
 TASKS_IN_QUEUE_PER_GPU = 4
 LOAD_WORKERS_PER_NODE = 2
+
+
+def read_advance(fmt, buf, offset):
+    new_offset = offset + struct.calcsize(fmt)
+    return struct.unpack_from(fmt, buf, offset), new_offset
+
+
+def unpack_string(buf, offset):
+    s = ''
+    while True:
+        t, offset = read_advance('B', buf, offset)
+        if t == 0:
+            break
+        s += t
+    return s, offset
+
+
+def parse_profiler_output(byte_buffer, offset):
+    # Node
+    t, offset = read_advance('q', bytes_buffer, offset)
+    node = t[0]
+    # Worker type name
+    worker_type, offset = unpack_string(bytes_buffer, offset)
+    # Worker number
+    t, offset = read_advance('q', bytes_buffer, offset)
+    worker_num = t[0]
+    # Number of keys
+    t, offset = read_advance('q', bytes_buffer, offset)
+    num_keys = t[0]
+    # Key dictionary encoding
+    key_dictionary = {}
+    for i in range(num_keys):
+        key_name, offset = unpack_string(bytes_buffer, offset)
+        t, offset = read_advance('B', bytes_buffer, offset)
+        key_index = t[0]
+        key_dictionary[key_index] = key_name
+    # Intervals
+    t, offset = read_advance('q', bytes_buffer, offset)
+    num_intervals = t[0]
+    intervals = []
+    for i in range(num_intervals):
+        # Key index
+        t, offset = read_advance('B', bytes_buffer, offset)
+        key_index = t[0]
+        t, offset = read_advance('q', bytes_buffer, offset)
+        start = t[0]
+        t, offset = read_advance('q', bytes_buffer, offset)
+        end = t[0]
+        intervals.append((key_dictionary[key_index], start, end))
+
+    return {
+        'node': node,
+        'worker_type': worker_type,
+        'worker_num': worker_num,
+        'intervals': intervals
+    }, offset
+
+
+def parse_profiler_file():
+    with open('profiler_0.bin', 'rb') as f:
+        bytes_buffer = f.read()
+    offset = 0
+    profilers = defaultdict(list)
+    # Load worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_load_workers = t[0]
+    for i in range(num_load_workers):
+        prof, offset = parser_profiler_output(bytes_buffer, offset)
+        profilers[prof['worker_type']].append(prof)
+    # Decode worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_decode_workers = t[0]
+    for i in range(num_decode_workers):
+        prof, offset = parser_profiler_output(bytes_buffer, offset)
+        profilers[prof['worker_type']].append(prof)
+    # Eval worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_eval_workers = t[0]
+    for i in range(num_eval_workers):
+        prof, offset = parser_profiler_output(bytes_buffer, offset)
+        profilers[prof['worker_type']].append(prof)
+    return profilers
 
 
 def run_trial(video_file,
@@ -51,26 +134,35 @@ def run_trial(video_file,
     ], env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
     pid, rc, ru = os.wait4(p.pid, 0)
     elapsed = time.time() - start
+    profiler_output = {}
     if rc != 0:
         print('Trial FAILED after {:.3f}s'.format(elapsed))
         # elapsed = -1
     else:
         print('Trial succeeded, took {:.3f}s'.format(elapsed))
-    return elapsed
+        profiler_output = parse_profiler_output()
+    return elapsed, profiler_output
 
 
 def print_trial_times(title, trial_settings, trial_times):
-    print(' {:^53s} '.format(title))
-    print(' ===================================================== ')
-    print(' Nodes | GPUs/n | Batch | Loaders | Total Time ')
+    print(' {:^58s} '.format(title))
+    print(' =========================================================== ')
+    print(' Nodes | GPUs/n | Batch | Loaders | Total Time | Decode Time ')
     for settings, t in zip(trial_settings, trial_times):
-        print(' {:>5d} | {:>6d} | {:>5d} | {:>5d} | {:>9.3f}s'
+        total_time = t[0]
+        decode_time = 0
+        for interval in t[1]['decode'][0]['intervals']:
+            if interval[0] == 'task':
+                decode_time += interval[2] - interval[1]
+        decode_time /= 1000000000  # ns to s
+        print(' {:>5d} | {:>6d} | {:>5d} | {:>5d} | {:>9.3f}s | {:>9.3f}s '
               .format(
                   settings['node_count'],
                   settings['gpus_per_node'],
                   settings['batch_size'],
                   settings['load_workers_per_node'],
-                  t))
+                  total_time,
+                  decode_time))
 
 
 def load_workers_trials():
