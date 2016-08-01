@@ -25,7 +25,7 @@ inline void Profiler::add_interval(
   timepoint_t end)
 {
   spin_lock();
-  records_.emplace_back({
+  records_.emplace_back(TaskRecord{
     key,
     std::chrono::duration_cast<std::chrono::nanoseconds>(
       start - base_time_).count(),

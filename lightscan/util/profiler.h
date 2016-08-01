@@ -42,7 +42,7 @@ public:
     int64_t end;
   };
 
-  const std::vector<TaskRecord>& get_records();
+  const std::vector<TaskRecord>& get_records() const;
 
 protected:
   void spin_lock();

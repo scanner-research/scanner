@@ -1084,7 +1084,7 @@ int main(int argc, char** argv) {
       int64_t record_key_id = 0;
       std::map<std::string, int64_t> key_names;
       for (size_t j = 0; j < records.size(); j++) {
-        const std::string& key = records[i].key;
+        const std::string& key = records[j].key;
         if (key_names.count(key) == 0) {
           key_names.insert({key, record_key_id++});
         }
