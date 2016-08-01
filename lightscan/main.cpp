@@ -1105,8 +1105,11 @@ int main(int argc, char** argv) {
       }
       if (key_names.size() > std::pow(2, sizeof(record_key_id) * 8)) {
         fprintf(stderr,
-                "WARNING: Number of record keys greater than max key id. "
-                "Recorded intervals will alias in profiler file.\n");
+                "WARNING: Number of record keys (%lu) greater than "
+                "max key id (%lu). Recorded intervals will alias in "
+                "profiler file.\n",
+                key_names.size(),
+                std::pow(2, sizeof(record_key_id) * 8))
       }
       // Write out key name dictionary
       int64_t num_keys = static_cast<int64_t>(key_names.size());

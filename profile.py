@@ -6,6 +6,7 @@ import time
 import subprocess
 import sys
 import struct
+import json
 from collections import defaultdict
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -14,6 +15,7 @@ PROGRAM_PATH = os.path.join(SCRIPT_DIR, 'build/debug/lightscanner')
 
 DEVNULL = open(os.devnull, 'wb', 0)
 
+TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, 'profile.trace')
 
 NODES = [1]  # [1, 2, 4]
 GPUS = [1, 2]  # [1, 2]  # [1, 2, 4, 8]
@@ -174,6 +176,44 @@ def print_trial_times(title, trial_settings, trial_times):
                   settings['load_workers_per_node'],
                   total_time,
                   eval_time))
+
+
+def write_trace_file(profilers):
+    traces = []
+
+    next_tid = 0
+    worker_profiler_groups = profilers
+    for worker_type, profs in [('load', worker_profiler_groups['load']),
+                               ('decode', worker_profiler_groups['decode']),
+                               ('eval', worker_profiler_groups['eval'])]:
+        print(worker_type)
+        print(profs)
+        print(worker_profiler_groups)
+        for i, prof in enumerate(profs):
+            tid = next_tid
+            print(tid)
+            next_tid += 1
+            traces.append({
+                'name': 'thread_name',
+                'ph': 'M',
+                'pid': 1,
+                'tid': tid,
+                'args': {
+                    'name': worker_type + '_' + str(i)
+                }})
+            for interval in prof['intervals']:
+                traces.append({
+                    'name': interval[0],
+                    'cat': worker_type,
+                    'ph': 'X',
+                    'ts': interval[1] / 1000,  # ns to microseconds
+                    'dur': (interval[2] - interval[1]) / 1000,
+                    'pid': 1,
+                    'tid': tid,
+                    'args': {}
+                })
+    with open(TRACE_OUTPUT_PATH, 'w') as f:
+        f.write(json.dumps(traces))
 
 
 def load_workers_trials():
