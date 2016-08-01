@@ -564,16 +564,18 @@ void* evaluate_thread(void* arg) {
                    cudaMemcpyDeviceToDevice,
                    s));
 
-        if (sid == 0 && i != 0) {
-          CU_CHECK(cudaDeviceSynchronize());
-        }
-
         // For checking for proper encoding
         if (false && ((current_frame + i) % 512) == 0) {
+          CU_CHECK(cudaDeviceSynchronize());
           size_t image_size = metadata.width * metadata.height * 3;
           uint8_t* image_buff = new uint8_t[image_size];
-          CU_CHECK(cudaMemcpy(image_buff, rgb_mat[sid].data, image_size,
-                              cudaMemcpyDeviceToHost));
+
+          for (int i = 0; i < rgb_mat[sid].rows; ++i) {
+            CU_CHECK(cudaMemcpy(image_buff + metadata.width * i,
+                                rgb_mat[sid].ptr<uint8_t>(i),
+                                metadata.width,
+                                cudaMemcpyDeviceToHost));
+          }
           JPEGWriter writer;
           writer.header(metadata.width, metadata.height, 3, JPEG::COLOR_RGB);
           std::vector<uint8_t*> rows(metadata.height);
