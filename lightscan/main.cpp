@@ -937,10 +937,13 @@ int main(int argc, char** argv) {
           entry.work_item_index = next_work_item_to_allocate++;
           load_work.push(entry);
 
-          if (next_work_item_to_allocate % 10 == 0) {
+          if ((static_cast<int>(work_items.size()) - next_work_item_to_allocate)
+              % 10 == 0)
+          {
             printf("Work items left: %d\n",
                    static_cast<int>(work_items.size()) -
                    next_work_item_to_allocate);
+            fflush(stdout);
           }
           continue;
         }

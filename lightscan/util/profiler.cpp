@@ -20,19 +20,19 @@
 namespace lightscan {
 
 Profiler::Profiler(timepoint_t base_time)
-  : base_time_(base_time) {}
+  : base_time_(base_time),
+    lock_(0) {}
 
 Profiler::Profiler(const Profiler& other)
   : base_time_(other.base_time_),
-    records_(other.records_)
-}
+    records_(other.records_),
+    lock_(0) {}
 
 Profiler::~Profiler(void) {
 }
 
-const std::vector<TaskRecord>& Profiler::get_records() const {
+const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
   return records_;
 }
 
-}
 }
