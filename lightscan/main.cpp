@@ -1103,7 +1103,7 @@ int main(int argc, char** argv) {
           key_names.insert({key, record_key_id++});
         }
       }
-      if (key_names.size() > std::pow(2, sizeof(record_key_id))) {
+      if (key_names.size() > std::pow(2, sizeof(record_key_id) * 8)) {
         fprintf(stderr,
                 "WARNING: Number of record keys greater than max key id. "
                 "Recorded intervals will alias in profiler file.\n");
