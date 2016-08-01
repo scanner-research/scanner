@@ -910,13 +910,14 @@ bool VideoDecoder::get_frame(
       CU_CHECK(cudaMemcpy2D(
                  decoded_buffer + i * metadata_.width * metadata_.height,
                  metadata_.width, // dst pitch
-                 (const void*)(mapped_frame + pitch * metadata_.height), // src
+                 (const void*)(mapped_frame + i * pitch * metadata_.height), // src
                  pitch, // src pitch
                  metadata_.width, // width
                  i == 0 ? metadata_.height : metadata_.height / 2, // height
                  cudaMemcpyDeviceToDevice));
     }
     //memcpy_time += nano_since(memcpy_start);
+    CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frame));
   }
 
   CUcontext dummy;
@@ -957,7 +958,6 @@ int VideoDecoder::cuvid_handle_picture_display(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
-  CUVIDPARSERDISPINFO dispinfo;
 }
 
 
