@@ -1071,9 +1071,11 @@ int main(int argc, char** argv) {
     timepoint_t end_time = now();
 
     int64_t start_time_ns =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(base_time).count()});
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
+      .count()});
     int64_t end_time_ns =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(end_time).count()});
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
+      .count()});
     profiler_output.write((char*)&start_time_ns, sizeof(node));
     profiler_output.write((char*)&end_time_ns, sizeof(node));
 
