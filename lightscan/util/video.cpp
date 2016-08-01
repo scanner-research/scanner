@@ -848,9 +848,7 @@ VideoDecoder::VideoDecoder(
     char* encoded_packet = metadata_packets.data() + pos;
     pos += encoded_packet_size;
 
-    size_t dummy_size = 0;
-    char* dummy_buffer = nullptr;
-    decode(encoded_packet, encoded_packet_size, dummy_buffer, dummy_size);
+    feed(encoded_packet, encoded_packet_size);
   }
 }
 
@@ -910,9 +908,9 @@ bool VideoDecoder::get_frame(
     auto memcpy_start = now();
     for (int i = 0; i < 2; i++) {
       CU_CHECK(cudaMemcpy2D(
-                 decoded_buffer + i * metadata_.width * metadata_.height
+                 decoded_buffer + i * metadata_.width * metadata_.height,
                  metadata_.width, // dst pitch
-                 mapped_frame + pitch * metadata_.height, // src
+                 (const void*)(mapped_frame + pitch * metadata_.height), // src
                  pitch, // src pitch
                  metadata_.width, // width
                  i == 0 ? metadata_.height : metadata_.height / 2, // height
@@ -958,7 +956,7 @@ int VideoDecoder::cuvid_handle_picture_display(
   CUVIDPARSERDISPINFO* dispinfo)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  frame_queue_.push(*dispinfo);
+  decoder.frame_queue_.push(*dispinfo);
   CUVIDPARSERDISPINFO dispinfo;
 }
 
