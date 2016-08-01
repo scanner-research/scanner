@@ -145,6 +145,7 @@ struct LoadThreadArgs {
 
   // Per worker arguments
   StorageConfig* storage_config;
+  Profiler& profiler;
 
   // Queues for communicating work
   Queue<LoadWorkEntry>& load_work;
@@ -160,6 +161,7 @@ struct DecodeThreadArgs {
   // Per worker arguments
   int gpu_device_id;
   CUcontext cuda_context; // context to use to decode frames
+  Profiler& profiler;
 
   // Queues for communicating work
   Queue<DecodeWorkEntry>& decode_work;
@@ -174,6 +176,7 @@ struct EvaluateThreadArgs {
 
   // Per worker arguments
   int gpu_device_id; // for hardware decode, need to know gpu
+  Profiler& profiler;
 
   // Queues for communicating work
   Queue<EvalWorkEntry>& eval_work;
@@ -184,6 +187,8 @@ struct EvaluateThreadArgs {
 /// Thread to asynchronously load video
 void* load_video_thread(void* arg) {
   LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
+
+  auto setup_start = now();
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -202,8 +207,11 @@ void* load_video_thread(void* arg) {
   uint64_t file_size;
   std::vector<int> keyframe_positions;
   std::vector<int64_t> keyframe_byte_offsets;
+
+  args.profiler.add_interval("setup", setup_start, now());
+
   while (true) {
-    auto idle_start1 = now();
+    auto idle_start = now();
 
     LoadWorkEntry load_work_entry;
     args.load_work.pop(load_work_entry);
@@ -212,9 +220,9 @@ void* load_video_thread(void* arg) {
       break;
     }
 
-    double idle_time = nano_since(idle_start1);
+    args.profiler.add_interval("idle", idle_start, now());
 
-    auto start1 = now();
+    auto work_start = now();
 
     const VideoWorkItem& work_item =
       args.work_items[load_work_entry.work_item_index];
@@ -286,6 +294,7 @@ void* load_video_thread(void* arg) {
     char* buffer = new char[data_size];
 
     auto io_start = now();
+
     size_t size_read;
     StoreResult result;
     EXP_BACKOFF(
@@ -295,9 +304,10 @@ void* load_video_thread(void* arg) {
     assert(size_read == data_size);
     assert(result == StoreResult::Success ||
            result == StoreResult::EndOfFile);
-    io_times.push_back(nano_since(io_start));
 
-    task_times.push_back(nano_since(start1));
+    args.profiler.add_interval("io", io_start, now());
+
+    args.profiler.add_interval("task", work_start, now());
 
     DecodeWorkEntry decode_work_entry;
     decode_work_entry.work_item_index = load_work_entry.work_item_index;
@@ -308,38 +318,8 @@ void* load_video_thread(void* arg) {
     args.decode_work.push(decode_work_entry);
   }
 
-  double total_task_time = 0;
-  for (double t : task_times) {
-    total_task_time += t;
-  }
-  total_task_time /= 1000000; // convert from ns to ms
-  double mean_task_time = total_task_time / task_times.size();
-  double std_dev_task_time = 0;
-  for (double t : task_times) {
-    std_dev_task_time += std::pow(t / 1000000 - mean_task_time, 2);
-  }
-  std_dev_task_time = std::sqrt(std_dev_task_time / task_times.size());
-
-  double total_idle_time = 0;
-  for (double t : idle_times) {
-    total_idle_time += t;
-  }
-  total_idle_time /= 1000000; // convert from ns to ms
-
-  double total_io_time = 0;
-  for (double t : io_times) {
-    total_io_time += t;
-  }
-  total_io_time /= 1000000;
-
-  printf("(N: %d) Load thread finished. "
-         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Idle: %.3fms %3.2f\%, IO: %3.2f\%\n",
-         rank,
-         total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
-         total_idle_time,
-         total_idle_time / (total_idle_time + total_task_time) * 100,
-         total_io_time / (total_task_time) * 100);
+  printf("(N: %d) Load thread finished.\n",
+         rank);
 
   // Cleanup
   if (video_file != nullptr) {
@@ -355,6 +335,8 @@ void* load_video_thread(void* arg) {
 void* decode_thread(void* arg) {
   DecodeThreadArgs& args = *reinterpret_cast<DecodeThreadArgs*>(arg);
 
+  auto setup_start = now();
+
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -366,13 +348,10 @@ void* decode_thread(void* arg) {
     args.metadata[0],
     args.metadata_packets[0]};
 
-  std::vector<double> task_times;
-  std::vector<double> idle_times;
+  args.profiler.add_interval("setup", setup_start, now());
 
-  std::vector<double> decode_times;
-  std::vector<double> memcpy_times;
   while (true) {
-    auto idle_start1 = now();
+    auto idle_start = now();
 
     DecodeWorkEntry decode_work_entry;
     args.decode_work.pop(decode_work_entry);
@@ -381,9 +360,12 @@ void* decode_thread(void* arg) {
       break;
     }
 
-    idle_times.push_back(nano_since(idle_start1));
+    DecodeBufferEntry decode_buffer_entry;
+    args.empty_decode_buffers.pop(decode_buffer_entry);
 
-    auto start1 = now();
+    args.profiler.add_interval("idle", idle_start, now());
+
+    auto work_start = now();
 
     const VideoWorkItem& work_item =
       args.work_items[decode_work_entry.work_item_index];
@@ -391,9 +373,6 @@ void* decode_thread(void* arg) {
 
     size_t encoded_buffer_size = decode_work_entry.encoded_data_size;
     char* encoded_buffer = decode_work_entry.buffer;
-
-    DecodeBufferEntry decode_buffer_entry;
-    args.empty_decode_buffers.pop(decode_buffer_entry);
 
     size_t decoded_buffer_size = decode_buffer_entry.buffer_size;
     char* decoded_buffer = decode_buffer_entry.buffer;
@@ -403,9 +382,6 @@ void* decode_thread(void* arg) {
                                metadata.width,
                                metadata.height,
                                1);
-
-    double video_time = 0;
-    double memcpy_time = 0;
 
     size_t encoded_buffer_offset = 0;
 
@@ -457,10 +433,10 @@ void* decode_thread(void* arg) {
     // Must clean up buffer allocated by load thread
     delete[] encoded_buffer;
 
-    decode_times.push_back(decoder.time_spent_on_decode());
-    memcpy_times.push_back(memcpy_time);
+    //decode_times.push_back(decoder.time_spent_on_decode());
+    //memcpy_times.push_back(memcpy_time);
 
-    task_times.push_back(nano_since(start1));
+    args.profiler.add_interval("task", work_start, now());
 
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = decode_work_entry.work_item_index;
@@ -469,37 +445,16 @@ void* decode_thread(void* arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  double total_task_time = 0;
-  for (double t : task_times) {
-    total_task_time += t;
-  }
-  total_task_time /= 1000000; // convert from ns to ms
-  double mean_task_time = total_task_time / task_times.size();
-  double std_dev_task_time = 0;
-  for (double t : task_times) {
-    std_dev_task_time += std::pow(t / 1000000 - mean_task_time, 2);
-  }
-  std_dev_task_time = std::sqrt(std_dev_task_time / task_times.size());
-
-  double total_idle_time = 0;
-  for (double t : idle_times) {
-    total_idle_time += t;
-  }
-  total_idle_time /= 1000000; // convert from ns to ms
-
-  printf("(N/GPU: %d/%d) Decode thread finished. "
-         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Idle: %.3fms, Idle: %3.2f\%\n",
-         rank, args.gpu_device_id,
-         total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
-         total_idle_time,
-         total_idle_time / (total_idle_time + total_task_time) * 100);
+  printf("(N/GPU: %d/%d) Decode thread finished.\n",
+         rank, args.gpu_device_id);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to run net evaluation
 void* evaluate_thread(void* arg) {
   EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
+
+  auto setup_start = now();
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -551,14 +506,12 @@ void* evaluate_thread(void* arg) {
     NUM_CUDA_STREAMS,
     cv::cuda::GpuMat(dim, dim, CV_32FC3));
 
-  std::vector<double> task_times;
-  std::vector<double> idle_times;
+  const boost::shared_ptr<caffe::Blob<float>> data_blob{
+    net->blob_by_name("data")};
+  char* frame_buffer = work_entry.buffer;
 
-  std::vector<double> resize_times;
-  std::vector<double> resize_two_times;
-  std::vector<double> alloc_times;
-  std::vector<double> net_times;
-  std::vector<double> cv_times;
+  args.profiler.add_interval("setup", setup_start, now());
+
   while (true) {
     auto idle_start = now();
     // Wait for buffer to process
@@ -569,9 +522,9 @@ void* evaluate_thread(void* arg) {
       break;
     }
 
-    idle_times.push_back(nano_since(idle_start));
+    args.profiler.add_interval("idle", idle_start, now());
 
-    auto start = now();
+    auto work_start = now();
 
     const VideoWorkItem& work_item =
       args.work_items[work_entry.work_item_index];
@@ -583,35 +536,24 @@ void* evaluate_thread(void* arg) {
                                metadata.height,
                                1);
 
-    auto resize_start = now();
-    // Resize net input blob for batch size
-    const boost::shared_ptr<caffe::Blob<float>> data_blob{
-      net->blob_by_name("data")};
-    if (data_blob->shape(0) != GLOBAL_BATCH_SIZE) {
-      data_blob->Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
-      net_input.Reshape({GLOBAL_BATCH_SIZE, 3, dim, dim});
-    }
-    resize_times.push_back(nano_since(resize_start));
-
-    char* frame_buffer = work_entry.buffer;
-
-    double alloc_time = 0;
-    double net_time = 0;
-    double cv_time = 0;
-
     int current_frame = work_item.start_frame;
-    while (current_frame + GLOBAL_BATCH_SIZE < work_item.end_frame) {
+    while (current_frame < work_item.end_frame) {
       int frame_offset = current_frame - work_item.start_frame;
+      int batch_size =
+        std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
-      auto alloc_start = now();
+      if (data_blob->shape(0) != batch_size) {
+        data_blob->Reshape({
+            batch_size, 3, dim ,dim});
+        net_input.Reshape({
+            batch_size, 3, dim, dim});
+      }
 
       float* net_input_buffer = net_input.mutable_gpu_data();
 
-      alloc_time += nano_since(alloc_start);
-
       // Process batch of frames
       auto cv_start = now();
-      for (int i = 0; i < GLOBAL_BATCH_SIZE; ++i) {
+      for (int i = 0; i < batch_size; ++i) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
         char* buffer = frame_buffer + frame_size * (i + frame_offset);
@@ -661,92 +603,17 @@ void* evaluate_thread(void* arg) {
           delete[] image_buff;
         }
       }
-
       CU_CHECK(cudaDeviceSynchronize());
-
-      cv_time += nano_since(cv_start);
-
-      auto net_start = now();
-
-      net->Forward({&net_input});
-
-      net_time += nano_since(net_start);
-
-      // Save batch of frames
-      current_frame += GLOBAL_BATCH_SIZE;
-    }
-
-    // Epilogue for processing less than a batch of frames
-    if (current_frame < work_item.end_frame) {
-      int batch_size = work_item.end_frame - current_frame;
-
-      // Resize for our smaller batch size
-      auto resize_two_start = now();
-      if (data_blob->shape(0) != batch_size) {
-        data_blob->Reshape({
-            batch_size, 3, dim ,dim});
-        net_input.Reshape({
-            batch_size, 3, dim, dim});
-      }
-      resize_two_times.push_back(nano_since(resize_two_start));
-
-      int frame_offset = current_frame - work_item.start_frame;
-
-      // Process batch of frames
-      auto alloc_start = now();
-
-      float* net_input_buffer = net_input.mutable_gpu_data();
-
-      alloc_times.push_back(alloc_time + nano_since(alloc_start));
-
-      auto cv_start = now();
-      for (int i = 0; i < batch_size; ++i) {
-        int sid = i % NUM_CUDA_STREAMS;
-        cv::cuda::Stream& cv_stream = cv_streams[sid];
-        char* buffer = frame_buffer + frame_size * (i + frame_offset);
-        cv::cuda::GpuMat input_mat(
-          metadata.height + metadata.height / 2,
-          metadata.width,
-          CV_8UC1,
-          buffer);
-
-        convertNV12toRGBA(input_mat, rgba_mat[sid],
-                          metadata.width, metadata.height,
-                          cv_stream);
-        cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_RGBA2BGR, 0,
-                           cv_stream);
-        cv::cuda::resize(rgb_mat[sid], conv_input[sid], cv::Size(dim, dim),
-                         0, 0, cv::INTER_LINEAR, cv_stream);
-        conv_input[sid].convertTo(float_conv_input[sid], CV_32FC3, cv_stream);
-        cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
-                           cv::noArray(), -1, cv_stream);
-        cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
-        CU_CHECK(cudaMemcpyAsync(
-                   net_input_buffer + i * (dim * dim * 3),
-                   normed_input[sid].data,
-                   dim * dim * 3 * sizeof(float),
-                   cudaMemcpyDeviceToDevice,
-                   s));
-        if (sid == 0 && i != 0) {
-          CU_CHECK(cudaDeviceSynchronize());
-        }
-      }
-
-      CU_CHECK(cudaDeviceSynchronize());
-      cv_time += nano_since(cv_start);
+      args.profiler.add_interval("cv", cv_start, now());
 
       auto net_start = now();
       net->Forward({&net_input});
-      net_time += nano_since(net_start);
+      args.profiler.add_interval("net", idle_start, now());
 
       // Save batch of frames
       current_frame += batch_size;
     }
-
-    task_times.push_back(nano_since(start));
-
-    net_times.push_back(net_time);
-    cv_times.push_back(cv_time);
+    args.profiler.add_interval("task", work_start, now());
 
     DecodeBufferEntry empty_buffer_entry;
     empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
@@ -756,62 +623,8 @@ void* evaluate_thread(void* arg) {
 
   delete net;
 
-  double total_task_time = 0;
-  for (double t : task_times) {
-    total_task_time += t;
-  }
-  total_task_time /= 1000000; // convert from ns to ms
-  double mean_task_time = total_task_time / task_times.size();
-  double std_dev_task_time = 0;
-  for (double t : task_times) {
-    std_dev_task_time += std::pow(t / 1000000 - mean_task_time, 2);
-  }
-  std_dev_task_time = std::sqrt(std_dev_task_time / task_times.size());
-
-  double total_idle_time = 0;
-  for (double t : idle_times) {
-    total_idle_time += t;
-  }
-  total_idle_time /= 1000000; // convert from ns to ms
-
-  double total_net_time = 0;
-  for (double t : net_times) {
-    total_net_time += t;
-  }
-  total_net_time /= 1000000; // convert from ns to ms
-
-  double total_cv_time = 0;
-  for (double t : cv_times) {
-    total_cv_time += t;
-  }
-  total_cv_time /= 1000000; // convert from ns to ms
-
-  double total_resize_time = nano_to_ms(sum(resize_times));;
-
-  double total_resize_two_time = nano_to_ms(sum(resize_two_times));
-
-  double total_alloc_time = nano_to_ms(sum(alloc_times));
-
-  printf("(N/GPU: %d/%d) Evaluate thread finished. "
-         "Total: %.3fms,  # Tasks: %lu, Mean: %.3fms, Std: %.3fms, "
-         "Net: %.3fms (%3.2f\%), CV: %.3fms (%3.2f\%), "
-         "Resize: %.3fms (%3.2f\%), Resize two: %.3fms (%3.2f\%), "
-         "Alloc: %.3fms (%3.2f\%), "
-         "Idle: %.3fms (%3.2f\%)\n",
-         rank, args.gpu_device_id,
-         total_task_time, task_times.size(), mean_task_time, std_dev_task_time,
-         total_net_time / task_times.size(),
-         total_net_time / (total_task_time) * 100,
-         total_cv_time / task_times.size(),
-         total_cv_time / (total_task_time) * 100,
-         total_resize_time / task_times.size(),
-         total_resize_time / (total_task_time) * 100,
-         total_resize_two_time / task_times.size(),
-         total_resize_two_time / (total_task_time) * 100,
-         total_alloc_time / task_times.size(),
-         total_alloc_time / (total_task_time) * 100,
-         total_idle_time / task_times.size(),
-         total_idle_time / (total_idle_time + total_task_time) * 100);
+  printf("(N/GPU: %d/%d) Evaluate thread finished.\n",
+         rank, args.gpu_device_id);
 
   THREAD_RETURN_SUCCESS();
 }
@@ -1016,6 +829,9 @@ int main(int argc, char** argv) {
     }
 
     // Setup load workers
+    std::vector<Profiler> load_thread_profilers(
+      LOAD_WORKERS_PER_NODE,
+      Profiler(base_time));
     std::vector<LoadThreadArgs> load_thread_args;
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
       // Create IO thread for reading and decoding data
@@ -1027,6 +843,7 @@ int main(int argc, char** argv) {
 
         // Per worker arguments
         config,
+        load_thread_profilers[i],
 
         // Queues
         load_work,
@@ -1040,6 +857,9 @@ int main(int argc, char** argv) {
     }
 
     // Setup load workers
+    std::vector<Profiler> decode_thread_profilers(
+      GPUS_PER_NODE,
+      Profiler(base_time));
     std::vector<DecodeThreadArgs> decode_thread_args;
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       // Retain primary context to use for decoder
@@ -1055,6 +875,7 @@ int main(int argc, char** argv) {
         // Per worker arguments
         i % GPUS_PER_NODE,
         cuda_context,
+        decode_thread_profilers[i],
 
         // Queues
         decode_work,
@@ -1069,6 +890,9 @@ int main(int argc, char** argv) {
     }
 
     // Setup evaluate workers
+    std::vector<Profiler> eval_thread_profilers(
+      GPUS_PER_NODE,
+      Profiler(base_time));
     std::vector<EvaluateThreadArgs> eval_thread_args;
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       int gpu_device_id = i;
@@ -1081,6 +905,7 @@ int main(int argc, char** argv) {
 
         // Per worker arguments
         gpu_device_id,
+        eval_thread_profilers[i],
 
         // Queues
         eval_work[i],
@@ -1231,6 +1056,78 @@ int main(int argc, char** argv) {
       free(result);
     }
 
+    // Execution done, write out profiler intervals for each worker
+    std::string profiler_file_name =
+      "profiler_" + std::to_string(rank) + ".bin";
+    std::ofstream profiler_output(profiler_file_name, std::fstream::binary);
+
+    auto write_profiler_to_file = [&profiler_output]
+      (int64_t node,
+       std::string type_name,
+       int64_t worker_num,
+       const Profiler& profiler)
+    {
+      // Write worker header information
+      // Node
+      profiler_output.write(&out_rank, sizeof(out_rank));
+      // Worker type
+      profiler_output.write(type_name.c_str(), type_name.size() + 1);
+      // Worker number
+      profiler_output.write(&worker_num, sizeof(worker_num));
+      // Intervals
+      const std::vector<TaskRecord>& records =
+        load_thread_profilers[i].get_records();
+      // Perform dictionary compression on interval key names
+      int64_t record_key_id = 0;
+      std::map<std::string, int64_t> key_names;
+      for (size_t j = 0; j < records.size(); j++) {
+        const std::string& key = records[i].key;
+        if (key_names.count(key) == 0) {
+          key_names.insert({key, record_key_id++});
+        }
+      }
+      // Write out key name dictionary
+      int64_t num_keys = static_cast<int64_t>(key_names.size());
+      profiler_output.write(&num_keys, sizeof(num_keys));
+      for (auto& kv : key_names) {
+        std::string key = kv.first;
+        int64_t key_index = kv.second;
+        profiler_output.write(key.c_str(), key.size() + 1);
+        profiler_output.write(&key_index, sizeof(key_index));
+      }
+      // Number of intervals
+      int64_t num_records = static_cast<int64_t>(records.size());
+      profiler_output.write(&num_records, sizeof(num_records));
+      for (size_t j = 0; j < records.size(); j++) {
+        const TaskRecord& record = records[j];
+        int64_t key_index = key_names[record.key];
+        int64_t start = record.start;
+        int64_t end = record.end;
+        profiler_output.write(&key_index, sizeof(key_index));
+        profiler_output.write(&start, sizeof(start));
+        profiler_output.write(&end, sizeof(end));
+      }
+    };
+
+    // Load worker profilers
+    int64_t out_rank = rank;
+    for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+      write_profiler_to_file(out_rank, "load", i, load_thread_profilers[i]);
+    }
+
+    // Decode worker profilers
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
+      write_profiler_to_file(out_rank, "decode", i, decode_thread_profilers[i]);
+    }
+
+    // Evaluate worker profilers
+    for (int i = 0; i < GPUS_PER_NODE; ++i) {
+      write_profiler_to_file(out_rank, "eval", i, eval_thread_profilers[i]);
+    }
+
+    profiler_output.close();
+
+    // Cleanup
     for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
       char** frame_buffers = gpu_frame_buffers[gpu];
       for (int i = 0; i < LOAD_BUFFERS; ++i) {
