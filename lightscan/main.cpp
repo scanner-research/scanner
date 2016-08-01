@@ -752,6 +752,9 @@ int main(int argc, char** argv) {
       bad_paths_file.close();
     }
   } else {
+    // Establish base time to use for profilers
+    timepoint_t base_time = now();
+
     // Get video metadata for all videos for distributing with work items
     std::vector<VideoMetadata> video_metadata(video_paths.size());
     std::vector<std::vector<char>> metadata_packets(video_paths.size());
@@ -827,9 +830,6 @@ int main(int argc, char** argv) {
           DecodeBufferEntry{frame_buffer_size, frame_buffers[i]});
       }
     }
-
-    // Establish base time to use for profilers
-    timepoint_t base_time = now();
 
     // Setup load workers
     std::vector<Profiler> load_thread_profilers(
@@ -1067,6 +1067,17 @@ int main(int argc, char** argv) {
       "profiler_" + std::to_string(rank) + ".bin";
     std::ofstream profiler_output(profiler_file_name, std::fstream::binary);
 
+    // Write out total time interval
+    timepoint_t end_time = now();
+
+    int64_t start_time_ns =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(base_time).count()});
+    int64_t end_time_ns =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end_time).count()});
+    profiler_output.write((char*)&start_time_ns, sizeof(node));
+    profiler_output.write((char*)&end_time_ns, sizeof(node));
+
+    // Function to write out profiler info
     auto write_profiler_to_file = [&profiler_output]
       (int64_t node,
        std::string type_name,
@@ -1121,7 +1132,6 @@ int main(int argc, char** argv) {
     };
 
     int64_t out_rank = rank;
-
     // Load worker profilers
     uint8_t load_worker_count = LOAD_WORKERS_PER_NODE;
     profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));

@@ -85,6 +85,12 @@ def parse_profiler_file():
     with open('profiler_0.bin', 'rb') as f:
         bytes_buffer = f.read()
     offset = 0
+    # Read start and end time intervals
+    t, offset = read_advance('q', bytes_buffer, offset)
+    start_time = t[0]
+    t, offset = read_advance('q', bytes_buffer, offset)
+    end_time = t[0]
+    # Profilers
     profilers = defaultdict(list)
     # Load worker profilers
     t, offset = read_advance('B', bytes_buffer, offset)
@@ -104,7 +110,7 @@ def parse_profiler_file():
     for i in range(num_eval_workers):
         prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
-    return profilers
+    return (start_time, end_time), profilers
 
 
 def run_trial(video_file,
@@ -141,7 +147,9 @@ def run_trial(video_file,
         # elapsed = -1
     else:
         print('Trial succeeded, took {:.3f}s'.format(elapsed))
-        profiler_output = parse_profiler_file()
+        test_interval, profiler_output = parse_profiler_file()
+        elapsed = (test_interval[1] - test_interval[0])
+        elapsed /= float(1000000000)  # ns to s
     return elapsed, profiler_output
 
 
@@ -152,13 +160,12 @@ def print_trial_times(title, trial_settings, trial_times):
     for settings, t in zip(trial_settings, trial_times):
         total_time = t[0]
         eval_time = 0
-        for profilers in t[1]['eval']:
-            for prof in profilers:
-                for interval in prof['intervals']:
-                    if interval[0] == 'task':
-                        eval_time += interval[2] - interval[1]
-            eval_time /= float(len(profilers))
-        eval_time /= 1000000000.0  # ns to s
+        for prof in t[1]['eval']:
+            for interval in prof['intervals']:
+                if interval[0] == 'task':
+                    eval_time += interval[2] - interval[1]
+        eval_time /= float(len(t[1]['eval']))
+        eval_time /= float(1000000000)  # ns to s
         print(' {:>5d} | {:>6d} | {:>5d} | {:>5d} | {:>9.3f}s | {:>9.3f}s '
               .format(
                   settings['node_count'],
