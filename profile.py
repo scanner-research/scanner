@@ -33,13 +33,14 @@ def unpack_string(buf, offset):
     s = ''
     while True:
         t, offset = read_advance('B', buf, offset)
-        if t == 0:
+        c = t[0]
+        if c == 0:
             break
-        s += t
+        s += str(chr(c))
     return s, offset
 
 
-def parse_profiler_output(byte_buffer, offset):
+def parse_profiler_output(bytes_buffer, offset):
     # Node
     t, offset = read_advance('q', bytes_buffer, offset)
     node = t[0]
@@ -89,19 +90,19 @@ def parse_profiler_file():
     t, offset = read_advance('B', bytes_buffer, offset)
     num_load_workers = t[0]
     for i in range(num_load_workers):
-        prof, offset = parser_profiler_output(bytes_buffer, offset)
+        prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
     # Decode worker profilers
     t, offset = read_advance('B', bytes_buffer, offset)
     num_decode_workers = t[0]
     for i in range(num_decode_workers):
-        prof, offset = parser_profiler_output(bytes_buffer, offset)
+        prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
     # Eval worker profilers
     t, offset = read_advance('B', bytes_buffer, offset)
     num_eval_workers = t[0]
     for i in range(num_eval_workers):
-        prof, offset = parser_profiler_output(bytes_buffer, offset)
+        prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
     return profilers
 
@@ -140,21 +141,24 @@ def run_trial(video_file,
         # elapsed = -1
     else:
         print('Trial succeeded, took {:.3f}s'.format(elapsed))
-        profiler_output = parse_profiler_output()
+        profiler_output = parse_profiler_file()
     return elapsed, profiler_output
 
 
 def print_trial_times(title, trial_settings, trial_times):
     print(' {:^58s} '.format(title))
     print(' =========================================================== ')
-    print(' Nodes | GPUs/n | Batch | Loaders | Total Time | Decode Time ')
+    print(' Nodes | GPUs/n | Batch | Loaders | Total Time | Eval Time ')
     for settings, t in zip(trial_settings, trial_times):
         total_time = t[0]
-        decode_time = 0
-        for interval in t[1]['decode'][0]['intervals']:
-            if interval[0] == 'task':
-                decode_time += interval[2] - interval[1]
-        decode_time /= 1000000000  # ns to s
+        eval_time = 0
+        for profilers in t[1]['eval']:
+            for prof in profilers:
+                for interval in prof['intervals']:
+                    if interval[0] == 'task':
+                        eval_time += interval[2] - interval[1]
+            eval_time /= float(len(profilers))
+        eval_time /= 1000000000.0  # ns to s
         print(' {:>5d} | {:>6d} | {:>5d} | {:>5d} | {:>9.3f}s | {:>9.3f}s '
               .format(
                   settings['node_count'],
@@ -162,7 +166,7 @@ def print_trial_times(title, trial_settings, trial_times):
                   settings['batch_size'],
                   settings['load_workers_per_node'],
                   total_time,
-                  decode_time))
+                  eval_time))
 
 
 def load_workers_trials():
