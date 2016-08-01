@@ -408,8 +408,6 @@ void* decode_thread(void* arg) {
         current_frame_buffer_pos,
         frame_size);
 
-      video_time += nano_since(video_start);
-
       if (!new_frame) {
         continue;
       }
@@ -509,7 +507,6 @@ void* evaluate_thread(void* arg) {
 
   const boost::shared_ptr<caffe::Blob<float>> data_blob{
     net->blob_by_name("data")};
-  char* frame_buffer = work_entry.buffer;
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -526,6 +523,8 @@ void* evaluate_thread(void* arg) {
     args.profiler.add_interval("idle", idle_start, now());
 
     auto work_start = now();
+
+    char* frame_buffer = work_entry.buffer;
 
     const VideoWorkItem& work_item =
       args.work_items[work_entry.work_item_index];
@@ -1073,13 +1072,13 @@ int main(int argc, char** argv) {
     {
       // Write worker header information
       // Node
-      profiler_output.write(&out_rank, sizeof(out_rank));
+      profiler_output.write((char*)&node, sizeof(node));
       // Worker type
       profiler_output.write(type_name.c_str(), type_name.size() + 1);
       // Worker number
-      profiler_output.write(&worker_num, sizeof(worker_num));
+      profiler_output.write((char*)&worker_num, sizeof(worker_num));
       // Intervals
-      const std::vector<TaskRecord>& records =
+      const std::vector<lightscan::Profiler::TaskRecord>& records =
         load_thread_profilers[i].get_records();
       // Perform dictionary compression on interval key names
       int64_t record_key_id = 0;
@@ -1097,19 +1096,19 @@ int main(int argc, char** argv) {
         std::string key = kv.first;
         int64_t key_index = kv.second;
         profiler_output.write(key.c_str(), key.size() + 1);
-        profiler_output.write(&key_index, sizeof(key_index));
+        profiler_output.write((char*)&key_index, sizeof(key_index));
       }
       // Number of intervals
       int64_t num_records = static_cast<int64_t>(records.size());
       profiler_output.write(&num_records, sizeof(num_records));
       for (size_t j = 0; j < records.size(); j++) {
-        const TaskRecord& record = records[j];
+        const lightscan::Profiler::TaskRecord& record = records[j];
         int64_t key_index = key_names[record.key];
         int64_t start = record.start;
         int64_t end = record.end;
-        profiler_output.write(&key_index, sizeof(key_index));
-        profiler_output.write(&start, sizeof(start));
-        profiler_output.write(&end, sizeof(end));
+        profiler_output.write((char*)&key_index, sizeof(key_index));
+        profiler_output.write((char*)&start, sizeof(start));
+        profiler_output.write((char*)&end, sizeof(end));
       }
     };
 
