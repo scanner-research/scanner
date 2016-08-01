@@ -1079,7 +1079,7 @@ int main(int argc, char** argv) {
       profiler_output.write((char*)&worker_num, sizeof(worker_num));
       // Intervals
       const std::vector<lightscan::Profiler::TaskRecord>& records =
-        load_thread_profilers[i].get_records();
+        profiler.get_records();
       // Perform dictionary compression on interval key names
       int64_t record_key_id = 0;
       std::map<std::string, int64_t> key_names;
@@ -1091,7 +1091,7 @@ int main(int argc, char** argv) {
       }
       // Write out key name dictionary
       int64_t num_keys = static_cast<int64_t>(key_names.size());
-      profiler_output.write(&num_keys, sizeof(num_keys));
+      profiler_output.write((char*)&num_keys, sizeof(num_keys));
       for (auto& kv : key_names) {
         std::string key = kv.first;
         int64_t key_index = kv.second;
@@ -1100,7 +1100,7 @@ int main(int argc, char** argv) {
       }
       // Number of intervals
       int64_t num_records = static_cast<int64_t>(records.size());
-      profiler_output.write(&num_records, sizeof(num_records));
+      profiler_output.write((char*)&num_records, sizeof(num_records));
       for (size_t j = 0; j < records.size(); j++) {
         const lightscan::Profiler::TaskRecord& record = records[j];
         int64_t key_index = key_names[record.key];

@@ -25,12 +25,12 @@ inline void Profiler::add_interval(
   timepoint_t end)
 {
   spin_lock();
-  records_.emplace_back(
+  records_.emplace_back({
     key,
     std::chrono::duration_cast<std::chrono::nanoseconds>(
       start - base_time_).count(),
     std::chrono::duration_cast<std::chrono::nanoseconds>(
-      end - base_time_).count());
+      end - base_time_).count()});
   unlock();
 }
 
