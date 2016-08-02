@@ -275,9 +275,11 @@ void* load_video_thread(void* arg) {
     }
 
     size_t end_keyframe_index = 0;
-    for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
+    for (size_t i = start_keyframe_index;
+         i < keyframe_positions.size() - 1;
+         ++i) {
       if (keyframe_positions[i] > work_item.end_frame) {
-        end_keyframe_index = i;
+        end_keyframe_index = i + 1;
         break;
       }
     }
