@@ -279,7 +279,7 @@ void* load_video_thread(void* arg) {
          i < keyframe_positions.size() - 1;
          ++i) {
       if (keyframe_positions[i] > work_item.end_frame) {
-        end_keyframe_index = i + 1;
+        end_keyframe_index = i;
         break;
       }
     }

@@ -797,6 +797,7 @@ VideoDecoder::VideoDecoder(
   std::vector<char> metadata_packets)
   : cuda_context_(cuda_context),
     metadata_(metadata),
+    metadata_packets_(metadata_packets),
     parser_(nullptr),
     decoder_(nullptr),
     prev_frame_(0),
@@ -890,6 +891,20 @@ bool VideoDecoder::feed(
 
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
+  // Feed metadata packets after EOS to reinit decoder
+  if (encoded_size == 0) {
+    size_t pos = 0;
+    while (pos < metadata_packets.size()) {
+      int encoded_packet_size =
+        *reinterpret_cast<int*>(metadata_packets.data() + pos);
+      pos += sizeof(int);
+      char* encoded_packet = metadata_packets.data() + pos;
+      pos += encoded_packet_size;
+
+      feed(encoded_packet, encoded_packet_size);
+    }
+  }
+
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
@@ -965,6 +980,7 @@ int VideoDecoder::cuvid_handle_picture_decode(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   CUD_CHECK(cuvidDecodePicture(decoder.decoder_, picparams));
+  decoder.did_decode_ = true;
 }
 
 int VideoDecoder::cuvid_handle_picture_display(
