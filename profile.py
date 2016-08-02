@@ -186,12 +186,8 @@ def write_trace_file(profilers):
     for worker_type, profs in [('load', worker_profiler_groups['load']),
                                ('decode', worker_profiler_groups['decode']),
                                ('eval', worker_profiler_groups['eval'])]:
-        print(worker_type)
-        print(profs)
-        print(worker_profiler_groups)
         for i, prof in enumerate(profs):
             tid = next_tid
-            print(tid)
             next_tid += 1
             traces.append({
                 'name': 'thread_name',
@@ -314,7 +310,9 @@ def scaling_trials():
 
 
 def main(args):
-    load_workers_trials()
+    # load_workers_trials()
+    test_interval, profiler_output = parse_profiler_file()
+    write_trace_file(profiler_output)
 
 
 if __name__ == '__main__':

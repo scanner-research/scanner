@@ -949,7 +949,6 @@ int VideoDecoder::cuvid_handle_picture_decode(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   decoder.prev_frame_++;
-  decoder.new_frame_ = true;
 }
 
 int VideoDecoder::cuvid_handle_picture_display(
@@ -958,6 +957,7 @@ int VideoDecoder::cuvid_handle_picture_display(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
+  decoder.new_frame_ = true;
 }
 
 
