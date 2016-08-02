@@ -549,7 +549,7 @@ void* evaluate_thread(void* arg) {
         convertNV12toRGBA(input_mat, rgba_mat[sid],
                           metadata.width, metadata.height,
                           cv_stream);
-        cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_RGBA2BGR, 0,
+        cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_BGRA2BGR, 0,
                            cv_stream);
         cv::cuda::resize(rgb_mat[sid], conv_input[sid], cv::Size(dim, dim),
                          0, 0, cv::INTER_LINEAR, cv_stream);
