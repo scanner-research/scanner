@@ -571,9 +571,9 @@ void* evaluate_thread(void* arg) {
           uint8_t* image_buff = new uint8_t[image_size];
 
           for (int i = 0; i < rgb_mat[sid].rows; ++i) {
-            CU_CHECK(cudaMemcpy(image_buff + metadata.width * i,
+            CU_CHECK(cudaMemcpy(image_buff + metadata.width * 3 * i,
                                 rgb_mat[sid].ptr<uint8_t>(i),
-                                metadata.width,
+                                metadata.width * 3,
                                 cudaMemcpyDeviceToHost));
           }
           JPEGWriter writer;
