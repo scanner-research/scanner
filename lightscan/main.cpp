@@ -389,7 +389,7 @@ void* decode_thread(void* arg) {
     size_t encoded_buffer_offset = 0;
 
     bool discontinuity = true;
-    int current_frame = decode_buffer_entry.start_keyframe;
+    int current_frame = decode_work_entry.start_keyframe;
     while (current_frame < work_item.end_frame) {
       auto video_start = now();
 
@@ -399,14 +399,14 @@ void* decode_thread(void* arg) {
         encoded_packet_size =
           *reinterpret_cast<int*>(encoded_buffer + encoded_buffer_offset);
         encoded_buffer_offset += sizeof(int);
-        char* encoded_packet = encoded_buffer + encoded_buffer_offset;
+        encoded_packet = encoded_buffer + encoded_buffer_offset;
         encoded_buffer_offset += encoded_packet_size;
       }
 
       if (decoder.feed(encoded_packet, encoded_packet_size, discontinuity)) {
         // New frames
         bool more_frames = true;
-        while (more_frames) {
+        while (more_frames && current_frame < work_item.end_frame) {
           size_t frames_buffer_offset;
           if (current_frame >= work_item.start_frame) {
             frames_buffer_offset =
