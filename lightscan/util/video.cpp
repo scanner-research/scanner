@@ -864,13 +864,20 @@ VideoDecoder::~VideoDecoder() {
 
 bool VideoDecoder::feed(
   const char* encoded_buffer,
-  size_t encoded_size)
+  size_t encoded_size,
+  bool discontinuity,
+  bool end_of_stream)
 {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = encoded_size;
   cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
+  if (discontinuity) {
+    cupkt.flags |= CUVID_PKT_DISCONTINUITY;
+  } else if (end_of_stream) {
+    cupkt.flags |= CUVID_PKT_ENDOFSTREAM;
+  }
 
   new_frame_ = false;
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
@@ -910,7 +917,8 @@ bool VideoDecoder::get_frame(
       CU_CHECK(cudaMemcpy2D(
                  decoded_buffer + i * metadata_.width * metadata_.height,
                  metadata_.width, // dst pitch
-                 (const void*)(mapped_frame + i * pitch * metadata_.height), // src
+                 (const void*)(
+                   mapped_frame + i * pitch * metadata_.height), // src
                  pitch, // src pitch
                  metadata_.width, // width
                  i == 0 ? metadata_.height : metadata_.height / 2, // height
@@ -948,8 +956,7 @@ int VideoDecoder::cuvid_handle_picture_decode(
   CUVIDPICPARAMS* picparams)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-  CHECK_CU(cuvidDecodePicture(decoder->decoder_, picparams));
-  decoder.prev_frame_++;
+  CUD_CHECK(cuvidDecodePicture(decoder.decoder_, picparams));
 }
 
 int VideoDecoder::cuvid_handle_picture_display(
@@ -959,6 +966,7 @@ int VideoDecoder::cuvid_handle_picture_display(
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
   decoder.new_frame_ = true;
+  decoder.prev_frame_++;
 }
 
 
