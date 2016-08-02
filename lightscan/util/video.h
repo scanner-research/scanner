@@ -104,8 +104,7 @@ public:
   bool feed(
     const char* encoded_buffer,
     size_t encoded_size,
-    bool discontinuity = false,
-    bool end_of_stream = false);
+    bool discontinuity = false);
 
   bool get_frame(
     char* decoded_buffer,

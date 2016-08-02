@@ -865,8 +865,7 @@ VideoDecoder::~VideoDecoder() {
 bool VideoDecoder::feed(
   const char* encoded_buffer,
   size_t encoded_size,
-  bool discontinuity,
-  bool end_of_stream)
+  bool discontinuity)
 {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
@@ -875,7 +874,8 @@ bool VideoDecoder::feed(
   cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
   if (discontinuity) {
     cupkt.flags |= CUVID_PKT_DISCONTINUITY;
-  } else if (end_of_stream) {
+  }
+  if (encoded_size == 0) {
     cupkt.flags |= CUVID_PKT_ENDOFSTREAM;
   }
 
