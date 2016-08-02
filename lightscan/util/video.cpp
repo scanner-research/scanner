@@ -894,11 +894,11 @@ bool VideoDecoder::feed(
   // Feed metadata packets after EOS to reinit decoder
   if (encoded_size == 0) {
     size_t pos = 0;
-    while (pos < metadata_packets.size()) {
+    while (pos < metadata_packets_.size()) {
       int encoded_packet_size =
-        *reinterpret_cast<int*>(metadata_packets.data() + pos);
+        *reinterpret_cast<int*>(metadata_packets_.data() + pos);
       pos += sizeof(int);
-      char* encoded_packet = metadata_packets.data() + pos;
+      char* encoded_packet = metadata_packets_.data() + pos;
       pos += encoded_packet_size;
 
       feed(encoded_packet, encoded_packet_size);
@@ -980,7 +980,6 @@ int VideoDecoder::cuvid_handle_picture_decode(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   CUD_CHECK(cuvidDecodePicture(decoder.decoder_, picparams));
-  decoder.did_decode_ = true;
 }
 
 int VideoDecoder::cuvid_handle_picture_display(
