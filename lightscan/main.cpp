@@ -349,6 +349,8 @@ void* decode_thread(void* arg) {
     args.metadata[0],
     args.metadata_packets[0]};
 
+  CU_CHECK(cudaSetDevice(args.gpu_device_id));
+
   args.profiler.add_interval("setup", setup_start, now());
 
   while (true) {
@@ -462,31 +464,47 @@ void* evaluate_thread(void* arg) {
   // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
 
-  std::vector<cv::cuda::GpuMat> input_mats(
-    NUM_CUDA_STREAMS,
-    cv::cuda::GpuMat(args.metadata[0].height + args.metadata[0].height / 2,
-                     args.metadata[0].width,
-                     CV_8UC1));
+  std::vector<cv::cuda::GpuMat> input_mats;
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    input_mats.push_back(
+      cv::cuda::GpuMat(args.metadata[0].height + args.metadata[0].height / 2,
+                       args.metadata[0].width,
+                       CV_8UC1));
+  }
 
-  std::vector<cv::cuda::GpuMat> rgba_mat(
-    NUM_CUDA_STREAMS,
-    cv::cuda::GpuMat(args.metadata[0].height, args.metadata[0].width, CV_8UC4));
+  std::vector<cv::cuda::GpuMat> rgba_mat;
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    rgba_mats.push_back(
+      cv::cuda::GpuMat(args.metadata[0].height,
+                       args.metadata[0].width,
+                       CV_8UC4));
+  }
 
-  std::vector<cv::cuda::GpuMat> rgb_mat(
-    NUM_CUDA_STREAMS,
-    cv::cuda::GpuMat(args.metadata[0].height, args.metadata[0].width, CV_8UC3));
+  std::vector<cv::cuda::GpuMat> rgb_mat;
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    rgb_mats.push_back(
+      cv::cuda::GpuMat(args.metadata[0].height,
+                       args.metadata[0].width,
+                       CV_8UC3));
+  }
 
-  std::vector<cv::cuda::GpuMat> conv_input(
-    NUM_CUDA_STREAMS,
-    cv::cuda::GpuMat(dim, dim, CV_8UC4));
+  std::vector<cv::cuda::GpuMat> conv_input;
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    conv_input.push_back(
+      cv::cuda::GpuMat(dim, dim, CV_8UC4));
+  }
 
   std::vector<cv::cuda::GpuMat> float_conv_input(
-    NUM_CUDA_STREAMS,
-    cv::cuda::GpuMat(dim, dim, CV_32FC3));
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    float_conv_input.push_back(
+      cv::cuda::GpuMat(dim, dim, CV_32FC3));
+  }
 
   std::vector<cv::cuda::GpuMat> normed_input(
-    NUM_CUDA_STREAMS,
-    cv::cuda::GpuMat(dim, dim, CV_32FC3));
+    for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+      normed_input.push_back(
+        cv::cuda::GpuMat(dim, dim, CV_32FC3));
+    }
 
   const boost::shared_ptr<caffe::Blob<float>> data_blob{
     net->blob_by_name("data")};
