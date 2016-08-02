@@ -555,10 +555,8 @@ void* evaluate_thread(void* arg) {
         std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
       if (data_blob->shape(0) != batch_size) {
-        data_blob->Reshape({
-            batch_size, 3, dim ,dim});
-        net_input.Reshape({
-            batch_size, 3, dim, dim});
+        data_blob->Reshape({batch_size, 3, dim, dim});
+        net_input.Reshape({batch_size, 3, dim, dim});
       }
 
       float* net_input_buffer = net_input.mutable_gpu_data();

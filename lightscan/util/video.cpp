@@ -673,6 +673,10 @@ bool VideoSeparator::decode(AVPacket* packet) {
   cupkt.payload_size = packet->size;
   cupkt.payload = reinterpret_cast<uint8_t*>(packet->data);
 
+  if (packet->size == 0) {
+    cupkt.flags |= CUVID_PKT_ENDOFSTREAM;
+  }
+
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
   if (is_metadata_) {
@@ -874,18 +878,22 @@ bool VideoDecoder::feed(
   cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
   if (discontinuity) {
     cupkt.flags |= CUVID_PKT_DISCONTINUITY;
+    while (frame_queue_.size() > 0) {
+      // Empty queue because we have a new section of frames
+      CUVIDPARSERDISPINFO dispinfo;
+      frame_queue_.pop(dispinfo);
+    }
   }
   if (encoded_size == 0) {
     cupkt.flags |= CUVID_PKT_ENDOFSTREAM;
   }
 
-  new_frame_ = false;
   CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
-  return new_frame_;
+  return frame_queue_.size() > 0;
 }
 
 bool VideoDecoder::get_frame(
@@ -965,7 +973,6 @@ int VideoDecoder::cuvid_handle_picture_display(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
-  decoder.new_frame_ = true;
   decoder.prev_frame_++;
 }
 
@@ -1112,6 +1119,7 @@ bool preprocess_video(
   int got_picture;
   do {
     got_picture = 0;
+    separator.decode(&state.av_packet);
     int len = avcodec_decode_video2(state.in_cc,
                                     state.picture,
                                     &got_picture,
