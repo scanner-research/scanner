@@ -396,16 +396,16 @@ void* decode_thread(void* arg) {
       char* encoded_packet = encoded_buffer + encoded_buffer_offset;
       encoded_buffer_offset += encoded_packet_size;
 
-      size_t frames_buffer_offset =
-        frame_size * (current_frame - work_item.start_frame);
-      assert(frames_buffer_offset < decoded_buffer_size);
-      char* current_frame_buffer_pos =
-        decoded_buffer + frames_buffer_offset;
-
       if (decoder.feed(encoded_packet, encoded_packet_size)) {
         // New frames
         bool more_frames = true;
         while (more_frames) {
+          size_t frames_buffer_offset =
+            frame_size * (current_frame - work_item.start_frame);
+          assert(frames_buffer_offset < decoded_buffer_size);
+          char* current_frame_buffer_pos =
+            decoded_buffer + frames_buffer_offset;
+
           more_frames = decoder.get_frame(current_frame_buffer_pos, frame_size);
           current_frame++;
         }
