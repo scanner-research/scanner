@@ -948,6 +948,7 @@ int VideoDecoder::cuvid_handle_picture_decode(
   CUVIDPICPARAMS* picparams)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+  CHECK_CU(cuvidDecodePicture(decoder->decoder_, picparams));
   decoder.prev_frame_++;
 }
 

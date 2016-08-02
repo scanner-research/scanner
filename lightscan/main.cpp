@@ -453,7 +453,7 @@ void* evaluate_thread(void* arg) {
   cv::cuda::setDevice(args.gpu_device_id);
 
   cv::Mat cpu_mean_mat(
-    net_info.mean_width, net_info.mean_height, CV_32FC3, net_info.mean_image);
+    net_info.mean_height, net_info.mean_width, CV_32FC3, net_info.mean_image);
   cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
   cv::cuda::GpuMat mean_mat;
   cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
@@ -474,7 +474,7 @@ void* evaluate_thread(void* arg) {
 
   std::vector<cv::cuda::GpuMat> rgba_mat;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    rgba_mats.push_back(
+    rgba_mat.push_back(
       cv::cuda::GpuMat(args.metadata[0].height,
                        args.metadata[0].width,
                        CV_8UC4));
@@ -482,7 +482,7 @@ void* evaluate_thread(void* arg) {
 
   std::vector<cv::cuda::GpuMat> rgb_mat;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    rgb_mats.push_back(
+    rgb_mat.push_back(
       cv::cuda::GpuMat(args.metadata[0].height,
                        args.metadata[0].width,
                        CV_8UC3));
@@ -494,13 +494,13 @@ void* evaluate_thread(void* arg) {
       cv::cuda::GpuMat(dim, dim, CV_8UC4));
   }
 
-  std::vector<cv::cuda::GpuMat> float_conv_input(
+  std::vector<cv::cuda::GpuMat> float_conv_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     float_conv_input.push_back(
       cv::cuda::GpuMat(dim, dim, CV_32FC3));
   }
 
-  std::vector<cv::cuda::GpuMat> normed_input(
+  std::vector<cv::cuda::GpuMat> normed_input;
     for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
       normed_input.push_back(
         cv::cuda::GpuMat(dim, dim, CV_32FC3));
@@ -564,7 +564,9 @@ void* evaluate_thread(void* arg) {
           CV_8UC1,
           buffer);
 
-        convertNV12toRGBA(input_mat, rgba_mat[sid],
+        input_mats[sid] = input_mat;
+
+        convertNV12toRGBA(input_mats[sid], rgba_mat[sid],
                           metadata.width, metadata.height,
                           cv_stream);
         cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_BGRA2BGR, 0,
