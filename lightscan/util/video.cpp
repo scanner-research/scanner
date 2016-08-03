@@ -803,7 +803,7 @@ VideoDecoder::VideoDecoder(
     metadata_packets_(metadata_packets),
     parser_(nullptr),
     decoder_(nullptr),
-    mapped_frames_(max_mapped_frames_, nullptr),
+    mapped_frames_(max_mapped_frames_, 0),
     prev_frame_(0),
     new_frame_(false),
     decode_time_(0)
@@ -868,7 +868,7 @@ VideoDecoder::VideoDecoder(
 VideoDecoder::~VideoDecoder() {
 
   for (int i = 0; i < max_mapped_frames_; ++i) {
-    if (mapped_frames_[i] != nullptr) {
+    if (mapped_frames_[i] != 0) {
       CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
     }
   }
@@ -946,7 +946,7 @@ bool VideoDecoder::get_frame(
     params.top_field_first = dispinfo.top_field_first;
 
     int mapped_frame_index = dispinfo.picture_index % max_mapped_frames_;
-    if (mapped_frames_[mapped_frame_index] != nullptr) {
+    if (mapped_frames_[mapped_frame_index] != 0) {
       CU_CHECK(cudaStreamSynchronize(streams_[mapped_frame_index]));
       CUD_CHECK(cuvidUnmapVideoFrame(decoder_,
                                      mapped_frames_[mapped_frame_index]));
