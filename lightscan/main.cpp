@@ -444,6 +444,8 @@ void* decode_thread(void* arg) {
 
   printf("(N/GPU: %d/%d) Decode thread finished.\n",
          rank, args.gpu_device_id);
+
+  THREAD_RETURN_SUCCESS();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -127,6 +127,10 @@ private:
     void *opaque,
     CUVIDPARSERDISPINFO* dispinfo);
 
+  const int max_output_frames_;
+  const int max_mapped_frames_;
+
+  std::vector<cudaStream_t> streams_;
   CUcontext cuda_context_;
   VideoMetadata metadata_;
   std::vector<char> metadata_packets_;
@@ -135,6 +139,7 @@ private:
   CUvideodecoder decoder_;
 
   Queue<CUVIDPARSERDISPINFO> frame_queue_;
+  std::vector<CUdeviceptr> mapped_frames_;
 
   int prev_frame_;
 

@@ -795,11 +795,15 @@ VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
   VideoMetadata metadata,
   std::vector<char> metadata_packets)
-  : cuda_context_(cuda_context),
+  : max_output_frames_(20),
+    max_mapped_frames_(8),
+    streams_(max_mapped_frames_),
+    cuda_context_(cuda_context),
     metadata_(metadata),
     metadata_packets_(metadata_packets),
     parser_(nullptr),
     decoder_(nullptr),
+    mapped_frames_(max_mapped_frames_, nullptr),
     prev_frame_(0),
     new_frame_(false),
     decode_time_(0)
@@ -808,10 +812,14 @@ VideoDecoder::VideoDecoder(
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    cudaStreamCreate(&streams_[i]);
+  }
+
   CUVIDPARSERPARAMS cuparseinfo = {};
 
   cuparseinfo.CodecType = metadata.codec_type;
-  cuparseinfo.ulMaxNumDecodeSurfaces = 20;
+  cuparseinfo.ulMaxNumDecodeSurfaces = max_output_frames_;
   cuparseinfo.ulMaxDisplayDelay = 4;
   cuparseinfo.pUserData = this;
   cuparseinfo.pfnSequenceCallback = VideoDecoder::cuvid_handle_video_sequence;
@@ -835,8 +843,8 @@ VideoDecoder::VideoDecoder(
   cuinfo.target_rect.right = cuinfo.ulWidth;
   cuinfo.target_rect.bottom = cuinfo.ulHeight;
 
-  cuinfo.ulNumDecodeSurfaces = 20;
-  cuinfo.ulNumOutputSurfaces = 1;
+  cuinfo.ulNumDecodeSurfaces = max_output_frames_;
+  cuinfo.ulNumOutputSurfaces = max_mapped_frames_;
   cuinfo.ulCreationFlags = cudaVideoCreate_PreferCUVID;
 
   cuinfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
@@ -858,12 +866,23 @@ VideoDecoder::VideoDecoder(
 }
 
 VideoDecoder::~VideoDecoder() {
+
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    if (mapped_frames_[i] != nullptr) {
+      CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
+    }
+  }
+
   if (parser_) {
     cuvidDestroyVideoParser(parser_);
   }
 
   if (decoder_) {
     cuvidDestroyDecoder(decoder_);
+  }
+
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    cudaStreamDestroy(streams_[i]);
   }
 }
 
@@ -926,18 +945,23 @@ bool VideoDecoder::get_frame(
     params.second_field = 0;
     params.top_field_first = dispinfo.top_field_first;
 
-    CUdeviceptr mapped_frame = 0;
+    int mapped_frame_index = dispinfo.picture_index % max_mapped_frames_;
+    if (mapped_frames_[mapped_frame_index] != nullptr) {
+      CU_CHECK(cudaStreamSynchronize(streams_[mapped_frame_index]));
+      CUD_CHECK(cuvidUnmapVideoFrame(decoder_,
+                                     mapped_frames_[mapped_frame_index]));
+    }
     unsigned int pitch = 0;
     CUD_CHECK(cuvidMapVideoFrame(decoder_,
                                  dispinfo.picture_index,
-                                 &mapped_frame,
+                                 &mapped_frames_[mapped_frame_index],
                                  &pitch,
                                  &params));
+    CUdeviceptr mapped_frame = mapped_frames_[mapped_frame_index];
     // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
     //              on that here to copy the data properly
-    auto memcpy_start = now();
     for (int i = 0; i < 2; i++) {
-      CU_CHECK(cudaMemcpy2D(
+      CU_CHECK(cudaMemcpy2DAsync(
                  decoded_buffer + i * metadata_.width * metadata_.height,
                  metadata_.width, // dst pitch
                  (const void*)(
@@ -945,10 +969,9 @@ bool VideoDecoder::get_frame(
                  pitch, // src pitch
                  metadata_.width, // width
                  i == 0 ? metadata_.height : metadata_.height / 2, // height
-                 cudaMemcpyDeviceToDevice));
+                 cudaMemcpyDeviceToDevice,
+                 streams_[mapped_frame_index]));
     }
-    //memcpy_time += nano_since(memcpy_start);
-    CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frame));
   }
 
   CUcontext dummy;
