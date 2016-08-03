@@ -806,7 +806,8 @@ VideoDecoder::VideoDecoder(
     mapped_frames_(max_mapped_frames_, 0),
     prev_frame_(0),
     new_frame_(false),
-    decode_time_(0)
+    decode_time_(0),
+    profiler_(nullptr)
 {
   CUcontext dummy;
 
@@ -866,7 +867,6 @@ VideoDecoder::VideoDecoder(
 }
 
 VideoDecoder::~VideoDecoder() {
-
   for (int i = 0; i < max_mapped_frames_; ++i) {
     if (mapped_frames_[i] != 0) {
       CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
@@ -947,16 +947,24 @@ bool VideoDecoder::get_frame(
 
     int mapped_frame_index = dispinfo.picture_index % max_mapped_frames_;
     if (mapped_frames_[mapped_frame_index] != 0) {
+      auto start_unmap = now();
       CU_CHECK(cudaStreamSynchronize(streams_[mapped_frame_index]));
       CUD_CHECK(cuvidUnmapVideoFrame(decoder_,
                                      mapped_frames_[mapped_frame_index]));
+      if (profiler_ != nullptr) {
+        profiler_->add_interval("unmap_frame", start_unmap, now());
+      }
     }
+    auto start_map = now();
     unsigned int pitch = 0;
     CUD_CHECK(cuvidMapVideoFrame(decoder_,
                                  dispinfo.picture_index,
                                  &mapped_frames_[mapped_frame_index],
                                  &pitch,
                                  &params));
+    if (profiler_ != nullptr) {
+      profiler_->add_interval("map_frame", start_map, now());
+    }
     CUdeviceptr mapped_frame = mapped_frames_[mapped_frame_index];
     // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
     //              on that here to copy the data properly
@@ -987,6 +995,10 @@ double VideoDecoder::time_spent_on_decode() {
 
 void VideoDecoder::reset_timing() {
   decode_time_ = 0;
+}
+
+void VideoDecoder::set_profiler(Profiler* profiler) {
+  profiler_ = profiler;
 }
 
 int VideoDecoder::cuvid_handle_video_sequence(

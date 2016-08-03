@@ -17,6 +17,8 @@
 
 #include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/queue.h"
+#include "lightscan/util/profiler.h"
+
 #include <string>
 #include <pthread.h>
 
@@ -115,6 +117,8 @@ public:
 
   void reset_timing();
 
+  void set_profiler(Profiler* profiler);
+
 private:
   static int cuvid_handle_video_sequence(
     void *opaque,
@@ -147,6 +151,8 @@ private:
   int new_frame_;
 
   double decode_time_;
+
+  Profiler* profiler_;
 };
 
 bool preprocess_video(

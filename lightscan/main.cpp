@@ -350,6 +350,7 @@ void* decode_thread(void* arg) {
     args.cuda_context,
     args.metadata[0],
     args.metadata_packets[0]};
+  decoder.set_profiler(&args.profiler);
 
   CU_CHECK(cudaSetDevice(args.gpu_device_id));
 
