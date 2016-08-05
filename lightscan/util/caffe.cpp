@@ -36,6 +36,8 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
   int mean_width;
   int mean_height;
   int dim = 0;
+  std::string input_layer_name;
+  std::string output_layer_name;
 
   switch (type) {
   case NetType::ALEX_NET: {
@@ -47,6 +49,9 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
 
     std::string mean_proto_path =
       "features/bvlc_reference_caffenet/imagenet_mean.binaryproto";
+
+    input_layer_name = "data";
+    output_layer_name = "fc8";
 
     // Load mean image
     Blob<float> data_mean;
@@ -67,6 +72,9 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
     model_weights_path =
       "features/vgg19/VGG_ILSVRC_19_layers.caffemodel";
 
+    input_layer_name = "data";
+    output_layer_name = "fc8";
+
     mean_width = dim;
     mean_height = dim;
     mean_image = new float[dim * dim * 3];
@@ -85,6 +93,9 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
       "features/vgg_face_caffe/VGG_FACE_deploy.prototxt";
     model_weights_path =
       "features/vgg_face_caffe/VGG_FACE.caffemodel";
+
+    input_layer_name = "data";
+    output_layer_name = "fc8";
 
     mean_width = dim;
     mean_height = dim;
@@ -118,6 +129,8 @@ NetInfo load_neural_net(NetType type, int gpu_id) {
   info.mean_image = mean_image;
   info.mean_width = mean_width;
   info.mean_height = mean_height;
+  info.input_layer_name = input_layer_name;
+  info.output_layer_name = output_layer_name;
   return info;
 }
 

@@ -57,11 +57,13 @@ namespace po = boost::program_options;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
+int CPUS_PER_NODE = 1;           // Number of available CPUs per node
 int GPUS_PER_NODE = 1;           // Number of available GPUs per node
 int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
 int BATCHES_PER_WORK_ITEM = 4;   // How many batches per work item
 int TASKS_IN_QUEUE_PER_GPU = 4;  // How many tasks per GPU to allocate to a node
 int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
+int SAVE_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
 
 const std::string DB_PATH = "/Users/abpoms/kcam";
@@ -136,6 +138,12 @@ struct EvalWorkEntry {
   char* buffer;
 };
 
+struct SaveWorkEntry {
+  int work_item_index;
+  size_t output_buffer_size;
+  char* buffer;
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
 struct LoadThreadArgs {
@@ -182,6 +190,21 @@ struct EvaluateThreadArgs {
   // Queues for communicating work
   Queue<EvalWorkEntry>& eval_work;
   Queue<DecodeBufferEntry>& empty_decode_buffers;
+  Queue<SaveWorkEntry>& save_work;
+};
+
+struct SaveThreadArgs {
+  // Uniform arguments
+  const std::vector<std::string>& video_paths;
+  const std::vector<VideoMetadata>& metadata;
+  const std::vector<VideoWorkItem>& work_items;
+
+  // Per worker arguments
+  StorageConfig* storage_config;
+  Profiler& profiler;
+
+  // Queues for communicating work
+  Queue<SaveWorkEntry>& save_work;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -197,11 +220,6 @@ void* load_video_thread(void* arg) {
   // Setup a distinct storage backend for each IO thread
   StorageBackend* storage =
     StorageBackend::make_from_config(args.storage_config);
-
-  std::vector<double> task_times;
-  std::vector<double> idle_times;
-
-  std::vector<double> io_times;
 
   std::string last_video_path;
   RandomReadFile* video_file = nullptr;
@@ -346,13 +364,13 @@ void* decode_thread(void* arg) {
   // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
   //              codec type) all videos should be the same for now so just use
   //              the first.
+  CU_CHECK(cudaSetDevice(args.gpu_device_id));
+
   VideoDecoder decoder{
     args.cuda_context,
     args.metadata[0],
     args.metadata_packets[0]};
   decoder.set_profiler(&args.profiler);
-
-  CU_CHECK(cudaSetDevice(args.gpu_device_id));
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -474,9 +492,6 @@ void* evaluate_thread(void* arg) {
   cv::cuda::GpuMat mean_mat;
   cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
 
-
-  caffe::Blob<float> net_input{GLOBAL_BATCH_SIZE, 3, dim, dim};
-
   // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
 
@@ -522,8 +537,11 @@ void* evaluate_thread(void* arg) {
         cv::cuda::GpuMat(dim, dim, CV_32FC3));
     }
 
-  const boost::shared_ptr<caffe::Blob<float>> data_blob{
-    net->blob_by_name("data")};
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+    net->blob_by_name(net_info.input_layer_name)};
+
+  const boost::shared_ptr<caffe::Blob<float>> output_blob{
+    net->blob_by_name(net_info.output_layer_name)};
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -543,6 +561,13 @@ void* evaluate_thread(void* arg) {
 
     char* frame_buffer = work_entry.buffer;
 
+    // Create size of output buffer equal to number of frames multiplied by
+    // the size of the output vector for each image of a batch
+    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
+    size_t output_buffer_size =
+      (work_item.end_frame - work_item.start_frame) * output_size_per_frame;
+    char* output_buffer = new char[output_buffer_size];
+
     const VideoWorkItem& work_item =
       args.work_items[work_entry.work_item_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
@@ -559,12 +584,11 @@ void* evaluate_thread(void* arg) {
       int batch_size =
         std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
-      if (data_blob->shape(0) != batch_size) {
-        data_blob->Reshape({batch_size, 3, dim, dim});
-        net_input.Reshape({batch_size, 3, dim, dim});
+      if (input_blob->shape(0) != batch_size) {
+        input_blob->Reshape({batch_size, 3, dim, dim});
       }
 
-      float* net_input_buffer = net_input.mutable_gpu_data();
+      float* net_input_buffer = input_blob->mutable_gpu_data();
 
       // Process batch of frames
       auto cv_start = now();
@@ -625,11 +649,18 @@ void* evaluate_thread(void* arg) {
       CU_CHECK(cudaDeviceSynchronize());
       args.profiler.add_interval("cv", cv_start, now());
 
+      // Compute features
       auto net_start = now();
-      net->Forward({&net_input});
+      net->Forward();
       args.profiler.add_interval("net", net_start, now());
 
       // Save batch of frames
+      CU_CHECK(cudaMemcpy(
+                 output_buffer + frame_offset * output_size_per_frame,
+                 output_blob->gpu_data(),
+                 batch_size * output_size_per_frame,
+                 cudaMemcpyDeviceToHost));
+
       current_frame += batch_size;
     }
     args.profiler.add_interval("task", work_start, now());
@@ -638,6 +669,12 @@ void* evaluate_thread(void* arg) {
     empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
     empty_buffer_entry.buffer = frame_buffer;
     args.empty_decode_buffers.push(empty_buffer_entry);
+
+    SaveWorkEntry save_work_entry;
+    save_work_entry.work_item_index = work_entry.work_item_index;
+    save_work_entry.output_buffer_size = output_buffer_size;
+    save_work_entry.buffer = output_buffer;
+    args.save_work.push(save_work_entry);
   }
 
   delete net;
@@ -647,6 +684,82 @@ void* evaluate_thread(void* arg) {
 
   THREAD_RETURN_SUCCESS();
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// Thread to asynchronously save result buffers
+void* save_thread(void* arg) {
+  SaveThreadArgs& args = *reinterpret_cast<SaveThreadArgs*>(arg);
+
+  auto setup_start = now();
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  // Setup a distinct storage backend for each IO thread
+  StorageBackend* storage =
+    StorageBackend::make_from_config(args.storage_config);
+
+  args.profiler.add_interval("setup", setup_start, now());
+
+  while (true) {
+    auto idle_start = now();
+
+    SaveWorkEntry save_work_entry;
+    args.save_work.pop(save_work_entry);
+
+    if (save_work_entry.work_item_index == -1) {
+      break;
+    }
+
+    args.profiler.add_interval("idle", idle_start, now());
+
+    auto work_start = now();
+
+    const VideoWorkItem& work_item =
+      args.work_items[save_work_entry.work_item_index];
+
+    const std::string& video_path = args.video_paths[work_item.video_index];
+    const VideoMetadata& metadata = args.metadata[work_item.video_index];
+
+    const std::string output_path =
+      processed_video_path(video_path) + "_" +
+      std::to_string(work_item.start_frame) + "-" +
+      std::to_string(work_item.end_frame) + ".bin";
+
+    // Open the video file for reading
+    WriteFile* output_file = nullptr;
+    storage->make_write_file(output_path, output_file);
+
+    auto io_start = now();
+
+    StoreResult result;
+    EXP_BACKOFF(
+      output_file->append(
+        save_work_entry.output_buffer_size,
+        save_work_entry.buffer),
+      result);
+    assert(result == StoreResult::Success ||
+           result == StoreResult::EndOfFile);
+
+    output_file->save();
+
+    delete output_file;
+
+    delete[] save_work_entry.buffer;
+
+    args.profiler.add_interval("io", io_start, now());
+
+    args.profiler.add_interval("task", work_start, now());
+  }
+
+  printf("(N: %d) Save thread finished.\n", rank);
+
+  // Cleanup
+  delete storage;
+
+  THREAD_RETURN_SUCCESS();
+}
+
 
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
@@ -676,6 +789,8 @@ int main(int argc, char** argv) {
        "Number of tasks a node will try to maintain in the work queue per GPU")
       ("load_workers_per_node", po::value<int>(),
        "Number of worker threads processing load jobs per node");
+      ("save_workers_per_node", po::value<int>(),
+       "Number of worker threads processing save jobs per node");
     try {
       po::store(po::parse_command_line(argc, argv, desc), vm);
       po::notify(vm);
@@ -699,6 +814,9 @@ int main(int argc, char** argv) {
       }
       if (vm.count("load_workers_per_node")) {
         LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"].as<int>();
+      }
+      if (vm.count("save_workers_per_node")) {
+        SAVE_WORKERS_PER_NODE = vm["save_workers_per_node"].as<int>();
       }
 
       video_paths_file = vm["video_paths_file"].as<std::string>();
@@ -822,6 +940,7 @@ int main(int argc, char** argv) {
     Queue<DecodeWorkEntry> decode_work;
     std::vector<Queue<DecodeBufferEntry>> empty_decode_buffers(GPUS_PER_NODE);
     std::vector<Queue<EvalWorkEntry>> eval_work(GPUS_PER_NODE);
+    Queue<SaveWorkEntry> save_work;
 
     // Allocate several buffers to hold the intermediate of an entire work item
     // to allow pipelining of load/eval
@@ -878,7 +997,7 @@ int main(int argc, char** argv) {
                      &load_thread_args[i]);
     }
 
-    // Setup load workers
+    // Setup decode workers
     std::vector<Profiler> decode_thread_profilers(
       GPUS_PER_NODE,
       Profiler(base_time));
@@ -932,12 +1051,40 @@ int main(int argc, char** argv) {
         // Queues
         eval_work[i],
         empty_decode_buffers[i],
+        save_work
       });
     }
     std::vector<pthread_t> eval_threads(GPUS_PER_NODE);
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       pthread_create(&eval_threads[i], NULL, evaluate_thread,
                      &eval_thread_args[i]);
+    }
+
+    // Setup save workers
+    std::vector<Profiler> save_thread_profilers(
+      SAVE_WORKERS_PER_NODE,
+      Profiler(base_time));
+    std::vector<SaveThreadArgs> save_thread_args;
+    for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+      // Create IO thread for reading and decoding data
+      save_thread_args.emplace_back(SaveThreadArgs{
+        // Uniform arguments
+        video_paths,
+        video_metadata,
+        work_items,
+
+        // Per worker arguments
+        config,
+        save_thread_profilers[i],
+
+        // Queues
+        save_work,
+      });
+    }
+    std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
+    for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+      pthread_create(&save_threads[i], NULL, save_video_thread,
+                     &save_thread_args[i]);
     }
 
     // Push work into load queues
@@ -1041,6 +1188,8 @@ int main(int argc, char** argv) {
       free(result);
 
     }
+
+    // Push sentinel work entries into queue to terminate decode threads
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       DecodeWorkEntry entry;
       entry.work_item_index = -1;
@@ -1076,6 +1225,24 @@ int main(int argc, char** argv) {
       int err = pthread_join(eval_threads[i], &result);
       if (err != 0) {
         fprintf(stderr, "error in pthread_join of eval thread\n");
+        exit(EXIT_FAILURE);
+      }
+      free(result);
+    }
+
+    // Push sentinel work entries into queue to terminate save threads
+    for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+      SaveWorkEntry entry;
+      entry.work_item_index = -1;
+      save_work.push(entry);
+    }
+
+    for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+      // Wait until eval has finished
+      void* result;
+      int err = pthread_join(save_threads[i], &result);
+      if (err != 0) {
+        fprintf(stderr, "error in pthread_join of save thread\n");
         exit(EXIT_FAILURE);
       }
       free(result);
@@ -1179,6 +1346,13 @@ int main(int argc, char** argv) {
                           sizeof(eval_worker_count));
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
       write_profiler_to_file(out_rank, "eval", i, eval_thread_profilers[i]);
+    }
+
+    // Save worker profilers
+    uint8_t save_worker_count = SAVE_WORKERS_PER_NODE;
+    profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
+    for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+      write_profiler_to_file(out_rank, "save", i, save_thread_profilers[i]);
     }
 
     profiler_output.close();

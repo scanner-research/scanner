@@ -36,6 +36,9 @@ struct NetInfo {
   float* mean_image;
   int mean_width;
   int mean_height;
+
+  std::string input_layer_name;
+  std::string output_layer_name;
 };
 
 NetInfo load_neural_net(NetType type, int gpu_id);
