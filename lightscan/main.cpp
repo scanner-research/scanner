@@ -561,13 +561,6 @@ void* evaluate_thread(void* arg) {
 
     char* frame_buffer = work_entry.buffer;
 
-    // Create size of output buffer equal to number of frames multiplied by
-    // the size of the output vector for each image of a batch
-    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
-    size_t output_buffer_size =
-      (work_item.end_frame - work_item.start_frame) * output_size_per_frame;
-    char* output_buffer = new char[output_buffer_size];
-
     const VideoWorkItem& work_item =
       args.work_items[work_entry.work_item_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
@@ -577,6 +570,13 @@ void* evaluate_thread(void* arg) {
                                metadata.width,
                                metadata.height,
                                1);
+
+    // Create size of output buffer equal to number of frames multiplied by
+    // the size of the output vector for each image of a batch
+    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
+    size_t output_buffer_size =
+      (work_item.end_frame - work_item.start_frame) * output_size_per_frame;
+    char* output_buffer = new char[output_buffer_size];
 
     int current_frame = work_item.start_frame;
     while (current_frame < work_item.end_frame) {
@@ -1083,7 +1083,7 @@ int main(int argc, char** argv) {
     }
     std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
     for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      pthread_create(&save_threads[i], NULL, save_video_thread,
+      pthread_create(&save_threads[i], NULL, save_thread,
                      &save_thread_args[i]);
     }
 
