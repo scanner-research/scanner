@@ -89,6 +89,17 @@ std::string iframe_path(const std::string& video_path) {
     basename_s(video_path) + IFRAME_PATH_POSTFIX + ".bin";
 }
 
+std::string work_item_output_path(const std::string& video_path,
+                                  int start, int end) {
+  return processed_video_path(video_path) + "_output_" +
+    std::to_string(start) + "-" +
+    std::to_string(end) + ".bin";
+}
+
+std::string work_metadata_output_path(const std::string& job_name) {
+  return job_name + "_output_descriptor.bin";
+}
+
 inline int frames_per_work_item() {
   return GLOBAL_BATCH_SIZE * BATCHES_PER_WORK_ITEM;
 }
@@ -722,9 +733,9 @@ void* save_thread(void* arg) {
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     const std::string output_path =
-      processed_video_path(video_path) + "_" +
-      std::to_string(work_item.start_frame) + "-" +
-      std::to_string(work_item.end_frame) + ".bin";
+      work_item_output_path(video_path,
+                            work_item.start_frame,
+                            work_item.end_frame);
 
     // Open the video file for reading
     WriteFile* output_file = nullptr;
@@ -910,10 +921,14 @@ int main(int argc, char** argv) {
     // Break up videos and their frames into equal sized work items
     const int WORK_ITEM_SIZE = frames_per_work_item();
     std::vector<VideoWorkItem> work_items;
+    // Track how work was broken up for each video so we can know how the
+    // output will be chunked up when saved out
+    std::vector<std::vector<std::tuple<int, int>>> video_work_intervals;
     uint32_t total_frames = 0;
     for (size_t i = 0; i < video_paths.size(); ++i) {
       const VideoMetadata& meta = video_metadata[i];
 
+      std::vector<std::tuple<int, int>> work_intervals;
       int32_t allocated_frames = 0;
       while (allocated_frames < meta.frames) {
         int32_t frames_to_allocate =
@@ -924,9 +939,12 @@ int main(int argc, char** argv) {
         item.start_frame = allocated_frames;
         item.end_frame = allocated_frames + frames_to_allocate;
         work_items.push_back(item);
+        work_intervals.emplace_back(item.start_frame, item.end_frame);
 
         allocated_frames += frames_to_allocate;
       }
+      video_work_intervals.push_back(work_intervals);
+
       total_frames += meta.frames;
     }
     if (is_master(rank)) {
@@ -1246,6 +1264,53 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
       }
       free(result);
+    }
+
+    // Write out metadata to describe where the output results are for each
+    // video
+    {
+      const std::string metadata_path = work_metadata_output_path("job0");
+      std::unique_ptr<WriteFile> output_file;
+      make_unique_write_file(storage, metadata_path, output_file);
+
+      int64_t num_videos = video_paths.size();
+      StoreResult result;
+      EXP_BACKOFF(
+        output_file->append(
+          sizeof(int64_t),
+          &num_videos),
+        result);
+      exit_on_error(result);
+
+      for (size_t i = 0; i < video_work_intervals.size(); ++i) {
+        const std::string& video_path = video_paths[i];
+        const std::vector<std::tuple<int, int>>& work_intervals =
+          video_work_intervals[i];
+
+        EXP_BACKOFF(
+          output_file->append(
+            video_path.size() + 1
+            video_path.c_str()),
+          result);
+        exit_on_error(result);
+
+        std::vector<int64_t> buffer;
+        int64_t num_intervals = work_intervals.size();
+        bufer.push_back(num_intervals);
+        for (const std::tuple<int, int>& interval : work_intervals) {
+          buffer.push_back(std::get<0>(interval));
+          buffer.push_back(std::get<1>(interval));
+
+        }
+        EXP_BACKOFF(
+          output_file->append(
+            buffer.size(),
+            buffer.data()),
+          result);
+        exit_on_error(result);
+      }
+
+      output_file->save();
     }
 
     // Execution done, write out profiler intervals for each worker

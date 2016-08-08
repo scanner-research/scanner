@@ -112,6 +112,12 @@ def parse_profiler_file():
     for i in range(num_eval_workers):
         prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
+    # Save worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_save_workers = t[0]
+    for i in range(num_save_workers):
+        prof, offset = parse_profiler_output(bytes_buffer, offset)
+        profilers[prof['worker_type']].append(prof)
     return (start_time, end_time), profilers
 
 
@@ -185,7 +191,8 @@ def write_trace_file(profilers):
     worker_profiler_groups = profilers
     for worker_type, profs in [('load', worker_profiler_groups['load']),
                                ('decode', worker_profiler_groups['decode']),
-                               ('eval', worker_profiler_groups['eval'])]:
+                               ('eval', worker_profiler_groups['eval']),
+                               ('save', worker_profiler_groups['save'])]:
         for i, prof in enumerate(profs):
             tid = next_tid
             next_tid += 1
