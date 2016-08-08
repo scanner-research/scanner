@@ -1278,7 +1278,7 @@ int main(int argc, char** argv) {
       EXP_BACKOFF(
         output_file->append(
           sizeof(int64_t),
-          &num_videos),
+          (const char*)&num_videos),
         result);
       exit_on_error(result);
 
@@ -1289,14 +1289,14 @@ int main(int argc, char** argv) {
 
         EXP_BACKOFF(
           output_file->append(
-            video_path.size() + 1
+            video_path.size() + 1,
             video_path.c_str()),
           result);
         exit_on_error(result);
 
         std::vector<int64_t> buffer;
         int64_t num_intervals = work_intervals.size();
-        bufer.push_back(num_intervals);
+        buffer.push_back(num_intervals);
         for (const std::tuple<int, int>& interval : work_intervals) {
           buffer.push_back(std::get<0>(interval));
           buffer.push_back(std::get<1>(interval));
@@ -1305,7 +1305,7 @@ int main(int argc, char** argv) {
         EXP_BACKOFF(
           output_file->append(
             buffer.size(),
-            buffer.data()),
+            (char*)buffer.data()),
           result);
         exit_on_error(result);
       }
