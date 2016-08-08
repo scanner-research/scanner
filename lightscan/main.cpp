@@ -1304,7 +1304,7 @@ int main(int argc, char** argv) {
         }
         EXP_BACKOFF(
           output_file->append(
-            buffer.size(),
+            buffer.size() * sizeof(int64_t),
             (char*)buffer.data()),
           result);
         exit_on_error(result);
