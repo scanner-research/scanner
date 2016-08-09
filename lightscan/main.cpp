@@ -302,20 +302,14 @@ void* load_video_thread(void* arg) {
         break;
       }
     }
-    uint64_t start_keyframe_byte_offset;
     if (start_keyframe_index == std::numeric_limits<size_t>::max()) {
-      start_keyframe_byte_offset =
-        static_cast<uint64_t>(
-          keyframe_byte_offsets[keyframe_byte_offsets.size() - 1]);
-    } else {
-      start_keyframe_byte_offset =
-        static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
+      start_keyframe_index = keyframe_positions.size() - 1;
     }
+    uint64_t start_keyframe_byte_offset =
+      static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
 
     size_t end_keyframe_index = 0;
-    for (size_t i = start_keyframe_index;
-         i < keyframe_positions.size() - 1;
-         ++i) {
+    for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
       if (keyframe_positions[i] > work_item.end_frame) {
         end_keyframe_index = i;
         break;
