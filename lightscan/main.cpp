@@ -295,12 +295,21 @@ void* load_video_thread(void* arg) {
     // interested and will continue up to the bytes before the iframe at or
     // after the last frame we are interested in.
 
-    size_t start_keyframe_index = 0;
+    size_t start_keyframe_index = std::numeric_limits<size_t>::max();
     for (size_t i = 1; i < keyframe_positions.size(); ++i) {
       if (keyframe_positions[i] > work_item.start_frame) {
         start_keyframe_index = i - 1;
         break;
       }
+    }
+    uint64_t start_keyframe_byte_offset;
+    if (start_keyframe_index == std::numeric_limits<size_t>::max()) {
+      start_keyframe_byte_offset =
+        static_cast<uint64_t>(
+          keyframe_byte_offsets[keyframe_byte_offsets.size() - 1]);
+    } else {
+      start_keyframe_byte_offset =
+        static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
     }
 
     size_t end_keyframe_index = 0;
@@ -312,8 +321,6 @@ void* load_video_thread(void* arg) {
         break;
       }
     }
-    uint64_t start_keyframe_byte_offset =
-      static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
     uint64_t end_keyframe_byte_offset;
     if (end_keyframe_index == 0) {
       end_keyframe_byte_offset = file_size;
