@@ -14,6 +14,8 @@
  */
 
 #include "lightscan/util/caffe.h"
+#include "lightscan/util/queue.h"
+#include "lightscan/util/cuda.h"
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -28,6 +30,7 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
 #include <fstream>
+#include <thread>
 
 namespace po = boost::program_options;
 
@@ -35,56 +38,17 @@ int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
 
 const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
 
-int main(int argc, char** argv) {
-  std::string video_paths_file;
-  {
-    po::variables_map vm;
-    po::options_description desc("Allowed options");
-    desc.add_options()
-      ("help", "Produce help message")
-      ("video_paths_file", po::value<std::string>()->required(),
-       "File which contains paths to video files to process")
-      ("batch_size", po::value<int>(), "Neural Net input batch size");
-    try {
-      po::store(po::parse_command_line(argc, argv, desc), vm);
-      po::notify(vm);
+void worker(
+  int gpu_device_id,
+  std::vector<std::string>& video_paths,
+  Queue<int>& work_items)
+{
+  // Set ourselves to the correct GPU
+  CU_CHECK(cudaSetDevice(gpu_device_id));
 
-      if (vm.count("help")) {
-        std::cout << desc << std::endl;
-        return 1;
-      }
-
-      if (vm.count("batch_size")) {
-        GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
-      }
-
-      video_paths_file = vm["video_paths_file"].as<std::string>();
-
-    } catch (const po::required_option& e) {
-      if (vm.count("help")) {
-        std::cout << desc << std::endl;
-        return 1;
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  // Read in list of video paths
-  std::vector<std::string> video_paths;
-  {
-    std::fstream fs(video_paths_file, std::fstream::in);
-    while (fs) {
-      std::string path;
-      fs >> path;
-      if (path.empty()) continue;
-      video_paths.push_back(path);
-    }
-  }
-
-  // Setup caffe
+  // Setup network to use for evaluation
   lightscan::NetInfo net_info =
-    load_neural_net(lightscan::NetType::ALEX_NET, 0);
+    load_neural_net(lightscan::NetType::VGG, gpu_device_id);
   caffe::Net<float>* net = net_info.net;
 
   int dim = net_info.input_size;
@@ -106,11 +70,18 @@ int main(int argc, char** argv) {
   cv::Mat resize_frame;
   cv::Mat float_frame;
   cv::Mat input_frame;
-  for (size_t video_index = 0;
-       video_index < video_paths.size();
-       ++video_index)
-  {
-    video.open(KCAM_DIRECTORY + "/" + video_paths[video_index]);
+
+  while (true) {
+    int work_item_index;
+    work_items.pop(work_item_index);
+
+    if (work_item_index == -1) {
+      break;
+    }
+
+    const std::string& video_path = video_paths[work_item_index];
+
+    video.open(KCAM_DIRECTORY + "/" + video_path);
 
     bool done = false;
     int frame_index = 0;
@@ -148,5 +119,78 @@ int main(int argc, char** argv) {
       // Evaluate net on batch of frames
       net->Forward({&net_input});
     }
+  }
+}
+
+int main(int argc, char** argv) {
+  std::string video_paths_file;
+  {
+    po::variables_map vm;
+    po::options_description desc("Allowed options");
+    desc.add_options()
+      ("help", "Produce help message")
+      ("video_paths_file", po::value<std::string>()->required(),
+       "File which contains paths to video files to process")
+      ("batch_size", po::value<int>(), "Neural Net input batch size")
+      ("gpus_per_node", po::value<int>(), "GPUs to use per node");
+    try {
+      po::store(po::parse_command_line(argc, argv, desc), vm);
+      po::notify(vm);
+
+      if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        return 1;
+      }
+
+      if (vm.count("batch_size")) {
+        GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
+      }
+
+      if (vm.count("gpus_per_node")) {
+        GPUS_PER_NODE = vm["gpus_per_node"].as<int>();
+      }
+
+      video_paths_file = vm["video_paths_file"].as<std::string>();
+
+    } catch (const po::required_option& e) {
+      if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        return 1;
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  // Read in list of video paths
+  std::vector<std::string> video_paths;
+  {
+    std::fstream fs(video_paths_file, std::fstream::in);
+    while (fs) {
+      std::string path;
+      fs >> path;
+      if (path.empty()) continue;
+      video_paths.push_back(path);
+    }
+  }
+
+  // Setup queue of work to distribute to threads
+  Queue<int64_t> work_items;
+  for (size_t i = 0; i < video_paths.size(); ++i) {
+    work_items.push(i);
+  }
+
+  // Start up workers to process videos
+  std::vector<std::thread> workers;
+  for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
+    workers.emplace_back(worker, std::ref(video_paths), std::ref(work_items));
+  }
+  // Place sentinel values to end workers
+  for (size_t i = 0; i < GPUS_PER_NODE; ++i) {
+    work_items.push(-1);
+  }
+  // Wait for workers to finish
+  for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
+    workers[gpu].join();
   }
 }

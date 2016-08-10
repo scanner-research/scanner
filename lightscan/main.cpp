@@ -497,7 +497,7 @@ void* evaluate_thread(void* arg) {
 
   CU_CHECK(cudaSetDevice(args.gpu_device_id));
   // Setup caffe net
-  NetInfo net_info = load_neural_net(NetType::ALEX_NET, args.gpu_device_id);
+  NetInfo net_info = load_neural_net(NetType::VGG, args.gpu_device_id);
   caffe::Net<float>* net = net_info.net;
 
   int dim = net_info.input_size;
