@@ -42,7 +42,7 @@ const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
 void worker(
   int gpu_device_id,
   std::vector<std::string>& video_paths,
-  Queue<int>& work_items)
+  Queue<int64_t>& work_items)
 {
   // Set ourselves to the correct GPU
   CU_CHECK(cudaSetDevice(gpu_device_id));
@@ -73,7 +73,7 @@ void worker(
   cv::Mat input_frame;
 
   while (true) {
-    int work_item_index;
+    int64_t work_item_index;
     work_items.pop(work_item_index);
 
     if (work_item_index == -1) {
