@@ -109,6 +109,8 @@ public:
     size_t encoded_size,
     bool discontinuity = false);
 
+  bool discard_frame();
+
   bool get_frame(
     char* decoded_buffer,
     size_t decoded_size);

@@ -440,18 +440,18 @@ void* decode_thread(void* arg) {
         // New frames
         bool more_frames = true;
         while (more_frames && current_frame < work_item.end_frame) {
-          size_t frames_buffer_offset;
           if (current_frame >= work_item.start_frame) {
-            frames_buffer_offset =
+            size_t frames_buffer_offset =
               frame_size * (current_frame - work_item.start_frame);
-          } else {
-            frames_buffer_offset = 0;
-          }
-          assert(frames_buffer_offset < decoded_buffer_size);
-          char* current_frame_buffer_pos =
-            decoded_buffer + frames_buffer_offset;
+            assert(frames_buffer_offset < decoded_buffer_size);
+            char* current_frame_buffer_pos =
+              decoded_buffer + frames_buffer_offset;
 
-          more_frames = decoder.get_frame(current_frame_buffer_pos, frame_size);
+            more_frames =
+              decoder.get_frame(current_frame_buffer_pos, frame_size);
+          } else {
+            more_frames = decoder.discard_frame();
+          }
           current_frame++;
         }
       }

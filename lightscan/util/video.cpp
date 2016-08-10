@@ -930,6 +930,21 @@ bool VideoDecoder::feed(
   return frame_queue_.size() > 0;
 }
 
+
+bool VideoDecoder::discard_frame() {
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+
+  if (frame_queue_.size() > 0) {
+    CUVIDPARSERDISPINFO dispinfo;
+    frame_queue_.pop(dispinfo);
+  }
+
+  CUcontext dummy;
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
+
+  return frame_queue_.size() > 0;
+}
+
 bool VideoDecoder::get_frame(
   char* decoded_buffer,
   size_t decoded_size)
