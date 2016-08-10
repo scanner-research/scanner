@@ -460,6 +460,10 @@ void* decode_thread(void* arg) {
     // Wait on all memcpys from frames to be done
     decoder.wait_until_frames_copied();
 
+    if (decoder.decoded_frames_buffered() > 0) {
+      while (decoder.discard_frame()) {};
+    }
+
     // Must clean up buffer allocated by load thread
     delete[] encoded_buffer;
 

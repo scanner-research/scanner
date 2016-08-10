@@ -1036,7 +1036,7 @@ int VideoDecoder::cuvid_handle_picture_decode(
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
 
-  int mapped_frame_index = dispinfo.CurrPicIdx % decoder.max_mapped_frames_;
+  int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
   if (decoder.mapped_frames_[mapped_frame_index] != 0) {
     auto start_unmap = now();
     CU_CHECK(cudaStreamSynchronize(decoder.streams_[mapped_frame_index]));
