@@ -34,6 +34,7 @@
 
 namespace po = boost::program_options;
 
+int GPUS_PER_NODE = 1;           // GPUs to use per node
 int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
 
 const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
@@ -183,7 +184,11 @@ int main(int argc, char** argv) {
   // Start up workers to process videos
   std::vector<std::thread> workers;
   for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
-    workers.emplace_back(worker, std::ref(video_paths), std::ref(work_items));
+    workers.emplace_back(
+      worker,
+      gpu,
+      std::ref(video_paths),
+      std::ref(work_items));
   }
   // Place sentinel values to end workers
   for (size_t i = 0; i < GPUS_PER_NODE; ++i) {
