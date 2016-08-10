@@ -795,7 +795,7 @@ VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
   VideoMetadata metadata,
   std::vector<char> metadata_packets)
-  : max_output_frames_(20),
+  : max_output_frames_(32),
     max_mapped_frames_(8),
     streams_(max_mapped_frames_),
     cuda_context_(cuda_context),
@@ -962,6 +962,10 @@ bool VideoDecoder::get_frame(
                                  &mapped_frames_[mapped_frame_index],
                                  &pitch,
                                  &params));
+    // cuvidMapVideoFrame does not wait for convert kernel to finish so sync
+    // TODO(apoms): make this an event insertion and have the async 2d memcpy
+    //              depend on the event
+    CU_CHECK(cudaStreamSynchronize(0));
     if (profiler_ != nullptr) {
       profiler_->add_interval("map_frame", start_map, now());
     }
@@ -989,12 +993,14 @@ bool VideoDecoder::get_frame(
 }
 
 
-double VideoDecoder::time_spent_on_decode() {
-  return decode_time_;
+int VideoDecoder::decoded_frames_buffered() {
+  return static_cast<int>(frame_queue_.size());
 }
 
-void VideoDecoder::reset_timing() {
-  decode_time_ = 0;
+void VideoDecoder::wait_until_frames_copied() {
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    CU_CHECK(cudaStreamSynchronize(streams_[i]));
+  }
 }
 
 void VideoDecoder::set_profiler(Profiler* profiler) {
@@ -1014,6 +1020,19 @@ int VideoDecoder::cuvid_handle_picture_decode(
   CUVIDPICPARAMS* picparams)
 {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
+
+  int mapped_frame_index = dispinfo.CurrPicIdx % decoder.max_mapped_frames_;
+  if (decoder.mapped_frames_[mapped_frame_index] != 0) {
+    auto start_unmap = now();
+    CU_CHECK(cudaStreamSynchronize(decoder.streams_[mapped_frame_index]));
+    CUD_CHECK(cuvidUnmapVideoFrame(decoder.decoder_,
+                                   decoder.mapped_frames_[mapped_frame_index]));
+    if (decoder.profiler_ != nullptr) {
+      decoder.profiler_->add_interval("unmap_frame", start_unmap, now());
+    }
+    decoder.mapped_frames_[mapped_frame_index] = 0;
+  }
+
   CUD_CHECK(cuvidDecodePicture(decoder.decoder_, picparams));
 }
 

@@ -457,6 +457,8 @@ void* decode_thread(void* arg) {
       }
       discontinuity = false;
     }
+    // Wait on all memcpys from frames to be done
+    decoder.wait_until_frames_copied();
 
     // Must clean up buffer allocated by load thread
     delete[] encoded_buffer;

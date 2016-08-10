@@ -113,9 +113,9 @@ public:
     char* decoded_buffer,
     size_t decoded_size);
 
-  double time_spent_on_decode();
+  int decoded_frames_buffered();
 
-  void reset_timing();
+  void wait_until_frames_copied();
 
   void set_profiler(Profiler* profiler);
 
