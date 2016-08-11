@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <atomic>
+#include <fstream>
 
 namespace lightscan {
 
@@ -57,7 +58,7 @@ void write_profiler_to_file(
   std::ofstream& output,
   int64_t node,
   std::string type_name,
-  int6_t worker_num,
+  int64_t worker_num,
   const Profiler& profiler);
 
 } // namespace lightscan
