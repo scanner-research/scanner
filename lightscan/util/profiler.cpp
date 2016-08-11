@@ -35,4 +35,62 @@ const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
   return records_;
 }
 
+void write_profiler_to_file(
+  std::ofstream& output,
+  int64_t node,
+  std::string type_name,
+  int6_t worker_num,
+  const Profiler& profiler)
+{
+  // Write worker header information
+  // Node
+  output.write((char*)&node, sizeof(node));
+  // Worker type
+  output.write(type_name.c_str(), type_name.size() + 1);
+  // Worker number
+  output.write((char*)&worker_num, sizeof(worker_num));
+  // Intervals
+  const std::vector<lightscan::Profiler::TaskRecord>& records =
+    profiler.get_records();
+  // Perform dictionary compression on interval key names
+  uint8_t record_key_id = 0;
+  std::map<std::string, uint8_t> key_names;
+  for (size_t j = 0; j < records.size(); j++) {
+    const std::string& key = records[j].key;
+    if (key_names.count(key) == 0) {
+      key_names.insert({key, record_key_id++});
+    }
+  }
+  if (key_names.size() > std::pow(2, sizeof(record_key_id) * 8)) {
+    fprintf(stderr,
+            "WARNING: Number of record keys (%lu) greater than "
+            "max key id (%lu). Recorded intervals will alias in "
+            "profiler file.\n",
+            key_names.size(),
+            std::pow(2, sizeof(record_key_id) * 8));
+  }
+  // Write out key name dictionary
+  int64_t num_keys = static_cast<int64_t>(key_names.size());
+  output.write((char*)&num_keys, sizeof(num_keys));
+  for (auto& kv : key_names) {
+    std::string key = kv.first;
+    uint8_t key_index = kv.second;
+    output.write(key.c_str(), key.size() + 1);
+    output.write((char*)&key_index, sizeof(key_index));
+  }
+  // Number of intervals
+  int64_t num_records = static_cast<int64_t>(records.size());
+  output.write((char*)&num_records, sizeof(num_records));
+  for (size_t j = 0; j < records.size(); j++) {
+    const lightscan::Profiler::TaskRecord& record = records[j];
+    uint8_t key_index = key_names[record.key];
+    int64_t start = record.start;
+    int64_t end = record.end;
+    output.write((char*)&key_index, sizeof(key_index));
+    output.write((char*)&start, sizeof(start));
+    output.write((char*)&end, sizeof(end));
+  }
+}
+
+
 }

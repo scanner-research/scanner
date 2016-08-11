@@ -289,6 +289,10 @@ void* load_video_thread(void* arg) {
     }
     last_video_path = video_path;
 
+    // Place end of file and num frame at end of iframe to handle edge case
+    keyframe_positions.push_back(metadata.frames);
+    keyframe_byte_offsets.push_back(file_size);
+
     // Read the bytes from the file that correspond to the sequences
     // of frames we are interested in decoding. This sequence will contain
     // the bytes starting at the iframe at or preceding the first frame we are
@@ -302,26 +306,21 @@ void* load_video_thread(void* arg) {
         break;
       }
     }
-    if (start_keyframe_index == std::numeric_limits<size_t>::max()) {
-      start_keyframe_index = keyframe_positions.size() - 1;
-    }
+    assert(start_keyframe_index != std::numeric_limits<size_t>::max());
     uint64_t start_keyframe_byte_offset =
       static_cast<uint64_t>(keyframe_byte_offsets[start_keyframe_index]);
 
     size_t end_keyframe_index = 0;
     for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
-      if (keyframe_positions[i] > work_item.end_frame) {
+      if (keyframe_positions[i] >= work_item.end_frame) {
         end_keyframe_index = i;
         break;
       }
     }
-    uint64_t end_keyframe_byte_offset;
-    if (end_keyframe_index == 0) {
-      end_keyframe_byte_offset = file_size;
-    } else {
-      end_keyframe_byte_offset =
-        static_cast<uint64_t>(keyframe_byte_offsets[end_keyframe_index]);
-    }
+    assert(end_keyframe_index != 0);
+    uint64_t end_keyframe_byte_offset =
+      static_cast<uint64_t>(keyframe_byte_offsets[end_keyframe_index]);
+
     size_t data_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
 
     char* buffer = new char[data_size];
@@ -1339,69 +1338,13 @@ int main(int argc, char** argv) {
     profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
     profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
 
-    // Function to write out profiler info
-    auto write_profiler_to_file = [&profiler_output]
-      (int64_t node,
-       std::string type_name,
-       int64_t worker_num,
-       const Profiler& profiler)
-    {
-      // Write worker header information
-      // Node
-      profiler_output.write((char*)&node, sizeof(node));
-      // Worker type
-      profiler_output.write(type_name.c_str(), type_name.size() + 1);
-      // Worker number
-      profiler_output.write((char*)&worker_num, sizeof(worker_num));
-      // Intervals
-      const std::vector<lightscan::Profiler::TaskRecord>& records =
-        profiler.get_records();
-      // Perform dictionary compression on interval key names
-      uint8_t record_key_id = 0;
-      std::map<std::string, uint8_t> key_names;
-      for (size_t j = 0; j < records.size(); j++) {
-        const std::string& key = records[j].key;
-        if (key_names.count(key) == 0) {
-          key_names.insert({key, record_key_id++});
-        }
-      }
-      if (key_names.size() > std::pow(2, sizeof(record_key_id) * 8)) {
-        fprintf(stderr,
-                "WARNING: Number of record keys (%lu) greater than "
-                "max key id (%lu). Recorded intervals will alias in "
-                "profiler file.\n",
-                key_names.size(),
-                std::pow(2, sizeof(record_key_id) * 8));
-      }
-      // Write out key name dictionary
-      int64_t num_keys = static_cast<int64_t>(key_names.size());
-      profiler_output.write((char*)&num_keys, sizeof(num_keys));
-      for (auto& kv : key_names) {
-        std::string key = kv.first;
-        uint8_t key_index = kv.second;
-        profiler_output.write(key.c_str(), key.size() + 1);
-        profiler_output.write((char*)&key_index, sizeof(key_index));
-      }
-      // Number of intervals
-      int64_t num_records = static_cast<int64_t>(records.size());
-      profiler_output.write((char*)&num_records, sizeof(num_records));
-      for (size_t j = 0; j < records.size(); j++) {
-        const lightscan::Profiler::TaskRecord& record = records[j];
-        uint8_t key_index = key_names[record.key];
-        int64_t start = record.start;
-        int64_t end = record.end;
-        profiler_output.write((char*)&key_index, sizeof(key_index));
-        profiler_output.write((char*)&start, sizeof(start));
-        profiler_output.write((char*)&end, sizeof(end));
-      }
-    };
-
     int64_t out_rank = rank;
     // Load worker profilers
     uint8_t load_worker_count = LOAD_WORKERS_PER_NODE;
     profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
     for (int i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-      write_profiler_to_file(out_rank, "load", i, load_thread_profilers[i]);
+      write_profiler_to_file(
+        profiler_output, out_rank, "load", i, load_thread_profilers[i]);
     }
 
     // Decode worker profilers
@@ -1409,7 +1352,8 @@ int main(int argc, char** argv) {
     profiler_output.write((char*)&decode_worker_count,
                           sizeof(decode_worker_count));
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
-      write_profiler_to_file(out_rank, "decode", i, decode_thread_profilers[i]);
+      write_profiler_to_file(
+        profiler_output, out_rank, "decode", i, decode_thread_profilers[i]);
     }
 
     // Evaluate worker profilers
@@ -1417,14 +1361,16 @@ int main(int argc, char** argv) {
     profiler_output.write((char*)&eval_worker_count,
                           sizeof(eval_worker_count));
     for (int i = 0; i < GPUS_PER_NODE; ++i) {
-      write_profiler_to_file(out_rank, "eval", i, eval_thread_profilers[i]);
+      write_profiler_to_file(
+        profiler_output, out_rank, "eval", i, eval_thread_profilers[i]);
     }
 
     // Save worker profilers
     uint8_t save_worker_count = SAVE_WORKERS_PER_NODE;
     profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
     for (int i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      write_profiler_to_file(out_rank, "save", i, save_thread_profilers[i]);
+      write_profiler_to_file(
+        profiler_output, out_rank, "save", i, save_thread_profilers[i]);
     }
 
     profiler_output.close();
