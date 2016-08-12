@@ -513,11 +513,12 @@ void* evaluate_thread(void* arg) {
   cv::cuda::setDevice(args.gpu_device_id);
 
   // Resize into
+  std::vector<float> mean_image = args.net_descriptor.mean_image;
   cv::Mat cpu_mean_mat(
     args.net_descriptor.mean_height,
     args.net_descriptor.mean_width,
     CV_32FC3,
-    args.net_descriptor.mean_image.data());
+    mean_image.data());
   cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
   cv::cuda::GpuMat mean_mat;
   cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
@@ -917,8 +918,11 @@ int main(int argc, char** argv) {
     }
   } else {
     // Load net descriptor for specifying target network
-    NetDescriptor net_descriptor =
-      descriptor_from_net_file(std::ifstream{net_descriptor_file});
+    NetDescriptor net_descriptor;
+    {
+      std::ifstream s{net_descriptor_file};
+      net_descriptor = descriptor_from_net_file(s);
+    }
 
     // Establish base time to use for profilers
     timepoint_t base_time = now();

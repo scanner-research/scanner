@@ -64,12 +64,14 @@ void worker(
 
   int dim = input_blob->shape(1);
 
+
+  std::vector<float> mean_data = net_descriptor.mean_image;
   // Resize into
   cv::Mat base_mean_frame(
     net_descriptor.mean_height,
     net_descriptor.mean_width,
     CV_32FC3,
-    net_descriptor.mean_image.data());
+    mean_data.data());
 
   cv::Mat mean_frame;
   cv::resize(base_mean_frame, mean_frame, cv::Size(dim, dim));
@@ -187,8 +189,12 @@ int main(int argc, char** argv) {
     }
   }
   // Load net descriptor for specifying target network
-  NetDescriptor net_descriptor =
-    descriptor_from_net_file(std::ifstream{net_descriptor_file});
+  NetDescriptor net_descriptor;
+  {
+    std::ifstream s{net_descriptor_file};
+    net_descriptor = lightscan::descriptor_from_net_file(s);
+  }
+
 
   // Setup queue of work to distribute to threads
   Queue<int64_t> work_items;
