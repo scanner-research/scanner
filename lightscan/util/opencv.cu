@@ -189,7 +189,7 @@ namespace
 
 __global__ void RGB_interleaved_to_planar(
   const uchar* srcImage, size_t nSourcePitch,
-  uint* dstImage, size_t nDestPitch,
+  uchar* dstImage, size_t nDestPitch,
   uint width, uint height)
 {
   // Pad borders with duplicate pixels, and we multiply by 2 because we process 2 pixels per thread
@@ -240,12 +240,12 @@ void convertRGBInterleavedToPlanar(
   cv::cuda::Stream& stream)
 {
   dim3 block(32, 8);
-  dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
+  dim3 grid(divUp(width * 3, 2 * block.x), divUp(height, block.y));
 
   cudaStream_t s = cv::cuda::StreamAccessor::getStream(stream);
 
   RGB_interleaved_to_planar<<<grid, block, 0, s>>>(
     in.ptr<uchar>(), in.step,
-    outFrame.ptr<uint>(), outFrame.step,
+    outFrame.ptr<uchar>(), outFrame.step,
     width, height);
 }
