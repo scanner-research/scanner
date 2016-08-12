@@ -918,7 +918,7 @@ int main(int argc, char** argv) {
   } else {
     // Load net descriptor for specifying target network
     NetDescriptor net_descriptor =
-      descriptor_from_net_file(net_descriptor_file);
+      descriptor_from_net_file(std::ifstream{net_descriptor_file});
 
     // Establish base time to use for profilers
     timepoint_t base_time = now();

@@ -71,8 +71,8 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
 
   descriptor.model_path = model_path->as<std::string>();
   descriptor.model_weights_path = weights_path->as<std::string>();
-  descriptor.input_layer = input_layer->as<std::string>();
-  descriptor.output_layer = output_layer->as<std::string>();
+  descriptor.input_layer_name = input_layer->as<std::string>();
+  descriptor.output_layer_name = output_layer->as<std::string>();
 
   auto mean_image = root.find("mean-image");
   if (!mean_image) {
@@ -114,9 +114,9 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
       exit(EXIT_FAILURE);
     }
 
-    float blue = mean_blue->as<float>();
-    float green = mean_green->as<float>();
-    float red = mean_red->as<float>();
+    float blue = mean_blue->as<double>();
+    float green = mean_green->as<double>();
+    float red = mean_red->as<double>();
 
     for (int i = 0; i < mean_size; ++i) {
       size_t offset = i * 3;

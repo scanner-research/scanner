@@ -39,6 +39,9 @@ int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
 
 const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
 
+using lightscan::NetBundle;
+using lightscan::NetDescriptor;
+
 void worker(
   int gpu_device_id,
   std::vector<std::string>& video_paths,
@@ -63,10 +66,10 @@ void worker(
 
   // Resize into
   cv::Mat base_mean_frame(
-    args.net_descriptor.mean_height,
-    args.net_descriptor.mean_width,
+    net_descriptor.mean_height,
+    net_descriptor.mean_width,
     CV_32FC3,
-    args.net_descriptor.mean_image.data());
+    net_descriptor.mean_image.data());
 
   cv::Mat mean_frame;
   cv::resize(base_mean_frame, mean_frame, cv::Size(dim, dim));
@@ -185,7 +188,7 @@ int main(int argc, char** argv) {
   }
   // Load net descriptor for specifying target network
   NetDescriptor net_descriptor =
-    descriptor_from_net_file(net_descriptor_file);
+    descriptor_from_net_file(std::ifstream{net_descriptor_file});
 
   // Setup queue of work to distribute to threads
   Queue<int64_t> work_items;
@@ -200,6 +203,7 @@ int main(int argc, char** argv) {
       worker,
       gpu,
       std::ref(video_paths),
+      std::ref(net_descriptor),
       std::ref(work_items));
   }
   // Place sentinel values to end workers
