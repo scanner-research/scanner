@@ -24,3 +24,10 @@ void convertNV12toRGBA(
   int width,
   int height,
   cv::cuda::Stream& stream = cv::cuda::Stream::Null());
+
+void convertRGBInterleavedToPlanar(
+  const cv::cuda::GpuMat& in,
+  cv::cuda::GpuMat& outFrame,
+  int width,
+  int height,
+  cv::cuda::Stream& stream = cv::cuda::Stream::Null());

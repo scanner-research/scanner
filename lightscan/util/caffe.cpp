@@ -119,10 +119,9 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     float red = mean_red->as<double>();
 
     for (int i = 0; i < mean_size; ++i) {
-      size_t offset = i * 3;
-      descriptor.mean_image[offset + 0] = blue;
-      descriptor.mean_image[offset + 1] = green;
-      descriptor.mean_image[offset + 2] = red;
+      descriptor.mean_image[i + mean_size * 0] = blue;
+      descriptor.mean_image[i + mean_size * 1] = green;
+      descriptor.mean_image[i + mean_size * 2] = red;
     }
   } else if (mean_image->has("path")) {
     std::string mean_path = mean_image->get<std::string>("path");

@@ -62,8 +62,7 @@ void worker(
   const boost::shared_ptr<caffe::Blob<float>> output_blob{
     net.blob_by_name(net_descriptor.output_layer_name)};
 
-  int dim = input_blob->shape(1);
-
+  int dim = input_blob->shape(2); // width
 
   std::vector<float> mean_data = net_descriptor.mean_image;
   // Resize into

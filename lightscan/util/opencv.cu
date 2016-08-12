@@ -186,6 +186,28 @@ namespace
         dstImage[y * dstImagePitch + x     ] = RGBA_pack_10bit(red[0], green[0], blue[0], ((uint)0xff << 24));
         dstImage[y * dstImagePitch + x + 1 ] = RGBA_pack_10bit(red[1], green[1], blue[1], ((uint)0xff << 24));
     }
+
+__global__ void RGB_interleaved_to_planar(
+  const uchar* srcImage, size_t nSourcePitch,
+  uint* dstImage, size_t nDestPitch,
+  uint width, uint height)
+{
+  // Pad borders with duplicate pixels, and we multiply by 2 because we process 2 pixels per thread
+  const int x = blockIdx.x * (blockDim.x * 2) + (threadIdx.x * 2);
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x >= width || y >= height)
+    return;
+
+  const int channel = x % 3;
+
+  const int channel_offset = (channel * nDestPitch * height);
+  dstImage[channel_offset + y * nDestPitch + x] =
+    srcImage[y * nSourcePitch + x];
+  dstImage[channel_offset + y * nDestPitch + x + 1] =
+    srcImage[y * nSourcePitch + x + 3];
+}
+
 }
 
 __host__ __device__ __forceinline__ int divUp(int total, int grain) {
@@ -208,4 +230,22 @@ void convertNV12toRGBA(
   NV12_to_RGB<<<grid, block, 0, s>>>(in.ptr<uchar>(), in.step,
                                      outFrame.ptr<uint>(), outFrame.step,
                                      width, height);
+}
+
+void convertRGBInterleavedToPlanar(
+  const cv::cuda::GpuMat& in,
+  cv::cuda::GpuMat& outFrame,
+  int width,
+  int height,
+  cv::cuda::Stream& stream)
+{
+  dim3 block(32, 8);
+  dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
+
+  cudaStream_t s = cv::cuda::StreamAccessor::getStream(stream);
+
+  RGB_interleaved_to_planar<<<grid, block, 0, s>>>(
+    in.ptr<uchar>(), in.step,
+    outFrame.ptr<uint>(), outFrame.step,
+    width, height);
 }

@@ -508,16 +508,16 @@ void* evaluate_thread(void* arg) {
   const boost::shared_ptr<caffe::Blob<float>> output_blob{
     net.blob_by_name(args.net_descriptor.output_layer_name)};
 
-  int dim = input_blob->shape(1);
+  int dim = input_blob->shape(2);
 
   cv::cuda::setDevice(args.gpu_device_id);
 
   // Resize into
   std::vector<float> mean_image = args.net_descriptor.mean_image;
   cv::Mat cpu_mean_mat(
-    args.net_descriptor.mean_height,
+    args.net_descriptor.mean_height * 3,
     args.net_descriptor.mean_width,
-    CV_32FC3,
+    CV_32FC1,
     mean_image.data());
   cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
   cv::cuda::GpuMat mean_mat;
@@ -553,20 +553,26 @@ void* evaluate_thread(void* arg) {
   std::vector<cv::cuda::GpuMat> conv_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     conv_input.push_back(
-      cv::cuda::GpuMat(dim, dim, CV_8UC4));
+      cv::cuda::GpuMat(dim, dim, CV_8UC3));
+  }
+
+  std::vector<cv::cuda::GpuMat> conv_planar_input;
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    conv_input.push_back(
+      cv::cuda::GpuMat(dim * 3, dim, CV_8UC1));
   }
 
   std::vector<cv::cuda::GpuMat> float_conv_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     float_conv_input.push_back(
-      cv::cuda::GpuMat(dim, dim, CV_32FC3));
+      cv::cuda::GpuMat(dim * 3, dim, CV_32FC1));
   }
 
   std::vector<cv::cuda::GpuMat> normed_input;
-    for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-      normed_input.push_back(
-        cv::cuda::GpuMat(dim, dim, CV_32FC3));
-    }
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    normed_input.push_back(
+      cv::cuda::GpuMat(dim * 3, dim, CV_32FC1));
+  }
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -636,7 +642,12 @@ void* evaluate_thread(void* arg) {
                            cv_stream);
         cv::cuda::resize(rgb_mat[sid], conv_input[sid], cv::Size(dim, dim),
                          0, 0, cv::INTER_LINEAR, cv_stream);
-        conv_input[sid].convertTo(float_conv_input[sid], CV_32FC3, cv_stream);
+        // Changed from interleaved BGR to planar BGR
+        convertRGBInterleavedToPlanar(conv_input[sid], conv_planar_input[sid],
+                                      metadata.width, metadata.height,
+                                      cv_stream);
+        conv_planar_input[sid].convertTo(
+          float_conv_input[sid], CV_32FC1, cv_stream);
         cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
                            cv::noArray(), -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);

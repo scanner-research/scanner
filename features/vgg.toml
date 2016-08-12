@@ -4,6 +4,19 @@
     input_layer = "data"
     output_layer = "fc8"
 
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width",
+        ]
+        channel_ordering = [
+            "blue"
+            "green"
+            "red"
+        ]
+
 [mean-image]
     width = 224
     height = 224

@@ -7,9 +7,9 @@
     [net.input]
         dimensions = [
             "batch",
-            "width",
-            "height",
             "channel",
+            "height",
+            "width",
         ]
         channel_ordering = [
             "blue"
