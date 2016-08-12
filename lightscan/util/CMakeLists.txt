@@ -27,4 +27,5 @@ cuda_add_library(util_cuda
   opencv.cu)
 
 add_dependencies(util
+  TinyToml
   Ffmpeg)

@@ -22,4 +22,5 @@ add_library(storage OBJECT
   ${STORAGE_SOURCE_FILES})
 
 add_dependencies(storage
-  GoogleAPICppClient)
+  GoogleAPICppClient
+  util)

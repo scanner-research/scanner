@@ -503,10 +503,10 @@ void* evaluate_thread(void* arg) {
   caffe::Net<float>& net = net_bundle.get_net();
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net.blob_by_name(args.descriptor.input_layer_name)};
+    net.blob_by_name(args.net_descriptor.input_layer_name)};
 
   const boost::shared_ptr<caffe::Blob<float>> output_blob{
-    net.blob_by_name(args.descriptor.output_layer_name)};
+    net.blob_by_name(args.net_descriptor.output_layer_name)};
 
   int dim = input_blob->shape(1);
 

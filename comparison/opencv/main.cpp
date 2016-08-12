@@ -42,29 +42,34 @@ const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
 void worker(
   int gpu_device_id,
   std::vector<std::string>& video_paths,
+  const NetDescriptor& net_descriptor,
   Queue<int64_t>& work_items)
 {
   // Set ourselves to the correct GPU
   CU_CHECK(cudaSetDevice(gpu_device_id));
 
   // Setup network to use for evaluation
-  lightscan::NetInfo net_info =
-    load_neural_net(lightscan::NetType::VGG, gpu_device_id);
-  caffe::Net<float>* net = net_info.net;
+  NetBundle net_bundle{net_descriptor, gpu_device_id};
 
-  int dim = net_info.input_size;
+  caffe::Net<float>& net = net_bundle.get_net();
 
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+    net.blob_by_name(net_descriptor.input_layer_name)};
+
+  const boost::shared_ptr<caffe::Blob<float>> output_blob{
+    net.blob_by_name(net_descriptor.output_layer_name)};
+
+  int dim = input_blob->shape(1);
+
+  // Resize into
   cv::Mat base_mean_frame(
-    net_info.mean_width, net_info.mean_height, CV_32FC3, net_info.mean_image);
+    args.net_descriptor.mean_height,
+    args.net_descriptor.mean_width,
+    CV_32FC3,
+    args.net_descriptor.mean_image.data());
 
   cv::Mat mean_frame;
   cv::resize(base_mean_frame, mean_frame, cv::Size(dim, dim));
-
-  const boost::shared_ptr<caffe::Blob<float>> data_blob{
-    net->blob_by_name("data")};
-
-  // Setup net input blob to feed frames into network
-  caffe::Blob<float> net_input{GLOBAL_BATCH_SIZE, 3, dim, dim};
 
   cv::VideoCapture video;
   cv::Mat frame;
@@ -88,7 +93,7 @@ void worker(
     int frame_index = 0;
     while (!done) {
       int batch_size = GLOBAL_BATCH_SIZE;
-      float* net_input_buffer = net_input.mutable_cpu_data();
+      float* net_input_buffer = input_blob->mutable_cpu_data();
       // Get batch of frames and convert into proper net input format
       int i = 0;
       for (; i < batch_size; ++i) {
@@ -112,19 +117,19 @@ void worker(
       }
       batch_size = i;
 
-      if (data_blob->shape(0) != batch_size) {
-        data_blob->Reshape({batch_size, 3, dim, dim});
-        net_input.Reshape({batch_size, 3, dim, dim});
+      if (input_blob->shape(0) != batch_size) {
+        input_blob->Reshape({batch_size, 3, dim, dim});
       }
 
       // Evaluate net on batch of frames
-      net->Forward({&net_input});
+      net.Forward();
     }
   }
 }
 
 int main(int argc, char** argv) {
   std::string video_paths_file;
+  std::string net_descriptor_file;
   {
     po::variables_map vm;
     po::options_description desc("Allowed options");
@@ -132,6 +137,8 @@ int main(int argc, char** argv) {
       ("help", "Produce help message")
       ("video_paths_file", po::value<std::string>()->required(),
        "File which contains paths to video files to process")
+      ("net_descriptor_file", po::value<std::string>()->required(),
+       "File which contains a description of the net to use")
       ("batch_size", po::value<int>(), "Neural Net input batch size")
       ("gpus_per_node", po::value<int>(), "GPUs to use per node");
     try {
@@ -152,6 +159,8 @@ int main(int argc, char** argv) {
       }
 
       video_paths_file = vm["video_paths_file"].as<std::string>();
+
+      net_descriptor_file = vm["net_descriptor_file"].as<std::string>();
 
     } catch (const po::required_option& e) {
       if (vm.count("help")) {
@@ -174,6 +183,9 @@ int main(int argc, char** argv) {
       video_paths.push_back(path);
     }
   }
+  // Load net descriptor for specifying target network
+  NetDescriptor net_descriptor =
+    descriptor_from_net_file(net_descriptor_file);
 
   // Setup queue of work to distribute to threads
   Queue<int64_t> work_items;
