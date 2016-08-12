@@ -53,10 +53,23 @@ if(NOT APPLE AND UNIX)
     "${CMAKE_SHARED_LINKER_FLAGS} -pthread -ldl -lrt")
 endif()
 
+ExternalProject_Add(TinyToml
+  GIT_REPOSITORY "https://github.com/mayah/tinytoml.git"
+  GIT_TAG "3559856002eee57693349b8a2d8a0cf6250d269c"
+
+  UPDATE_COMMAND ""
+
+  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/tinytoml"
+  CMAKE_ARGS
+      -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/tinytoml
+      -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+      -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
+)
+
 ExternalProject_Add(JsonCpp
   GIT_REPOSITORY "https://github.com/open-source-parsers/jsoncpp.git"
   GIT_TAG "1.7.2"
-  #URL_HASH SHA256=32b84c47910c36137db198a9c5396dd0a87c29ad72f2040493aa9e8b2a24f929
+
   UPDATE_COMMAND ""
 
   SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/jsoncpp"
@@ -215,6 +228,7 @@ include_directories(
   ${PUBLIC_INCLUDE_DIRECTORIES}
   "${THIRDPARTY_SOURCE_DIR}/ffmpeg/"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
+  "${GLOBAL_OUTPUT_PATH}/tinytoml/include/"
   "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
   "${CUDA_INCLUDE_DIRS}"
@@ -240,6 +254,7 @@ add_executable(lightscanner
   $<TARGET_OBJECTS:util>)
 
 add_dependencies(lightscanner
+  TinyToml
   GoogleAPICppClient
   Ffmpeg)
 

@@ -1,0 +1,14 @@
+[net]
+    model = "features/vgg19/VGG_ILSVRC_19_layers_deploy.prototxt"
+    weights = "features/vgg19/VGG_ILSVRC_19_layers.caffemodel"
+    input_layer = "data"
+    output_layer = "fc8"
+
+[mean-image]
+    width = 224
+    height = 224
+
+    [mean-image.colors]
+        blue = 103.939
+        green = 116.779
+        red =  123.68

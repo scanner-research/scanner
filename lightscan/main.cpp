@@ -193,6 +193,7 @@ struct EvaluateThreadArgs {
   // Uniform arguments
   const std::vector<VideoMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
+  const NetDescriptor& net_descriptor;
 
   // Per worker arguments
   int gpu_device_id; // for hardware decode, need to know gpu
@@ -495,16 +496,28 @@ void* evaluate_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   CU_CHECK(cudaSetDevice(args.gpu_device_id));
-  // Setup caffe net
-  NetInfo net_info = load_neural_net(NetType::VGG, args.gpu_device_id);
-  caffe::Net<float>* net = net_info.net;
 
-  int dim = net_info.input_size;
+  // Setup caffe net
+  NetBundle net_bundle{args.net_descriptor, args.gpu_device_id};
+
+  caffe::Net<float>& net = net_bundle.get_net();
+
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+    net.blob_by_name(args.descriptor.input_layer_name)};
+
+  const boost::shared_ptr<caffe::Blob<float>> output_blob{
+    net.blob_by_name(args.descriptor.output_layer_name)};
+
+  int dim = input_blob->shape(1);
 
   cv::cuda::setDevice(args.gpu_device_id);
 
+  // Resize into
   cv::Mat cpu_mean_mat(
-    net_info.mean_height, net_info.mean_width, CV_32FC3, net_info.mean_image);
+    args.net_descriptor.mean_height,
+    args.net_descriptor.mean_width,
+    CV_32FC3,
+    args.net_descriptor.mean_image.data());
   cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
   cv::cuda::GpuMat mean_mat;
   cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
@@ -553,12 +566,6 @@ void* evaluate_thread(void* arg) {
       normed_input.push_back(
         cv::cuda::GpuMat(dim, dim, CV_32FC3));
     }
-
-  const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net->blob_by_name(net_info.input_layer_name)};
-
-  const boost::shared_ptr<caffe::Blob<float>> output_blob{
-    net->blob_by_name(net_info.output_layer_name)};
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -668,7 +675,7 @@ void* evaluate_thread(void* arg) {
 
       // Compute features
       auto net_start = now();
-      net->Forward();
+      net.Forward();
       args.profiler.add_interval("net", net_start, now());
 
       // Save batch of frames
@@ -693,8 +700,6 @@ void* evaluate_thread(void* arg) {
     save_work_entry.buffer = output_buffer;
     args.save_work.push(save_work_entry);
   }
-
-  delete net;
 
   printf("(N/GPU: %d/%d) Evaluate thread finished.\n",
          rank, args.gpu_device_id);
@@ -791,6 +796,7 @@ void shutdown() {
 
 int main(int argc, char** argv) {
   std::string video_paths_file;
+  std::string net_descriptor_file;
   {
     po::variables_map vm;
     po::options_description desc("Allowed options");
@@ -798,6 +804,8 @@ int main(int argc, char** argv) {
       ("help", "Produce help message")
       ("video_paths_file", po::value<std::string>()->required(),
        "File which contains paths to video files to process")
+      ("net_descriptor_file", po::value<std::string>()->required(),
+       "File which contains a description of the net to use")
       ("gpus_per_node", po::value<int>(), "Number of GPUs per node")
       ("batch_size", po::value<int>(), "Neural Net input batch size")
       ("batches_per_work_item", po::value<int>(),
@@ -837,6 +845,8 @@ int main(int argc, char** argv) {
       }
 
       video_paths_file = vm["video_paths_file"].as<std::string>();
+
+      net_descriptor_file = vm["net_descriptor_file"].as<std::string>();
 
     } catch (const po::required_option& e) {
       if (vm.count("help")) {
@@ -906,6 +916,10 @@ int main(int argc, char** argv) {
       bad_paths_file.close();
     }
   } else {
+    // Load net descriptor for specifying target network
+    NetDescriptor net_descriptor =
+      descriptor_from_net_file(net_descriptor_file);
+
     // Establish base time to use for profilers
     timepoint_t base_time = now();
 
@@ -1067,6 +1081,7 @@ int main(int argc, char** argv) {
         // Uniform arguments
         video_metadata,
         work_items,
+        net_descriptor,
 
         // Per worker arguments
         gpu_device_id,

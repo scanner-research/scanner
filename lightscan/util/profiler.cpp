@@ -16,6 +16,8 @@
 #include "lightscan/util/profiler.h"
 
 #include <string>
+#include <map>
+#include <cmath>
 
 namespace lightscan {
 

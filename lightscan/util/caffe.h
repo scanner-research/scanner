@@ -22,25 +22,42 @@
 #include "caffe/util/db.hpp"
 #include "caffe/util/io.hpp"
 
+#include <memory>
+
 namespace lightscan {
 
-enum class NetType {
-  ALEX_NET,
-  VGG,
-  VGG_FACE,
-};
-
-struct NetInfo {
-  caffe::Net<float>* net;
-  int input_size;
-  float* mean_image;
-  int mean_width;
-  int mean_height;
+struct NetDescriptor {
+  std::string model_path;
+  std::string model_weights_path;
 
   std::string input_layer_name;
   std::string output_layer_name;
+
+  int input_width;
+  int input_height;
+
+  std::vector<float> mean_image;
+  int mean_width;
+  int mean_height;
 };
 
-NetInfo load_neural_net(NetType type, int gpu_id);
+NetDescriptor descriptor_from_net_file(std::ifstream& net_file);
+
+//////////////////////////////////////////////////////////////////////
+/// NetBundle
+class NetBundle {
+public:
+  NetBundle(const NetDescriptor& descriptor, int gpu_device_id);
+  virtual ~NetBundle();
+
+  const NetDescriptor& get_descriptor();
+
+  caffe::Net<float>& get_net();
+
+private:
+  NetDescriptor descriptor_;
+  int gpu_device_id_;
+  std::unique_ptr<caffe::Net<float>> net_;
+};
 
 }

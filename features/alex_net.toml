@@ -1,0 +1,23 @@
+[net]
+    model = "features/bvlc_reference_caffenet/deploy.prototxt"
+    weights = "features/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel"
+    input_layer = "data"
+    output_layer = "fc8"
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "width",
+            "height",
+            "channel",
+        ]
+        channel_ordering = [
+            "blue"
+            "green"
+            "red"
+        ]
+
+[mean-image]
+    width = 256
+    height = 256
+    path = "features/bvlc_reference_caffenet/imagenet_mean.binaryproto"

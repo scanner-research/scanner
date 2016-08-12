@@ -14,7 +14,13 @@
  */
 
 #include "lightscan/util/caffe.h"
+
+#include "toml/toml.h"
+
 #include <opencv2/opencv.hpp>
+
+#include <cstdlib>
+
 
 using caffe::Blob;
 using caffe::BlobProto;
@@ -25,113 +31,144 @@ using std::string;
 
 namespace lightscan {
 
-NetInfo load_neural_net(NetType type, int gpu_id) {
-  caffe::Caffe::set_mode(caffe::Caffe::GPU);
-  caffe::Caffe::SetDevice(gpu_id);
+NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
+  toml::ParseResult pr = toml::parse(net_file);
+  if (!pr.valid()) {
+    std::cout << pr.errorReason << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  const toml::Value& root = pr.value;
 
-  std::string model_path;
-  std::string model_weights_path;
+  NetDescriptor descriptor;
 
-  float* mean_image;
-  int mean_width;
-  int mean_height;
-  int dim = 0;
-  std::string input_layer_name;
-  std::string output_layer_name;
+  auto net = root.find("net");
+  if (!net) {
+    std::cout << "Missing 'net': net description map" << std::endl;
+    exit(EXIT_FAILURE);
+  }
 
-  switch (type) {
-  case NetType::ALEX_NET: {
-    dim = 227;
-    model_path =
-      "features/bvlc_reference_caffenet/deploy.prototxt";
-    model_weights_path =
-      "features/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel";
+  auto model_path = net.find("model");
+  if (!model_path) {
+    std::cout << "Missing 'net.model': path to model" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  auto weights_path = net.find("weights");
+  if (!weights_path) {
+    std::cout << "Missing 'net.weights': path to model weights" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  auto input_layer = net.find("input_layer");
+  if (!input_layer) {
+    std::cout << "Missing 'net.input_layer': name of input layer" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  auto output_layer = net.find("output_layer");
+  if (!output_layer) {
+    std::cout << "Missing 'net.output_layer': name of output layer "
+              << std::endl;
+    exit(EXIT_FAILURE);
+  }
 
-    std::string mean_proto_path =
-      "features/bvlc_reference_caffenet/imagenet_mean.binaryproto";
+  descriptor.model_path = model_path->as<std::string>();
+  descriptor.model_weights_path = weights_path->as<std::string>();
+  descriptor.input_layer = input_layer->as<std::string>();
+  descriptor.output_layer = output_layer->as<std::string>();
 
-    input_layer_name = "data";
-    output_layer_name = "fc8";
+  auto mean_image = root.find("mean-image");
+  if (!mean_image) {
+    std::cout << "Missing 'mean-image': mean image descripton map" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  auto mean_image_width = mean_image.find("width");
+  if (!mean_image_width) {
+    std::cout << "Missing 'mean-image.width': width of mean" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  auto mean_image_height = mean_image.find("height");
+  if (!mean_image_height) {
+    std::cout << "Missing 'mean-image.height': height of mean" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  descriptor.mean_width = mean_image_width->as<int>();
+  descriptor.mean_height = mean_image_height->as<int>();
+
+  int mean_size = descriptor.mean_width * descriptor.mean_height;
+  descriptor.mean_image.resize(mean_size * 3);
+
+  if (mean_image.has("colors")) {
+    auto mean_blue = mean_image.find("colors.blue");
+    if (!mean_blue) {
+      std::cout << "Missing 'mean-image.colors.blue'" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    auto mean_green = mean_image.find("colors.green");
+    if (!mean_green) {
+      std::cout << "Missing 'mean-image.colors.green'" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    auto mean_red = mean_image.find("colors.red");
+    if (!mean_red) {
+      std::cout << "Missing 'mean-image.colors.red'" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    float blue = mean_blue->as<float>();
+    float green = mean_green->as<float>();
+    float red = mean_red->as<float>();
+
+    for (int i = 0; i < mean_size; ++i) {
+      size_t offset = i * 3;
+      descriptor.mean_image[offset + 0] = blue;
+      descriptor.mean_image[offset + 1] = green;
+      descriptor.mean_image[offset + 2] = red;
+    }
+  } else if (mean_image.has("path")) {
+    std::string mean_path = mean_image.get<std::string>("path");
 
     // Load mean image
     Blob<float> data_mean;
     BlobProto blob_proto;
-    bool result = ReadProtoFromBinaryFile(mean_proto_path, &blob_proto);
+    bool result = ReadProtoFromBinaryFile(mean_path, &blob_proto);
     data_mean.FromProto(blob_proto);
 
-    mean_width = 256;
-    mean_height = 256;
-    mean_image = new float[mean_width * mean_height * 3];
-    memcpy(mean_image, data_mean.cpu_data(), sizeof(float) * 256 * 256 * 3);
-    break;
-  }
-  case NetType::VGG: {
-    dim = 224;
-    model_path =
-      "features/vgg19/VGG_ILSVRC_19_layers_deploy.prototxt";
-    model_weights_path =
-      "features/vgg19/VGG_ILSVRC_19_layers.caffemodel";
-
-    input_layer_name = "data";
-    output_layer_name = "fc8";
-
-    mean_width = dim;
-    mean_height = dim;
-    mean_image = new float[dim * dim * 3];
-
-    for (int i = 0; i < dim * dim; ++i) {
-      size_t offset = i * 3;
-      mean_image[offset + 0] = 103.939;
-      mean_image[offset + 1] = 116.779;
-      mean_image[offset + 2] = 123.68;
-    }
-    break;
-  }
-  case NetType::VGG_FACE: {
-    dim = 224;
-    model_path =
-      "features/vgg_face_caffe/VGG_FACE_deploy.prototxt";
-    model_weights_path =
-      "features/vgg_face_caffe/VGG_FACE.caffemodel";
-
-    input_layer_name = "data";
-    output_layer_name = "fc8";
-
-    mean_width = dim;
-    mean_height = dim;
-    mean_image = new float[dim * dim * 3];
-
-    for (int i = 0; i < dim * dim; ++i) {
-      size_t offset = i * 3;
-      mean_image[offset + 0] = 93.5940;
-      mean_image[offset + 1] = 104.7624;
-      mean_image[offset + 2] = 129.1863;
-    }
-    break;
-  }
+    memcpy(descriptor.mean_image.data(),
+           data_mean.cpu_data(),
+           sizeof(float) * mean_size * 3);
+  } else {
+    std::cout << "Missing 'mean-image.{colors,path}': must specify " <<
+              << "color channel values or path of mean image file"
+              << std::endl;
+    exit(EXIT_FAILURE);
   }
 
-  // Transform mean into same size as input to network
-  size_t size = mean_height * mean_width * 3 * sizeof(float);
-  void* buf = malloc(size);
-  memcpy(buf, mean_image, size);
-  cv::Mat mean_mat = cv::Mat(mean_height, mean_width, CV_32FC3, buf);
+  return descriptor;
+}
+
+//////////////////////////////////////////////////////////////////////
+/// NetBundle
+NetBundle::NetBundle(const NetDescriptor& descriptor, int gpu_device_id)
+  : descriptor_(descriptor),
+    gpu_device_id_(gpu_device_id)
+{
+  caffe::Caffe::set_mode(caffe::Caffe::GPU);
+  caffe::Caffe::SetDevice(gpu_device_id);
 
   // Initialize our network
-  caffe::Net<float>* net = new Net<float>(model_path, caffe::TEST);
-  net->CopyTrainedLayersFrom(model_weights_path);
-  //const shared_ptr<Blob<float>> data_blob = net->blob_by_name("data");
-  //data_blob->Reshape({BATCH_SIZE, 3, dim, dim});
+  net_.reset(new Net<float>(descriptor_.model_path, caffe::TEST));
+  net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
+}
 
-  NetInfo info;
-  info.net = net;
-  info.input_size = dim;
-  info.mean_image = mean_image;
-  info.mean_width = mean_width;
-  info.mean_height = mean_height;
-  info.input_layer_name = input_layer_name;
-  info.output_layer_name = output_layer_name;
-  return info;
+NetBundle::~NetBundle() {
+}
+
+const NetDescriptor& NetBundle::get_descriptor() {
+  return descriptor_;
+}
+
+caffe::Net<float>& NetBundle::get_net() {
+  return *net_.get();
 }
 
 }
