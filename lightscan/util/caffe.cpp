@@ -47,22 +47,22 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     exit(EXIT_FAILURE);
   }
 
-  auto model_path = net.find("model");
+  auto model_path = net->find("model");
   if (!model_path) {
     std::cout << "Missing 'net.model': path to model" << std::endl;
     exit(EXIT_FAILURE);
   }
-  auto weights_path = net.find("weights");
+  auto weights_path = net->find("weights");
   if (!weights_path) {
     std::cout << "Missing 'net.weights': path to model weights" << std::endl;
     exit(EXIT_FAILURE);
   }
-  auto input_layer = net.find("input_layer");
+  auto input_layer = net->find("input_layer");
   if (!input_layer) {
     std::cout << "Missing 'net.input_layer': name of input layer" << std::endl;
     exit(EXIT_FAILURE);
   }
-  auto output_layer = net.find("output_layer");
+  auto output_layer = net->find("output_layer");
   if (!output_layer) {
     std::cout << "Missing 'net.output_layer': name of output layer "
               << std::endl;
@@ -80,12 +80,12 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     exit(EXIT_FAILURE);
   }
 
-  auto mean_image_width = mean_image.find("width");
+  auto mean_image_width = mean_image->find("width");
   if (!mean_image_width) {
     std::cout << "Missing 'mean-image.width': width of mean" << std::endl;
     exit(EXIT_FAILURE);
   }
-  auto mean_image_height = mean_image.find("height");
+  auto mean_image_height = mean_image->find("height");
   if (!mean_image_height) {
     std::cout << "Missing 'mean-image.height': height of mean" << std::endl;
     exit(EXIT_FAILURE);
@@ -97,18 +97,18 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   int mean_size = descriptor.mean_width * descriptor.mean_height;
   descriptor.mean_image.resize(mean_size * 3);
 
-  if (mean_image.has("colors")) {
-    auto mean_blue = mean_image.find("colors.blue");
+  if (mean_image->has("colors")) {
+    auto mean_blue = mean_image->find("colors.blue");
     if (!mean_blue) {
       std::cout << "Missing 'mean-image.colors.blue'" << std::endl;
       exit(EXIT_FAILURE);
     }
-    auto mean_green = mean_image.find("colors.green");
+    auto mean_green = mean_image->find("colors.green");
     if (!mean_green) {
       std::cout << "Missing 'mean-image.colors.green'" << std::endl;
       exit(EXIT_FAILURE);
     }
-    auto mean_red = mean_image.find("colors.red");
+    auto mean_red = mean_image->find("colors.red");
     if (!mean_red) {
       std::cout << "Missing 'mean-image.colors.red'" << std::endl;
       exit(EXIT_FAILURE);
@@ -124,8 +124,8 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
       descriptor.mean_image[offset + 1] = green;
       descriptor.mean_image[offset + 2] = red;
     }
-  } else if (mean_image.has("path")) {
-    std::string mean_path = mean_image.get<std::string>("path");
+  } else if (mean_image->has("path")) {
+    std::string mean_path = mean_image->get<std::string>("path");
 
     // Load mean image
     Blob<float> data_mean;

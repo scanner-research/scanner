@@ -228,7 +228,7 @@ include_directories(
   ${PUBLIC_INCLUDE_DIRECTORIES}
   "${THIRDPARTY_SOURCE_DIR}/ffmpeg/"
   "${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
-  "${GLOBAL_OUTPUT_PATH}/tinytoml/include/"
+  "${THIDPARTY_SOURCE_DIR}/tinytoml/include/"
   "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
   "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
   "${CUDA_INCLUDE_DIRS}"
