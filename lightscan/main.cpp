@@ -521,7 +521,9 @@ void* evaluate_thread(void* arg) {
     mean_image.data());
   cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
   cv::cuda::GpuMat mean_mat;
-  cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim));
+  // HACK(apoms): Resizing the mean like this is not likely to produce a correct
+  //              result.
+  cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim * 3));
 
   // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
@@ -558,7 +560,7 @@ void* evaluate_thread(void* arg) {
 
   std::vector<cv::cuda::GpuMat> conv_planar_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    conv_input.push_back(
+    conv_planar_input.push_back(
       cv::cuda::GpuMat(dim * 3, dim, CV_8UC1));
   }
 
@@ -644,17 +646,20 @@ void* evaluate_thread(void* arg) {
                          0, 0, cv::INTER_LINEAR, cv_stream);
         // Changed from interleaved BGR to planar BGR
         convertRGBInterleavedToPlanar(conv_input[sid], conv_planar_input[sid],
-                                      metadata.width, metadata.height,
+                                      dim, dim,
                                       cv_stream);
         conv_planar_input[sid].convertTo(
           float_conv_input[sid], CV_32FC1, cv_stream);
         cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
                            cv::noArray(), -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
-        CU_CHECK(cudaMemcpyAsync(
+        CU_CHECK(cudaMemcpy2DAsync(
                    net_input_buffer + i * (dim * dim * 3),
+                   dim,
                    normed_input[sid].data,
-                   dim * dim * 3 * sizeof(float),
+                   normed_input[sid].pitch,
+                   dim * sizeof(float),
+                   dim * 3,
                    cudaMemcpyDeviceToDevice,
                    s));
 
