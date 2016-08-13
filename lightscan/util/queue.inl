@@ -15,6 +15,8 @@
 
 #include "queue.h"
 
+namespace lightscan {
+
 template <typename T>
 Queue<T>::Queue()
   : waiters_(0)
@@ -67,4 +69,6 @@ void Queue<T>::pop(T& item) {
 
   item = data_.front();
   data_.pop_front();
+}
+
 }

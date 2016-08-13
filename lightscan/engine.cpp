@@ -16,7 +16,12 @@
 #include "lightscan/engine.h"
 
 #include "lightscan/util/common.h"
+#include "lightscan/util/caffe.h"
+#include "lightscan/util/profiler.h"
+#include "lightscan/util/queue.h"
 #include "lightscan/util/util.h"
+
+namespace lightscan {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments

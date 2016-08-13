@@ -17,6 +17,7 @@
 
 #include "lightscan/storage/storage_config.h"
 #include "lightscan/util/common.h"
+#include "lightscan/util/util.h"
 
 #include <vector>
 #include <string>

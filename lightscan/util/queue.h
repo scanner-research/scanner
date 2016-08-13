@@ -20,6 +20,8 @@
 #include <condition_variable>
 #include <atomic>
 
+namespace lightscan {
+
 template <typename T>
 class Queue {
 public:
@@ -42,5 +44,7 @@ private:
   std::deque<T> data_;
   std::atomic<int> waiters_;
 };
+
+}
 
 #include "queue.inl"
