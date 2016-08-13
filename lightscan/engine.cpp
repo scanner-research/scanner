@@ -15,11 +15,36 @@
 
 #include "lightscan/engine.h"
 
+#include "lightscan/storage/storage_backend.h"
+#include "lightscan/util/video.h"
 #include "lightscan/util/common.h"
 #include "lightscan/util/caffe.h"
 #include "lightscan/util/profiler.h"
 #include "lightscan/util/queue.h"
 #include "lightscan/util/util.h"
+#include "lightscan/util/opencv.h"
+#include "lightscan/util/jpeg/JPEGWriter.h"
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudawarping.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
+
+#include <thread>
+#include <mpi.h>
+#include <pthread.h>
+#include <cstdlib>
+#include <string>
+#include <libgen.h>
+#include <atomic>
+
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
+}
 
 namespace lightscan {
 

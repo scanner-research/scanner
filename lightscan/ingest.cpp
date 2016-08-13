@@ -499,7 +499,7 @@ bool preprocess_video(
   StorageBackend* storage,
   const std::string& dataset_name,
   const std::string& video_path,
-  const std::string& output_name)
+  const std::string& item_name)
 {
   // The input video we will be preprocessing
   std::unique_ptr<RandomReadFile> input_file{};

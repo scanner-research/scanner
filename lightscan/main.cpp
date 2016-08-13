@@ -19,7 +19,6 @@
 #include "lightscan/util/video.h"
 #include "lightscan/util/caffe.h"
 #include "lightscan/util/queue.h"
-#include "lightscan/util/jpeg/JPEGWriter.h"
 #include "lightscan/util/profiler.h"
 
 #include <boost/program_options/options_description.hpp>
@@ -27,20 +26,10 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/errors.hpp>
 
-#include <opencv2/opencv.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudawarping.hpp>
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/core/cuda_stream_accessor.hpp>
-#include "lightscan/util/opencv.h"
-
 #include <cuda.h>
 #include "lightscan/util/cuda.h"
 
-#include <thread>
 #include <mpi.h>
-#include <pthread.h>
 #include <cstdlib>
 #include <string>
 #include <libgen.h>

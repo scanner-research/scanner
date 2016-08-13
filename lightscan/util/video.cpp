@@ -50,6 +50,8 @@ namespace lightscan {
 
 namespace {
 
+class AVFifoBuffer;
+
 typedef struct CuvidContext
 {
     CUvideodecoder cudecoder;
