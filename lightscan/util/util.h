@@ -109,6 +109,4 @@ T nano_to_ms(T ns) {
   return ns / 1000000;
 }
 
-std::vector<char> read_entire_file(RandomReadFile* file, uint64_t& pos);
-
 }

@@ -120,6 +120,8 @@ StoreResult make_unique_write_file(
   const std::string &name,
   std::unique_ptr<WriteFile> &file);
 
+std::vector<char> read_entire_file(RandomReadFile* file, uint64_t& pos);
+
 void exit_on_error(StoreResult result);
 
 #define EXP_BACKOFF(expression__, status__)                             \

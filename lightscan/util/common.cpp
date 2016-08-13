@@ -42,7 +42,7 @@ void serialize_dataset_descriptor(
 
 DatasetDescriptor deserialize_dataset_descriptor(
   RandomReadFile* file,
-  uint64_t& file_pos)
+  uint64_t& pos)
 {
   StoreResult result;
   size_t size_read;
@@ -301,7 +301,6 @@ void serialize_job_descriptor(
 
   // Write out all intervals for each video we processed
   int64_t num_videos = descriptor.intervals.size();
-  StoreResult result;
   EXP_BACKOFF(
     file->append(
       sizeof(int64_t),

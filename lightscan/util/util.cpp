@@ -114,29 +114,4 @@ void temp_file(FILE** fp, std::string& name) {
   name = std::string(n);
 }
 
-std::vector<char> read_entire_file(RandomReadFile* file, uint64_t& pos) {
-  // Load the entire input
-  std::vector<char> bytes;
-  {
-    const size_t READ_SIZE = 1024 * 1024;
-    while (true) {
-      size_t prev_size = bytes.size();
-      bytes.resize(bytes.size() + READ_SIZE);
-      size_t size_read;
-      StoreResult result;
-      EXP_BACKOFF(
-        file->read(pos, READ_SIZE, bytes.data() + prev_size, size_read),
-        result);
-      assert(result == StoreResult::Success ||
-             result == StoreResult::EndOfFile);
-      pos += size_read;
-      if (result == StoreResult::EndOfFile) {
-        bytes.resize(prev_size + size_read);
-        break;
-      }
-    }
-  }
-  return bytes;
-}
-
 }
