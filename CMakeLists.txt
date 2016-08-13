@@ -250,6 +250,8 @@ add_subdirectory(comparison)
 
 add_executable(lightscanner
   lightscan/main.cpp
+  lightscan/ingest.cpp
+  lightscan/engine.cpp
   $<TARGET_OBJECTS:storage>
   $<TARGET_OBJECTS:util>)
 

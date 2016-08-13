@@ -14,6 +14,7 @@
 
 set(SOURCE_FILES
   common.cpp
+  util.cpp
   profiler.cpp
   caffe.cpp
   video.cpp

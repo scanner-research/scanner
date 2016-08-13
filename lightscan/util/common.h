@@ -15,83 +15,116 @@
 
 #pragma once
 
-#include <atomic>
-#include <chrono>
+#include "lightscan/storage/storage_backend.h"
+
+#include <nvcuvid.h>
+
 #include <string>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <cstring>
-#include <libgen.h>
+#include <vector>
 
 namespace lightscan {
 
-class Logger {
-public:
-  void spew(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void debug(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void info(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void print(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void warning(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void error(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void fatal(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+///////////////////////////////////////////////////////////////////////////////
+/// Global constants
+int CPUS_PER_NODE = 1;           // Number of available CPUs per node
+int GPUS_PER_NODE = 1;           // Number of available GPUs per node
+int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
+int BATCHES_PER_WORK_ITEM = 4;   // How many batches per work item
+int TASKS_IN_QUEUE_PER_GPU = 4;  // How many tasks per GPU to allocate to a node
+int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
+int SAVE_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
+int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
 
+const std::string DB_PATH = "/Users/abpoms/kcam";
+
+///////////////////////////////////////////////////////////////////////////////
+/// Path functions
+inline std::string dataset_descriptor_path(const std::string& dataset_name)
+{
+  return dataset_name + "_dataset_descriptor.bin";
+}
+
+inline std::string dataset_item_data_path(const std::string& dataset_name,
+                                          const std::string& item_name)
+{
+  return dataset_name + "_dataset/" + output_name + "_data.bin";
+}
+
+inline std::string dataset_item_metadata_path(const std::string& dataset_name,
+                                              const std::string& item_name)
+{
+  return dataset_name + "_dataset/" + output_name + "_metadata.bin";
+}
+
+inline std::string job_item_output_path(const std::string& job_name,
+                                        const std::string& item_name,
+                                        int start,
+                                        int end)
+{
+  return job_name + "_job/" + item_name + "_" +
+    std::to_string(start) + "-" +
+    std::to_string(end) + ".bin";
+}
+
+inline std::string job_descriptor_path(const std::string& job_name) {
+  return job_name + "_job_descriptor.bin";
+}
+
+inline std::string job_profiler_path(const std::string& job_name, int node) {
+  return job_name + "_job_profiler_ " + std::to_string(node) + ".bin";
+}
+
+inline int frames_per_work_item() {
+  return GLOBAL_BATCH_SIZE * BATCHES_PER_WORK_ITEM;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Common persistent data structs and their serialization helpers
+
+struct DatasetDescriptor {
+  std::vector<std::string> original_video_paths;
+  std::vector<std::string> item_names;
 };
 
-extern Logger log_ls;
-
-class SpinLock {
-    std::atomic_flag locked = ATOMIC_FLAG_INIT ;
-public:
-    void lock() {
-        while (locked.test_and_set(std::memory_order_acquire)) { ; }
-    }
-    void unlock() {
-        locked.clear(std::memory_order_release);
-    }
+struct DatasetItemMetadata {
+  int32_t frames;
+  int32_t width;
+  int32_t height;
+  cudaVideoCodec codec_type;
+  cudaVideoChromaFormat chroma_format;
+  std::vector<char> metadata_packets;
+  std::vector<int64_t> keyframe_positions;
+  std::vector<int64_t> keyframe_timestamps;
+  std::vector<int64_t> keyframe_byte_offsets;
 };
 
-using timepoint_t = std::chrono::time_point<std::chrono::high_resolution_clock>;
+struct JobDescriptor {
+  std::string dataset_name;
+  std::map<std::string, std::vector<std::tuple<int, int>>> intervals;
+};
 
-inline timepoint_t now() {
-  return std::chrono::high_resolution_clock::now();
-}
+void serialize_dataset_descriptor(
+  WriteFile* file,
+  const DatasetDescriptor& descriptor);
 
-inline double nano_since(timepoint_t then) {
-  return
-    std::chrono::duration_cast<std::chrono::nanoseconds>(now() - then).count();
-}
+DatasetDescriptor deserialize_dataset_descriptor(
+  RandomReadFile* file,
+  uint64_t& file_pos);
 
-///////////////////////////////////////////////////////////////////////////////
-/// Path utils
-inline std::string dirname_s(const std::string& path) {
-  char* path_copy = strdup(path.c_str());
-  char* dir = dirname(path_copy);
-  return std::string(dir);
-}
+void serialize_dataset_item_metadata(
+  WriteFile* file,
+  const DatasetItemMetadata& metadata);
 
-inline std::string basename_s(const std::string& path) {
-  char* path_copy = strdup(path.c_str());
-  char* base = basename(path_copy);
-  return std::string(base);
-}
+DatasetItemMetadata deserialize_dataset_item_metadata(
+  RandomReadFile* file,
+  uint64_t& file_pos);
 
-int mkdir_p(const char *path, mode_t mode);
+void serialize_job_descriptor(
+  WriteFile* file,
+  const JobDescriptor& descriptor);
 
-void temp_file(FILE** file, std::string& name);
-
-///////////////////////////////////////////////////////////////////////////////
-/// pthread utils
-#define THREAD_RETURN_SUCCESS() \
-  do {                                           \
-    void* val = malloc(sizeof(int));             \
-    *((int*)val) = EXIT_SUCCESS;                 \
-    pthread_exit(val);                           \
-  } while (0);
-
-///////////////////////////////////////////////////////////////////////////////
-/// MPI utils
-inline bool is_master(int rank) {
-  return rank == 0;
-}
+JobDescriptor deserialize_job_descriptor(
+  RandomReadFile* file,
+  uint64_t& file_pos);
 
 }

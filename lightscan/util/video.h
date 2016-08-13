@@ -18,6 +18,7 @@
 #include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/queue.h"
 #include "lightscan/util/profiler.h"
+#include "lightscan/util/common.h"
 
 #include <string>
 #include <pthread.h>
@@ -39,14 +40,8 @@ namespace lightscan {
 
 extern pthread_mutex_t av_mutex;
 
-struct VideoMetadata {
-  int32_t frames;
-  int32_t width;
-  int32_t height;
-  cudaVideoCodec codec_type;
-  cudaVideoChromaFormat chroma_format;
-};
-
+///////////////////////////////////////////////////////////////////////////////
+/// VideoSeparator
 class VideoSeparator {
 public:
   VideoSeparator(CUcontext cuda_context, AVCodecContext* cc);
@@ -59,7 +54,7 @@ public:
 
   const std::vector<char>& get_bitstream_bytes();
 
-  const std::vector<int>& get_keyframe_positions();
+  const std::vector<int64_t>& get_keyframe_positions();
 
   const std::vector<int64_t>& get_keyframe_byte_offsets();
 
@@ -90,17 +85,18 @@ private:
   std::vector<char> metadata_packets_;
   std::vector<char> bitstream_packets_;
 
-  std::vector<int> keyframe_positions_;
+  std::vector<int64_t> keyframe_positions_;
+  std::vector<int64_t> keyframe_timestamps_;
   std::vector<int64_t> keyframe_byte_offsets_;
 
   double decode_time_;
 };
 
+///////////////////////////////////////////////////////////////////////////////
+/// VideoDecoder
 class VideoDecoder {
 public:
-  VideoDecoder(CUcontext cuda_context,
-               VideoMetadata metadata,
-               std::vector<char> metadata_bytes);
+  VideoDecoder(CUcontext cuda_context, DatasetItemMetadata metadata);
 
   ~VideoDecoder();
 
@@ -150,30 +146,11 @@ private:
 
   int prev_frame_;
 
-  int new_frame_;
+  int wait_for_iframe_;
 
   double decode_time_;
 
   Profiler* profiler_;
 };
-
-bool preprocess_video(
-  StorageBackend* storage,
-  const std::string& video_path,
-  const std::string& processed_video_path,
-  const std::string& video_metadata_path,
-  const std::string& iframe_path);
-
-uint64_t read_video_metadata(
-  RandomReadFile* file,
-  uint64_t file_pos,
-  VideoMetadata& meta,
-  std::vector<char>& metadata_packets);
-
-uint64_t read_keyframe_info(
-  RandomReadFile* file,
-  uint64_t file_pos,
-  std::vector<int>& keyframe_postions,
-  std::vector<int64_t>& keyframe_timestamps);
 
 }
