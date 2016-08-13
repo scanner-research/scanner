@@ -192,20 +192,19 @@ __global__ void RGB_interleaved_to_planar(
   uchar* dstImage, size_t nDestPitch,
   uint width, uint height)
 {
-  // Pad borders with duplicate pixels, and we multiply by 2 because we process 2 pixels per thread
-  const int x = blockIdx.x * (blockDim.x * 2) + (threadIdx.x * 2);
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x >= width || y >= height)
     return;
 
-  const int channel = x % 3;
-
-  const int channel_offset = (channel * nDestPitch * height);
-  dstImage[channel_offset + y * nDestPitch + x] =
-    srcImage[y * nSourcePitch + x];
-  dstImage[channel_offset + y * nDestPitch + x + 1] =
-    srcImage[y * nSourcePitch + x + 3];
+  const int channel_size  = (nDestPitch * height);
+  dstImage[channel_size * 0 + y * nDestPitch + x] =
+    srcImage[y * nSourcePitch + x * 3 + 0];
+  dstImage[channel_size * 1 + y * nDestPitch + x] =
+    srcImage[y * nSourcePitch + x * 3 + 1];
+  dstImage[channel_size * 2 + y * nDestPitch + x] =
+    srcImage[y * nSourcePitch + x * 3 + 2];
 }
 
 }
@@ -240,7 +239,7 @@ void convertRGBInterleavedToPlanar(
   cv::cuda::Stream& stream)
 {
   dim3 block(32, 8);
-  dim3 grid(divUp(width * 3, 2 * block.x), divUp(height, block.y));
+  dim3 grid(divUp(width, block.x), divUp(height, block.y));
 
   cudaStream_t s = cv::cuda::StreamAccessor::getStream(stream);
 

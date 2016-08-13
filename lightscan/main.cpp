@@ -628,14 +628,15 @@ void* evaluate_thread(void* arg) {
       for (int i = 0; i < batch_size; ++i) {
         int sid = i % NUM_CUDA_STREAMS;
         cv::cuda::Stream& cv_stream = cv_streams[sid];
-        char* buffer = frame_buffer + frame_size * (i + frame_offset);
-        cv::cuda::GpuMat input_mat(
-          metadata.height + metadata.height / 2,
-          metadata.width,
-          CV_8UC1,
-          buffer);
 
-        input_mats[sid] = input_mat;
+        char* buffer = frame_buffer + frame_size * (i + frame_offset);
+
+        input_mats[sid] =
+          cv::cuda::GpuMat(
+            metadata.height + metadata.height / 2,
+            metadata.width,
+            CV_8UC1,
+            buffer);
 
         convertNV12toRGBA(input_mats[sid], rgba_mat[sid],
                           metadata.width, metadata.height,
@@ -655,9 +656,9 @@ void* evaluate_thread(void* arg) {
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
         CU_CHECK(cudaMemcpy2DAsync(
                    net_input_buffer + i * (dim * dim * 3),
-                   dim,
+                   dim * sizeof(float),
                    normed_input[sid].data,
-                   normed_input[sid].pitch,
+                   normed_input[sid].step,
                    dim * sizeof(float),
                    dim * 3,
                    cudaMemcpyDeviceToDevice,
