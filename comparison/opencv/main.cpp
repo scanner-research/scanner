@@ -41,6 +41,7 @@ const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
 
 using lightscan::NetBundle;
 using lightscan::NetDescriptor;
+using lightscan::Queue;
 
 void worker(
   int gpu_device_id,

@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 
+#include "lightscan/ingest.h"
+#include "lightscan/engine.h"
+
 #include "lightscan/storage/storage_config.h"
 #include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/common.h"
@@ -119,7 +122,7 @@ int main(int argc, char** argv) {
       }
 
       if (vm.count("help")) {
-        std::cout << desc << std::endl;
+        std::cout << main_desc << std::endl;
         return 1;
       }
 
@@ -182,7 +185,7 @@ int main(int argc, char** argv) {
 
       } else if (cmd == "run") {
         po::options_description run_desc("run options");
-        ingest_desc.add_options()
+        run_desc.add_options()
           ("help", "Produce help message")
           ("job_name", po::value<std::string>()->required(),
            "Unique name to refer to the output of the job after completion");
@@ -253,7 +256,7 @@ int main(int argc, char** argv) {
 
     // Keep track of videos which we can't parse
     std::vector<std::string> bad_paths;
-    for (size_t i = 0; i < video_paths.size()) {
+    for (size_t i = 0; i < video_paths.size(); ++i) {
       const std::string& path = video_paths[i];
       const std::string& item_name = item_names[i];
 
@@ -281,7 +284,7 @@ int main(int argc, char** argv) {
       std::unique_ptr<WriteFile> output_file;
       make_unique_write_file(storage, dataset_file_path, output_file);
 
-      serialize_dataset_descriptor(output_file, descriptor);
+      serialize_dataset_descriptor(output_file.get(), descriptor);
     }
 
     delete storage;
