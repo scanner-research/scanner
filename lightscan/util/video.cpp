@@ -48,6 +48,28 @@ extern "C" {
 
 namespace lightscan {
 
+namespace {
+
+typedef struct CuvidContext
+{
+    CUvideodecoder cudecoder;
+    CUvideoparser cuparser;
+
+    AVBufferRef *hwdevice;
+    AVBufferRef *hwframe;
+
+    AVBSFContext *bsf;
+
+    AVFifoBuffer *frame_queue;
+
+    int internal_error;
+
+    cudaVideoCodec codec_type;
+    cudaVideoChromaFormat chroma_format;
+} CuvidContext;
+
+}
+
 pthread_mutex_t av_mutex;
 
 VideoSeparator::VideoSeparator(
