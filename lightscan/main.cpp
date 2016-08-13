@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
     po::variables_map vm;
 
     po::options_description main_desc("Allowed options");
-    desc.add_options()
+    main_desc.add_options()
       ("help", "Produce help message")
       ("command", po::value<std::string>(),
        "Command to execute")
@@ -90,18 +90,25 @@ int main(int argc, char** argv) {
        "Number of worker threads processing save jobs per node");
 
       po::positional_options_description main_pos;
-      p.add("command", 1);
-      p.add("subargs", -1);
+      main_pos.add("command", 1);
+      main_pos.add("subargs", -1);
 
-      po::parsed_options parsed;
+      std::vector<std::string> opts;
       try {
-        parsed = po::command_line_parser(argc, argv).
+        auto parsed = po::command_line_parser(argc, argv).
           options(main_desc).
           positional(main_pos).
           allow_unregistered().
           run();
         po::store(parsed, vm);
         po::notify(vm);
+
+        // Collect all the unrecognized options from the first pass.
+        // This will include the (positional) command name, so we need to erase
+        // that.
+        opts = po::collect_unrecognized(parsed.options, po::include_positional);
+        opts.erase(opts.begin());
+
       } catch (const po::required_option& e) {
         if (vm.count("help")) {
           std::cout << main_desc << std::endl;
@@ -140,13 +147,6 @@ int main(int argc, char** argv) {
       }
 
       cmd = vm["command"].as<std::string>();
-
-      // Collect all the unrecognized options from the first pass.
-      // This will include the (positional) command name, so we need to erase
-      // that.
-      std::vector<std::string> opts =
-        po::collect_unrecognized(parsed.options, po::include_positional);
-      opts.erase(opts.begin());
 
       if (cmd == "ingest") {
         po::options_description ingest_desc("ingest options");

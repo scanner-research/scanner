@@ -703,7 +703,7 @@ void run_job(
       make_unique_random_read_file(storage,
                                    dataset_descriptor_path(dataset_name),
                                    file));
-    int64_t pos = 0;
+    uint64_t pos = 0;
     descriptor = deserialize_dataset_descriptor(file.get(), pos);
   }
 
@@ -729,7 +729,7 @@ void run_job(
         storage,
         dataset_item_metadata_path(dataset_name, path),
         metadata_file));
-    int64_t pos = 0;
+    uint64_t pos = 0;
     video_metadata.push_back(
       deserialize_dataset_item_metadata(metadata_file.get(), pos));
   }
