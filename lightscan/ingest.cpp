@@ -23,6 +23,27 @@
 #include <cuda.h>
 #include <nvcuvid.h>
 
+// For video
+extern "C" {
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include "libavformat/avio.h"
+#include "libavformat/movenc.h"
+#include "libavutil/error.h"
+#include "libswscale/swscale.h"
+
+#include "libavcodec/avcodec.h"
+#include "libavfilter/avfilter.h"
+#include "libavformat/avformat.h"
+#include "libswscale/swscale.h"
+#include "libavutil/pixdesc.h"
+#include "libavutil/opt.h"
+
+// For hardware decode
+#include "libavutil/hwcontext.h"
+#include "libavutil/hwcontext_cuda.h"
+}
+
 namespace lightscan {
 
 namespace {
