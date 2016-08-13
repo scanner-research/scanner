@@ -29,14 +29,14 @@ class RandomReadFile;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
-int CPUS_PER_NODE = 1;           // Number of available CPUs per node
-int GPUS_PER_NODE = 1;           // Number of available GPUs per node
-int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
-int BATCHES_PER_WORK_ITEM = 4;   // How many batches per work item
-int TASKS_IN_QUEUE_PER_GPU = 4;  // How many tasks per GPU to allocate to a node
-int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
-int SAVE_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
-int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
+extern int CPUS_PER_NODE;           // # of available CPUs per node
+extern int GPUS_PER_NODE;           // # of available GPUs per node
+extern int GLOBAL_BATCH_SIZE;       // Batch size for network
+extern int BATCHES_PER_WORK_ITEM;   // How many batches per work item
+extern int TASKS_IN_QUEUE_PER_GPU;  // How many tasks per GPU to allocate
+extern int LOAD_WORKERS_PER_NODE;   // # of worker threads loading data
+extern int SAVE_WORKERS_PER_NODE;   // # of worker threads loading data
+extern int NUM_CUDA_STREAMS;        // # of cuda streams for image processing
 
 const std::string DB_PATH = "/Users/abpoms/kcam";
 

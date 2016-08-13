@@ -16,6 +16,7 @@
 #include "lightscan/engine.h"
 
 #include "lightscan/storage/storage_backend.h"
+#include "lightscan/util/cuda.h"
 #include "lightscan/util/video.h"
 #include "lightscan/util/common.h"
 #include "lightscan/util/caffe.h"
@@ -688,6 +689,12 @@ void run_job(
 {
   StorageBackend* storage = StorageBackend::make_from_config(config);
 
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  int num_nodes;
+  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
+
   // Load the dataset descriptor to find all data files
   DatasetDescriptor descriptor;
   {
@@ -697,7 +704,7 @@ void run_job(
                                    dataset_descriptor_path(dataset_name),
                                    file));
     int64_t pos = 0;
-    descriptor = deserialize_dataset_descriptor(file, pos);
+    descriptor = deserialize_dataset_descriptor(file.get(), pos);
   }
 
   // Load net descriptor for specifying target network
@@ -724,7 +731,7 @@ void run_job(
         metadata_file));
     int64_t pos = 0;
     video_metadata.push_back(
-      deserialize_dataset_item_metadata(metadata_file, pos));
+      deserialize_dataset_item_metadata(metadata_file.get(), pos));
   }
 
   // Break up videos and their frames into equal sized work items

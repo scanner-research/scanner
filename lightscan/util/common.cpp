@@ -13,6 +13,16 @@
 
 namespace lightscan {
 
+int CPUS_PER_NODE = 1;           // Number of available CPUs per node
+int GPUS_PER_NODE = 1;           // Number of available GPUs per node
+int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
+int BATCHES_PER_WORK_ITEM = 4;   // How many batches per work item
+int TASKS_IN_QUEUE_PER_GPU = 4;  // How many tasks per GPU to allocate to a node
+int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
+int SAVE_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
+int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
+
+
 void serialize_dataset_descriptor(
   WriteFile* file,
   const DatasetDescriptor& descriptor)

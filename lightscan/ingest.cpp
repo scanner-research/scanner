@@ -670,7 +670,7 @@ bool preprocess_video(
     exit_on_error(
       make_unique_write_file(storage, metadata_path, metadata_file));
 
-    serialize_dataset_item_metadata(metadata_file, video_metadata);
+    serialize_dataset_item_metadata(metadata_file.get(), video_metadata);
     metadata_file->save();
   }
 
