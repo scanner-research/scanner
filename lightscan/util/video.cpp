@@ -716,14 +716,13 @@ int VideoSeparator::cuvid_handle_picture_display(
 
 VideoDecoder::VideoDecoder(
   CUcontext cuda_context,
-  VideoMetadata metadata,
-  std::vector<char> metadata_packets)
+  DatasetItemMetadata metadata)
   : max_output_frames_(32),
     max_mapped_frames_(8),
     streams_(max_mapped_frames_),
     cuda_context_(cuda_context),
     metadata_(metadata),
-    metadata_packets_(metadata_packets),
+    metadata_packets_(metadata.metadata_packets),
     parser_(nullptr),
     decoder_(nullptr),
     mapped_frames_(max_mapped_frames_, 0),
@@ -778,11 +777,11 @@ VideoDecoder::VideoDecoder(
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
   size_t pos = 0;
-  while (pos < metadata_packets.size()) {
+  while (pos < metadata_packets_.size()) {
     int encoded_packet_size =
-      *reinterpret_cast<int*>(metadata_packets.data() + pos);
+      *reinterpret_cast<int*>(metadata_packets_.data() + pos);
     pos += sizeof(int);
-    char* encoded_packet = metadata_packets.data() + pos;
+    char* encoded_packet = metadata_packets_.data() + pos;
     pos += encoded_packet_size;
 
     feed(encoded_packet, encoded_packet_size);

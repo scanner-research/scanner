@@ -21,6 +21,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 namespace lightscan {
 
@@ -47,13 +48,13 @@ inline std::string dataset_descriptor_path(const std::string& dataset_name)
 inline std::string dataset_item_data_path(const std::string& dataset_name,
                                           const std::string& item_name)
 {
-  return dataset_name + "_dataset/" + output_name + "_data.bin";
+  return dataset_name + "_dataset/" + item_name + "_data.bin";
 }
 
 inline std::string dataset_item_metadata_path(const std::string& dataset_name,
                                               const std::string& item_name)
 {
-  return dataset_name + "_dataset/" + output_name + "_metadata.bin";
+  return dataset_name + "_dataset/" + item_name + "_metadata.bin";
 }
 
 inline std::string job_item_output_path(const std::string& job_name,

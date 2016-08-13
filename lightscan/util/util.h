@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <vector>
 #include <atomic>
 #include <chrono>
 #include <string>
@@ -109,6 +110,5 @@ T nano_to_ms(T ns) {
 }
 
 std::vector<char> read_entire_file(RandomReadFile* file, uint64_t& pos);
-
 
 }

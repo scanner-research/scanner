@@ -1,5 +1,7 @@
 #include "lightscan/util/common.h"
+#include "lightscan/util/util.h"
 
+#include <cassert>
 #include <cstdarg>
 #include <sstream>
 #include <limits.h>     /* PATH_MAX */
@@ -112,24 +114,27 @@ void serialize_dataset_item_metadata(
   exit_on_error(result);
 
   // Size of metadata
-  size_t metadata_packets_size = metadata_packets.size();
+  size_t metadata_packets_size = metadata.metadata_packets.size();
   EXP_BACKOFF(
     file->append(sizeof(size_t),
-                 reinterpret_cast<const char*>(&metadata_packets_size)),
+                 reinterpret_cast<const char*>(
+                   &metadata.metadata_packets_size)),
     result);
   exit_on_error(result);
 
   // Metadata packets
   EXP_BACKOFF(
     file->append(metadata_packets_size,
-                 reinterpret_cast<const char*>(metadata_packets.data())),
+                 reinterpret_cast<const char*>(
+                   metadata.metadata_packets.data())),
     result);
   exit_on_error(result);
 
   // Keyframe info
-  assert(keyframe_positions.size() == keyframe_timestamps.size());
+  assert(metadata.keyframe_positions.size() ==
+         metadata.keyframe_timestamps.size());
 
-  size_t num_keyframes = keyframe_positions.size();
+  size_t num_keyframes = metadata.keyframe_positions.size();
 
   EXP_BACKOFF(
     file->append(sizeof(size_t), reinterpret_cast<char*>(&num_keyframes)),
@@ -138,13 +143,15 @@ void serialize_dataset_item_metadata(
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_keyframes,
-                 reinterpret_cast<const char*>(keyframe_positions.data())),
+                 reinterpret_cast<const char*>(
+                   metadata.keyframe_positions.data())),
     result);
   exit_on_error(result);
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_keyframes,
-                 reinterpret_cast<const char*>(keyframe_timestamps.data())),
+                 reinterpret_cast<const char*>(
+                   metadata.keyframe_timestamps.data())),
     result);
   exit_on_error(result);
 }
@@ -296,7 +303,7 @@ void serialize_job_descriptor(
   int64_t num_videos = descriptor.intervals.size();
   StoreResult result;
   EXP_BACKOFF(
-    output_file->append(
+    file->append(
       sizeof(int64_t),
       (const char*)&num_videos),
     result);
@@ -307,7 +314,7 @@ void serialize_job_descriptor(
     const std::vector<std::tuple<int, int>>& intervals = it.second;
 
     EXP_BACKOFF(
-      output_file->append(
+      file->append(
         video_path.size() + 1,
         video_path.c_str()),
       result);
@@ -321,7 +328,7 @@ void serialize_job_descriptor(
       buffer.push_back(std::get<1>(interval));
     }
     EXP_BACKOFF(
-      output_file->append(
+      file->append(
         buffer.size() * sizeof(int64_t),
         (char*)buffer.data()),
       result);
@@ -350,11 +357,9 @@ JobDescriptor deserialize_job_descriptor(
     std::string video_path{data};
     data += video_path.size() + 1;
 
-    video_paths.push_back(video_path);
-
     int64_t num_intervals = *((int64_t*)data);
     data += sizeof(int64_t);
-    std::vector<std::tuple<int64_t, int64_t>> intervals;
+    std::vector<std::tuple<int, int>> intervals;
     for (int64_t j = 0; j < num_intervals; ++j) {
       int64_t start = *((int64_t*)data);
       data += sizeof(int64_t);
@@ -362,7 +367,7 @@ JobDescriptor deserialize_job_descriptor(
       data += sizeof(int64_t);
       intervals.emplace_back(start, end);
     }
-    video_intervals.push_back(intervals);
+    descriptor.intervals[video_path] = intervals;
   }
 
   return descriptor;

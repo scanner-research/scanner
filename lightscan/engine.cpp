@@ -39,7 +39,6 @@ struct LoadThreadArgs {
 struct DecodeThreadArgs {
   // Uniform arguments
   const std::vector<DatasetItemMetadata>& metadata;
-  const std::vector<std::vector<char>>& metadata_packets;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -231,8 +230,7 @@ void* decode_thread(void* arg) {
 
   VideoDecoder decoder{
     args.cuda_context,
-    args.metadata[0],
-    args.metadata_packets[0]};
+    args.metadata[0]};
   decoder.set_profiler(&args.profiler);
 
   args.profiler.add_interval("setup", setup_start, now());
@@ -811,7 +809,6 @@ void run_job(
     decode_thread_args.emplace_back(DecodeThreadArgs{
         // Uniform arguments
         video_metadata,
-          metadata_packets,
           work_items,
 
           // Per worker arguments

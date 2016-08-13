@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "lightscan/util/common.h"
+#include "lightscan/util/util.h"
 
 #include <vector>
 #include <string>
