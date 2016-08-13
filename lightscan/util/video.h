@@ -56,6 +56,8 @@ public:
 
   const std::vector<int64_t>& get_keyframe_positions();
 
+  const std::vector<int64_t>& get_keyframe_timestamps();
+
   const std::vector<int64_t>& get_keyframe_byte_offsets();
 
 private:

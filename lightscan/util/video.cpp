@@ -727,7 +727,6 @@ VideoDecoder::VideoDecoder(
     decoder_(nullptr),
     mapped_frames_(max_mapped_frames_, 0),
     prev_frame_(0),
-    new_frame_(false),
     decode_time_(0),
     profiler_(nullptr)
 {

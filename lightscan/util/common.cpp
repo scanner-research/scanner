@@ -1,5 +1,6 @@
 #include "lightscan/util/common.h"
 #include "lightscan/util/util.h"
+#include "lightscan/storage/storage_backend.h"
 
 #include <cassert>
 #include <cstdarg>
@@ -118,7 +119,7 @@ void serialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->append(sizeof(size_t),
                  reinterpret_cast<const char*>(
-                   &metadata.metadata_packets_size)),
+                   &metadata_packets_size)),
     result);
   exit_on_error(result);
 

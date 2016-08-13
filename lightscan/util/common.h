@@ -15,8 +15,6 @@
 
 #pragma once
 
-#include "lightscan/storage/storage_backend.h"
-
 #include <nvcuvid.h>
 
 #include <string>
@@ -24,6 +22,10 @@
 #include <map>
 
 namespace lightscan {
+
+class StorageBackend;
+class WriteFile;
+class RandomReadFile;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
