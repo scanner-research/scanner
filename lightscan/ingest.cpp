@@ -501,29 +501,21 @@ bool preprocess_video(
   const std::string& video_path,
   const std::string& item_name)
 {
-  // The input video we will be preprocessing
-  std::unique_ptr<RandomReadFile> input_file{};
-  exit_on_error(
-    make_unique_random_read_file(storage, video_path, input_file));
 
   // Load the entire input
   std::vector<char> video_bytes;
   {
+    // Read input from local path
+    std::ifstream file{video_path};
+
     const size_t READ_SIZE = 1024 * 1024;
-    size_t pos = 0;
-    while (true) {
-      video_bytes.resize(video_bytes.size() + READ_SIZE);
-      size_t size_read;
-      StoreResult result;
-      EXP_BACKOFF(
-        input_file->read(pos, READ_SIZE, video_bytes.data() + pos, size_read),
-        result);
-      assert(result == StoreResult::Success ||
-             result == StoreResult::EndOfFile);
-      pos += size_read;
-      if (result == StoreResult::EndOfFile) {
-        video_bytes.resize(video_bytes.size() - (READ_SIZE - size_read));
-        break;
+    while (file) {
+      size_t prev_size = video_bytes.size()
+      video_bytes.resize(prev_size + READ_SIZE);
+      file.read(video_bytes.data() + prev_size, READ_SIZE);
+      size_t size_read = file.gcount();
+      if (size_read != READ_SIZE) {
+        video_bytes.resize(prev_size + size_read);
       }
     }
   }
@@ -695,6 +687,53 @@ bool preprocess_video(
              result == StoreResult::EndOfFile);
       pos += size_to_write;
     }
+    output_file->save();
+  }
+
+  // Create temporary file for writing ffmpeg output to
+  std::string temp_output_path;
+  FILE* fptr;
+  temp_file(&fptr, temp_output_path);
+  fclose(fptr);
+
+  // Convert to web friendly format
+  std::string conversion_command =
+    "ffmpeg " +
+    "-vsync 0 " +
+    "-i " + video_path +
+    "-profile:v baseline " +
+    "-strict -2 " +
+    "-movflags faststart " +
+    temp_output_path;
+
+  std::system(conversion_command);
+
+  // Copy the web friendly data format into database storage
+  {
+    // Read input from local path
+    std::ifstream file{video_path};
+
+    // Write to database storage
+    std::string web_video_path =
+      dataset_item_video_path(dataset_name, item_name);
+    std::unique_ptr<WriteFile> output_file{};
+    exit_on_error(
+      make_unique_write_file(storage, web_video_path, output_file));
+
+    const size_t READ_SIZE = 1024 * 1024;
+    std::vector<char> buffer(READ_SIZE);
+    while (file) {
+      file.read(buffer.data(), READ_SIZE);
+      size_t size_read = file.gcount();
+
+      StoreResult result;
+      EXP_BACKOFF(
+        output_file->append(size_read, buffer.data()),
+        result);
+      assert(result == StoreResult::Success ||
+             result == StoreResult::EndOfFile);
+    }
+
     output_file->save();
   }
 

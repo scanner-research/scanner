@@ -53,6 +53,12 @@ inline std::string dataset_item_data_path(const std::string& dataset_name,
   return dataset_name + "_dataset/" + item_name + "_data.bin";
 }
 
+inline std::string dataset_item_video_path(const std::string& dataset_name,
+                                           const std::string& item_name)
+{
+  return dataset_name + "_dataset/" + item_name + ".mp4";
+}
+
 inline std::string dataset_item_metadata_path(const std::string& dataset_name,
                                               const std::string& item_name)
 {
