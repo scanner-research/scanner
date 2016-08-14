@@ -181,7 +181,6 @@ int main(int argc, char** argv) {
             throw e;
           }
         }
-        st
 
         dataset_name = vm["dataset_name"].as<std::string>();
         video_paths_file = vm["video_paths_file"].as<std::string>();

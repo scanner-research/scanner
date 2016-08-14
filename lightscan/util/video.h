@@ -138,7 +138,7 @@ private:
   std::vector<cudaStream_t> streams_;
   CUcontext cuda_context_;
   DatasetItemMetadata metadata_;
-  std::vector<char>& metadata_packets_;
+  std::vector<char> metadata_packets_;
 
   CUvideoparser parser_;
   CUvideodecoder decoder_;
