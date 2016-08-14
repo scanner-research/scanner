@@ -151,12 +151,13 @@ int main(int argc, char** argv) {
 
       cmd = vm["command"].as<std::string>();
 
+
       if (cmd == "ingest") {
         po::options_description ingest_desc("ingest options");
         ingest_desc.add_options()
           ("help", "Produce help message")
           ("dataset_name", po::value<std::string>()->required(),
-           "Unique name of the dataset to store persistently");
+           "Unique name of the dataset to store persistently")
           ("video_paths_file", po::value<std::string>()->required(),
            "File which contains paths to video files to process");
 
@@ -165,7 +166,8 @@ int main(int argc, char** argv) {
         ingest_pos.add("video_paths_file", 1);
 
         try {
-          po::store(po::command_line_parser(argc, argv)
+          vm.clear();
+          po::store(po::command_line_parser(opts)
                     .options(ingest_desc)
                     .positional(ingest_pos)
                     .run(),
@@ -179,6 +181,7 @@ int main(int argc, char** argv) {
             throw e;
           }
         }
+        st
 
         dataset_name = vm["dataset_name"].as<std::string>();
         video_paths_file = vm["video_paths_file"].as<std::string>();
@@ -188,9 +191,9 @@ int main(int argc, char** argv) {
         run_desc.add_options()
           ("help", "Produce help message")
           ("job_name", po::value<std::string>()->required(),
-           "Unique name to refer to the output of the job after completion");
+           "Unique name to refer to the output of the job after completion")
           ("dataset_name", po::value<std::string>()->required(),
-           "Unique name of the dataset to store persistently");
+           "Unique name of the dataset to store persistently")
           ("net_descriptor_file", po::value<std::string>()->required(),
            "File which contains a description of the net to use");
 
@@ -200,7 +203,7 @@ int main(int argc, char** argv) {
         run_pos.add("net_descriptor_file", 1);
 
         try {
-          po::store(po::command_line_parser(argc, argv)
+          po::store(po::command_line_parser(opts)
                     .options(run_desc)
                     .positional(run_pos)
                     .run(),
@@ -219,6 +222,8 @@ int main(int argc, char** argv) {
         dataset_name = vm["dataset_name"].as<std::string>();
         net_descriptor_file = vm["net_descriptor_file"].as<std::string>();
 
+      } else {
+        return 1;
       }
   }
 

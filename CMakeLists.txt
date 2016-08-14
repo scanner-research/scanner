@@ -201,6 +201,7 @@ set(LIGHTSCAN_LIBRARIES
   "${MPI_LIBRARIES}"
   "${CUDA_LIBRARIES}"
   "-lcuda"
+  "-lcudart"
   "-lnvcuvid"
   "${CAFFE_LIBRARIES}"
   "${OpenCV_LIBRARIES}"

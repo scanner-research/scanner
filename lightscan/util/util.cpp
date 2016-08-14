@@ -9,6 +9,7 @@
 #include <libgen.h>
 
 namespace lightscan {
+
 // old printf-style interface
 void Logger::spew(const char *fmt, ...)
 {

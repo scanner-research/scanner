@@ -136,7 +136,7 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
            data_mean.cpu_data(),
            sizeof(float) * mean_size * 3);
   } else {
-    std::cout << "Missing 'mean-image.{colors,path}': must specify " <<
+    std::cout << "Missing 'mean-image.{colors,path}': must specify "
               << "color channel values or path of mean image file"
               << std::endl;
     exit(EXIT_FAILURE);

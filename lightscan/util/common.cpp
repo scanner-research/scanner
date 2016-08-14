@@ -82,6 +82,7 @@ DatasetDescriptor deserialize_dataset_descriptor(
     descriptor.item_names.emplace_back(buffer);
     buffer += descriptor.item_names[i].size() + 1;
   }
+  return descriptor;
 }
 
 void serialize_dataset_item_metadata(
@@ -144,6 +145,8 @@ void serialize_dataset_item_metadata(
   // Keyframe info
   assert(metadata.keyframe_positions.size() ==
          metadata.keyframe_timestamps.size());
+  assert(metadata.keyframe_positions.size() ==
+         metadata.keyframe_byte_offsets.size());
 
   size_t num_keyframes = metadata.keyframe_positions.size();
 
@@ -163,6 +166,13 @@ void serialize_dataset_item_metadata(
     file->append(sizeof(int64_t) * num_keyframes,
                  reinterpret_cast<const char*>(
                    metadata.keyframe_timestamps.data())),
+    result);
+  exit_on_error(result);
+
+  EXP_BACKOFF(
+    file->append(sizeof(int64_t) * num_keyframes,
+                 reinterpret_cast<const char*>(
+                   metadata.keyframe_byte_offsets.data())),
     result);
   exit_on_error(result);
 }
@@ -272,6 +282,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
 
   meta.keyframe_positions.resize(num_keyframes);
   meta.keyframe_timestamps.resize(num_keyframes);
+  meta.keyframe_byte_offsets.resize(num_keyframes);
 
   EXP_BACKOFF(
     file->read(pos,
@@ -280,13 +291,24 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
                size_read),
     result);
   exit_on_error(result);
-  assert(size_read == sizeof(int) * num_keyframes);
+  assert(size_read == sizeof(int64_t) * num_keyframes);
   pos += size_read;
 
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int64_t) * num_keyframes,
                reinterpret_cast<char*>(meta.keyframe_timestamps.data()),
+               size_read),
+    result);
+  assert(result == StoreResult::Success ||
+         result == StoreResult::EndOfFile);
+  assert(size_read == sizeof(int64_t) * num_keyframes);
+  pos += size_read;
+
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int64_t) * num_keyframes,
+               reinterpret_cast<char*>(meta.keyframe_byte_offsets.data()),
                size_read),
     result);
   assert(result == StoreResult::Success ||
