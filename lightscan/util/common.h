@@ -59,6 +59,13 @@ inline std::string dataset_item_video_path(const std::string& dataset_name,
   return dataset_name + "_dataset/" + item_name + ".mp4";
 }
 
+inline std::string dataset_item_video_timestamps_path(
+  const std::string& dataset_name,
+  const std::string& item_name)
+{
+  return dataset_name + "_dataset/" + item_name + "_web_timestamps.bin";
+}
+
 inline std::string dataset_item_metadata_path(const std::string& dataset_name,
                                               const std::string& item_name)
 {
@@ -80,7 +87,7 @@ inline std::string job_descriptor_path(const std::string& job_name) {
 }
 
 inline std::string job_profiler_path(const std::string& job_name, int node) {
-  return job_name + "_job_profiler_ " + std::to_string(node) + ".bin";
+  return job_name + "_job_profiler_" + std::to_string(node) + ".bin";
 }
 
 inline int frames_per_work_item() {
@@ -107,6 +114,13 @@ struct DatasetItemMetadata {
   std::vector<int64_t> keyframe_byte_offsets;
 };
 
+struct DatasetItemWebTimestamps {
+  int time_base_numerator;
+  int time_base_denominator;
+  std::vector<int64_t> dts_timestamps;
+  std::vector<int64_t> pts_timestamps;
+};
+
 struct JobDescriptor {
   std::string dataset_name;
   std::map<std::string, std::vector<std::tuple<int, int>>> intervals;
@@ -125,6 +139,14 @@ void serialize_dataset_item_metadata(
   const DatasetItemMetadata& metadata);
 
 DatasetItemMetadata deserialize_dataset_item_metadata(
+  RandomReadFile* file,
+  uint64_t& file_pos);
+
+void serialize_dataset_item_web_timestamps(
+  WriteFile* file,
+  const DatasetItemWebTimestamps& metadata);
+
+DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   RandomReadFile* file,
   uint64_t& file_pos);
 

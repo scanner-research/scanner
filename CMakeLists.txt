@@ -127,9 +127,10 @@ ExternalProject_Add(Ffmpeg
 
   SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/ffmpeg"
   CONFIGURE_COMMAND "${THIRDPARTY_SOURCE_DIR}/ffmpeg/configure"
-      --disable-programs
       --disable-doc
       --enable-shared
+      --enable-pic
+      --enable-avresample
       "${FFMPEG_BUILD_FLAGS}"
       --prefix=${GLOBAL_OUTPUT_PATH}/ffmpeg
 

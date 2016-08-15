@@ -492,6 +492,145 @@ void cleanup_video_codec(CodecState state) {
   avformat_free_context(state.out_format_context);
 }
 
+bool read_timestamps(std::string video_path,
+                     DatasetItemWebTimestamps& meta)
+{
+  // Load the entire input
+  std::vector<char> video_bytes;
+  {
+    // Read input from local path
+    std::ifstream file{video_path};
+
+    const size_t READ_SIZE = 1024 * 1024;
+    while (file) {
+      size_t prev_size = video_bytes.size();
+      video_bytes.resize(prev_size + READ_SIZE);
+      file.read(video_bytes.data() + prev_size, READ_SIZE);
+      size_t size_read = file.gcount();
+      if (size_read != READ_SIZE) {
+        video_bytes.resize(prev_size + size_read);
+      }
+    }
+  }
+
+  // Setup custom buffer for libavcodec so that we can read from memory instead
+  // of from a file
+  BufferData buffer;
+  buffer.ptr = reinterpret_cast<uint8_t*>(video_bytes.data());
+  buffer.size = video_bytes.size();
+  buffer.orig_ptr = buffer.ptr;
+  buffer.initial_size = buffer.size;
+
+  CodecState state = setup_video_codec(&buffer);
+
+  AVStream const* const in_stream =
+    state.format_context->streams[state.video_stream_index];
+
+  meta.time_base_numerator = in_stream->time_base.num;
+  meta.time_base_denominator = in_stream->time_base.den;
+  std::vector<int64_t>& pts_timestamps = meta.pts_timestamps;
+  std::vector<int64_t>& dts_timestamps = meta.dts_timestamps;
+
+  bool succeeded = true;
+  int frame = 0;
+  while (true) {
+    // Read from format context
+    int err = av_read_frame(state.format_context, &state.av_packet);
+    if (err == AVERROR_EOF) {
+      av_packet_unref(&state.av_packet);
+      break;
+    } else if (err != 0) {
+      char err_msg[256];
+      av_strerror(err, err_msg, 256);
+      fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
+              frame, err, err_msg);
+      CUD_CHECK(cuDevicePrimaryCtxRelease(0));
+      return false;
+    }
+
+    if (state.av_packet.stream_index != state.video_stream_index) {
+      av_packet_unref(&state.av_packet);
+      continue;
+    }
+
+    /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
+       and this is the only method to use them because you cannot
+       know the compressed data size before analysing it.
+
+       BUT some other codecs (msmpeg4, mpeg4) are inherently frame
+       based, so you must call them with all the data for one
+       frame exactly. You must also initialize 'width' and
+       'height' before initializing them. */
+
+    /* NOTE2: some codecs allow the raw parameters (frame size,
+       sample rate) to be changed at any frame. We handle this, so
+       you should also take care of it */
+
+    /* here, we use a stream based decoder (mpeg1video), so we
+       feed decoder and see if it could decode a frame */
+    uint8_t* orig_data = state.av_packet.data;
+    int orig_size = state.av_packet.size;
+    while (state.av_packet.size > 0) {
+      int got_picture = 0;
+      char* dec;
+      size_t size;
+      int len = avcodec_decode_video2(state.in_cc,
+                                      state.picture,
+                                      &got_picture,
+                                      &state.av_packet);
+      if (len < 0) {
+        char err_msg[256];
+        av_strerror(len, err_msg, 256);
+        fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
+                frame, len, err_msg);
+        assert(false);
+      }
+      if (got_picture) {
+        state.picture->pts = frame;
+
+        pts_timestamps.push_back(state.picture->pkt_pts);
+        dts_timestamps.push_back(state.picture->pkt_dts);
+
+        if (state.picture->key_frame == 1) {
+          printf("keyframe dts %d\n",
+                 state.picture->pkt_dts);
+          printf("keyframe pts %d\n",
+                 state.picture->pkt_pts);
+        }
+        // the picture is allocated by the decoder. no need to free
+        frame++;
+      }
+      // cuvid decoder uses entire packet without setting size or returning len
+      state.av_packet.size = 0;
+    }
+    state.av_packet.data = orig_data;
+    state.av_packet.size = orig_size;
+
+    av_packet_unref(&state.av_packet);
+  }
+
+// /* some codecs, such as MPEG, transmit the I and P frame with a
+//    latency of one frame. You must do the following to have a
+//    chance to get the last frame of the video */
+  state.av_packet.data = NULL;
+  state.av_packet.size = 0;
+
+  int got_picture;
+  do {
+    got_picture = 0;
+    int len = avcodec_decode_video2(state.in_cc,
+                                    state.picture,
+                                    &got_picture,
+                                    &state.av_packet);
+    (void)len;
+    if (got_picture) {
+      pts_timestamps.push_back(state.picture->pkt_pts);
+      dts_timestamps.push_back(state.picture->pkt_dts);
+
+      // the picture is allocated by the decoder. no need to free
+      frame++;
+    }
+  } while (got_picture);
 }
 
 
@@ -510,7 +649,7 @@ bool preprocess_video(
 
     const size_t READ_SIZE = 1024 * 1024;
     while (file) {
-      size_t prev_size = video_bytes.size()
+      size_t prev_size = video_bytes.size();
       video_bytes.resize(prev_size + READ_SIZE);
       file.read(video_bytes.data() + prev_size, READ_SIZE);
       size_t size_read = file.gcount();
@@ -695,18 +834,19 @@ bool preprocess_video(
   FILE* fptr;
   temp_file(&fptr, temp_output_path);
   fclose(fptr);
+  temp_output_path += ".mp4";
 
   // Convert to web friendly format
   std::string conversion_command =
-    "ffmpeg " +
-    "-vsync 0 " +
-    "-i " + video_path +
-    "-profile:v baseline " +
-    "-strict -2 " +
+    "LD_LIBRARY_PATH=build/debug/bin/ffmpeg/lib:$LD_LIBRARY_PATH "
+    "build/debug/bin/ffmpeg/bin/ffmpeg "
+    "-i " + video_path + " "
+    "-profile:v baseline "
+    "-strict -2 "
     "-movflags faststart " +
     temp_output_path;
 
-  std::system(conversion_command);
+  std::system(conversion_command.c_str());
 
   // Copy the web friendly data format into database storage
   {
@@ -735,6 +875,31 @@ bool preprocess_video(
     }
 
     output_file->save();
+  }
+
+  // Get timestamp info for web video
+  DatasetItemWebTimestamps timestamps_meta;
+  succeeded = read_timestamps(temp_output_path, timestamps_meta);
+  if (!succeeded) {
+    std::cerr << "Could not get timestamps from web data" << std::endl;
+    return false;
+  }
+
+  printf("time base (%d/%d), orig frames %d, dts size %lu\n",
+         timestamps_meta.time_base_numerator,
+         timestamps_meta.time_base_denominator,
+         frame,
+         timestamps_meta.pts_timestamps.size())
+
+  {
+    // Write to database storage
+    std::string web_video_timestamp_path =
+      dataset_item_video_timestamps_path(dataset_name, item_name);
+    std::unique_ptr<WriteFile> output_file{};
+    exit_on_error(
+      make_unique_write_file(storage, web_video_timestamp_path, output_file));
+
+    serialize_dataset_item_web_timestamps(outputp_file.get(), timestamps_meta);
   }
 
   CUD_CHECK(cuDevicePrimaryCtxRelease(0));

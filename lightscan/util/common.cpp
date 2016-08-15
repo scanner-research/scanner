@@ -319,6 +319,116 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   return meta;
 }
 
+void serialize_dataset_item_web_timestamps(
+  WriteFile* file,
+  const DatasetItemWebTimestamps& metadata)
+{
+  StoreResult result;
+  EXP_BACKOFF(
+    file->append(sizeof(int),
+                 reinterpret_cast<const char*>(&metadata.time_base_numerator)),
+    result);
+  exit_on_error(result);
+
+  // Width
+  EXP_BACKOFF(
+    file->append(sizeof(int),
+                 reinterpret_cast<const char*>(
+                   &metadata.time_base_denominator)),
+    result);
+  exit_on_error(result);
+
+  size_t num_frames = metadata.pts_timestamps.size();
+  EXP_BACKOFF(
+    file->append(sizeof(size_t), reinterpret_cast<char*>(&num_frames)),
+    result);
+  exit_on_error(result);
+
+  EXP_BACKOFF(
+    file->append(sizeof(int64_t) * num_frames,
+                 reinterpret_cast<const char*>(
+                   metadata.pts_timestamps.data())),
+    result);
+  exit_on_error(result);
+
+  EXP_BACKOFF(
+    file->append(sizeof(int64_t) * num_frames,
+                 reinterpret_cast<const char*>(
+                   metadata.dts_timestamps.data())),
+    result);
+  exit_on_error(result);
+}
+
+DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
+  RandomReadFile* file,
+  uint64_t& file_pos)
+{
+  StoreResult result;
+  size_t size_read;
+
+  DatasetItemWebTimestamps meta;
+
+  // timebase numerator
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int),
+               reinterpret_cast<char*>(&meta.time_base_numerator),
+               size_read),
+    result);
+  exit_on_error(result);
+  assert(size_read == sizeof(size_t));
+  pos += size_read;
+
+  // timebase denominator
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int),
+               reinterpret_cast<char*>(&meta.time_base_denominator),
+               size_read),
+    result);
+  exit_on_error(result);
+  assert(size_read == sizeof(size_t));
+  pos += size_read;
+
+  size_t num_frames;
+  // Frames
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(size_t),
+               reinterpret_cast<char*>(&num_frames),
+               size_read),
+    result);
+  exit_on_error(result);
+  assert(size_read == sizeof(size_t));
+  pos += size_read;
+
+  meta.pts_timestamps.resize(num_frames);
+  meta.dts_timestamps.resize(num_frames);
+
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int64_t) * num_frames,
+               reinterpret_cast<char*>(meta.pts_timestamps.data()),
+               size_read),
+    result);
+  exit_on_error(result);
+  assert(size_read == sizeof(int64_t) * num_frames);
+  pos += size_read;
+
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int64_t) * num_frames,
+               reinterpret_cast<char*>(meta.dts_timestamps.data()),
+               size_read),
+    result);
+  assert(result == StoreResult::Success ||
+         result == StoreResult::EndOfFile);
+  assert(size_read == sizeof(int64_t) * num_frames);
+  pos += size_read;
+
+  return meta;
+}
+
 void serialize_job_descriptor(
   WriteFile* file,
   const JobDescriptor& descriptor)
