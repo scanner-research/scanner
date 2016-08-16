@@ -387,8 +387,6 @@ CodecState setup_video_codec(BufferData* buffer) {
   AVStream const* const in_stream =
     state.format_context->streams[state.video_stream_index];
 
-  state.in_cc = in_stream->codec;
-
   state.in_codec = avcodec_find_decoder_by_name("h264_cuvid");
   if (state.in_codec == NULL) {
     fprintf(stderr, "could not find hardware decoder\n");
@@ -397,6 +395,8 @@ CodecState setup_video_codec(BufferData* buffer) {
 
   CUcontext cuda_context;
   CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
+
+  state.in_cc = avcodec_alloc_context3(codec);
 
   if (cuvid_init(state.in_cc, cuda_context) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
@@ -489,9 +489,13 @@ CodecState setup_video_codec(BufferData* buffer) {
 }
 
 void cleanup_video_codec(CodecState state) {
-  avcodec_free_context(&state.in_cc);
   cuvid_uninit(state.in_cc);
-  avformat_free_context(state.out_format_context);
+  avcodec_free_context(&state.in_cc);
+  avformat_close_input(&state.format_context);
+  if (state.io_context) {
+      av_freep(&state.io_context->buffer);
+      av_freep(&state.io_context);
+  }
   av_frame_free(&state.picture);
   CUD_CHECK(cuDevicePrimaryCtxRelease(0));
 }
