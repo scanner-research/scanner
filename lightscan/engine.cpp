@@ -388,7 +388,8 @@ void* evaluate_thread(void* arg) {
   const boost::shared_ptr<caffe::Blob<float>> output_blob{
     net.blob_by_name(args.net_descriptor.output_layer_name)};
 
-  int dim = input_blob->shape(2);
+  int inputHeight = input_blob->shape(2);
+  int inputWidth = input_blob->shape(3);
 
   cv::cuda::setDevice(args.gpu_device_id);
 
@@ -403,7 +404,8 @@ void* evaluate_thread(void* arg) {
   cv::cuda::GpuMat mean_mat;
   // HACK(apoms): Resizing the mean like this is not likely to produce a correct
   //              result.
-  cv::cuda::resize(unsized_mean_mat, mean_mat, cv::Size(dim, dim * 3));
+  cv::cuda::resize(unsized_mean_mat, mean_mat,
+                   cv::Size(inputWidth, inputHeight * 3));
 
   // OpenCV matrices
   std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
@@ -435,25 +437,25 @@ void* evaluate_thread(void* arg) {
   std::vector<cv::cuda::GpuMat> conv_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     conv_input.push_back(
-      cv::cuda::GpuMat(dim, dim, CV_8UC3));
+      cv::cuda::GpuMat(inputHeight, inputWidth, CV_8UC3));
   }
 
   std::vector<cv::cuda::GpuMat> conv_planar_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     conv_planar_input.push_back(
-      cv::cuda::GpuMat(dim * 3, dim, CV_8UC1));
+      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_8UC1));
   }
 
   std::vector<cv::cuda::GpuMat> float_conv_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     float_conv_input.push_back(
-      cv::cuda::GpuMat(dim * 3, dim, CV_32FC1));
+      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
   }
 
   std::vector<cv::cuda::GpuMat> normed_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     normed_input.push_back(
-      cv::cuda::GpuMat(dim * 3, dim, CV_32FC1));
+      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
   }
 
   args.profiler.add_interval("setup", setup_start, now());
@@ -498,7 +500,7 @@ void* evaluate_thread(void* arg) {
         std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
       if (input_blob->shape(0) != batch_size) {
-        input_blob->Reshape({batch_size, 3, dim, dim});
+        input_blob->Reshape({batch_size, 3, inputHeight, inputWidth});
       }
 
       float* net_input_buffer = input_blob->mutable_gpu_data();
@@ -523,11 +525,12 @@ void* evaluate_thread(void* arg) {
                           cv_stream);
         cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_BGRA2BGR, 0,
                            cv_stream);
-        cv::cuda::resize(rgb_mat[sid], conv_input[sid], cv::Size(dim, dim),
+        cv::cuda::resize(rgb_mat[sid], conv_input[sid],
+                         cv::Size(inputWidth, inputHeight),
                          0, 0, cv::INTER_LINEAR, cv_stream);
         // Changed from interleaved BGR to planar BGR
         convertRGBInterleavedToPlanar(conv_input[sid], conv_planar_input[sid],
-                                      dim, dim,
+                                      inputWidth, inputHeight,
                                       cv_stream);
         conv_planar_input[sid].convertTo(
           float_conv_input[sid], CV_32FC1, cv_stream);
@@ -535,12 +538,12 @@ void* evaluate_thread(void* arg) {
                            cv::noArray(), -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
         CU_CHECK(cudaMemcpy2DAsync(
-                   net_input_buffer + i * (dim * dim * 3),
-                   dim * sizeof(float),
+                   net_input_buffer + i * (inputWidth * inputHeight * 3),
+                   inputWidth * sizeof(float),
                    normed_input[sid].data,
                    normed_input[sid].step,
-                   dim * sizeof(float),
-                   dim * 3,
+                   inputWidth * sizeof(float),
+                   inputHeight * 3,
                    cudaMemcpyDeviceToDevice,
                    s));
 

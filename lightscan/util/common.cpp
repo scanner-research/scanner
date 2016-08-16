@@ -376,7 +376,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
                size_read),
     result);
   exit_on_error(result);
-  assert(size_read == sizeof(size_t));
+  assert(size_read == sizeof(int));
   pos += size_read;
 
   // timebase denominator
@@ -387,7 +387,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
                size_read),
     result);
   exit_on_error(result);
-  assert(size_read == sizeof(size_t));
+  assert(size_read == sizeof(int));
   pos += size_read;
 
   size_t num_frames;

@@ -135,9 +135,10 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     memcpy(descriptor.mean_image.data(),
            data_mean.cpu_data(),
            sizeof(float) * mean_size * 3);
-  } else {
-    std::cout << "Missing 'mean-image.{colors,path}': must specify "
-              << "color channel values or path of mean image file"
+  } else if (!mean_image->has("empty")) {
+    std::cout << "Missing 'mean-image.{colors,path,empty}': must specify "
+              << "color channel values or path of mean image file or that "
+              << "there is no mean"
               << std::endl;
     exit(EXIT_FAILURE);
   }
