@@ -489,7 +489,11 @@ CodecState setup_video_codec(BufferData* buffer) {
 }
 
 void cleanup_video_codec(CodecState state) {
+  avcodec_free_context(&state.in_cc);
+  cuvid_uninit(state.in_cc);
   avformat_free_context(state.out_format_context);
+  av_frame_free(&state.picture);
+  CUD_CHECK(cuDevicePrimaryCtxRelease(0));
 }
 
 bool read_timestamps(std::string video_path,
@@ -544,7 +548,8 @@ bool read_timestamps(std::string video_path,
       av_strerror(err, err_msg, 256);
       fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
               frame, err, err_msg);
-      CUD_CHECK(cuDevicePrimaryCtxRelease(0));
+
+      cleanup_video_codec(state);
       return false;
     }
 
@@ -631,6 +636,12 @@ bool read_timestamps(std::string video_path,
       frame++;
     }
   } while (got_picture);
+
+  cleanup_video_codec(state);
+
+  return true;
+}
+
 }
 
 
@@ -697,7 +708,7 @@ bool preprocess_video(
       av_strerror(err, err_msg, 256);
       fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
               frame, err, err_msg);
-      CUD_CHECK(cuDevicePrimaryCtxRelease(0));
+      cleanup_video_codec(state);
       return false;
     }
 
@@ -837,21 +848,25 @@ bool preprocess_video(
   temp_output_path += ".mp4";
 
   // Convert to web friendly format
+  // vsync 0 needed to never drop or duplicate frames to match fps
+  // alternatively we could figure out how to make output fps same as input
   std::string conversion_command =
     "LD_LIBRARY_PATH=build/debug/bin/ffmpeg/lib:$LD_LIBRARY_PATH "
     "build/debug/bin/ffmpeg/bin/ffmpeg "
     "-i " + video_path + " "
-    "-profile:v baseline "
+    "-vsync 0 "
+    "-c:v h264_nvenc "
     "-strict -2 "
     "-movflags faststart " +
     temp_output_path;
 
   std::system(conversion_command.c_str());
+  std::system("fsync");
 
   // Copy the web friendly data format into database storage
   {
     // Read input from local path
-    std::ifstream file{video_path};
+    std::ifstream file{temp_output_path};
 
     // Write to database storage
     std::string web_video_path =
@@ -881,7 +896,8 @@ bool preprocess_video(
   DatasetItemWebTimestamps timestamps_meta;
   succeeded = read_timestamps(temp_output_path, timestamps_meta);
   if (!succeeded) {
-    std::cerr << "Could not get timestamps from web data" << std::endl;
+    fprintf(stderr, "Could not get timestamps from web data\n");
+    cleanup_video_codec(state);
     return false;
   }
 
@@ -889,7 +905,7 @@ bool preprocess_video(
          timestamps_meta.time_base_numerator,
          timestamps_meta.time_base_denominator,
          frame,
-         timestamps_meta.pts_timestamps.size())
+         timestamps_meta.pts_timestamps.size());
 
   {
     // Write to database storage
@@ -899,10 +915,10 @@ bool preprocess_video(
     exit_on_error(
       make_unique_write_file(storage, web_video_timestamp_path, output_file));
 
-    serialize_dataset_item_web_timestamps(outputp_file.get(), timestamps_meta);
+    serialize_dataset_item_web_timestamps(output_file.get(), timestamps_meta);
   }
 
-  CUD_CHECK(cuDevicePrimaryCtxRelease(0));
+  cleanup_video_codec(state);
 
   return succeeded;
 }

@@ -361,7 +361,7 @@ void serialize_dataset_item_web_timestamps(
 
 DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   RandomReadFile* file,
-  uint64_t& file_pos)
+  uint64_t& pos)
 {
   StoreResult result;
   size_t size_read;
