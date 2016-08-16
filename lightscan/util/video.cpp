@@ -204,6 +204,10 @@ bool VideoSeparator::decode(AVPacket* packet) {
   return false;
 }
 
+CUVIDDECODECREATEINFO VideoSeparator::get_decoder_info() {
+  return decoder_info_;
+}
+
 const std::vector<char>& VideoSeparator::get_metadata_bytes() {
   return metadata_packets_;
 }

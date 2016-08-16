@@ -50,6 +50,8 @@ public:
 
   bool decode(AVPacket* packet);
 
+  CUVIDDECODECREATEINFO get_decoder_info();
+
   const std::vector<char>& get_metadata_bytes();
 
   const std::vector<char>& get_bitstream_bytes();

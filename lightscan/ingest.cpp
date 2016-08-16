@@ -396,7 +396,7 @@ CodecState setup_video_codec(BufferData* buffer) {
   CUcontext cuda_context;
   CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
-  state.in_cc = avcodec_alloc_context3(codec);
+  state.in_cc = avcodec_alloc_context3(state.in_codec);
 
   if (cuvid_init(state.in_cc, cuda_context) < 0) {
     fprintf(stderr, "could not init cuvid codec context\n");
@@ -696,9 +696,6 @@ bool preprocess_video(
 
   VideoSeparator separator(cuda_context, state.in_cc);
 
-  CuvidContext *cuvid_ctx =
-    reinterpret_cast<CuvidContext*>(state.in_cc->priv_data);
-
   bool succeeded = true;
   int frame = 0;
   while (true) {
@@ -796,9 +793,11 @@ bool preprocess_video(
     }
   } while (got_picture);
 
+  CUVIDDECODECREATEINFO decoder_info = separator.get_decoder_info();
+
   video_metadata.frames = frame;
-  video_metadata.codec_type = cuvid_ctx->codec_type;
-  video_metadata.chroma_format = cuvid_ctx->chroma_format;
+  video_metadata.codec_type = decoder_info.CodecType;
+  video_metadata.chroma_format = decoder_info.ChromaFormat;
 
   video_metadata.metadata_packets = separator.get_metadata_bytes();
   video_metadata.keyframe_positions = separator.get_keyframe_positions();
