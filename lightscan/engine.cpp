@@ -543,7 +543,8 @@ void* evaluate_thread(void* arg) {
         convertNV12toRGBA(input_mats[sid], rgba_mat[sid],
                           metadata.width, metadata.height,
                           cv_stream);
-        cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_BGRA2BGR, 0,
+        // BGR -> RGB for helnet
+        cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_BGRA2RGB, 0,
                            cv_stream);
         cv::cuda::resize(rgb_mat[sid], conv_input[sid],
                          cv::Size(inputWidth, inputHeight),
@@ -558,7 +559,7 @@ void* evaluate_thread(void* arg) {
                            cv::noArray(), -1, cv_stream);
         // For helnet, we need to transpose so width is fasting moving dim
         // and normalize to 0 - 1
-        cv::cuda::divide(normed_input[sid], 256.0f, scaled_input[sid],
+        cv::cuda::divide(normed_input[sid], 255.0f, scaled_input[sid],
                          1, -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
         CU_CHECK(cudaMemcpy2DAsync(
