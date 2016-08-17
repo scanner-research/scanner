@@ -392,7 +392,7 @@ void* evaluate_thread(void* arg) {
   for (const std::string& output_layer_name :
          args.net_descriptor.output_layer_names)
   {
-    const boost::shared_ptr<caffe::blob<float>> output_blob{
+    const boost::shared_ptr<caffe::Blob<float>> output_blob{
       net.blob_by_name(output_layer_name)};
     size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
     output_sizes.push_back(output_size_per_frame);
@@ -464,6 +464,12 @@ void* evaluate_thread(void* arg) {
   std::vector<cv::cuda::GpuMat> normed_input;
   for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
     normed_input.push_back(
+      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
+  }
+
+  std::vector<cv::cuda::GpuMat> scaled_input;
+  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
+    scaled_input.push_back(
       cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
   }
 
@@ -550,12 +556,16 @@ void* evaluate_thread(void* arg) {
           float_conv_input[sid], CV_32FC1, cv_stream);
         cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
                            cv::noArray(), -1, cv_stream);
+        // For helnet, we need to transpose so width is fasting moving dim
+        // and normalize to 0 - 1
+        cv::cuda::divide(normed_input[sid], 256.0f, scaled_input[sid],
+                         1, -1, cv_stream);
         cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
         CU_CHECK(cudaMemcpy2DAsync(
                    net_input_buffer + i * (inputWidth * inputHeight * 3),
                    inputWidth * sizeof(float),
-                   normed_input[sid].data,
-                   normed_input[sid].step,
+                   scaled_input[sid].data,
+                   scaled_input[sid].step,
                    inputWidth * sizeof(float),
                    inputHeight * 3,
                    cudaMemcpyDeviceToDevice,
@@ -597,7 +607,7 @@ void* evaluate_thread(void* arg) {
       for (size_t i = 0; i < output_buffer_sizes.size(); ++i) {
         const std::string& output_layer_name =
           args.net_descriptor.output_layer_names[i];
-        const boost::shared_ptr<caffe::blob<float>> output_blob{
+        const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net.blob_by_name(output_layer_name)};
         CU_CHECK(cudaMemcpy(
                    output_buffers[i] + frame_offset * output_sizes[i],
