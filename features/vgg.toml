@@ -2,7 +2,7 @@
     model = "features/vgg19/VGG_ILSVRC_19_layers_deploy.prototxt"
     weights = "features/vgg19/VGG_ILSVRC_19_layers.caffemodel"
     input_layer = "data"
-    output_layer = "fc8"
+    output_layers = ["fc8"]
 
     [net.input]
         dimensions = [

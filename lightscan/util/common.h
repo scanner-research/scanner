@@ -74,10 +74,12 @@ inline std::string dataset_item_metadata_path(const std::string& dataset_name,
 
 inline std::string job_item_output_path(const std::string& job_name,
                                         const std::string& item_name,
+                                        const std::string& layer_name,
                                         int start,
                                         int end)
 {
   return job_name + "_job/" + item_name + "_" +
+    layer_name + "_" +
     std::to_string(start) + "-" +
     std::to_string(end) + ".bin";
 }

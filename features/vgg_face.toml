@@ -2,7 +2,7 @@
     model = "features/vgg_face_caffe/VGG_FACE_deploy.prototxt"
     weights = "features/vgg_face_caffe/VGG_FACE.caffemodel"
     input_layer = "data"
-    output_layer = "fc8"
+    output_layers = ["fc8"]
 
     [net.input]
         dimensions = [

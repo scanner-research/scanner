@@ -104,6 +104,7 @@ struct SaveThreadArgs {
   std::string job_name;
   const std::vector<std::string>& video_paths;
   const std::vector<DatasetItemMetadata>& metadata;
+  const std::vector<std::string>& output_layer_names;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -376,6 +377,7 @@ void* evaluate_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   CU_CHECK(cudaSetDevice(args.gpu_device_id));
+  cv::cuda::setDevice(args.gpu_device_id);
 
   // Setup caffe net
   NetBundle net_bundle{args.net_descriptor, args.gpu_device_id};
@@ -385,13 +387,22 @@ void* evaluate_thread(void* arg) {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net.blob_by_name(args.net_descriptor.input_layer_name)};
 
-  const boost::shared_ptr<caffe::Blob<float>> output_blob{
-    net.blob_by_name(args.net_descriptor.output_layer_name)};
+  // Get output blobs that we will extract net evaluation results from
+  std::vector<const boost::shared_ptr<caffe::Blob<float>>> output_blobs;
+  std::vector<size_t> output_sizes;
+  for (const std::string& output_layer_name :
+         args.net_descriptor.output_layer_names)
+  {
+    const boost::shared_ptr<caffe::Blob<float>> output_blob{
+      net.blob_by_name(output_layer_name)};
+    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
+    output_blobs.push_back(output_blob);
+    output_sizes.push_back(output_size_per_frame);
+  }
 
+  // Dimensions of network input image
   int inputHeight = input_blob->shape(2);
   int inputWidth = input_blob->shape(3);
-
-  cv::cuda::setDevice(args.gpu_device_id);
 
   // Resize into
   std::vector<float> mean_image = args.net_descriptor.mean_image;
@@ -460,6 +471,7 @@ void* evaluate_thread(void* arg) {
 
   args.profiler.add_interval("setup", setup_start, now());
 
+
   while (true) {
     auto idle_start = now();
     // Wait for buffer to process
@@ -486,12 +498,16 @@ void* evaluate_thread(void* arg) {
                                metadata.height,
                                1);
 
-    // Create size of output buffer equal to number of frames multiplied by
-    // the size of the output vector for each image of a batch
-    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
-    size_t output_buffer_size =
-      (work_item.end_frame - work_item.start_frame) * output_size_per_frame;
-    char* output_buffer = new char[output_buffer_size];
+    // Create output buffer to hold results from net evaluation for all frames
+    // in the current work item
+    std::vector<size_t> output_buffer_sizes;
+    std::vector<char*> output_buffers;
+    for (size_t output_size_per_frame : output_sizes) {
+      size_t output_buffer_size =
+        (work_item.end_frame - work_item.start_frame) * output_size_per_frame;
+      output_buffer_sizes.push_back(output_buffer_size);
+      output_buffers.push_back(new char[output_buffer_size]);
+    }
 
     int current_frame = work_item.start_frame;
     while (current_frame < work_item.end_frame) {
@@ -580,11 +596,13 @@ void* evaluate_thread(void* arg) {
       args.profiler.add_interval("net", net_start, now());
 
       // Save batch of frames
-      CU_CHECK(cudaMemcpy(
-                 output_buffer + frame_offset * output_size_per_frame,
-                 output_blob->gpu_data(),
-                 batch_size * output_size_per_frame,
-                 cudaMemcpyDeviceToHost));
+      for (size_t i = 0; i < output_buffer_sizes.size(); ++i) {
+        CU_CHECK(cudaMemcpy(
+                   output_buffers[i] + frame_offset * output_sizes[i],
+                   output_blobs[i]->gpu_data(),
+                   batch_size * output_sizes[i],
+                   cudaMemcpyDeviceToHost));
+      }
 
       current_frame += batch_size;
     }
@@ -597,8 +615,8 @@ void* evaluate_thread(void* arg) {
 
     SaveWorkEntry save_work_entry;
     save_work_entry.work_item_index = work_entry.work_item_index;
-    save_work_entry.output_buffer_size = output_buffer_size;
-    save_work_entry.buffer = output_buffer;
+    save_work_entry.output_buffer_sizes = output_buffer_sizes;
+    save_work_entry.output_buffers = output_buffers;
     args.save_work.push(save_work_entry);
   }
 
@@ -644,34 +662,37 @@ void* save_thread(void* arg) {
     const std::string& video_path = args.video_paths[work_item.video_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
-    const std::string output_path =
-      job_item_output_path(args.job_name,
-                           video_path,
-                           work_item.start_frame,
-                           work_item.end_frame);
+    // Write out each output layer to an individual data file
+    for (size_t i = 0; i < args.output_layer_names.size(); ++i) {
+      const std::string output_path =
+        job_item_output_path(args.job_name,
+                             video_path,
+                             args.output_layer_names[i],
+                             work_item.start_frame,
+                             work_item.end_frame);
 
-    // Open the video file for reading
-    WriteFile* output_file = nullptr;
-    storage->make_write_file(output_path, output_file);
+      size_t buffer_size = save_work_entry.output_buffer_sizes[i];
+      char* buffer = save_work_entry.output_buffers[i];
 
-    auto io_start = now();
+      auto io_start = now();
 
-    StoreResult result;
-    EXP_BACKOFF(
-      output_file->append(
-        save_work_entry.output_buffer_size,
-        save_work_entry.buffer),
-      result);
-    assert(result == StoreResult::Success ||
-           result == StoreResult::EndOfFile);
+      WriteFile* output_file = nullptr;
+      storage->make_write_file(output_path, output_file);
 
-    output_file->save();
+      StoreResult result;
+      EXP_BACKOFF(
+        output_file->append(buffer_size, buffer),
+        result);
+      assert(result == StoreResult::Success ||
+             result == StoreResult::EndOfFile);
 
-    delete output_file;
+      output_file->save();
 
-    delete[] save_work_entry.buffer;
+      args.profiler.add_interval("io", io_start, now());
 
-    args.profiler.add_interval("io", io_start, now());
+      delete output_file;
+      delete[] buffer;
+    }
 
     args.profiler.add_interval("task", work_start, now());
   }
@@ -911,6 +932,7 @@ void run_job(
           job_name,
           video_paths,
           video_metadata,
+          net_descriptor.output_layer_names,
           work_items,
 
           // Per worker arguments

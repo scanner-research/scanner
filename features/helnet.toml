@@ -1,0 +1,26 @@
+[net]
+    model = "features/helnet/cs_nvhelnet18_CarPedCyc_baseline_fullSet_kittiPretr_pruned_160527_4877.prototxt"
+    weights = "features/helnet/cs_nvhelnet18_CarPedCyc_baseline_fullSet_kittiPretr_pruned_160527_4877.caffemodel"
+    input_layer = "data"
+    output_layers = [
+        "Layer19_bbox",
+        "Layer19_cov",
+    ]
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width",
+        ]
+        channel_ordering = [
+            "blue"
+            "green"
+            "red"
+        ]
+
+[mean-image]
+    width = 640
+    height = 480
+    empty = 1

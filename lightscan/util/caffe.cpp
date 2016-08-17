@@ -62,9 +62,9 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     std::cout << "Missing 'net.input_layer': name of input layer" << std::endl;
     exit(EXIT_FAILURE);
   }
-  auto output_layer = net->find("output_layer");
+  auto output_layers = net->find("output_layers");
   if (!output_layer) {
-    std::cout << "Missing 'net.output_layer': name of output layer "
+    std::cout << "Missing 'net.output_layers': name of output layers "
               << std::endl;
     exit(EXIT_FAILURE);
   }
@@ -72,7 +72,9 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   descriptor.model_path = model_path->as<std::string>();
   descriptor.model_weights_path = weights_path->as<std::string>();
   descriptor.input_layer_name = input_layer->as<std::string>();
-  descriptor.output_layer_name = output_layer->as<std::string>();
+  for (const toml::Value& v : output_layers->as<toml::Array>()) {
+    descriptor.output_layer_names = v->as<std::string>();
+  }
 
   auto mean_image = root.find("mean-image");
   if (!mean_image) {
