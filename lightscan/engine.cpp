@@ -388,15 +388,13 @@ void* evaluate_thread(void* arg) {
     net.blob_by_name(args.net_descriptor.input_layer_name)};
 
   // Get output blobs that we will extract net evaluation results from
-  std::vector<const boost::shared_ptr<caffe::Blob<float>>> output_blobs;
   std::vector<size_t> output_sizes;
   for (const std::string& output_layer_name :
          args.net_descriptor.output_layer_names)
   {
-    const boost::shared_ptr<caffe::Blob<float>> output_blob{
+    const boost::shared_ptr<caffe::blob<float>> output_blob{
       net.blob_by_name(output_layer_name)};
     size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
-    output_blobs.push_back(output_blob);
     output_sizes.push_back(output_size_per_frame);
   }
 
@@ -597,9 +595,13 @@ void* evaluate_thread(void* arg) {
 
       // Save batch of frames
       for (size_t i = 0; i < output_buffer_sizes.size(); ++i) {
+        const std::string& output_layer_name =
+          args.net_descriptor.output_layer_names[i];
+        const boost::shared_ptr<caffe::blob<float>> output_blob{
+          net.blob_by_name(output_layer_name)};
         CU_CHECK(cudaMemcpy(
                    output_buffers[i] + frame_offset * output_sizes[i],
-                   output_blobs[i]->gpu_data(),
+                   output_blob->gpu_data(),
                    batch_size * output_sizes[i],
                    cudaMemcpyDeviceToHost));
       }

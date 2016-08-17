@@ -397,7 +397,7 @@ CodecState setup_video_codec(BufferData* buffer) {
   CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
   state.in_cc = avcodec_alloc_context3(state.in_codec);
-  if (avcodec_copy_context(state.in_cc, in_stream->codec)) {
+  if (avcodec_copy_context(state.in_cc, in_stream->codec) < 0) {
     fprintf(stderr, "could not copy codec context from input stream\n");
     exit(EXIT_FAILURE);
   }
