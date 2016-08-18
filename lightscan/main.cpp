@@ -58,12 +58,18 @@ int read_last_processed_video(
 
   const std::string last_written_path =
     dataset_name + "_dataset/last_written.bin";
-  std::unique_ptr<RandomReadFile> file;
-  result = make_unique_random_read_file(storage, last_written_path, file);
 
+  // File will not exist when first running ingest so check first
+  // and return default value if not there
+  FileInfo info;
+  result = storage->get_file_info(last_written_path, info);
+  (void) info;
   if (result == StoreResult::FileDoesNotExist) {
     return -1;
   }
+
+  std::unique_ptr<RandomReadFile> file;
+  result = make_unique_random_read_file(storage, last_written_path, file);
 
   uint64_t pos = 0;
   size_t size_read;
