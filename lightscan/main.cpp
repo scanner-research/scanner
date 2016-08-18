@@ -51,6 +51,7 @@ namespace po = boost::program_options;
 namespace {
 
 int read_last_processed_video(
+  StorageBackend* storage,
   const std::string& dataset_name)
 {
   StoreResult result;
@@ -58,7 +59,7 @@ int read_last_processed_video(
   const std::string last_written_path =
     dataset_name + "_dataset/last_written.bin";
   std::unique_ptr<RandomReadFile> file;
-  result = make_random_read_file(storage, last_written_path, file);
+  result = make_unique_random_read_file(storage, last_written_path, file);
 
   if (result == StoreResult::FileDoesNotExist) {
     return -1;
@@ -82,6 +83,7 @@ int read_last_processed_video(
 }
 
 void write_last_processed_video(
+  StorageBackend* storage,
   const std::string& dataset_name,
   int file_index)
 {
