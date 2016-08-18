@@ -48,6 +48,58 @@ using namespace lightscan;
 
 namespace po = boost::program_options;
 
+namespace {
+
+int read_last_processed_video(
+  const std::string& dataset_name)
+{
+  StoreResult result;
+
+  const std::string last_written_path =
+    dataset_name + "_dataset/last_written.bin";
+  std::unique_ptr<RandomReadFile> file;
+  result = make_random_read_file(storage, last_written_path, file);
+
+  if (result == StoreResult::FileDoesNotExist) {
+    return -1;
+  }
+
+  uint64_t pos = 0;
+  size_t size_read;
+
+  int32_t last_processed_video;
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int32_t),
+               reinterpret_cast<char*>(&last_processed_video),
+               size_read),
+    result);
+  assert(result == StoreResult::Success ||
+         result == StoreResult::EndOfFile);
+  assert(size_read == sizeof(int32_t));
+
+  return last_processed_video;
+}
+
+void write_last_processed_video(
+  const std::string& dataset_name,
+  int file_index)
+{
+  const std::string last_written_path =
+    dataset_name + "_dataset/last_written.bin";
+  std::unique_ptr<WriteFile> file;
+  make_unique_write_file(storage, last_written_path, file);
+
+  StoreResult result;
+  EXP_BACKOFF(
+    file->append(sizeof(int32_t),
+                 reinterpret_cast<const char*>(&file_index)),
+    result);
+  exit_on_error(result);
+}
+
+}
+
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
@@ -258,9 +310,13 @@ int main(int argc, char** argv) {
 
     StorageBackend* storage = StorageBackend::make_from_config(config);
 
+    // Start from the file after the one we last processed succesfully before
+    // crashing/exiting
+    int last_processed_index = read_last_processed_video(dataset_name);
+
     // Keep track of videos which we can't parse
     std::vector<std::string> bad_paths;
-    for (size_t i = 0; i < video_paths.size(); ++i) {
+    for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
       const std::string& path = video_paths[i];
       const std::string& item_name = item_names[i];
 
@@ -271,6 +327,10 @@ int main(int argc, char** argv) {
         if (!valid_video) {
           bad_paths.push_back(path);
         }
+
+        // Track the last succesfully processed dataset so we know where
+        // to resume if we crash or exit early
+        write_last_processed_video(dataset_name, static_cast<int>(i));
       }
     }
     if (!bad_paths.empty()) {
@@ -290,6 +350,10 @@ int main(int argc, char** argv) {
 
       serialize_dataset_descriptor(output_file.get(), descriptor);
     }
+    // Reset last processed so that we start from scratch next time
+    // TODO(apoms): alternatively we could delete the file but apparently
+    // that was never designed into the storage interface!
+    write_last_processed_video(dataset_name, -1);
 
     delete storage;
 
