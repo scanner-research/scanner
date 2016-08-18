@@ -314,7 +314,7 @@ int main(int argc, char** argv) {
 
     // Start from the file after the one we last processed succesfully before
     // crashing/exiting
-    int last_processed_index = read_last_processed_video(dataset_name);
+    int last_processed_index = read_last_processed_video(storage, dataset_name);
 
     // Keep track of videos which we can't parse
     std::vector<std::string> bad_paths;
@@ -332,7 +332,7 @@ int main(int argc, char** argv) {
 
         // Track the last succesfully processed dataset so we know where
         // to resume if we crash or exit early
-        write_last_processed_video(dataset_name, static_cast<int>(i));
+        write_last_processed_video(storage, dataset_name, static_cast<int>(i));
       }
     }
     if (!bad_paths.empty()) {
@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
     // Reset last processed so that we start from scratch next time
     // TODO(apoms): alternatively we could delete the file but apparently
     // that was never designed into the storage interface!
-    write_last_processed_video(dataset_name, -1);
+    write_last_processed_video(storage, dataset_name, -1);
 
     delete storage;
 
