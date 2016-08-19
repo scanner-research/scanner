@@ -318,15 +318,36 @@ def single_node_scaling_trials():
         times.append(t)
 
     print_trial_times(
-        'Scaling trials',
+        'Single-node scaling trials',
+        trial_settings,
+        times)
+
+
+def multi_node_scaling_trials():
+    trial_settings = [{'job_name': 'multi_node_scaling_trial',
+                       'dataset_name': 'kcam_all',
+                       'net_descriptor_file': 'features/alex_net.toml',
+                       'node_count': nodes,
+                       'gpus_per_node': gpus,
+                       'batch_size': 256,
+                       'batches_per_work_item': 4,
+                       'tasks_in_queue_per_gpu': 4,
+                       'load_workers_per_node': workers}
+                      for nodes in [1, 2, 4]
+                      for gpus, workers in zip([4, 8], [8, 16])]
+    times = []
+    for settings in trial_settings:
+        t = run_trial(**settings)
+        times.append(t)
+
+    print_trial_times(
+        'Multi-node scaling trials',
         trial_settings,
         times)
 
 
 def main(args):
-    # load_workers_trials()
-    test_interval, profiler_output = parse_profiler_file()
-    write_trace_file(profiler_output)
+    single_node_scaling_trials()
 
 
 if __name__ == '__main__':
