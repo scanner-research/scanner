@@ -86,8 +86,8 @@ def parse_profiler_output(bytes_buffer, offset):
     }, offset
 
 
-def parse_profiler_file():
-    with open('profiler_0.bin', 'rb') as f:
+def parse_profiler_file(job_name):
+    with open(job_name + '_job_profiler_0.bin', 'rb') as f:
         bytes_buffer = f.read()
     offset = 0
     # Read start and end time intervals
@@ -124,7 +124,9 @@ def parse_profiler_file():
     return (start_time, end_time), profilers
 
 
-def run_trial(video_file,
+def run_trial(job_name,
+              dataset_name,
+              net_descriptor_file,
               node_count,
               gpus_per_node,
               batch_size,
@@ -143,12 +145,12 @@ def run_trial(video_file,
         '-n', str(node_count),
         '--bind-to', 'none',
         LIGHTSCAN_PROGRAM_PATH,
-        '--video_paths_file', video_file,
         '--gpus_per_node', str(gpus_per_node),
         '--batch_size', str(batch_size),
         '--batches_per_work_item', str(batches_per_work_item),
         '--tasks_in_queue_per_gpu', str(tasks_in_queue_per_gpu),
-        '--load_workers_per_node', str(load_workers_per_node)
+        '--load_workers_per_node', str(load_workers_per_node),
+        'run', job_name, dataset_name, net_descriptor_file,
     ], env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
     pid, rc, ru = os.wait4(p.pid, 0)
     elapsed = time.time() - start
@@ -158,7 +160,7 @@ def run_trial(video_file,
         # elapsed = -1
     else:
         print('Trial succeeded, took {:.3f}s'.format(elapsed))
-        test_interval, profiler_output = parse_profiler_file()
+        test_interval, profiler_output = parse_profiler_file(job_name)
         elapsed = (test_interval[1] - test_interval[0])
         elapsed /= float(1000000000)  # ns to s
     return elapsed, profiler_output
@@ -283,27 +285,6 @@ def load_workers_trials():
         times)
 
 
-def multi_node_trials():
-    trial_settings = [{'video_file': 'kcam_videos.txt',
-                       'node_count': nodes,
-                       'gpus_per_node': gpus,
-                       'batch_size': 256,
-                       'batches_per_work_item': 4,
-                       'tasks_in_queue_per_gpu': 4,
-                       'load_workers_per_node': workers}
-                      for nodes in [1, 2, 4]
-                      for gpus, workers in zip([4, 8], [8, 16])]
-    times = []
-    for settings in trial_settings:
-        t = run_trial(**settings)
-        times.append(t)
-
-    print_trial_times(
-        'Multi node trials',
-        trial_settings,
-        times)
-
-
 def opencv_reference_trials():
     trial_settings = [{'video_file': 'kcam_videos_small.txt',
                        'gpus_per_node': gpus,
@@ -320,8 +301,11 @@ def opencv_reference_trials():
         times)
 
 
-def scaling_trials():
-    trial_settings = [{'node_count': 1,
+def single_node_scaling_trials():
+    trial_settings = [{'job_name': 'single_node_scaling_trial',
+                       'dataset_name': 'kcam_30',
+                       'net_descriptor_file': 'features/alex_net.toml',
+                       'node_count': 1,
                        'gpus_per_node': gpus,
                        'batch_size': 256,
                        'batches_per_work_item': 4,
