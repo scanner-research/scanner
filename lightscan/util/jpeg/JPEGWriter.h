@@ -157,7 +157,11 @@ void JPEGWriter::write_mem(char **output,
 
   size_t out_len = 0;
 
+#if JPEG_LIB_VERSION < 80
+  exit(1);
+#else
   jpeg_mem_dest(&cinfo, &outp, &out_len);
+#endif
 
   jpeg_start_compress(&cinfo, true);
 

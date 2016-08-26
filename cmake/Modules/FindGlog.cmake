@@ -18,25 +18,25 @@ endif()
 
 if(WIN32)
     find_path(GLOG_INCLUDE_DIR glog/logging.h
-        PATHS ${GLOG_ROOT_DIR}/src/windows)
+        HINTS ${GLOG_ROOT_DIR}/src/windows)
 else()
     find_path(GLOG_INCLUDE_DIR glog/logging.h
-        PATHS ${GLOG_ROOT_DIR}/include)
+        HINTS ${GLOG_ROOT_DIR}/include)
 endif()
 
 if(MSVC)
     find_library(GLOG_LIBRARY_RELEASE libglog_static
-        PATHS ${GLOG_ROOT_DIR}
+        HINTS ${GLOG_ROOT_DIR}
         PATH_SUFFIXES Release)
 
     find_library(GLOG_LIBRARY_DEBUG libglog_static
-        PATHS ${GLOG_ROOT_DIR}
+        HINTS ${GLOG_ROOT_DIR}
         PATH_SUFFIXES Debug)
 
     set(GLOG_LIBRARY optimized ${GLOG_LIBRARY_RELEASE} debug ${GLOG_LIBRARY_DEBUG})
 else()
     find_library(GLOG_LIBRARY glog
-        PATHS ${GLOG_ROOT_DIR}
+        HINTS ${GLOG_ROOT_DIR}
         PATH_SUFFIXES
             lib
             lib64)

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "lightscan/storage/storage_backend.h"
+#include "storage/storage_backend.h"
 
 #include <string>
 
@@ -57,7 +57,7 @@ struct SaveWorkEntry {
 };
 
 void run_job(
-  StorageConfig* config,
+  storage::StorageConfig* config,
   const std::string& job_name,
   const std::string& dataset_name,
   const std::string& net_descriptor_file);

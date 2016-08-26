@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "storage/storage_backend.h"
+
 #include <nvcuvid.h>
 
 #include <string>
@@ -22,10 +24,6 @@
 #include <map>
 
 namespace lightscan {
-
-class StorageBackend;
-class WriteFile;
-class RandomReadFile;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
@@ -37,8 +35,6 @@ extern int TASKS_IN_QUEUE_PER_GPU;  // How many tasks per GPU to allocate
 extern int LOAD_WORKERS_PER_NODE;   // # of worker threads loading data
 extern int SAVE_WORKERS_PER_NODE;   // # of worker threads loading data
 extern int NUM_CUDA_STREAMS;        // # of cuda streams for image processing
-
-const std::string DB_PATH = "/Users/abpoms/kcam";
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Path functions
@@ -129,35 +125,35 @@ struct JobDescriptor {
 };
 
 void serialize_dataset_descriptor(
-  WriteFile* file,
+  storage::WriteFile* file,
   const DatasetDescriptor& descriptor);
 
 DatasetDescriptor deserialize_dataset_descriptor(
-  RandomReadFile* file,
+  storage::RandomReadFile* file,
   uint64_t& file_pos);
 
 void serialize_dataset_item_metadata(
-  WriteFile* file,
+  storage::WriteFile* file,
   const DatasetItemMetadata& metadata);
 
 DatasetItemMetadata deserialize_dataset_item_metadata(
-  RandomReadFile* file,
+  storage::RandomReadFile* file,
   uint64_t& file_pos);
 
 void serialize_dataset_item_web_timestamps(
-  WriteFile* file,
+  storage::WriteFile* file,
   const DatasetItemWebTimestamps& metadata);
 
 DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
-  RandomReadFile* file,
+  storage::RandomReadFile* file,
   uint64_t& file_pos);
 
 void serialize_job_descriptor(
-  WriteFile* file,
+  storage::WriteFile* file,
   const JobDescriptor& descriptor);
 
 JobDescriptor deserialize_job_descriptor(
-  RandomReadFile* file,
+  storage::RandomReadFile* file,
   uint64_t& file_pos);
 
 }

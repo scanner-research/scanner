@@ -4,7 +4,6 @@ set(LIBRARIES
 
 add_executable(opencv_compare
   main.cpp
-  $<TARGET_OBJECTS:storage>
   $<TARGET_OBJECTS:util>)
 
 target_link_libraries(opencv_compare

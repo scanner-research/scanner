@@ -13,14 +13,14 @@
  * limitations under the License.
  */
 
-#include "lightscan/storage/storage_backend.h"
+#include "storage/storage_backend.h"
 
 #include <string>
 
 namespace lightscan {
 
 bool preprocess_video(
-  StorageBackend* storage,
+  storage::StorageBackend* storage,
   const std::string& dataset_name,
   const std::string& video_path,
   const std::string& output_name);

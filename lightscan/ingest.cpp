@@ -15,8 +15,9 @@
 
 #include "lightscan/ingest.h"
 #include "lightscan/util/video.h"
-#include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/cuda.h"
+
+#include "storage/storage_backend.h"
 
 #include <cassert>
 
@@ -28,7 +29,6 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavformat/avio.h"
-#include "libavformat/movenc.h"
 #include "libavutil/error.h"
 #include "libswscale/swscale.h"
 
@@ -43,6 +43,11 @@ extern "C" {
 #include "libavutil/hwcontext.h"
 #include "libavutil/hwcontext_cuda.h"
 }
+
+using storage::StoreResult;
+using storage::WriteFile;
+using storage::RandomReadFile;
+using storage::exit_on_error;
 
 namespace lightscan {
 
@@ -654,7 +659,7 @@ bool read_timestamps(std::string video_path,
 
 
 bool preprocess_video(
-  StorageBackend* storage,
+  storage::StorageBackend* storage,
   const std::string& dataset_name,
   const std::string& video_path,
   const std::string& item_name)

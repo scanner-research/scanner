@@ -16,13 +16,14 @@
 #include "lightscan/ingest.h"
 #include "lightscan/engine.h"
 
-#include "lightscan/storage/storage_config.h"
-#include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/common.h"
 #include "lightscan/util/video.h"
 #include "lightscan/util/caffe.h"
 #include "lightscan/util/queue.h"
 #include "lightscan/util/profiler.h"
+
+#include "storage/storage_config.h"
+#include "storage/storage_backend.h"
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -45,13 +46,18 @@ extern "C" {
 }
 
 using namespace lightscan;
-
 namespace po = boost::program_options;
+
+using storage::StoreResult;
+using storage::WriteFile;
+using storage::RandomReadFile;
 
 namespace {
 
+const std::string DB_PATH = "/Users/abpoms/kcam";
+
 int read_last_processed_video(
-  StorageBackend* storage,
+  storage::StorageBackend* storage,
   const std::string& dataset_name)
 {
   StoreResult result;
@@ -61,7 +67,7 @@ int read_last_processed_video(
 
   // File will not exist when first running ingest so check first
   // and return default value if not there
-  FileInfo info;
+  storage::FileInfo info;
   result = storage->get_file_info(last_written_path, info);
   (void) info;
   if (result == StoreResult::FileDoesNotExist) {
@@ -89,7 +95,7 @@ int read_last_processed_video(
 }
 
 void write_last_processed_video(
-  StorageBackend* storage,
+  storage::StorageBackend* storage,
   const std::string& dataset_name,
   int file_index)
 {
@@ -134,7 +140,7 @@ int main(int argc, char** argv) {
     po::options_description main_desc("Allowed options");
     main_desc.add_options()
       ("help", "Produce help message")
-      ("command", po::value<std::string>(),
+      ("command", po::value<std::string>()->required(),
        "Command to execute")
       ("subargs", po::value<std::vector<std::string> >(),
        "Arguments for command")
@@ -211,7 +217,6 @@ int main(int argc, char** argv) {
 
       cmd = vm["command"].as<std::string>();
 
-
       if (cmd == "ingest") {
         po::options_description ingest_desc("ingest options");
         ingest_desc.add_options()
@@ -282,6 +287,7 @@ int main(int argc, char** argv) {
         net_descriptor_file = vm["net_descriptor_file"].as<std::string>();
 
       } else {
+        std::cout << "Command must be one of 'run' or 'ingest'." << std::endl;
         return 1;
       }
   }
@@ -295,8 +301,8 @@ int main(int argc, char** argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
   // Setup storage config
-  StorageConfig* config =
-    StorageConfig::make_disk_config(DB_PATH);
+  storage::StorageConfig* config =
+    storage::StorageConfig::make_posix_config(DB_PATH);
 
   if (cmd == "ingest") {
     log_ls.print("Creating dataset %s...\n", dataset_name.c_str());
@@ -316,7 +322,8 @@ int main(int argc, char** argv) {
       }
     }
 
-    StorageBackend* storage = StorageBackend::make_from_config(config);
+    storage::StorageBackend* storage =
+      storage::StorageBackend::make_from_config(config);
 
     // Start from the file after the one we last processed succesfully before
     // crashing/exiting

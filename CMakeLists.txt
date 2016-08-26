@@ -35,7 +35,8 @@ else()
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
 endif()
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
 
 set(GLOBAL_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(THIRDPARTY_SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty")
@@ -52,6 +53,29 @@ if(NOT APPLE AND UNIX)
   set(CMAKE_SHARED_LINKER_FLAGS
     "${CMAKE_SHARED_LINKER_FLAGS} -pthread -ldl -lrt")
 endif()
+
+###### PROJECT LIBRARIES #######
+
+# Require opencv3
+find_package(OpenCV REQUIRED COMPONENTS
+  core highgui imgproc imgcodecs
+  cudawarping cudaimgproc cudafilters cudaarithm)
+include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
+add_definitions(-DUSE_OPENCV)
+
+find_package(FFmpeg REQUIRED)
+find_package(CUDA REQUIRED)
+find_package(MPI REQUIRED)
+find_package(Caffe REQUIRED)
+find_package(LibLZMA REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(BZip2 REQUIRED)
+find_package(Boost COMPONENTS thread program_options REQUIRED)
+find_package(GFlags REQUIRED)
+find_package(Glog REQUIRED)
+find_package(CURL REQUIRED)
+find_package(Iconv REQUIRED)
 
 ExternalProject_Add(TinyToml
   GIT_REPOSITORY "https://github.com/mayah/tinytoml.git"
@@ -75,68 +99,44 @@ ExternalProject_Add(JsonCpp
   SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/jsoncpp"
   CMAKE_ARGS
       -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/jsoncpp
+      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
       -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
       -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
 )
 
-# Google API cpp client
-ExternalProject_Add(GoogleAPICppClient
-  DEPENDS JsonCpp
-  GIT_REPOSITORY "https://github.com/abpoms/google-api-cpp-client.git"
-  GIT_TAG "0f6cd03b33ed6a863a6d8d1a30eade4b7766835a"
+# storage
+if (NOT OPENSSL_ROOT_DIR)
+  set(OPENSSL_ROOT_DIR $ENV{OPENSSL_ROOT_DIR})
+endif()
+
+ExternalProject_Add(Storage
+  GIT_REPOSITORY "https://github.com/abpoms/storage"
+  #GIT_TAG 0a439623f75c029912728d80cb7f1b8b48739ca4
 
   UPDATE_COMMAND ""
 
-  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/google-api-cpp-client"
-  INSTALL_DIR ${GLOBAL_OUTPUT_PATH}/google-api-cpp-client
-  CMAKE_ARGS
-      -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/google-api-cpp-client
-      -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-      -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
+  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/storage"
+
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/storage
+      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+      -DBZIP2_INCLUDE_DIR=${BZIP2_INCLUDE_DIR}
+      -DCMAKE_LIBRARY_PATH=${CMAKE_LIBRARY_PATH}
+      -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+      -DOPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}
+
   CMAKE_CACHE_ARGS
-      -DJSONCPP_INCLUDE_DIRS:FILEPATH=${THIRDPARTY_SOURCE_DIR}/jsoncpp/include
-      -DJSONCPP_LIBRARY:FILEPATH=${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a
       -DGLOG_ROOT_DIR:FILEPATH=${GLOG_ROOT_DIR}
       -DGFLAGS_ROOT_DIR:FILEPATH=${GFLAGS_ROOT_DIR}
+      -DBOOST_ROOT:FILEPATH=${BOOST_ROOT}
+      -DCURL_INCLUDE_DIR:FILEPATH=${CURL_INCLUDE_DIR}
+      -DCURL_LIBRARY:FILEPATH=${CURL_LIBRARY}
+      -DCURL_LIBRARIES:FILEPATH=${CURL_LIBRARIES}
+
+  INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/storage"
 )
 
-set(FFMPEG_CFLAGS
-  -fPIC)
-
-if(ENABLE_H264_ENCODE)
-  set(FFMPEG_BUILD_FLAGS
-    --enable-libx264
-    --enable-gpl)
-endif()
-
-if (ENABLE_HARDWARE_DECODE)
-  set(FFMPEG_BUILD_FLAGS
-    ${FFMPEG_BUILD_FLAGS}
-    --enable-nonfree
-    --enable-cuda
-    --enable-cuvid)
-
-  add_definitions(-DHARDWARE_DECODE)
-endif()
-
-# ffmpeg
-ExternalProject_Add(Ffmpeg
-  URL "http://ffmpeg.org/releases/ffmpeg-3.1.1.tar.gz"
-  #URL_HASH SHA256=
-  UPDATE_COMMAND ""
-
-  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/ffmpeg"
-  CONFIGURE_COMMAND "${THIRDPARTY_SOURCE_DIR}/ffmpeg/configure"
-      --disable-doc
-      --enable-shared
-      --enable-pic
-      --enable-avresample
-      "${FFMPEG_BUILD_FLAGS}"
-      --prefix=${GLOBAL_OUTPUT_PATH}/ffmpeg
-
-  BUILD_COMMAND make -j4
-  INSTALL_COMMAND make install
-)
 
 # googletest
 ExternalProject_Add(GoogleTest
@@ -148,9 +148,12 @@ ExternalProject_Add(GoogleTest
   SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/googletest"
 
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/googletest
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
 
   INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/googletest"
 )
+
 
 set(GTEST_INCLUDE_DIRS
   "${GLOBAL_OUTPUT_PATH}/googletest/include")
@@ -159,46 +162,23 @@ set(GTEST_LIBRARIES
 set(GTEST_LIB_MAIN
   "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
-###### PROJECT LIBRARIES #######
-
-# Require opencv3
-find_package(OpenCV REQUIRED COMPONENTS
-  core highgui imgproc imgcodecs
-  cudawarping cudaimgproc cudafilters cudaarithm)
-include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
-add_definitions(-DUSE_OPENCV)
-
-find_package(CUDA REQUIRED)
-find_package(MPI REQUIRED)
-find_package(Caffe REQUIRED)
-find_package(LibLZMA REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options REQUIRED)
-find_package(GFlags REQUIRED)
-find_package(Glog REQUIRED)
-find_package(CURL REQUIRED)
-find_package(Iconv REQUIRED)
-
-set(PUBLIC_LIBRARIES
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogle_storage_api.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_oauth2.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_jsoncpp.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_json.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_http.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_curl_http.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_utils.a"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/lib/libgoogleapis_internal.a"
-  "${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavformat.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswresample.a"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a")
-
 set(LIGHTSCAN_LIBRARIES
-  ${PUBLIC_LIBRARIES}
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libstorage.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogle_storage_api.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_oauth2.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_jsoncpp.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_json.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_http.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_curl_http.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_utils.a"
+  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_internal.a"
+  "${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a"
+  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavformat.a"
+  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
+  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
+  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswresample.a"
+  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a"
+  "${FFMPEG_LIBRARIES}"
   "${MPI_LIBRARIES}"
   "${CUDA_LIBRARIES}"
   "-lcuda"
@@ -218,21 +198,13 @@ set(LIGHTSCAN_LIBRARIES
   "-ljpeg"
   "-lz")
 
-if (ENABLE_H264_ENCODE)
-  set(LIGHTSCAN_LIBRARIES
-    "${LIGHTSCAN_LIBRARIES}"
-    "-lx264")
-  add_definitions(-DHAVE_X264_ENCODER)
-endif()
-
 include_directories(
   "."
-  ${PUBLIC_INCLUDE_DIRECTORIES}
-  "${THIRDPARTY_SOURCE_DIR}/ffmpeg/"
-  "${GLOBAL_OUTPUT_PATH}/ffmpeg/include"
-  "${THIRDPARTY_SOURCE_DIR}/tinytoml/include/"
-  "${GLOBAL_OUTPUT_PATH}/jsoncpp/include/"
-  "${GLOBAL_OUTPUT_PATH}/google-api-cpp-client/include"
+  "${FFMPEG_INCLUDE_DIR}"
+  "${THIRDPARTY_SOURCE_DIR}/tinytoml/include"
+  "${GLOBAL_OUTPUT_PATH}/jsoncpp/include"
+  "${GLOBAL_OUTPUT_PATH}/storage/include"
+  "${Boost_INCLUDE_DIRS}"
   "${CUDA_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
   "${CAFFE_INCLUDE_DIRS}"
@@ -245,6 +217,7 @@ include_directories(
 if (APPLE)
   include_directories(
     "/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Versions/Current/Headers/")
+elseif()
 endif()
 
 add_subdirectory(lightscan)
@@ -254,13 +227,11 @@ add_executable(lightscanner
   lightscan/main.cpp
   lightscan/ingest.cpp
   lightscan/engine.cpp
-  $<TARGET_OBJECTS:storage>
   $<TARGET_OBJECTS:util>)
 
 add_dependencies(lightscanner
   TinyToml
-  GoogleAPICppClient
-  Ffmpeg)
+  JsonCpp)
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

@@ -1,6 +1,6 @@
 #include "lightscan/util/common.h"
 #include "lightscan/util/util.h"
-#include "lightscan/storage/storage_backend.h"
+#include "storage/storage_backend.h"
 
 #include <cassert>
 #include <cstdarg>
@@ -10,6 +10,10 @@
 #include <string.h>
 #include <errno.h>
 #include <libgen.h>
+
+using storage::WriteFile;
+using storage::RandomReadFile;
+using storage::StoreResult;
 
 namespace lightscan {
 

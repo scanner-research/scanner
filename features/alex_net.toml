@@ -2,7 +2,7 @@
     model = "features/bvlc_reference_caffenet/deploy.prototxt"
     weights = "features/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel"
     input_layer = "data"
-    output_layer = "fc8"
+    output_layers = ["fc8"]
 
     [net.input]
         dimensions = [

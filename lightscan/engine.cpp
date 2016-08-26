@@ -15,7 +15,6 @@
 
 #include "lightscan/engine.h"
 
-#include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/cuda.h"
 #include "lightscan/util/video.h"
 #include "lightscan/util/common.h"
@@ -25,6 +24,8 @@
 #include "lightscan/util/util.h"
 #include "lightscan/util/opencv.h"
 #include "lightscan/util/jpeg/JPEGWriter.h"
+
+#include "storage/storage_backend.h"
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
@@ -47,6 +48,11 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+using storage::StoreResult;
+using storage::WriteFile;
+using storage::RandomReadFile;
+using storage::exit_on_error;
+
 namespace lightscan {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -59,7 +65,7 @@ struct LoadThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  StorageConfig* storage_config;
+  storage::StorageConfig* storage_config;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -108,7 +114,7 @@ struct SaveThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  StorageConfig* storage_config;
+  storage::StorageConfig* storage_config;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -126,8 +132,8 @@ void* load_video_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Setup a distinct storage backend for each IO thread
-  StorageBackend* storage =
-    StorageBackend::make_from_config(args.storage_config);
+  storage::StorageBackend* storage =
+    storage::StorageBackend::make_from_config(args.storage_config);
 
   std::string last_video_path;
   RandomReadFile* video_file = nullptr;
@@ -650,8 +656,8 @@ void* save_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Setup a distinct storage backend for each IO thread
-  StorageBackend* storage =
-    StorageBackend::make_from_config(args.storage_config);
+  storage::StorageBackend* storage =
+    storage::StorageBackend::make_from_config(args.storage_config);
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -719,12 +725,13 @@ void* save_thread(void* arg) {
 }
 
 void run_job(
-  StorageConfig* config,
+  storage::StorageConfig* config,
   const std::string& job_name,
   const std::string& dataset_name,
   const std::string& net_descriptor_file)
 {
-  StorageBackend* storage = StorageBackend::make_from_config(config);
+  storage::StorageBackend* storage =
+    storage::StorageBackend::make_from_config(config);
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

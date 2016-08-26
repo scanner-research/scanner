@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/queue.h"
 #include "lightscan/util/profiler.h"
 #include "lightscan/util/common.h"
@@ -31,7 +30,6 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavformat/avio.h"
-#include "libavformat/movenc.h"
 #include "libavutil/error.h"
 #include "libswscale/swscale.h"
 }

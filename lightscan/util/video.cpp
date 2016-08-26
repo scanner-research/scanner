@@ -14,8 +14,9 @@
  */
 
 #include "lightscan/util/video.h"
-#include "lightscan/storage/storage_backend.h"
 #include "lightscan/util/cuda.h"
+
+#include "storage/storage_backend.h"
 
 #include <cassert>
 
@@ -27,7 +28,6 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavformat/avio.h"
-#include "libavformat/movenc.h"
 #include "libavutil/error.h"
 #include "libswscale/swscale.h"
 

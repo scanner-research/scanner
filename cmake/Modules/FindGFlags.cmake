@@ -20,26 +20,27 @@ endif()
 # We are testing only a couple of files in the include directories
 if(WIN32)
     find_path(GFLAGS_INCLUDE_DIR gflags/gflags.h
-        PATHS ${GFLAGS_ROOT_DIR}/src/windows)
+        HINTS ${GFLAGS_ROOT_DIR}/src/windows)
 else()
     find_path(GFLAGS_INCLUDE_DIR gflags/gflags.h
-        PATHS ${GFLAGS_ROOT_DIR})
+        HINTS ${GFLAGS_ROOT_DIR}/include)
 endif()
 
 if(MSVC)
     find_library(GFLAGS_LIBRARY_RELEASE 
         NAMES libgflags
-        PATHS ${GFLAGS_ROOT_DIR}
+        HINTS ${GFLAGS_ROOT_DIR}
         PATH_SUFFIXES Release)
 
     find_library(GFLAGS_LIBRARY_DEBUG
         NAMES libgflags-debug
-        PATHS ${GFLAGS_ROOT_DIR}
+        HINTS ${GFLAGS_ROOT_DIR}
         PATH_SUFFIXES Debug)
 
     set(GFLAGS_LIBRARY optimized ${GFLAGS_LIBRARY_RELEASE} debug ${GFLAGS_LIBRARY_DEBUG})
 else()
-    find_library(GFLAGS_LIBRARY gflags)
+  find_library(GFLAGS_LIBRARY gflags
+    HINTS ${GFLAGS_ROOT_DIR}/lib)
 endif()
 
 find_package_handle_standard_args(GFLAGS DEFAULT_MSG
