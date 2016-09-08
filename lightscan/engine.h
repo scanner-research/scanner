@@ -20,7 +20,8 @@
 namespace lightscan {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Work structs
+/// Work structs - structs used to exchange data between workers during 
+///   execution of the run command.
 struct VideoWorkItem {
   int video_index;
   int start_frame;
@@ -56,6 +57,7 @@ struct SaveWorkEntry {
   std::vector<char*> output_buffers;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 void run_job(
   storage::StorageConfig* config,
   const std::string& job_name,

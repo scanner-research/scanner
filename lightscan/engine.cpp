@@ -781,6 +781,7 @@ void run_job(
   // Break up videos and their frames into equal sized work items
   const int WORK_ITEM_SIZE = frames_per_work_item();
   std::vector<VideoWorkItem> work_items;
+
   // Track how work was broken up for each video so we can know how the
   // output will be chunked up when saved out
   JobDescriptor job_descriptor;
@@ -823,10 +824,10 @@ void run_job(
 
   // Allocate several buffers to hold the intermediate of an entire work item
   // to allow pipelining of load/eval
-  // HACK(apoms): we are assuming that all videos have the same frame size
-  // We should allocate the buffer in the load thread if we need to support
-  // multiple sizes or analyze all the videos an allocate buffers for the
-  // largest possible size
+  // HACK(apoms): we are assuming that all videos have the same frame size.
+  //   We should allocate the buffer in the load thread if we need to support
+  //   multiple sizes or analyze all the videos an allocate buffers for the
+  //   largest possible size
   size_t frame_size =
     av_image_get_buffer_size(AV_PIX_FMT_NV12,
                              video_metadata[0].width,
@@ -1209,6 +1210,4 @@ void run_job(
   delete[] gpu_frame_buffers;
 
   delete storage;
-}
-
 }

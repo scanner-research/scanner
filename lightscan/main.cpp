@@ -56,6 +56,12 @@ namespace {
 
 const std::string DB_PATH = "/Users/abpoms/kcam";
 
+/* read_last_processed_video - read from persistent storage the index 
+ *   of the last succesfully processed video for the given dataset. 
+ *   Used to recover from failures midway through the ingest process.
+ *
+ *   @return: index of the last successfully processed video
+ */
 int read_last_processed_video(
   storage::StorageBackend* storage,
   const std::string& dataset_name)
@@ -94,6 +100,11 @@ int read_last_processed_video(
   return last_processed_video;
 }
 
+/* write_last_processed_video - write to persistent storage the index 
+ *   of the last succesfully processed video for the given dataset. 
+ *   Used to recover from failures midway through the ingest process.
+ *
+ */
 void write_last_processed_video(
   storage::StorageBackend* storage,
   const std::string& dataset_name,
@@ -126,12 +137,14 @@ void shutdown() {
 }
 
 int main(int argc, char** argv) {
-  std::string cmd;
-  // Common among commands
+  // Variables for holding parsed command line arguments
+
+  std::string cmd; // sub-command to execute
+  // Common among sub-commands
   std::string dataset_name; // name of dataset to create/operate on
-  // For ingest command
+  // For ingest sub-command
   std::string video_paths_file; // paths of video files to turn into dataset
-  // For run command
+  // For run sub-command
   std::string job_name; // name of job to refer to after run
   std::string net_descriptor_file; // path to file describing network to use
   {
@@ -300,11 +313,16 @@ int main(int argc, char** argv) {
   int num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
-  // Setup storage config
+  // For now, we use a disk based persistent storage with a hardcoded
+  // path for storing video and output data persistently
   storage::StorageConfig* config =
     storage::StorageConfig::make_posix_config(DB_PATH);
 
   if (cmd == "ingest") {
+    // The ingest command takes 1) a new dataset name, 2) a file with paths to videos
+    // on the local filesystem and preprocesses the videos into a persistently
+    // stored dataset which can then be operated on by the run command.
+
     log_ls.print("Creating dataset %s...\n", dataset_name.c_str());
     // Read in list of video paths and assign unique name to each
     DatasetDescriptor descriptor;
@@ -373,12 +391,17 @@ int main(int argc, char** argv) {
     delete storage;
 
   } else if (cmd == "run") {
+    // The run command takes 1) a name for the job, 2) an existing dataset name,
+    // 3) a toml file describing the target network to evaluate and evaluates 
+    // the network on every frame of the given dataset, saving the results and
+    // the metadata for the job persistently. The metadata file for the job can 
+    // be used to find the results for any given video frame.
+
     run_job(config, job_name, dataset_name, net_descriptor_file);
   }
 
   // Cleanup
   delete config;
-
   shutdown();
 
   return EXIT_SUCCESS;
