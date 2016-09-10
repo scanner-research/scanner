@@ -15,14 +15,14 @@
 
 #pragma once
 
-#include "lightscan/util/util.h"
+#include "scanner/util/util.h"
 
 #include <vector>
 #include <string>
 #include <atomic>
 #include <fstream>
 
-namespace lightscan {
+namespace scanner {
 
 class Profiler {
 public:
@@ -61,6 +61,6 @@ void write_profiler_to_file(
   int64_t worker_num,
   const Profiler& profiler);
 
-} // namespace lightscan
+} // namespace scanner
 
-#include "lightscan/util/profiler.inl"
+#include "scanner/util/profiler.inl"

@@ -15,16 +15,12 @@
 
 #pragma once
 
-#include "lightscan/util/queue.h"
-#include "lightscan/util/profiler.h"
-#include "lightscan/util/common.h"
+#include "scanner/util/queue.h"
+#include "scanner/util/profiler.h"
+#include "scanner/util/common.h"
 
 #include <string>
 #include <pthread.h>
-
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <nvcuvid.h>
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -34,65 +30,9 @@ extern "C" {
 #include "libswscale/swscale.h"
 }
 
-namespace lightscan {
+namespace scanner {
 
 extern pthread_mutex_t av_mutex;
-
-///////////////////////////////////////////////////////////////////////////////
-/// VideoSeparator
-class VideoSeparator {
-public:
-  VideoSeparator(CUcontext cuda_context, AVCodecContext* cc);
-
-  ~VideoSeparator();
-
-  bool decode(AVPacket* packet);
-
-  CUVIDDECODECREATEINFO get_decoder_info();
-
-  const std::vector<char>& get_metadata_bytes();
-
-  const std::vector<char>& get_bitstream_bytes();
-
-  const std::vector<int64_t>& get_keyframe_positions();
-
-  const std::vector<int64_t>& get_keyframe_timestamps();
-
-  const std::vector<int64_t>& get_keyframe_byte_offsets();
-
-private:
-  static int cuvid_handle_video_sequence(
-    void *opaque,
-    CUVIDEOFORMAT* format);
-
-  static int cuvid_handle_picture_decode(
-    void *opaque,
-    CUVIDPICPARAMS* picparams);
-
-  static int cuvid_handle_picture_display(
-    void *opaque,
-    CUVIDPARSERDISPINFO* dispinfo);
-
-  CUcontext cuda_context_;
-  AVCodecContext* cc_;
-
-  CUvideoparser parser_;
-  CUVIDDECODECREATEINFO decoder_info_;
-
-  int prev_frame_;
-
-  bool is_metadata_;
-  bool is_keyframe_;
-
-  std::vector<char> metadata_packets_;
-  std::vector<char> bitstream_packets_;
-
-  std::vector<int64_t> keyframe_positions_;
-  std::vector<int64_t> keyframe_timestamps_;
-  std::vector<int64_t> keyframe_byte_offsets_;
-
-  double decode_time_;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// VideoDecoder
@@ -153,6 +93,48 @@ private:
   double decode_time_;
 
   Profiler* profiler_;
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// VideoSeparator
+class VideoSeparator {
+public:
+  VideoSeparator(AVCodecContext* cc);
+
+  ~VideoSeparator();
+
+  bool decode(AVPacket* packet);
+
+  CUVIDDECODECREATEINFO get_decoder_info();
+
+  const std::vector<char>& get_metadata_bytes();
+
+  const std::vector<char>& get_bitstream_bytes();
+
+  const std::vector<int64_t>& get_keyframe_positions();
+
+  const std::vector<int64_t>& get_keyframe_timestamps();
+
+  const std::vector<int64_t>& get_keyframe_byte_offsets();
+
+private:
+  AVCodecContext* cc_;
+
+  int prev_frame_;
+
+  bool is_metadata_;
+  bool is_keyframe_;
+
+  std::vector<char> metadata_packets_;
+  std::vector<char> bitstream_packets_;
+
+  std::vector<int64_t> keyframe_positions_;
+  std::vector<int64_t> keyframe_timestamps_;
+  std::vector<int64_t> keyframe_byte_offsets_;
+
+  double decode_time_;
 };
 
 }

@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include "lightscan/util/opencv.h"
-#include "lightscan/util/cuda.h"
+#include "scanner/util/opencv.h"
+#include "scanner/util/cuda.h"
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>

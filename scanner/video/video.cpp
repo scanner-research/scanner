@@ -13,10 +13,10 @@
  * limitations under the License.
  */
 
-#include "lightscan/util/video.h"
-#include "lightscan/util/cuda.h"
+#include "scanner/util/video.h"
+#include "scanner/util/cuda.h"
 
-#include "storage/storage_backend.h"
+#include "storehouse/storage_backend.h"
 
 #include <cassert>
 
@@ -46,7 +46,7 @@ extern "C" {
 // Stolen from libavformat/movenc.h
 #define FF_MOV_FLAG_FASTSTART             (1 <<  7)
 
-namespace lightscan {
+namespace scanner {
 
 namespace {
 

@@ -13,19 +13,19 @@
  * limitations under the License.
  */
 
-#include "lightscan/engine.h"
+#include "scanner/engine.h"
 
-#include "lightscan/util/cuda.h"
-#include "lightscan/util/video.h"
-#include "lightscan/util/common.h"
-#include "lightscan/util/caffe.h"
-#include "lightscan/util/profiler.h"
-#include "lightscan/util/queue.h"
-#include "lightscan/util/util.h"
-#include "lightscan/util/opencv.h"
-#include "lightscan/util/jpeg/JPEGWriter.h"
+#include "scanner/util/cuda.h"
+#include "scanner/util/video.h"
+#include "scanner/util/common.h"
+#include "scanner/util/caffe.h"
+#include "scanner/util/profiler.h"
+#include "scanner/util/queue.h"
+#include "scanner/util/util.h"
+#include "scanner/util/opencv.h"
+#include "scanner/util/jpeg/JPEGWriter.h"
 
-#include "storage/storage_backend.h"
+#include "storehouse/storage_backend.h"
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
@@ -48,12 +48,20 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-using storage::StoreResult;
-using storage::WriteFile;
-using storage::RandomReadFile;
-using storage::exit_on_error;
+using storehouse::StoreResult;
+using storehouse::WriteFile;
+using storehouse::RandomReadFile;
+using storehouse::exit_on_error;
 
-namespace lightscan {
+namespace scanner {
+
+///////////////////////////////////////////////////////////////////////////////
+/// Functionality object
+class PipelineFunctions {
+  virtual void new_buffer(char** buffer, size_t buffer_size) = 0;
+
+  virtual void delete_buffer(char* buffer) = 0;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
@@ -65,7 +73,7 @@ struct LoadThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  storage::StorageConfig* storage_config;
+  storehouse::StorageConfig* storage_config;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -79,8 +87,7 @@ struct DecodeThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  int gpu_device_id;
-  CUcontext cuda_context; // context to use to decode frames
+  int device_id;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -96,7 +103,7 @@ struct EvaluateThreadArgs {
   const NetDescriptor& net_descriptor;
 
   // Per worker arguments
-  int gpu_device_id; // for hardware decode, need to know gpu
+  int device_id; // for hardware decode, need to know which device
   Profiler& profiler;
 
   // Queues for communicating work
@@ -114,7 +121,7 @@ struct SaveThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
-  storage::StorageConfig* storage_config;
+  storehouse::StorageConfig* storage_config;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -132,8 +139,8 @@ void* load_video_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Setup a distinct storage backend for each IO thread
-  storage::StorageBackend* storage =
-    storage::StorageBackend::make_from_config(args.storage_config);
+  storehouse::StorageBackend* storage =
+    storehouse::StorageBackend::make_from_config(args.storage_config);
 
   std::string last_video_path;
   RandomReadFile* video_file = nullptr;
@@ -261,11 +268,11 @@ void* decode_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  CU_CHECK(cudaSetDevice(args.device_id));
+
   // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
   //              codec type) all videos should be the same for now so just use
   //              the first.
-  CU_CHECK(cudaSetDevice(args.gpu_device_id));
-
   VideoDecoder decoder{
     args.cuda_context,
     args.metadata[0]};
@@ -366,14 +373,14 @@ void* decode_thread(void* arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  printf("(N/GPU: %d/%d) Decode thread finished.\n",
+  printf("(N/PU: %d/%d) Decode thread finished.\n",
          rank, args.gpu_device_id);
 
   THREAD_RETURN_SUCCESS();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Thread to run net evaluation
+/// Thread to run evaluation
 void* evaluate_thread(void* arg) {
   EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
 
@@ -382,102 +389,6 @@ void* evaluate_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  CU_CHECK(cudaSetDevice(args.gpu_device_id));
-  cv::cuda::setDevice(args.gpu_device_id);
-
-  // Setup caffe net
-  NetBundle net_bundle{args.net_descriptor, args.gpu_device_id};
-
-  caffe::Net<float>& net = net_bundle.get_net();
-
-  const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net.blob_by_name(args.net_descriptor.input_layer_name)};
-
-  // Get output blobs that we will extract net evaluation results from
-  std::vector<size_t> output_sizes;
-  for (const std::string& output_layer_name :
-         args.net_descriptor.output_layer_names)
-  {
-    const boost::shared_ptr<caffe::Blob<float>> output_blob{
-      net.blob_by_name(output_layer_name)};
-    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
-    output_sizes.push_back(output_size_per_frame);
-  }
-
-  // Dimensions of network input image
-  int inputHeight = input_blob->shape(2);
-  int inputWidth = input_blob->shape(3);
-
-  // Resize into
-  std::vector<float> mean_image = args.net_descriptor.mean_image;
-  cv::Mat cpu_mean_mat(
-    args.net_descriptor.mean_height * 3,
-    args.net_descriptor.mean_width,
-    CV_32FC1,
-    mean_image.data());
-  cv::cuda::GpuMat unsized_mean_mat(cpu_mean_mat);
-  cv::cuda::GpuMat mean_mat;
-  // HACK(apoms): Resizing the mean like this is not likely to produce a correct
-  //              result.
-  cv::cuda::resize(unsized_mean_mat, mean_mat,
-                   cv::Size(inputWidth, inputHeight * 3));
-
-  // OpenCV matrices
-  std::vector<cv::cuda::Stream> cv_streams(NUM_CUDA_STREAMS);
-
-  std::vector<cv::cuda::GpuMat> input_mats;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    input_mats.push_back(
-      cv::cuda::GpuMat(args.metadata[0].height + args.metadata[0].height / 2,
-                       args.metadata[0].width,
-                       CV_8UC1));
-  }
-
-  std::vector<cv::cuda::GpuMat> rgba_mat;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    rgba_mat.push_back(
-      cv::cuda::GpuMat(args.metadata[0].height,
-                       args.metadata[0].width,
-                       CV_8UC4));
-  }
-
-  std::vector<cv::cuda::GpuMat> rgb_mat;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    rgb_mat.push_back(
-      cv::cuda::GpuMat(args.metadata[0].height,
-                       args.metadata[0].width,
-                       CV_8UC3));
-  }
-
-  std::vector<cv::cuda::GpuMat> conv_input;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    conv_input.push_back(
-      cv::cuda::GpuMat(inputHeight, inputWidth, CV_8UC3));
-  }
-
-  std::vector<cv::cuda::GpuMat> conv_planar_input;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    conv_planar_input.push_back(
-      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_8UC1));
-  }
-
-  std::vector<cv::cuda::GpuMat> float_conv_input;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    float_conv_input.push_back(
-      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
-  }
-
-  std::vector<cv::cuda::GpuMat> normed_input;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    normed_input.push_back(
-      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
-  }
-
-  std::vector<cv::cuda::GpuMat> scaled_input;
-  for (size_t i = 0; i < NUM_CUDA_STREAMS; ++i) {
-    scaled_input.push_back(
-      cv::cuda::GpuMat(inputHeight * 3, inputWidth, CV_32FC1));
-  }
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -639,7 +550,7 @@ void* evaluate_thread(void* arg) {
     args.save_work.push(save_work_entry);
   }
 
-  printf("(N/GPU: %d/%d) Evaluate thread finished.\n",
+  printf("(N/PU: %d/%d) Evaluate thread finished.\n",
          rank, args.gpu_device_id);
 
   THREAD_RETURN_SUCCESS();
@@ -656,8 +567,8 @@ void* save_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Setup a distinct storage backend for each IO thread
-  storage::StorageBackend* storage =
-    storage::StorageBackend::make_from_config(args.storage_config);
+  storehouse::StorageBackend* storage =
+    storehouse::StorageBackend::make_from_config(args.storage_config);
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -724,14 +635,40 @@ void* save_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
+std::vector<NetFrameworkType> get_supported_net_framework_types() {
+  std::vector<NetFrameworkType> net_types;
+#ifdef HAVE_GPU
+  net_types.push_back(NetFrameworkType::GPU);
+#endif
+  net_types.push_back(NetFrameworkType::CPU);
+
+  return net_types;
+}
+
+bool has_net_framework_type(NetFrameworkType type) {
+  std::vector<NetFrameworkType> types =
+    get_supported_net_framework_types();
+
+  for (const NetFrameworkType& supported_type : types) {
+    if (type == supported_type) return true;
+  }
+
+  return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// run_job
+
 void run_job(
-  storage::StorageConfig* config,
+  storehouse::StorageConfig* config,
+  VideoDecoderType decoder_type,
+  NetFrameworkType net_framework_type,
   const std::string& job_name,
   const std::string& dataset_name,
   const std::string& net_descriptor_file)
 {
-  storage::StorageBackend* storage =
-    storage::StorageBackend::make_from_config(config);
+  storehouse::StorageBackend* storage =
+    storehouse::StorageBackend::make_from_config(config);
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -818,8 +755,8 @@ void run_job(
   // Setup shared resources for distributing work to processing threads
   Queue<LoadWorkEntry> load_work;
   Queue<DecodeWorkEntry> decode_work;
-  std::vector<Queue<DecodeBufferEntry>> empty_decode_buffers(GPUS_PER_NODE);
-  std::vector<Queue<EvalWorkEntry>> eval_work(GPUS_PER_NODE);
+  std::vector<Queue<DecodeBufferEntry>> empty_decode_buffers(PUS_PER_NODE);
+  std::vector<Queue<EvalWorkEntry>> eval_work(PUS_PER_NODE);
   Queue<SaveWorkEntry> save_work;
 
   // Allocate several buffers to hold the intermediate of an entire work item
@@ -834,12 +771,20 @@ void run_job(
                              video_metadata[0].height,
                              1);
   size_t frame_buffer_size = frame_size * frames_per_work_item();
-  const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_GPU;
-  char*** gpu_frame_buffers = new char**[GPUS_PER_NODE];
-  for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
+  const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
+  char*** pu_frame_buffers = new char**[PUS_PER_NODE];
+  std::vector<Evaluator*> evaluators;
+  for (int pu = 0; pu < PUS_PER_NODE; ++pu) {
+    evaluators.push_back(
+      evaluator_constructor->new_evaluator(
+        pu,
+        GLOBAL_BATCH_SIZE,
+        LOAD_BUFFERS,
+        frame_buffer_size));
+
+    pu_frame_buffers[gpu] = new char*[LOAD_BUFFERS];
+    char** frame_buffers = pu_frame_buffers[gpu];
     CU_CHECK(cudaSetDevice(gpu));
-    gpu_frame_buffers[gpu] = new char*[LOAD_BUFFERS];
-    char** frame_buffers = gpu_frame_buffers[gpu];
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
       CU_CHECK(cudaMalloc(&frame_buffers[i], frame_buffer_size));
       // Add the buffer index into the empty buffer queue so workers can
@@ -880,13 +825,10 @@ void run_job(
 
   // Setup decode workers
   std::vector<Profiler> decode_thread_profilers(
-    GPUS_PER_NODE,
+    PUS_PER_NODE,
     Profiler(base_time));
   std::vector<DecodeThreadArgs> decode_thread_args;
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
-    // Retain primary context to use for decoder
-    CUcontext cuda_context;
-    CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, i));
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     // Create IO thread for reading and decoding data
     decode_thread_args.emplace_back(DecodeThreadArgs{
         // Uniform arguments
@@ -894,8 +836,7 @@ void run_job(
           work_items,
 
           // Per worker arguments
-          i % GPUS_PER_NODE,
-          cuda_context,
+          i % PUS_PER_NODE,
           decode_thread_profilers[i],
 
           // Queues
@@ -904,19 +845,19 @@ void run_job(
           eval_work[i],
           });
   }
-  std::vector<pthread_t> decode_threads(GPUS_PER_NODE);
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  std::vector<pthread_t> decode_threads(PUS_PER_NODE);
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     pthread_create(&decode_threads[i], NULL, decode_thread,
                    &decode_thread_args[i]);
   }
 
   // Setup evaluate workers
   std::vector<Profiler> eval_thread_profilers(
-    GPUS_PER_NODE,
+    PUS_PER_NODE,
     Profiler(base_time));
   std::vector<EvaluateThreadArgs> eval_thread_args;
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
-    int gpu_device_id = i;
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
+    int pu_device_id = i;
 
     // Create eval thread for passing data through neural net
     eval_thread_args.emplace_back(EvaluateThreadArgs{
@@ -926,7 +867,7 @@ void run_job(
           net_descriptor,
 
           // Per worker arguments
-          gpu_device_id,
+          pu_device_id,
           eval_thread_profilers[i],
 
           // Queues
@@ -935,8 +876,8 @@ void run_job(
           save_work
           });
   }
-  std::vector<pthread_t> eval_threads(GPUS_PER_NODE);
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  std::vector<pthread_t> eval_threads(PUS_PER_NODE);
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     pthread_create(&eval_threads[i], NULL, evaluate_thread,
                    &eval_thread_args[i]);
   }
@@ -981,7 +922,7 @@ void run_job(
       for (size_t i = 0; i < eval_work.size(); ++i) {
         local_work += eval_work[i].size();
       }
-      if (local_work < GPUS_PER_NODE * TASKS_IN_QUEUE_PER_GPU) {
+      if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
         LoadWorkEntry entry;
         entry.work_item_index = next_work_item_to_allocate++;
         load_work.push(entry);
@@ -1033,7 +974,7 @@ void run_job(
       for (size_t i = 0; i < eval_work.size(); ++i) {
         local_work += eval_work[i].size();
       }
-      if (local_work < GPUS_PER_NODE * TASKS_IN_QUEUE_PER_GPU) {
+      if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
         // Request work when there is only a few unprocessed items left
         int more_work = true;
         MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -1073,13 +1014,13 @@ void run_job(
   }
 
   // Push sentinel work entries into queue to terminate decode threads
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     DecodeWorkEntry entry;
     entry.work_item_index = -1;
     decode_work.push(entry);
   }
 
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     // Wait until eval has finished
     void* result;
     int err = pthread_join(decode_threads[i], &result);
@@ -1091,18 +1032,18 @@ void run_job(
   }
 
   // Cleanup
-  for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
+  for (int gpu = 0; gpu < PUS_PER_NODE; ++gpu) {
     CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
   }
 
   // Push sentinel work entries into queue to terminate eval threads
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     EvalWorkEntry entry;
     entry.work_item_index = -1;
     eval_work[i].push(entry);
   }
 
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     // Wait until eval has finished
     void* result;
     int err = pthread_join(eval_threads[i], &result);
@@ -1171,19 +1112,19 @@ void run_job(
   }
 
   // Decode worker profilers
-  uint8_t decode_worker_count = GPUS_PER_NODE;
+  uint8_t decode_worker_count = PUS_PER_NODE;
   profiler_output.write((char*)&decode_worker_count,
                         sizeof(decode_worker_count));
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     write_profiler_to_file(
       profiler_output, out_rank, "decode", i, decode_thread_profilers[i]);
   }
 
   // Evaluate worker profilers
-  uint8_t eval_worker_count = GPUS_PER_NODE;
+  uint8_t eval_worker_count = PUS_PER_NODE;
   profiler_output.write((char*)&eval_worker_count,
                         sizeof(eval_worker_count));
-  for (int i = 0; i < GPUS_PER_NODE; ++i) {
+  for (int i = 0; i < PUS_PER_NODE; ++i) {
     write_profiler_to_file(
       profiler_output, out_rank, "eval", i, eval_thread_profilers[i]);
   }
@@ -1199,7 +1140,7 @@ void run_job(
   profiler_output.close();
 
   // Cleanup
-  for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
+  for (int gpu = 0; gpu < PUS_PER_NODE; ++gpu) {
     char** frame_buffers = gpu_frame_buffers[gpu];
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
       CU_CHECK(cudaSetDevice(gpu));

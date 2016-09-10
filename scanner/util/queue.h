@@ -20,7 +20,7 @@
 #include <condition_variable>
 #include <atomic>
 
-namespace lightscan {
+namespace scanner {
 
 template <typename T>
 class Queue {

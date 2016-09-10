@@ -14,14 +14,9 @@
 
 cmake_minimum_required(VERSION 3.4.0 FATAL_ERROR)
 
-project(Lightscan)
+project(Scanner)
 
 enable_testing()
-
-include(ExternalProject)
-
-set(ENABLE_HARDWARE_DECODE ON CACHE BOOL "Turn on hardware decode")
-set(ENABLE_H264_ENCODE OFF CACHE BOOL "Turn on video encoding using libx264")
 
 ######################
 ###     Setup     ####
@@ -36,7 +31,6 @@ else()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-
 
 set(GLOBAL_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(THIRDPARTY_SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty")
@@ -76,84 +70,10 @@ find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
-
-ExternalProject_Add(TinyToml
-  GIT_REPOSITORY "https://github.com/mayah/tinytoml.git"
-  GIT_TAG "3559856002eee57693349b8a2d8a0cf6250d269c"
-
-  UPDATE_COMMAND ""
-
-  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/tinytoml"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-
-  INSTALL_COMMAND ""
-)
-
-ExternalProject_Add(JsonCpp
-  GIT_REPOSITORY "https://github.com/open-source-parsers/jsoncpp.git"
-  GIT_TAG "1.7.2"
-
-  UPDATE_COMMAND ""
-
-  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/jsoncpp"
-  CMAKE_ARGS
-      -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/jsoncpp
-      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-      -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-      -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
-)
-
-# storage
-if (NOT OPENSSL_ROOT_DIR)
-  set(OPENSSL_ROOT_DIR $ENV{OPENSSL_ROOT_DIR})
-endif()
-
-ExternalProject_Add(Storage
-  GIT_REPOSITORY "https://github.com/abpoms/storage"
-  #GIT_TAG 0a439623f75c029912728d80cb7f1b8b48739ca4
-
-  UPDATE_COMMAND ""
-
-  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/storage"
-
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/storage
-      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-      -DBZIP2_INCLUDE_DIR=${BZIP2_INCLUDE_DIR}
-      -DCMAKE_LIBRARY_PATH=${CMAKE_LIBRARY_PATH}
-      -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
-      -DOPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}
-
-  CMAKE_CACHE_ARGS
-      -DGLOG_ROOT_DIR:FILEPATH=${GLOG_ROOT_DIR}
-      -DGFLAGS_ROOT_DIR:FILEPATH=${GFLAGS_ROOT_DIR}
-      -DBOOST_ROOT:FILEPATH=${BOOST_ROOT}
-      -DCURL_INCLUDE_DIR:FILEPATH=${CURL_INCLUDE_DIR}
-      -DCURL_LIBRARY:FILEPATH=${CURL_LIBRARY}
-      -DCURL_LIBRARIES:FILEPATH=${CURL_LIBRARIES}
-
-  INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/storage"
-)
-
-
-# googletest
-ExternalProject_Add(GoogleTest
-  GIT_REPOSITORY "https://github.com/google/googletest"
-  GIT_TAG 0a439623f75c029912728d80cb7f1b8b48739ca4
-
-  UPDATE_COMMAND ""
-
-  SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/googletest"
-
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/googletest
-  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-
-  INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/googletest"
-)
-
+find_package(Storehouse REQUIRED)
+find_package(GoogleTest REQUIRED)
+find_package(TinyToml REQUIRED)
+find_package(JsonCpp REQUIRED)
 
 set(GTEST_INCLUDE_DIRS
   "${GLOBAL_OUTPUT_PATH}/googletest/include")
@@ -162,22 +82,9 @@ set(GTEST_LIBRARIES
 set(GTEST_LIB_MAIN
   "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
-set(LIGHTSCAN_LIBRARIES
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libstorage.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogle_storage_api.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_oauth2.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_jsoncpp.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_json.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_http.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_curl_http.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_utils.a"
-  "${GLOBAL_OUTPUT_PATH}/storage/lib/libgoogleapis_internal.a"
-  "${GLOBAL_OUTPUT_PATH}/jsoncpp/lib/libjsoncpp.a"
-  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavformat.a"
-  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavcodec.a"
-  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswscale.a"
-  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libswresample.a"
-  # "${GLOBAL_OUTPUT_PATH}/ffmpeg/lib/libavutil.a"
+set(SCANNER_LIBRARIES
+  "${STOREHOUSE_LIBRARIES}"
+  "${JSONCPP_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
   "${MPI_LIBRARIES}"
   "${CUDA_LIBRARIES}"
@@ -194,16 +101,16 @@ set(LIGHTSCAN_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
-  "${LIGHTSCAN_LIBRARIES}"
+  "${SCANNER_LIBRARIES}"
   "-ljpeg"
   "-lz")
 
 include_directories(
   "."
   "${FFMPEG_INCLUDE_DIR}"
-  "${THIRDPARTY_SOURCE_DIR}/tinytoml/include"
-  "${GLOBAL_OUTPUT_PATH}/jsoncpp/include"
-  "${GLOBAL_OUTPUT_PATH}/storage/include"
+  "${TINYTOML_INCLUDE_DIR}"
+  "${JSONCPP_INCLUDE_DIR}"
+  "${STOREHOUSE_INCLUDE_DIRS}"
   "${Boost_INCLUDE_DIRS}"
   "${CUDA_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
@@ -220,18 +127,14 @@ if (APPLE)
 elseif()
 endif()
 
-add_subdirectory(lightscan)
+add_subdirectory(scanner)
 add_subdirectory(comparison)
 
-add_executable(lightscanner
-  lightscan/main.cpp
-  lightscan/ingest.cpp
-  lightscan/engine.cpp
+add_executable(scanner_server
+  scanner/main.cpp
+  scanner/ingest.cpp
+  scanner/engine.cpp
   $<TARGET_OBJECTS:util>)
-
-add_dependencies(lightscanner
-  TinyToml
-  JsonCpp)
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS
@@ -248,7 +151,7 @@ elseif(UNIX)
   set(PLATFORM_LINK_FLAGS "-pthread -ldl -lrt")
 endif()
 
-target_link_libraries(lightscanner
-  ${LIGHTSCAN_LIBRARIES}
+target_link_libraries(scanner_server
+  ${SCANNER_LIBRARIES}
   util_cuda
   "${PLATFORM_LINK_FLAGS}")

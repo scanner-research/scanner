@@ -13,11 +13,13 @@
  * limitations under the License.
  */
 
-#include "storage/storage_backend.h"
+#include "scanner/video/video_decoder.h"
+
+#include "storehouse/storage_backend.h"
 
 #include <string>
 
-namespace lightscan {
+namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Work structs - structs used to exchange data between workers during 
@@ -58,8 +60,20 @@ struct SaveWorkEntry {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+
+enum class NetFrameworkType {
+  GPU,
+  CPU,
+};
+
+std::vector<NetFrameworkType> get_supported_net_framework_types();
+
+bool has_net_framework_type(NetFrameworkType type);
+
 void run_job(
-  storage::StorageConfig* config,
+  storehouse::StorageConfig* config,
+  VideoDecoderType decoder_type,
+  NetFrameworkType net_framework_type,
   const std::string& job_name,
   const std::string& dataset_name,
   const std::string& net_descriptor_file);

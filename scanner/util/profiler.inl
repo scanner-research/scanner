@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "lightscan/util/profiler.h"
+#include "scanner/util/profiler.h"
 
-namespace lightscan {
+namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Profiler

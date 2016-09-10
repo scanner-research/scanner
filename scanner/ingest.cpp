@@ -13,11 +13,11 @@
  * limitations under the License.
  */
 
-#include "lightscan/ingest.h"
-#include "lightscan/util/video.h"
-#include "lightscan/util/cuda.h"
+#include "scanner/ingest.h"
+#include "scanner/util/video.h"
+#include "scanner/util/cuda.h"
 
-#include "storage/storage_backend.h"
+#include "storehouse/storage_backend.h"
 
 #include <cassert>
 
@@ -44,12 +44,12 @@ extern "C" {
 #include "libavutil/hwcontext_cuda.h"
 }
 
-using storage::StoreResult;
-using storage::WriteFile;
-using storage::RandomReadFile;
-using storage::exit_on_error;
+using storehouse::StoreResult;
+using storehouse::WriteFile;
+using storehouse::RandomReadFile;
+using storehouse::exit_on_error;
 
-namespace lightscan {
+namespace scanner {
 
 namespace {
 
@@ -659,7 +659,7 @@ bool read_timestamps(std::string video_path,
 
 
 bool preprocess_video(
-  storage::StorageBackend* storage,
+  storehouse::StorageBackend* storage,
   const std::string& dataset_name,
   const std::string& video_path,
   const std::string& item_name)

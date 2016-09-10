@@ -24,7 +24,7 @@
 
 #include <memory>
 
-namespace lightscan {
+namespace scanner {
 
 struct NetDescriptor {
   std::string model_path;

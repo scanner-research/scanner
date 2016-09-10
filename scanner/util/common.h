@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "storage/storage_backend.h"
+#include "storehouse/storage_backend.h"
 
 #include <nvcuvid.h>
 
@@ -23,15 +23,14 @@
 #include <vector>
 #include <map>
 
-namespace lightscan {
+namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
-extern int CPUS_PER_NODE;           // # of available CPUs per node
-extern int GPUS_PER_NODE;           // # of available GPUs per node
+extern int PUS_PER_NODE;           // # of available processing units per node
 extern int GLOBAL_BATCH_SIZE;       // Batch size for network
 extern int BATCHES_PER_WORK_ITEM;   // How many batches per work item
-extern int TASKS_IN_QUEUE_PER_GPU;  // How many tasks per GPU to allocate
+extern int TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern int LOAD_WORKERS_PER_NODE;   // # of worker threads loading data
 extern int SAVE_WORKERS_PER_NODE;   // # of worker threads loading data
 extern int NUM_CUDA_STREAMS;        // # of cuda streams for image processing
@@ -125,35 +124,35 @@ struct JobDescriptor {
 };
 
 void serialize_dataset_descriptor(
-  storage::WriteFile* file,
+  storehouse::WriteFile* file,
   const DatasetDescriptor& descriptor);
 
 DatasetDescriptor deserialize_dataset_descriptor(
-  storage::RandomReadFile* file,
+  storehouse::RandomReadFile* file,
   uint64_t& file_pos);
 
 void serialize_dataset_item_metadata(
-  storage::WriteFile* file,
+  storehouse::WriteFile* file,
   const DatasetItemMetadata& metadata);
 
 DatasetItemMetadata deserialize_dataset_item_metadata(
-  storage::RandomReadFile* file,
+  storehouse::RandomReadFile* file,
   uint64_t& file_pos);
 
 void serialize_dataset_item_web_timestamps(
-  storage::WriteFile* file,
+  storehouse::WriteFile* file,
   const DatasetItemWebTimestamps& metadata);
 
 DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
-  storage::RandomReadFile* file,
+  storehouse::RandomReadFile* file,
   uint64_t& file_pos);
 
 void serialize_job_descriptor(
-  storage::WriteFile* file,
+  storehouse::WriteFile* file,
   const JobDescriptor& descriptor);
 
 JobDescriptor deserialize_job_descriptor(
-  storage::RandomReadFile* file,
+  storehouse::RandomReadFile* file,
   uint64_t& file_pos);
 
 }

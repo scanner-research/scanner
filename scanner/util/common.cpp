@@ -1,6 +1,6 @@
-#include "lightscan/util/common.h"
-#include "lightscan/util/util.h"
-#include "storage/storage_backend.h"
+#include "scanner/util/common.h"
+#include "scanner/util/util.h"
+#include "storehouse/storage_backend.h"
 
 #include <cassert>
 #include <cstdarg>
@@ -11,11 +11,11 @@
 #include <errno.h>
 #include <libgen.h>
 
-using storage::WriteFile;
-using storage::RandomReadFile;
-using storage::StoreResult;
+using storehouse::WriteFile;
+using storehouse::RandomReadFile;
+using storehouse::StoreResult;
 
-namespace lightscan {
+namespace scanner {
 
 int CPUS_PER_NODE = 1;           // Number of available CPUs per node
 int GPUS_PER_NODE = 1;           // Number of available GPUs per node

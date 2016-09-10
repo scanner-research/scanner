@@ -13,14 +13,13 @@
  * limitations under the License.
  */
 
-#include "lightscan/util/caffe.h"
+#include "scanner/util/caffe.h"
 
 #include "toml/toml.h"
 
 #include <opencv2/opencv.hpp>
 
 #include <cstdlib>
-
 
 using caffe::Blob;
 using caffe::BlobProto;
@@ -29,7 +28,7 @@ using caffe::Net;
 using boost::shared_ptr;
 using std::string;
 
-namespace lightscan {
+namespace scanner {
 
 NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   toml::ParseResult pr = toml::parse(net_file);

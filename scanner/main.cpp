@@ -13,17 +13,17 @@
  * limitations under the License.
  */
 
-#include "lightscan/ingest.h"
-#include "lightscan/engine.h"
+#include "scanner/ingest.h"
+#include "scanner/engine.h"
 
-#include "lightscan/util/common.h"
-#include "lightscan/util/video.h"
-#include "lightscan/util/caffe.h"
-#include "lightscan/util/queue.h"
-#include "lightscan/util/profiler.h"
+#include "scanner/util/common.h"
+#include "scanner/util/video.h"
+#include "scanner/util/caffe.h"
+#include "scanner/util/queue.h"
+#include "scanner/util/profiler.h"
 
-#include "storage/storage_config.h"
-#include "storage/storage_backend.h"
+#include "storehouse/storage_config.h"
+#include "storehouse/storage_backend.h"
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -31,7 +31,7 @@
 #include <boost/program_options/errors.hpp>
 
 #include <cuda.h>
-#include "lightscan/util/cuda.h"
+#include "scanner/util/cuda.h"
 
 #include <mpi.h>
 #include <cstdlib>
@@ -45,12 +45,12 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-using namespace lightscan;
+using namespace scanner;
 namespace po = boost::program_options;
 
-using storage::StoreResult;
-using storage::WriteFile;
-using storage::RandomReadFile;
+using storehouse::StoreResult;
+using storehouse::WriteFile;
+using storehouse::RandomReadFile;
 
 namespace {
 
@@ -63,7 +63,7 @@ const std::string DB_PATH = "/Users/abpoms/kcam";
  *   @return: index of the last successfully processed video
  */
 int read_last_processed_video(
-  storage::StorageBackend* storage,
+  storehouse::StorageBackend* storage,
   const std::string& dataset_name)
 {
   StoreResult result;
@@ -73,7 +73,7 @@ int read_last_processed_video(
 
   // File will not exist when first running ingest so check first
   // and return default value if not there
-  storage::FileInfo info;
+  storehouse::FileInfo info;
   result = storage->get_file_info(last_written_path, info);
   (void) info;
   if (result == StoreResult::FileDoesNotExist) {
@@ -106,7 +106,7 @@ int read_last_processed_video(
  *
  */
 void write_last_processed_video(
-  storage::StorageBackend* storage,
+  storehouse::StorageBackend* storage,
   const std::string& dataset_name,
   int file_index)
 {
@@ -315,8 +315,8 @@ int main(int argc, char** argv) {
 
   // For now, we use a disk based persistent storage with a hardcoded
   // path for storing video and output data persistently
-  storage::StorageConfig* config =
-    storage::StorageConfig::make_posix_config(DB_PATH);
+  storehouse::StorageConfig* config =
+    storehouse::StorageConfig::make_posix_config(DB_PATH);
 
   if (cmd == "ingest") {
     // The ingest command takes 1) a new dataset name, 2) a file with paths to videos
@@ -340,8 +340,8 @@ int main(int argc, char** argv) {
       }
     }
 
-    storage::StorageBackend* storage =
-      storage::StorageBackend::make_from_config(config);
+    storehouse::StorageBackend* storage =
+      storehouse::StorageBackend::make_from_config(config);
 
     // Start from the file after the one we last processed succesfully before
     // crashing/exiting

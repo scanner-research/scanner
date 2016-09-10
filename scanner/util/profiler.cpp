@@ -13,13 +13,13 @@
  * limitations under the License.
  */
 
-#include "lightscan/util/profiler.h"
+#include "scanner/util/profiler.h"
 
 #include <string>
 #include <map>
 #include <cmath>
 
-namespace lightscan {
+namespace scanner {
 
 Profiler::Profiler(timepoint_t base_time)
   : base_time_(base_time),
@@ -52,7 +52,7 @@ void write_profiler_to_file(
   // Worker number
   output.write((char*)&worker_num, sizeof(worker_num));
   // Intervals
-  const std::vector<lightscan::Profiler::TaskRecord>& records =
+  const std::vector<scanner::Profiler::TaskRecord>& records =
     profiler.get_records();
   // Perform dictionary compression on interval key names
   uint8_t record_key_id = 0;
@@ -84,7 +84,7 @@ void write_profiler_to_file(
   int64_t num_records = static_cast<int64_t>(records.size());
   output.write((char*)&num_records, sizeof(num_records));
   for (size_t j = 0; j < records.size(); j++) {
-    const lightscan::Profiler::TaskRecord& record = records[j];
+    const scanner::Profiler::TaskRecord& record = records[j];
     uint8_t key_index = key_names[record.key];
     int64_t start = record.start;
     int64_t end = record.end;

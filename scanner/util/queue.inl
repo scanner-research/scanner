@@ -15,7 +15,7 @@
 
 #include "queue.h"
 
-namespace lightscan {
+namespace scanner {
 
 template <typename T>
 Queue<T>::Queue()

@@ -15,5 +15,5 @@
 
 #pragma once
 
-namespace lightscan {
+namespace scanner {
 }
