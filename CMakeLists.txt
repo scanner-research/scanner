@@ -18,9 +18,7 @@ project(Scanner)
 
 enable_testing()
 
-######################
-###     Setup     ####
-######################
+###### Setup #########
 # Verify C++11 support
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
@@ -30,6 +28,7 @@ else()
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
 endif()
 
+# Include our custom cmake modules for finding packages
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 set(GLOBAL_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
@@ -39,27 +38,33 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 endif()
 
-
-###### DEPENDENCIES #######
-
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 if(NOT APPLE AND UNIX)
   set(CMAKE_SHARED_LINKER_FLAGS
     "${CMAKE_SHARED_LINKER_FLAGS} -pthread -ldl -lrt")
 endif()
 
-###### PROJECT LIBRARIES #######
+###### Optional Dependencies #######
+find_package(CUDA)
+if (CUDA_FOUND)
+  add_definitions(-DHAVE_CUDA)
+endif()
 
+###### Required Dependencies #######
 # Require opencv3
-find_package(OpenCV REQUIRED COMPONENTS
-  core highgui imgproc imgcodecs
-  cudawarping cudaimgproc cudafilters cudaarithm)
+
+set(OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
+if (CUDA_FOUND)
+  append(OPENCV_DESIRED_COMPONENTS
+    cudawarping cudaimgproc cudafilters cudaarithm)
+endif()
+
+find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
 add_definitions(-DUSE_OPENCV)
 
 find_package(FFmpeg REQUIRED)
-find_package(CUDA REQUIRED)
 find_package(MPI REQUIRED)
 find_package(Caffe REQUIRED)
 find_package(LibLZMA REQUIRED)
@@ -70,7 +75,8 @@ find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
-find_package(Storehouse REQUIRED)
+find_package(Storehouse REQUIRED CONFIG
+  PATHS "thirdparty/build/bin/storehouse")
 find_package(GoogleTest REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(JsonCpp REQUIRED)
@@ -87,10 +93,6 @@ set(SCANNER_LIBRARIES
   "${JSONCPP_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
   "${MPI_LIBRARIES}"
-  "${CUDA_LIBRARIES}"
-  "-lcuda"
-  "-lcudart"
-  "-lnvcuvid"
   "${CAFFE_LIBRARIES}"
   "${OpenCV_LIBRARIES}"
   "${LIBLZMA_LIBRARIES}"
@@ -112,20 +114,30 @@ include_directories(
   "${JSONCPP_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${Boost_INCLUDE_DIRS}"
-  "${CUDA_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
   "${CAFFE_INCLUDE_DIRS}"
   "${OpenCV_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
-  "${GTEST_INCLUDE_DIRS}"
-  )
+  "${GTEST_INCLUDE_DIRS}")
+
+if (CUDA_FOUND)
+  append(SCANNER_LIBRARIES
+    "${CUDA_LIBRARIES}"
+    "-lcuda"
+    "-lcudart"
+    "-lnvcuvid")
+
+  include_directories("${CUDA_INCLUDE_DIRS}")
+endif()
 
 if (APPLE)
   include_directories(
     "/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Versions/Current/Headers/")
 elseif()
 endif()
+
+###### Project code #######
 
 add_subdirectory(scanner)
 add_subdirectory(comparison)
@@ -134,6 +146,8 @@ add_executable(scanner_server
   scanner/main.cpp
   scanner/ingest.cpp
   scanner/engine.cpp
+  $<TARGET_OBJECTS:video>
+  $<TARGET_OBJECTS:eval>
   $<TARGET_OBJECTS:util>)
 
 if(APPLE)

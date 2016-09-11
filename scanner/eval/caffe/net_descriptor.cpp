@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/util/caffe.h"
+#include "scanner/eval/caffe/net_descriptor.h"
 
 #include "toml/toml.h"
 
@@ -30,6 +30,8 @@ using std::string;
 
 namespace scanner {
 
+//////////////////////////////////////////////////////////////////////
+/// NetDescriptor
 NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   toml::ParseResult pr = toml::parse(net_file);
   if (!pr.valid()) {
@@ -148,28 +150,24 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
 }
 
 //////////////////////////////////////////////////////////////////////
-/// NetBundle
-NetBundle::NetBundle(const NetDescriptor& descriptor, int gpu_device_id)
-  : descriptor_(descriptor),
-    gpu_device_id_(gpu_device_id)
-{
-  caffe::Caffe::set_mode(caffe::Caffe::GPU);
-  caffe::Caffe::SetDevice(gpu_device_id);
+/// Utils
+caffe::Caffe::Brew device_type_to_caffe_mode(DeviceType type) {
+  caffe::Caffe::Brew caffe_type;
 
-  // Initialize our network
-  net_.reset(new Net<float>(descriptor_.model_path, caffe::TEST));
-  net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
-}
+  switch (type) {
+  case DeviceType::GPU:
+    caffe_type = caffe::Caffe::GPU;
+    break;
+  case DeviceType::CPU:
+    caffe_type = caffe::Caffe::CPU;
+    break;
+  default:
+    // TODO(apoms): error message
+    exit(EXIT_FAILURE);
+    break;
+  }
 
-NetBundle::~NetBundle() {
-}
-
-const NetDescriptor& NetBundle::get_descriptor() {
-  return descriptor_;
-}
-
-caffe::Net<float>& NetBundle::get_net() {
-  return *net_.get();
+  return caffe_type;
 }
 
 }

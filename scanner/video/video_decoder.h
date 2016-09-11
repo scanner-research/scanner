@@ -35,6 +35,8 @@ public:
   static bool has_decoder_type(VideoDecoderType type);
 
   static VideoDecoder* make_from_config(
+    DeviceType device_type,
+    int device_id,
     VideoDecoderType type,
     DatasetItemMetadata metadata);
 

@@ -15,24 +15,14 @@
 
 #include "scanner/engine.h"
 
-#include "scanner/util/cuda.h"
 #include "scanner/util/video.h"
 #include "scanner/util/common.h"
-#include "scanner/util/caffe.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
 #include "scanner/util/util.h"
-#include "scanner/util/opencv.h"
 #include "scanner/util/jpeg/JPEGWriter.h"
 
 #include "storehouse/storage_backend.h"
-
-#include <opencv2/opencv.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudawarping.hpp>
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/core/cuda_stream_accessor.hpp>
 
 #include <thread>
 #include <mpi.h>
@@ -54,14 +44,6 @@ using storehouse::RandomReadFile;
 using storehouse::exit_on_error;
 
 namespace scanner {
-
-///////////////////////////////////////////////////////////////////////////////
-/// Functionality object
-class PipelineFunctions {
-  virtual void new_buffer(char** buffer, size_t buffer_size) = 0;
-
-  virtual void delete_buffer(char* buffer) = 0;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
@@ -87,7 +69,9 @@ struct DecodeThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
+  DeviceType device_type;
   int device_id;
+  VideoDecoderType decoder_type;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -100,10 +84,12 @@ struct EvaluateThreadArgs {
   // Uniform arguments
   const std::vector<DatasetItemMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
-  const NetDescriptor& net_descriptor;
 
   // Per worker arguments
-  int device_id; // for hardware decode, need to know which device
+  DeviceType device_type;
+  int device_id; 
+  EvaluatorConstructor& evaluator_constructor;
+  EvaluatorConfig evaluator_config;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -117,7 +103,7 @@ struct SaveThreadArgs {
   std::string job_name;
   const std::vector<std::string>& video_paths;
   const std::vector<DatasetItemMetadata>& metadata;
-  const std::vector<std::string>& output_layer_names;
+  const std::vector<std::string>& output_names;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -268,15 +254,17 @@ void* decode_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  CU_CHECK(cudaSetDevice(args.device_id));
-
   // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
   //              codec type) all videos should be the same for now so just use
   //              the first.
-  VideoDecoder decoder{
-    args.cuda_context,
-    args.metadata[0]};
-  decoder.set_profiler(&args.profiler);
+  std::unique_ptr<VideoDecoder> decoder{
+    VideoDecoder::make_from_config(
+      args.device_type,
+      args.device_id,
+      args.decoder_type,
+      video_metadata[0])};
+
+  decoder->set_profiler(&args.profiler);
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -330,7 +318,7 @@ void* decode_thread(void* arg) {
         encoded_buffer_offset += encoded_packet_size;
       }
 
-      if (decoder.feed(encoded_packet, encoded_packet_size, discontinuity)) {
+      if (decoder->feed(encoded_packet, encoded_packet_size, discontinuity)) {
         // New frames
         bool more_frames = true;
         while (more_frames && current_frame < work_item.end_frame) {
@@ -342,9 +330,9 @@ void* decode_thread(void* arg) {
               decoded_buffer + frames_buffer_offset;
 
             more_frames =
-              decoder.get_frame(current_frame_buffer_pos, frame_size);
+              decoder->get_frame(current_frame_buffer_pos, frame_size);
           } else {
-            more_frames = decoder.discard_frame();
+            more_frames = decoder->discard_frame();
           }
           current_frame++;
         }
@@ -352,10 +340,10 @@ void* decode_thread(void* arg) {
       discontinuity = false;
     }
     // Wait on all memcpys from frames to be done
-    decoder.wait_until_frames_copied();
+    decoder->wait_until_frames_copied();
 
-    if (decoder.decoded_frames_buffered() > 0) {
-      while (decoder.discard_frame()) {};
+    if (decoder->decoded_frames_buffered() > 0) {
+      while (decoder->discard_frame()) {};
     }
 
     // Must clean up buffer allocated by load thread
@@ -389,9 +377,10 @@ void* evaluate_thread(void* arg) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  std::unique_ptr<Evaluator> evaluator{
+    args.evaluator_constructor.new_evaluator(args.evaluator_config)};
 
   args.profiler.add_interval("setup", setup_start, now());
-
 
   while (true) {
     auto idle_start = now();
@@ -421,14 +410,17 @@ void* evaluate_thread(void* arg) {
 
     // Create output buffer to hold results from net evaluation for all frames
     // in the current work item
+    int num_inputs = work_item.end_frame - work_item.start_frame;
+    std::vector<size_t> output_element_sizes =
+      args.evaluator_constructor.get_output_element_sizes();
     std::vector<size_t> output_buffer_sizes;
-    std::vector<char*> output_buffers;
-    for (size_t output_size_per_frame : output_sizes) {
-      size_t output_buffer_size =
-        (work_item.end_frame - work_item.start_frame) * output_size_per_frame;
-      output_buffer_sizes.push_back(output_buffer_size);
-      output_buffers.push_back(new char[output_buffer_size]);
+    for (size_t element_size : output_element_sizes) {
+      output_buffer_sizes.push_back(element_size * num_inputs);
     }
+    std::vector<char*> output_buffers =
+      args.evaluator_constructor.new_output_buffers(
+        args.evaluator_config,
+        num_inputs);
 
     int current_frame = work_item.start_frame;
     while (current_frame < work_item.end_frame) {
@@ -436,106 +428,17 @@ void* evaluate_thread(void* arg) {
       int batch_size =
         std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
-      if (input_blob->shape(0) != batch_size) {
-        input_blob->Reshape({batch_size, 3, inputHeight, inputWidth});
+      char* frame_buffer = work_entry.buffer + frame_size * frame_offset;
+      std::vector<char*> output_pointers;
+      for (size_t i = 0; i < output_buffers.size(); ++i) {
+        output_pointers.push_back(
+          output_buffers[i] + output_element_sizes[i] * frame_offset);
       }
-
-      float* net_input_buffer = input_blob->mutable_gpu_data();
-
-      // Process batch of frames
-      auto cv_start = now();
-      for (int i = 0; i < batch_size; ++i) {
-        int sid = i % NUM_CUDA_STREAMS;
-        cv::cuda::Stream& cv_stream = cv_streams[sid];
-
-        char* buffer = frame_buffer + frame_size * (i + frame_offset);
-
-        input_mats[sid] =
-          cv::cuda::GpuMat(
-            metadata.height + metadata.height / 2,
-            metadata.width,
-            CV_8UC1,
-            buffer);
-
-        convertNV12toRGBA(input_mats[sid], rgba_mat[sid],
-                          metadata.width, metadata.height,
-                          cv_stream);
-        // BGR -> RGB for helnet
-        cv::cuda::cvtColor(rgba_mat[sid], rgb_mat[sid], CV_BGRA2RGB, 0,
-                           cv_stream);
-        cv::cuda::resize(rgb_mat[sid], conv_input[sid],
-                         cv::Size(inputWidth, inputHeight),
-                         0, 0, cv::INTER_LINEAR, cv_stream);
-        // Changed from interleaved BGR to planar BGR
-        convertRGBInterleavedToPlanar(conv_input[sid], conv_planar_input[sid],
-                                      inputWidth, inputHeight,
-                                      cv_stream);
-        conv_planar_input[sid].convertTo(
-          float_conv_input[sid], CV_32FC1, cv_stream);
-        cv::cuda::subtract(float_conv_input[sid], mean_mat, normed_input[sid],
-                           cv::noArray(), -1, cv_stream);
-        // For helnet, we need to transpose so width is fasting moving dim
-        // and normalize to 0 - 1
-        cv::cuda::divide(normed_input[sid], 255.0f, scaled_input[sid],
-                         1, -1, cv_stream);
-        cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
-        CU_CHECK(cudaMemcpy2DAsync(
-                   net_input_buffer + i * (inputWidth * inputHeight * 3),
-                   inputWidth * sizeof(float),
-                   scaled_input[sid].data,
-                   scaled_input[sid].step,
-                   inputWidth * sizeof(float),
-                   inputHeight * 3,
-                   cudaMemcpyDeviceToDevice,
-                   s));
-
-        // For checking for proper encoding
-        if (false && ((current_frame + i) % 512) == 0) {
-          CU_CHECK(cudaDeviceSynchronize());
-          size_t image_size = metadata.width * metadata.height * 3;
-          uint8_t* image_buff = new uint8_t[image_size];
-
-          for (int i = 0; i < rgb_mat[sid].rows; ++i) {
-            CU_CHECK(cudaMemcpy(image_buff + metadata.width * 3 * i,
-                                rgb_mat[sid].ptr<uint8_t>(i),
-                                metadata.width * 3,
-                                cudaMemcpyDeviceToHost));
-          }
-          JPEGWriter writer;
-          writer.header(metadata.width, metadata.height, 3, JPEG::COLOR_RGB);
-          std::vector<uint8_t*> rows(metadata.height);
-          for (int i = 0; i < metadata.height; ++i) {
-            rows[i] = image_buff + metadata.width * 3 * i;
-          }
-          std::string image_path =
-            "frame" + std::to_string(current_frame + i) + ".jpg";
-          writer.write(image_path, rows.begin());
-          delete[] image_buff;
-        }
-      }
-      CU_CHECK(cudaDeviceSynchronize());
-      args.profiler.add_interval("cv", cv_start, now());
-
-      // Compute features
-      auto net_start = now();
-      net.Forward();
-      args.profiler.add_interval("net", net_start, now());
-
-      // Save batch of frames
-      for (size_t i = 0; i < output_buffer_sizes.size(); ++i) {
-        const std::string& output_layer_name =
-          args.net_descriptor.output_layer_names[i];
-        const boost::shared_ptr<caffe::Blob<float>> output_blob{
-          net.blob_by_name(output_layer_name)};
-        CU_CHECK(cudaMemcpy(
-                   output_buffers[i] + frame_offset * output_sizes[i],
-                   output_blob->gpu_data(),
-                   batch_size * output_sizes[i],
-                   cudaMemcpyDeviceToHost));
-      }
+      evaluator->evaluate(frame_buffer, output_pointers, batch_size);
 
       current_frame += batch_size;
     }
+
     args.profiler.add_interval("task", work_start, now());
 
     DecodeBufferEntry empty_buffer_entry;
@@ -593,11 +496,11 @@ void* save_thread(void* arg) {
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
     // Write out each output layer to an individual data file
-    for (size_t i = 0; i < args.output_layer_names.size(); ++i) {
+    for (size_t i = 0; i < args.output_names.size(); ++i) {
       const std::string output_path =
         job_item_output_path(args.job_name,
                              video_path,
-                             args.output_layer_names[i],
+                             args.output_names[i],
                              work_item.start_frame,
                              work_item.end_frame);
 
@@ -635,37 +538,14 @@ void* save_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
-std::vector<NetFrameworkType> get_supported_net_framework_types() {
-  std::vector<NetFrameworkType> net_types;
-#ifdef HAVE_GPU
-  net_types.push_back(NetFrameworkType::GPU);
-#endif
-  net_types.push_back(NetFrameworkType::CPU);
-
-  return net_types;
-}
-
-bool has_net_framework_type(NetFrameworkType type) {
-  std::vector<NetFrameworkType> types =
-    get_supported_net_framework_types();
-
-  for (const NetFrameworkType& supported_type : types) {
-    if (type == supported_type) return true;
-  }
-
-  return false;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
-
 void run_job(
   storehouse::StorageConfig* config,
   VideoDecoderType decoder_type,
-  NetFrameworkType net_framework_type,
+  EvaluatorConstructor* evaluator_constructor,
   const std::string& job_name,
-  const std::string& dataset_name,
-  const std::string& net_descriptor_file)
+  const std::string& dataset_name)
 {
   storehouse::StorageBackend* storage =
     storehouse::StorageBackend::make_from_config(config);
@@ -686,13 +566,6 @@ void run_job(
                                    file));
     uint64_t pos = 0;
     descriptor = deserialize_dataset_descriptor(file.get(), pos);
-  }
-
-  // Load net descriptor for specifying target network
-  NetDescriptor net_descriptor;
-  {
-    std::ifstream s{net_descriptor_file};
-    net_descriptor = descriptor_from_net_file(s);
   }
 
   // Establish base time to use for profilers
@@ -765,6 +638,7 @@ void run_job(
   //   We should allocate the buffer in the load thread if we need to support
   //   multiple sizes or analyze all the videos an allocate buffers for the
   //   largest possible size
+  
   size_t frame_size =
     av_image_get_buffer_size(AV_PIX_FMT_NV12,
                              video_metadata[0].width,
@@ -772,25 +646,22 @@ void run_job(
                              1);
   size_t frame_buffer_size = frame_size * frames_per_work_item();
   const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
-  char*** pu_frame_buffers = new char**[PUS_PER_NODE];
-  std::vector<Evaluator*> evaluators;
-  for (int pu = 0; pu < PUS_PER_NODE; ++pu) {
-    evaluators.push_back(
-      evaluator_constructor->new_evaluator(
-        pu,
-        GLOBAL_BATCH_SIZE,
-        LOAD_BUFFERS,
-        frame_buffer_size));
+  std::vector<std::vector<char*>> staging_buffers(PUS_PER_NODE);
 
-    pu_frame_buffers[gpu] = new char*[LOAD_BUFFERS];
-    char** frame_buffers = pu_frame_buffers[gpu];
-    CU_CHECK(cudaSetDevice(gpu));
+  EvaluatorConfig eval_config;
+  eval_config.max_batch_size = GLOBAL_BATCH_SIZE;
+  eval_config.staging_buffer_size = frame_buffer_size;
+  eval_config.frame_width = video_metadata[0].width;
+  eval_config.frame_height = video_metadata[0].height;
+  for (int pu = 0; pu < PUS_PER_NODE; ++pu) {
+    eval_config.device_id = pu;
+
     for (int i = 0; i < LOAD_BUFFERS; ++i) {
-      CU_CHECK(cudaMalloc(&frame_buffers[i], frame_buffer_size));
-      // Add the buffer index into the empty buffer queue so workers can
-      // fill it to pass to the eval worker
-      empty_decode_buffers[gpu].emplace(
-        DecodeBufferEntry{frame_buffer_size, frame_buffers[i]});
+      char* staging_buffer =
+        evaluator_constructor->new_input_buffer(eval_config);
+      staging_buffers[pu].push_back(staging_buffer);
+      empty_decode_buffers[pu].emplace(
+        DecodeBufferEntry{frame_buffer_size, staging_buffer});
     }
   }
 
@@ -803,7 +674,7 @@ void run_job(
     // Create IO thread for reading and decoding data
     load_thread_args.emplace_back(LoadThreadArgs{
         // Uniform arguments
-          dataset_name,
+        dataset_name,
           video_paths,
           video_metadata,
           work_items,
@@ -836,7 +707,9 @@ void run_job(
           work_items,
 
           // Per worker arguments
+          evaluator_constructor->get_input_buffer_type(),
           i % PUS_PER_NODE,
+          decoder_type,
           decode_thread_profilers[i],
 
           // Queues
@@ -859,15 +732,18 @@ void run_job(
   for (int i = 0; i < PUS_PER_NODE; ++i) {
     int pu_device_id = i;
 
+    eval_config.device_id = pu_device_id;
     // Create eval thread for passing data through neural net
     eval_thread_args.emplace_back(EvaluateThreadArgs{
         // Uniform arguments
         video_metadata,
           work_items,
-          net_descriptor,
 
           // Per worker arguments
+          evaluator_constructor->get_input_buffer_type(),
           pu_device_id,
+          *evaluator_constructor,
+          eval_config,
           eval_thread_profilers[i],
 
           // Queues
@@ -894,7 +770,7 @@ void run_job(
           job_name,
           video_paths,
           video_metadata,
-          net_descriptor.output_layer_names,
+          evaluator_constructor->get_output_names(),
           work_items,
 
           // Per worker arguments
@@ -1031,11 +907,6 @@ void run_job(
     free(result);
   }
 
-  // Cleanup
-  for (int gpu = 0; gpu < PUS_PER_NODE; ++gpu) {
-    CUD_CHECK(cuDevicePrimaryCtxRelease(gpu));
-  }
-
   // Push sentinel work entries into queue to terminate eval threads
   for (int i = 0; i < PUS_PER_NODE; ++i) {
     EvalWorkEntry entry;
@@ -1139,16 +1010,15 @@ void run_job(
 
   profiler_output.close();
 
-  // Cleanup
-  for (int gpu = 0; gpu < PUS_PER_NODE; ++gpu) {
-    char** frame_buffers = gpu_frame_buffers[gpu];
-    for (int i = 0; i < LOAD_BUFFERS; ++i) {
-      CU_CHECK(cudaSetDevice(gpu));
-      CU_CHECK(cudaFree(frame_buffers[i]));
+  // Cleanup the input buffers for the evaluators
+  for (int pu = 0; pu < PUS_PER_NODE; ++pu) {
+    eval_config.device_id = pu;
+
+    std::vector<char*> frame_buffers = staging_buffers[pu];
+    for (char* buffer : frame_buffers) {
+      evaluator_constructor->delete_input_buffer(eval_config, buffer);
     }
-    delete[] frame_buffers;
   }
-  delete[] gpu_frame_buffers;
 
   delete storage;
 }

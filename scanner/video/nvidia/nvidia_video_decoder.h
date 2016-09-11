@@ -34,6 +34,7 @@ class NVIDIAVideoDecoder : public VideoDecoder {
 public:
   NVIDIAVideoDecoder(
     DatasetItemMetadata metadata,
+    int device_id,
     CUcontext cuda_context);
 
   ~NVIDIAVideoDecoder();
@@ -67,11 +68,12 @@ private:
     CUVIDPARSERDISPINFO* dispinfo);
 
   DatasetItemMetadata metadata_;
+  int device_id_;
+  CUcontext cuda_context_;
   std::vector<char> metadata_packets_;
   const int max_output_frames_;
   const int max_mapped_frames_;
   std::vector<cudaStream_t> streams_;
-  CUcontext cuda_context_;
   CUvideoparser parser_;
   CUvideodecoder decoder_;
   Queue<CUVIDPARSERDISPINFO> frame_queue_;

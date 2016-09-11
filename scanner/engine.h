@@ -60,22 +60,11 @@ struct SaveWorkEntry {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-
-enum class NetFrameworkType {
-  GPU,
-  CPU,
-};
-
-std::vector<NetFrameworkType> get_supported_net_framework_types();
-
-bool has_net_framework_type(NetFrameworkType type);
-
 void run_job(
   storehouse::StorageConfig* config,
   VideoDecoderType decoder_type,
-  NetFrameworkType net_framework_type,
+  EvaluatorConstructor* evaluator_constructor,
   const std::string& job_name,
-  const std::string& dataset_name,
-  const std::string& net_descriptor_file);
+  const std::string& dataset_name);
 
 }

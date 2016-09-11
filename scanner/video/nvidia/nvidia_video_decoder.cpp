@@ -47,13 +47,15 @@ namespace scanner {
 
 NVIDIAVideoDecoder::NVIDIAVideoDecoder(
   DatasetItemMetadata metadata,
+  int device_id,
   CUcontext cuda_context)
   : metadata_(metadata),
+    device_id_(device_id),
+    cuda_context_(cuda_context),
     metadata_packets_(metadata.metadata_packets),
     max_output_frames_(32),
     max_mapped_frames_(8),
     streams_(max_mapped_frames_),
-    cuda_context_(cuda_context),
     parser_(nullptr),
     decoder_(nullptr),
     mapped_frames_(max_mapped_frames_, 0),
@@ -138,6 +140,12 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
   for (int i = 0; i < max_mapped_frames_; ++i) {
     cudaStreamDestroy(streams_[i]);
   }
+
+  // HACK(apoms): We are only using the primary context right now instead of
+  //   allowing the user to specify their own CUcontext. Thus we need to release
+  //   the primary context we retained when using the factory function to create
+  //   this object (see VideoDecoder::make_from_config).
+  CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
 bool NVIDIAVideoDecoder::feed(

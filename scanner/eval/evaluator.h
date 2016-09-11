@@ -17,50 +17,63 @@
 
 namespace scanner {
 
-enum class BufferType {
+enum class DeviceType {
   GPU,
   CPU,
-};
-
-struct EvaluatorConfig {
-public:
-  int max_batch_size;
-  int num_staging_buffers;
 };
 
 class Evaluator {
 public:
   virtual ~Evaluator() {};
 
-  virtual int get_max_batch_size() = 0;
-
-  virtual int get_num_staging_buffers() = 0;
-
-  virtual char* get_staging_buffer(int index) = 0;
-
   virtual void evaluate(
-    int staging_buffer_index,
-    char* output,
+    char* input_buffer,
+    std::vector<char*> output_buffers,
     int batch_size) = 0;
+};
+
+struct EvaluatorConfig {
+  int device_id;
+  int max_batch_size;
+  size_t staging_buffer_size;
+  int frame_width;
+  int frame_height;
 };
 
 class EvaluatorConstructor {
   virtual ~EvaluatorConstructor() {};
 
-  virtual BufferType get_input_buffer_type() = 0;
-
-  virtual BufferType get_output_buffer_type() = 0;
-
   virtual int get_number_of_devices() = 0;
 
-  virtual Evaluator* new_evaluator(
-    int device_id,
-    int max_batch_size,
-    int num_staging_buffers,
-    size_t staging_buffer_size) = 0;
+  virtual DeviceType get_input_buffer_type() = 0;
+
+  virtual DeviceType get_output_buffer_type() = 0;
+
+  virtual int get_number_of_outputs() = 0;
+
+  virtual std::vector<std::string> get_output_names() = 0;
+
+  virtual std::vector<size_t> get_output_element_sizes() = 0;
+
+  virtual char* new_input_buffer(const EvaluatorConfig& config) = 0;
+
+  virtual void delete_input_buffer(
+    const EvaluatorConfig& config,
+    char* buffer) = 0;
+
+  virtual std::vector<char*> new_output_buffers(
+    const EvaluatorConfig& config,
+    int num_inputs) = 0;
+
+  virtual void delete_output_buffers(
+    const EvaluatorConfig& config,
+    std::vector<char*> buffers) = 0;
+
+  /* new_evaluator - constructs an evaluator to be used for processing
+   *   decoded frames. Must be thread-safe.
+   */
+  virtual Evaluator* new_evaluator(const EvaluatorConfig& config) = 0;
 };
-
-
 
 // allocate buffers
 // setup

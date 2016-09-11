@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "scanner/eval/evaluator.h"
+
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
 #include "caffe/net.hpp"
@@ -26,6 +28,8 @@
 
 namespace scanner {
 
+//////////////////////////////////////////////////////////////////////
+/// NetDescriptor
 struct NetDescriptor {
   std::string model_path;
   std::string model_weights_path;
@@ -44,20 +48,7 @@ struct NetDescriptor {
 NetDescriptor descriptor_from_net_file(std::ifstream& net_file);
 
 //////////////////////////////////////////////////////////////////////
-/// NetBundle
-class NetBundle {
-public:
-  NetBundle(const NetDescriptor& descriptor, int gpu_device_id);
-  virtual ~NetBundle();
-
-  const NetDescriptor& get_descriptor();
-
-  caffe::Net<float>& get_net();
-
-private:
-  NetDescriptor descriptor_;
-  int gpu_device_id_;
-  std::unique_ptr<caffe::Net<float>> net_;
-};
+/// Utils
+caffe::Caffe::Brew device_type_to_caffe_mode(DeviceType type);
 
 }
