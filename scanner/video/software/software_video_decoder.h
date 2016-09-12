@@ -1,4 +1,4 @@
-/* Copyright 2016 Carnegie Mellon University, NVIDIA Corporation
+/* Copyright 2016 Carnegie Mellon University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,18 @@
 #pragma once
 
 #include "scanner/video/video_decoder.h"
-#include "scanner/util/common.h"
-
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <nvcuvid.h>
 
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// NVIDIAVideoDecoder
-class NVIDIAVideoDecoder : public VideoDecoder {
+/// SoftwareVideoDecoder
+class SoftwareVideoDecoder : public VideoDecoder {
 public:
-  NVIDIAVideoDecoder(
+  SoftwareVideoDecoder(
     DatasetItemMetadata metadata,
-    int device_id,
-    CUcontext cuda_context);
+    int device_id);
 
-  ~NVIDIAVideoDecoder();
+  ~SoftwareVideoDecoder();
 
   bool feed(
     const char* encoded_buffer,
@@ -51,29 +45,8 @@ public:
   void wait_until_frames_copied() override;
 
 private:
-  static int cuvid_handle_video_sequence(
-    void *opaque,
-    CUVIDEOFORMAT* format);
-
-  static int cuvid_handle_picture_decode(
-    void *opaque,
-    CUVIDPICPARAMS* picparams);
-
-  static int cuvid_handle_picture_display(
-    void *opaque,
-    CUVIDPARSERDISPINFO* dispinfo);
-
   DatasetItemMetadata metadata_;
   int device_id_;
-  CUcontext cuda_context_;
-  std::vector<char> metadata_packets_;
-  const int max_output_frames_;
-  const int max_mapped_frames_;
-  std::vector<cudaStream_t> streams_;
-  CUvideoparser parser_;
-  CUvideodecoder decoder_;
-  Queue<CUVIDPARSERDISPINFO> frame_queue_;
-  std::vector<CUdeviceptr> mapped_frames_;
   int prev_frame_;
   int wait_for_iframe_;
 };

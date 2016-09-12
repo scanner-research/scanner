@@ -17,8 +17,6 @@
 
 #include "storehouse/storage_backend.h"
 
-#include <nvcuvid.h>
-
 #include <string>
 #include <vector>
 #include <map>
@@ -93,6 +91,31 @@ inline int frames_per_work_item() {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
+enum class DeviceType {
+  GPU,
+  CPU,
+};
+
+enum struct VideoCodecType {
+  // MPEG1,                 /**<  MPEG1   */
+  // MPEG2,                   /**<  MPEG2  */
+  // MPEG4,                   /**<  MPEG4   */
+  // VC1,                     /**<  VC1   */
+  H264,                    /**<  H264   */
+  // JPEG,                    /**<  JPEG   */
+  // H264_SVC,                /**<  H264-SVC   */
+  // H264_MVC,                /**<  H264-MVC   */
+  // HEVC,                    /**<  HEVC   */
+  // VP8,                     /**<  VP8   */
+  // VP9,                     /**<  VP9   */
+};
+
+enum struct VideoChromaFormat {
+  Monochrome,
+  YUV_420,
+  YUV_422,
+  YUV_444,
+};
 
 struct DatasetDescriptor {
   std::vector<std::string> original_video_paths;
@@ -103,8 +126,8 @@ struct DatasetItemMetadata {
   int32_t frames;
   int32_t width;
   int32_t height;
-  cudaVideoCodec codec_type;
-  cudaVideoChromaFormat chroma_format;
+  VideoCodecType codec_type;
+  VideoChromaFormat chroma_format;
   std::vector<char> metadata_packets;
   std::vector<int64_t> keyframe_positions;
   std::vector<int64_t> keyframe_timestamps;

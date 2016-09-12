@@ -16,9 +16,16 @@
 #include "scanner/ingest.h"
 #include "scanner/engine.h"
 
+#include "scanner/video/video_decoder.h"
+
+#ifdef HAVE_CAFFE
+#include "scanner/eval/caffe/net_descriptor.h"
+#include "scanner/eval/caffe/caffe_cpu_evaluator.h"
+#else
+#include "scanner/eval/image_processing/blur_evaluator.h"
+#endif
+
 #include "scanner/util/common.h"
-#include "scanner/util/video.h"
-#include "scanner/util/caffe.h"
 #include "scanner/util/queue.h"
 #include "scanner/util/profiler.h"
 
@@ -30,14 +37,17 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/errors.hpp>
 
+#ifdef HAVE_CUDA
 #include <cuda.h>
 #include "scanner/util/cuda.h"
+#endif
 
 #include <mpi.h>
 #include <cstdlib>
 #include <string>
 #include <libgen.h>
 #include <atomic>
+#include <iostream>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -129,7 +139,9 @@ void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 2;
+#ifdef HAVE_CUDA
   CUD_CHECK(cuInit(0));
+#endif
 }
 
 void shutdown() {
@@ -158,16 +170,16 @@ int main(int argc, char** argv) {
       ("subargs", po::value<std::vector<std::string> >(),
        "Arguments for command")
       ("config_file", po::value<std::string>(),
-       "System configuration (# gpus, batch, etc) in toml format. "
+       "System configuration (# pus, batch, etc) in toml format. "
        "Explicit command line options will overide file settings.")
-      ("gpus_per_node", po::value<int>(), "Number of GPUs per node")
+      ("pus_per_node", po::value<int>(), "Number of PUs per node")
       ("batch_size", po::value<int>(), "Neural Net input batch size")
       ("batches_per_work_item", po::value<int>(),
        "Number of batches in each work item")
-      ("tasks_in_queue_per_gpu", po::value<int>(),
-       "Number of tasks a node will try to maintain in the work queue per GPU")
+      ("tasks_in_queue_per_pu", po::value<int>(),
+       "Number of tasks a node will try to maintain in the work queue per PU")
       ("load_workers_per_node", po::value<int>(),
-       "Number of worker threads processing load jobs per node");
+       "Number of worker threads processing load jobs per node")
       ("save_workers_per_node", po::value<int>(),
        "Number of worker threads processing save jobs per node");
 
@@ -209,8 +221,8 @@ int main(int argc, char** argv) {
         std::string config_file_path = vm["config_file"].as<std::string>();
       }
 
-      if (vm.count("gpus_per_node")) {
-        GPUS_PER_NODE = vm["gpus_per_node"].as<int>();
+      if (vm.count("pus_per_node")) {
+        PUS_PER_NODE = vm["pus_per_node"].as<int>();
       }
       if (vm.count("batch_size")) {
         GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
@@ -218,8 +230,8 @@ int main(int argc, char** argv) {
       if (vm.count("batches_per_work_item")) {
         BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"].as<int>();
       }
-      if (vm.count("tasks_in_queue_per_gpu")) {
-        TASKS_IN_QUEUE_PER_GPU = vm["tasks_in_queue_per_gpu"].as<int>();
+      if (vm.count("tasks_in_queue_per_pu")) {
+        TASKS_IN_QUEUE_PER_PU = vm["tasks_in_queue_per_pu"].as<int>();
       }
       if (vm.count("load_workers_per_node")) {
         LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"].as<int>();
@@ -397,7 +409,28 @@ int main(int argc, char** argv) {
     // the metadata for the job persistently. The metadata file for the job can 
     // be used to find the results for any given video frame.
 
-    run_job(config, job_name, dataset_name, net_descriptor_file);
+    // HACK(apoms): hardcoding the caffe evaluator for now. Will allow user code
+    //   to specify their own evaluator soon.
+
+    #ifdef HAVE_CAFFE
+    NetDescriptor descriptor;
+    {
+      std::ifstream net_file{net_descriptor_file};
+      descriptor = descriptor_from_net_file(net_file);
+    }
+    CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor);
+    #else
+    BlurEvaluatorConstructor evaluator_constructor(3.0);
+    #endif
+
+    VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
+
+    run_job(
+      config,
+      decoder_type,
+      &evaluator_constructor,
+      job_name,
+      dataset_name);
   }
 
   // Cleanup

@@ -48,6 +48,13 @@ endif()
 find_package(CUDA)
 if (CUDA_FOUND)
   add_definitions(-DHAVE_CUDA)
+  include_directories(${CUDA_INCLUDE_DIRS})
+endif()
+
+find_package(Caffe)
+if (CAFFE_FOUND)
+  add_definitions(-DHAVE_CAFFE)
+  include_directories(${CAFFE_INCLUDE_DIRS})
 endif()
 
 ###### Required Dependencies #######
@@ -66,7 +73,6 @@ add_definitions(-DUSE_OPENCV)
 
 find_package(FFmpeg REQUIRED)
 find_package(MPI REQUIRED)
-find_package(Caffe REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
@@ -115,20 +121,18 @@ include_directories(
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${Boost_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
-  "${CAFFE_INCLUDE_DIRS}"
   "${OpenCV_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
-  "${GTEST_INCLUDE_DIRS}")
+  "${GOOGLETEST_INCLUDE_DIRS}")
 
 if (CUDA_FOUND)
   append(SCANNER_LIBRARIES
+    util_cuda
     "${CUDA_LIBRARIES}"
     "-lcuda"
     "-lcudart"
     "-lnvcuvid")
-
-  include_directories("${CUDA_INCLUDE_DIRS}")
 endif()
 
 if (APPLE)
@@ -140,7 +144,7 @@ endif()
 ###### Project code #######
 
 add_subdirectory(scanner)
-add_subdirectory(comparison)
+#add_subdirectory(comparison)
 
 add_executable(scanner_server
   scanner/main.cpp
@@ -167,5 +171,4 @@ endif()
 
 target_link_libraries(scanner_server
   ${SCANNER_LIBRARIES}
-  util_cuda
   "${PLATFORM_LINK_FLAGS}")

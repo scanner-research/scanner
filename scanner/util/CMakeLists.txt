@@ -15,8 +15,6 @@
 set(SOURCE_FILES
   common.cpp
   profiler.cpp
-  caffe.cpp
-  video.cpp
   util.cpp
   jpeg/JPEGReader.cpp
   jpeg/JPEGWriter.cpp)

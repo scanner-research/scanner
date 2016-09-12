@@ -1,10 +1,15 @@
-add_subdirectory(nvidia)
-add_subdirectory(intel)
-add_subdirectory(software)
+set(SOURCE_FILES
+  video_decoder.cpp)
+
+if (HAVE_CUDA)
+  list(APPEND SOURCE_FILES
+    nvidia/nvidia_video_decoder.cpp)
+endif()
+
+# list(APPEND SOURCE_FILES
+#   intel/intel_video_decoder.cpp)
+list(APPEND SOURCE_FILES
+  software/software_video_decoder.cpp)
 
 add_library(video OBJECT
-  video_decoder.cpp
-  video_separator.cpp
-  $<TARGET_OBJECTS:video_nvidia>
-  $<TARGET_OBJECTS:video_intel>
-  $<TARGET_OBJECTS:video_software>)
+  ${SOURCE_FILES})

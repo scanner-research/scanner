@@ -24,7 +24,7 @@
 #include <cstring>
 #include <libgen.h>
 
-namespace lightscan {
+namespace scanner {
 
 class Logger {
 public:

@@ -1,4 +1,4 @@
-#include "lightscan/util/util.h"
+#include "scanner/util/util.h"
 
 #include <cstdarg>
 #include <sstream>
@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <libgen.h>
 
-namespace lightscan {
+namespace scanner {
 
 // old printf-style interface
 void Logger::spew(const char *fmt, ...)
@@ -109,7 +109,7 @@ int mkdir_p(const char *path, mode_t mode) {
 }
 
 void temp_file(FILE** fp, std::string& name) {
-  char n[] = "/tmp/lightscanXXXXXX";
+  char n[] = "/tmp/scannerXXXXXX";
   int fd = mkstemp(n);
   *fp = fdopen(fd, "wb+");
   name = std::string(n);

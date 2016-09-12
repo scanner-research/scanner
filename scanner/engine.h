@@ -14,6 +14,8 @@
  */
 
 #include "scanner/video/video_decoder.h"
+#include "scanner/eval/evaluator.h"
+#include "scanner/eval/evaluator_constructor.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -61,7 +63,7 @@ struct SaveWorkEntry {
 
 ///////////////////////////////////////////////////////////////////////////////
 void run_job(
-  storehouse::StorageConfig* config,
+  storehouse::StorageConfig* storage_config,
   VideoDecoderType decoder_type,
   EvaluatorConstructor* evaluator_constructor,
   const std::string& job_name,

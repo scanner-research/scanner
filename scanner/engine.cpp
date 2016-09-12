@@ -15,7 +15,6 @@
 
 #include "scanner/engine.h"
 
-#include "scanner/util/video.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
@@ -262,7 +261,7 @@ void* decode_thread(void* arg) {
       args.device_type,
       args.device_id,
       args.decoder_type,
-      video_metadata[0])};
+      args.metadata[0])};
 
   decoder->set_profiler(&args.profiler);
 
@@ -362,7 +361,7 @@ void* decode_thread(void* arg) {
   }
 
   printf("(N/PU: %d/%d) Decode thread finished.\n",
-         rank, args.gpu_device_id);
+         rank, args.device_id);
 
   THREAD_RETURN_SUCCESS();
 }
@@ -412,7 +411,8 @@ void* evaluate_thread(void* arg) {
     // in the current work item
     int num_inputs = work_item.end_frame - work_item.start_frame;
     std::vector<size_t> output_element_sizes =
-      args.evaluator_constructor.get_output_element_sizes();
+      args.evaluator_constructor.get_output_element_sizes(
+        args.evaluator_config);
     std::vector<size_t> output_buffer_sizes;
     for (size_t element_size : output_element_sizes) {
       output_buffer_sizes.push_back(element_size * num_inputs);
@@ -454,7 +454,7 @@ void* evaluate_thread(void* arg) {
   }
 
   printf("(N/PU: %d/%d) Evaluate thread finished.\n",
-         rank, args.gpu_device_id);
+         rank, args.device_id);
 
   THREAD_RETURN_SUCCESS();
 }
@@ -1021,4 +1021,6 @@ void run_job(
   }
 
   delete storage;
+}
+
 }

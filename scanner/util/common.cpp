@@ -17,11 +17,10 @@ using storehouse::StoreResult;
 
 namespace scanner {
 
-int CPUS_PER_NODE = 1;           // Number of available CPUs per node
-int GPUS_PER_NODE = 1;           // Number of available GPUs per node
+int PUS_PER_NODE = 1;           // Number of available GPUs per node
 int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
 int BATCHES_PER_WORK_ITEM = 4;   // How many batches per work item
-int TASKS_IN_QUEUE_PER_GPU = 4;  // How many tasks per GPU to allocate to a node
+int TASKS_IN_QUEUE_PER_PU = 4;  // How many tasks per GPU to allocate to a node
 int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
@@ -117,14 +116,14 @@ void serialize_dataset_item_metadata(
 
   // Codec type
   EXP_BACKOFF(
-    file->append(sizeof(cudaVideoCodec),
+    file->append(sizeof(VideoCodecType),
                  reinterpret_cast<const char*>(&metadata.codec_type)),
     result);
   exit_on_error(result);
 
   // Chroma format
   EXP_BACKOFF(
-    file->append(sizeof(cudaVideoChromaFormat),
+    file->append(sizeof(VideoChromaFormat),
                  reinterpret_cast<const char*>(&metadata.chroma_format)),
     result);
   exit_on_error(result);
@@ -225,23 +224,23 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   // Codec type
   EXP_BACKOFF(
     file->read(pos,
-               sizeof(cudaVideoCodec),
+               sizeof(VideoCodecType),
                reinterpret_cast<char*>(&meta.codec_type),
                size_read),
     result);
   exit_on_error(result);
-  assert(size_read == sizeof(cudaVideoCodec));
+  assert(size_read == sizeof(VideoCodecType));
   pos += size_read;
 
   // Chroma format
   EXP_BACKOFF(
     file->read(pos,
-               sizeof(cudaVideoChromaFormat),
+               sizeof(VideoChromaFormat),
                reinterpret_cast<char*>(&meta.chroma_format),
                size_read),
     result);
   exit_on_error(result);
-  assert(size_read == sizeof(cudaVideoChromaFormat));
+  assert(size_read == sizeof(VideoChromaFormat));
   pos += size_read;
 
   // Size of metadata

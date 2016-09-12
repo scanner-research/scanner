@@ -14,34 +14,25 @@
  */
 
 #include "scanner/ingest.h"
-#include "scanner/util/video.h"
-#include "scanner/util/cuda.h"
+
+#include "scanner/util/common.h"
+#include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
 
+#include <fstream>
 #include <cassert>
-
-#include <cuda.h>
-#include <nvcuvid.h>
 
 // For video
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavformat/avio.h"
-#include "libavutil/error.h"
-#include "libswscale/swscale.h"
-
-#include "libavcodec/avcodec.h"
 #include "libavfilter/avfilter.h"
-#include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
 #include "libavutil/pixdesc.h"
+#include "libavutil/error.h"
 #include "libavutil/opt.h"
-
-// For hardware decode
-#include "libavutil/hwcontext.h"
-#include "libavutil/hwcontext_cuda.h"
 }
 
 using storehouse::StoreResult;
@@ -53,26 +44,6 @@ namespace scanner {
 
 namespace {
 
-class AVFifoBuffer;
-
-typedef struct CuvidContext
-{
-    CUvideodecoder cudecoder;
-    CUvideoparser cuparser;
-
-    AVBufferRef *hwdevice;
-    AVBufferRef *hwframe;
-
-    AVBSFContext *bsf;
-
-    AVFifoBuffer *frame_queue;
-
-    int internal_error;
-
-    cudaVideoCodec codec_type;
-    cudaVideoChromaFormat chroma_format;
-} CuvidContext;
-
 struct BufferData {
   uint8_t *ptr;
   size_t size; // size left in the buffer
@@ -82,7 +53,6 @@ struct BufferData {
 };
 
 // For custom AVIOContext that loads from memory
-
 int read_packet(void *opaque, uint8_t *buf, int buf_size) {
   BufferData* bd = (BufferData*)opaque;
   buf_size = std::min(static_cast<size_t>(buf_size), bd->size);
@@ -118,234 +88,15 @@ int64_t seek(void *opaque, int64_t offset, int whence) {
   }
 }
 
-// Taken directly from ffmpeg_cuvid.c
-typedef struct CUVIDContext {
-    AVBufferRef *hw_frames_ctx;
-} CUVIDContext;
-
-typedef struct CodecHardwareInfo {
-    /* hwaccel options */
-    char  *hwaccel_device;
-    enum AVPixelFormat hwaccel_output_format;
-
-    /* hwaccel context */
-    void  *hwaccel_ctx;
-    void (*hwaccel_uninit)(AVCodecContext *s);
-    int  (*hwaccel_get_buffer)(AVCodecContext *s, AVFrame *frame, int flags);
-    int  (*hwaccel_retrieve_data)(AVCodecContext *s, AVFrame *frame);
-    enum AVPixelFormat hwaccel_pix_fmt;
-    enum AVPixelFormat hwaccel_retrieved_pix_fmt;
-    AVBufferRef *hw_frames_ctx;
-} CodecHardwareInfo;
-
-void cuvid_uninit(AVCodecContext *s) {
-  CodecHardwareInfo *ist = (CodecHardwareInfo*)s->opaque;
-  CUVIDContext *ctx = (CUVIDContext*)ist->hwaccel_ctx;
-
-  ist->hwaccel_uninit        = NULL;
-  ist->hwaccel_get_buffer    = NULL;
-  ist->hwaccel_retrieve_data = NULL;
-
-  //av_buffer_unref(&ctx->hw_frames_ctx);
-  av_buffer_unref(&ist->hw_frames_ctx);
-
-  av_freep(&ist->hwaccel_ctx);
-  av_freep(&s->hwaccel_context);
-
-  av_freep(&s->opaque);
-}
-
-void cuvid_ctx_free(AVHWDeviceContext *ctx) {
-  AVCUDADeviceContext *hwctx = (AVCUDADeviceContext*)ctx->hwctx;
-  cuCtxDestroy(hwctx->cuda_ctx);
-}
-
-int cuvid_init(AVCodecContext *cc, CUcontext cuda_ctx) {
-  CodecHardwareInfo *ist;
-  CUVIDContext *ctx = NULL;
-  AVBufferRef *hw_device_ctx = NULL;
-  AVCUDADeviceContext *device_hwctx;
-  AVHWDeviceContext *device_ctx;
-  AVHWFramesContext *hwframe_ctx;
-  CUdevice device;
-  CUcontext dummy;
-  CUresult err;
-  int ret = 0;
-
-  ist = (CodecHardwareInfo*)cc->opaque;
-
-  if (!ist) {
-    ist = (CodecHardwareInfo*)av_mallocz(sizeof(*ist));
-    if (!ist) {
-      ret = AVERROR(ENOMEM);
-      goto error;
-    }
-    cc->opaque = ist;
-  }
-
-  av_log(NULL, AV_LOG_VERBOSE, "Setting up CUVID decoder\n");
-
-  if (ist->hwaccel_ctx) {
-    ctx = (CUVIDContext*)ist->hwaccel_ctx;
-  } else {
-    ctx = (CUVIDContext*)av_mallocz(sizeof(*ctx));
-    if (!ctx) {
-      ret = AVERROR(ENOMEM);
-      goto error;
-    }
-  }
-
-  if (!hw_device_ctx) {
-    hw_device_ctx = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA);
-    if (!hw_device_ctx) {
-      av_log(NULL, AV_LOG_ERROR, "av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA) failed\n");
-      ret = AVERROR(ENOMEM);
-      goto error;
-    }
-
-    err = cuInit(0);
-    if (err != CUDA_SUCCESS) {
-      av_log(NULL, AV_LOG_ERROR, "Could not initialize the CUDA driver API\n");
-      ret = AVERROR_UNKNOWN;
-      goto error;
-    }
-
-    // err = cuDeviceGet(&device, gpu_device_id); 
-    // if (err != CUDA_SUCCESS) {
-    //   av_log(NULL, AV_LOG_ERROR, "Could not get the device number %d\n", 0);
-    //   ret = AVERROR_UNKNOWN;
-    //   goto error;
-    // }
-
-    // err = cuCtxCreate(&cuda_ctx, CU_CTX_SCHED_BLOCKING_SYNC, device);
-    // if (err != CUDA_SUCCESS) {
-    //   av_log(NULL, AV_LOG_ERROR, "Error creating a CUDA context\n");
-    //   ret = AVERROR_UNKNOWN;
-    //   goto error;
-    // }
-
-    device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
-    device_ctx->free = cuvid_ctx_free;
-
-    device_hwctx = (AVCUDADeviceContext*)device_ctx->hwctx;
-    device_hwctx->cuda_ctx = cuda_ctx;
-
-    // err = cuCtxPopCurrent(&dummy);
-    // if (err != CUDA_SUCCESS) {
-    //   av_log(NULL, AV_LOG_ERROR, "cuCtxPopCurrent failed\n");
-    //   ret = AVERROR_UNKNOWN;
-    //   goto error;
-    // }
-
-    ret = av_hwdevice_ctx_init(hw_device_ctx);
-    if (ret < 0) {
-      av_log(NULL, AV_LOG_ERROR, "av_hwdevice_ctx_init failed\n");
-      goto error;
-    }
-  } else {
-    device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
-    device_hwctx = (AVCUDADeviceContext*)device_ctx->hwctx;
-    cuda_ctx = device_hwctx->cuda_ctx;
-  }
-
-  if (device_ctx->type != AV_HWDEVICE_TYPE_CUDA) {
-    av_log(NULL, AV_LOG_ERROR, "Hardware device context is already initialized for a diffrent hwaccel.\n");
-    ret = AVERROR(EINVAL);
-    goto error;
-  }
-
-  if (!ctx->hw_frames_ctx) {
-    ctx->hw_frames_ctx = av_hwframe_ctx_alloc(hw_device_ctx);
-    if (!ctx->hw_frames_ctx) {
-      av_log(NULL, AV_LOG_ERROR, "av_hwframe_ctx_alloc failed\n");
-      ret = AVERROR(ENOMEM);
-      goto error;
-    }
-    cc->hw_frames_ctx = ctx->hw_frames_ctx;
-  }
-
-  /* This is a bit hacky, av_hwframe_ctx_init is called by the cuvid decoder
-   * once it has probed the neccesary format information. But as filters/nvenc
-   * need to know the format/sw_format, set them here so they are happy.
-   * This is fine as long as CUVID doesn't add another supported pix_fmt.
-   */
-  hwframe_ctx = (AVHWFramesContext*)ctx->hw_frames_ctx->data;
-  hwframe_ctx->format = AV_PIX_FMT_CUDA;
-  hwframe_ctx->sw_format = AV_PIX_FMT_NV12;
-  //hwframe_ctx->width     = cc_->coded_width;
-  //hwframe_ctx->height    = cc_->coded_height;
-
-  if (!ist->hwaccel_ctx) {
-    ist->hwaccel_ctx = ctx;
-    ist->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
-
-    ist->hwaccel_uninit = cuvid_uninit;
-
-    if (!ist->hw_frames_ctx) {
-      av_log(NULL, AV_LOG_ERROR, "av_buffer_ref failed\n");
-      ret = AVERROR(ENOMEM);
-      goto error;
-    }
-  }
-
-  return 0;
-
-error:
-  av_freep(&ctx);
-  return ret;
-
-cancel:
-  av_log(NULL, AV_LOG_ERROR,
-         "CUVID hwaccel requested, but impossible to achive.\n");
-  return AVERROR(EINVAL);
-}
-
-// For custom AVIOContext that loads from memory
-
 struct CodecState {
   AVPacket av_packet;
   AVFrame* picture;
-  // Input objects
   AVFormatContext* format_context;
   AVIOContext* io_context;
   AVCodec* in_codec;
   AVCodecContext* in_cc;
   int video_stream_index;
-  // Output objets
-  AVStream* out_stream;
-  AVFormatContext* out_format_context;
-  AVCodecContext* out_cc;
 };
-
-void set_video_stream_settings(AVStream* stream,
-                               AVCodecContext* c,
-                               AVCodec* codec,
-                               int width, int height,
-                               AVRational avg_frame_rate,
-                               AVRational time_base,
-                               int bit_rate,
-                               int bit_rate_tolerance,
-                               int gop_size,
-                               AVRational sample_aspect_ratio)
-{
-  stream->r_frame_rate.num = avg_frame_rate.num;
-  stream->r_frame_rate.den = avg_frame_rate.den;
-  stream->time_base = avg_frame_rate;
-
-  c->codec_id = codec->id;
-  c->codec_type = AVMEDIA_TYPE_VIDEO;
-  c->profile = FF_PROFILE_H264_HIGH;
-  c->pix_fmt = AV_PIX_FMT_YUV420P;
-  c->width = width;
-  c->height = height;
-  c->time_base.num = time_base.num;
-  c->time_base.den = time_base.den;
-  av_opt_set_int(c, "crf", 15, AV_OPT_SEARCH_CHILDREN);
-  // c->bit_rate_tolerance = bit_rate_tolerance;
-  // c->gop_size = gop_size;
-
-  //c->sample_aspect_ratio = sample_aspect_ratio;
-}
 
 CodecState setup_video_codec(BufferData* buffer) {
   printf("Setting up video codec\n");
@@ -392,23 +143,15 @@ CodecState setup_video_codec(BufferData* buffer) {
   AVStream const* const in_stream =
     state.format_context->streams[state.video_stream_index];
 
-  state.in_codec = avcodec_find_decoder_by_name("h264_cuvid");
+  state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   if (state.in_codec == NULL) {
-    fprintf(stderr, "could not find hardware decoder\n");
+    fprintf(stderr, "could not find h264 decoder\n");
     exit(EXIT_FAILURE);
   }
-
-  CUcontext cuda_context;
-  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
 
   state.in_cc = avcodec_alloc_context3(state.in_codec);
   if (avcodec_copy_context(state.in_cc, in_stream->codec) < 0) {
     fprintf(stderr, "could not copy codec context from input stream\n");
-    exit(EXIT_FAILURE);
-  }
-
-  if (cuvid_init(state.in_cc, cuda_context) < 0) {
-    fprintf(stderr, "could not init cuvid codec context\n");
     exit(EXIT_FAILURE);
   }
 
@@ -417,88 +160,10 @@ CodecState setup_video_codec(BufferData* buffer) {
     assert(false);
   }
 
-  // Setup output codec and stream that we will use to reencode the input video
-
-#ifdef HAVE_X264_ENCODER
-  AVOutputFormat* output_format = av_guess_format("mp4", NULL, NULL);
-  if (output_format == NULL) {
-    fprintf(stderr, "output format could not be guessed\n");
-    assert(false);
-  }
-  avformat_alloc_output_context2(&state.out_format_context,
-                                 output_format,
-                                 NULL,
-                                 NULL);
-  printf("output format\n");
-  fflush(stdout);
-
-  AVCodec* out_codec = avcodec_find_encoder_by_name("libx264");
-  if (out_codec == NULL) {
-    fprintf(stderr, "could not find encoder for codec name\n");
-    assert(false);
-  }
-
-  state.out_stream =
-    avformat_new_stream(state.out_format_context, out_codec);
-  if (state.out_stream == NULL) {
-    fprintf(stderr, "Could not allocate stream\n");
-    exit(1);
-  }
-
-  state.out_stream->id = state.out_format_context->nb_streams - 1;
-  AVCodecContext* out_cc = state.out_stream->codec;
-  state.out_cc = out_cc;
-  avcodec_get_context_defaults3(out_cc, out_codec);
-
-  set_video_stream_settings(
-    state.out_stream,
-    out_cc,
-    out_codec,
-    state.in_cc->coded_width, state.in_cc->coded_height,
-    in_stream->avg_frame_rate,
-    in_stream->time_base,
-    state.in_cc->bit_rate,
-    state.in_cc->bit_rate_tolerance,
-    state.in_cc->gop_size,
-    in_stream->sample_aspect_ratio);
-
-  if (output_format->flags & AVFMT_GLOBALHEADER)
-    state.out_cc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-
-  state.out_stream->sample_aspect_ratio = in_stream->sample_aspect_ratio;
-
-  if (avcodec_open2(out_cc, out_codec, NULL) < 0) {
-    fprintf(stderr, "Could not open video codec\n");
-    exit(1);
-  }
-
-  // if (codec->capabilities & CODEC_CAP_TRUNCATED) {
-  //   codec_context->flags |= CODEC_FLAG_TRUNCATED;
-  // }
-
-/* For some codecs, such as msmpeg4 and mpeg4, width and height
-   MUST be initialized there because this information is not
-   available in the bitstream. */
-
-/* the codec gives us the frame size, in samples */
-  // codec_context->width = width;
-  // codec_context->height = height;
-  // codec_context->pix_fmt = AV_AV_PIX_FMT_YUV420P;
-  // codec_context->bit_rate = format_;
-
-  // Set fast start to move mov to the end
-  MOVMuxContext *mov = NULL;
-
-  mov = (MOVMuxContext *)state.out_format_context->priv_data;
-  mov->flags |= FF_MOV_FLAG_FASTSTART;
-
-#endif
-
   return state;
 }
 
 void cleanup_video_codec(CodecState state) {
-  cuvid_uninit(state.in_cc);
   avcodec_free_context(&state.in_cc);
   avformat_close_input(&state.format_context);
   if (state.io_context) {
@@ -506,7 +171,6 @@ void cleanup_video_codec(CodecState state) {
       av_freep(&state.io_context);
   }
   av_frame_free(&state.picture);
-  CUD_CHECK(cuDevicePrimaryCtxRelease(0));
 }
 
 bool read_timestamps(std::string video_path,
@@ -618,8 +282,6 @@ bool read_timestamps(std::string video_path,
         // the picture is allocated by the decoder. no need to free
         frame++;
       }
-      // cuvid decoder uses entire packet without setting size or returning len
-      state.av_packet.size = 0;
     }
     state.av_packet.data = orig_data;
     state.av_packet.size = orig_size;
@@ -696,14 +358,8 @@ bool preprocess_video(
   DatasetItemMetadata video_metadata;
   video_metadata.width = state.in_cc->coded_width;
   video_metadata.height = state.in_cc->coded_height;
-  video_metadata.chroma_format = cudaVideoChromaFormat_420;
-  video_metadata.codec_type = cudaVideoCodec_H264;
-
-  CUcontext cuda_context;
-  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, 0));
-  CUD_CHECK(cuCtxPushCurrent(cuda_context));
-
-  VideoSeparator separator(cuda_context, state.in_cc);
+  video_metadata.chroma_format = VideoChromaFormat::YUV_420;
+  video_metadata.codec_type = VideoCodecType::H264;
 
   bool succeeded = true;
   int frame = 0;
@@ -744,11 +400,46 @@ bool preprocess_video(
        feed decoder and see if it could decode a frame */
     uint8_t* orig_data = state.av_packet.data;
     int orig_size = state.av_packet.size;
+
+    // Parse NAL unit
+    uint8_t* nal_parse = orig_data;
+    int size_left = orig_size;
+    while (size_left > 2 &&
+           nal_parse[0] != 0x00 &&
+           nal_parse[1] != 0x00 &&
+           nal_parse[2] != 0x01) {
+      nal_parse++;
+      size_left--;
+    }
+
+    int nal_unit_size = 0;
+    uint8_t* nal_start = nal_parse;
+    if (size_left > 2) {
+      nal_parse += 3;
+      size_left -= 3;
+
+      while (nal_parse[0] != 0x00 &&
+             nal_parse[1] != 0x00 &&
+             (nal_parse[2] != 0x00 ||
+              nal_parse[2] != 0x01)) {
+        nal_parse++;
+        size_left--;
+        nal_unit_size++;
+        if (size_left < 3) {
+          nal_unit_size += size_left;
+          break;
+        }
+      }
+    }
+    int nal_ref_idc = (*nal_start >> 1) & 0x02;
+    int nal_unit_type = (*nal_start >> 3) & 0x1F;
+    printf("nal size: %d, nal ref %d, nal unit %d\n",
+           nal_unit_size, nal_ref_idc, nal_unit_type);
+
     while (state.av_packet.size > 0) {
       int got_picture = 0;
       char* dec;
       size_t size;
-      separator.decode(&state.av_packet);
       int len = avcodec_decode_video2(state.in_cc,
                                       state.picture,
                                       &got_picture,
@@ -788,7 +479,6 @@ bool preprocess_video(
   int got_picture;
   do {
     got_picture = 0;
-    separator.decode(&state.av_packet);
     int len = avcodec_decode_video2(state.in_cc,
                                     state.picture,
                                     &got_picture,
@@ -802,19 +492,14 @@ bool preprocess_video(
     }
   } while (got_picture);
 
-  CUVIDDECODECREATEINFO decoder_info = separator.get_decoder_info();
-
   video_metadata.frames = frame;
-  video_metadata.codec_type = decoder_info.CodecType;
-  video_metadata.chroma_format = decoder_info.ChromaFormat;
+  // video_metadata.metadata_packets = separator.get_metadata_bytes();
+  // video_metadata.keyframe_positions = separator.get_keyframe_positions();
+  // video_metadata.keyframe_timestamps = separator.get_keyframe_positions();
+  // video_metadata.keyframe_byte_offsets = separator.get_keyframe_byte_offsets();
 
-  video_metadata.metadata_packets = separator.get_metadata_bytes();
-  video_metadata.keyframe_positions = separator.get_keyframe_positions();
-  video_metadata.keyframe_timestamps = separator.get_keyframe_positions();
-  video_metadata.keyframe_byte_offsets = separator.get_keyframe_byte_offsets();
-
-  const std::vector<char>& demuxed_video_stream =
-    separator.get_bitstream_bytes();
+  const std::vector<char> demuxed_video_stream;// =
+  //separator.get_bitstream_bytes();
 
   // Write out our metadata video stream
   {
@@ -867,7 +552,7 @@ bool preprocess_video(
     "build/debug/bin/ffmpeg/bin/ffmpeg "
     "-i " + video_path + " "
     "-vsync 0 "
-    "-c:v h264_nvenc "
+    "-c:v h264 "
     "-strict -2 "
     "-movflags faststart " +
     temp_output_path;
