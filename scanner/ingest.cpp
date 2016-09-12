@@ -96,6 +96,7 @@ struct CodecState {
   AVCodec* in_codec;
   AVCodecContext* in_cc;
   int video_stream_index;
+  AVBitStreamFilterContext* annexb;
 };
 
 CodecState setup_video_codec(BufferData* buffer) {
@@ -160,6 +161,8 @@ CodecState setup_video_codec(BufferData* buffer) {
     assert(false);
   }
 
+  state.annexb = av_bitstream_filter_init("h264_mp4toannexb");
+
   return state;
 }
 
@@ -171,6 +174,7 @@ void cleanup_video_codec(CodecState state) {
       av_freep(&state.io_context);
   }
   av_frame_free(&state.picture);
+  av_bitstream_filter_close(state.annexb);
 }
 
 bool read_timestamps(std::string video_path,
@@ -250,6 +254,7 @@ bool read_timestamps(std::string video_path,
 
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
+
     uint8_t* orig_data = state.av_packet.data;
     int orig_size = state.av_packet.size;
     while (state.av_packet.size > 0) {
@@ -401,40 +406,58 @@ bool preprocess_video(
     uint8_t* orig_data = state.av_packet.data;
     int orig_size = state.av_packet.size;
 
-    // Parse NAL unit
-    uint8_t* nal_parse = orig_data;
-    int size_left = orig_size;
-    while (size_left > 2 &&
-           nal_parse[0] != 0x00 &&
-           nal_parse[1] != 0x00 &&
-           nal_parse[2] != 0x01) {
-      nal_parse++;
-      size_left--;
-    }
+    uint8_t* filtered_data;
+    int filtered_data_size;
+    av_bitstream_filter_filter(state.annexb,
+                               state.in_cc,
+                               NULL,
+                               &filtered_data,
+                               &filtered_data_size,
+                               state.av_packet.data,
+                               state.av_packet.size,
+                               state.av_packet.flags & AV_PKT_FLAG_KEY);
 
-    int nal_unit_size = 0;
-    uint8_t* nal_start = nal_parse;
-    if (size_left > 2) {
+    // Parse NAL unit
+    uint8_t* nal_parse = filtered_data;
+    int size_left = filtered_data_size;
+
+    while (size_left > 3) {
+      while (size_left > 2 &&
+             !(nal_parse[0] == 0x00 &&
+               nal_parse[1] == 0x00 &&
+               nal_parse[2] == 0x01)) {
+        printf("%x", *nal_parse);
+        nal_parse++;
+        size_left--;
+      }
+      printf("\n");
+      printf("orig size %d, filtered size %d\n", orig_size, filtered_data_size);
+
       nal_parse += 3;
       size_left -= 3;
 
-      while (nal_parse[0] != 0x00 &&
-             nal_parse[1] != 0x00 &&
-             (nal_parse[2] != 0x00 ||
-              nal_parse[2] != 0x01)) {
-        nal_parse++;
-        size_left--;
-        nal_unit_size++;
-        if (size_left < 3) {
-          nal_unit_size += size_left;
-          break;
+      int nal_unit_size = 0;
+      uint8_t* nal_start = nal_parse;
+      if (size_left > 2) {
+
+        while (!(nal_parse[0] == 0x00 &&
+                 nal_parse[1] == 0x00 &&
+                 (nal_parse[2] == 0x00 ||
+                  nal_parse[2] == 0x01))) {
+          nal_parse++;
+          size_left--;
+          nal_unit_size++;
+          if (size_left < 3) {
+            nal_unit_size += size_left;
+            break;
+          }
         }
       }
+      int nal_ref_idc = (*nal_start >> 1) & 0x02;
+      int nal_unit_type = (*nal_start >> 3) & 0x1F;
+      printf("nal size: %d, nal ref %d, nal unit %d\n",
+             nal_unit_size, nal_ref_idc, nal_unit_type);
     }
-    int nal_ref_idc = (*nal_start >> 1) & 0x02;
-    int nal_unit_type = (*nal_start >> 3) & 0x1F;
-    printf("nal size: %d, nal ref %d, nal unit %d\n",
-           nal_unit_size, nal_ref_idc, nal_unit_type);
 
     while (state.av_packet.size > 0) {
       int got_picture = 0;
