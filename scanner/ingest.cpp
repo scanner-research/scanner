@@ -324,6 +324,41 @@ bool read_timestamps(std::string video_path,
 
 }
 
+void next_nal(
+  uint8_t*& buffer,
+  int& buffer_size_left,
+  uint8_t*& nal_start,
+  int& nal_size)
+{
+  while (buffer_size_left > 2 &&
+         !(buffer[0] == 0x00 &&
+           buffer[1] == 0x00 &&
+           buffer[2] == 0x01)) {
+    buffer++;
+    buffer_size_left--;
+  }
+
+  buffer += 3;
+  buffer_size_left -= 3;
+
+  nal_start = buffer;
+  nal_size = 0;
+  if (buffer_size_left > 2) {
+    while (!(buffer[0] == 0x00 &&
+             buffer[1] == 0x00 &&
+             (buffer[2] == 0x00 ||
+              buffer[2] == 0x01))) {
+      buffer++;
+      buffer_size_left--;
+      nal_size++;
+      if (buffer_size_left < 3) {
+        nal_size += buffer_size_left;
+        break;
+      }
+    }
+  }
+}
+
 
 bool preprocess_video(
   storehouse::StorageBackend* storage,
@@ -366,8 +401,21 @@ bool preprocess_video(
   video_metadata.chroma_format = VideoChromaFormat::YUV_420;
   video_metadata.codec_type = VideoCodecType::H264;
 
+
+  std::vector<char>& metadata_bytes =
+    video_metadata.metadata_packets;
+  std::vector<char> bytestream_bytes;
+  std::vector<int64_t>& keyframe_positions =
+    video_metadata.keyframe_positions;
+  std::vector<int64_t>& keyframe_timestamps =
+    video_metadata.keyframe_timestamps;
+  std::vector<int64_t>& keyframe_byte_offsets =
+    video_metadata.keyframe_byte_offsets;
+
   bool succeeded = true;
   int frame = 0;
+  bool extradata_extracted = false;
+  bool keyframe_intro = false;
   while (true) {
     // Read from format context
     int err = av_read_frame(state.format_context, &state.av_packet);
@@ -403,6 +451,7 @@ bool preprocess_video(
 
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
+
     uint8_t* orig_data = state.av_packet.data;
     int orig_size = state.av_packet.size;
 
@@ -417,46 +466,57 @@ bool preprocess_video(
                                state.av_packet.size,
                                state.av_packet.flags & AV_PKT_FLAG_KEY);
 
+    if (!extradata_extracted) {
+      uint8_t* extradata = state.in_cc->extradata;
+      int extradata_size_left = state.in_cc->extradata_size;
+
+      metadata_bytes.resize(extradata_size_left);
+      memcpy(metadata_bytes.data(), extradata, extradata_size_left);
+
+      while (extradata_size_left > 3) {
+        uint8_t* nal_start = nullptr;
+        int nal_size = 0;
+        next_nal(extradata, extradata_size_left, nal_start, nal_size);
+        int nal_ref_idc = (*nal_start >> 5);
+        int nal_unit_type = (*nal_start) & 0x1F;
+        // printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
+        //        nal_size, nal_ref_idc, nal_unit_type);
+      }
+      extradata_extracted = true;
+    }
+
+    int64_t nal_bytestream_offset = bytestream_bytes.size();
+    bytestream_bytes.resize(bytestream_bytes.size() + filtered_data_size);
+
     // Parse NAL unit
     uint8_t* nal_parse = filtered_data;
     int size_left = filtered_data_size;
-
     while (size_left > 3) {
-      while (size_left > 2 &&
-             !(nal_parse[0] == 0x00 &&
-               nal_parse[1] == 0x00 &&
-               nal_parse[2] == 0x01)) {
-        printf("%x", *nal_parse);
-        nal_parse++;
-        size_left--;
-      }
-      printf("\n");
-      printf("orig size %d, filtered size %d\n", orig_size, filtered_data_size);
+      uint8_t* nal_start = nullptr;
+      int nal_size = 0;
+      next_nal(nal_parse, size_left, nal_start, nal_size);
 
-      nal_parse += 3;
-      size_left -= 3;
-
-      int nal_unit_size = 0;
-      uint8_t* nal_start = nal_parse;
-      if (size_left > 2) {
-
-        while (!(nal_parse[0] == 0x00 &&
-                 nal_parse[1] == 0x00 &&
-                 (nal_parse[2] == 0x00 ||
-                  nal_parse[2] == 0x01))) {
-          nal_parse++;
-          size_left--;
-          nal_unit_size++;
-          if (size_left < 3) {
-            nal_unit_size += size_left;
-            break;
-          }
+      int nal_ref_idc = (*nal_start >> 5);
+      int nal_unit_type = (*nal_start) & 0x1F;
+      // printf("nal size: %d, nal ref %d, nal unit %d\n",
+      //        nal_size, nal_ref_idc, nal_unit_type);
+      if (nal_unit_type > 4) {
+        if (!keyframe_intro) {
+          // printf("keyframe byte offsets %ld\n",
+          //        nal_bytestream_offset);
+          keyframe_byte_offsets.push_back(nal_bytestream_offset);
+          keyframe_intro = true;
         }
+      } else {
+        keyframe_intro = false;
       }
-      int nal_ref_idc = (*nal_start >> 1) & 0x02;
-      int nal_unit_type = (*nal_start >> 3) & 0x1F;
-      printf("nal size: %d, nal ref %d, nal unit %d\n",
-             nal_unit_size, nal_ref_idc, nal_unit_type);
+    }
+
+    if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
+      // printf("av packet keyframe pts %d\n",
+      //        state.av_packet.pts);
+      keyframe_positions.push_back(frame);
+      keyframe_timestamps.push_back(state.av_packet.pts);
     }
 
     while (state.av_packet.size > 0) {
@@ -515,14 +575,12 @@ bool preprocess_video(
     }
   } while (got_picture);
 
-  video_metadata.frames = frame;
-  // video_metadata.metadata_packets = separator.get_metadata_bytes();
-  // video_metadata.keyframe_positions = separator.get_keyframe_positions();
-  // video_metadata.keyframe_timestamps = separator.get_keyframe_positions();
-  // video_metadata.keyframe_byte_offsets = separator.get_keyframe_byte_offsets();
+  // Cleanup video decoder
+  cleanup_video_codec(state);
 
-  const std::vector<char> demuxed_video_stream;// =
-  //separator.get_bitstream_bytes();
+  video_metadata.frames = frame;
+
+  const std::vector<char>& demuxed_video_stream = bytestream_bytes;
 
   // Write out our metadata video stream
   {
@@ -571,8 +629,7 @@ bool preprocess_video(
   // vsync 0 needed to never drop or duplicate frames to match fps
   // alternatively we could figure out how to make output fps same as input
   std::string conversion_command =
-    "LD_LIBRARY_PATH=build/debug/bin/ffmpeg/lib:$LD_LIBRARY_PATH "
-    "build/debug/bin/ffmpeg/bin/ffmpeg "
+    "ffmpeg "
     "-i " + video_path + " "
     "-vsync 0 "
     "-c:v h264 "
@@ -613,7 +670,8 @@ bool preprocess_video(
 
   // Get timestamp info for web video
   DatasetItemWebTimestamps timestamps_meta;
-  succeeded = read_timestamps(temp_output_path, timestamps_meta);
+  succeeded = true;
+  //succeeded = read_timestamps(temp_output_path, timestamps_meta);
   if (!succeeded) {
     fprintf(stderr, "Could not get timestamps from web data\n");
     cleanup_video_codec(state);
@@ -636,8 +694,6 @@ bool preprocess_video(
 
     serialize_dataset_item_web_timestamps(output_file.get(), timestamps_meta);
   }
-
-  cleanup_video_codec(state);
 
   return succeeded;
 }
