@@ -262,6 +262,7 @@ void* decode_thread(void* arg) {
       args.device_id,
       args.decoder_type,
       args.metadata[0])};
+  assert(decoder.get());
 
   decoder->set_profiler(&args.profiler);
 

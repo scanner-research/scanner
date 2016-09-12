@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.4.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 
 project(LightscanThirdparty)
 
@@ -69,7 +69,7 @@ if (NOT STOREHOUSE_FOUND)
 
   ExternalProject_Add(Storehouse
     GIT_REPOSITORY "https://github.com/apoms/storehouse"
-    GIT_TAG "a45c4cc0ed498043ca58ba1687cea92d70380899"
+    GIT_TAG "e4d6e7dc573537b7150eb929f0c476ad309c226d"
 
     UPDATE_COMMAND ""
 

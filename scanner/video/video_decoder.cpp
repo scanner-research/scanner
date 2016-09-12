@@ -74,8 +74,9 @@ VideoDecoder* VideoDecoder::make_from_config(
     //   conditional includes depending on which decoders are available in
     //   order to fill in the configuration data, which is just messy.
     CUcontext cuda_context;
-    CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, i));
+    CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_id));
 
+    decoder = new NVIDIAVideoDecoder(metadata, device_id, cuda_context);
 #else
 #endif
     break;
@@ -87,6 +88,7 @@ VideoDecoder* VideoDecoder::make_from_config(
     break;
   }
   case VideoDecoderType::SOFTWARE: {
+    decoder = new SoftwareVideoDecoder(metadata, device_id);
     break;
   }
   default: {
