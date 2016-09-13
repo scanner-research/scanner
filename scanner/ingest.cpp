@@ -171,7 +171,7 @@ void cleanup_video_codec(CodecState state) {
   avcodec_free_context(&state.in_cc);
 #else
   avcodec_close(state.in_cc);
-  av_free(&state.in_cc);
+  av_freep(&state.in_cc);
 #endif
   avformat_close_input(&state.format_context);
   if (state.io_context) {
@@ -264,8 +264,6 @@ bool read_timestamps(std::string video_path,
     int orig_size = state.av_packet.size;
     while (state.av_packet.size > 0) {
       int got_picture = 0;
-      char* dec;
-      size_t size;
       int len = avcodec_decode_video2(state.in_cc,
                                       state.picture,
                                       &got_picture,
@@ -406,7 +404,6 @@ bool preprocess_video(
   video_metadata.chroma_format = VideoChromaFormat::YUV_420;
   video_metadata.codec_type = VideoCodecType::H264;
 
-
   std::vector<char>& metadata_bytes =
     video_metadata.metadata_packets;
   std::vector<char> bytestream_bytes;
@@ -491,7 +488,13 @@ bool preprocess_video(
     }
 
     int64_t nal_bytestream_offset = bytestream_bytes.size();
-    bytestream_bytes.resize(bytestream_bytes.size() + filtered_data_size);
+    bytestream_bytes.resize(bytestream_bytes.size() +
+                            filtered_data_size + sizeof(int));
+    *((int*)(bytestream_bytes.data() + nal_bytestream_offset)) =
+      filtered_data_size;
+    memcpy(bytestream_bytes.data() + nal_bytestream_offset + sizeof(int),
+           filtered_data,
+           filtered_data_size);
 
     // Parse NAL unit
     uint8_t* nal_parse = filtered_data;
