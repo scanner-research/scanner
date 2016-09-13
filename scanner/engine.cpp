@@ -18,8 +18,9 @@
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
-#include "scanner/util/util.h"
+#include "scanner/util/storehouse.h"
 #include "scanner/util/jpeg/JPEGWriter.h"
+#include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -208,15 +209,8 @@ void* load_video_thread(void* arg) {
 
     auto io_start = now();
 
-    size_t size_read;
-    StoreResult result;
-    EXP_BACKOFF(
-      video_file->read(
-        start_keyframe_byte_offset, data_size, buffer, size_read),
-      result);
-    assert(size_read == data_size);
-    assert(result == StoreResult::Success ||
-           result == StoreResult::EndOfFile);
+    uint64_t pos = start_keyframe_byte_offset;
+    read(video_file, buffer, data_size, pos);
 
     args.profiler.add_interval("io", io_start, now());
 
@@ -260,8 +254,7 @@ void* decode_thread(void* arg) {
     VideoDecoder::make_from_config(
       args.device_type,
       args.device_id,
-      args.decoder_type,
-      args.metadata[0])};
+      args.decoder_type)};
   assert(decoder.get());
 
   decoder->set_profiler(&args.profiler);
@@ -289,6 +282,8 @@ void* decode_thread(void* arg) {
       args.work_items[decode_work_entry.work_item_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
+    decoder->configure(metadata);
+
     size_t encoded_buffer_size = decode_work_entry.encoded_data_size;
     char* encoded_buffer = decode_work_entry.buffer;
 
@@ -296,7 +291,7 @@ void* decode_thread(void* arg) {
     char* decoded_buffer = decode_buffer_entry.buffer;
 
     size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_NV12,
+      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
                                metadata.width,
                                metadata.height,
                                1);
@@ -403,7 +398,7 @@ void* evaluate_thread(void* arg) {
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
     size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_NV12,
+      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
                                metadata.width,
                                metadata.height,
                                1);
@@ -641,11 +636,11 @@ void run_job(
   //   multiple sizes or analyze all the videos an allocate buffers for the
   //   largest possible size
   
-  size_t frame_size =
-    av_image_get_buffer_size(AV_PIX_FMT_NV12,
-                             video_metadata[0].width,
-                             video_metadata[0].height,
-                             1);
+  size_t frame_size = av_image_get_buffer_size(
+    AV_PIX_FMT_RGB24,
+    descriptor.max_width,
+    descriptor.max_height,
+    1);
   size_t frame_buffer_size = frame_size * frames_per_work_item();
   const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
   std::vector<std::vector<char*>> staging_buffers(PUS_PER_NODE);
@@ -653,8 +648,8 @@ void run_job(
   EvaluatorConfig eval_config;
   eval_config.max_batch_size = frames_per_work_item();
   eval_config.staging_buffer_size = frame_buffer_size;
-  eval_config.frame_width = video_metadata[0].width;
-  eval_config.frame_height = video_metadata[0].height;
+  eval_config.max_frame_width = descriptor.max_width;
+  eval_config.max_frame_height = descriptor.max_height;
   for (int pu = 0; pu < PUS_PER_NODE; ++pu) {
     eval_config.device_id = pu;
 

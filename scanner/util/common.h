@@ -118,6 +118,24 @@ enum struct VideoChromaFormat {
 };
 
 struct DatasetDescriptor {
+  /// Statistics
+  // Frames per video
+  int64_t total_frames;
+
+  int32_t min_frames;
+  int32_t average_frames;
+  int32_t max_frames;
+
+  // Frame width
+  int32_t min_width;
+  int32_t average_width;
+  int32_t max_width;
+
+  // Frame height
+  int32_t min_height;
+  int32_t average_height;
+  int32_t max_height;
+
   std::vector<std::string> original_video_paths;
   std::vector<std::string> item_names;
 };

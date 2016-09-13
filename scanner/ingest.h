@@ -13,16 +13,15 @@
  * limitations under the License.
  */
 
-#include "storehouse/storage_backend.h"
+#include "storehouse/storage_config.h"
 
 #include <string>
 
 namespace scanner {
 
-bool preprocess_video(
-  storehouse::StorageBackend* storage,
+void ingest(
+  storehouse::StorageConfig* storage_config,
   const std::string& dataset_name,
-  const std::string& video_path,
-  const std::string& output_name);
+  const std::string& video_paths_file);
 
 }

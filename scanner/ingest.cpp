@@ -20,8 +20,9 @@
 
 #include "storehouse/storage_backend.h"
 
-#include <fstream>
-#include <cassert>
+#include <glog/logging.h>
+
+#include <mpi.h>
 
 // For video
 extern "C" {
@@ -35,6 +36,10 @@ extern "C" {
 #include "libavutil/opt.h"
 }
 
+#include <fstream>
+#include <cassert>
+
+
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
@@ -43,6 +48,8 @@ using storehouse::exit_on_error;
 namespace scanner {
 
 namespace {
+
+const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct BufferData {
   uint8_t *ptr;
@@ -325,8 +332,6 @@ bool read_timestamps(std::string video_path,
   return true;
 }
 
-}
-
 void next_nal(
   uint8_t*& buffer,
   int& buffer_size_left,
@@ -362,14 +367,13 @@ void next_nal(
   }
 }
 
-
 bool preprocess_video(
   storehouse::StorageBackend* storage,
   const std::string& dataset_name,
   const std::string& video_path,
-  const std::string& item_name)
+  const std::string& item_name,
+  DatasetItemMetadata& video_metadata)
 {
-
   // Load the entire input
   std::vector<char> video_bytes;
   {
@@ -398,7 +402,6 @@ bool preprocess_video(
 
   CodecState state = setup_video_codec(&buffer);
 
-  DatasetItemMetadata video_metadata;
   video_metadata.width = state.in_cc->coded_width;
   video_metadata.height = state.in_cc->coded_height;
   video_metadata.chroma_format = VideoChromaFormat::YUV_420;
@@ -704,6 +707,190 @@ bool preprocess_video(
   }
 
   return succeeded;
+}
+
+/* read_last_processed_video - read from persistent storage the index 
+ *   of the last succesfully processed video for the given dataset. 
+ *   Used to recover from failures midway through the ingest process.
+ *
+ *   @return: index of the last successfully processed video
+ */
+int read_last_processed_video(
+  storehouse::StorageBackend* storage,
+  const std::string& dataset_name)
+{
+  StoreResult result;
+
+  const std::string last_written_path =
+    dataset_name + "_dataset/last_written.bin";
+
+  // File will not exist when first running ingest so check first
+  // and return default value if not there
+  storehouse::FileInfo info;
+  result = storage->get_file_info(last_written_path, info);
+  (void) info;
+  if (result == StoreResult::FileDoesNotExist) {
+    return -1;
+  }
+
+  std::unique_ptr<RandomReadFile> file;
+  result = make_unique_random_read_file(storage, last_written_path, file);
+
+  uint64_t pos = 0;
+  size_t size_read;
+
+  int32_t last_processed_video;
+  EXP_BACKOFF(
+    file->read(pos,
+               sizeof(int32_t),
+               reinterpret_cast<char*>(&last_processed_video),
+               size_read),
+    result);
+  assert(result == StoreResult::Success ||
+         result == StoreResult::EndOfFile);
+  assert(size_read == sizeof(int32_t));
+
+  return last_processed_video;
+}
+
+/* write_last_processed_video - write to persistent storage the index 
+ *   of the last succesfully processed video for the given dataset. 
+ *   Used to recover from failures midway through the ingest process.
+ *
+ */
+void write_last_processed_video(
+  storehouse::StorageBackend* storage,
+  const std::string& dataset_name,
+  int file_index)
+{
+  const std::string last_written_path =
+    dataset_name + "_dataset/last_written.bin";
+  std::unique_ptr<WriteFile> file;
+  make_unique_write_file(storage, last_written_path, file);
+
+  StoreResult result;
+  EXP_BACKOFF(
+    file->append(sizeof(int32_t),
+                 reinterpret_cast<const char*>(&file_index)),
+    result);
+  exit_on_error(result);
+}
+
+
+
+} // end anonymous namespace
+
+void ingest(
+  storehouse::StorageConfig* storage_config,
+  const std::string& dataset_name,
+  const std::string& video_paths_file)
+{
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if (!is_master(rank)) return;
+
+  LOG(INFO) << "Creating dataset " << dataset_name << "..." << std::endl;
+
+  // Read in list of video paths and assign unique name to each
+  DatasetDescriptor descriptor;
+  std::vector<std::string>& video_paths = descriptor.original_video_paths;
+  std::vector<std::string>& item_names = descriptor.item_names;
+  {
+    int video_count = 0;
+    std::fstream fs(video_paths_file, std::fstream::in);
+    while (fs) {
+      std::string path;
+      fs >> path;
+      if (path.empty()) continue;
+      video_paths.push_back(path);
+      item_names.push_back(std::to_string(video_count++));
+    }
+  }
+
+  storehouse::StorageBackend* storage =
+    storehouse::StorageBackend::make_from_config(storage_config);
+
+  // Start from the file after the one we last processed succesfully before
+  // crashing/exiting
+  int last_processed_index = read_last_processed_video(storage, dataset_name);
+
+  // Keep track of videos which we can't parse
+  int64_t& total_frames = descriptor.total_frames;
+  total_frames = 0;
+  std::vector<std::string> bad_paths;
+  for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
+    const std::string& path = video_paths[i];
+    const std::string& item_name = item_names[i];
+
+    LOG(INFO) << "Ingesting video " << path << "..." << std::endl;
+
+    DatasetItemMetadata video_metadata;
+    bool valid_video =
+      preprocess_video(storage, dataset_name, path, item_name, video_metadata);
+    if (!valid_video) {
+      LOG(WARNING) << "Failed to ingest video " << path << "! "
+                   << "Adding to bad paths file "
+                   << "(" << BAD_VIDEOS_FILE_PATH << "in current directory)."
+                   << std::endl;
+      bad_paths.push_back(path);
+    } else {
+      total_frames += video_metadata.frames;
+      // We are summing into the average variables but we will divide
+      // by the number of entries at the end
+      descriptor.min_frames =
+        std::min(descriptor.min_frames, video_metadata.frames);
+      descriptor.average_frames += video_metadata.frames;
+      descriptor.max_frames =
+        std::max(descriptor.max_frames, video_metadata.frames);
+
+      descriptor.min_width =
+        std::min(descriptor.min_width, video_metadata.width);
+      descriptor.average_width = video_metadata.width;
+      descriptor.max_width =
+        std::max(descriptor.max_width, video_metadata.width);
+
+      descriptor.min_height =
+        std::min(descriptor.min_height, video_metadata.height);
+      descriptor.average_height = video_metadata.height;
+      descriptor.max_height =
+        std::max(descriptor.max_height, video_metadata.height);
+
+      LOG(INFO) << "Finished ingesting video " << path << "." << std::endl;
+    }
+
+    // Track the last succesfully processed dataset so we know where
+    // to resume if we crash or exit early
+    write_last_processed_video(storage, dataset_name, static_cast<int>(i));
+  }
+  if (!bad_paths.empty()) {
+    std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
+    for (const std::string& bad_path : bad_paths) {
+      bad_paths_file << bad_path << std::endl;
+    }
+    bad_paths_file.close();
+  }
+
+  descriptor.average_frames /= video_paths.size();
+  descriptor.average_width /= total_frames;
+  descriptor.average_height /= total_frames;
+  // Write out dataset descriptor
+  {
+    const std::string dataset_file_path =
+      dataset_descriptor_path(dataset_name);
+    std::unique_ptr<WriteFile> output_file;
+    make_unique_write_file(storage, dataset_file_path, output_file);
+
+    serialize_dataset_descriptor(output_file.get(), descriptor);
+  }
+  // Reset last processed so that we start from scratch next time
+  // TODO(apoms): alternatively we could delete the file but apparently
+  // that was never designed into the storage interface!
+  write_last_processed_video(storage, dataset_name, -1);
+
+  LOG(INFO) << "Finished creating dataset " << dataset_name << "." << std::endl;
+
+  delete storage;
 }
 
 }

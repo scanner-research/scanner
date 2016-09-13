@@ -63,15 +63,15 @@ std::vector<std::string> BlurEvaluatorConstructor::get_output_names() {
 std::vector<size_t> BlurEvaluatorConstructor::get_output_element_sizes(
   const EvaluatorConfig& config)
 {
-  return {config.frame_width * config.frame_height * 3 * sizeof(char)};
+  return {config.max_frame_width * config.max_frame_height * 3 * sizeof(char)};
 }
 
 char*
 BlurEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
   return new char[
     config.max_batch_size *
-    config.frame_width *
-    config.frame_height *
+    config.max_frame_width *
+    config.max_frame_height *
     3 *
     sizeof(char)];
 }
@@ -89,8 +89,8 @@ std::vector<char*> BlurEvaluatorConstructor::new_output_buffers(
 {
   return {new char[
       num_inputs *
-      config.frame_width *
-      config.frame_height *
+      config.max_frame_width *
+      config.max_frame_height *
       3 *
       sizeof(char)]};
 }

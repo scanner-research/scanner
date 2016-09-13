@@ -64,74 +64,7 @@ using storehouse::RandomReadFile;
 
 namespace {
 
-const std::string DB_PATH = "/Users/abpoms/kcam";
-
-/* read_last_processed_video - read from persistent storage the index 
- *   of the last succesfully processed video for the given dataset. 
- *   Used to recover from failures midway through the ingest process.
- *
- *   @return: index of the last successfully processed video
- */
-int read_last_processed_video(
-  storehouse::StorageBackend* storage,
-  const std::string& dataset_name)
-{
-  StoreResult result;
-
-  const std::string last_written_path =
-    dataset_name + "_dataset/last_written.bin";
-
-  // File will not exist when first running ingest so check first
-  // and return default value if not there
-  storehouse::FileInfo info;
-  result = storage->get_file_info(last_written_path, info);
-  (void) info;
-  if (result == StoreResult::FileDoesNotExist) {
-    return -1;
-  }
-
-  std::unique_ptr<RandomReadFile> file;
-  result = make_unique_random_read_file(storage, last_written_path, file);
-
-  uint64_t pos = 0;
-  size_t size_read;
-
-  int32_t last_processed_video;
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(int32_t),
-               reinterpret_cast<char*>(&last_processed_video),
-               size_read),
-    result);
-  assert(result == StoreResult::Success ||
-         result == StoreResult::EndOfFile);
-  assert(size_read == sizeof(int32_t));
-
-  return last_processed_video;
-}
-
-/* write_last_processed_video - write to persistent storage the index 
- *   of the last succesfully processed video for the given dataset. 
- *   Used to recover from failures midway through the ingest process.
- *
- */
-void write_last_processed_video(
-  storehouse::StorageBackend* storage,
-  const std::string& dataset_name,
-  int file_index)
-{
-  const std::string last_written_path =
-    dataset_name + "_dataset/last_written.bin";
-  std::unique_ptr<WriteFile> file;
-  make_unique_write_file(storage, last_written_path, file);
-
-  StoreResult result;
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&file_index)),
-    result);
-  exit_on_error(result);
-}
+const std::string DB_PATH = "/Users/apoms/scanner_db";
 
 }
 
@@ -158,7 +91,6 @@ int main(int argc, char** argv) {
   std::string video_paths_file; // paths of video files to turn into dataset
   // For run sub-command
   std::string job_name; // name of job to refer to after run
-  std::string net_descriptor_file; // path to file describing network to use
   {
     po::variables_map vm;
 
@@ -282,14 +214,11 @@ int main(int argc, char** argv) {
           ("job_name", po::value<std::string>()->required(),
            "Unique name to refer to the output of the job after completion")
           ("dataset_name", po::value<std::string>()->required(),
-           "Unique name of the dataset to store persistently")
-          ("net_descriptor_file", po::value<std::string>()->required(),
-           "File which contains a description of the net to use");
+           "Unique name of the dataset to store persistently");
 
         po::positional_options_description run_pos;
         run_pos.add("job_name", 1);
         run_pos.add("dataset_name", 1);
-        run_pos.add("net_descriptor_file", 1);
 
         try {
           po::store(po::command_line_parser(opts)
@@ -309,7 +238,6 @@ int main(int argc, char** argv) {
 
         job_name = vm["job_name"].as<std::string>();
         dataset_name = vm["dataset_name"].as<std::string>();
-        net_descriptor_file = vm["net_descriptor_file"].as<std::string>();
 
       } else {
         std::cout << "Command must be one of 'run' or 'ingest'." << std::endl;
@@ -331,77 +259,12 @@ int main(int argc, char** argv) {
     storehouse::StorageConfig::make_posix_config(DB_PATH);
 
   if (cmd == "ingest") {
-    // The ingest command takes 1) a new dataset name, 2) a file with paths to videos
-    // on the local filesystem and preprocesses the videos into a persistently
-    // stored dataset which can then be operated on by the run command.
+    // The ingest command takes 1) a new dataset name, 2) a file with paths to
+    // videos  on the local filesystem and preprocesses the videos into a
+    // persistently stored dataset which can then be operated on by the run
+    // command.
 
-    log_ls.print("Creating dataset %s...\n", dataset_name.c_str());
-    // Read in list of video paths and assign unique name to each
-    DatasetDescriptor descriptor;
-    std::vector<std::string>& video_paths = descriptor.original_video_paths;
-    std::vector<std::string>& item_names = descriptor.item_names;
-    {
-      int video_count = 0;
-      std::fstream fs(video_paths_file, std::fstream::in);
-      while (fs) {
-        std::string path;
-        fs >> path;
-        if (path.empty()) continue;
-        video_paths.push_back(path);
-        item_names.push_back(std::to_string(video_count++));
-      }
-    }
-
-    storehouse::StorageBackend* storage =
-      storehouse::StorageBackend::make_from_config(config);
-
-    // Start from the file after the one we last processed succesfully before
-    // crashing/exiting
-    int last_processed_index = read_last_processed_video(storage, dataset_name);
-
-    // Keep track of videos which we can't parse
-    std::vector<std::string> bad_paths;
-    for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
-      const std::string& path = video_paths[i];
-      const std::string& item_name = item_names[i];
-
-      if (is_master(rank)) {
-        log_ls.print("Ingesting video %s...\n", path.c_str());
-        bool valid_video =
-          preprocess_video(storage, dataset_name, path, item_name);
-        if (!valid_video) {
-          bad_paths.push_back(path);
-        }
-
-        // Track the last succesfully processed dataset so we know where
-        // to resume if we crash or exit early
-        write_last_processed_video(storage, dataset_name, static_cast<int>(i));
-      }
-    }
-    if (!bad_paths.empty()) {
-      std::fstream bad_paths_file("bad_videos.txt", std::fstream::out);
-      for (const std::string& bad_path : bad_paths) {
-        bad_paths_file << bad_path << std::endl;
-      }
-      bad_paths_file.close();
-    }
-
-    // Write out dataset descriptor
-    {
-      const std::string dataset_file_path =
-        dataset_descriptor_path(dataset_name);
-      std::unique_ptr<WriteFile> output_file;
-      make_unique_write_file(storage, dataset_file_path, output_file);
-
-      serialize_dataset_descriptor(output_file.get(), descriptor);
-    }
-    // Reset last processed so that we start from scratch next time
-    // TODO(apoms): alternatively we could delete the file but apparently
-    // that was never designed into the storage interface!
-    write_last_processed_video(storage, dataset_name, -1);
-
-    delete storage;
-
+    ingest(config, dataset_name, video_paths_file);
   } else if (cmd == "run") {
     // The run command takes 1) a name for the job, 2) an existing dataset name,
     // 3) a toml file describing the target network to evaluate and evaluates 
@@ -409,21 +272,23 @@ int main(int argc, char** argv) {
     // the metadata for the job persistently. The metadata file for the job can 
     // be used to find the results for any given video frame.
 
-    // HACK(apoms): hardcoding the caffe evaluator for now. Will allow user code
+    VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
+
+    // #ifdef HAVE_CAFFE
+    // NetDescriptor descriptor;
+    // {
+    //   std::ifstream net_file{net_descriptor_file};
+    //   descriptor = descriptor_from_net_file(net_file);
+    // }
+    // CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor);
+    // #else
+
+    // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    #ifdef HAVE_CAFFE
-    NetDescriptor descriptor;
-    {
-      std::ifstream net_file{net_descriptor_file};
-      descriptor = descriptor_from_net_file(net_file);
-    }
-    CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor);
-    #else
     BlurEvaluatorConstructor evaluator_constructor(3.0);
-    #endif
 
-    VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
+    // #endif
 
     run_job(
       config,

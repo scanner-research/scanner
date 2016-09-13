@@ -56,8 +56,7 @@ bool VideoDecoder::has_decoder_type(VideoDecoderType type) {
 VideoDecoder* VideoDecoder::make_from_config(
   DeviceType device_type,
   int device_id,
-  VideoDecoderType type,
-  DatasetItemMetadata metadata)
+  VideoDecoderType type)
 {
   VideoDecoder* decoder = nullptr;
 
@@ -76,7 +75,7 @@ VideoDecoder* VideoDecoder::make_from_config(
     CUcontext cuda_context;
     CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_id));
 
-    decoder = new NVIDIAVideoDecoder(metadata, device_id, cuda_context);
+    decoder = new NVIDIAVideoDecoder(device_id, cuda_context);
 #else
 #endif
     break;
@@ -88,7 +87,7 @@ VideoDecoder* VideoDecoder::make_from_config(
     break;
   }
   case VideoDecoderType::SOFTWARE: {
-    decoder = new SoftwareVideoDecoder(metadata, device_id);
+    decoder = new SoftwareVideoDecoder(device_id);
     break;
   }
   default: {

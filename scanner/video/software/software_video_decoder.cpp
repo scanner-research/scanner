@@ -18,6 +18,7 @@
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
+#include "libswscale/swscale.h"
 #include "libavutil/frame.h"
 #include "libavutil/error.h"
 #include "libavutil/opt.h"
@@ -29,11 +30,11 @@ namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
-SoftwareVideoDecoder::SoftwareVideoDecoder(
-  DatasetItemMetadata metadata,
-  int device_id)
+SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id)
   : codec_(nullptr),
-    cc_(nullptr)
+    cc_(nullptr),
+    reset_context_(true),
+    sws_context_(nullptr)
 {
   av_init_packet(&packet_);
 
@@ -68,6 +69,11 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   for (AVFrame* frame : decoded_frame_queue_) {
     av_frame_free(&frame);
   }
+}
+
+void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
+  metadata_ = metadata;
+  reset_context_ = true;
 }
 
 bool SoftwareVideoDecoder::feed(
@@ -144,6 +150,24 @@ bool SoftwareVideoDecoder::get_frame(
   
   AVFrame* frame = decoded_frame_queue_.front();
   decoded_frame_queue_.pop_front();
+
+  if (reset_context_) {
+    AVPixelFormat decoder_pixel_format = cc_->pix_fmt;
+    sws_context_ = sws_getCachedContext(
+      sws_context_,
+      metadata_.width,
+      metadata_.height,
+      decoder_pixel_format,
+      metadata_.width,
+      metadata_.height,
+      AV_PIX_FMT_RGB24,
+      SWS_BICUBIC,
+      NULL,
+      NULL,
+      NULL);
+  }
+
+  //int avpicture_get_size(AV_PIX_FMT_RGB24, width2, height2);
   for (int i = 0; i < 3; ++i) {
     for (int line = 0; line < frame->height; ++line) {
       memcpy(decoded_buffer,

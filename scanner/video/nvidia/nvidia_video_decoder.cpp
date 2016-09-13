@@ -70,8 +70,36 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(
     cudaStreamCreate(&streams_[i]);
   }
 
-  CUVIDPARSERPARAMS cuparseinfo = {};
+}
 
+NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    if (mapped_frames_[i] != 0) {
+      CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
+    }
+  }
+
+  if (parser_) {
+    cuvidDestroyVideoParser(parser_);
+  }
+
+  if (decoder_) {
+    cuvidDestroyDecoder(decoder_);
+  }
+
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    cudaStreamDestroy(streams_[i]);
+  }
+
+  // HACK(apoms): We are only using the primary context right now instead of
+  //   allowing the user to specify their own CUcontext. Thus we need to release
+  //   the primary context we retained when using the factory function to create
+  //   this object (see VideoDecoder::make_from_config).
+  CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
+}
+
+void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
+  CUVIDPARSERPARAMS cuparseinfo = {};
   cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.ulMaxNumDecodeSurfaces = max_output_frames_;
   cuparseinfo.ulMaxDisplayDelay = 4;
@@ -120,32 +148,6 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(
 
     feed(encoded_packet, encoded_packet_size);
   }
-}
-
-NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
-  for (int i = 0; i < max_mapped_frames_; ++i) {
-    if (mapped_frames_[i] != 0) {
-      CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
-    }
-  }
-
-  if (parser_) {
-    cuvidDestroyVideoParser(parser_);
-  }
-
-  if (decoder_) {
-    cuvidDestroyDecoder(decoder_);
-  }
-
-  for (int i = 0; i < max_mapped_frames_; ++i) {
-    cudaStreamDestroy(streams_[i]);
-  }
-
-  // HACK(apoms): We are only using the primary context right now instead of
-  //   allowing the user to specify their own CUcontext. Thus we need to release
-  //   the primary context we retained when using the factory function to create
-  //   this object (see VideoDecoder::make_from_config).
-  CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
 bool NVIDIAVideoDecoder::feed(

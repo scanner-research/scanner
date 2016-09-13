@@ -26,8 +26,8 @@ struct EvaluatorConfig {
   int device_id;
   int max_batch_size;
   size_t staging_buffer_size;
-  int frame_width;
-  int frame_height;
+  int max_frame_width;
+  int max_frame_height;
 };
 
 class EvaluatorConstructor {

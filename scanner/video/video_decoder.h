@@ -37,10 +37,11 @@ public:
   static VideoDecoder* make_from_config(
     DeviceType device_type,
     int device_id,
-    VideoDecoderType type,
-    DatasetItemMetadata metadata);
+    VideoDecoderType type);
 
   virtual ~VideoDecoder() {};
+
+  virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
   virtual bool feed(
     const char* encoded_buffer,

@@ -1,4 +1,20 @@
+/* Copyright 2016 Carnegie Mellon University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "scanner/util/common.h"
+#include "scanner/util/storehouse.h"
 #include "scanner/util/util.h"
 #include "storehouse/storage_backend.h"
 
@@ -25,32 +41,34 @@ int LOAD_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;   // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;       // Number of cuda streams for image processing
 
-
 void serialize_dataset_descriptor(
   WriteFile* file,
   const DatasetDescriptor& descriptor)
 {
-  StoreResult result;
+  write(file, descriptor.total_frames);
+
+  write(file, descriptor.min_frames);
+  write(file, descriptor.average_frames);
+  write(file, descriptor.max_frames);
+
+  write(file, descriptor.min_width);
+  write(file, descriptor.average_width);
+  write(file, descriptor.max_width);
+
+  write(file, descriptor.min_height);
+  write(file, descriptor.average_height);
+  write(file, descriptor.max_height);
+
   // Number of videos
   size_t num_videos = descriptor.original_video_paths.size();
-
-  EXP_BACKOFF(
-    file->append(sizeof(size_t), reinterpret_cast<char*>(&num_videos)),
-    result);
-  exit_on_error(result);
+  write(file, num_videos);
 
   for (size_t i = 0; i < num_videos; ++i) {
     const std::string& path = descriptor.original_video_paths[i];
-    EXP_BACKOFF(
-      file->append(path.size() + 1, path.c_str()),
-      result);
-    exit_on_error(result);
-
     const std::string& item_name = descriptor.item_names[i];
-    EXP_BACKOFF(
-      file->append(item_name.size() + 1, item_name.c_str()),
-      result);
-    exit_on_error(result);
+
+    write(file, path);
+    write(file, item_name);
   }
 }
 
@@ -58,32 +76,27 @@ DatasetDescriptor deserialize_dataset_descriptor(
   RandomReadFile* file,
   uint64_t& pos)
 {
-  StoreResult result;
-  size_t size_read;
-
   DatasetDescriptor descriptor;
 
+  descriptor.total_frames = read<int64_t>(file, pos);
+
+  descriptor.min_frames = read<int32_t>(file, pos);
+  descriptor.average_frames = read<int32_t>(file, pos);
+  descriptor.max_frames = read<int32_t>(file, pos);
+
+  descriptor.min_width = read<int32_t>(file, pos);
+  descriptor.average_width = read<int32_t>(file, pos);
+  descriptor.max_width = read<int32_t>(file, pos);
+
+  descriptor.min_height = read<int32_t>(file, pos);
+  descriptor.average_height = read<int32_t>(file, pos);
+  descriptor.max_height = read<int32_t>(file, pos);
+
   // Size of metadata
-  size_t num_videos;
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(size_t),
-               reinterpret_cast<char*>(&num_videos),
-               size_read),
-    result);
-  exit_on_error(result);
-  assert(size_read == sizeof(size_t));
-  pos += size_read;
-
-  // Read all data into buffer
-  std::vector<char> bytes = read_entire_file(file, pos);
-  char* buffer = bytes.data();
+  size_t num_videos = read<size_t>(file, pos);
   for (size_t i = 0; i < num_videos; ++i) {
-    descriptor.original_video_paths.emplace_back(buffer);
-    buffer += descriptor.original_video_paths[i].size() + 1;
-
-    descriptor.item_names.emplace_back(buffer);
-    buffer += descriptor.item_names[i].size() + 1;
+    descriptor.original_video_paths.push_back(read<std::string>(file, pos));
+    descriptor.item_names.push_back(read<std::string>(file, pos));
   }
   return descriptor;
 }
@@ -92,42 +105,13 @@ void serialize_dataset_item_metadata(
   WriteFile* file,
   const DatasetItemMetadata& metadata)
 {
-  // Frames
+  write(file, metadata.frames);
+  write(file, metadata.width);
+  write(file, metadata.height);
+  write(file, metadata.codec_type);
+  write(file, metadata.chroma_format);
+
   StoreResult result;
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&metadata.frames)),
-    result);
-  exit_on_error(result);
-
-  // Width
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&metadata.width)),
-    result);
-  exit_on_error(result);
-
-  // Height
-  EXP_BACKOFF(
-    file->append(sizeof(int32_t),
-                 reinterpret_cast<const char*>(&metadata.height)),
-    result);
-  exit_on_error(result);
-
-  // Codec type
-  EXP_BACKOFF(
-    file->append(sizeof(VideoCodecType),
-                 reinterpret_cast<const char*>(&metadata.codec_type)),
-    result);
-  exit_on_error(result);
-
-  // Chroma format
-  EXP_BACKOFF(
-    file->append(sizeof(VideoChromaFormat),
-                 reinterpret_cast<const char*>(&metadata.chroma_format)),
-    result);
-  exit_on_error(result);
-
   // Size of metadata
   size_t metadata_packets_size = metadata.metadata_packets.size();
   EXP_BACKOFF(
@@ -189,59 +173,11 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
 
   DatasetItemMetadata meta;
   // Frames
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(int32_t),
-               reinterpret_cast<char*>(&meta.frames),
-               size_read),
-    result);
-  exit_on_error(result);
-  assert(size_read == sizeof(int32_t));
-  pos += size_read;
-
-  // Width
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(int32_t),
-               reinterpret_cast<char*>(&meta.width),
-               size_read),
-    result);
-  exit_on_error(result);
-  assert(size_read == sizeof(int32_t));
-  pos += size_read;
-
-  // Height
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(int32_t),
-               reinterpret_cast<char*>(&meta.height),
-               size_read),
-    result);
-  exit_on_error(result);
-  assert(size_read == sizeof(int32_t));
-  pos += size_read;
-
-  // Codec type
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(VideoCodecType),
-               reinterpret_cast<char*>(&meta.codec_type),
-               size_read),
-    result);
-  exit_on_error(result);
-  assert(size_read == sizeof(VideoCodecType));
-  pos += size_read;
-
-  // Chroma format
-  EXP_BACKOFF(
-    file->read(pos,
-               sizeof(VideoChromaFormat),
-               reinterpret_cast<char*>(&meta.chroma_format),
-               size_read),
-    result);
-  exit_on_error(result);
-  assert(size_read == sizeof(VideoChromaFormat));
-  pos += size_read;
+  meta.frames = read<int32_t>(file, pos);
+  meta.width = read<int32_t>(file, pos);
+  meta.height = read<int32_t>(file, pos);
+  meta.codec_type = read<VideoCodecType>(file, pos);
+  meta.chroma_format = read<VideoChromaFormat>(file, pos);
 
   // Size of metadata
   size_t metadata_size;

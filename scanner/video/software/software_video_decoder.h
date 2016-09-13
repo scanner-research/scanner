@@ -37,11 +37,11 @@ namespace scanner {
 /// SoftwareVideoDecoder
 class SoftwareVideoDecoder : public VideoDecoder {
 public:
-  SoftwareVideoDecoder(
-    DatasetItemMetadata metadata,
-    int device_id);
+  SoftwareVideoDecoder(int device_id);
 
   ~SoftwareVideoDecoder();
+
+  void configure(const DatasetItemMetadata& metadata) override;
 
   bool feed(
     const char* encoded_buffer,
@@ -59,14 +59,17 @@ public:
   void wait_until_frames_copied() override;
 
 private:
-  DatasetItemMetadata metadata_;
   int device_id_;
-
-  std::vector<AVFrame*> frame_pool_;
-  std::deque<AVFrame*> decoded_frame_queue_;
   AVPacket packet_;
   AVCodec* codec_;
   AVCodecContext* cc_;
+
+  DatasetItemMetadata metadata_;
+  bool reset_context_;
+  SwsContext* sws_context_;
+
+  std::vector<AVFrame*> frame_pool_;
+  std::deque<AVFrame*> decoded_frame_queue_;
 };
 
 }
