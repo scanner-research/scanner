@@ -17,6 +17,20 @@
 
 #include "scanner/video/video_decoder.h"
 
+extern "C" {
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include "libavformat/avio.h"
+#include "libavfilter/avfilter.h"
+#include "libswscale/swscale.h"
+#include "libavutil/pixdesc.h"
+#include "libavutil/error.h"
+#include "libavutil/opt.h"
+}
+
+#include <vector>
+#include <deque>
+
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -47,8 +61,12 @@ public:
 private:
   DatasetItemMetadata metadata_;
   int device_id_;
-  int prev_frame_;
-  int wait_for_iframe_;
+
+  std::vector<AVFrame*> frame_pool_;
+  std::deque<AVFrame*> decoded_frame_queue_;
+  AVPacket packet_;
+  AVCodec* codec_;
+  AVCodecContext* cc_;
 };
 
 }

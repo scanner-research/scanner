@@ -525,8 +525,9 @@ void* save_thread(void* arg) {
       args.profiler.add_interval("io", io_start, now());
 
       delete output_file;
-      delete[] buffer;
+
     }
+    // TODO(apoms): Use evaluator constructor to delete buffers
 
     args.profiler.add_interval("task", work_start, now());
   }
@@ -650,7 +651,7 @@ void run_job(
   std::vector<std::vector<char*>> staging_buffers(PUS_PER_NODE);
 
   EvaluatorConfig eval_config;
-  eval_config.max_batch_size = GLOBAL_BATCH_SIZE;
+  eval_config.max_batch_size = frames_per_work_item();
   eval_config.staging_buffer_size = frame_buffer_size;
   eval_config.frame_width = video_metadata[0].width;
   eval_config.frame_height = video_metadata[0].height;
