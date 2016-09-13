@@ -39,7 +39,7 @@ inline void write(storehouse::WriteFile* file, const T& value) {
 
 template <>
 inline void write(storehouse::WriteFile* file, const std::string& s) {
-  write(file, s.c_str(), s.size());
+  write(file, s.c_str(), s.size() + 1);
 }
 
 inline void read(
@@ -73,14 +73,22 @@ inline std::string read(storehouse::RandomReadFile* file, uint64_t& pos) {
   while (true) {
     const size_t buf_size = 256;
     char buf[buf_size];
-    read(file, buf, buf_size, pos);
+
+    storehouse::StoreResult result;
+    size_t size_read;
+    EXP_BACKOFF(file->read(pos, buf_size, buf, size_read), result);
+    if (result != storehouse::StoreResult::EndOfFile) {
+      exit_on_error(result);
+      assert(size_read == buf_size);
+    } 
 
     size_t buf_pos = 0;
     while (buf_pos < buf_size) {
       if (buf[buf_pos] == '\0') break;
       var += buf[buf_pos];
+      buf_pos++;
     }
-    if (buf[buf_pos] == '\0') break;
+    if (buf_pos < buf_size && buf[buf_pos] == '\0') break;
 
     curr_pos += buf_size;
   }
