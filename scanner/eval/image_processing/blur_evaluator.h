@@ -22,21 +22,26 @@ namespace scanner {
 
 class BlurEvaluator : public Evaluator {
 public:
-  BlurEvaluator(EvaluatorConfig config, double sigma);
+  BlurEvaluator(EvaluatorConfig config, int kernel_size, double sigma);
 
   virtual ~BlurEvaluator();
 
   virtual void evaluate(
+    const DatasetItemMetadata& metadata,
     char* input_buffer,
     std::vector<char*> output_buffers,
     int batch_size) override;
+
 private:
+  int kernel_size_;
+  int filter_left_;
+  int filter_right_;
   double sigma_;
 };
 
 class BlurEvaluatorConstructor : public EvaluatorConstructor {
 public:
-  BlurEvaluatorConstructor(double sigma);
+  BlurEvaluatorConstructor(int kernel_size, double sigma);
 
   virtual ~BlurEvaluatorConstructor();
 
@@ -70,6 +75,7 @@ public:
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
 private:
+  int kernel_size_;
   double sigma_;
 };
 

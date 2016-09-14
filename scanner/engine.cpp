@@ -430,7 +430,7 @@ void* evaluate_thread(void* arg) {
         output_pointers.push_back(
           output_buffers[i] + output_element_sizes[i] * frame_offset);
       }
-      evaluator->evaluate(frame_buffer, output_pointers, batch_size);
+      evaluator->evaluate(metadata, frame_buffer, output_pointers, batch_size);
 
       current_frame += batch_size;
     }
@@ -506,15 +506,13 @@ void* save_thread(void* arg) {
       auto io_start = now();
 
       WriteFile* output_file = nullptr;
-      storage->make_write_file(output_path, output_file);
+      {
+        StoreResult result;
+        EXP_BACKOFF(storage->make_write_file(output_path, output_file), result);
+        exit_on_error(result);
+      }
 
-      StoreResult result;
-      EXP_BACKOFF(
-        output_file->append(buffer_size, buffer),
-        result);
-      assert(result == StoreResult::Success ||
-             result == StoreResult::EndOfFile);
-
+      write(output_file, buffer, buffer_size);
       output_file->save();
 
       args.profiler.add_interval("io", io_start, now());

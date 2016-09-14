@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    BlurEvaluatorConstructor evaluator_constructor(3.0);
+    BlurEvaluatorConstructor evaluator_constructor(9, 3.0);
 
     // #endif
 

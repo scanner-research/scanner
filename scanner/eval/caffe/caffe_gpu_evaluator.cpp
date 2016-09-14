@@ -130,6 +130,7 @@ CaffeGPUEvaluator::~CaffeGPUEvaluator() {
 }
 
 void CaffeGPUEvaluator::evaluate(
+  const DatasetItemMetadata& metadata,
   char* input_buffer,
   std::vector<char*> output_buffers,
   int batch_size)

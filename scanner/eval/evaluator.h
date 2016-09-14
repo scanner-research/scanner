@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "scanner/util/common.h"
+
 #include <vector>
 
 namespace scanner {
@@ -24,6 +26,7 @@ public:
   virtual ~Evaluator() {};
 
   virtual void evaluate(
+    const DatasetItemMetadata& metadata,
     char* input_buffer,
     std::vector<char*> output_buffers,
     int batch_size) = 0;

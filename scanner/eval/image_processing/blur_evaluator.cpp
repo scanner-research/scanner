@@ -15,10 +15,18 @@
 
 #include "scanner/eval/image_processing/blur_evaluator.h"
 
+#include <cmath>
+
 namespace scanner {
 
-BlurEvaluator::BlurEvaluator(EvaluatorConfig config, double sigma)
-  : sigma_(sigma)
+BlurEvaluator::BlurEvaluator(
+  EvaluatorConfig config,
+  int kernel_size,
+  double sigma)
+  : kernel_size_(kernel_size),
+    filter_left_(std::ceil(kernel_size / 2.0) - 1),
+    filter_right_(kernel_size / 2),
+    sigma_(sigma)
 {
 }
 
@@ -26,14 +34,42 @@ BlurEvaluator::~BlurEvaluator() {
 }
 
 void BlurEvaluator::evaluate(
+  const DatasetItemMetadata& metadata,
   char* input_buffer,
   std::vector<char*> output_buffers,
   int batch_size)
 {
+  char* output_buffer = output_buffers[0];
+  int64_t frame_size = metadata.width * metadata.height * 3 * sizeof(char);
+  for (int i = 0; i < batch_size; ++i) {
+    uint8_t* frame_buffer = (uint8_t*)(input_buffer + frame_size * i);
+    uint8_t* blurred_buffer = (uint8_t*)(output_buffer + frame_size * i);
+    for (int y = filter_left_; y < metadata.height - filter_right_; ++y) {
+      for (int x = filter_left_; x < metadata.width - filter_right_; ++x) {
+        for (int c = 0; c < 3; ++c) {
+          uint32_t value = 0;
+          for (int ry = -filter_left_; ry < filter_right_; ++ry) {
+            for (int rx = -filter_left_; rx < filter_right_; ++rx) {
+              value += frame_buffer[(y + ry) * metadata.width * 3 +
+                                    (x + rx) * 3 +
+                                    c];
+            }
+          }
+          blurred_buffer[y * metadata.width * 3 + x * 3 + c] =
+            //frame_buffer[y * metadata.width * 3 + x * 3 + c];
+            value / ((filter_right_ + filter_left_ + 1) *
+                     (filter_right_ + filter_left_ + 1));
+        }
+      }
+    }
+  }
 }
 
-BlurEvaluatorConstructor::BlurEvaluatorConstructor(double sigma)
-  : sigma_(sigma)
+BlurEvaluatorConstructor::BlurEvaluatorConstructor(
+  int kernel_size,
+  double sigma)
+  : kernel_size_(kernel_size),
+    sigma_(sigma)
 {
 }
 
@@ -104,7 +140,7 @@ void BlurEvaluatorConstructor::delete_output_buffers(
 
 Evaluator*
 BlurEvaluatorConstructor::new_evaluator(const EvaluatorConfig& config) {
-  return new BlurEvaluator(config, sigma_);
+  return new BlurEvaluator(config, kernel_size_, sigma_);
 }
 
 }
