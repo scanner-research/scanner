@@ -48,8 +48,8 @@ void BlurEvaluator::evaluate(
       for (int x = filter_left_; x < metadata.width - filter_right_; ++x) {
         for (int c = 0; c < 3; ++c) {
           uint32_t value = 0;
-          for (int ry = -filter_left_; ry < filter_right_; ++ry) {
-            for (int rx = -filter_left_; rx < filter_right_; ++rx) {
+          for (int ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
+            for (int rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
               value += frame_buffer[(y + ry) * metadata.width * 3 +
                                     (x + rx) * 3 +
                                     c];
