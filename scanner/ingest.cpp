@@ -420,7 +420,8 @@ bool preprocess_video(
   bool succeeded = true;
   int frame = 0;
   bool extradata_extracted = false;
-  bool keyframe_intro = false;
+  bool in_meta_packet_sequence = false;
+  int64_t meta_packet_sequence_start_offset = 0;
   while (true) {
     // Read from format context
     int err = av_read_frame(state.format_context, &state.av_packet);
@@ -511,23 +512,24 @@ bool preprocess_video(
       int nal_unit_type = (*nal_start) & 0x1F;
       // printf("nal size: %d, nal ref %d, nal unit %d\n",
       //        nal_size, nal_ref_idc, nal_unit_type);
+      printf("nal unit type %d\n", nal_unit_type);
       if (nal_unit_type > 4) {
-        if (!keyframe_intro) {
-          // printf("keyframe byte offsets %ld\n",
-          //        nal_bytestream_offset);
-          keyframe_byte_offsets.push_back(nal_bytestream_offset);
-          keyframe_intro = true;
+        if (!in_meta_packet_sequence) {
+          meta_packet_sequence_start_offset = nal_bytestream_offset;
+          in_meta_packet_sequence = true;
         }
       } else {
-        keyframe_intro = false;
+        in_meta_packet_sequence = false;
       }
     }
 
     if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
       // printf("av packet keyframe pts %d\n",
       //        state.av_packet.pts);
+      keyframe_byte_offsets.push_back(nal_bytestream_offset);
       keyframe_positions.push_back(frame);
       keyframe_timestamps.push_back(state.av_packet.pts);
+      in_meta_packet_sequence = false;
     }
 
     while (state.av_packet.size > 0) {

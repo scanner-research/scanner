@@ -56,7 +56,6 @@ void BlurEvaluator::evaluate(
             }
           }
           blurred_buffer[y * metadata.width * 3 + x * 3 + c] =
-            //frame_buffer[y * metadata.width * 3 + x * 3 + c];
             value / ((filter_right_ + filter_left_ + 1) *
                      (filter_right_ + filter_left_ + 1));
         }
