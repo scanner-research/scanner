@@ -19,6 +19,7 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
+#include "libavutil/imgutils.h"
 #include "libavutil/frame.h"
 #include "libavutil/error.h"
 #include "libavutil/opt.h"
@@ -167,20 +168,41 @@ bool SoftwareVideoDecoder::get_frame(
       NULL);
   }
 
-  //int avpicture_get_size(AV_PIX_FMT_RGB24, width2, height2);
-  for (int i = 0; i < 3; ++i) {
-    for (int line = 0; line < frame->height; ++line) {
-      memcpy(decoded_buffer,
-             frame->data[i] + frame->linesize[i] * line,
-             std::min(size_left, static_cast<int64_t>(frame->width)));
-      decoded_buffer += frame->width;
-      size_left -= frame->width;
-      if (size_left <= 0) {
-        line = frame->height;
-        i = 3;
-      }
-    }
+  if (sws_context_ == NULL) {
+    fprintf(stderr, "Could not get sws_context for rgb conversion\n");
+    exit(EXIT_FAILURE);
   }
+
+  uint8_t* out_slices[4];
+  int out_linesizes[4];
+  int required_size = av_image_fill_arrays(
+    out_slices,
+    out_linesizes,
+    reinterpret_cast<uint8_t*>(decoded_buffer),
+    AV_PIX_FMT_RGB24,
+    metadata_.width,
+    metadata_.height,
+    1);
+  if (required_size < 0) {
+    fprintf(stderr, "Error in av_image_fill_arrays\n");
+    exit(EXIT_FAILURE);
+  }
+  if (required_size > decoded_size) {
+    fprintf(stderr, "Decode buffer not large enough for image\n");
+    exit(EXIT_FAILURE);
+  }
+  if (sws_scale(sws_context_,
+                frame->data,
+                frame->linesize,
+                0,
+                frame->height,
+                out_slices,
+                out_linesizes) < 0)
+  {
+    fprintf(stderr, "sws_scale failed\n");
+    exit(EXIT_FAILURE);
+  }
+
   av_frame_unref(frame);
   frame_pool_.push_back(frame);
 
