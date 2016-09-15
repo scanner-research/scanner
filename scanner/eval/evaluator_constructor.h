@@ -44,22 +44,15 @@ public:
 
   virtual std::vector<std::string> get_output_names() = 0;
 
-  virtual std::vector<size_t> get_output_element_sizes(
-    const EvaluatorConfig& config) = 0;
-
   virtual char* new_input_buffer(const EvaluatorConfig& config) = 0;
 
   virtual void delete_input_buffer(
     const EvaluatorConfig& config,
     char* buffer) = 0;
 
-  virtual std::vector<char*> new_output_buffers(
+  virtual void delete_output_buffer(
     const EvaluatorConfig& config,
-    int num_inputs) = 0;
-
-  virtual void delete_output_buffers(
-    const EvaluatorConfig& config,
-    std::vector<char*> buffers) = 0;
+    char* buffer) = 0;
 
   /* new_evaluator - constructs an evaluator to be used for processing
    *   decoded frames. Must be thread-safe.

@@ -30,27 +30,25 @@ BlurEvaluator::BlurEvaluator(
 {
 }
 
-BlurEvaluator::~BlurEvaluator() {
-}
-
-
 void BlurEvaluator::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
 }
 
 void BlurEvaluator::evaluate(
   char* input_buffer,
-  std::vector<char*> output_buffers,
+  std::vector<std::vector<char*>>& output_buffers,
+  std::vector<std::vector<size_t>>& output_sizes,
   int batch_size)
 {
   int width = metadata_.width;
   int height = metadata_.height;
 
-  char* output_buffer = output_buffers[0];
-  int64_t frame_size = width * height * 3 * sizeof(char);
+  size_t frame_size = width * height * 3 * sizeof(char);
   for (int i = 0; i < batch_size; ++i) {
+    char* output_buffer = new char[frame_size];
+
     uint8_t* frame_buffer = (uint8_t*)(input_buffer + frame_size * i);
-    uint8_t* blurred_buffer = (uint8_t*)(output_buffer + frame_size * i);
+    uint8_t* blurred_buffer = (uint8_t*)(output_buffer);
     for (int y = filter_left_; y < height - filter_right_; ++y) {
       for (int x = filter_left_; x < width - filter_right_; ++x) {
         for (int c = 0; c < 3; ++c) {
@@ -68,6 +66,8 @@ void BlurEvaluator::evaluate(
         }
       }
     }
+    output_sizes[0].push_back(frame_size);
+    output_buffers[0].push_back(output_buffer);
   }
 }
 
@@ -77,9 +77,6 @@ BlurEvaluatorConstructor::BlurEvaluatorConstructor(
   : kernel_size_(kernel_size),
     sigma_(sigma)
 {
-}
-
-BlurEvaluatorConstructor::~BlurEvaluatorConstructor() {
 }
 
 int BlurEvaluatorConstructor::get_number_of_devices() {
@@ -102,12 +99,6 @@ std::vector<std::string> BlurEvaluatorConstructor::get_output_names() {
   return {"image"};
 }
 
-std::vector<size_t> BlurEvaluatorConstructor::get_output_element_sizes(
-  const EvaluatorConfig& config)
-{
-  return {config.max_frame_width * config.max_frame_height * 3 * sizeof(char)};
-}
-
 char*
 BlurEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
   return new char[
@@ -125,23 +116,11 @@ void BlurEvaluatorConstructor::delete_input_buffer(
   delete[] buffer;
 }
 
-std::vector<char*> BlurEvaluatorConstructor::new_output_buffers(
+void BlurEvaluatorConstructor::delete_output_buffer(
   const EvaluatorConfig& config,
-  int num_inputs)
+  char* buffer)
 {
-  return {new char[
-      num_inputs *
-      config.max_frame_width *
-      config.max_frame_height *
-      3 *
-      sizeof(char)]};
-}
-
-void BlurEvaluatorConstructor::delete_output_buffers(
-  const EvaluatorConfig& config,
-  std::vector<char*> buffers)
-{
-  delete[] buffers[0];
+  delete[] buffer;
 }
 
 Evaluator*

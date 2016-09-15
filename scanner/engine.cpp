@@ -103,8 +103,8 @@ struct SaveThreadArgs {
   std::string job_name;
   const std::vector<std::string>& video_paths;
   const std::vector<DatasetItemMetadata>& metadata;
-  const std::vector<std::string>& output_names;
   const std::vector<VideoWorkItem>& work_items;
+  std::vector<std::string> output_names;
 
   // Per worker arguments
   storehouse::StorageConfig* storage_config;
@@ -374,6 +374,7 @@ void* evaluate_thread(void* arg) {
 
   std::unique_ptr<Evaluator> evaluator{
     args.evaluator_constructor.new_evaluator(args.evaluator_config)};
+  int num_outputs = args.evaluator_constructor.get_number_of_outputs();
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -410,17 +411,16 @@ void* evaluate_thread(void* arg) {
     // Create output buffer to hold results from net evaluation for all frames
     // in the current work item
     int num_inputs = work_item.end_frame - work_item.start_frame;
-    std::vector<size_t> output_element_sizes =
-      args.evaluator_constructor.get_output_element_sizes(
-        args.evaluator_config);
-    std::vector<size_t> output_buffer_sizes;
-    for (size_t element_size : output_element_sizes) {
-      output_buffer_sizes.push_back(element_size * num_inputs);
-    }
-    std::vector<char*> output_buffers =
-      args.evaluator_constructor.new_output_buffers(
-        args.evaluator_config,
-        num_inputs);
+
+    SaveWorkEntry save_work_entry;
+    save_work_entry.work_item_index = work_entry.work_item_index;
+
+    std::vector<std::vector<size_t>>& work_item_output_sizes =
+      save_work_entry.output_buffer_sizes;
+    std::vector<std::vector<char*>>& work_item_output_buffers =
+      save_work_entry.output_buffers;
+    work_item_output_sizes.resize(num_outputs);
+    work_item_output_buffers.resize(num_outputs);
 
     int current_frame = work_item.start_frame;
     while (current_frame < work_item.end_frame) {
@@ -429,12 +429,23 @@ void* evaluate_thread(void* arg) {
         std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
       char* frame_buffer = work_entry.buffer + frame_size * frame_offset;
-      std::vector<char*> output_pointers;
-      for (size_t i = 0; i < output_buffers.size(); ++i) {
-        output_pointers.push_back(
-          output_buffers[i] + output_element_sizes[i] * frame_offset);
+
+      std::vector<std::vector<char*>> output_buffers(num_outputs);
+      std::vector<std::vector<size_t>> output_sizes(num_outputs);
+
+      evaluator->evaluate(
+        frame_buffer,
+        output_buffers,
+        output_sizes,
+        batch_size);
+      for (int i = 0; i < num_outputs; ++i) {
+        work_item_output_sizes[i].insert(work_item_output_sizes[i].end(),
+                                         output_sizes[i].begin(),
+                                         output_sizes[i].end());
+        work_item_output_buffers[i].insert(work_item_output_buffers[i].end(),
+                                           output_buffers[i].begin(),
+                                           output_buffers[i].end());
       }
-      evaluator->evaluate(frame_buffer, output_pointers, batch_size);
 
       current_frame += batch_size;
     }
@@ -446,10 +457,6 @@ void* evaluate_thread(void* arg) {
     empty_buffer_entry.buffer = frame_buffer;
     args.empty_decode_buffers.push(empty_buffer_entry);
 
-    SaveWorkEntry save_work_entry;
-    save_work_entry.work_item_index = work_entry.work_item_index;
-    save_work_entry.output_buffer_sizes = output_buffer_sizes;
-    save_work_entry.output_buffers = output_buffers;
     args.save_work.push(save_work_entry);
   }
 
@@ -495,7 +502,24 @@ void* save_thread(void* arg) {
     const std::string& video_path = args.video_paths[work_item.video_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
+    // HACK(apoms): debugging
+    if (true) {
+      uint8_t* frame_buffer =
+        reinterpret_cast<uint8_t*>(save_work_entry.output_buffers[0][0]);
+
+      JPEGWriter writer;
+      writer.header(metadata.width, metadata.height, 3, JPEG::COLOR_RGB);
+      std::vector<uint8_t*> rows(metadata.height);
+      for (int i = 0; i < metadata.height; ++i) {
+        rows[i] = frame_buffer + metadata.width * 3 * i;
+      }
+      std::string image_path =
+        "frame" + std::to_string(work_item.start_frame) + ".jpg";
+      writer.write(image_path, rows.begin());
+    }
+
     // Write out each output layer to an individual data file
+    size_t num_outputs = work_item.end_frame - work_item.start_frame;
     for (size_t i = 0; i < args.output_names.size(); ++i) {
       const std::string output_path =
         job_item_output_path(args.job_name,
@@ -504,25 +528,32 @@ void* save_thread(void* arg) {
                              work_item.start_frame,
                              work_item.end_frame);
 
-      size_t buffer_size = save_work_entry.output_buffer_sizes[i];
-      char* buffer = save_work_entry.output_buffers[i];
+        auto io_start = now();
 
-      auto io_start = now();
+        WriteFile* output_file = nullptr;
+        {
+          StoreResult result;
+          EXP_BACKOFF(storage->make_write_file(output_path, output_file),
+                      result);
+          exit_on_error(result);
+        }
 
-      WriteFile* output_file = nullptr;
-      {
-        StoreResult result;
-        EXP_BACKOFF(storage->make_write_file(output_path, output_file), result);
-        exit_on_error(result);
-      }
+        assert(save_work_entry.output_buffers[i].size() == num_outputs);
+        for (size_t output_idx = 0; output_idx < num_outputs; ++output_idx) {
+          int64_t buffer_size =
+            save_work_entry.output_buffer_sizes[i][output_idx];
+          char* buffer =
+            save_work_entry.output_buffers[i][output_idx];
 
-      write(output_file, buffer, buffer_size);
-      output_file->save();
+          write(output_file, buffer_size);
+          write(output_file, buffer, buffer_size);
+        }
 
-      args.profiler.add_interval("io", io_start, now());
+        output_file->save();
 
-      delete output_file;
+        delete output_file;
 
+        args.profiler.add_interval("io", io_start, now());
     }
     // TODO(apoms): Use evaluator constructor to delete buffers
 
@@ -769,8 +800,8 @@ void run_job(
           job_name,
           video_paths,
           video_metadata,
-          evaluator_constructor->get_output_names(),
           work_items,
+          evaluator_constructor->get_output_names(),
 
           // Per worker arguments
           config,

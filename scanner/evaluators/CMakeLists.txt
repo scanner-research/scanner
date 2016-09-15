@@ -1,6 +1,6 @@
 set(SOURCE_FILES)
 
-if (CAFFE_FOUND AND BUILD_CAFFE_EVALUATORS)
+if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
     caffe/net_descriptor.cpp
     caffe/caffe_cpu_evaluator.cpp
