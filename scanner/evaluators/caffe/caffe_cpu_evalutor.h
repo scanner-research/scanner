@@ -20,6 +20,9 @@
 #include "scanner/eval/caffe/net_descriptor.h"
 #include "scanner/eval/caffe/caffe_input_transformer_factory.h"
 
+#include <memory>
+#include <vector>
+
 namespace scanner {
 
 class CaffeCPUEvaluator : public Evaluator {
@@ -30,8 +33,6 @@ public:
     CaffeInputTransformer* transformer,
     int device_id);
 
-  virtual ~CaffeGPUEvaluator();
-
   virtual void configure(const DatasetItemMetadata& metadata) override;
 
   virtual void evaluate(
@@ -40,8 +41,9 @@ public:
     int batch_size) override;
 
 protected:
+  EvaluatorConfig config_;
   NetDescriptor descriptor_;
-  CaffeInputTransformer* transformer_;
+  std::unique_ptr<CaffeInputTransformer> transformer_;
   int device_id_;
   std::unique_ptr<caffe::Net<float>> net_;
 
@@ -55,8 +57,6 @@ public:
   CaffeCPUEvaluatorConstructor(
     const NetDescriptor& net_descriptor,
     CaffeInputTransformerFactory* transformer_factory);
-
-  virtual ~CaffeCPUEvaluatorConstructor();
 
   virtual int get_number_of_devices() override;
 
@@ -88,7 +88,7 @@ public:
 
 private:
   NetDescriptor net_descriptor_;
-  CaffeInputTransformerFactory* transformer_factory_;
+  std::unique_ptr<CaffeInputTransformerFactory> transformer_factory_;
 };
 
 }

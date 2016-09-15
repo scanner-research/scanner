@@ -29,7 +29,8 @@ public:
 
   virtual void evaluate(
     char* input_buffer,
-    std::vector<char*> output_buffers,
+    std::vector<std::vector<char*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes,
     int batch_size) = 0;
 };
 

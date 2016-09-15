@@ -57,8 +57,8 @@ struct EvalWorkEntry {
 
 struct SaveWorkEntry {
   int work_item_index;
-  std::vector<size_t> output_buffer_sizes;
-  std::vector<char*> output_buffers;
+  std::vector<std::vector<size_t>> output_buffer_sizes;
+  std::vector<std::vector<char*>> output_buffers;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

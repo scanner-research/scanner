@@ -1,6 +1,6 @@
 set(SOURCE_FILES)
 
-if (CAFFE_FOUND AND BUILD_CAFFE_EVALUATORS)
+if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
     caffe/net_descriptor.cpp
     caffe/caffe_cpu_evaluator.cpp
@@ -18,7 +18,7 @@ if (BUILD_IMAGE_PROCESSING_EVALUATORS)
 endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
-  list(APPEND SOURCE FILES
+  list(APPEND SOURCE_FILES
     movie_analysis/histogram_evaluator.cpp)
 endif()
 
