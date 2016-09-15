@@ -57,11 +57,9 @@ if (CUDA_FOUND)
 endif()
 
 if (BUILD_CAFFE_EVALUATORS)
-  find_package(Caffe)
-  if (CAFFE_FOUND)
-    add_definitions(-DHAVE_CAFFE)
-    include_directories(${CAFFE_INCLUDE_DIRS})
-  endif()
+  find_package(Caffe REQUIRED)
+  add_definitions(-DHAVE_CAFFE)
+  include_directories(${CAFFE_INCLUDE_DIRS})
 
   if (BUILD_CAFFE_INPUT_TRANSFORMERS)
     # Requires opencv3
@@ -69,14 +67,12 @@ if (BUILD_CAFFE_EVALUATORS)
     if (CUDA_FOUND)
       append(OPENCV_DESIRED_COMPONENTS
         cudawarping cudaimgproc cudafilters cudaarithm)
-
-      find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-      if (OpenCV_FOUND)
-        include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-        list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
-        add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
-      endif()
     endif()
+
+    find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
+    include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+    list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
+    add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
   endif()
 endif()
 
