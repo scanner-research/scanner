@@ -17,5 +17,10 @@ if (BUILD_IMAGE_PROCESSING_EVALUATORS)
     image_processing/blur_evaluator.cpp)
 endif()
 
+if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
+  list(APPEND SOURCE FILES
+    movie_analysis/histogram_evaluator.cpp)
+endif()
+
 add_library(evaluators OBJECT
   ${SOURCE_FILES})

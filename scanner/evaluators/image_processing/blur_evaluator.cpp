@@ -127,7 +127,7 @@ void BlurEvaluatorConstructor::delete_input_buffer(
 
 std::vector<char*> BlurEvaluatorConstructor::new_output_buffers(
   const EvaluatorConfig& config,
-  int num_inputs) 
+  int num_inputs)
 {
   return {new char[
       num_inputs *

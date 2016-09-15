@@ -16,6 +16,7 @@
 #include "scanner/util/common.h"
 #include "scanner/util/storehouse.h"
 #include "scanner/util/util.h"
+#include "scanner/util/jsoncpp.h"
 #include "storehouse/storage_backend.h"
 
 #include <cassert>
@@ -374,47 +375,36 @@ void serialize_job_descriptor(
 {
   StoreResult result;
 
-  // Write dataset name
-  EXP_BACKOFF(
-    file->append(descriptor.dataset_name.size() + 1,
-                 descriptor.dataset_name.c_str()),
-    result);
-  exit_on_error(result);
-
-  // Write out all intervals for each video we processed
-  int64_t num_videos = descriptor.intervals.size();
-  EXP_BACKOFF(
-    file->append(
-      sizeof(int64_t),
-      (const char*)&num_videos),
-    result);
-  exit_on_error(result);
+  Json::Value root, videos;
+  root["dataset_name"] = descriptor.dataset_name;
 
   for (auto it : descriptor.intervals) {
     const std::string& video_path = it.first;
     const std::vector<std::tuple<int, int>>& intervals = it.second;
 
-    EXP_BACKOFF(
-      file->append(
-        video_path.size() + 1,
-        video_path.c_str()),
-      result);
-    exit_on_error(result);
+    Json::Value video, json_intervals;
+    video["path"] = video_path;
 
-    std::vector<int64_t> buffer;
-    int64_t num_intervals = intervals.size();
-    buffer.push_back(num_intervals);
     for (const std::tuple<int, int>& interval : intervals) {
-      buffer.push_back(std::get<0>(interval));
-      buffer.push_back(std::get<1>(interval));
+      Json::Value json_interval;
+      json_interval.append(std::get<0>(interval));
+      json_interval.append(std::get<1>(interval));
+      json_intervals.append(json_interval);
     }
-    EXP_BACKOFF(
-      file->append(
-        buffer.size() * sizeof(int64_t),
-        (char*)buffer.data()),
-      result);
-    exit_on_error(result);
+
+    video["intervals"] = json_intervals;
+    videos.append(video);
   }
+
+  root["videos"] = videos;
+
+  Json::StreamWriterBuilder wbuilder;
+  std::string doc = Json::writeString(wbuilder, root);
+
+  EXP_BACKOFF(
+    file->append(doc.size(), doc.c_str()),
+    result);
+  exit_on_error(result);
 }
 
 JobDescriptor deserialize_job_descriptor(
@@ -424,31 +414,28 @@ JobDescriptor deserialize_job_descriptor(
   JobDescriptor descriptor;
 
   // Load the entire input
-  std::vector<char> bytes = read_entire_file(file, file_pos);;
+  std::vector<char> bytes = read_entire_file(file, file_pos);
 
-  char* data = bytes.data();
+  std::istringstream ss(std::string(bytes.begin(), bytes.end()));
+  Json::Value root;
 
-  descriptor.dataset_name = std::string{data};
-  data += descriptor.dataset_name.size() + 1;
+  ss >> root;
 
-  int64_t num_videos = *((int64_t*)data);
-  data += sizeof(int64_t);
+  descriptor.dataset_name = root["dataset_name"].asString();
 
-  for (int64_t i = 0; i < num_videos; ++i) {
-    std::string video_path{data};
-    data += video_path.size() + 1;
+  const Json::Value videos = root["videos"];
+  for (int i = 0; i < videos.size(); ++i) {
+    std::string path = videos[i]["path"].asString();
+    Json::Value json_intervals = videos[i]["intervals"];
 
-    int64_t num_intervals = *((int64_t*)data);
-    data += sizeof(int64_t);
     std::vector<std::tuple<int, int>> intervals;
-    for (int64_t j = 0; j < num_intervals; ++j) {
-      int64_t start = *((int64_t*)data);
-      data += sizeof(int64_t);
-      int64_t end = *((int64_t*)data);
-      data += sizeof(int64_t);
-      intervals.emplace_back(start, end);
+    for (int j = 0; j < json_intervals.size(); ++j) {
+      intervals.emplace_back(
+        json_intervals[j][0].asInt64(),
+        json_intervals[j][1].asInt64());
     }
-    descriptor.intervals[video_path] = intervals;
+
+    descriptor.intervals[path] = intervals;
   }
 
   return descriptor;

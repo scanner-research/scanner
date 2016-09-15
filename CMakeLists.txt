@@ -17,9 +17,10 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
 
 enable_testing()
 

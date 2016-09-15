@@ -27,6 +27,7 @@ find_package(TinyToml)
 find_package(JsonCpp)
 find_package(Storehouse CONFIG)
 find_package(GoogleTest)
+find_package(RapidJSON)
 
 if (NOT TINYTOML_FOUND)
   ExternalProject_Add(TinyToml

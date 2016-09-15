@@ -24,7 +24,7 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #else
-#include "scanner/evaluators/image_processing/blur_evaluator.h"
+#include "scanner/evaluators/movie_analysis/histogram_evaluator.h"
 #endif
 
 #include "scanner/util/common.h"
@@ -66,7 +66,7 @@ using storehouse::RandomReadFile;
 
 namespace {
 
-const std::string DB_PATH = "/Users/apoms/scanner_db";
+const std::string DB_PATH = "/homes/wcrichto/lightscan/db";
 
 }
 
@@ -269,9 +269,9 @@ int main(int argc, char** argv) {
     ingest(config, dataset_name, video_paths_file);
   } else if (cmd == "run") {
     // The run command takes 1) a name for the job, 2) an existing dataset name,
-    // 3) a toml file describing the target network to evaluate and evaluates 
+    // 3) a toml file describing the target network to evaluate and evaluates
     // the network on every frame of the given dataset, saving the results and
-    // the metadata for the job persistently. The metadata file for the job can 
+    // the metadata for the job persistently. The metadata file for the job can
     // be used to find the results for any given video frame.
 
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    BlurEvaluatorConstructor evaluator_constructor(9, 3.0);
+    HistogramEvaluatorConstructor evaluator_constructor;
 
     // #endif
 
