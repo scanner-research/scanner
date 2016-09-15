@@ -103,8 +103,8 @@ struct SaveThreadArgs {
   std::string job_name;
   const std::vector<std::string>& video_paths;
   const std::vector<DatasetItemMetadata>& metadata;
-  const std::vector<std::string>& output_names;
   const std::vector<VideoWorkItem>& work_items;
+  std::vector<std::string> output_names;
 
   // Per worker arguments
   storehouse::StorageConfig* storage_config;
@@ -800,8 +800,8 @@ void run_job(
           job_name,
           video_paths,
           video_metadata,
-          evaluator_constructor->get_output_names(),
           work_items,
+          evaluator_constructor->get_output_names(),
 
           // Per worker arguments
           config,
