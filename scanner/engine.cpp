@@ -397,6 +397,10 @@ void* evaluate_thread(void* arg) {
       args.work_items[work_entry.work_item_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
+    // Make the evaluator aware of the format of the data we are about to
+    // feed it
+    evaluator->configure(metadata);
+
     size_t frame_size =
       av_image_get_buffer_size(AV_PIX_FMT_RGB24,
                                metadata.width,
@@ -430,7 +434,7 @@ void* evaluate_thread(void* arg) {
         output_pointers.push_back(
           output_buffers[i] + output_element_sizes[i] * frame_offset);
       }
-      evaluator->evaluate(metadata, frame_buffer, output_pointers, batch_size);
+      evaluator->evaluate(frame_buffer, output_pointers, batch_size);
 
       current_frame += batch_size;
     }

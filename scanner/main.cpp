@@ -19,10 +19,12 @@
 #include "scanner/video/video_decoder.h"
 
 #ifdef HAVE_CAFFE
-#include "scanner/eval/caffe/net_descriptor.h"
-#include "scanner/eval/caffe/caffe_cpu_evaluator.h"
+#include "scanner/evaluators/caffe/net_descriptor.h"
+#include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
+#include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
+#include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #else
-#include "scanner/eval/image_processing/blur_evaluator.h"
+#include "scanner/evaluators/image_processing/blur_evaluator.h"
 #endif
 
 #include "scanner/util/common.h"

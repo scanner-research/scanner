@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/eval/image_processing/blur_evaluator.h"
+#include "scanner/evaluators/image_processing/blur_evaluator.h"
 
 #include <cmath>
 
@@ -33,29 +33,36 @@ BlurEvaluator::BlurEvaluator(
 BlurEvaluator::~BlurEvaluator() {
 }
 
+
+void BlurEvaluator::configure(const DatasetItemMetadata& metadata) {
+  metadata_ = metadata;
+}
+
 void BlurEvaluator::evaluate(
-  const DatasetItemMetadata& metadata,
   char* input_buffer,
   std::vector<char*> output_buffers,
   int batch_size)
 {
+  int width = metadata_.width;
+  int height = metadata_.height;
+
   char* output_buffer = output_buffers[0];
-  int64_t frame_size = metadata.width * metadata.height * 3 * sizeof(char);
+  int64_t frame_size = width * height * 3 * sizeof(char);
   for (int i = 0; i < batch_size; ++i) {
     uint8_t* frame_buffer = (uint8_t*)(input_buffer + frame_size * i);
     uint8_t* blurred_buffer = (uint8_t*)(output_buffer + frame_size * i);
-    for (int y = filter_left_; y < metadata.height - filter_right_; ++y) {
-      for (int x = filter_left_; x < metadata.width - filter_right_; ++x) {
+    for (int y = filter_left_; y < height - filter_right_; ++y) {
+      for (int x = filter_left_; x < width - filter_right_; ++x) {
         for (int c = 0; c < 3; ++c) {
           uint32_t value = 0;
           for (int ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
             for (int rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
-              value += frame_buffer[(y + ry) * metadata.width * 3 +
+              value += frame_buffer[(y + ry) * width * 3 +
                                     (x + rx) * 3 +
                                     c];
             }
           }
-          blurred_buffer[y * metadata.width * 3 + x * 3 + c] =
+          blurred_buffer[y * width * 3 + x * 3 + c] =
             value / ((filter_right_ + filter_left_ + 1) *
                      (filter_right_ + filter_left_ + 1));
         }

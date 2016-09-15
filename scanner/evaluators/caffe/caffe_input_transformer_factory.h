@@ -15,30 +15,20 @@
 
 #pragma once
 
-#include "scanner/util/common.h"
+#include "scanner/eval/evaluator.h"
+#include "scanner/eval/caffe/caffe_input_transformer.h"
 
 #include <vector>
 
 namespace scanner {
 
-class Evaluator {
+class CaffeInputTransformerFactory {
 public:
-  virtual ~Evaluator() {};
+  virtual ~CaffeInputTransformerFactory() {};
 
-  virtual void configure(const DatasetItemMetadata& metadata) = 0;
-
-  virtual void evaluate(
-    char* input_buffer,
-    std::vector<char*> output_buffers,
-    int batch_size) = 0;
+  virtual CaffeInputTransformer* construct(
+    const EvaluatorConfig& config,
+    const NetDescriptor& descriptor) = 0;
 };
-
-// allocate buffers
-// setup
-// set batch size
-// consume input
-// produce output
-// teardown
-// deallocate buffers
 
 }

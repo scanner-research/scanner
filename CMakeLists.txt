@@ -153,6 +153,7 @@ add_executable(scanner_server
   scanner/engine.cpp
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:eval>
+  $<TARGET_OBJECTS:evaluators>
   $<TARGET_OBJECTS:util>)
 
 if(APPLE)

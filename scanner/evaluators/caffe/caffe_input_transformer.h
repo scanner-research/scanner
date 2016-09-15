@@ -17,28 +17,18 @@
 
 #include "scanner/util/common.h"
 
-#include <vector>
-
 namespace scanner {
 
-class Evaluator {
+class CaffeInputTransformer {
 public:
-  virtual ~Evaluator() {};
+  virtual ~CaffeInputTransformer() {};
 
   virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
-  virtual void evaluate(
+  virtual void transform_input(
     char* input_buffer,
-    std::vector<char*> output_buffers,
+    float* net_input,
     int batch_size) = 0;
 };
-
-// allocate buffers
-// setup
-// set batch size
-// consume input
-// produce output
-// teardown
-// deallocate buffers
 
 }

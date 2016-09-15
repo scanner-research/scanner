@@ -26,8 +26,9 @@ public:
 
   virtual ~BlurEvaluator();
 
+  virtual void configure(const DatasetItemMetadata& metadata) override;
+
   virtual void evaluate(
-    const DatasetItemMetadata& metadata,
     char* input_buffer,
     std::vector<char*> output_buffers,
     int batch_size) override;
@@ -37,6 +38,8 @@ private:
   int filter_left_;
   int filter_right_;
   double sigma_;
+
+  DatasetItemMetadata metadata_;
 };
 
 class BlurEvaluatorConstructor : public EvaluatorConstructor {

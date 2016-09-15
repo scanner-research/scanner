@@ -512,7 +512,6 @@ bool preprocess_video(
       int nal_unit_type = (*nal_start) & 0x1F;
       // printf("nal size: %d, nal ref %d, nal unit %d\n",
       //        nal_size, nal_ref_idc, nal_unit_type);
-      printf("nal unit type %d\n", nal_unit_type);
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
           meta_packet_sequence_start_offset = nal_bytestream_offset;
