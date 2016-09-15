@@ -23,7 +23,9 @@ const int BINS = 256;
 
 HistogramEvaluator::HistogramEvaluator(EvaluatorConfig) {}
 
-HistogramEvaluator::~HistogramEvaluator(const DatasetItemMetadata& metadata) {
+HistogramEvaluator::~HistogramEvaluator() {}
+
+void HistogramEvaluator::configure(const DatasetItemMetadata& metadata) {
   this->metadata = metadata;
 }
 
