@@ -23,15 +23,22 @@
 
 namespace scanner {
 
+using u8 = uint8_t;
+using u32 = uint32_t;
+using u64 = uint64_t;
+using i8 = int8_t;
+using i32 = int32_t;
+using i64 = int64_t;
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
-extern int PUS_PER_NODE;           // # of available processing units per node
-extern int GLOBAL_BATCH_SIZE;       // Batch size for network
-extern int BATCHES_PER_WORK_ITEM;   // How many batches per work item
-extern int TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
-extern int LOAD_WORKERS_PER_NODE;   // # of worker threads loading data
-extern int SAVE_WORKERS_PER_NODE;   // # of worker threads loading data
-extern int NUM_CUDA_STREAMS;        // # of cuda streams for image processing
+extern i32 PUS_PER_NODE;           // # of available processing units per node
+extern i32 GLOBAL_BATCH_SIZE;       // Batch size for network
+extern i32 BATCHES_PER_WORK_ITEM;   // How many batches per work item
+extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
+extern i32 LOAD_WORKERS_PER_NODE;   // # of worker threads loading data
+extern i32 SAVE_WORKERS_PER_NODE;   // # of worker threads loading data
+extern i32 NUM_CUDA_STREAMS;        // # of cuda streams for image processing
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Path functions
@@ -68,8 +75,8 @@ inline std::string dataset_item_metadata_path(const std::string& dataset_name,
 inline std::string job_item_output_path(const std::string& job_name,
                                         const std::string& item_name,
                                         const std::string& layer_name,
-                                        int start,
-                                        int end)
+                                        i32 start,
+                                        i32 end)
 {
   return job_name + "_job/" + item_name + "_" +
     layer_name + "_" +
@@ -81,11 +88,11 @@ inline std::string job_descriptor_path(const std::string& job_name) {
   return job_name + "_job_descriptor.bin";
 }
 
-inline std::string job_profiler_path(const std::string& job_name, int node) {
+inline std::string job_profiler_path(const std::string& job_name, i32 node) {
   return job_name + "_job_profiler_" + std::to_string(node) + ".bin";
 }
 
-inline int frames_per_work_item() {
+inline i32 frames_per_work_item() {
   return GLOBAL_BATCH_SIZE * BATCHES_PER_WORK_ITEM;
 }
 
@@ -120,48 +127,48 @@ enum struct VideoChromaFormat {
 struct DatasetDescriptor {
   /// Statistics
   // Frames per video
-  int64_t total_frames;
+  i64 total_frames;
 
-  int32_t min_frames;
-  int32_t average_frames;
-  int32_t max_frames;
+  i32 min_frames;
+  i32 average_frames;
+  i32 max_frames;
 
   // Frame width
-  int32_t min_width;
-  int32_t average_width;
-  int32_t max_width;
+  i32 min_width;
+  i32 average_width;
+  i32 max_width;
 
   // Frame height
-  int32_t min_height;
-  int32_t average_height;
-  int32_t max_height;
+  i32 min_height;
+  i32 average_height;
+  i32 max_height;
 
   std::vector<std::string> original_video_paths;
   std::vector<std::string> item_names;
 };
 
 struct DatasetItemMetadata {
-  int32_t frames;
-  int32_t width;
-  int32_t height;
+  i32 frames;
+  i32 width;
+  i32 height;
   VideoCodecType codec_type;
   VideoChromaFormat chroma_format;
-  std::vector<char> metadata_packets;
-  std::vector<int64_t> keyframe_positions;
-  std::vector<int64_t> keyframe_timestamps;
-  std::vector<int64_t> keyframe_byte_offsets;
+  std::vector<u8> metadata_packets;
+  std::vector<i64> keyframe_positions;
+  std::vector<i64> keyframe_timestamps;
+  std::vector<i64> keyframe_byte_offsets;
 };
 
 struct DatasetItemWebTimestamps {
-  int time_base_numerator;
-  int time_base_denominator;
-  std::vector<int64_t> dts_timestamps;
-  std::vector<int64_t> pts_timestamps;
+  i32 time_base_numerator;
+  i32 time_base_denominator;
+  std::vector<i64> dts_timestamps;
+  std::vector<i64> pts_timestamps;
 };
 
 struct JobDescriptor {
   std::string dataset_name;
-  std::map<std::string, std::vector<std::tuple<int, int>>> intervals;
+  std::map<std::string, std::vector<std::tuple<i32, i32>>> intervals;
 };
 
 void serialize_dataset_descriptor(
@@ -170,7 +177,7 @@ void serialize_dataset_descriptor(
 
 DatasetDescriptor deserialize_dataset_descriptor(
   storehouse::RandomReadFile* file,
-  uint64_t& file_pos);
+  u64& file_pos);
 
 void serialize_dataset_item_metadata(
   storehouse::WriteFile* file,
@@ -178,7 +185,7 @@ void serialize_dataset_item_metadata(
 
 DatasetItemMetadata deserialize_dataset_item_metadata(
   storehouse::RandomReadFile* file,
-  uint64_t& file_pos);
+  u64& file_pos);
 
 void serialize_dataset_item_web_timestamps(
   storehouse::WriteFile* file,
@@ -186,7 +193,7 @@ void serialize_dataset_item_web_timestamps(
 
 DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   storehouse::RandomReadFile* file,
-  uint64_t& file_pos);
+  u64& file_pos);
 
 void serialize_job_descriptor(
   storehouse::WriteFile* file,
@@ -194,6 +201,6 @@ void serialize_job_descriptor(
 
 JobDescriptor deserialize_job_descriptor(
   storehouse::RandomReadFile* file,
-  uint64_t& file_pos);
+  u64& file_pos);
 
 }

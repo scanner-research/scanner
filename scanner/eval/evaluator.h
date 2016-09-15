@@ -28,10 +28,10 @@ public:
   virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
   virtual void evaluate(
-    char* input_buffer,
-    std::vector<std::vector<char*>>& output_buffers,
+    u8* input_buffer,
+    std::vector<std::vector<u8*>>& output_buffers,
     std::vector<std::vector<size_t>>& output_sizes,
-    int batch_size) = 0;
+    i32 batch_size) = 0;
 };
 
 // allocate buffers

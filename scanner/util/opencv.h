@@ -16,6 +16,8 @@
 #pragma once
 
 #include <opencv2/opencv.hpp>
+
+#ifdef HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
 
 void convertNV12toRGBA(
@@ -31,3 +33,4 @@ void convertRGBInterleavedToPlanar(
   int width,
   int height,
   cv::cuda::Stream& stream = cv::cuda::Stream::Null());
+#endif

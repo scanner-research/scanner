@@ -44,14 +44,14 @@ public:
   virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
   virtual bool feed(
-    const char* encoded_buffer,
+    const u8* encoded_buffer,
     size_t encoded_size,
     bool discontinuity = false) = 0;
 
   virtual bool discard_frame() = 0;
 
   virtual bool get_frame(
-    char* decoded_buffer,
+    u8* decoded_buffer,
     size_t decoded_size) = 0;
 
   virtual int decoded_frames_buffered() = 0;

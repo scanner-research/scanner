@@ -24,33 +24,33 @@ namespace scanner {
 
 inline void write(
   storehouse::WriteFile* file,
-  const char* buffer,
+  const u8* buffer,
   size_t size)
 {
   storehouse::StoreResult result;
-  EXP_BACKOFF(file->append(size, buffer), result);
+  EXP_BACKOFF(file->append(size, reinterpret_cast<const char*>(buffer)), result);
   exit_on_error(result);
 }
 
 template <typename T>
 inline void write(storehouse::WriteFile* file, const T& value) {
-  write(file, reinterpret_cast<const char*>(&value), sizeof(T));
+  write(file, reinterpret_cast<const u8*>(&value), sizeof(T));
 }
 
 template <>
 inline void write(storehouse::WriteFile* file, const std::string& s) {
-  write(file, s.c_str(), s.size() + 1);
+  write(file, reinterpret_cast<const u8*>(s.c_str()), s.size() + 1);
 }
 
 inline void read(
   storehouse::RandomReadFile* file,
-  char* buffer,
+  u8* buffer,
   size_t size,
-  uint64_t& pos)
+  u64& pos)
 {
   storehouse::StoreResult result;
   size_t size_read;
-  EXP_BACKOFF(file->read(pos, size, buffer, size_read), result);
+  EXP_BACKOFF(file->read(pos, size, reinterpret_cast<char*>(buffer), size_read), result);
   if (result != storehouse::StoreResult::EndOfFile) {
     exit_on_error(result);
   }
@@ -59,28 +59,28 @@ inline void read(
 }
 
 template <typename T>
-inline T read(storehouse::RandomReadFile* file, uint64_t& pos) {
+inline T read(storehouse::RandomReadFile* file, u64& pos) {
   T var;
-  read(file, reinterpret_cast<char*>(&var), sizeof(T), pos);
+  read(file, reinterpret_cast<u8*>(&var), sizeof(T), pos);
   return var;
 }
 
 template <>
-inline std::string read(storehouse::RandomReadFile* file, uint64_t& pos) {
-  uint64_t curr_pos = pos;
+inline std::string read(storehouse::RandomReadFile* file, u64& pos) {
+  u64 curr_pos = pos;
 
   std::string var;
   while (true) {
     const size_t buf_size = 256;
-    char buf[buf_size];
+    u8 buf[buf_size];
 
     storehouse::StoreResult result;
     size_t size_read;
-    EXP_BACKOFF(file->read(pos, buf_size, buf, size_read), result);
+    EXP_BACKOFF(file->read(pos, buf_size, reinterpret_cast<char*>(buf), size_read), result);
     if (result != storehouse::StoreResult::EndOfFile) {
       exit_on_error(result);
       assert(size_read == buf_size);
-    } 
+    }
 
     size_t buf_pos = 0;
     while (buf_pos < buf_size) {

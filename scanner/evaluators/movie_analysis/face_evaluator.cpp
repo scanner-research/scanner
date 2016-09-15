@@ -28,10 +28,10 @@ void FaceEvaluator::configure(const DatasetItemMetadata& metadata) {
 }
 
 void FaceEvaluator::evaluate(
-
-  char* input_buffer,
-  std::vector<char*> output_buffers,
-  int batch_size)
+  u8* input_buffer,
+  std::vector<std::vector<u8*>>& output_buffers,
+  std::vector<std::vector<size_t>>& output_sizes,
+  i32 batch_size)
 {
 }
 
@@ -59,45 +59,28 @@ std::vector<std::string> FaceEvaluatorConstructor::get_output_names() {
   return {"face"};
 }
 
-std::vector<size_t> FaceEvaluatorConstructor::get_output_element_sizes(
-  const EvaluatorConfig& config)
-{
-  return {BINS * 3 * sizeof(unsigned char)};
-}
-
-char*
+u8*
 FaceEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
-  return new char[
+  return new u8[
     config.max_batch_size *
     config.max_frame_width *
     config.max_frame_height *
     3 *
-    sizeof(char)];
+    sizeof(u8)];
 }
 
 void FaceEvaluatorConstructor::delete_input_buffer(
   const EvaluatorConfig& config,
-  char* buffer)
+  u8* buffer)
 {
   delete[] buffer;
 }
 
-std::vector<char*> FaceEvaluatorConstructor::new_output_buffers(
+void FaceEvaluatorConstructor::delete_output_buffer(
   const EvaluatorConfig& config,
-  int num_inputs)
+  u8* buffer)
 {
-  return {new char[
-      num_inputs *
-      BINS *
-      3 *
-      sizeof(char)]};
-}
-
-void FaceEvaluatorConstructor::delete_output_buffers(
-  const EvaluatorConfig& config,
-  std::vector<char*> buffers)
-{
-  delete[] buffers[0];
+  delete[] buffer;
 }
 
 Evaluator*

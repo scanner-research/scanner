@@ -24,41 +24,41 @@
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Work structs - structs used to exchange data between workers during 
+/// Work structs - structs used to exchange data between workers during
 ///   execution of the run command.
 struct VideoWorkItem {
-  int video_index;
-  int start_frame;
-  int end_frame;
+  i32 video_index;
+  i32 start_frame;
+  i32 end_frame;
 };
 
 struct LoadWorkEntry {
-  int work_item_index;
+  i32 work_item_index;
 };
 
 struct DecodeWorkEntry {
-  int work_item_index;
-  int start_keyframe;
-  int end_keyframe;
+  i32 work_item_index;
+  i32 start_keyframe;
+  i32 end_keyframe;
   size_t encoded_data_size;
-  char* buffer;
+  u8* buffer;
 };
 
 struct DecodeBufferEntry {
   size_t buffer_size;
-  char* buffer;
+  u8* buffer;
 };
 
 struct EvalWorkEntry {
-  int work_item_index;
+  i32 work_item_index;
   size_t decoded_frames_size;
-  char* buffer;
+  u8* buffer;
 };
 
 struct SaveWorkEntry {
-  int work_item_index;
+  i32 work_item_index;
   std::vector<std::vector<size_t>> output_buffer_sizes;
-  std::vector<std::vector<char*>> output_buffers;
+  std::vector<std::vector<u8*>> output_buffers;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

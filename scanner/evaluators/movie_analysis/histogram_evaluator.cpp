@@ -30,17 +30,16 @@ void HistogramEvaluator::configure(const DatasetItemMetadata& metadata) {
 }
 
 void HistogramEvaluator::evaluate(
-
-  char* input_buffer,
-  std::vector<char*> output_buffers,
-  int batch_size)
+  u8* input_buffer,
+  std::vector<std::vector<u8*>>& output_buffers,
+  std::vector<std::vector<size_t>>& output_sizes,
+  i32 batch_size)
 {
-  uint8_t* output_buffer = (uint8_t*)output_buffers[0];
-  int64_t frame_size = metadata.width * metadata.height * 3 * sizeof(uint8_t);
-  int64_t hist_size = BINS * 3 * sizeof(uint8_t);
-  for (int i = 0; i < batch_size; i++) {
-    uint8_t* frame_buffer = (uint8_t*)(input_buffer + frame_size * i);
-    uint8_t* hist_buffer = (uint8_t*)(output_buffer + hist_size * i);
+  i64 frame_size = metadata.width * metadata.height * 3 * sizeof(u8);
+  i64 hist_size = BINS * 3 * sizeof(u8);
+  for (i32 i = 0; i < batch_size; i++) {
+    u8* frame_buffer = (u8*)(input_buffer + frame_size * i);
+    u8* hist_buffer = new u8[hist_size];
     cv::Mat img(metadata.height, metadata.width, CV_8UC3, frame_buffer);
     std::vector<cv::Mat> bgr_planes;
     cv::split(img, bgr_planes);
@@ -59,6 +58,9 @@ void HistogramEvaluator::evaluate(
     hist.convertTo(hist_u8, CV_8U);
 
     memcpy(hist_buffer, hist_u8.data, hist_u8.total() * hist_u8.elemSize());
+
+    output_sizes[0].push_back(hist_size);
+    output_buffers[0].push_back(hist_buffer);
   }
 }
 
@@ -86,45 +88,28 @@ std::vector<std::string> HistogramEvaluatorConstructor::get_output_names() {
   return {"histogram"};
 }
 
-std::vector<size_t> HistogramEvaluatorConstructor::get_output_element_sizes(
-  const EvaluatorConfig& config)
-{
-  return {BINS * 3 * sizeof(unsigned char)};
-}
-
-char*
+u8*
 HistogramEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
-  return new char[
+  return new u8[
     config.max_batch_size *
     config.max_frame_width *
     config.max_frame_height *
     3 *
-    sizeof(char)];
+    sizeof(u8)];
 }
 
 void HistogramEvaluatorConstructor::delete_input_buffer(
   const EvaluatorConfig& config,
-  char* buffer)
+  u8* buffer)
 {
   delete[] buffer;
 }
 
-std::vector<char*> HistogramEvaluatorConstructor::new_output_buffers(
+void HistogramEvaluatorConstructor::delete_output_buffer(
   const EvaluatorConfig& config,
-  int num_inputs)
+  u8* buffer)
 {
-  return {new char[
-      num_inputs *
-      BINS *
-      3 *
-      sizeof(char)]};
-}
-
-void HistogramEvaluatorConstructor::delete_output_buffers(
-  const EvaluatorConfig& config,
-  std::vector<char*> buffers)
-{
-  delete[] buffers[0];
+  delete[] buffer;
 }
 
 Evaluator*

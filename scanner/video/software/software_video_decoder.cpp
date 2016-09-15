@@ -78,7 +78,7 @@ void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
 }
 
 bool SoftwareVideoDecoder::feed(
-  const char* encoded_buffer,
+  const u8* encoded_buffer,
   size_t encoded_size,
   bool discontinuity)
 {
@@ -144,11 +144,11 @@ bool SoftwareVideoDecoder::discard_frame() {
 }
 
 bool SoftwareVideoDecoder::get_frame(
-  char* decoded_buffer,
-  size_t decoded_size) 
+  u8* decoded_buffer,
+  size_t decoded_size)
 {
   int64_t size_left = decoded_size;
-  
+
   AVFrame* frame = decoded_frame_queue_.front();
   decoded_frame_queue_.pop_front();
 

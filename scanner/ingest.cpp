@@ -52,15 +52,15 @@ namespace {
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct BufferData {
-  uint8_t *ptr;
+  u8 *ptr;
   size_t size; // size left in the buffer
 
-  uint8_t *orig_ptr;
+  u8 *orig_ptr;
   size_t initial_size;
 };
 
 // For custom AVIOContext that loads from memory
-int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+i32 read_packet(void *opaque, u8 *buf, i32 buf_size) {
   BufferData* bd = (BufferData*)opaque;
   buf_size = std::min(static_cast<size_t>(buf_size), bd->size);
   /* copy internal buffer data to buf */
@@ -70,7 +70,7 @@ int read_packet(void *opaque, uint8_t *buf, int buf_size) {
   return buf_size;
 }
 
-int64_t seek(void *opaque, int64_t offset, int whence) {
+i64 seek(void *opaque, i64 offset, i32 whence) {
   BufferData* bd = (BufferData*)opaque;
   {
     switch (whence)
@@ -102,7 +102,7 @@ struct CodecState {
   AVIOContext* io_context;
   AVCodec* in_codec;
   AVCodecContext* in_cc;
-  int video_stream_index;
+  i32 video_stream_index;
   AVBitStreamFilterContext* annexb;
 };
 
@@ -114,8 +114,8 @@ CodecState setup_video_codec(BufferData* buffer) {
   state.format_context = avformat_alloc_context();
 
   size_t avio_context_buffer_size = 4096;
-  uint8_t* avio_context_buffer =
-    static_cast<uint8_t*>(av_malloc(avio_context_buffer_size));
+  u8* avio_context_buffer =
+    static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
     avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
                        0, buffer, &read_packet, NULL, &seek);
@@ -193,7 +193,7 @@ bool read_timestamps(std::string video_path,
                      DatasetItemWebTimestamps& meta)
 {
   // Load the entire input
-  std::vector<char> video_bytes;
+  std::vector<u8> video_bytes;
   {
     // Read input from local path
     std::ifstream file{video_path};
@@ -202,7 +202,8 @@ bool read_timestamps(std::string video_path,
     while (file) {
       size_t prev_size = video_bytes.size();
       video_bytes.resize(prev_size + READ_SIZE);
-      file.read(video_bytes.data() + prev_size, READ_SIZE);
+      file.read(reinterpret_cast<char*>(video_bytes.data() + prev_size),
+                READ_SIZE);
       size_t size_read = file.gcount();
       if (size_read != READ_SIZE) {
         video_bytes.resize(prev_size + size_read);
@@ -213,7 +214,7 @@ bool read_timestamps(std::string video_path,
   // Setup custom buffer for libavcodec so that we can read from memory instead
   // of from a file
   BufferData buffer;
-  buffer.ptr = reinterpret_cast<uint8_t*>(video_bytes.data());
+  buffer.ptr = reinterpret_cast<u8*>(video_bytes.data());
   buffer.size = video_bytes.size();
   buffer.orig_ptr = buffer.ptr;
   buffer.initial_size = buffer.size;
@@ -225,14 +226,14 @@ bool read_timestamps(std::string video_path,
 
   meta.time_base_numerator = in_stream->time_base.num;
   meta.time_base_denominator = in_stream->time_base.den;
-  std::vector<int64_t>& pts_timestamps = meta.pts_timestamps;
-  std::vector<int64_t>& dts_timestamps = meta.dts_timestamps;
+  std::vector<i64>& pts_timestamps = meta.pts_timestamps;
+  std::vector<i64>& dts_timestamps = meta.dts_timestamps;
 
   bool succeeded = true;
-  int frame = 0;
+  i32 frame = 0;
   while (true) {
     // Read from format context
-    int err = av_read_frame(state.format_context, &state.av_packet);
+    i32 err = av_read_frame(state.format_context, &state.av_packet);
     if (err == AVERROR_EOF) {
       av_packet_unref(&state.av_packet);
       break;
@@ -267,11 +268,11 @@ bool read_timestamps(std::string video_path,
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
 
-    uint8_t* orig_data = state.av_packet.data;
-    int orig_size = state.av_packet.size;
+    u8* orig_data = state.av_packet.data;
+    i32 orig_size = state.av_packet.size;
     while (state.av_packet.size > 0) {
-      int got_picture = 0;
-      int len = avcodec_decode_video2(state.in_cc,
+      i32 got_picture = 0;
+      i32 len = avcodec_decode_video2(state.in_cc,
                                       state.picture,
                                       &got_picture,
                                       &state.av_packet);
@@ -310,10 +311,10 @@ bool read_timestamps(std::string video_path,
   state.av_packet.data = NULL;
   state.av_packet.size = 0;
 
-  int got_picture;
+  i32 got_picture;
   do {
     got_picture = 0;
-    int len = avcodec_decode_video2(state.in_cc,
+    i32 len = avcodec_decode_video2(state.in_cc,
                                     state.picture,
                                     &got_picture,
                                     &state.av_packet);
@@ -333,10 +334,10 @@ bool read_timestamps(std::string video_path,
 }
 
 void next_nal(
-  uint8_t*& buffer,
-  int& buffer_size_left,
-  uint8_t*& nal_start,
-  int& nal_size)
+  u8*& buffer,
+  i32& buffer_size_left,
+  u8*& nal_start,
+  i32& nal_size)
 {
   while (buffer_size_left > 2 &&
          !(buffer[0] == 0x00 &&
@@ -375,7 +376,7 @@ bool preprocess_video(
   DatasetItemMetadata& video_metadata)
 {
   // Load the entire input
-  std::vector<char> video_bytes;
+  std::vector<u8> video_bytes;
   {
     // Read input from local path
     std::ifstream file{video_path};
@@ -384,7 +385,7 @@ bool preprocess_video(
     while (file) {
       size_t prev_size = video_bytes.size();
       video_bytes.resize(prev_size + READ_SIZE);
-      file.read(video_bytes.data() + prev_size, READ_SIZE);
+      file.read(reinterpret_cast<char*>(video_bytes.data() + prev_size), READ_SIZE);
       size_t size_read = file.gcount();
       if (size_read != READ_SIZE) {
         video_bytes.resize(prev_size + size_read);
@@ -395,7 +396,7 @@ bool preprocess_video(
   // Setup custom buffer for libavcodec so that we can read from memory instead
   // of from a file
   BufferData buffer;
-  buffer.ptr = reinterpret_cast<uint8_t*>(video_bytes.data());
+  buffer.ptr = reinterpret_cast<u8*>(video_bytes.data());
   buffer.size = video_bytes.size();
   buffer.orig_ptr = buffer.ptr;
   buffer.initial_size = buffer.size;
@@ -407,24 +408,24 @@ bool preprocess_video(
   video_metadata.chroma_format = VideoChromaFormat::YUV_420;
   video_metadata.codec_type = VideoCodecType::H264;
 
-  std::vector<char>& metadata_bytes =
+  std::vector<u8>& metadata_bytes =
     video_metadata.metadata_packets;
-  std::vector<char> bytestream_bytes;
-  std::vector<int64_t>& keyframe_positions =
+  std::vector<u8> bytestream_bytes;
+  std::vector<i64>& keyframe_positions =
     video_metadata.keyframe_positions;
-  std::vector<int64_t>& keyframe_timestamps =
+  std::vector<i64>& keyframe_timestamps =
     video_metadata.keyframe_timestamps;
-  std::vector<int64_t>& keyframe_byte_offsets =
+  std::vector<i64>& keyframe_byte_offsets =
     video_metadata.keyframe_byte_offsets;
 
   bool succeeded = true;
-  int frame = 0;
+  i32 frame = 0;
   bool extradata_extracted = false;
   bool in_meta_packet_sequence = false;
-  int64_t meta_packet_sequence_start_offset = 0;
+  i64 meta_packet_sequence_start_offset = 0;
   while (true) {
     // Read from format context
-    int err = av_read_frame(state.format_context, &state.av_packet);
+    i32 err = av_read_frame(state.format_context, &state.av_packet);
     if (err == AVERROR_EOF) {
       av_packet_unref(&state.av_packet);
       break;
@@ -458,11 +459,11 @@ bool preprocess_video(
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
 
-    uint8_t* orig_data = state.av_packet.data;
-    int orig_size = state.av_packet.size;
+    u8* orig_data = state.av_packet.data;
+    i32 orig_size = state.av_packet.size;
 
-    uint8_t* filtered_data;
-    int filtered_data_size;
+    u8* filtered_data;
+    i32 filtered_data_size;
     av_bitstream_filter_filter(state.annexb,
                                state.in_cc,
                                NULL,
@@ -473,43 +474,43 @@ bool preprocess_video(
                                state.av_packet.flags & AV_PKT_FLAG_KEY);
 
     if (!extradata_extracted) {
-      uint8_t* extradata = state.in_cc->extradata;
-      int extradata_size_left = state.in_cc->extradata_size;
+      u8* extradata = state.in_cc->extradata;
+      i32 extradata_size_left = state.in_cc->extradata_size;
 
       metadata_bytes.resize(extradata_size_left);
       memcpy(metadata_bytes.data(), extradata, extradata_size_left);
 
       while (extradata_size_left > 3) {
-        uint8_t* nal_start = nullptr;
-        int nal_size = 0;
+        u8* nal_start = nullptr;
+        i32 nal_size = 0;
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
-        int nal_ref_idc = (*nal_start >> 5);
-        int nal_unit_type = (*nal_start) & 0x1F;
+        i32 nal_ref_idc = (*nal_start >> 5);
+        i32 nal_unit_type = (*nal_start) & 0x1F;
         // printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
         //        nal_size, nal_ref_idc, nal_unit_type);
       }
       extradata_extracted = true;
     }
 
-    int64_t nal_bytestream_offset = bytestream_bytes.size();
+    i64 nal_bytestream_offset = bytestream_bytes.size();
     bytestream_bytes.resize(bytestream_bytes.size() +
-                            filtered_data_size + sizeof(int));
-    *((int*)(bytestream_bytes.data() + nal_bytestream_offset)) =
+                            filtered_data_size + sizeof(i32));
+    *((i32*)(bytestream_bytes.data() + nal_bytestream_offset)) =
       filtered_data_size;
-    memcpy(bytestream_bytes.data() + nal_bytestream_offset + sizeof(int),
+    memcpy(bytestream_bytes.data() + nal_bytestream_offset + sizeof(i32),
            filtered_data,
            filtered_data_size);
 
     // Parse NAL unit
-    uint8_t* nal_parse = filtered_data;
-    int size_left = filtered_data_size;
+    u8* nal_parse = filtered_data;
+    i32 size_left = filtered_data_size;
     while (size_left > 3) {
-      uint8_t* nal_start = nullptr;
-      int nal_size = 0;
+      u8* nal_start = nullptr;
+      i32 nal_size = 0;
       next_nal(nal_parse, size_left, nal_start, nal_size);
 
-      int nal_ref_idc = (*nal_start >> 5);
-      int nal_unit_type = (*nal_start) & 0x1F;
+      i32 nal_ref_idc = (*nal_start >> 5);
+      i32 nal_unit_type = (*nal_start) & 0x1F;
       // printf("nal size: %d, nal ref %d, nal unit %d\n",
       //        nal_size, nal_ref_idc, nal_unit_type);
       if (nal_unit_type > 4) {
@@ -532,10 +533,10 @@ bool preprocess_video(
     }
 
     while (state.av_packet.size > 0) {
-      int got_picture = 0;
-      char* dec;
+      i32 got_picture = 0;
+      u8* dec;
       size_t size;
-      int len = avcodec_decode_video2(state.in_cc,
+      i32 len = avcodec_decode_video2(state.in_cc,
                                       state.picture,
                                       &got_picture,
                                       &state.av_packet);
@@ -571,10 +572,10 @@ bool preprocess_video(
   state.av_packet.data = NULL;
   state.av_packet.size = 0;
 
-  int got_picture;
+  i32 got_picture;
   do {
     got_picture = 0;
-    int len = avcodec_decode_video2(state.in_cc,
+    i32 len = avcodec_decode_video2(state.in_cc,
                                     state.picture,
                                     &got_picture,
                                     &state.av_packet);
@@ -592,7 +593,7 @@ bool preprocess_video(
 
   video_metadata.frames = frame;
 
-  const std::vector<char>& demuxed_video_stream = bytestream_bytes;
+  const std::vector<u8>& demuxed_video_stream = bytestream_bytes;
 
   // Write out our metadata video stream
   {
@@ -614,14 +615,15 @@ bool preprocess_video(
       make_unique_write_file(storage, data_path, output_file));
 
     const size_t WRITE_SIZE = 16 * 1024;
-    char buffer[WRITE_SIZE];
+    u8 buffer[WRITE_SIZE];
     size_t pos = 0;
     while (pos != demuxed_video_stream.size()) {
       const size_t size_to_write =
         std::min(WRITE_SIZE, demuxed_video_stream.size() - pos);
       StoreResult result;
       EXP_BACKOFF(
-        output_file->append(size_to_write, demuxed_video_stream.data() + pos),
+        output_file->append(size_to_write,
+                            reinterpret_cast<const char*>(demuxed_video_stream.data() + pos)),
         result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
@@ -664,14 +666,14 @@ bool preprocess_video(
       make_unique_write_file(storage, web_video_path, output_file));
 
     const size_t READ_SIZE = 1024 * 1024;
-    std::vector<char> buffer(READ_SIZE);
+    std::vector<u8> buffer(READ_SIZE);
     while (file) {
-      file.read(buffer.data(), READ_SIZE);
+      file.read(reinterpret_cast<char*>(buffer.data()), READ_SIZE);
       size_t size_read = file.gcount();
 
       StoreResult result;
       EXP_BACKOFF(
-        output_file->append(size_read, buffer.data()),
+        output_file->append(size_read, reinterpret_cast<char*>(buffer.data())),
         result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
@@ -710,13 +712,13 @@ bool preprocess_video(
   return succeeded;
 }
 
-/* read_last_processed_video - read from persistent storage the index 
- *   of the last succesfully processed video for the given dataset. 
+/* read_last_processed_video - read from persistent storage the index
+ *   of the last succesfully processed video for the given dataset.
  *   Used to recover from failures midway through the ingest process.
  *
  *   @return: index of the last successfully processed video
  */
-int read_last_processed_video(
+i32 read_last_processed_video(
   storehouse::StorageBackend* storage,
   const std::string& dataset_name)
 {
@@ -737,32 +739,32 @@ int read_last_processed_video(
   std::unique_ptr<RandomReadFile> file;
   result = make_unique_random_read_file(storage, last_written_path, file);
 
-  uint64_t pos = 0;
+  u64 pos = 0;
   size_t size_read;
 
-  int32_t last_processed_video;
+  i32 last_processed_video;
   EXP_BACKOFF(
     file->read(pos,
-               sizeof(int32_t),
+               sizeof(i32),
                reinterpret_cast<char*>(&last_processed_video),
                size_read),
     result);
   assert(result == StoreResult::Success ||
          result == StoreResult::EndOfFile);
-  assert(size_read == sizeof(int32_t));
+  assert(size_read == sizeof(i32));
 
   return last_processed_video;
 }
 
-/* write_last_processed_video - write to persistent storage the index 
- *   of the last succesfully processed video for the given dataset. 
+/* write_last_processed_video - write to persistent storage the index
+ *   of the last succesfully processed video for the given dataset.
  *   Used to recover from failures midway through the ingest process.
  *
  */
 void write_last_processed_video(
   storehouse::StorageBackend* storage,
   const std::string& dataset_name,
-  int file_index)
+  i32 file_index)
 {
   const std::string last_written_path =
     dataset_name + "_dataset/last_written.bin";
@@ -771,7 +773,7 @@ void write_last_processed_video(
 
   StoreResult result;
   EXP_BACKOFF(
-    file->append(sizeof(int32_t),
+    file->append(sizeof(i32),
                  reinterpret_cast<const char*>(&file_index)),
     result);
   exit_on_error(result);
@@ -786,7 +788,7 @@ void ingest(
   const std::string& dataset_name,
   const std::string& video_paths_file)
 {
-  int rank;
+  i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   if (!is_master(rank)) return;
@@ -798,7 +800,7 @@ void ingest(
   std::vector<std::string>& video_paths = descriptor.original_video_paths;
   std::vector<std::string>& item_names = descriptor.item_names;
   {
-    int video_count = 0;
+    i32 video_count = 0;
     std::fstream fs(video_paths_file, std::fstream::in);
     while (fs) {
       std::string path;
@@ -814,10 +816,10 @@ void ingest(
 
   // Start from the file after the one we last processed succesfully before
   // crashing/exiting
-  int last_processed_index = read_last_processed_video(storage, dataset_name);
+  i32 last_processed_index = read_last_processed_video(storage, dataset_name);
 
   // Keep track of videos which we can't parse
-  int64_t& total_frames = descriptor.total_frames;
+  i64& total_frames = descriptor.total_frames;
   total_frames = 0;
   std::vector<std::string> bad_paths;
   for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
@@ -862,7 +864,7 @@ void ingest(
 
     // Track the last succesfully processed dataset so we know where
     // to resume if we crash or exit early
-    write_last_processed_video(storage, dataset_name, static_cast<int>(i));
+    write_last_processed_video(storage, dataset_name, static_cast<i32>(i));
   }
   if (!bad_paths.empty()) {
     std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
