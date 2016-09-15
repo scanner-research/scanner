@@ -16,7 +16,6 @@
 #include "scanner/eval/caffe/caffe_cpu_evaluator.h"
 
 #include "scanner/util/common.h"
-#include "scanner/util/opencv.h"
 #include "scanner/util/util.h"
 
 namespace scanner {
@@ -70,19 +69,6 @@ void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
 
   // Resize into
   std::vector<float> mean_image = descriptor_.mean_image;
-  cv::Mat unsized_mean_mat(
-    descriptor_.mean_height * 3,
-    descriptor_.mean_width,
-    CV_32FC1,
-    mean_image.data());
-  // HACK(apoms): Resizing the mean like this is not likely to produce a correct
-  //              result because we are resizing where the color channels are
-  //              considered individual pixels.
-  cv::resize(unsized_mean_mat, mean_mat_,
-             cv::Size(net_input_width, net_input_height * 3));
-
-  input_mat = cv::Mat(frame_height, frame_width, CV_8UC3);
-
   transformer_->configure(metadata);
 }
 
@@ -92,7 +78,7 @@ void CaffeCPUEvaluator::evaluate(
   int batch_size)
 {
   size_t frame_size =
-    av_image_get_buffer_size(AV_PIX_FMT_NV12,
+    av_image_get_buffer_size(AV_PIX_FMT_RGB24,
                              metadata.width,
                              metadata.height,
                              1);

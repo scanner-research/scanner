@@ -19,13 +19,6 @@
 #include "scanner/eval/evaluator_constructor.h"
 #include "scanner/eval/caffe/net_descriptor.h"
 
-#include <opencv2/opencv.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudawarping.hpp>
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/core/cuda_stream_accessor.hpp>
-
 namespace scanner {
 
 class CaffeGPUEvaluator : public Evaluator {
@@ -50,19 +43,8 @@ protected:
   CaffeInputTransformer* transformer_;
   int device_id_;
   std::unique_ptr<caffe::Net<float>> net_;
-  cv::cuda::GpuMat mean_mat_; // mean image for input normalization
 
   std::vector<size_t> output_sizes_;
-
-  std::vector<cv::cuda::Stream> cv_streams;
-  std::vector<cv::cuda::GpuMat> input_mats;
-  std::vector<cv::cuda::GpuMat> rgba_mat;
-  std::vector<cv::cuda::GpuMat> rgb_mat;
-  std::vector<cv::cuda::GpuMat> conv_input;
-  std::vector<cv::cuda::GpuMat> conv_planar_input;
-  std::vector<cv::cuda::GpuMat> float_conv_input;
-  std::vector<cv::cuda::GpuMat> normed_input;
-  std::vector<cv::cuda::GpuMat> scaled_input;
 };
 
 class CaffeGPUEvaluatorConstructor : public EvaluatorConstructor {

@@ -20,10 +20,6 @@
 #include "scanner/eval/caffe/net_descriptor.h"
 #include "scanner/eval/caffe/caffe_input_transformer_factory.h"
 
-#include <opencv2/opencv.hpp>
-#include <opencv2/stitching.hpp>
-#include <opencv2/imgproc.hpp>
-
 namespace scanner {
 
 class CaffeCPUEvaluator : public Evaluator {
@@ -48,16 +44,8 @@ protected:
   CaffeInputTransformer* transformer_;
   int device_id_;
   std::unique_ptr<caffe::Net<float>> net_;
-  cv::Mat mean_mat_; // mean image for input normalization
 
   std::vector<size_t> output_sizes_;
-
-  cv::Mat input_mat;
-  cv::Mat conv_input;
-  cv::Mat conv_planar_input;
-  cv::Mat float_conv_input;
-  cv::Mat normed_input;
-  cv::Mat scaled_input;
 
   DatasetItemMetadata metadata_;
 };

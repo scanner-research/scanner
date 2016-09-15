@@ -18,9 +18,16 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudawarping.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
+
 namespace scanner {
 
-class VGGCPUInputTransformer : public CaffeInputTransformer {
+class VGGGPUInputTransformer : public CaffeInputTransformer {
 public:
   void configure(const DatasetItemMetadata& metadata) override;
 
@@ -42,7 +49,7 @@ private:
   cv::Mat normed_input;
 };
 
-class VGGCPUInputTransformerFactory : public CaffeInputTransformerFactory {
+class VGGGPUInputTransformerFactory : public CaffeInputTransformerFactory {
 public:
   CaffeInputTransformer* construct(const EvaluatorConfig& config) override;
 };

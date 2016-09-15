@@ -16,6 +16,11 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 
 project(Scanner)
 
+###### Config options #####
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
+option(BUILD_CAFFE_EVALUATORS "" OFF)
+option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
+
 enable_testing()
 
 ###### Setup #########
@@ -51,25 +56,31 @@ if (CUDA_FOUND)
   include_directories(${CUDA_INCLUDE_DIRS})
 endif()
 
-find_package(Caffe)
-if (CAFFE_FOUND)
-  add_definitions(-DHAVE_CAFFE)
-  include_directories(${CAFFE_INCLUDE_DIRS})
+if (BUILD_CAFFE_EVALUATORS)
+  find_package(Caffe)
+  if (CAFFE_FOUND)
+    add_definitions(-DHAVE_CAFFE)
+    include_directories(${CAFFE_INCLUDE_DIRS})
+  endif()
+
+  if (BUILD_CAFFE_INPUT_TRANSFORMERS)
+    # Requires opencv3
+    set(OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
+    if (CUDA_FOUND)
+      append(OPENCV_DESIRED_COMPONENTS
+        cudawarping cudaimgproc cudafilters cudaarithm)
+
+      find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
+      if (OpenCV_FOUND)
+        include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+        list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
+        add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
+      endif()
+    endif()
+  endif()
 endif()
 
 ###### Required Dependencies #######
-# Require opencv3
-
-set(OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
-if (CUDA_FOUND)
-  append(OPENCV_DESIRED_COMPONENTS
-    cudawarping cudaimgproc cudafilters cudaarithm)
-endif()
-
-find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
-add_definitions(-DUSE_OPENCV)
 
 find_package(FFmpeg REQUIRED)
 find_package(MPI REQUIRED)
@@ -122,7 +133,6 @@ include_directories(
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${Boost_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
-  "${OpenCV_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
   "${GOOGLETEST_INCLUDE_DIRS}")
