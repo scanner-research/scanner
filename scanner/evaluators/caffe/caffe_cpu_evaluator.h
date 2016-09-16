@@ -17,8 +17,8 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_constructor.h"
-#include "scanner/eval/caffe/net_descriptor.h"
-#include "scanner/eval/caffe/caffe_input_transformer_factory.h"
+#include "scanner/evaluators/caffe/net_descriptor.h"
+#include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
 #include <memory>
 #include <vector>
@@ -31,23 +31,24 @@ public:
     const EvaluatorConfig& config,
     const NetDescriptor& descriptor,
     CaffeInputTransformer* transformer,
-    int device_id);
+    i32 device_id);
 
   virtual void configure(const DatasetItemMetadata& metadata) override;
 
   virtual void evaluate(
-    char* input_buffer,
-    std::vector<char*> output_buffers,
-    int batch_size) override;
+    u8* input_buffer,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes,
+    i32 batch_size) override;
 
 protected:
   EvaluatorConfig config_;
   NetDescriptor descriptor_;
   std::unique_ptr<CaffeInputTransformer> transformer_;
-  int device_id_;
+  i32 device_id_;
   std::unique_ptr<caffe::Net<float>> net_;
 
-  std::vector<size_t> output_sizes_;
+  std::vector<size_t> output_layer_sizes_;
 
   DatasetItemMetadata metadata_;
 };
@@ -58,31 +59,25 @@ public:
     const NetDescriptor& net_descriptor,
     CaffeInputTransformerFactory* transformer_factory);
 
-  virtual int get_number_of_devices() override;
+  virtual i32 get_number_of_devices() override;
 
   virtual DeviceType get_input_buffer_type() override;
 
   virtual DeviceType get_output_buffer_type() override;
 
-  virtual int get_number_of_outputs() override;
+  virtual i32 get_number_of_outputs() override;
 
   virtual std::vector<std::string> get_output_names() override;
 
-  virtual std::vector<size_t> get_output_element_sizes() override;
-
-  virtual char* new_input_buffer(const EvaluatorConfig& config) override;
+  virtual u8* new_input_buffer(const EvaluatorConfig& config) override;
 
   virtual void delete_input_buffer(
     const EvaluatorConfig& config,
-    char* buffer) override;
+    u8* buffer) override;
 
-  virtual std::vector<char*> new_output_buffers(
+  virtual void delete_output_buffer(
     const EvaluatorConfig& config,
-    int num_inputs) override;
-
-  virtual void delete_output_buffers(
-    const EvaluatorConfig& config,
-    std::vector<char*> buffers) override;
+    u8* buffers) override;
 
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

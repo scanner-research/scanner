@@ -13,11 +13,9 @@
  * limitations under the License.
  */
 
-#include "scanner/eval/caffe/net_descriptor.h"
+#include "scanner/evaluators/caffe/net_descriptor.h"
 
 #include "toml/toml.h"
-
-#include <opencv2/opencv.hpp>
 
 #include <cstdlib>
 

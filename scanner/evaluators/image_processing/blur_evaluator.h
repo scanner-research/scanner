@@ -22,54 +22,54 @@ namespace scanner {
 
 class BlurEvaluator : public Evaluator {
 public:
-  BlurEvaluator(EvaluatorConfig config, int kernel_size, double sigma);
+  BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma);
 
   virtual void configure(const DatasetItemMetadata& metadata) override;
 
   virtual void evaluate(
-    char* input_buffer,
-    std::vector<std::vector<char*>>& output_buffers,
+    u8* input_buffer,
+    std::vector<std::vector<u8*>>& output_buffers,
     std::vector<std::vector<size_t>>& output_sizes,
-    int batch_size) override;
+    i32 batch_size) override;
 
 private:
-  int kernel_size_;
-  int filter_left_;
-  int filter_right_;
-  double sigma_;
+  i32 kernel_size_;
+  i32 filter_left_;
+  i32 filter_right_;
+  f64 sigma_;
 
   DatasetItemMetadata metadata_;
 };
 
 class BlurEvaluatorConstructor : public EvaluatorConstructor {
 public:
-  BlurEvaluatorConstructor(int kernel_size, double sigma);
+  BlurEvaluatorConstructor(i32 kernel_size, f64 sigma);
 
-  virtual int get_number_of_devices() override;
+  virtual i32 get_number_of_devices() override;
 
   virtual DeviceType get_input_buffer_type() override;
 
   virtual DeviceType get_output_buffer_type() override;
 
-  virtual int get_number_of_outputs() override;
+  virtual i32 get_number_of_outputs() override;
 
   virtual std::vector<std::string> get_output_names() override;
 
-  virtual char* new_input_buffer(const EvaluatorConfig& config) override;
+  virtual u8* new_input_buffer(const EvaluatorConfig& config) override;
 
   virtual void delete_input_buffer(
     const EvaluatorConfig& config,
-    char* buffer) override;
+    u8* buffer) override;
 
   virtual void delete_output_buffer(
     const EvaluatorConfig& config,
-    char* buffers) override;
+    u8* buffers) override;
 
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
 private:
-  int kernel_size_;
-  double sigma_;
+  i32 kernel_size_;
+  f64 sigma_;
 };
 
 }

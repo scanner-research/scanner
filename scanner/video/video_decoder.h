@@ -60,7 +60,7 @@ public:
 
   void set_profiler(Profiler* profiler);
 
-private:
+protected:
   Profiler* profiler_ = nullptr;
 };
 

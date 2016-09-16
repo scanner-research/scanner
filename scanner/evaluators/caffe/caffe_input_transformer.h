@@ -26,9 +26,9 @@ public:
   virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
   virtual void transform_input(
-    char* input_buffer,
-    float* net_input,
-    int batch_size) = 0;
+    u8* input_buffer,
+    f32* net_input,
+    i32 batch_size) = 0;
 };
 
 }

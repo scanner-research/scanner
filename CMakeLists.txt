@@ -17,10 +17,10 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
 
 enable_testing()
 
@@ -61,6 +61,10 @@ if (BUILD_CAFFE_EVALUATORS)
   find_package(Caffe REQUIRED)
   add_definitions(-DHAVE_CAFFE)
   include_directories(${CAFFE_INCLUDE_DIRS})
+
+  if (NOT CUDA_FOUND)
+    add_definitions(-DCPU_ONLY)
+  endif()
 
   if (BUILD_CAFFE_INPUT_TRANSFORMERS)
     # Requires opencv3

@@ -21,8 +21,8 @@ namespace scanner {
 
 BlurEvaluator::BlurEvaluator(
   EvaluatorConfig config,
-  int kernel_size,
-  double sigma)
+  i32 kernel_size,
+  f64 sigma)
   : kernel_size_(kernel_size),
     filter_left_(std::ceil(kernel_size / 2.0) - 1),
     filter_right_(kernel_size / 2),
@@ -35,26 +35,26 @@ void BlurEvaluator::configure(const DatasetItemMetadata& metadata) {
 }
 
 void BlurEvaluator::evaluate(
-  char* input_buffer,
-  std::vector<std::vector<char*>>& output_buffers,
+  u8* input_buffer,
+  std::vector<std::vector<u8*>>& output_buffers,
   std::vector<std::vector<size_t>>& output_sizes,
-  int batch_size)
+  i32 batch_size)
 {
-  int width = metadata_.width;
-  int height = metadata_.height;
+  i32 width = metadata_.width;
+  i32 height = metadata_.height;
+  size_t frame_size = width * height * 3 * sizeof(u8);
 
-  size_t frame_size = width * height * 3 * sizeof(char);
-  for (int i = 0; i < batch_size; ++i) {
-    char* output_buffer = new char[frame_size];
+  for (i32 i = 0; i < batch_size; ++i) {
+    u8* output_buffer = new u8[frame_size];
 
-    uint8_t* frame_buffer = (uint8_t*)(input_buffer + frame_size * i);
-    uint8_t* blurred_buffer = (uint8_t*)(output_buffer);
-    for (int y = filter_left_; y < height - filter_right_; ++y) {
-      for (int x = filter_left_; x < width - filter_right_; ++x) {
-        for (int c = 0; c < 3; ++c) {
-          uint32_t value = 0;
-          for (int ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
-            for (int rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
+    u8* frame_buffer = (input_buffer + frame_size * i);
+    u8* blurred_buffer = (output_buffer);
+    for (i32 y = filter_left_; y < height - filter_right_; ++y) {
+      for (i32 x = filter_left_; x < width - filter_right_; ++x) {
+        for (i32 c = 0; c < 3; ++c) {
+          u32 value = 0;
+          for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
+            for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
               value += frame_buffer[(y + ry) * width * 3 +
                                     (x + rx) * 3 +
                                     c];
@@ -72,14 +72,14 @@ void BlurEvaluator::evaluate(
 }
 
 BlurEvaluatorConstructor::BlurEvaluatorConstructor(
-  int kernel_size,
-  double sigma)
+  i32 kernel_size,
+  f64 sigma)
   : kernel_size_(kernel_size),
     sigma_(sigma)
 {
 }
 
-int BlurEvaluatorConstructor::get_number_of_devices() {
+i32 BlurEvaluatorConstructor::get_number_of_devices() {
   return 1;
 }
 
@@ -91,7 +91,7 @@ DeviceType BlurEvaluatorConstructor::get_output_buffer_type() {
   return DeviceType::CPU;
 }
 
-int BlurEvaluatorConstructor::get_number_of_outputs() {
+i32 BlurEvaluatorConstructor::get_number_of_outputs() {
   return 1;
 }
 
@@ -99,26 +99,26 @@ std::vector<std::string> BlurEvaluatorConstructor::get_output_names() {
   return {"image"};
 }
 
-char*
+u8*
 BlurEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
-  return new char[
+  return new u8[
     config.max_batch_size *
     config.max_frame_width *
     config.max_frame_height *
     3 *
-    sizeof(char)];
+    sizeof(u8)];
 }
 
 void BlurEvaluatorConstructor::delete_input_buffer(
   const EvaluatorConfig& config,
-  char* buffer)
+  u8* buffer)
 {
   delete[] buffer;
 }
 
 void BlurEvaluatorConstructor::delete_output_buffer(
   const EvaluatorConfig& config,
-  char* buffer)
+  u8* buffer)
 {
   delete[] buffer;
 }
