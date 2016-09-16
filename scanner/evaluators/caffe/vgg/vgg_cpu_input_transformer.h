@@ -19,7 +19,6 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
 #include <opencv2/opencv.hpp>
-#include <opencv2/stitching.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace scanner {

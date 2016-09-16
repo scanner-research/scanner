@@ -29,8 +29,10 @@ VGGCPUInputTransformer::VGGCPUInputTransformer(
     CV_32FC1,
     mean_image.data());
   // HACK(apoms): Resizing the mean like this is not likely to produce a correct
-  //              result because we are resizing where the color channels are
-  //              considered individual pixels.
+  //              result because we are resizing a planar BGR layout which is
+  //              represented in OpenCV as a single channel image with a height
+  //              three times as high. Thus resizing is going to blur the
+  //              borders slightly where the channels touch.
   cv::resize(unsized_mean_mat, mean_mat,
              cv::Size(NET_INPUT_WIDTH, NET_INPUT_HEIGHT * 3));
 

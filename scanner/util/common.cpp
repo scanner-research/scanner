@@ -117,7 +117,7 @@ void serialize_dataset_item_metadata(
   size_t metadata_packets_size = metadata.metadata_packets.size();
   EXP_BACKOFF(
     file->append(sizeof(size_t),
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    &metadata_packets_size)),
     result);
   exit_on_error(result);
@@ -125,7 +125,7 @@ void serialize_dataset_item_metadata(
   // Metadata packets
   EXP_BACKOFF(
     file->append(metadata_packets_size,
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    metadata.metadata_packets.data())),
     result);
   exit_on_error(result);
@@ -139,27 +139,27 @@ void serialize_dataset_item_metadata(
   size_t num_keyframes = metadata.keyframe_positions.size();
 
   EXP_BACKOFF(
-    file->append(sizeof(size_t), reinterpret_cast<char*>(&num_keyframes)),
+    file->append(sizeof(size_t), reinterpret_cast<u8*>(&num_keyframes)),
     result);
   exit_on_error(result);
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_keyframes,
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    metadata.keyframe_positions.data())),
     result);
   exit_on_error(result);
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_keyframes,
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    metadata.keyframe_timestamps.data())),
     result);
   exit_on_error(result);
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_keyframes,
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    metadata.keyframe_byte_offsets.data())),
     result);
   exit_on_error(result);
@@ -185,7 +185,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(size_t),
-               reinterpret_cast<char*>(&metadata_size),
+               reinterpret_cast<u8*>(&metadata_size),
                size_read),
     result);
   exit_on_error(result);
@@ -197,7 +197,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->read(pos,
                metadata_size,
-               reinterpret_cast<char*>(meta.metadata_packets.data()),
+               reinterpret_cast<u8*>(meta.metadata_packets.data()),
                size_read),
     result);
   exit_on_error(result);
@@ -213,7 +213,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(size_t),
-               reinterpret_cast<char*>(&num_keyframes),
+               reinterpret_cast<u8*>(&num_keyframes),
                size_read),
     result);
   exit_on_error(result);
@@ -227,7 +227,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int64_t) * num_keyframes,
-               reinterpret_cast<char*>(meta.keyframe_positions.data()),
+               reinterpret_cast<u8*>(meta.keyframe_positions.data()),
                size_read),
     result);
   exit_on_error(result);
@@ -237,7 +237,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int64_t) * num_keyframes,
-               reinterpret_cast<char*>(meta.keyframe_timestamps.data()),
+               reinterpret_cast<u8*>(meta.keyframe_timestamps.data()),
                size_read),
     result);
   assert(result == StoreResult::Success ||
@@ -248,7 +248,7 @@ DatasetItemMetadata deserialize_dataset_item_metadata(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int64_t) * num_keyframes,
-               reinterpret_cast<char*>(meta.keyframe_byte_offsets.data()),
+               reinterpret_cast<u8*>(meta.keyframe_byte_offsets.data()),
                size_read),
     result);
   assert(result == StoreResult::Success ||
@@ -266,34 +266,34 @@ void serialize_dataset_item_web_timestamps(
   StoreResult result;
   EXP_BACKOFF(
     file->append(sizeof(int),
-                 reinterpret_cast<const char*>(&metadata.time_base_numerator)),
+                 reinterpret_cast<const u8*>(&metadata.time_base_numerator)),
     result);
   exit_on_error(result);
 
   // Width
   EXP_BACKOFF(
     file->append(sizeof(int),
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    &metadata.time_base_denominator)),
     result);
   exit_on_error(result);
 
   size_t num_frames = metadata.pts_timestamps.size();
   EXP_BACKOFF(
-    file->append(sizeof(size_t), reinterpret_cast<char*>(&num_frames)),
+    file->append(sizeof(size_t), reinterpret_cast<u8*>(&num_frames)),
     result);
   exit_on_error(result);
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_frames,
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    metadata.pts_timestamps.data())),
     result);
   exit_on_error(result);
 
   EXP_BACKOFF(
     file->append(sizeof(int64_t) * num_frames,
-                 reinterpret_cast<const char*>(
+                 reinterpret_cast<const u8*>(
                    metadata.dts_timestamps.data())),
     result);
   exit_on_error(result);
@@ -312,7 +312,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int),
-               reinterpret_cast<char*>(&meta.time_base_numerator),
+               reinterpret_cast<u8*>(&meta.time_base_numerator),
                size_read),
     result);
   exit_on_error(result);
@@ -323,7 +323,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int),
-               reinterpret_cast<char*>(&meta.time_base_denominator),
+               reinterpret_cast<u8*>(&meta.time_base_denominator),
                size_read),
     result);
   exit_on_error(result);
@@ -335,7 +335,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(size_t),
-               reinterpret_cast<char*>(&num_frames),
+               reinterpret_cast<u8*>(&num_frames),
                size_read),
     result);
   exit_on_error(result);
@@ -348,7 +348,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int64_t) * num_frames,
-               reinterpret_cast<char*>(meta.pts_timestamps.data()),
+               reinterpret_cast<u8*>(meta.pts_timestamps.data()),
                size_read),
     result);
   exit_on_error(result);
@@ -358,7 +358,7 @@ DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(int64_t) * num_frames,
-               reinterpret_cast<char*>(meta.dts_timestamps.data()),
+               reinterpret_cast<u8*>(meta.dts_timestamps.data()),
                size_read),
     result);
   assert(result == StoreResult::Success ||
@@ -402,7 +402,7 @@ void serialize_job_descriptor(
   std::string doc = Json::writeString(wbuilder, root);
 
   EXP_BACKOFF(
-    file->append(doc.size(), doc.c_str()),
+    file->append(doc.size(), reinterpret_cast<const u8*>(doc.c_str())),
     result);
   exit_on_error(result);
 }
@@ -414,7 +414,7 @@ JobDescriptor deserialize_job_descriptor(
   JobDescriptor descriptor;
 
   // Load the entire input
-  std::vector<char> bytes = read_entire_file(file, file_pos);
+  std::vector<u8> bytes = read_entire_file(file, file_pos);
 
   std::istringstream ss(std::string(bytes.begin(), bytes.end()));
   Json::Value root;

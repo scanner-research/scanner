@@ -26,20 +26,6 @@
 
 namespace scanner {
 
-class Logger {
-public:
-  void spew(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void debug(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void info(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void print(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void warning(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void error(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-  void fatal(const char *fmt, ...) __attribute__((format (printf, 2, 3)));
-
-};
-
-extern Logger log_ls;
-
 class SpinLock {
     std::atomic_flag locked = ATOMIC_FLAG_INIT ;
 public:
