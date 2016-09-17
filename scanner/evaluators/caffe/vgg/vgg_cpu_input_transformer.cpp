@@ -74,13 +74,13 @@ void VGGCPUInputTransformer::transform_input(
     planar_input.convertTo(float_input, CV_32FC1);
     cv::subtract(float_input, mean_mat, normalized_input);
     for (i32 r = 0; r < normalized_input.rows; ++r) {
+      u8* mat_pos =
+        normalized_input.data +
+        r * normalized_input.step;
       u8* input_pos = reinterpret_cast<u8*>(
         net_input +
         i * (NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3) +
         r * NET_INPUT_WIDTH);
-      u8* mat_pos =
-        normalized_input.data +
-        r * normalized_input.step * sizeof(float);
       memcpy(input_pos, mat_pos, normalized_input.cols * sizeof(float));
     }
   }

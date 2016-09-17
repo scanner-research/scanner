@@ -173,7 +173,8 @@ void VideoHandler::onEOM() noexcept {
         meta["id"] = job_id;
         meta["name"] = job_name;
         meta["dataset"] = job_descriptor.dataset_name;
-        meta["featureType"] = "detection";//"classification";
+        //meta["featureType"] = "detection";
+        meta["featureType"] = "classification";
 
         json = meta;
       }
@@ -186,7 +187,8 @@ void VideoHandler::onEOM() noexcept {
       meta["id"] = job_id;
       meta["name"] = job_name;
       meta["dataset"] = job_descriptor.dataset_name;
-      meta["featureType"] = "detection";
+      //meta["featureType"] = "detection";
+      meta["featureType"] = "classification";
 
       json.push_back(meta);
     }

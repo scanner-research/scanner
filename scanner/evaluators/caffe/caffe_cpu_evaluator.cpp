@@ -45,6 +45,7 @@ CaffeCPUEvaluator::CaffeCPUEvaluator(
     const boost::shared_ptr<caffe::Blob<float>> output_blob{
       net_->blob_by_name(output_layer_name)};
     size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
+    output_layer_lengths_.push_back(output_blob->count(1));
     output_layer_sizes_.push_back(output_size_per_frame);
   }
 }
@@ -72,10 +73,6 @@ void CaffeCPUEvaluator::evaluate(
   std::vector<std::vector<size_t>>& output_sizes,
   i32 batch_size)
 {
-  int width = metadata_.width;
-  int height = metadata_.height;
-  size_t frame_size = width * height * 3 * sizeof(char);
-
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net_->blob_by_name(descriptor_.input_layer_name)};
 
@@ -87,7 +84,7 @@ void CaffeCPUEvaluator::evaluate(
     input_blob->Reshape({batch_size, 3, net_input_height, net_input_width});
   }
 
-  float* net_input_buffer = input_blob->mutable_cpu_data();
+  f32* net_input_buffer = input_blob->mutable_cpu_data();
 
   // Process batch of frames
   auto cv_start = now();
@@ -109,10 +106,11 @@ void CaffeCPUEvaluator::evaluate(
     const std::string& output_layer_name = descriptor_.output_layer_names[i];
     const boost::shared_ptr<caffe::Blob<float>> output_blob{
       net_->blob_by_name(output_layer_name)};
+    size_t output_length = output_layer_lengths_[i];
     size_t output_size = output_layer_sizes_[i];
     for (i32 b = 0; b < batch_size; ++b) {
       u8* buffer = new u8[output_size];
-      memcpy(buffer, output_blob->cpu_data() + b * output_size, output_size);
+      memcpy(buffer, output_blob->cpu_data() + b * output_length, output_size);
       output_buffers[i].push_back(buffer);
       output_sizes[i].push_back(output_size);
     }

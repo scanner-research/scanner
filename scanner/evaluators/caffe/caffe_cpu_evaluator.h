@@ -48,6 +48,7 @@ protected:
   i32 device_id_;
   std::unique_ptr<caffe::Net<float>> net_;
 
+  std::vector<size_t> output_layer_lengths_;
   std::vector<size_t> output_layer_sizes_;
 
   DatasetItemMetadata metadata_;
