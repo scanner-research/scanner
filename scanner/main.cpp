@@ -24,7 +24,7 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #else
-#include "scanner/evaluators/movie_analysis/histogram_evaluator.h"
+#include "scanner/evaluators/movie_analysis/face_evaluator.h"
 #endif
 
 #include "scanner/util/common.h"
@@ -66,7 +66,7 @@ using storehouse::RandomReadFile;
 
 namespace {
 
-const std::string DB_PATH = "/homes/wcrichto/lightscan/db";
+const std::string DB_PATH = "/export/data1/stanford/lightscan/db";
 
 }
 
@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    HistogramEvaluatorConstructor evaluator_constructor;
+    FaceEvaluatorConstructor evaluator_constructor;
 
     // #endif
 

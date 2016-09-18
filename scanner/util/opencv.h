@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "scanner/util/common.h"
+
 #include <opencv2/opencv.hpp>
 
 #ifdef HAVE_CUDA
@@ -34,3 +36,9 @@ void convertRGBInterleavedToPlanar(
   int height,
   cv::cuda::Stream& stream = cv::cuda::Stream::Null());
 #endif
+
+namespace scanner {
+
+cv::Mat bytesToImage(u8* buf, i32 i, const DatasetItemMetadata& metadata);
+
+}

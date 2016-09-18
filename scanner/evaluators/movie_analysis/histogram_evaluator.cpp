@@ -19,7 +19,7 @@
 
 namespace scanner {
 
-const int BINS = 256;
+const i32 BINS = 256;
 
 HistogramEvaluator::HistogramEvaluator(EvaluatorConfig) {}
 
@@ -35,12 +35,9 @@ void HistogramEvaluator::evaluate(
   std::vector<std::vector<size_t>>& output_sizes,
   i32 batch_size)
 {
-  i64 frame_size = metadata.width * metadata.height * 3 * sizeof(u8);
   i64 hist_size = BINS * 3 * sizeof(u8);
   for (i32 i = 0; i < batch_size; i++) {
-    u8* frame_buffer = (u8*)(input_buffer + frame_size * i);
-    u8* hist_buffer = new u8[hist_size];
-    cv::Mat img(metadata.height, metadata.width, CV_8UC3, frame_buffer);
+    cv::Mat img = bytesToImage(input_buffer, i, metadata);
     std::vector<cv::Mat> bgr_planes;
     cv::split(img, bgr_planes);
 
@@ -57,6 +54,7 @@ void HistogramEvaluator::evaluate(
     cv::hconcat(hists, hist);
     hist.convertTo(hist_u8, CV_8U);
 
+    u8* hist_buffer = new u8[hist_size];
     memcpy(hist_buffer, hist_u8.data, hist_u8.total() * hist_u8.elemSize());
 
     output_sizes[0].push_back(hist_size);
@@ -68,7 +66,7 @@ HistogramEvaluatorConstructor::HistogramEvaluatorConstructor() {}
 
 HistogramEvaluatorConstructor::~HistogramEvaluatorConstructor() {}
 
-int HistogramEvaluatorConstructor::get_number_of_devices() {
+i32 HistogramEvaluatorConstructor::get_number_of_devices() {
   return 1;
 }
 
@@ -80,7 +78,7 @@ DeviceType HistogramEvaluatorConstructor::get_output_buffer_type() {
   return DeviceType::CPU;
 }
 
-int HistogramEvaluatorConstructor::get_number_of_outputs() {
+i32 HistogramEvaluatorConstructor::get_number_of_outputs() {
   return 1;
 }
 

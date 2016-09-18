@@ -503,7 +503,7 @@ void* save_thread(void* arg) {
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
     // HACK(apoms): debugging
-    if (true) {
+    if (false) {
       u8* frame_buffer =
         reinterpret_cast<u8*>(save_work_entry.output_buffers[0][0]);
 

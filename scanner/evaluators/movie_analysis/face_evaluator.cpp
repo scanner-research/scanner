@@ -15,11 +15,14 @@
 
 #include "scanner/evaluators/movie_analysis/face_evaluator.h"
 
-#include "scanner/util/opencv.h"
 
 namespace scanner {
 
-FaceEvaluator::FaceEvaluator(EvaluatorConfig) {}
+FaceEvaluator::FaceEvaluator(EvaluatorConfig) {
+  if (!face_detector.load("/export/data1/stanford/lightscan/haarcascade_frontalface_alt.xml")) {
+    LOG(ERROR) << "Failed to load face cascade";
+  }
+}
 
 FaceEvaluator::~FaceEvaluator() {}
 
@@ -33,13 +36,34 @@ void FaceEvaluator::evaluate(
   std::vector<std::vector<size_t>>& output_sizes,
   i32 batch_size)
 {
+  for (i32 i = 0; i < batch_size; ++i) {
+
+    cv::Mat img = bytesToImage(input_buffer, i, metadata);
+    std::vector<cv::Rect> faces;
+    face_detector.detectMultiScale(
+      img, faces, 1.1, 2, cv::CASCADE_SCALE_IMAGE, cv::Size(30, 30));
+
+    i32 size = faces.size() * sizeof(i32) * 4;
+    i32* output_buffer = (i32*) (new u8[size]);
+    for (i32 j = 0; j < faces.size(); ++j) {
+      cv::Rect& face = faces[j];
+      i32* offset = output_buffer + j * 4;
+      *(offset+0) = face.x;
+      *(offset+1) = face.y;
+      *(offset+2) = face.width;
+      *(offset+3) = face.height;
+    }
+
+    output_buffers[0].push_back((u8*)output_buffer);
+    output_sizes[0].push_back(size);
+  }
 }
 
 FaceEvaluatorConstructor::FaceEvaluatorConstructor() {}
 
 FaceEvaluatorConstructor::~FaceEvaluatorConstructor() {}
 
-int FaceEvaluatorConstructor::get_number_of_devices() {
+i32 FaceEvaluatorConstructor::get_number_of_devices() {
   return 1;
 }
 
@@ -51,7 +75,7 @@ DeviceType FaceEvaluatorConstructor::get_output_buffer_type() {
   return DeviceType::CPU;
 }
 
-int FaceEvaluatorConstructor::get_number_of_outputs() {
+i32 FaceEvaluatorConstructor::get_number_of_outputs() {
   return 1;
 }
 

@@ -2,6 +2,7 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_constructor.h"
+#include "scanner/util/opencv.h"
 
 namespace scanner {
 
@@ -21,6 +22,7 @@ public:
 
 private:
   DatasetItemMetadata metadata;
+  cv::CascadeClassifier face_detector;
 };
 
 class FaceEvaluatorConstructor : public EvaluatorConstructor {
