@@ -40,8 +40,7 @@ CaffeCPUEvaluator::CaffeCPUEvaluator(
     net_->blob_by_name(descriptor.input_layer_name)};
 
   // Get output blobs that we will extract net evaluation results from
-  for (const std::string& output_layer_name : descriptor.output_layer_names)
-  {
+  for (const std::string& output_layer_name : descriptor.output_layer_names) {
     const boost::shared_ptr<caffe::Blob<float>> output_blob{
       net_->blob_by_name(output_layer_name)};
     size_t output_size_per_frame = output_blob->count(1) * sizeof(float);

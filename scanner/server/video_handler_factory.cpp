@@ -29,8 +29,10 @@ using storehouse::StoreResult;
 namespace scanner {
 
 VideoHandlerFactory::VideoHandlerFactory(
-  storehouse::StorageConfig* storage_config)
-  : storage_config_(storage_config)
+  storehouse::StorageConfig* storage_config,
+  const std::string& job_name)
+  : storage_config_(storage_config),
+    job_name_(job_name)
 {
 }
 
@@ -48,7 +50,7 @@ proxygen::RequestHandler* VideoHandlerFactory::onRequest(
   proxygen::RequestHandler*,
   proxygen::HTTPMessage*) noexcept 
 {
-  return new VideoHandler(stats_.get(), storage_config_);
+  return new VideoHandler(stats_.get(), storage_config_, job_name_);
 }
 
 }

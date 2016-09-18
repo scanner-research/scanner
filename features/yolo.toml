@@ -1,0 +1,27 @@
+[net]
+    model = "features/yolo/yolo_deploy.prototxt"
+    weights = "features/yolo/yolo.caffemodel"
+    input_layer = "data"
+    output_layers = ["result"]
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width",
+        ]
+        channel_ordering = [
+            "blue"
+            "green"
+            "red"
+        ]
+
+[mean-image]
+    width = 448
+    height = 448
+
+    [mean-image.colors]
+        blue = 0.0
+        green = 0.0
+        red =  0.0

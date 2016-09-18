@@ -22,7 +22,7 @@
 
 #include "storehouse/storage_backend.h"
 
-#include "scanner/parsers/imagenet_parser.h"
+#include "scanner/parsers/yolo_parser.h"
 
 #include <proxygen/httpserver/RequestHandler.h>
 #include <proxygen/httpserver/ResponseBuilder.h>
@@ -104,9 +104,13 @@ JobDescriptor read_job_descriptor(
 
 }
 
-VideoHandler::VideoHandler(VideoHandlerStats* stats, StorageConfig* config):
+VideoHandler::VideoHandler(
+  VideoHandlerStats* stats,
+  StorageConfig* config,
+  const std::string& job_name):
   stats_(stats),
-  storage_(StorageBackend::make_from_config(config))
+  storage_(StorageBackend::make_from_config(config)),
+  job_name_(job_name)
 {
 }
 
@@ -137,9 +141,8 @@ void VideoHandler::onEOM() noexcept {
 
   // Static job name and parser for now
   const i32 job_id = 1;
-  const std::string job_name = "test_small";
 
-  ResultsParser* parser = new ImagenetParser();
+  ResultsParser* parser = new YoloParser(0.1);
 
   static const boost::regex jobs_regex("^/jobs");
   static const boost::regex videos_regex("^/videos");
@@ -153,7 +156,7 @@ void VideoHandler::onEOM() noexcept {
   boost::smatch match_result;
   if (boost::regex_match(path, match_result, jobs_regex)) {
     JobDescriptor job_descriptor =
-      read_job_descriptor(storage_.get(), job_name);
+      read_job_descriptor(storage_.get(), job_name_);
 
     folly::dynamic json = folly::dynamic::object;
 
@@ -171,10 +174,10 @@ void VideoHandler::onEOM() noexcept {
         folly::dynamic meta = folly::dynamic::object;
 
         meta["id"] = job_id;
-        meta["name"] = job_name;
+        meta["name"] = job_name_;
         meta["dataset"] = job_descriptor.dataset_name;
-        //meta["featureType"] = "detection";
-        meta["featureType"] = "classification";
+        meta["featureType"] = "detection";
+        //meta["featureType"] = "classification";
 
         json = meta;
       }
@@ -185,10 +188,10 @@ void VideoHandler::onEOM() noexcept {
       folly::dynamic meta = folly::dynamic::object;
 
       meta["id"] = job_id;
-      meta["name"] = job_name;
+      meta["name"] = job_name_;
       meta["dataset"] = job_descriptor.dataset_name;
-      //meta["featureType"] = "detection";
-      meta["featureType"] = "classification";
+      meta["featureType"] = "detection";
+      //meta["featureType"] = "classification";
 
       json.push_back(meta);
     }
@@ -209,7 +212,7 @@ void VideoHandler::onEOM() noexcept {
         response.status(400, "Bad Request");
       } else {
         JobDescriptor job_descriptor =
-          read_job_descriptor(storage_.get(), job_name);
+          read_job_descriptor(storage_.get(), job_name_);
         DatasetDescriptor dataset_descriptor =
           read_dataset_descriptor(storage_.get(), job_descriptor.dataset_name);
 
@@ -296,7 +299,7 @@ void VideoHandler::onEOM() noexcept {
         response.status(400, "Bad Request");
       } else {
         JobDescriptor job_descriptor =
-          read_job_descriptor(storage_.get(), job_name);
+          read_job_descriptor(storage_.get(), job_name_);
         DatasetDescriptor dataset_descriptor =
           read_dataset_descriptor(storage_.get(), job_descriptor.dataset_name);
 
@@ -372,7 +375,7 @@ void VideoHandler::onEOM() noexcept {
                  ++output_index)
             {
               std::string output_path = job_item_output_path(
-                job_name,
+                job_name_,
                 item_name,
                 output_names[output_index],
                 start,
@@ -435,7 +438,7 @@ void VideoHandler::onEOM() noexcept {
       response.status(400, "Bad Request");
     } else {
       JobDescriptor job_descriptor =
-        read_job_descriptor(storage_.get(), job_name);
+        read_job_descriptor(storage_.get(), job_name_);
       DatasetDescriptor dataset_descriptor =
         read_dataset_descriptor(storage_.get(), job_descriptor.dataset_name);
 

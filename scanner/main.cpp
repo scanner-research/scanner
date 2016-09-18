@@ -256,6 +256,33 @@ int main(int argc, char** argv) {
 
       } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
+        po::options_description serve_desc("serve options");
+        serve_desc.add_options()
+          ("help", "Produce help message")
+          ("job_name", po::value<std::string>()->required(),
+           "Name of job to serve results for");
+
+        po::positional_options_description serve_pos;
+        serve_pos.add("job_name", 1);
+
+        try {
+          po::store(po::command_line_parser(opts)
+                    .options(serve_desc)
+                    .positional(serve_pos)
+                    .run(),
+                    vm);
+          po::notify(vm);
+        } catch (const po::required_option& e) {
+          if (vm.count("help")) {
+            std::cout << serve_desc << std::endl;
+            return 1;
+          } else {
+            throw e;
+          }
+        }
+
+        job_name = vm["job_name"].as<std::string>();
+
 #else
         std::cout << "Scanner not built with results serving support."
                   << std::endl;
@@ -345,7 +372,7 @@ int main(int argc, char** argv) {
     options.shutdownOn = {SIGINT, SIGTERM};
     options.enableContentCompression = false;
     options.handlerFactories = pg::RequestHandlerChain()
-      .addThen<VideoHandlerFactory>(config)
+      .addThen<VideoHandlerFactory>(config, job_name)
       .build();
 
     pg::HTTPServer server(std::move(options));

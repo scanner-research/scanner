@@ -13,36 +13,59 @@
  * limitations under the License.
  */
 
-#include "scanner/parser/yolo_parser.h"
+#include "scanner/parsers/yolo_parser.h"
 
 namespace scanner {
 
-YoloParser::YoloParser() {
+YoloParser::YoloParser(double threshold)
+  : threshold_(threshold)
+{
   categories_ = {
-    "Car",
-    "Pedestrian",
-    "Cyclist",
+    "aeroplane",
+    "bicycle",
+    "bird",
+    "boat",
+    "bottle",
+    "bus",
+    "car",
+    "cat",
+    "chair",
+    "cow",
+    "diningtable",
+    "dog",
+    "horse",
+    "motorbike",
+    "person",
+    "pottedplant",
+    "sheep",
+    "sofa",
+    "train",
+    "tvmonitor",
   };
-  input_width_ = 640;
-  input_height_ = 480;
-  grid_width_ = 40;
-  grid_height_ = 30;
+  num_categories_ = static_cast<i32>(categories_.size());
+
+  input_width_ = 448;
+  input_height_ = 448;
+  grid_width_ = 7;
+  grid_height_ = 7;
   cell_width_ = input_width_ / grid_width_;
   cell_height_ = input_height_ / grid_height_;
+  num_bboxes_ = 2;
 
-  num_categories_ = static_cast<i32>(categories_.size());
   feature_vector_lengths_ = {
-    grid_width_ * grid_height_ * num_categories_ * 4, // bbox params
-    grid_width_ * grid_height_ * num_categories_ * 1, // objectness
+    grid_width_ * grid_height_ * num_categories_, // category confidences
+    grid_width_ * grid_height_ * num_bboxes_,       // objectness
+    grid_width_ * grid_height_ * num_bboxes_ * 4    // bbox attributes
   };
   feature_vector_sizes_ = {
     sizeof(f32) * feature_vector_lengths_[0],
     sizeof(f32) * feature_vector_lengths_[1],
+    sizeof(f32) * feature_vector_lengths_[2],
   };
 }
 
 std::vector<std::string> YoloParser::get_output_names() {
-  return {"Layer19_bbox", "Layer19_cov"};
+  return {"result"};
 }
 
 void YoloParser::parse_output(
@@ -51,97 +74,82 @@ void YoloParser::parse_output(
   folly::dynamic& parsed_results)
 {
   // Track confidence per pixel for each category so we can calculate
-// uncertainty across the frame
+  // uncertainty across the frame
+  assert(output_size[0] == (
+           feature_vector_sizes_[0] +
+           feature_vector_sizes_[1] +
+           feature_vector_sizes_[2]));
+  f32* category_confidences_vector =
+    reinterpret_cast<f32*>(output[0]);
+  f32* objectness_vector =
+    category_confidences_vector + feature_vector_sizes_[0];
+  f32* bbox_vector =
+    objectness_vector += feature_vector_sizes_[1];
+
   std::vector<f32> pixel_confidences(
-    input_height_ * input_width_ * num_categories_);
+    input_height_ * input_width_ * num_categories_, 0.0f);
 
-  memset(pixel_confidences.data(),
-         0,
-         sizeof(f32) * pixel_confidences.size());
-
-// Get bounding box data from output feature vector and turn it
-// into canonical center x, center y, width, height
-
-// Confidence format is (confidence, x, y)
-  std::vector<f32>& confidence_vector = feature_vectors[1];
-// Bbox format is (bbox_values, x, y)
-// bbox_values is 4 * num_categories_
-  std::vector<f32>& bbox_vector = feature_vectors[0];
-  i32 bbox_stride = grid_width_ * grid_height_;
-  i32 category_stride = bbox_stride * 4;
+  // Get bounding box data from output feature vector and turn it
+  // into canonical center x, center y, width, height
   folly::dynamic bboxes = folly::dynamic::array();
   for (i32 yi = 0; yi < grid_height_; ++yi) {
     for (i32 xi = 0; xi < grid_width_; ++xi) {
-      for (i32 category = 0; category < num_categories_; ++category) {
-        if (filtered_category != -1 &&
-            category != filtered_category)
-        {
-          continue;
-        }
+      for (i32 bi = 0; bi < num_bboxes_; ++bi) {
         folly::dynamic bbox = folly::dynamic::object();
         i32 vec_offset = yi * grid_width_ + xi;
-        i32 category_offset = category_stride * category;
 
-        f32 x = (xi * cell_width_ + 0.5) / input_width_;
-        f32 y = (yi * cell_height_ + 0.5) / input_height_;
+        f32 x =
+          ((xi + bbox_vector[(vec_offset) * num_bboxes_ + bi * 4 + 0])
+           / grid_width_) * input_width_;
+        f32 y =
+          ((yi + bbox_vector[(vec_offset) * num_bboxes_ + bi * 4 + 1])
+           / grid_height_) * input_height_;
 
-        f32 confidence = confidence_vector[vec_offset];
-        if (confidence < threshold) continue;
-        f32 abs_left =
-          x - bbox_vector[category_offset +
-                          bbox_stride * 0 +
-                          vec_offset];
-        f32 abs_top =
-          y - bbox_vector[category_offset +
-                          bbox_stride * 1 +
-                          vec_offset];
-        f32 abs_right =
-          x + bbox_vector[category_offset +
-                          bbox_stride * 2 +
-                          vec_offset];
-        f32 abs_bottom =
-          y + bbox_vector[category_offset +
-                          bbox_stride * 3 +
-                          vec_offset];
+        f32 width =
+          std::pow(bbox_vector[(vec_offset) * num_bboxes_ + bi * 4 + 3], 2)
+          * input_width_;
+        f32 height =
+          std::pow(bbox_vector[(vec_offset) * num_bboxes_ + bi * 4 + 4], 2)
+          * input_height_;
 
-        abs_left *= input_width_;
-        abs_top *= input_height_;
-        abs_right *= input_width_;
-        abs_bottom *= input_height_;
+        std::vector<f32> category_probabilities(num_categories_);
+        for (i32 c = 0; c < num_categories_; ++c) {
+          f64 prob =
+            objectness_vector[vec_offset * num_bboxes_ + bi] *
+            category_confidences_vector[vec_offset + c];
+          category_probabilities[c] = prob;
 
-        for (i32 bbox_y = std::max(abs_top, 0.0f);
-             bbox_y < std::min(abs_bottom, (f32)input_height_);
-             ++bbox_y)
-        {
-          for (i32 bbox_x = std::max(abs_left, 0.0f);
-               bbox_x < std::min(abs_right, (f32)input_width_);
-               ++bbox_x)
+          if (prob < threshold_) continue;
+
+          for (i32 bbox_y = std::max(y - height / 2, 0.0f);
+               bbox_y < std::min(y + height / 2, (f32)input_height_);
+               ++bbox_y)
           {
-            f32& max_confidence =
-              pixel_confidences[bbox_y * input_width_ +
-                                bbox_x * num_categories_ +
-                                category];
-            if (confidence > max_confidence) {
-              max_confidence = confidence;
+            for (i32 bbox_x = std::max(x - width / 2, 0.0f);
+                 bbox_x < std::min(x + width / 2, (f32)input_width_);
+                 ++bbox_x)
+            {
+              f32& max_confidence =
+                pixel_confidences[bbox_y * input_width_ +
+                                  bbox_x * num_categories_ +
+                                  c];
+              if (prob > max_confidence) {
+                max_confidence = prob;
+              }
             }
           }
+
+          if (width < 0 || height < 0) continue;
+
+          bbox["category"] = c;
+          bbox["x"]      = x;
+          bbox["y"]      = y;
+          bbox["width"]  = width;
+          bbox["height"] = height;
+          bbox["confidence"] = prob;
+
+          bboxes.push_back(bbox);
         }
-
-        f32 width = (abs_right - abs_left);
-        f32 height = (abs_bottom - abs_top);
-        f32 center_x = width / 2 + abs_left;
-        f32 center_y = height / 2 + abs_top;
-
-        if (width < 0 || height < 0) continue;
-
-        bbox["category"] = category;
-        bbox["x"]      = center_x;
-        bbox["y"]      = center_y;
-        bbox["width"]  = width;
-        bbox["height"] = height;
-        bbox["confidence"] = confidence;
-
-        bboxes.push_back(bbox);
       }
     }
   }
@@ -167,14 +175,14 @@ void YoloParser::parse_output(
         }
       }
       certainty += (max1 - max2);
-      if (max1 > threshold || max2 > threshold) {
+      if (max1 > threshold_ || max2 > threshold_) {
         non_thresholded_pixels++;
       }
     }
   }
 
-  feature_data["data"]["bboxes"] = bboxes;
-  feature_data["data"]["certainty"] =
+  parsed_results["bboxes"] = bboxes;
+  parsed_results["certainty"] =
     certainty / non_thresholded_pixels;
 }
 

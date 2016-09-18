@@ -21,7 +21,7 @@ namespace scanner {
 
 class YoloParser : public ResultsParser {
 public:
-  YoloParser();
+  YoloParser(double threshold);
 
   std::vector<std::string> get_output_names() override;
 
@@ -39,8 +39,11 @@ private:
   i32 grid_height_;
   i32 cell_width_;
   i32 cell_height_;
+  i32 num_bboxes_;
   std::vector<i32> feature_vector_lengths_;
   std::vector<size_t> feature_vector_sizes_;
+
+  double threshold_;
 };
 
 }
