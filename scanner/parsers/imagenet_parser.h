@@ -15,22 +15,24 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
-#include "scanner/evaluators/caffe/net_descriptor.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer.h"
-
-#include <vector>
+#include "scanner/server/results_parser.h"
 
 namespace scanner {
 
-class CaffeInputTransformerFactory {
+class ImagenetParser : public ResultsParser {
 public:
-  virtual ~CaffeInputTransformerFactory() {};
+  ImagenetParser();
 
-  virtual CaffeInputTransformer* construct(
-    const EvaluatorConfig& config,
-    const NetDescriptor& descriptor) = 0;
+  std::vector<std::string> get_output_names() override;
+
+  void parse_output(
+    const std::vector<u8*>& output,
+    const std::vector<i64>& output_size,
+    folly::dynamic& parsed_results) override;
+
+private:
+  static const size_t FEATURE_VECTOR_LENGTH = 1000;
+  static const size_t FEATURE_VECTOR_SIZE = FEATURE_VECTOR_LENGTH * sizeof(f32);
 };
 
 }

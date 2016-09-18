@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/util/common.h"
+#include "scanner/util/profiler.h"
 
 #include <vector>
 
@@ -32,6 +33,13 @@ public:
     std::vector<std::vector<u8*>>& output_buffers,
     std::vector<std::vector<size_t>>& output_sizes,
     i32 batch_size) = 0;
+
+  void set_profiler(Profiler* profiler) {
+    profiler_ = profiler;
+  }
+
+protected:
+  Profiler* profiler_ = nullptr;
 };
 
 // allocate buffers

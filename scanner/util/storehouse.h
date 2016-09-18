@@ -28,7 +28,7 @@ inline void write(
   size_t size)
 {
   storehouse::StoreResult result;
-  EXP_BACKOFF(file->append(size, reinterpret_cast<const char*>(buffer)), result);
+  EXP_BACKOFF(file->append(size, buffer), result);
   exit_on_error(result);
 }
 
@@ -50,7 +50,7 @@ inline void read(
 {
   storehouse::StoreResult result;
   size_t size_read;
-  EXP_BACKOFF(file->read(pos, size, reinterpret_cast<char*>(buffer), size_read), result);
+  EXP_BACKOFF(file->read(pos, size, buffer, size_read), result);
   if (result != storehouse::StoreResult::EndOfFile) {
     exit_on_error(result);
   }
@@ -76,7 +76,7 @@ inline std::string read(storehouse::RandomReadFile* file, u64& pos) {
 
     storehouse::StoreResult result;
     size_t size_read;
-    EXP_BACKOFF(file->read(pos, buf_size, reinterpret_cast<char*>(buf), size_read), result);
+    EXP_BACKOFF(file->read(pos, buf_size, buf, size_read), result);
     if (result != storehouse::StoreResult::EndOfFile) {
       exit_on_error(result);
       assert(size_read == buf_size);

@@ -15,22 +15,35 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
-#include "scanner/evaluators/caffe/net_descriptor.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer.h"
-
-#include <vector>
+#include "scanner/server/results_parser.h"
 
 namespace scanner {
 
-class CaffeInputTransformerFactory {
+class YoloParser : public ResultsParser {
 public:
-  virtual ~CaffeInputTransformerFactory() {};
+  YoloParser(double threshold);
 
-  virtual CaffeInputTransformer* construct(
-    const EvaluatorConfig& config,
-    const NetDescriptor& descriptor) = 0;
+  std::vector<std::string> get_output_names() override;
+
+  void parse_output(
+    const std::vector<u8*>& output,
+    const std::vector<i64>& output_size,
+    folly::dynamic& parsed_results) override;
+
+private:
+  std::vector<std::string> categories_;
+  i32 num_categories_;
+  i32 input_width_;
+  i32 input_height_;
+  i32 grid_width_;
+  i32 grid_height_;
+  i32 cell_width_;
+  i32 cell_height_;
+  i32 num_bboxes_;
+  std::vector<i32> feature_vector_lengths_;
+  std::vector<size_t> feature_vector_sizes_;
+
+  double threshold_;
 };
 
 }

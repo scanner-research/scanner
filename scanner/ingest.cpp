@@ -290,14 +290,12 @@ bool read_timestamps(std::string video_path,
         dts_timestamps.push_back(state.picture->pkt_dts);
 
         if (state.picture->key_frame == 1) {
-          printf("keyframe dts %d\n",
-                 state.picture->pkt_dts);
-          printf("keyframe pts %d\n",
-                 state.picture->pkt_pts);
         }
         // the picture is allocated by the decoder. no need to free
         frame++;
       }
+      state.av_packet.data += len;
+      state.av_packet.size -= len;
     }
     state.av_packet.data = orig_data;
     state.av_packet.size = orig_size;
@@ -622,8 +620,9 @@ bool preprocess_video(
         std::min(WRITE_SIZE, demuxed_video_stream.size() - pos);
       StoreResult result;
       EXP_BACKOFF(
-        output_file->append(size_to_write,
-                            reinterpret_cast<const char*>(demuxed_video_stream.data() + pos)),
+        output_file->append(
+          size_to_write,
+          reinterpret_cast<const u8*>(demuxed_video_stream.data() + pos)),
         result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
@@ -673,7 +672,7 @@ bool preprocess_video(
 
       StoreResult result;
       EXP_BACKOFF(
-        output_file->append(size_read, reinterpret_cast<char*>(buffer.data())),
+        output_file->append(size_read, reinterpret_cast<u8*>(buffer.data())),
         result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
@@ -684,8 +683,7 @@ bool preprocess_video(
 
   // Get timestamp info for web video
   DatasetItemWebTimestamps timestamps_meta;
-  succeeded = true;
-  //succeeded = read_timestamps(temp_output_path, timestamps_meta);
+  succeeded = read_timestamps(temp_output_path, timestamps_meta);
   if (!succeeded) {
     fprintf(stderr, "Could not get timestamps from web data\n");
     cleanup_video_codec(state);
@@ -746,7 +744,7 @@ i32 read_last_processed_video(
   EXP_BACKOFF(
     file->read(pos,
                sizeof(i32),
-               reinterpret_cast<char*>(&last_processed_video),
+               reinterpret_cast<u8*>(&last_processed_video),
                size_read),
     result);
   assert(result == StoreResult::Success ||
@@ -774,12 +772,10 @@ void write_last_processed_video(
   StoreResult result;
   EXP_BACKOFF(
     file->append(sizeof(i32),
-                 reinterpret_cast<const char*>(&file_index)),
+                 reinterpret_cast<const u8*>(&file_index)),
     result);
   exit_on_error(result);
 }
-
-
 
 } // end anonymous namespace
 

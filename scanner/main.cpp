@@ -16,17 +16,6 @@
 #include "scanner/ingest.h"
 #include "scanner/engine.h"
 
-#include "scanner/video/video_decoder.h"
-
-#ifdef HAVE_CAFFE
-#include "scanner/evaluators/caffe/net_descriptor.h"
-#include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer.h"
-#else
-#include "scanner/evaluators/movie_analysis/face_evaluator.h"
-#endif
-
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 #include "scanner/util/profiler.h"
@@ -34,6 +23,19 @@
 #include "storehouse/storage_config.h"
 #include "storehouse/storage_backend.h"
 
+#include "scanner/video/video_decoder.h"
+
+#ifdef HAVE_CAFFE
+#include "scanner/evaluators/caffe/net_descriptor.h"
+#include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
+#include "scanner/evaluators/caffe/vgg/vgg_cpu_input_transformer.h"
+#endif
+#include "scanner/evaluators/image_processing/blur_evaluator.h"
+#include "scanner/evaluators/movie_analysis/face_evaluator.h"
+
+#include "scanner/server/video_handler_factory.h"
+
+// For parsing command line args
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -51,14 +53,26 @@
 #include <atomic>
 #include <iostream>
 
+// For setting up libav*
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 }
 
+// For serve command
+#ifdef HAVE_SERVER
+#include <folly/Memory.h>
+#include <folly/Portability.h>
+#include <folly/io/async/EventBaseManager.h>
+#include <proxygen/httpserver/HTTPServer.h>
+#include <proxygen/httpserver/RequestHandlerFactory.h>
+#include <unistd.h>
+#endif
+
 using namespace scanner;
 namespace po = boost::program_options;
+namespace pg = proxygen;
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -241,8 +255,44 @@ int main(int argc, char** argv) {
         job_name = vm["job_name"].as<std::string>();
         dataset_name = vm["dataset_name"].as<std::string>();
 
+      } else if (cmd == "serve") {
+#ifdef HAVE_SERVER
+        po::options_description serve_desc("serve options");
+        serve_desc.add_options()
+          ("help", "Produce help message")
+          ("job_name", po::value<std::string>()->required(),
+           "Name of job to serve results for");
+
+        po::positional_options_description serve_pos;
+        serve_pos.add("job_name", 1);
+
+        try {
+          po::store(po::command_line_parser(opts)
+                    .options(serve_desc)
+                    .positional(serve_pos)
+                    .run(),
+                    vm);
+          po::notify(vm);
+        } catch (const po::required_option& e) {
+          if (vm.count("help")) {
+            std::cout << serve_desc << std::endl;
+            return 1;
+          } else {
+            throw e;
+          }
+        }
+
+        job_name = vm["job_name"].as<std::string>();
+
+#else
+        std::cout << "Scanner not built with results serving support."
+                  << std::endl;
+        return 1;
+#endif
       } else {
-        std::cout << "Command must be one of 'run' or 'ingest'." << std::endl;
+        std::cout << "Command must be one of "
+                  << "'ingest', 'run', or 'serve'."
+                  << std::endl;
         return 1;
       }
   }
@@ -276,21 +326,22 @@ int main(int argc, char** argv) {
 
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
 
-    // #ifdef HAVE_CAFFE
-    // NetDescriptor descriptor;
-    // {
-    //   std::ifstream net_file{net_descriptor_file};
-    //   descriptor = descriptor_from_net_file(net_file);
-    // }
-    // CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor);
-    // #else
-
+#ifdef HAVE_CAFFE
+    std::string net_descriptor_file = "features/vgg.toml";
+    NetDescriptor descriptor;
+    {
+      std::ifstream net_file{net_descriptor_file};
+      descriptor = descriptor_from_net_file(net_file);
+    }
+    VGGCPUInputTransformerFactory* factory =
+      new VGGCPUInputTransformerFactory();
+    CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor, factory);
+#else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
     FaceEvaluatorConstructor evaluator_constructor;
 
-    // #endif
 
     run_job(
       config,
@@ -298,6 +349,43 @@ int main(int argc, char** argv) {
       &evaluator_constructor,
       job_name,
       dataset_name);
+  } else if (cmd == "serve") {
+#ifdef HAVE_SERVER
+    std::string ip = "0.0.0.0";
+    i32 http_port = 11000;
+    i32 spdy_port = 11001;
+    i32 http2_port = 11002;
+    i32 threads = 1;
+    std::vector<pg::HTTPServer::IPConfig> IPs = {
+      {folly::SocketAddress(ip, http_port, true),
+       pg::HTTPServer::Protocol::HTTP},
+
+      {folly::SocketAddress(ip, spdy_port, true),
+       pg::HTTPServer::Protocol::SPDY},
+
+      {folly::SocketAddress(ip, http2_port, true),
+       pg::HTTPServer::Protocol::HTTP2},
+    };
+
+    pg::HTTPServerOptions options;
+    options.threads = static_cast<size_t>(threads);
+    options.idleTimeout = std::chrono::milliseconds(60000);
+    options.shutdownOn = {SIGINT, SIGTERM};
+    options.enableContentCompression = false;
+    options.handlerFactories = pg::RequestHandlerChain()
+      .addThen<VideoHandlerFactory>(config, job_name)
+      .build();
+
+    pg::HTTPServer server(std::move(options));
+    server.bind(IPs);
+
+    // Start HTTPServer mainloop in a separate thread
+    std::thread t([&] () {
+        server.start();
+      });
+
+    t.join();
+#endif
   }
 
   // Cleanup

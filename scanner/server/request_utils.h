@@ -1,4 +1,4 @@
-/* Copyright 2016 Carnegie Mellon University
+/* Copyright 2016 Carnegie Mellon University, NVIDIA Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,15 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
-#include "scanner/evaluators/caffe/net_descriptor.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer.h"
-
-#include <vector>
+#include <proxygen/lib/http/HTTPMessage.h>
+#include <proxygen/httpserver/ResponseBuilder.h>
 
 namespace scanner {
 
-class CaffeInputTransformerFactory {
-public:
-  virtual ~CaffeInputTransformerFactory() {};
-
-  virtual CaffeInputTransformer* construct(
-    const EvaluatorConfig& config,
-    const NetDescriptor& descriptor) = 0;
-};
+void serve_static(
+  const std::string& static_root,
+  const std::string& path,
+  proxygen::HTTPMessage* message,
+  proxygen::ResponseBuilder& response);
 
 }

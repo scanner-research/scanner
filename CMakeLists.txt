@@ -17,10 +17,11 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
+option(BUILD_SERVER "" OFF)
 
 enable_testing()
 
@@ -28,10 +29,13 @@ enable_testing()
 # Verify C++11 support
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-if(COMPILER_SUPPORTS_CXX11)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX1Y)
+if(COMPILER_SUPPORTS_CXX1Y)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
+# if(COMPILER_SUPPORTS_CXX11)
+#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 else()
-  message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
+  message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++1y support.")
 endif()
 
 # Include our custom cmake modules for finding packages
@@ -62,6 +66,10 @@ if (BUILD_CAFFE_EVALUATORS)
   add_definitions(-DHAVE_CAFFE)
   include_directories(${CAFFE_INCLUDE_DIRS})
 
+  if (NOT CUDA_FOUND)
+    add_definitions(-DCPU_ONLY)
+  endif()
+
   if (BUILD_CAFFE_INPUT_TRANSFORMERS)
     # Requires opencv3
     set(OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
@@ -77,6 +85,16 @@ if (BUILD_CAFFE_EVALUATORS)
   endif()
 endif()
 
+if (BUILD_SERVER)
+  find_package(Proxygen REQUIRED)
+  find_package(Folly REQUIRED)
+  add_definitions(-DHAVE_SERVER)
+  include_directories(
+    "${PROXYGEN_INCLUDE_DIRS}"
+    "${FOLLY_INCLUDE_DIRS}")
+endif()
+
+
 ###### Required Dependencies #######
 
 find_package(FFmpeg REQUIRED)
@@ -84,7 +102,7 @@ find_package(MPI REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options REQUIRED)
+find_package(Boost COMPONENTS thread program_options regex REQUIRED)
 find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(CURL REQUIRED)
@@ -113,6 +131,8 @@ set(SCANNER_LIBRARIES
   "${LIBLZMA_LIBRARIES}"
   "${OPENSSL_LIBRARIES}"
   "${BZIP2_LIBRARIES}"
+  "${PROXYGEN_LIBRARIES}"
+  "${FOLLY_LIBRARIES}"
   "${Boost_LIBRARIES}"
   "${GFLAGS_LIBRARIES}"
   "${GLOG_LIBRARIES}"
@@ -128,6 +148,7 @@ include_directories(
   "${TINYTOML_INCLUDE_DIR}"
   "${JSONCPP_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
+  "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
   "${GLOG_INCLUDE_DIRS}"
@@ -161,6 +182,8 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:eval>
   $<TARGET_OBJECTS:evaluators>
+  $<TARGET_OBJECTS:parsers>
+  $<TARGET_OBJECTS:server>
   $<TARGET_OBJECTS:util>)
 
 if(APPLE)

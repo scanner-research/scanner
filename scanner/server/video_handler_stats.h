@@ -1,4 +1,4 @@
-/* Copyright 2016 Carnegie Mellon University
+/* Copyright 2016 Carnegie Mellon University, NVIDIA Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,23 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
-#include "scanner/evaluators/caffe/net_descriptor.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer.h"
-
-#include <vector>
-
 namespace scanner {
 
-class CaffeInputTransformerFactory {
+class VideoHandlerStats {
 public:
-  virtual ~CaffeInputTransformerFactory() {};
+  virtual ~VideoHandlerStats() {
+  }
 
-  virtual CaffeInputTransformer* construct(
-    const EvaluatorConfig& config,
-    const NetDescriptor& descriptor) = 0;
+  virtual void recordRequest() {
+    ++req_count_;
+  }
+
+  virtual uint64_t getRequestCount() {
+    return req_count_;
+  }
+
+ private:
+  uint64_t req_count_{0};
 };
 
 }

@@ -1,0 +1,55 @@
+.thumbnail {
+    display: inline-block;
+}
+
+#video-browser {
+    width: 48%;
+    display: inline-block;
+    vertical-align: top;
+}
+.video-timeline {
+    width: 100;
+}
+
+#main-panel {
+    width: 48%;
+    display: inline-block;
+    position: fixed;
+    left: 50%;
+    top: 0px;
+    vertical-align: top;
+}
+
+.timeline-axis {
+    position: relative;
+    height: 100px;
+    background-color: transparent;
+}
+
+.timeline-tick {
+    position: absolute;
+    border-left: 1px solid;
+    border-color: #dedede;
+    background-color: transparent;
+}
+
+.timeline-tick-label {
+    position: absolute;
+    text-align: center;
+}
+
+.timeline-pos-indicator {
+    text-align: center;
+}
+
+.bbox-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+}
+
+.bbox {
+    fill: transparent;
+    stroke: red;
+}

@@ -23,9 +23,9 @@
 
 namespace scanner {
 
-class VGGCPUInputTransformer : public CaffeInputTransformer {
+class YoloCPUInputTransformer : public CaffeInputTransformer {
 public:
-  VGGCPUInputTransformer(const NetDescriptor& descriptor);
+  YoloCPUInputTransformer(const NetDescriptor& descriptor);
 
   void configure(const DatasetItemMetadata& metadata) override;
 
@@ -35,8 +35,8 @@ public:
     i32 batch_size) override;
 
 private:
-  static const i32 NET_INPUT_WIDTH = 224;
-  static const i32 NET_INPUT_HEIGHT = 224;
+  static const i32 NET_INPUT_WIDTH = 448;
+  static const i32 NET_INPUT_HEIGHT = 448;
 
   NetDescriptor descriptor_;
   DatasetItemMetadata metadata_;
@@ -51,7 +51,7 @@ private:
   cv::Mat normalized_input;
 };
 
-class VGGCPUInputTransformerFactory : public CaffeInputTransformerFactory {
+class YoloCPUInputTransformerFactory : public CaffeInputTransformerFactory {
 public:
   CaffeInputTransformer* construct(
     const EvaluatorConfig& config,

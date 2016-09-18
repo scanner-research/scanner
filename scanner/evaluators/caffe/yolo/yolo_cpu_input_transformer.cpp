@@ -13,11 +13,11 @@
  * limitations under the License.
  */
 
-#include "scanner/evaluators/caffe/vgg/vgg_cpu_input_transformer.h"
+#include "scanner/evaluators/caffe/yolo/yolo_cpu_input_transformer.h"
 
 namespace scanner {
 
-VGGCPUInputTransformer::VGGCPUInputTransformer(
+YoloCPUInputTransformer::YoloCPUInputTransformer(
   const NetDescriptor& descriptor)
   : descriptor_(descriptor)
 {
@@ -46,11 +46,11 @@ VGGCPUInputTransformer::VGGCPUInputTransformer(
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void VGGCPUInputTransformer::configure(const DatasetItemMetadata& metadata) {
+void YoloCPUInputTransformer::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
 }
 
-void VGGCPUInputTransformer::transform_input(
+void YoloCPUInputTransformer::transform_input(
   u8* input_buffer,
   f32* net_input,
   int batch_size)
@@ -86,11 +86,11 @@ void VGGCPUInputTransformer::transform_input(
   }
 }
 
-CaffeInputTransformer* VGGCPUInputTransformerFactory::construct(
+CaffeInputTransformer* YoloCPUInputTransformerFactory::construct(
   const EvaluatorConfig& config,
   const NetDescriptor& descriptor)
 {
-  return new VGGCPUInputTransformer(descriptor);
+  return new YoloCPUInputTransformer(descriptor);
 }
 
 }

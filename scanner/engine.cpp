@@ -344,9 +344,6 @@ void* decode_thread(void* arg) {
     // Must clean up buffer allocated by load thread
     delete[] encoded_buffer;
 
-    //decode_times.push_back(decoder.time_spent_on_decode());
-    //memcpy_times.push_back(memcpy_time);
-
     args.profiler.add_interval("task", work_start, now());
 
     EvalWorkEntry eval_work_entry;
@@ -392,8 +389,6 @@ void* evaluate_thread(void* arg) {
 
     auto work_start = now();
 
-    u8* frame_buffer = work_entry.buffer;
-
     const VideoWorkItem& work_item =
       args.work_items[work_entry.work_item_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
@@ -432,13 +427,13 @@ void* evaluate_thread(void* arg) {
 
       std::vector<std::vector<u8*>> output_buffers(num_outputs);
       std::vector<std::vector<size_t>> output_sizes(num_outputs);
-
       evaluator->evaluate(
         frame_buffer,
         output_buffers,
         output_sizes,
         batch_size);
       for (i32 i = 0; i < num_outputs; ++i) {
+        assert(output_sizes[i].size() == output_buffers[i].size());
         work_item_output_sizes[i].insert(work_item_output_sizes[i].end(),
                                          output_sizes[i].begin(),
                                          output_sizes[i].end());
@@ -454,7 +449,7 @@ void* evaluate_thread(void* arg) {
 
     DecodeBufferEntry empty_buffer_entry;
     empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
-    empty_buffer_entry.buffer = frame_buffer;
+    empty_buffer_entry.buffer = work_entry.buffer;
     args.empty_decode_buffers.push(empty_buffer_entry);
 
     args.save_work.push(save_work_entry);
