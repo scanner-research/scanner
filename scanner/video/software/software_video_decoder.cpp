@@ -90,7 +90,7 @@ bool SoftwareVideoDecoder::feed(
 
   uint8_t* orig_data = packet_.data;
   int orig_size = packet_.size;
-  while (packet_.size > 0) {
+  do {
     // Get frame from pool of allocated frames to decode video into
     if (frame_pool_.empty()) {
       // Create a new frame if our pool is empty
@@ -126,7 +126,7 @@ bool SoftwareVideoDecoder::feed(
     }
     packet_.data += consumed_length;
     packet_.size -= consumed_length;
-  }
+  } while (packet_.size > 0);
   packet_.data = orig_data;
   packet_.size = orig_size;
   av_packet_unref(&packet_);
