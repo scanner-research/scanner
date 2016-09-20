@@ -25,8 +25,6 @@ option(BUILD_SERVER "" OFF)
 
 enable_testing()
 
-link_directories(/homes/wcrichto/local/lib)
-
 ###### Setup #########
 # Verify C++11 support
 include(CheckCXXCompilerFlag)
