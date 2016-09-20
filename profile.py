@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+import os
 import os.path
 import time
 import subprocess
 import sys
 import struct
 import json
+import re
 from collections import defaultdict
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -86,8 +88,26 @@ def parse_profiler_output(bytes_buffer, offset):
     }, offset
 
 
-def parse_profiler_file(job_name):
-    with open(job_name + '_job_profiler_0.bin', 'rb') as f:
+def parse_profiler_files(job_name):
+    r = re.compile('^{}_job_profiler_(\d+).bin$'.format(job_name))
+    files = []
+    for f in os.listdir('.'):
+        matches = r.match(f)
+        if matches is not None:
+            files.append(int(matches.group(1)))
+
+    files.sort()
+    profilers = {}
+    for n in files:
+        path = '{}_job_profiler_{}.bin'.format(job_name, n)
+        _, profs = parse_profiler_file(path)
+        profilers[n] = profs
+
+    return profilers
+
+
+def parse_profiler_file(profiler_path):
+    with open(profiler_path, 'rb') as f:
         bytes_buffer = f.read()
     offset = 0
     # Read start and end time intervals
@@ -233,33 +253,33 @@ def write_trace_file(profilers):
     traces = []
 
     next_tid = 0
-    worker_profiler_groups = profilers
-    for worker_type, profs in [('load', worker_profiler_groups['load']),
-                               ('decode', worker_profiler_groups['decode']),
-                               ('eval', worker_profiler_groups['eval']),
-                               ('save', worker_profiler_groups['save'])]:
-        for i, prof in enumerate(profs):
-            tid = next_tid
-            next_tid += 1
-            traces.append({
-                'name': 'thread_name',
-                'ph': 'M',
-                'pid': 1,
-                'tid': tid,
-                'args': {
-                    'name': worker_type + '_' + str(i)
-                }})
-            for interval in prof['intervals']:
+    for proc, worker_profiler_groups in profilers.iteritems():
+        for worker_type, profs in [('load', worker_profiler_groups['load']),
+                                   ('decode', worker_profiler_groups['decode']),
+                                   ('eval', worker_profiler_groups['eval']),
+                                   ('save', worker_profiler_groups['save'])]:
+            for i, prof in enumerate(profs):
+                tid = next_tid
+                next_tid += 1
                 traces.append({
-                    'name': interval[0],
-                    'cat': worker_type,
-                    'ph': 'X',
-                    'ts': interval[1] / 1000,  # ns to microseconds
-                    'dur': (interval[2] - interval[1]) / 1000,
-                    'pid': 1,
+                    'name': 'thread_name',
+                    'ph': 'M',
+                    'pid': proc,
                     'tid': tid,
-                    'args': {}
-                })
+                    'args': {
+                        'name': '{}{:02d}_{:02d}'.format(worker_type, proc, i)
+                    }})
+                for interval in prof['intervals']:
+                    traces.append({
+                        'name': interval[0],
+                        'cat': worker_type,
+                        'ph': 'X',
+                        'ts': interval[1] / 1000,  # ns to microseconds
+                        'dur': (interval[2] - interval[1]) / 1000,
+                        'pid': proc,
+                        'tid': tid,
+                        'args': {}
+                    })
     with open(TRACE_OUTPUT_PATH, 'w') as f:
         f.write(json.dumps(traces))
 
@@ -345,9 +365,12 @@ def multi_node_scaling_trials():
         trial_settings,
         times)
 
-
+import pprint
 def main(args):
-    single_node_scaling_trials()
+    profilers = parse_profiler_files('big')
+    write_trace_file(profilers)
+    # pp = pprint.PrettyPrinter(indent=2)
+    # pp.pprint(profilers['load'])
 
 
 if __name__ == '__main__':

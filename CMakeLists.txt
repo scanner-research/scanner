@@ -25,6 +25,8 @@ option(BUILD_SERVER "" OFF)
 
 enable_testing()
 
+link_directories(/homes/wcrichto/local/lib)
+
 ###### Setup #########
 # Verify C++11 support
 include(CheckCXXCompilerFlag)
@@ -94,6 +96,11 @@ if (BUILD_SERVER)
     "${FOLLY_INCLUDE_DIRS}")
 endif()
 
+if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
+  set(OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect)
+  find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
+  include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+endif()
 
 ###### Required Dependencies #######
 
