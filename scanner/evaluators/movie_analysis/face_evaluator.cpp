@@ -19,8 +19,8 @@
 namespace scanner {
 
 FaceEvaluator::FaceEvaluator(EvaluatorConfig) {
-  if (!face_detector.load("/export/data1/stanford/lightscan/haarcascade_frontalface_alt.xml")) {
-    LOG(ERROR) << "Failed to load face cascade";
+  if (!face_detector.load("/opt/stanford/wcrichto/haarcascade_frontalface_alt.xml")) {
+    LOG(FATAL) << "Failed to load face cascade";
   }
 }
 
