@@ -7,7 +7,8 @@ if (BUILD_CAFFE_EVALUATORS)
   if (BUILD_CAFFE_INPUT_TRANSFORMERS)
     list(APPEND SOURCE_FILES
       caffe/vgg/vgg_cpu_input_transformer.cpp
-      caffe/yolo/yolo_cpu_input_transformer.cpp)
+      caffe/yolo/yolo_cpu_input_transformer.cpp
+      caffe/facenet/facenet_cpu_input_transformer.cpp)
   endif()
 
   if (CUDA_FOUND)

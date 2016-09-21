@@ -17,11 +17,14 @@
 
 #include "scanner/server/results_parser.h"
 
+#include <vector>
+#include <string>
+
 namespace scanner {
 
-class YoloParser : public ResultsParser {
+class FacenetParser : public ResultsParser {
 public:
-  YoloParser(double threshold);
+  FacenetParser(double threshold);
 
   std::vector<std::string> get_output_names() override;
 
@@ -32,20 +35,31 @@ public:
     const std::vector<i64>& output_size,
     folly::dynamic& parsed_results) override;
 
-private:
-  std::vector<std::string> categories_;
-  i32 num_categories_;
-  i32 input_width_;
-  i32 input_height_;
-  i32 grid_width_;
-  i32 grid_height_;
+protected:
+  struct Box {
+    f32 x1;
+    f32 y1;
+    f32 x2;
+    f32 y2;
+    f32 confidence;
+  };
+
+  std::vector<Box> nms(std::vector<Box> boxes, f32 overlap);
+  
+  i32 num_templates_;
+  i32 net_input_width_;
+  i32 net_input_height_;
   i32 cell_width_;
   i32 cell_height_;
-  i32 num_bboxes_;
+  i32 grid_width_;
+  i32 grid_height_;
+  std::vector<std::vector<f32>> templates_;
   std::vector<i32> feature_vector_lengths_;
   std::vector<size_t> feature_vector_sizes_;
 
   double threshold_;
+
+  DatasetItemMetadata metadata_;
 };
 
 }

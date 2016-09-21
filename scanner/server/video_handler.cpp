@@ -19,10 +19,11 @@
 #include "scanner/server/results_parser.h"
 #include "scanner/util/storehouse.h"
 #include "scanner/util/common.h"
+#include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
 
-#include "scanner/parsers/yolo_parser.h"
+#include "scanner/parsers/facenet_parser.h"
 
 #include <proxygen/httpserver/RequestHandler.h>
 #include <proxygen/httpserver/ResponseBuilder.h>
@@ -142,7 +143,7 @@ void VideoHandler::onEOM() noexcept {
   // Static job name and parser for now
   const i32 job_id = 1;
 
-  ResultsParser* parser = new YoloParser(0.1);
+  ResultsParser* parser = new FacenetParser(2.5);
 
   static const boost::regex jobs_regex("^/jobs");
   static const boost::regex videos_regex("^/videos");
@@ -338,6 +339,14 @@ void VideoHandler::onEOM() noexcept {
           read_dataset_item_web_timestamps(storage_.get(),
                                            job_descriptor.dataset_name,
                                            item_name);
+
+        DatasetItemMetadata meta =
+          read_dataset_item_metadata(
+            storage_.get(),
+            job_descriptor.dataset_name,
+            item_name);
+
+        parser->configure(meta);
 
 
         folly::dynamic feature_classes = folly::dynamic::array();

@@ -23,9 +23,9 @@
 
 namespace scanner {
 
-class VGGCPUInputTransformer : public CaffeInputTransformer {
+class FacenetCPUInputTransformer : public CaffeInputTransformer {
 public:
-  VGGCPUInputTransformer(const NetDescriptor& descriptor);
+  FacenetCPUInputTransformer(const NetDescriptor& descriptor);
 
   void configure(
     const DatasetItemMetadata& metadata,
@@ -37,23 +37,22 @@ public:
     i32 batch_size) override;
 
 private:
-  static const i32 NET_INPUT_WIDTH = 224;
-  static const i32 NET_INPUT_HEIGHT = 224;
-
   NetDescriptor descriptor_;
   DatasetItemMetadata metadata_;
 
-  cv::Mat mean_mat;
+  i32 net_input_width_;
+  i32 net_input_height_;
 
-  cv::Mat resized_input;
-  cv::Mat bgr_input;
-  std::vector<cv::Mat> input_planes;
-  cv::Mat planar_input;
+  cv::Mat mean_mat_;
+
   cv::Mat float_input;
   cv::Mat normalized_input;
+  cv::Mat flipped_input;
+  std::vector<cv::Mat> input_planes;
+  cv::Mat planar_input;
 };
 
-class VGGCPUInputTransformerFactory : public CaffeInputTransformerFactory {
+class FacenetCPUInputTransformerFactory : public CaffeInputTransformerFactory {
 public:
   CaffeInputTransformer* construct(
     const EvaluatorConfig& config,

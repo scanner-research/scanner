@@ -35,18 +35,6 @@ CaffeCPUEvaluator::CaffeCPUEvaluator(
   // Initialize our network
   net_.reset(new caffe::Net<float>(descriptor_.model_path, caffe::TEST));
   net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
-
-  const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net_->blob_by_name(descriptor.input_layer_name)};
-
-  // Get output blobs that we will extract net evaluation results from
-  for (const std::string& output_layer_name : descriptor.output_layer_names) {
-    const boost::shared_ptr<caffe::Blob<float>> output_blob{
-      net_->blob_by_name(output_layer_name)};
-    size_t output_size_per_frame = output_blob->count(1) * sizeof(float);
-    output_layer_lengths_.push_back(output_blob->count(1));
-    output_layer_sizes_.push_back(output_size_per_frame);
-  }
 }
 
 void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
@@ -54,16 +42,12 @@ void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net_->blob_by_name(descriptor_.input_layer_name)};
-  // Dimensions of network input image
-  i32 net_input_height = input_blob->shape(2);
-  i32 net_input_width = input_blob->shape(3);
-
   if (input_blob->shape(0) != config_.max_batch_size) {
     input_blob->Reshape(
-      {config_.max_batch_size, 3, net_input_height, net_input_width});
+      {config_.max_batch_size, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
-  transformer_->configure(metadata);
+  transformer_->configure(metadata, net_.get());
 }
 
 void CaffeCPUEvaluator::evaluate(
@@ -75,12 +59,9 @@ void CaffeCPUEvaluator::evaluate(
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net_->blob_by_name(descriptor_.input_layer_name)};
 
-  // Dimensions of network input image
-  i32 net_input_height = input_blob->shape(2);
-  i32 net_input_width = input_blob->shape(3);
-
   if (input_blob->shape(0) != batch_size) {
-    input_blob->Reshape({batch_size, 3, net_input_height, net_input_width});
+    input_blob->Reshape({
+        batch_size, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
   f32* net_input_buffer = input_blob->mutable_cpu_data();
@@ -105,8 +86,8 @@ void CaffeCPUEvaluator::evaluate(
     const std::string& output_layer_name = descriptor_.output_layer_names[i];
     const boost::shared_ptr<caffe::Blob<float>> output_blob{
       net_->blob_by_name(output_layer_name)};
-    size_t output_length = output_layer_lengths_[i];
-    size_t output_size = output_layer_sizes_[i];
+    size_t output_length = output_blob->count(1);
+    size_t output_size = output_length * sizeof(float);
     for (i32 b = 0; b < batch_size; ++b) {
       u8* buffer = new u8[output_size];
       memcpy(buffer, output_blob->cpu_data() + b * output_length, output_size);

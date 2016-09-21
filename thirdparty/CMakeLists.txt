@@ -69,7 +69,7 @@ if (NOT STOREHOUSE_FOUND)
 
   ExternalProject_Add(Storehouse
     GIT_REPOSITORY "https://github.com/apoms/storehouse"
-    GIT_TAG "56af79f7eba3f2373dd38fe154a7696feb2c66ea"
+    GIT_TAG "3f96720f59eb2e6b12d08f36e88c570facae4bfc"
 
     UPDATE_COMMAND ""
 

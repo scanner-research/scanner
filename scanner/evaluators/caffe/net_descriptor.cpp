@@ -67,6 +67,26 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
               << std::endl;
     exit(EXIT_FAILURE);
   }
+  auto input_format = net->find("input");
+  if (!input_format) {
+    std::cout << "Missing 'net.input': description of net input format "
+              << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  auto dimensions_ordering = input_format->find("dimensions");
+  if (!dimensions_ordering) {
+    std::cout << "Missing 'net.input.dimensions': ordering of dimensions "
+              << "for input format "
+              << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  auto channel_ordering = input_format->find("channel_ordering");
+  if (!channel_ordering) {
+    std::cout << "Missing 'net.input.channel_ordering': ordering of channels "
+              << "for input format "
+              << std::endl;
+    exit(EXIT_FAILURE);
+  }
 
   descriptor.model_path = model_path->as<std::string>();
   descriptor.model_weights_path = weights_path->as<std::string>();
@@ -119,10 +139,16 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     float green = mean_green->as<double>();
     float red = mean_red->as<double>();
 
-    for (int i = 0; i < mean_size; ++i) {
-      descriptor.mean_image[i + mean_size * 0] = blue;
-      descriptor.mean_image[i + mean_size * 1] = green;
-      descriptor.mean_image[i + mean_size * 2] = red;
+    std::vector<float>& mean_colors = descriptor.mean_colors;
+    for (const toml::Value& v : channel_ordering->as<toml::Array>()) {
+      std::string color = v.as<std::string>();
+      if (color == "red") {
+        mean_colors.push_back(red);
+      } else if (color == "green") {
+        mean_colors.push_back(green);
+      } else if (color == "blue") {
+        mean_colors.push_back(blue);
+      }
     }
   } else if (mean_image->has("path")) {
     std::string mean_path = mean_image->get<std::string>("path");

@@ -20,7 +20,6 @@
 [mean-image]
     width = 448
     height = 448
-
     [mean-image.colors]
         blue = 0.0
         green = 0.0

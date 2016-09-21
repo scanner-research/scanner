@@ -17,13 +17,17 @@
 
 #include "scanner/util/common.h"
 
+#include "caffe/net.hpp"
+
 namespace scanner {
 
 class CaffeInputTransformer {
 public:
   virtual ~CaffeInputTransformer() {};
 
-  virtual void configure(const DatasetItemMetadata& metadata) = 0;
+  virtual void configure(
+    const DatasetItemMetadata& metadata,
+    caffe::Net<float>* net) = 0;
 
   virtual void transform_input(
     u8* input_buffer,

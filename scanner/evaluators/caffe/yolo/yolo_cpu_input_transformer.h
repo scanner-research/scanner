@@ -27,7 +27,9 @@ class YoloCPUInputTransformer : public CaffeInputTransformer {
 public:
   YoloCPUInputTransformer(const NetDescriptor& descriptor);
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(
+    const DatasetItemMetadata& metadata,
+    caffe::Net<float>* net) override;
 
   void transform_input(
     u8* input_buffer,

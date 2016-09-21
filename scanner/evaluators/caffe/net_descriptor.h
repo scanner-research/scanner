@@ -40,6 +40,8 @@ struct NetDescriptor {
   int input_width;
   int input_height;
 
+  std::vector<float> mean_colors;
+  // or
   std::vector<float> mean_image;
   int mean_width;
   int mean_height;

@@ -28,7 +28,7 @@
 #ifdef HAVE_CAFFE
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
-#include "scanner/evaluators/caffe/vgg/vgg_cpu_input_transformer.h"
+#include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
 #include "scanner/evaluators/movie_analysis/face_evaluator.h"
@@ -327,21 +327,21 @@ int main(int argc, char** argv) {
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
 
 #ifdef HAVE_CAFFE
-    std::string net_descriptor_file = "features/vgg.toml";
+    std::string net_descriptor_file = "features/caffe_facenet.toml";
     NetDescriptor descriptor;
     {
       std::ifstream net_file{net_descriptor_file};
       descriptor = descriptor_from_net_file(net_file);
     }
-    VGGCPUInputTransformerFactory* factory =
-      new VGGCPUInputTransformerFactory();
+    FacenetCPUInputTransformerFactory* factory =
+      new FacenetCPUInputTransformerFactory();
     CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor, factory);
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
     FaceEvaluatorConstructor evaluator_constructor;
-
+#endif
 
     run_job(
       config,
@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
     i32 http_port = 11000;
     i32 spdy_port = 11001;
     i32 http2_port = 11002;
-    i32 threads = 1;
+    i32 threads = 8;
     std::vector<pg::HTTPServer::IPConfig> IPs = {
       {folly::SocketAddress(ip, http_port, true),
        pg::HTTPServer::Protocol::HTTP},

@@ -1,8 +1,8 @@
 [net]
-    model = "features/vgg19/VGG_ILSVRC_19_layers_deploy.prototxt"
-    weights = "features/vgg19/VGG_ILSVRC_19_layers.caffemodel"
+    model = "features/caffe_facenet/facenet_deploy.prototxt"
+    weights = "features/caffe_facenet/facenet_deploy.caffemodel"
     input_layer = "data"
-    output_layers = ["fc8"]
+    output_layers = ["score_final"]
 
     [net.input]
         dimensions = [
@@ -12,15 +12,15 @@
             "width",
         ]
         channel_ordering = [
-            "blue"
-            "green"
             "red"
+            "green"
+            "blue"
         ]
 
 [mean-image]
     width = 224
     height = 224
     [mean-image.colors]
-        blue = 103.939
-        green = 116.779
-        red =  123.68
+        red = 119.29959869
+        green = 110.54627228
+        blue = 101.8384321

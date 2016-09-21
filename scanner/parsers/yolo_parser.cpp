@@ -68,6 +68,9 @@ std::vector<std::string> YoloParser::get_output_names() {
   return {"result"};
 }
 
+void YoloParser::configure(const DatasetItemMetadata& metadata) {
+}
+
 void YoloParser::parse_output(
   const std::vector<u8*>& output,
   const std::vector<i64>& output_size,
@@ -82,9 +85,9 @@ void YoloParser::parse_output(
   f32* category_confidences_vector =
     reinterpret_cast<f32*>(output[0]);
   f32* objectness_vector =
-    category_confidences_vector + feature_vector_sizes_[0];
+    category_confidences_vector + feature_vector_lengths_[0];
   f32* bbox_vector =
-    objectness_vector += feature_vector_sizes_[1];
+    objectness_vector += feature_vector_lengths_[1];
 
   std::vector<f32> pixel_confidences(
     input_height_ * input_width_ * num_categories_, 0.0f);

@@ -46,7 +46,10 @@ YoloCPUInputTransformer::YoloCPUInputTransformer(
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void YoloCPUInputTransformer::configure(const DatasetItemMetadata& metadata) {
+void YoloCPUInputTransformer::configure(
+  const DatasetItemMetadata& metadata,
+  caffe::Net<float>* net)
+{
   metadata_ = metadata;
 }
 
