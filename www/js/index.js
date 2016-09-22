@@ -287,7 +287,7 @@ function setupTimeline(container,
                        jobMetadata,
                        videoMetadata)
 {
-    var requestRadius = 2;
+    var requestRadius = 1;
     var stride = 1;
 
     var mainVideo = mainPanel.children("#main-viewer")[0];
@@ -368,7 +368,7 @@ function setupTimeline(container,
                 handleUpdate();
             });
         }
-    }, wait=150);
+    }, wait=50);
 
     function loadPredictionData(start, end) {
         axis.children(".timeline-plot").remove();

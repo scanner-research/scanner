@@ -514,12 +514,12 @@ void* save_thread(void* arg) {
     }
 
     // Write out each output layer to an individual data file
-    size_t num_outputs = work_item.end_frame - work_item.start_frame;
-    for (size_t i = 0; i < args.output_names.size(); ++i) {
+    size_t num_frames = work_item.end_frame - work_item.start_frame;
+    for (size_t out_idx = 0; out_idx < args.output_names.size(); ++out_idx) {
       const std::string output_path =
         job_item_output_path(args.job_name,
                              video_path,
-                             args.output_names[i],
+                             args.output_names[out_idx],
                              work_item.start_frame,
                              work_item.end_frame);
 
@@ -533,14 +533,16 @@ void* save_thread(void* arg) {
           exit_on_error(result);
         }
 
-        assert(save_work_entry.output_buffers[i].size() == num_outputs);
-        for (size_t output_idx = 0; output_idx < num_outputs; ++output_idx) {
-          i64 buffer_size =
-            save_work_entry.output_buffer_sizes[i][output_idx];
-          u8* buffer =
-            save_work_entry.output_buffers[i][output_idx];
-
+        assert(save_work_entry.output_buffers[out_idx].size() == num_frames);
+        // Write out all output sizes first so we can easily index into the file
+        for (size_t i = 0; i < num_frames; ++i) {
+          i64 buffer_size = save_work_entry.output_buffer_sizes[out_idx][i];
           write(output_file, buffer_size);
+        }
+        // Write actual output data
+        for (size_t i = 0; i < num_frames; ++i) {
+          i64 buffer_size = save_work_entry.output_buffer_sizes[out_idx][i];
+          u8* buffer = save_work_entry.output_buffers[out_idx][i];
           write(output_file, buffer, buffer_size);
         }
 

@@ -353,10 +353,13 @@ void VideoHandler::onEOM() noexcept {
 
         std::vector<std::vector<u8>> output_buffers(
           output_names.size());
-        std::vector<size_t> output_buffers_pos(output_names.size());
+        std::vector<std::vector<i64>> output_buffers_item_sizes(
+          output_names.size());
+        std::vector<u64> output_buffers_pos(output_names.size());
         i64 total_frames_in_output_buffer = 0;
         i64 current_frame_in_output_buffer = 0;
 
+        i32 start_difference = 0;
         i32 current_frame = start_frame;
         while (current_frame < end_frame) {
           if (current_frame_in_output_buffer >= total_frames_in_output_buffer) {
@@ -374,10 +377,8 @@ void VideoHandler::onEOM() noexcept {
             i64 start = std::get<0>(interval);
             i64 end = std::get<1>(interval);
 
-            // Skip past frames at the beginning to fulfill our striding
-            current_frame_in_output_buffer =
-              current_frame_in_output_buffer - total_frames_in_output_buffer;
-            total_frames_in_output_buffer = end - start;
+            i32 max_start = std::max((i64)start_frame, start);
+            i32 min_end = std::min((i64)end_frame, end);
 
             for (size_t output_index = 0;
                  output_index < output_names.size();
@@ -394,9 +395,34 @@ void VideoHandler::onEOM() noexcept {
               make_unique_random_read_file(storage_.get(), output_path, file);
 
               u64 pos = 0;
-              output_buffers[output_index] = read_entire_file(file.get(), pos);
+              output_buffers_item_sizes[output_index].resize(end - start);
+              read(file.get(),
+                   (u8*)output_buffers_item_sizes[output_index].data(),
+                   (end - start) * sizeof(i64),
+                   pos);
+
+              size_t size_left = 0;
+              start_difference = current_frame - start;
+              for (i32 i = 0; i < start_difference; ++i) {
+                pos += output_buffers_item_sizes[output_index][i];
+              }
+
+              i64 frames_left = min_end - start;
+              for (i32 i = start_difference; i < frames_left; ++i) {
+                size_left += output_buffers_item_sizes[output_index][i];
+              }
+
+              output_buffers[output_index].resize(size_left);
+              read(file.get(),
+                   (u8*)output_buffers[output_index].data(),
+                   size_left,
+                   pos);
               output_buffers_pos[output_index] = 0;
             }
+
+            // Skip past frames at the beginning to fulfill our striding
+            current_frame_in_output_buffer = 0;
+            total_frames_in_output_buffer = min_end - current_frame;
           }
 
           // Extract row of feature vectors from output buffers
@@ -406,14 +432,16 @@ void VideoHandler::onEOM() noexcept {
                output_idx < output_names.size();
                ++output_idx)
           {
-            size_t offset = output_buffers_pos[output_idx];
-            output_sizes[output_idx] =
-              *((i64*)(output_buffers[output_idx].data() + offset));
-            output[output_idx] =
-              output_buffers[output_idx].data() + offset + sizeof(i64);
+            size_t size_offset =
+              current_frame_in_output_buffer + start_difference;;
+            size_t element_size =
+              output_buffers_item_sizes[output_idx][size_offset];
+            output_sizes[output_idx] = element_size;
 
-            output_buffers_pos[output_idx] +=
-              output_sizes[output_idx] + sizeof(i64);
+            size_t offset = output_buffers_pos[output_idx];
+            output[output_idx] =
+              output_buffers[output_idx].data() + offset;
+            output_buffers_pos[output_idx] += element_size;
           }
 
           // Process vectors
