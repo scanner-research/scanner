@@ -1,3 +1,11 @@
+var Immutable = require('immutable');
+var React = require('react')
+var ReactDOM = require('react-dom');
+var _ = require('lodash');
+var $ = require('jquery');
+
+require("../css/index.css");
+
 var item_bbox = {
     frame: 100,
     time: 36,
@@ -169,55 +177,6 @@ var graphicsOptions = {
     "detection": detectionGraphics,
 };
 
-$(document).ready(function() {
-    var jobMetadata;
-    var videosMetadata;
-
-    $("#threshold-input").val(0.3);
-
-    var frameIndicator = $('<div/>', {'id': 'frame-indicator',
-                                      'class': 'timeline-pos-indicator'})
-        .css('left', "50%")
-        .hide();
-    $("#main-panel").append(frameIndicator);
-
-    var classIndicator = $('<div/>', {'id': 'class-indicator',
-                                      'class': 'timeline-pos-indicator'})
-        .css('left', "50%")
-        .hide();
-    $("#main-panel").append(classIndicator);
-
-    $.ajax({
-        url: "jobs",
-        dataType: "json",
-    }).done(function( data ) {
-        jobMetadata = data[0];
-        jobMetadata.graphics = graphicsOptions[jobMetadata.featureType];
-        jobMetadata.graphics.setup($("#main-panel"));
-        $.ajax({
-            url: "videos",
-            dataType: "json",
-            data: {
-                job_id: jobMetadata["id"],
-            }
-        }).done(function( data ) {
-            videosMetadata = data;
-            for (var i = 0; i < 50 /*videosMetadata.length*/; ++i) {
-            //for (var i = 0; i < videosMetadata.length; ++i) {
-                setupViewer($("#video-browser"),
-                            $("#main-panel"),
-                            jobMetadata,
-                            videosMetadata[i]);
-            }
-        });
-    });
-
-    // {
-    //     'frames': 32000,
-    //     'fps': 29.45,
-    // };
-});
-
 function draw(v,c) {
     c.drawImage(v,0,0,c.canvas.width,c.canvas.height);
 }
@@ -338,6 +297,7 @@ function setupTimeline(container,
     axis.append(tick);
     axis.append(tickLabel);
 
+    var hoveredFrame = -1;
     var selectedFrame = -1;
     var predictionData = _.times(videoMetadata.frames, function (i) {
         return {'status': 'invalid'};
@@ -368,7 +328,7 @@ function setupTimeline(container,
                 handleUpdate();
             });
         }
-    }, wait=50);
+    }, 50);
 
     function loadPredictionData(start, end) {
         axis.children(".timeline-plot").remove();
@@ -440,6 +400,11 @@ function setupTimeline(container,
         handleUpdate();
     });
 
+    axis.click(function() {
+
+        selectedFrame = -1;
+    });
+
     axis.mouseenter(function() {
         frameIndicator.show();
         jobMetadata.graphics.show();
@@ -504,3 +469,231 @@ function setupTimelinePlot(axis,
     context.strokeStyle = "steelblue";
     context.stroke();
 }
+
+var VideoTimeline = React.createClass({
+    getInitialState: function() {
+        return {
+            width: 0,
+            selectedFrame: -1,
+        };
+    },
+    posToFrameNumber: function(pageX) {
+        var axis = $(this.refs.axis);
+        var offset = axis.offset();
+        var xPos = pageX - offset.left;
+        var percent = xPos / axis.width();
+        var frame = Math.floor(this.props.video.frames * percent);
+        return frame;
+    },
+    handleMouseMove: function(e) {
+        var targetedFrame = this.posToFrameNumber(e.pageX);
+
+        this.props.onSelectedFrameChange({
+            videoId: this.props.video.id,
+            frame: targetedFrame,
+        });
+    },
+    handleClick: function(e) {
+        var targetedFrame = this.posToFrameNumber(e.pageX);
+
+        this.props.onSelectedFrameChange({
+            videoId: this.props.video.id,
+            frame: targetedFrame,
+        });
+        this.setState({selectedFrame: targetedFrame});
+    },
+    componentDidMount: function() {
+        var width = $(ReactDOM.findDOMNode(this)).width();
+        this.setState({width: width});
+    },
+    render: function() {
+        var video = this.props.video;
+
+        var tickWidth = 100;
+        var tickHeight = 80;
+
+        var labelWidth = 50;
+        var labelHeight = 20;
+
+        var numTicks = Math.floor(this.state.width / tickWidth);
+        var ticks = _.times(numTicks, function(i) {
+            var style = {
+                left: tickWidth * i,
+                width: tickWidth - 1,
+                top: 0,
+                height: tickHeight,
+            };
+            return (
+                <div className="timeline-tick"
+                     style={style}
+                     key={i}>
+                </div>
+            );
+        });
+        var tickLabels = _.times(numTicks, function(i) {
+            var style = {
+                left: tickWidth * i - labelWidth / 2,
+                width: labelWidth,
+                top: tickHeight,
+                height: labelHeight,
+            };
+            return (
+                <div className="timeline-tick-label"
+                     style={style}
+                     key={i}>
+                  {Math.round(video.frames / numTicks * i)}
+                </div>
+            );
+        });
+        return (
+            <div className="video-timeline"
+                 onClick={this.handleClick}
+                 onMouseMove={this.handleMouseMove}>
+              <div className="timeline-axis"
+                   ref="axis">
+                {ticks}
+                {tickLabels}
+              </div>
+            </div>
+        )
+    }
+});
+
+var VideoNavigator = React.createClass({
+    render: function() {
+        return (
+            <div className="video-navigator">
+              <VideoTimeline job={this.props.job}
+                             video={this.props.video}
+                             onSelectedFrameChange={
+                                 this.props.onSelectedFrameChange}/>
+            </div>
+        );
+    }
+});
+
+var VideoBrowser = React.createClass({
+    render: function() {
+        var job = this.props.job;
+        var onSelectedFrameChange = this.props.onSelectedFrameChange;
+        var videoNavigators = this.props.videos.map(function(video) {
+            return (
+                <VideoNavigator job={job}
+                                video={video}
+                                onSelectedFrameChange={onSelectedFrameChange}
+                                key={video['id']}/>
+            );
+        });
+
+        return (
+            <div className="video-browser">
+              {videoNavigators}
+            </div>
+        );
+    }
+});
+
+var ViewerPanel = React.createClass({
+    getInitialState: function() {
+        return {
+            threshold: 0.3,
+            plotType: 'certainty',
+        };
+    },
+    handleThresholdChange: function(e) {
+        this.setState({threshold: e.target.value});
+    },
+    handlePlotTypeChange: function(e) {
+        this.setState({plotType: e.target.value});
+    },
+    componentDidMount: function() {
+        var frameIndicator = $('<div/>', {'id': 'frame-indicator',
+                                          'class': 'timeline-pos-indicator'})
+            .css('left', "50%")
+            .hide();
+        $("#main-panel").append(frameIndicator);
+
+        var classIndicator = $('<div/>', {'id': 'class-indicator',
+                                          'class': 'timeline-pos-indicator'})
+            .css('left', "50%")
+            .hide();
+        $("#main-panel").append(classIndicator);
+    },
+    render: function() {
+        return (
+            <div className="viewer-panel">
+              <video id="video-viewer">
+                <source src="" type="video/mp4"></source>
+              </video>
+              <select
+                  value={this.state.plotType}
+                  onChange={this.handlePlotTypeChange}>
+                <option value="certainty">Certainty</option>
+                <option value="bbox"># of bounding boxes</option>
+              </select>
+              Threshold:
+              <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="any"
+                  value={this.state.threshold}
+                  onChange={this.handleThresholdChange}/>
+            </div>
+        );
+    }
+});
+
+var VisualizerApp = React.createClass({
+    getInitialState: function() {
+        return {
+            jobs: [{}],
+            videos: [],
+        };
+    },
+    handleSelectedFrameChange: function(d) {
+        console.log('video ' + d.videoId + ', frame ' + d.frame);
+    },
+    componentDidMount: function() {
+        $.ajax({
+            url: "jobs",
+            dataType: "json",
+            success: function(jobsData) {
+                this.setState({jobs: jobsData, videos: []});
+                //jobMetadata = data[0];
+                //jobMetadata.graphics =
+                //  graphicsOptions[jobMetadata.featureType];
+                //jobMetadata.graphics.setup($("#main-panel"));
+                $.ajax({
+                    url: "videos",
+                    dataType: "json",
+                    data: {
+                        job_id: jobsData[0]["id"],
+                    },
+                    success: function(videoData) {
+                        this.setState({
+                            jobs: this.state.jobs,
+                            videos: videoData,
+                        });
+                    }.bind(this)
+                });
+            }.bind(this),
+        });
+    },
+    render: function() {
+        return (
+            <div className="visualizer-app">
+              <VideoBrowser job={this.state.jobs[0]}
+                            videos={this.state.videos}
+                            onSelectedFrameChange={
+                                this.handleSelectedFrameChange}/>
+              <ViewerPanel job={this.state.jobs[0]}
+                           videos={this.state.videos}/>
+            </div>
+        );
+    }
+});
+
+$(document).ready(function() {
+    ReactDOM.render(<VisualizerApp />, $('#app')[0]);
+});

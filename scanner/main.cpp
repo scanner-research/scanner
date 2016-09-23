@@ -33,7 +33,9 @@
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
 #include "scanner/evaluators/movie_analysis/face_evaluator.h"
 
+#ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
+#endif
 
 // For parsing command line args
 #include <boost/program_options/options_description.hpp>
@@ -72,7 +74,10 @@ extern "C" {
 
 using namespace scanner;
 namespace po = boost::program_options;
+
+#ifdef HAVE_SERVER
 namespace pg = proxygen;
+#endif
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;

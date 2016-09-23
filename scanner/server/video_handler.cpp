@@ -551,7 +551,7 @@ void VideoHandler::onEOM() noexcept {
     }
   } else {
     // Serve static files
-    serve_static("www", path, message_.get(), response);
+    serve_static("www/dist", path, message_.get(), response);
   }
 
   response
