@@ -31,7 +31,6 @@
 #include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
-#include "scanner/evaluators/movie_analysis/face_evaluator.h"
 
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
@@ -340,18 +339,18 @@ int main(int argc, char** argv) {
     }
     FacenetCPUInputTransformerFactory* factory =
       new FacenetCPUInputTransformerFactory();
-    CaffeCPUEvaluatorConstructor evaluator_constructor(descriptor, factory);
+    CaffeCPUEvaluatorFactory evaluator_factory(descriptor, factory);
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    FaceEvaluatorConstructor evaluator_constructor;
+    FaceEvaluatorFactory evaluator_factory;
 #endif
 
     run_job(
       config,
       decoder_type,
-      &evaluator_constructor,
+      &evaluator_factory,
       job_name,
       dataset_name);
   } else if (cmd == "serve") {

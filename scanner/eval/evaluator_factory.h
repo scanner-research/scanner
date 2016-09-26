@@ -22,42 +22,34 @@
 
 namespace scanner {
 
+struct EvaluatorCapabilities {
+  DeviceType device_type;
+  enum { Single, Multiple } device_usage;
+  i32 max_devices;
+  i32 warmup_size;
+};
+
 struct EvaluatorConfig {
-  i32 device_id;
-  i32 max_batch_size;
-  size_t staging_buffer_size;
+  std::vector<i32> device_ids;
+  i32 max_input_count;
   i32 max_frame_width;
   i32 max_frame_height;
 };
 
-class EvaluatorConstructor {
-public:
-  virtual ~EvaluatorConstructor() {};
+class EvaluatorFactory {
+ public:
+  virtual ~EvaluatorFactory(){};
 
-  virtual i32 get_number_of_devices() = 0;
-
-  virtual DeviceType get_input_buffer_type() = 0;
-
-  virtual DeviceType get_output_buffer_type() = 0;
+  virtual EvaluatorCapabilities get_capabilities() = 0;
 
   virtual i32 get_number_of_outputs() = 0;
 
   virtual std::vector<std::string> get_output_names() = 0;
 
-  virtual u8* new_input_buffer(const EvaluatorConfig& config) = 0;
-
-  virtual void delete_input_buffer(
-    const EvaluatorConfig& config,
-    u8* buffer) = 0;
-
-  virtual void delete_output_buffer(
-    const EvaluatorConfig& config,
-    u8* buffer) = 0;
-
   /* new_evaluator - constructs an evaluator to be used for processing
-   *   decoded frames. Must be thread-safe.
+   *   decoded frames. This function must be thread-safe but evaluators
+   *   themself do not need to be.
    */
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) = 0;
 };
-
 }

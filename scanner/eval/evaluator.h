@@ -23,22 +23,26 @@
 namespace scanner {
 
 class Evaluator {
-public:
-  virtual ~Evaluator() {};
+ public:
+  virtual ~Evaluator(){};
 
   virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
+  virtual void reset(){};
+
+  virtual void warmup(
+    i32 input_count,
+    u8* input_buffer){};
+
   virtual void evaluate(
+    i32 input_count,
     u8* input_buffer,
     std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes,
-    i32 batch_size) = 0;
+    std::vector<std::vector<size_t>>& output_sizes) = 0;
 
-  void set_profiler(Profiler* profiler) {
-    profiler_ = profiler;
-  }
+  void set_profiler(Profiler* profiler) { profiler_ = profiler; }
 
-protected:
+ protected:
   Profiler* profiler_ = nullptr;
 };
 
@@ -49,5 +53,4 @@ protected:
 // produce output
 // teardown
 // deallocate buffers
-
 }

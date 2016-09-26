@@ -15,7 +15,7 @@
 
 #include "scanner/video/video_decoder.h"
 #include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
+#include "scanner/eval/evaluator_factory.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -59,13 +59,15 @@ struct SaveWorkEntry {
   i32 work_item_index;
   std::vector<std::vector<size_t>> output_buffer_sizes;
   std::vector<std::vector<u8*>> output_buffers;
+  DeviceType buffer_type;
+  i32 buffer_device_id;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 void run_job(
   storehouse::StorageConfig* storage_config,
   VideoDecoderType decoder_type,
-  EvaluatorConstructor* evaluator_constructor,
+  EvaluatorFactory* evaluator_factory,
   const std::string& job_name,
   const std::string& dataset_name);
 

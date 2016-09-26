@@ -16,7 +16,7 @@
 #pragma once
 
 #include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
+#include "scanner/eval/evaluator_factory.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
@@ -33,13 +33,13 @@ public:
     CaffeInputTransformer* transformer,
     i32 device_id);
 
-  virtual void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const DatasetItemMetadata& metadata) override;
 
-  virtual void evaluate(
+  void evaluate(
+    i32 input_count,
     u8* input_buffer,
     std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes,
-    i32 batch_size) override;
+    std::vector<std::vector<size_t>>& output_sizes) override;
 
 protected:
   EvaluatorConfig config_;
@@ -51,33 +51,19 @@ protected:
   DatasetItemMetadata metadata_;
 };
 
-class CaffeCPUEvaluatorConstructor : public EvaluatorConstructor {
+class CaffeCPUEvaluatorFactory : public EvaluatorFactory {
 public:
-  CaffeCPUEvaluatorConstructor(
+  CaffeCPUEvaluatorFactory(
     const NetDescriptor& net_descriptor,
     CaffeInputTransformerFactory* transformer_factory);
 
-  virtual i32 get_number_of_devices() override;
+  EvaluatorCapabilities get_capabilities() override;
 
-  virtual DeviceType get_input_buffer_type() override;
+  i32 get_number_of_outputs() override;
 
-  virtual DeviceType get_output_buffer_type() override;
+  std::vector<std::string> get_output_names() override;
 
-  virtual i32 get_number_of_outputs() override;
-
-  virtual std::vector<std::string> get_output_names() override;
-
-  virtual u8* new_input_buffer(const EvaluatorConfig& config) override;
-
-  virtual void delete_input_buffer(
-    const EvaluatorConfig& config,
-    u8* buffer) override;
-
-  virtual void delete_output_buffer(
-    const EvaluatorConfig& config,
-    u8* buffers) override;
-
-  virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
+  Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
 private:
   NetDescriptor net_descriptor_;

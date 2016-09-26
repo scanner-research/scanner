@@ -16,7 +16,7 @@
 #pragma once
 
 #include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
+#include "scanner/eval/evaluator_factory.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 

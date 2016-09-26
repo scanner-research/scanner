@@ -42,33 +42,33 @@ void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net_->blob_by_name(descriptor_.input_layer_name)};
-  if (input_blob->shape(0) != config_.max_batch_size) {
+  if (input_blob->shape(0) != config_.max_input_count) {
     input_blob->Reshape(
-      {config_.max_batch_size, 3, input_blob->shape(2), input_blob->shape(3)});
+      {config_.max_input_count, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
   transformer_->configure(metadata, net_.get());
 }
 
 void CaffeCPUEvaluator::evaluate(
+  i32 input_count,
   u8* input_buffer,
   std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes,
-  i32 batch_size)
+  std::vector<std::vector<size_t>>& output_sizes)
 {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net_->blob_by_name(descriptor_.input_layer_name)};
 
-  if (input_blob->shape(0) != batch_size) {
+  if (input_blob->shape(0) != input_count) {
     input_blob->Reshape({
-        batch_size, 3, input_blob->shape(2), input_blob->shape(3)});
+        input_count, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
   f32* net_input_buffer = input_blob->mutable_cpu_data();
 
   // Process batch of frames
   auto cv_start = now();
-  transformer_->transform_input(input_buffer, net_input_buffer, batch_size);
+  transformer_->transform_input(input_buffer, net_input_buffer, input_count);
   if (profiler_) {
     profiler_->add_interval("caffe:transform_input", cv_start, now());
   }
@@ -88,7 +88,7 @@ void CaffeCPUEvaluator::evaluate(
       net_->blob_by_name(output_layer_name)};
     size_t output_length = output_blob->count(1);
     size_t output_size = output_length * sizeof(float);
-    for (i32 b = 0; b < batch_size; ++b) {
+    for (i32 b = 0; b < input_count; ++b) {
       u8* buffer = new u8[output_size];
       memcpy(buffer, output_blob->cpu_data() + b * output_length, output_size);
       output_buffers[i].push_back(buffer);
@@ -97,7 +97,7 @@ void CaffeCPUEvaluator::evaluate(
   }
 }
 
-CaffeCPUEvaluatorConstructor::CaffeCPUEvaluatorConstructor(
+CaffeCPUEvaluatorFactory::CaffeCPUEvaluatorFactory(
   const NetDescriptor& net_descriptor,
   CaffeInputTransformerFactory* transformer_factory)
   : net_descriptor_(net_descriptor),
@@ -105,52 +105,24 @@ CaffeCPUEvaluatorConstructor::CaffeCPUEvaluatorConstructor(
 {
 }
 
-i32 CaffeCPUEvaluatorConstructor::get_number_of_devices() {
-  return 1;
+EvaluatorCapabilities CaffeCPUEvaluatorFactory::get_capabilities() {
+  EvaluatorCapabilities caps;
+  caps.device_type = DeviceType::CPU;
+  caps.device_usage = EvaluatorCapabilities::Multiple;
+  caps.max_devices = 0;
+  caps.warmup_size = 0;
+  return caps;
 }
 
-DeviceType CaffeCPUEvaluatorConstructor::get_input_buffer_type() {
-  return DeviceType::CPU;
-}
-
-DeviceType CaffeCPUEvaluatorConstructor::get_output_buffer_type() {
-  return DeviceType::CPU;
-}
-
-i32 CaffeCPUEvaluatorConstructor::get_number_of_outputs() {
+i32 CaffeCPUEvaluatorFactory::get_number_of_outputs() {
   return static_cast<i32>(net_descriptor_.output_layer_names.size());
 }
 
-std::vector<std::string> CaffeCPUEvaluatorConstructor::get_output_names() {
+std::vector<std::string> CaffeCPUEvaluatorFactory::get_output_names() {
   return net_descriptor_.output_layer_names;
 }
 
-u8* CaffeCPUEvaluatorConstructor::new_input_buffer(
-  const EvaluatorConfig& config)
-{
-  return new u8[
-    config.max_batch_size *
-    config.max_frame_width *
-    config.max_frame_height *
-    3 *
-    sizeof(u8)];
-}
-
-void CaffeCPUEvaluatorConstructor::delete_input_buffer(
-  const EvaluatorConfig& config,
-  u8* buffer)
-{
-  delete[] buffer;
-}
-
-void CaffeCPUEvaluatorConstructor::delete_output_buffer(
-  const EvaluatorConfig& config,
-  u8* buffer)
-{
-  delete[] buffer;
-}
-
-Evaluator* CaffeCPUEvaluatorConstructor::new_evaluator(
+Evaluator* CaffeCPUEvaluatorFactory::new_evaluator(
   const EvaluatorConfig& config)
 {
   CaffeInputTransformer* transformer =

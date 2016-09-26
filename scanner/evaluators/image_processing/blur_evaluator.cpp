@@ -35,16 +35,16 @@ void BlurEvaluator::configure(const DatasetItemMetadata& metadata) {
 }
 
 void BlurEvaluator::evaluate(
+  i32 input_count,
   u8* input_buffer,
   std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes,
-  i32 batch_size)
+  std::vector<std::vector<size_t>>& output_sizes)
 {
   i32 width = metadata_.width;
   i32 height = metadata_.height;
   size_t frame_size = width * height * 3 * sizeof(u8);
 
-  for (i32 i = 0; i < batch_size; ++i) {
+  for (i32 i = 0; i < input_count; ++i) {
     u8* output_buffer = new u8[frame_size];
 
     u8* frame_buffer = (input_buffer + frame_size * i);
@@ -71,7 +71,7 @@ void BlurEvaluator::evaluate(
   }
 }
 
-BlurEvaluatorConstructor::BlurEvaluatorConstructor(
+BlurEvaluatorFactory::BlurEvaluatorFactory(
   i32 kernel_size,
   f64 sigma)
   : kernel_size_(kernel_size),
@@ -79,52 +79,25 @@ BlurEvaluatorConstructor::BlurEvaluatorConstructor(
 {
 }
 
-i32 BlurEvaluatorConstructor::get_number_of_devices() {
+EvaluatorCapabilities BlurEvaluatorFactory::get_capabilities() {
+  EvaluatorCapabilities caps;
+  caps.device_type = DeviceType::CPU;
+  caps.device_usage = EvaluatorCapabilities::Single;
+  caps.max_devices = 1;
+  caps.warmup_size = 0;
+  return caps;
+}
+
+i32 BlurEvaluatorFactory::get_number_of_outputs() {
   return 1;
 }
 
-DeviceType BlurEvaluatorConstructor::get_input_buffer_type() {
-  return DeviceType::CPU;
-}
-
-DeviceType BlurEvaluatorConstructor::get_output_buffer_type() {
-  return DeviceType::CPU;
-}
-
-i32 BlurEvaluatorConstructor::get_number_of_outputs() {
-  return 1;
-}
-
-std::vector<std::string> BlurEvaluatorConstructor::get_output_names() {
+std::vector<std::string> BlurEvaluatorFactory::get_output_names() {
   return {"image"};
 }
 
-u8*
-BlurEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
-  return new u8[
-    config.max_batch_size *
-    config.max_frame_width *
-    config.max_frame_height *
-    3 *
-    sizeof(u8)];
-}
-
-void BlurEvaluatorConstructor::delete_input_buffer(
-  const EvaluatorConfig& config,
-  u8* buffer)
-{
-  delete[] buffer;
-}
-
-void BlurEvaluatorConstructor::delete_output_buffer(
-  const EvaluatorConfig& config,
-  u8* buffer)
-{
-  delete[] buffer;
-}
-
 Evaluator*
-BlurEvaluatorConstructor::new_evaluator(const EvaluatorConfig& config) {
+BlurEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
   return new BlurEvaluator(config, kernel_size_, sigma_);
 }
 
