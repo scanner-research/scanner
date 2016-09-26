@@ -20,16 +20,14 @@
 
 namespace scanner {
 
-CaffeCPUEvaluator::CaffeCPUEvaluator(
-  const EvaluatorConfig& config,
-  const NetDescriptor& descriptor,
-  CaffeInputTransformer* transformer,
-  i32 device_id)
-  : config_(config),
-    descriptor_(descriptor),
-    transformer_(transformer),
-    device_id_(device_id)
-{
+CaffeCPUEvaluator::CaffeCPUEvaluator(const EvaluatorConfig& config,
+                                     const NetDescriptor& descriptor,
+                                     CaffeInputTransformer* transformer,
+                                     i32 device_id)
+    : config_(config),
+      descriptor_(descriptor),
+      transformer_(transformer),
+      device_id_(device_id) {
   caffe::Caffe::set_mode(device_type_to_caffe_mode(DeviceType::CPU));
 
   // Initialize our network
@@ -41,27 +39,25 @@ void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net_->blob_by_name(descriptor_.input_layer_name)};
+      net_->blob_by_name(descriptor_.input_layer_name)};
   if (input_blob->shape(0) != config_.max_input_count) {
-    input_blob->Reshape(
-      {config_.max_input_count, 3, input_blob->shape(2), input_blob->shape(3)});
+    input_blob->Reshape({config_.max_input_count, 3, input_blob->shape(2),
+                         input_blob->shape(3)});
   }
 
   transformer_->configure(metadata, net_.get());
 }
 
 void CaffeCPUEvaluator::evaluate(
-  i32 input_count,
-  u8* input_buffer,
-  std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes)
-{
+    i32 input_count, u8* input_buffer,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net_->blob_by_name(descriptor_.input_layer_name)};
+      net_->blob_by_name(descriptor_.input_layer_name)};
 
   if (input_blob->shape(0) != input_count) {
-    input_blob->Reshape({
-        input_count, 3, input_blob->shape(2), input_blob->shape(3)});
+    input_blob->Reshape(
+        {input_count, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
   f32* net_input_buffer = input_blob->mutable_cpu_data();
@@ -85,7 +81,7 @@ void CaffeCPUEvaluator::evaluate(
   for (size_t i = 0; i < num_outputs; ++i) {
     const std::string& output_layer_name = descriptor_.output_layer_names[i];
     const boost::shared_ptr<caffe::Blob<float>> output_blob{
-      net_->blob_by_name(output_layer_name)};
+        net_->blob_by_name(output_layer_name)};
     size_t output_length = output_blob->count(1);
     size_t output_size = output_length * sizeof(float);
     for (i32 b = 0; b < input_count; ++b) {
@@ -98,12 +94,10 @@ void CaffeCPUEvaluator::evaluate(
 }
 
 CaffeCPUEvaluatorFactory::CaffeCPUEvaluatorFactory(
-  const NetDescriptor& net_descriptor,
-  CaffeInputTransformerFactory* transformer_factory)
-  : net_descriptor_(net_descriptor),
-    transformer_factory_(transformer_factory)
-{
-}
+    const NetDescriptor& net_descriptor,
+    CaffeInputTransformerFactory* transformer_factory)
+    : net_descriptor_(net_descriptor),
+      transformer_factory_(transformer_factory) {}
 
 EvaluatorCapabilities CaffeCPUEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -123,11 +117,9 @@ std::vector<std::string> CaffeCPUEvaluatorFactory::get_output_names() {
 }
 
 Evaluator* CaffeCPUEvaluatorFactory::new_evaluator(
-  const EvaluatorConfig& config)
-{
+    const EvaluatorConfig& config) {
   CaffeInputTransformer* transformer =
-    transformer_factory_->construct(config, net_descriptor_);
+      transformer_factory_->construct(config, net_descriptor_);
   return new CaffeCPUEvaluator(config, net_descriptor_, transformer, 0);
 }
-
 }

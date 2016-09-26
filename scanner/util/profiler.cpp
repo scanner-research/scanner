@@ -15,35 +15,26 @@
 
 #include "scanner/util/profiler.h"
 
-#include <string>
-#include <map>
 #include <cmath>
+#include <map>
+#include <string>
 
 namespace scanner {
 
-Profiler::Profiler(timepoint_t base_time)
-  : base_time_(base_time),
-    lock_(0) {}
+Profiler::Profiler(timepoint_t base_time) : base_time_(base_time), lock_(0) {}
 
 Profiler::Profiler(const Profiler& other)
-  : base_time_(other.base_time_),
-    records_(other.records_),
-    lock_(0) {}
+    : base_time_(other.base_time_), records_(other.records_), lock_(0) {}
 
-Profiler::~Profiler(void) {
-}
+Profiler::~Profiler(void) {}
 
 const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
   return records_;
 }
 
-void write_profiler_to_file(
-  std::ofstream& output,
-  int64_t node,
-  std::string type_name,
-  int64_t worker_num,
-  const Profiler& profiler)
-{
+void write_profiler_to_file(std::ofstream& output, int64_t node,
+                            std::string type_name, int64_t worker_num,
+                            const Profiler& profiler) {
   // Write worker header information
   // Node
   output.write((char*)&node, sizeof(node));
@@ -53,7 +44,7 @@ void write_profiler_to_file(
   output.write((char*)&worker_num, sizeof(worker_num));
   // Intervals
   const std::vector<scanner::Profiler::TaskRecord>& records =
-    profiler.get_records();
+      profiler.get_records();
   // Perform dictionary compression on interval key names
   uint8_t record_key_id = 0;
   std::map<std::string, uint8_t> key_names;
@@ -68,8 +59,7 @@ void write_profiler_to_file(
             "WARNING: Number of record keys (%lu) greater than "
             "max key id (%lu). Recorded intervals will alias in "
             "profiler file.\n",
-            key_names.size(),
-            std::pow(2, sizeof(record_key_id) * 8));
+            key_names.size(), std::pow(2, sizeof(record_key_id) * 8));
   }
   // Write out key name dictionary
   int64_t num_keys = static_cast<int64_t>(key_names.size());
@@ -93,6 +83,4 @@ void write_profiler_to_file(
     output.write((char*)&end, sizeof(end));
   }
 }
-
-
 }

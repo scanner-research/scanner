@@ -19,27 +19,19 @@
 
 namespace scanner {
 
-BlurEvaluator::BlurEvaluator(
-  EvaluatorConfig config,
-  i32 kernel_size,
-  f64 sigma)
-  : kernel_size_(kernel_size),
-    filter_left_(std::ceil(kernel_size / 2.0) - 1),
-    filter_right_(kernel_size / 2),
-    sigma_(sigma)
-{
-}
+BlurEvaluator::BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma)
+    : kernel_size_(kernel_size),
+      filter_left_(std::ceil(kernel_size / 2.0) - 1),
+      filter_right_(kernel_size / 2),
+      sigma_(sigma) {}
 
 void BlurEvaluator::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
 }
 
-void BlurEvaluator::evaluate(
-  i32 input_count,
-  u8* input_buffer,
-  std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes)
-{
+void BlurEvaluator::evaluate(i32 input_count, u8* input_buffer,
+                             std::vector<std::vector<u8*>>& output_buffers,
+                             std::vector<std::vector<size_t>>& output_sizes) {
   i32 width = metadata_.width;
   i32 height = metadata_.height;
   size_t frame_size = width * height * 3 * sizeof(u8);
@@ -55,14 +47,12 @@ void BlurEvaluator::evaluate(
           u32 value = 0;
           for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
             for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
-              value += frame_buffer[(y + ry) * width * 3 +
-                                    (x + rx) * 3 +
-                                    c];
+              value += frame_buffer[(y + ry) * width * 3 + (x + rx) * 3 + c];
             }
           }
           blurred_buffer[y * width * 3 + x * 3 + c] =
-            value / ((filter_right_ + filter_left_ + 1) *
-                     (filter_right_ + filter_left_ + 1));
+              value / ((filter_right_ + filter_left_ + 1) *
+                       (filter_right_ + filter_left_ + 1));
         }
       }
     }
@@ -71,13 +61,8 @@ void BlurEvaluator::evaluate(
   }
 }
 
-BlurEvaluatorFactory::BlurEvaluatorFactory(
-  i32 kernel_size,
-  f64 sigma)
-  : kernel_size_(kernel_size),
-    sigma_(sigma)
-{
-}
+BlurEvaluatorFactory::BlurEvaluatorFactory(i32 kernel_size, f64 sigma)
+    : kernel_size_(kernel_size), sigma_(sigma) {}
 
 EvaluatorCapabilities BlurEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -88,17 +73,13 @@ EvaluatorCapabilities BlurEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-i32 BlurEvaluatorFactory::get_number_of_outputs() {
-  return 1;
-}
+i32 BlurEvaluatorFactory::get_number_of_outputs() { return 1; }
 
 std::vector<std::string> BlurEvaluatorFactory::get_output_names() {
   return {"image"};
 }
 
-Evaluator*
-BlurEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
+Evaluator* BlurEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
   return new BlurEvaluator(config, kernel_size_, sigma_);
 }
-
 }

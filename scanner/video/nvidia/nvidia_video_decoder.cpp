@@ -34,9 +34,9 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavfilter/avfilter.h"
 #include "libavformat/avformat.h"
-#include "libswscale/swscale.h"
-#include "libavutil/pixdesc.h"
 #include "libavutil/opt.h"
+#include "libavutil/pixdesc.h"
+#include "libswscale/swscale.h"
 
 // For hardware decode
 #include "libavutil/hwcontext.h"
@@ -45,23 +45,20 @@ extern "C" {
 
 namespace scanner {
 
-NVIDIAVideoDecoder::NVIDIAVideoDecoder(
-  DatasetItemMetadata metadata,
-  int device_id,
-  CUcontext cuda_context)
-  : metadata_(metadata),
-    device_id_(device_id),
-    cuda_context_(cuda_context),
-    metadata_packets_(metadata.metadata_packets),
-    max_output_frames_(32),
-    max_mapped_frames_(8),
-    streams_(max_mapped_frames_),
-    parser_(nullptr),
-    decoder_(nullptr),
-    mapped_frames_(max_mapped_frames_, 0),
-    prev_frame_(0),
-    decode_time_(0)
-{
+NVIDIAVideoDecoder::NVIDIAVideoDecoder(DatasetItemMetadata metadata,
+                                       int device_id, CUcontext cuda_context)
+    : metadata_(metadata),
+      device_id_(device_id),
+      cuda_context_(cuda_context),
+      metadata_packets_(metadata.metadata_packets),
+      max_output_frames_(32),
+      max_mapped_frames_(8),
+      streams_(max_mapped_frames_),
+      parser_(nullptr),
+      decoder_(nullptr),
+      mapped_frames_(max_mapped_frames_, 0),
+      prev_frame_(0),
+      decode_time_(0) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -69,7 +66,6 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(
   for (int i = 0; i < max_mapped_frames_; ++i) {
     cudaStreamCreate(&streams_[i]);
   }
-
 }
 
 NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
@@ -105,11 +101,11 @@ void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   cuparseinfo.ulMaxDisplayDelay = 4;
   cuparseinfo.pUserData = this;
   cuparseinfo.pfnSequenceCallback =
-    NVIDIAVideoDecoder::cuvid_handle_video_sequence;
+      NVIDIAVideoDecoder::cuvid_handle_video_sequence;
   cuparseinfo.pfnDecodePicture =
-    NVIDIAVideoDecoder::cuvid_handle_picture_decode;
+      NVIDIAVideoDecoder::cuvid_handle_picture_decode;
   cuparseinfo.pfnDisplayPicture =
-    NVIDIAVideoDecoder::cuvid_handle_picture_display;
+      NVIDIAVideoDecoder::cuvid_handle_picture_display;
 
   CUD_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
 
@@ -141,7 +137,7 @@ void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   size_t pos = 0;
   while (pos < metadata_packets_.size()) {
     int encoded_packet_size =
-      *reinterpret_cast<int*>(metadata_packets_.data() + pos);
+        *reinterpret_cast<int*>(metadata_packets_.data() + pos);
     pos += sizeof(int);
     char* encoded_packet = metadata_packets_.data() + pos;
     pos += encoded_packet_size;
@@ -150,11 +146,8 @@ void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   }
 }
 
-bool NVIDIAVideoDecoder::feed(
-  const char* encoded_buffer,
-  size_t encoded_size,
-  bool discontinuity)
-{
+bool NVIDIAVideoDecoder::feed(const char* encoded_buffer, size_t encoded_size,
+                              bool discontinuity) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   CUVIDSOURCEDATAPACKET cupkt = {};
@@ -179,7 +172,7 @@ bool NVIDIAVideoDecoder::feed(
     size_t pos = 0;
     while (pos < metadata_packets_.size()) {
       int encoded_packet_size =
-        *reinterpret_cast<int*>(metadata_packets_.data() + pos);
+          *reinterpret_cast<int*>(metadata_packets_.data() + pos);
       pos += sizeof(int);
       char* encoded_packet = metadata_packets_.data() + pos;
       pos += encoded_packet_size;
@@ -193,7 +186,6 @@ bool NVIDIAVideoDecoder::feed(
 
   return frame_queue_.size() > 0;
 }
-
 
 bool NVIDIAVideoDecoder::discard_frame() {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -209,10 +201,7 @@ bool NVIDIAVideoDecoder::discard_frame() {
   return frame_queue_.size() > 0;
 }
 
-bool NVIDIAVideoDecoder::get_frame(
-  char* decoded_buffer,
-  size_t decoded_size)
-{
+bool NVIDIAVideoDecoder::get_frame(char* decoded_buffer, size_t decoded_size) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   if (frame_queue_.size() > 0) {
@@ -228,18 +217,16 @@ bool NVIDIAVideoDecoder::get_frame(
     if (mapped_frames_[mapped_frame_index] != 0) {
       auto start_unmap = now();
       CU_CHECK(cudaStreamSynchronize(streams_[mapped_frame_index]));
-      CUD_CHECK(cuvidUnmapVideoFrame(decoder_,
-                                     mapped_frames_[mapped_frame_index]));
+      CUD_CHECK(
+          cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
       if (profiler_) {
         profiler_->add_interval("unmap_frame", start_unmap, now());
       }
     }
     auto start_map = now();
     unsigned int pitch = 0;
-    CUD_CHECK(cuvidMapVideoFrame(decoder_,
-                                 dispinfo.picture_index,
-                                 &mapped_frames_[mapped_frame_index],
-                                 &pitch,
+    CUD_CHECK(cuvidMapVideoFrame(decoder_, dispinfo.picture_index,
+                                 &mapped_frames_[mapped_frame_index], &pitch,
                                  &params));
     // cuvidMapVideoFrame does not wait for convert kernel to finish so sync
     // TODO(apoms): make this an event insertion and have the async 2d memcpy
@@ -253,15 +240,13 @@ bool NVIDIAVideoDecoder::get_frame(
     //              on that here to copy the data properly
     for (int i = 0; i < 2; i++) {
       CU_CHECK(cudaMemcpy2DAsync(
-                 decoded_buffer + i * metadata_.width * metadata_.height,
-                 metadata_.width, // dst pitch
-                 (const void*)(
-                   mapped_frame + i * pitch * metadata_.height), // src
-                 pitch, // src pitch
-                 metadata_.width, // width
-                 i == 0 ? metadata_.height : metadata_.height / 2, // height
-                 cudaMemcpyDeviceToDevice,
-                 streams_[mapped_frame_index]));
+          decoded_buffer + i * metadata_.width * metadata_.height,
+          metadata_.width,  // dst pitch
+          (const void*)(mapped_frame + i * pitch * metadata_.height),  // src
+          pitch,                                             // src pitch
+          metadata_.width,                                   // width
+          i == 0 ? metadata_.height : metadata_.height / 2,  // height
+          cudaMemcpyDeviceToDevice, streams_[mapped_frame_index]));
     }
   }
 
@@ -270,7 +255,6 @@ bool NVIDIAVideoDecoder::get_frame(
 
   return frame_queue_.size() > 0;
 }
-
 
 int NVIDIAVideoDecoder::decoded_frames_buffered() {
   return static_cast<int>(frame_queue_.size());
@@ -282,18 +266,13 @@ void NVIDIAVideoDecoder::wait_until_frames_copied() {
   }
 }
 
-int NVIDIAVideoDecoder::cuvid_handle_video_sequence(
-  void *opaque,
-  CUVIDEOFORMAT* format)
-{
+int NVIDIAVideoDecoder::cuvid_handle_video_sequence(void* opaque,
+                                                    CUVIDEOFORMAT* format) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
-
 }
 
-int NVIDIAVideoDecoder::cuvid_handle_picture_decode(
-  void *opaque,
-  CUVIDPICPARAMS* picparams)
-{
+int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
+                                                    CUVIDPICPARAMS* picparams) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
 
   int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
@@ -312,12 +291,9 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(
 }
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_display(
-  void *opaque,
-  CUVIDPARSERDISPINFO* dispinfo)
-{
+    void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
   decoder.prev_frame_++;
 }
-
 }

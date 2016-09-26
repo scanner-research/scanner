@@ -17,17 +17,12 @@
 
 namespace scanner {
 
-VGGCPUInputTransformer::VGGCPUInputTransformer(
-  const NetDescriptor& descriptor)
-  : descriptor_(descriptor)
-{
+VGGCPUInputTransformer::VGGCPUInputTransformer(const NetDescriptor& descriptor)
+    : descriptor_(descriptor) {
   // Resize into
   std::vector<float> mean_image = descriptor_.mean_image;
-  cv::Mat unsized_mean_mat(
-    descriptor_.mean_height * 3,
-    descriptor_.mean_width,
-    CV_32FC1,
-    mean_image.data());
+  cv::Mat unsized_mean_mat(descriptor_.mean_height * 3, descriptor_.mean_width,
+                           CV_32FC1, mean_image.data());
   // HACK(apoms): Resizing the mean like this is not likely to produce a correct
   //              result because we are resizing a planar BGR layout which is
   //              represented in OpenCV as a single channel image with a height
@@ -46,18 +41,13 @@ VGGCPUInputTransformer::VGGCPUInputTransformer(
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void VGGCPUInputTransformer::configure(
-  const DatasetItemMetadata& metadata,
-  caffe::Net<float>* net)
-{
+void VGGCPUInputTransformer::configure(const DatasetItemMetadata& metadata,
+                                       caffe::Net<float>* net) {
   metadata_ = metadata;
 }
 
-void VGGCPUInputTransformer::transform_input(
-  u8* input_buffer,
-  f32* net_input,
-  int batch_size)
-{
+void VGGCPUInputTransformer::transform_input(u8* input_buffer, f32* net_input,
+                                             int batch_size) {
   i32 frame_width = metadata_.width;
   i32 frame_height = metadata_.height;
   size_t frame_size = frame_width * frame_height * 3 * sizeof(u8);
@@ -66,10 +56,9 @@ void VGGCPUInputTransformer::transform_input(
 
     cv::Mat input_mat = cv::Mat(frame_height, frame_width, CV_8UC3, buffer);
 
-    cv::resize(input_mat,
-               resized_input,
-               cv::Size(NET_INPUT_WIDTH, NET_INPUT_HEIGHT),
-               0, 0, cv::INTER_LINEAR);
+    cv::resize(input_mat, resized_input,
+               cv::Size(NET_INPUT_WIDTH, NET_INPUT_HEIGHT), 0, 0,
+               cv::INTER_LINEAR);
     cv::cvtColor(resized_input, bgr_input, CV_RGB2BGR);
     // Changed from interleaved BGR to planar BGR
     cv::split(bgr_input, input_planes);
@@ -77,23 +66,17 @@ void VGGCPUInputTransformer::transform_input(
     planar_input.convertTo(float_input, CV_32FC1);
     cv::subtract(float_input, mean_mat, normalized_input);
     for (i32 r = 0; r < normalized_input.rows; ++r) {
-      u8* mat_pos =
-        normalized_input.data +
-        r * normalized_input.step;
+      u8* mat_pos = normalized_input.data + r * normalized_input.step;
       u8* input_pos = reinterpret_cast<u8*>(
-        net_input +
-        i * (NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3) +
-        r * NET_INPUT_WIDTH);
+          net_input + i * (NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3) +
+          r * NET_INPUT_WIDTH);
       memcpy(input_pos, mat_pos, normalized_input.cols * sizeof(float));
     }
   }
 }
 
 CaffeInputTransformer* VGGCPUInputTransformerFactory::construct(
-  const EvaluatorConfig& config,
-  const NetDescriptor& descriptor)
-{
+    const EvaluatorConfig& config, const NetDescriptor& descriptor) {
   return new VGGCPUInputTransformer(descriptor);
 }
-
 }

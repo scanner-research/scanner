@@ -15,12 +15,12 @@
 
 #pragma once
 
-#include "scanner/util/queue.h"
-#include "scanner/util/profiler.h"
 #include "scanner/util/common.h"
+#include "scanner/util/profiler.h"
+#include "scanner/util/queue.h"
 
-#include <string>
 #include <pthread.h>
+#include <string>
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -35,7 +35,7 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// VideoSeparator
 class VideoSeparator {
-public:
+ public:
   VideoSeparator(AVCodecContext* cc);
 
   ~VideoSeparator();
@@ -54,7 +54,7 @@ public:
 
   const std::vector<int64_t>& get_keyframe_byte_offsets();
 
-private:
+ private:
   AVCodecContext* cc_;
 
   int prev_frame_;
@@ -71,5 +71,4 @@ private:
 
   double decode_time_;
 };
-
 }

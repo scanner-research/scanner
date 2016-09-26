@@ -20,19 +20,18 @@
 namespace scanner {
 
 class YoloParser : public ResultsParser {
-public:
+ public:
   YoloParser(double threshold);
 
   std::vector<std::string> get_output_names() override;
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  void parse_output(
-    const std::vector<u8*>& output,
-    const std::vector<i64>& output_size,
-    folly::dynamic& parsed_results) override;
+  void parse_output(const std::vector<u8*>& output,
+                    const std::vector<i64>& output_size,
+                    folly::dynamic& parsed_results) override;
 
-private:
+ private:
   std::vector<std::string> categories_;
   i32 num_categories_;
   i32 input_width_;
@@ -47,5 +46,4 @@ private:
 
   double threshold_;
 };
-
 }

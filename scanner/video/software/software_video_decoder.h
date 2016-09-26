@@ -19,46 +19,42 @@
 
 extern "C" {
 #include "libavcodec/avcodec.h"
+#include "libavfilter/avfilter.h"
 #include "libavformat/avformat.h"
 #include "libavformat/avio.h"
-#include "libavfilter/avfilter.h"
-#include "libswscale/swscale.h"
-#include "libavutil/pixdesc.h"
 #include "libavutil/error.h"
 #include "libavutil/opt.h"
+#include "libavutil/pixdesc.h"
+#include "libswscale/swscale.h"
 }
 
-#include <vector>
 #include <deque>
+#include <vector>
 
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
 class SoftwareVideoDecoder : public VideoDecoder {
-public:
+ public:
   SoftwareVideoDecoder(int device_id);
 
   ~SoftwareVideoDecoder();
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  bool feed(
-    const u8* encoded_buffer,
-    size_t encoded_size,
-    bool discontinuity = false) override;
+  bool feed(const u8* encoded_buffer, size_t encoded_size,
+            bool discontinuity = false) override;
 
   bool discard_frame() override;
 
-  bool get_frame(
-    u8* decoded_buffer,
-    size_t decoded_size) override;
+  bool get_frame(u8* decoded_buffer, size_t decoded_size) override;
 
   int decoded_frames_buffered() override;
 
   void wait_until_frames_copied() override;
 
-private:
+ private:
   int device_id_;
   AVPacket packet_;
   AVCodec* codec_;
@@ -71,5 +67,4 @@ private:
   std::vector<AVFrame*> frame_pool_;
   std::deque<AVFrame*> decoded_frame_queue_;
 };
-
 }

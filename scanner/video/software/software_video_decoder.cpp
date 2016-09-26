@@ -18,11 +18,11 @@
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
-#include "libswscale/swscale.h"
-#include "libavutil/imgutils.h"
-#include "libavutil/frame.h"
 #include "libavutil/error.h"
+#include "libavutil/frame.h"
+#include "libavutil/imgutils.h"
 #include "libavutil/opt.h"
+#include "libswscale/swscale.h"
 }
 
 #include <cassert>
@@ -32,11 +32,10 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
 SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id)
-  : codec_(nullptr),
-    cc_(nullptr),
-    reset_context_(true),
-    sws_context_(nullptr)
-{
+    : codec_(nullptr),
+      cc_(nullptr),
+      reset_context_(true),
+      sws_context_(nullptr) {
   av_init_packet(&packet_);
 
   codec_ = avcodec_find_decoder(AV_CODEC_ID_H264);
@@ -77,11 +76,8 @@ void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   reset_context_ = true;
 }
 
-bool SoftwareVideoDecoder::feed(
-  const u8* encoded_buffer,
-  size_t encoded_size,
-  bool discontinuity)
-{
+bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
+                                bool discontinuity) {
   if (av_new_packet(&packet_, encoded_size) < 0) {
     fprintf(stderr, "could not allocated packet for feeding into decoder\n");
     assert(false);
@@ -101,12 +97,12 @@ bool SoftwareVideoDecoder::feed(
 
     int got_picture = 0;
     int consumed_length =
-      avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
+        avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
     if (consumed_length < 0) {
       char err_msg[256];
       av_strerror(consumed_length, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame (%d): %s\n",
-              consumed_length, err_msg);
+      fprintf(stderr, "Error while decoding frame (%d): %s\n", consumed_length,
+              err_msg);
       assert(false);
     }
     if (got_picture) {
@@ -143,10 +139,7 @@ bool SoftwareVideoDecoder::discard_frame() {
   return decoded_frame_queue_.size() > 0;
 }
 
-bool SoftwareVideoDecoder::get_frame(
-  u8* decoded_buffer,
-  size_t decoded_size)
-{
+bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   int64_t size_left = decoded_size;
 
   AVFrame* frame = decoded_frame_queue_.front();
@@ -155,17 +148,9 @@ bool SoftwareVideoDecoder::get_frame(
   if (reset_context_) {
     AVPixelFormat decoder_pixel_format = cc_->pix_fmt;
     sws_context_ = sws_getCachedContext(
-      sws_context_,
-      metadata_.width,
-      metadata_.height,
-      decoder_pixel_format,
-      metadata_.width,
-      metadata_.height,
-      AV_PIX_FMT_RGB24,
-      SWS_BICUBIC,
-      NULL,
-      NULL,
-      NULL);
+        sws_context_, metadata_.width, metadata_.height, decoder_pixel_format,
+        metadata_.width, metadata_.height, AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL,
+        NULL, NULL);
   }
 
   if (sws_context_ == NULL) {
@@ -176,13 +161,8 @@ bool SoftwareVideoDecoder::get_frame(
   uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size = av_image_fill_arrays(
-    out_slices,
-    out_linesizes,
-    reinterpret_cast<uint8_t*>(decoded_buffer),
-    AV_PIX_FMT_RGB24,
-    metadata_.width,
-    metadata_.height,
-    1);
+      out_slices, out_linesizes, reinterpret_cast<uint8_t*>(decoded_buffer),
+      AV_PIX_FMT_RGB24, metadata_.width, metadata_.height, 1);
   if (required_size < 0) {
     fprintf(stderr, "Error in av_image_fill_arrays\n");
     exit(EXIT_FAILURE);
@@ -191,14 +171,8 @@ bool SoftwareVideoDecoder::get_frame(
     fprintf(stderr, "Decode buffer not large enough for image\n");
     exit(EXIT_FAILURE);
   }
-  if (sws_scale(sws_context_,
-                frame->data,
-                frame->linesize,
-                0,
-                frame->height,
-                out_slices,
-                out_linesizes) < 0)
-  {
+  if (sws_scale(sws_context_, frame->data, frame->linesize, 0, frame->height,
+                out_slices, out_linesizes) < 0) {
     fprintf(stderr, "sws_scale failed\n");
     exit(EXIT_FAILURE);
   }
@@ -213,7 +187,5 @@ int SoftwareVideoDecoder::decoded_frames_buffered() {
   return decoded_frame_queue_.size();
 }
 
-void SoftwareVideoDecoder::wait_until_frames_copied() {
-}
-
+void SoftwareVideoDecoder::wait_until_frames_copied() {}
 }

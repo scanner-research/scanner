@@ -20,19 +20,17 @@
 namespace scanner {
 
 class ImagenetParser : public ResultsParser {
-public:
+ public:
   ImagenetParser();
 
   std::vector<std::string> get_output_names() override;
 
-  void parse_output(
-    const std::vector<u8*>& output,
-    const std::vector<i64>& output_size,
-    folly::dynamic& parsed_results) override;
+  void parse_output(const std::vector<u8*>& output,
+                    const std::vector<i64>& output_size,
+                    folly::dynamic& parsed_results) override;
 
-private:
+ private:
   static const size_t FEATURE_VECTOR_LENGTH = 1000;
   static const size_t FEATURE_VECTOR_SIZE = FEATURE_VECTOR_LENGTH * sizeof(f32);
 };
-
 }

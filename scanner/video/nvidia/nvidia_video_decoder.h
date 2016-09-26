@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "scanner/video/video_decoder.h"
 #include "scanner/util/common.h"
+#include "scanner/video/video_decoder.h"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -27,40 +27,32 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// NVIDIAVideoDecoder
 class NVIDIAVideoDecoder : public VideoDecoder {
-public:
+ public:
   NVIDIAVideoDecoder(int device_id, CUcontext cuda_context);
 
   ~NVIDIAVideoDecoder();
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  bool feed(
-    const char* encoded_buffer,
-    size_t encoded_size,
-    bool discontinuity = false) override;
+  bool feed(const char* encoded_buffer, size_t encoded_size,
+            bool discontinuity = false) override;
 
   bool discard_frame() override;
 
-  bool get_frame(
-    char* decoded_buffer,
-    size_t decoded_size) override;
+  bool get_frame(char* decoded_buffer, size_t decoded_size) override;
 
   int decoded_frames_buffered() override;
 
   void wait_until_frames_copied() override;
 
-private:
-  static int cuvid_handle_video_sequence(
-    void *opaque,
-    CUVIDEOFORMAT* format);
+ private:
+  static int cuvid_handle_video_sequence(void* opaque, CUVIDEOFORMAT* format);
 
-  static int cuvid_handle_picture_decode(
-    void *opaque,
-    CUVIDPICPARAMS* picparams);
+  static int cuvid_handle_picture_decode(void* opaque,
+                                         CUVIDPICPARAMS* picparams);
 
-  static int cuvid_handle_picture_display(
-    void *opaque,
-    CUVIDPARSERDISPINFO* dispinfo);
+  static int cuvid_handle_picture_display(void* opaque,
+                                          CUVIDPARSERDISPINFO* dispinfo);
 
   int device_id_;
   CUcontext cuda_context_;
@@ -78,5 +70,4 @@ private:
   int prev_frame_;
   int wait_for_iframe_;
 };
-
 }

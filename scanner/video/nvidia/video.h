@@ -15,12 +15,12 @@
 
 #pragma once
 
-#include "scanner/util/queue.h"
-#include "scanner/util/profiler.h"
 #include "scanner/util/common.h"
+#include "scanner/util/profiler.h"
+#include "scanner/util/queue.h"
 
-#include <string>
 #include <pthread.h>
+#include <string>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -41,7 +41,7 @@ extern pthread_mutex_t av_mutex;
 ///////////////////////////////////////////////////////////////////////////////
 /// VideoSeparator
 class VideoSeparator {
-public:
+ public:
   VideoSeparator(CUcontext cuda_context, AVCodecContext* cc);
 
   ~VideoSeparator();
@@ -60,18 +60,14 @@ public:
 
   const std::vector<int64_t>& get_keyframe_byte_offsets();
 
-private:
-  static int cuvid_handle_video_sequence(
-    void *opaque,
-    CUVIDEOFORMAT* format);
+ private:
+  static int cuvid_handle_video_sequence(void* opaque, CUVIDEOFORMAT* format);
 
-  static int cuvid_handle_picture_decode(
-    void *opaque,
-    CUVIDPICPARAMS* picparams);
+  static int cuvid_handle_picture_decode(void* opaque,
+                                         CUVIDPICPARAMS* picparams);
 
-  static int cuvid_handle_picture_display(
-    void *opaque,
-    CUVIDPARSERDISPINFO* dispinfo);
+  static int cuvid_handle_picture_display(void* opaque,
+                                          CUVIDPARSERDISPINFO* dispinfo);
 
   CUcontext cuda_context_;
   AVCodecContext* cc_;
@@ -97,21 +93,17 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 /// VideoDecoder
 class VideoDecoder {
-public:
+ public:
   VideoDecoder(CUcontext cuda_context, DatasetItemMetadata metadata);
 
   ~VideoDecoder();
 
-  bool feed(
-    const char* encoded_buffer,
-    size_t encoded_size,
-    bool discontinuity = false);
+  bool feed(const char* encoded_buffer, size_t encoded_size,
+            bool discontinuity = false);
 
   bool discard_frame();
 
-  bool get_frame(
-    char* decoded_buffer,
-    size_t decoded_size);
+  bool get_frame(char* decoded_buffer, size_t decoded_size);
 
   int decoded_frames_buffered();
 
@@ -119,18 +111,14 @@ public:
 
   void set_profiler(Profiler* profiler);
 
-private:
-  static int cuvid_handle_video_sequence(
-    void *opaque,
-    CUVIDEOFORMAT* format);
+ private:
+  static int cuvid_handle_video_sequence(void* opaque, CUVIDEOFORMAT* format);
 
-  static int cuvid_handle_picture_decode(
-    void *opaque,
-    CUVIDPICPARAMS* picparams);
+  static int cuvid_handle_picture_decode(void* opaque,
+                                         CUVIDPICPARAMS* picparams);
 
-  static int cuvid_handle_picture_display(
-    void *opaque,
-    CUVIDPARSERDISPINFO* dispinfo);
+  static int cuvid_handle_picture_display(void* opaque,
+                                          CUVIDPARSERDISPINFO* dispinfo);
 
   const int max_output_frames_;
   const int max_mapped_frames_;
@@ -154,5 +142,4 @@ private:
 
   Profiler* profiler_;
 };
-
 }

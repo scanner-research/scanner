@@ -15,30 +15,25 @@
 
 #pragma once
 
+#include "scanner/eval/caffe/net_descriptor.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_constructor.h"
-#include "scanner/eval/caffe/net_descriptor.h"
 
 namespace scanner {
 
 class CaffeGPUEvaluator : public Evaluator {
-public:
-  CaffeGPUEvaluator(
-    EvaluatorConfig config,
-    NetDescriptor descriptor,
-    CaffeInputTransformer* transformer,
-    int device_id);
+ public:
+  CaffeGPUEvaluator(EvaluatorConfig config, NetDescriptor descriptor,
+                    CaffeInputTransformer* transformer, int device_id);
 
   virtual ~CaffeGPUEvaluator();
 
   virtual void configure(const DatasetItemMetadata& metadata) override;
 
-  virtual void evaluate(
-    char* input_buffer,
-    std::vector<char*> output_buffers,
-    int batch_size) override;
+  virtual void evaluate(char* input_buffer, std::vector<char*> output_buffers,
+                        int batch_size) override;
 
-protected:
+ protected:
   NetDescriptor descriptor_;
   CaffeInputTransformer* transformer_;
   int device_id_;
@@ -48,10 +43,10 @@ protected:
 };
 
 class CaffeGPUEvaluatorConstructor : public EvaluatorConstructor {
-public:
+ public:
   CaffeGPUEvaluatorConstructor(
-    NetDescriptor net_descriptor,
-    CaffeInputTransformerFactory* transformer_factory);
+      NetDescriptor net_descriptor,
+      CaffeInputTransformerFactory* transformer_factory);
 
   virtual ~CaffeGPUEvaluatorConstructor();
 
@@ -69,23 +64,19 @@ public:
 
   virtual char* new_input_buffer(const EvaluatorConfig& config) override;
 
-  virtual void delete_input_buffer(
-    const EvaluatorConfig& config,
-    char* buffer) override;
+  virtual void delete_input_buffer(const EvaluatorConfig& config,
+                                   char* buffer) override;
 
-  virtual std::vector<char*> new_output_buffers(
-    const EvaluatorConfig& config,
-    int num_inputs) override;
+  virtual std::vector<char*> new_output_buffers(const EvaluatorConfig& config,
+                                                int num_inputs) override;
 
-  virtual void delete_output_buffers(
-    const EvaluatorConfig& config,
-    std::vector<char*> buffers) override;
+  virtual void delete_output_buffers(const EvaluatorConfig& config,
+                                     std::vector<char*> buffers) override;
 
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
-private:
+ private:
   NetDescriptor net_descriptor_;
   CaffeInputTransformerFactory* transformer_factory_;
 };
-
 }

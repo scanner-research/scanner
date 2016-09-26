@@ -21,18 +21,16 @@
 namespace scanner {
 
 class BlurEvaluator : public Evaluator {
-public:
+ public:
   BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma);
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  void evaluate(
-    i32 input_count,
-    u8* input_buffer,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) override;
+  void evaluate(i32 input_count, u8* input_buffer,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
-private:
+ private:
   i32 kernel_size_;
   i32 filter_left_;
   i32 filter_right_;
@@ -42,7 +40,7 @@ private:
 };
 
 class BlurEvaluatorFactory : public EvaluatorFactory {
-public:
+ public:
   BlurEvaluatorFactory(i32 kernel_size, f64 sigma);
 
   EvaluatorCapabilities get_capabilities() override;
@@ -53,9 +51,8 @@ public:
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
-private:
+ private:
   i32 kernel_size_;
   f64 sigma_;
 };
-
 }

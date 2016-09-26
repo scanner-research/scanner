@@ -34,9 +34,9 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavfilter/avfilter.h"
 #include "libavformat/avformat.h"
-#include "libswscale/swscale.h"
-#include "libavutil/pixdesc.h"
 #include "libavutil/opt.h"
+#include "libavutil/pixdesc.h"
+#include "libswscale/swscale.h"
 
 // For hardware decode
 #include "libavutil/hwcontext.h"
@@ -44,7 +44,7 @@ extern "C" {
 }
 
 // Stolen from libavformat/movenc.h
-#define FF_MOV_FLAG_FASTSTART             (1 <<  7)
+#define FF_MOV_FLAG_FASTSTART (1 << 7)
 
 namespace scanner {
 
@@ -52,39 +52,34 @@ namespace {
 
 class AVFifoBuffer;
 
-typedef struct CuvidContext
-{
-    CUvideodecoder cudecoder;
-    CUvideoparser cuparser;
+typedef struct CuvidContext {
+  CUvideodecoder cudecoder;
+  CUvideoparser cuparser;
 
-    AVBufferRef *hwdevice;
-    AVBufferRef *hwframe;
+  AVBufferRef* hwdevice;
+  AVBufferRef* hwframe;
 
-    AVBSFContext *bsf;
+  AVBSFContext* bsf;
 
-    AVFifoBuffer *frame_queue;
+  AVFifoBuffer* frame_queue;
 
-    int internal_error;
+  int internal_error;
 
-    cudaVideoCodec codec_type;
-    cudaVideoChromaFormat chroma_format;
+  cudaVideoCodec codec_type;
+  cudaVideoChromaFormat chroma_format;
 } CuvidContext;
-
 }
 
 pthread_mutex_t av_mutex;
 
-VideoSeparator::VideoSeparator(
-  CUcontext cuda_context,
-  AVCodecContext* cc)
-  : cuda_context_(cuda_context),
-    cc_(cc),
-    parser_(nullptr),
-    prev_frame_(0),
-    is_metadata_(true),
-    is_keyframe_(false),
-    decode_time_(0)
-{
+VideoSeparator::VideoSeparator(CUcontext cuda_context, AVCodecContext* cc)
+    : cuda_context_(cuda_context),
+      cc_(cc),
+      parser_(nullptr),
+      prev_frame_(0),
+      is_metadata_(true),
+      is_keyframe_(false),
+      decode_time_(0) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -95,26 +90,22 @@ VideoSeparator::VideoSeparator(
   cuparseinfo.ulMaxNumDecodeSurfaces = 20;
   cuparseinfo.ulMaxDisplayDelay = 4;
   cuparseinfo.pUserData = this;
-  cuparseinfo.pfnSequenceCallback =
-    VideoSeparator::cuvid_handle_video_sequence;
-  cuparseinfo.pfnDecodePicture =
-    VideoSeparator::cuvid_handle_picture_decode;
-  cuparseinfo.pfnDisplayPicture =
-    VideoSeparator::cuvid_handle_picture_display;
+  cuparseinfo.pfnSequenceCallback = VideoSeparator::cuvid_handle_video_sequence;
+  cuparseinfo.pfnDecodePicture = VideoSeparator::cuvid_handle_picture_decode;
+  cuparseinfo.pfnDisplayPicture = VideoSeparator::cuvid_handle_picture_display;
 
   CUVIDEOFORMATEX cuparse_ext = {};
   cuparseinfo.pExtVideoInfo = &cuparse_ext;
 
-  CuvidContext *ctx = reinterpret_cast<CuvidContext*>(cc->priv_data);
+  CuvidContext* ctx = reinterpret_cast<CuvidContext*>(cc->priv_data);
   if (cc->codec->id == AV_CODEC_ID_H264 || cc->codec->id == AV_CODEC_ID_HEVC) {
     cuparse_ext.format.seqhdr_data_length = ctx->bsf->par_out->extradata_size;
-    memcpy(cuparse_ext.raw_seqhdr_data,
-           ctx->bsf->par_out->extradata,
-           FFMIN(sizeof(cuparse_ext.raw_seqhdr_data), ctx->bsf->par_out->extradata_size));
+    memcpy(cuparse_ext.raw_seqhdr_data, ctx->bsf->par_out->extradata,
+           FFMIN(sizeof(cuparse_ext.raw_seqhdr_data),
+                 ctx->bsf->par_out->extradata_size));
   } else if (cc->extradata_size > 0) {
     cuparse_ext.format.seqhdr_data_length = cc->extradata_size;
-    memcpy(cuparse_ext.raw_seqhdr_data,
-           cc->extradata,
+    memcpy(cuparse_ext.raw_seqhdr_data, cc->extradata,
            FFMIN(sizeof(cuparse_ext.raw_seqhdr_data), cc->extradata_size));
   }
 
@@ -140,12 +131,12 @@ VideoSeparator::~VideoSeparator() {
 bool VideoSeparator::decode(AVPacket* packet) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
-  AVPacket filter_packet = { 0 };
-  AVPacket filtered_packet = { 0 };
+  AVPacket filter_packet = {0};
+  AVPacket filtered_packet = {0};
   CUdeviceptr mapped_frame = 0;
   int ret = 0, eret = 0;
 
-  CuvidContext *ctx = reinterpret_cast<CuvidContext*>(cc_->priv_data);
+  CuvidContext* ctx = reinterpret_cast<CuvidContext*>(cc_->priv_data);
   if (ctx->bsf && packet->size) {
     if ((ret = av_packet_ref(&filter_packet, packet)) < 0) {
       return ret;
@@ -176,20 +167,14 @@ bool VideoSeparator::decode(AVPacket* packet) {
   if (is_metadata_) {
     size_t prev_size = metadata_packets_.size();
     metadata_packets_.resize(prev_size + packet->size + sizeof(int));
-    memcpy(metadata_packets_.data() + prev_size,
-           &packet->size,
-           sizeof(int));
-    memcpy(metadata_packets_.data() + prev_size + sizeof(int),
-           packet->data,
+    memcpy(metadata_packets_.data() + prev_size, &packet->size, sizeof(int));
+    memcpy(metadata_packets_.data() + prev_size + sizeof(int), packet->data,
            packet->size);
   } else {
     size_t prev_size = bitstream_packets_.size();
     bitstream_packets_.resize(prev_size + packet->size + sizeof(int));
-    memcpy(bitstream_packets_.data() + prev_size,
-           &packet->size,
-           sizeof(int));
-    memcpy(bitstream_packets_.data() + prev_size + sizeof(int),
-           packet->data,
+    memcpy(bitstream_packets_.data() + prev_size, &packet->size, sizeof(int));
+    memcpy(bitstream_packets_.data() + prev_size + sizeof(int), packet->data,
            packet->size);
     if (is_keyframe_) {
       keyframe_positions_.push_back(prev_frame_ - 1);
@@ -228,13 +213,9 @@ const std::vector<int64_t>& VideoSeparator::get_keyframe_byte_offsets() {
   return keyframe_byte_offsets_;
 }
 
-
-int VideoSeparator::cuvid_handle_video_sequence(
-  void *opaque,
-  CUVIDEOFORMAT* format)
-{
-  VideoSeparator& separator =
-    *reinterpret_cast<VideoSeparator*>(opaque);
+int VideoSeparator::cuvid_handle_video_sequence(void* opaque,
+                                                CUVIDEOFORMAT* format) {
+  VideoSeparator& separator = *reinterpret_cast<VideoSeparator*>(opaque);
 
   CUVIDDECODECREATEINFO cuinfo = {};
   cuinfo.CodecType = format->codec;
@@ -262,10 +243,8 @@ int VideoSeparator::cuvid_handle_video_sequence(
   separator.is_metadata_ = false;
 }
 
-int VideoSeparator::cuvid_handle_picture_decode(
-  void *opaque,
-  CUVIDPICPARAMS* picparams)
-{
+int VideoSeparator::cuvid_handle_picture_decode(void* opaque,
+                                                CUVIDPICPARAMS* picparams) {
   VideoSeparator& separator = *reinterpret_cast<VideoSeparator*>(opaque);
 
   if (picparams->intra_pic_flag) {
@@ -277,12 +256,9 @@ int VideoSeparator::cuvid_handle_picture_decode(
 }
 
 int VideoSeparator::cuvid_handle_picture_display(
-  void *opaque,
-  CUVIDPARSERDISPINFO* dispinfo)
-{
+    void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
   VideoSeparator& separator = *reinterpret_cast<VideoSeparator*>(opaque);
 }
-
 
 //   // avcodec_close(codec_context);
 //   // av_free(codec_context);
@@ -294,22 +270,19 @@ int VideoSeparator::cuvid_handle_picture_display(
 //   av_freep(&io_context->buffer);
 //   av_freep(&io_context);
 
-VideoDecoder::VideoDecoder(
-  CUcontext cuda_context,
-  DatasetItemMetadata metadata)
-  : max_output_frames_(32),
-    max_mapped_frames_(8),
-    streams_(max_mapped_frames_),
-    cuda_context_(cuda_context),
-    metadata_(metadata),
-    metadata_packets_(metadata.metadata_packets),
-    parser_(nullptr),
-    decoder_(nullptr),
-    mapped_frames_(max_mapped_frames_, 0),
-    prev_frame_(0),
-    decode_time_(0),
-    profiler_(nullptr)
-{
+VideoDecoder::VideoDecoder(CUcontext cuda_context, DatasetItemMetadata metadata)
+    : max_output_frames_(32),
+      max_mapped_frames_(8),
+      streams_(max_mapped_frames_),
+      cuda_context_(cuda_context),
+      metadata_(metadata),
+      metadata_packets_(metadata.metadata_packets),
+      parser_(nullptr),
+      decoder_(nullptr),
+      mapped_frames_(max_mapped_frames_, 0),
+      prev_frame_(0),
+      decode_time_(0),
+      profiler_(nullptr) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -358,7 +331,7 @@ VideoDecoder::VideoDecoder(
   size_t pos = 0;
   while (pos < metadata_packets_.size()) {
     int encoded_packet_size =
-      *reinterpret_cast<int*>(metadata_packets_.data() + pos);
+        *reinterpret_cast<int*>(metadata_packets_.data() + pos);
     pos += sizeof(int);
     char* encoded_packet = metadata_packets_.data() + pos;
     pos += encoded_packet_size;
@@ -387,11 +360,8 @@ VideoDecoder::~VideoDecoder() {
   }
 }
 
-bool VideoDecoder::feed(
-  const char* encoded_buffer,
-  size_t encoded_size,
-  bool discontinuity)
-{
+bool VideoDecoder::feed(const char* encoded_buffer, size_t encoded_size,
+                        bool discontinuity) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   CUVIDSOURCEDATAPACKET cupkt = {};
@@ -416,7 +386,7 @@ bool VideoDecoder::feed(
     size_t pos = 0;
     while (pos < metadata_packets_.size()) {
       int encoded_packet_size =
-        *reinterpret_cast<int*>(metadata_packets_.data() + pos);
+          *reinterpret_cast<int*>(metadata_packets_.data() + pos);
       pos += sizeof(int);
       char* encoded_packet = metadata_packets_.data() + pos;
       pos += encoded_packet_size;
@@ -430,7 +400,6 @@ bool VideoDecoder::feed(
 
   return frame_queue_.size() > 0;
 }
-
 
 bool VideoDecoder::discard_frame() {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -446,10 +415,7 @@ bool VideoDecoder::discard_frame() {
   return frame_queue_.size() > 0;
 }
 
-bool VideoDecoder::get_frame(
-  char* decoded_buffer,
-  size_t decoded_size)
-{
+bool VideoDecoder::get_frame(char* decoded_buffer, size_t decoded_size) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   if (frame_queue_.size() > 0) {
@@ -465,18 +431,16 @@ bool VideoDecoder::get_frame(
     if (mapped_frames_[mapped_frame_index] != 0) {
       auto start_unmap = now();
       CU_CHECK(cudaStreamSynchronize(streams_[mapped_frame_index]));
-      CUD_CHECK(cuvidUnmapVideoFrame(decoder_,
-                                     mapped_frames_[mapped_frame_index]));
+      CUD_CHECK(
+          cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
       if (profiler_ != nullptr) {
         profiler_->add_interval("unmap_frame", start_unmap, now());
       }
     }
     auto start_map = now();
     unsigned int pitch = 0;
-    CUD_CHECK(cuvidMapVideoFrame(decoder_,
-                                 dispinfo.picture_index,
-                                 &mapped_frames_[mapped_frame_index],
-                                 &pitch,
+    CUD_CHECK(cuvidMapVideoFrame(decoder_, dispinfo.picture_index,
+                                 &mapped_frames_[mapped_frame_index], &pitch,
                                  &params));
     // cuvidMapVideoFrame does not wait for convert kernel to finish so sync
     // TODO(apoms): make this an event insertion and have the async 2d memcpy
@@ -490,15 +454,13 @@ bool VideoDecoder::get_frame(
     //              on that here to copy the data properly
     for (int i = 0; i < 2; i++) {
       CU_CHECK(cudaMemcpy2DAsync(
-                 decoded_buffer + i * metadata_.width * metadata_.height,
-                 metadata_.width, // dst pitch
-                 (const void*)(
-                   mapped_frame + i * pitch * metadata_.height), // src
-                 pitch, // src pitch
-                 metadata_.width, // width
-                 i == 0 ? metadata_.height : metadata_.height / 2, // height
-                 cudaMemcpyDeviceToDevice,
-                 streams_[mapped_frame_index]));
+          decoded_buffer + i * metadata_.width * metadata_.height,
+          metadata_.width,  // dst pitch
+          (const void*)(mapped_frame + i * pitch * metadata_.height),  // src
+          pitch,                                             // src pitch
+          metadata_.width,                                   // width
+          i == 0 ? metadata_.height : metadata_.height / 2,  // height
+          cudaMemcpyDeviceToDevice, streams_[mapped_frame_index]));
     }
   }
 
@@ -507,7 +469,6 @@ bool VideoDecoder::get_frame(
 
   return frame_queue_.size() > 0;
 }
-
 
 int VideoDecoder::decoded_frames_buffered() {
   return static_cast<int>(frame_queue_.size());
@@ -519,22 +480,15 @@ void VideoDecoder::wait_until_frames_copied() {
   }
 }
 
-void VideoDecoder::set_profiler(Profiler* profiler) {
-  profiler_ = profiler;
-}
+void VideoDecoder::set_profiler(Profiler* profiler) { profiler_ = profiler; }
 
-int VideoDecoder::cuvid_handle_video_sequence(
-  void *opaque,
-  CUVIDEOFORMAT* format)
-{
+int VideoDecoder::cuvid_handle_video_sequence(void* opaque,
+                                              CUVIDEOFORMAT* format) {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
-
 }
 
-int VideoDecoder::cuvid_handle_picture_decode(
-  void *opaque,
-  CUVIDPICPARAMS* picparams)
-{
+int VideoDecoder::cuvid_handle_picture_decode(void* opaque,
+                                              CUVIDPICPARAMS* picparams) {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
 
   int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
@@ -552,13 +506,10 @@ int VideoDecoder::cuvid_handle_picture_decode(
   CUD_CHECK(cuvidDecodePicture(decoder.decoder_, picparams));
 }
 
-int VideoDecoder::cuvid_handle_picture_display(
-  void *opaque,
-  CUVIDPARSERDISPINFO* dispinfo)
-{
+int VideoDecoder::cuvid_handle_picture_display(void* opaque,
+                                               CUVIDPARSERDISPINFO* dispinfo) {
   VideoDecoder& decoder = *reinterpret_cast<VideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
   decoder.prev_frame_++;
 }
-
 }

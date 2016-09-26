@@ -18,25 +18,23 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
-#include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
-#include <opencv2/cudawarping.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
 #include <opencv2/cudaarithm.hpp>
 #include <opencv2/cudaimgproc.hpp>
-#include <opencv2/core/cuda_stream_accessor.hpp>
+#include <opencv2/cudawarping.hpp>
+#include <opencv2/opencv.hpp>
 
 namespace scanner {
 
 class VGGGPUInputTransformer : public CaffeInputTransformer {
-public:
+ public:
   void configure(const DatasetItemMetadata& metadata) override;
 
-  void transform_input(
-    char* input_buffer,
-    float* net_input,
-    int batch_size) override;
+  void transform_input(char* input_buffer, float* net_input,
+                       int batch_size) override;
 
-private:
+ private:
   static const int NET_INPUT_WIDTH = 224;
   static const int NET_INPUT_HEIGHT = 224;
 
@@ -50,8 +48,7 @@ private:
 };
 
 class VGGGPUInputTransformerFactory : public CaffeInputTransformerFactory {
-public:
+ public:
   CaffeInputTransformer* construct(const EvaluatorConfig& config) override;
 };
-
 }

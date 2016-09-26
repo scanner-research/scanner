@@ -18,20 +18,14 @@
 namespace scanner {
 
 class VideoHandlerStats {
-public:
-  virtual ~VideoHandlerStats() {
-  }
+ public:
+  virtual ~VideoHandlerStats() {}
 
-  virtual void recordRequest() {
-    ++req_count_;
-  }
+  virtual void recordRequest() { ++req_count_; }
 
-  virtual uint64_t getRequestCount() {
-    return req_count_;
-  }
+  virtual uint64_t getRequestCount() { return req_count_; }
 
  private:
   uint64_t req_count_{0};
 };
-
 }

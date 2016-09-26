@@ -15,16 +15,16 @@
 
 #pragma once
 
-#include <mutex>
-#include <deque>
-#include <condition_variable>
 #include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
 
 namespace scanner {
 
 template <typename T>
 class Queue {
-public:
+ public:
   Queue();
 
   int size();
@@ -38,13 +38,12 @@ public:
 
   void pop(T& item);
 
-private:
+ private:
   std::mutex mutex_;
   std::condition_variable not_empty_;
   std::deque<T> data_;
   std::atomic<int> waiters_;
 };
-
 }
 
 #include "queue.inl"

@@ -76,15 +76,13 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   auto dimensions_ordering = input_format->find("dimensions");
   if (!dimensions_ordering) {
     std::cout << "Missing 'net.input.dimensions': ordering of dimensions "
-              << "for input format "
-              << std::endl;
+              << "for input format " << std::endl;
     exit(EXIT_FAILURE);
   }
   auto channel_ordering = input_format->find("channel_ordering");
   if (!channel_ordering) {
     std::cout << "Missing 'net.input.channel_ordering': ordering of channels "
-              << "for input format "
-              << std::endl;
+              << "for input format " << std::endl;
     exit(EXIT_FAILURE);
   }
 
@@ -159,14 +157,12 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     bool result = ReadProtoFromBinaryFile(mean_path, &blob_proto);
     data_mean.FromProto(blob_proto);
 
-    memcpy(descriptor.mean_image.data(),
-           data_mean.cpu_data(),
+    memcpy(descriptor.mean_image.data(), data_mean.cpu_data(),
            sizeof(float) * mean_size * 3);
   } else if (!mean_image->has("empty")) {
     std::cout << "Missing 'mean-image.{colors,path,empty}': must specify "
               << "color channel values or path of mean image file or that "
-              << "there is no mean"
-              << std::endl;
+              << "there is no mean" << std::endl;
     exit(EXIT_FAILURE);
   }
 
@@ -179,19 +175,18 @@ caffe::Caffe::Brew device_type_to_caffe_mode(DeviceType type) {
   caffe::Caffe::Brew caffe_type;
 
   switch (type) {
-  case DeviceType::GPU:
-    caffe_type = caffe::Caffe::GPU;
-    break;
-  case DeviceType::CPU:
-    caffe_type = caffe::Caffe::CPU;
-    break;
-  default:
-    // TODO(apoms): error message
-    exit(EXIT_FAILURE);
-    break;
+    case DeviceType::GPU:
+      caffe_type = caffe::Caffe::GPU;
+      break;
+    case DeviceType::CPU:
+      caffe_type = caffe::Caffe::CPU;
+      break;
+    default:
+      // TODO(apoms): error message
+      exit(EXIT_FAILURE);
+      break;
   }
 
   return caffe_type;
 }
-
 }

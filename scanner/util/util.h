@@ -15,37 +15,36 @@
 
 #pragma once
 
-#include <vector>
+#include <libgen.h>
+#include <stdio.h>
+#include <sys/stat.h>
 #include <atomic>
 #include <chrono>
-#include <string>
-#include <sys/stat.h>
-#include <stdio.h>
 #include <cstring>
-#include <libgen.h>
+#include <string>
+#include <vector>
 
 namespace scanner {
 
 class SpinLock {
-    std::atomic_flag locked = ATOMIC_FLAG_INIT ;
-public:
-    void lock() {
-        while (locked.test_and_set(std::memory_order_acquire)) { ; }
+  std::atomic_flag locked = ATOMIC_FLAG_INIT;
+
+ public:
+  void lock() {
+    while (locked.test_and_set(std::memory_order_acquire)) {
+      ;
     }
-    void unlock() {
-        locked.clear(std::memory_order_release);
-    }
+  }
+  void unlock() { locked.clear(std::memory_order_release); }
 };
 
 using timepoint_t = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-inline timepoint_t now() {
-  return std::chrono::high_resolution_clock::now();
-}
+inline timepoint_t now() { return std::chrono::high_resolution_clock::now(); }
 
 inline double nano_since(timepoint_t then) {
-  return
-    std::chrono::duration_cast<std::chrono::nanoseconds>(now() - then).count();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(now() - then)
+      .count();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -62,29 +61,27 @@ inline std::string basename_s(const std::string& path) {
   return std::string(base);
 }
 
-int mkdir_p(const char *path, mode_t mode);
+int mkdir_p(const char* path, mode_t mode);
 
 void temp_file(FILE** file, std::string& name);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// pthread utils
-#define THREAD_RETURN_SUCCESS() \
-  do {                                           \
-    void* val = malloc(sizeof(int));             \
-    *((int*)val) = EXIT_SUCCESS;                 \
-    pthread_exit(val);                           \
+#define THREAD_RETURN_SUCCESS()      \
+  do {                               \
+    void* val = malloc(sizeof(int)); \
+    *((int*)val) = EXIT_SUCCESS;     \
+    pthread_exit(val);               \
   } while (0);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// MPI utils
-inline bool is_master(int rank) {
-  return rank == 0;
-}
+inline bool is_master(int rank) { return rank == 0; }
 
 template <typename T>
 T sum(const std::vector<T>& vec) {
   T result{};
-  for (const T& v: vec) {
+  for (const T& v : vec) {
     result += v;
   }
   return result;
@@ -94,5 +91,4 @@ template <typename T>
 T nano_to_ms(T ns) {
   return ns / 1000000;
 }
-
 }

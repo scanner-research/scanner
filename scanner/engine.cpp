@@ -16,21 +16,21 @@
 #include "scanner/engine.h"
 
 #include "scanner/util/common.h"
+#include "scanner/util/jpeg/JPEGWriter.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
 #include "scanner/util/storehouse.h"
-#include "scanner/util/jpeg/JPEGWriter.h"
 #include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
 
-#include <thread>
+#include <libgen.h>
 #include <mpi.h>
 #include <pthread.h>
+#include <atomic>
 #include <cstdlib>
 #include <string>
-#include <libgen.h>
-#include <atomic>
+#include <thread>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -86,7 +86,7 @@ void delete_buffer(DeviceType type, int device_id, u8* buffer) {
   buffer = nullptr;
 }
 
-} // end anonymous namespace
+}  // end anonymous namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
@@ -169,7 +169,7 @@ void* load_video_thread(void* arg) {
 
   // Setup a distinct storage backend for each IO thread
   storehouse::StorageBackend* storage =
-    storehouse::StorageBackend::make_from_config(args.storage_config);
+      storehouse::StorageBackend::make_from_config(args.storage_config);
 
   std::string last_video_path;
   RandomReadFile* video_file = nullptr;
@@ -192,7 +192,7 @@ void* load_video_thread(void* arg) {
     auto work_start = now();
 
     const VideoWorkItem& work_item =
-      args.work_items[load_work_entry.work_item_index];
+        args.work_items[load_work_entry.work_item_index];
 
     const std::string& video_path = args.video_paths[work_item.video_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
@@ -205,8 +205,7 @@ void* load_video_thread(void* arg) {
 
       // Open the video file for reading
       storage->make_random_read_file(
-        dataset_item_data_path(args.dataset_name, video_path),
-        video_file);
+          dataset_item_data_path(args.dataset_name, video_path), video_file);
 
       video_file->get_size(file_size);
     }
@@ -233,7 +232,7 @@ void* load_video_thread(void* arg) {
     }
     assert(start_keyframe_index != std::numeric_limits<size_t>::max());
     u64 start_keyframe_byte_offset =
-      static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
+        static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
 
     size_t end_keyframe_index = 0;
     for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
@@ -244,7 +243,7 @@ void* load_video_thread(void* arg) {
     }
     assert(end_keyframe_index != 0);
     u64 end_keyframe_byte_offset =
-      static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
+        static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
 
     size_t data_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
 
@@ -268,8 +267,7 @@ void* load_video_thread(void* arg) {
     args.decode_work.push(decode_work_entry);
   }
 
-  printf("(N: %d) Load thread finished.\n",
-         rank);
+  printf("(N: %d) Load thread finished.\n", rank);
 
   // Cleanup
   if (video_file != nullptr) {
@@ -293,11 +291,8 @@ void* decode_thread(void* arg) {
   // HACK(apoms): For the metadata that the VideoDecoder cares about (chroma and
   //              codec type) all videos should be the same for now so just use
   //              the first.
-  std::unique_ptr<VideoDecoder> decoder{
-    VideoDecoder::make_from_config(
-      args.device_type,
-      args.device_id,
-      args.decoder_type)};
+  std::unique_ptr<VideoDecoder> decoder{VideoDecoder::make_from_config(
+      args.device_type, args.device_id, args.decoder_type)};
   assert(decoder.get());
 
   decoder->set_profiler(&args.profiler);
@@ -322,7 +317,7 @@ void* decode_thread(void* arg) {
     auto work_start = now();
 
     const VideoWorkItem& work_item =
-      args.work_items[decode_work_entry.work_item_index];
+        args.work_items[decode_work_entry.work_item_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
     decoder->configure(metadata);
@@ -333,11 +328,8 @@ void* decode_thread(void* arg) {
     size_t decoded_buffer_size = decode_buffer_entry.buffer_size;
     u8* decoded_buffer = decode_buffer_entry.buffer;
 
-    size_t frame_size =
-      av_image_get_buffer_size(AV_PIX_FMT_RGB24,
-                               metadata.width,
-                               metadata.height,
-                               1);
+    size_t frame_size = av_image_get_buffer_size(
+        AV_PIX_FMT_RGB24, metadata.width, metadata.height, 1);
 
     size_t encoded_buffer_offset = 0;
 
@@ -350,7 +342,7 @@ void* decode_thread(void* arg) {
       u8* encoded_packet = nullptr;
       if (encoded_buffer_offset < encoded_buffer_size) {
         encoded_packet_size =
-          *reinterpret_cast<i32*>(encoded_buffer + encoded_buffer_offset);
+            *reinterpret_cast<i32*>(encoded_buffer + encoded_buffer_offset);
         encoded_buffer_offset += sizeof(i32);
         encoded_packet = encoded_buffer + encoded_buffer_offset;
         encoded_buffer_offset += encoded_packet_size;
@@ -362,13 +354,13 @@ void* decode_thread(void* arg) {
         while (more_frames && current_frame < work_item.end_frame) {
           if (current_frame >= work_item.start_frame) {
             size_t frames_buffer_offset =
-              frame_size * (current_frame - work_item.start_frame);
+                frame_size * (current_frame - work_item.start_frame);
             assert(frames_buffer_offset < decoded_buffer_size);
             u8* current_frame_buffer_pos =
-              decoded_buffer + frames_buffer_offset;
+                decoded_buffer + frames_buffer_offset;
 
             more_frames =
-              decoder->get_frame(current_frame_buffer_pos, frame_size);
+                decoder->get_frame(current_frame_buffer_pos, frame_size);
           } else {
             more_frames = decoder->discard_frame();
           }
@@ -381,7 +373,8 @@ void* decode_thread(void* arg) {
     decoder->wait_until_frames_copied();
 
     if (decoder->decoded_frames_buffered() > 0) {
-      while (decoder->discard_frame()) {};
+      while (decoder->discard_frame()) {
+      };
     }
 
     // Must clean up buffer allocated by load thread
@@ -396,8 +389,7 @@ void* decode_thread(void* arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  printf("(N/PU: %d/%d) Decode thread finished.\n",
-         rank, args.device_id);
+  printf("(N/PU: %d/%d) Decode thread finished.\n", rank, args.device_id);
 
   THREAD_RETURN_SUCCESS();
 }
@@ -415,7 +407,7 @@ void* evaluate_thread(void* arg) {
   EvaluatorCapabilities caps = args.evaluator_factory.get_capabilities();
 
   std::unique_ptr<Evaluator> evaluator{
-    args.evaluator_factory.new_evaluator(args.evaluator_config)};
+      args.evaluator_factory.new_evaluator(args.evaluator_config)};
   i32 num_outputs = args.evaluator_factory.get_number_of_outputs();
 
   args.profiler.add_interval("setup", setup_start, now());
@@ -435,7 +427,7 @@ void* evaluate_thread(void* arg) {
     auto work_start = now();
 
     const VideoWorkItem& work_item =
-      args.work_items[work_entry.work_item_index];
+        args.work_items[work_entry.work_item_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
     // Make the evaluator aware of the format of the data we are about to
@@ -454,9 +446,9 @@ void* evaluate_thread(void* arg) {
     save_work_entry.work_item_index = work_entry.work_item_index;
 
     std::vector<std::vector<size_t>>& work_item_output_sizes =
-      save_work_entry.output_buffer_sizes;
+        save_work_entry.output_buffer_sizes;
     std::vector<std::vector<u8*>>& work_item_output_buffers =
-      save_work_entry.output_buffers;
+        save_work_entry.output_buffers;
     work_item_output_sizes.resize(num_outputs);
     work_item_output_buffers.resize(num_outputs);
 
@@ -464,17 +456,14 @@ void* evaluate_thread(void* arg) {
     while (current_frame < work_item.end_frame) {
       i32 frame_offset = current_frame - work_item.start_frame;
       i32 batch_size =
-        std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
+          std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
       u8* frame_buffer = work_entry.buffer + frame_size * frame_offset;
 
       std::vector<std::vector<u8*>> output_buffers(num_outputs);
       std::vector<std::vector<size_t>> output_sizes(num_outputs);
-      evaluator->evaluate(
-        batch_size,
-        frame_buffer,
-        output_buffers,
-        output_sizes);
+      evaluator->evaluate(batch_size, frame_buffer, output_buffers,
+                          output_sizes);
       for (i32 i = 0; i < num_outputs; ++i) {
         assert(output_sizes[i].size() == output_buffers[i].size());
         work_item_output_sizes[i].insert(work_item_output_sizes[i].end(),
@@ -498,8 +487,7 @@ void* evaluate_thread(void* arg) {
     args.save_work.push(save_work_entry);
   }
 
-  printf("(N/PU: %d/%d) Evaluate thread finished.\n",
-         rank, args.device_id);
+  printf("(N/PU: %d/%d) Evaluate thread finished.\n", rank, args.device_id);
 
   THREAD_RETURN_SUCCESS();
 }
@@ -516,7 +504,7 @@ void* save_thread(void* arg) {
 
   // Setup a distinct storage backend for each IO thread
   storehouse::StorageBackend* storage =
-    storehouse::StorageBackend::make_from_config(args.storage_config);
+      storehouse::StorageBackend::make_from_config(args.storage_config);
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -535,7 +523,7 @@ void* save_thread(void* arg) {
     auto work_start = now();
 
     const VideoWorkItem& work_item =
-      args.work_items[save_work_entry.work_item_index];
+        args.work_items[save_work_entry.work_item_index];
 
     const std::string& video_path = args.video_paths[work_item.video_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
@@ -543,7 +531,7 @@ void* save_thread(void* arg) {
     // HACK(apoms): debugging
     if (false) {
       u8* frame_buffer =
-        reinterpret_cast<u8*>(save_work_entry.output_buffers[0][0]);
+          reinterpret_cast<u8*>(save_work_entry.output_buffers[0][0]);
 
       JPEGWriter writer;
       writer.header(metadata.width, metadata.height, 3, JPEG::COLOR_RGB);
@@ -552,7 +540,7 @@ void* save_thread(void* arg) {
         rows[i] = frame_buffer + metadata.width * 3 * i;
       }
       std::string image_path =
-        "frame" + std::to_string(work_item.start_frame) + ".jpg";
+          "frame" + std::to_string(work_item.start_frame) + ".jpg";
       writer.write(image_path, rows.begin());
     }
 
@@ -611,15 +599,11 @@ void* save_thread(void* arg) {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
-void run_job(
-  storehouse::StorageConfig* config,
-  VideoDecoderType decoder_type,
-  EvaluatorFactory* evaluator_factory,
-  const std::string& job_name,
-  const std::string& dataset_name)
-{
+void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
+             EvaluatorFactory* evaluator_factory, const std::string& job_name,
+             const std::string& dataset_name) {
   storehouse::StorageBackend* storage =
-    storehouse::StorageBackend::make_from_config(config);
+      storehouse::StorageBackend::make_from_config(config);
 
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -631,10 +615,8 @@ void run_job(
   DatasetDescriptor descriptor;
   {
     std::unique_ptr<RandomReadFile> file;
-    exit_on_error(
-      make_unique_random_read_file(storage,
-                                   dataset_descriptor_path(dataset_name),
-                                   file));
+    exit_on_error(make_unique_random_read_file(
+        storage, dataset_descriptor_path(dataset_name), file));
     u64 pos = 0;
     descriptor = deserialize_dataset_descriptor(file.get(), pos);
   }
@@ -649,14 +631,12 @@ void run_job(
   for (size_t i = 0; i < video_paths.size(); ++i) {
     const std::string& path = video_paths[i];
     std::unique_ptr<RandomReadFile> metadata_file;
-    exit_on_error(
-      make_unique_random_read_file(
-        storage,
-        dataset_item_metadata_path(dataset_name, path),
+    exit_on_error(make_unique_random_read_file(
+        storage, dataset_item_metadata_path(dataset_name, path),
         metadata_file));
     u64 pos = 0;
     video_metadata.push_back(
-      deserialize_dataset_item_metadata(metadata_file.get(), pos));
+        deserialize_dataset_item_metadata(metadata_file.get(), pos));
   }
 
   // Break up videos and their frames into equal sized work items
@@ -672,11 +652,11 @@ void run_job(
     const DatasetItemMetadata& meta = video_metadata[i];
 
     std::vector<std::tuple<i32, i32>>& work_intervals =
-      job_descriptor.intervals[video_paths[i]];
+        job_descriptor.intervals[video_paths[i]];
     i32 allocated_frames = 0;
     while (allocated_frames < meta.frames) {
       i32 frames_to_allocate =
-        std::min(WORK_ITEM_SIZE, meta.frames - allocated_frames);
+          std::min(WORK_ITEM_SIZE, meta.frames - allocated_frames);
 
       VideoWorkItem item;
       item.video_index = i;
@@ -691,8 +671,7 @@ void run_job(
     total_frames += meta.frames;
   }
   if (is_master(rank)) {
-    printf("Total work items: %lu, Total frames: %u\n",
-           work_items.size(),
+    printf("Total work items: %lu, Total frames: %u\n", work_items.size(),
            total_frames);
   }
 
@@ -712,7 +691,7 @@ void run_job(
   EvaluatorCapabilities caps = evaluator_factory->get_capabilities();
 
   size_t frame_size =
-    descriptor.max_width * descriptor.max_height * 3 * sizeof(u8);
+      descriptor.max_width * descriptor.max_height * 3 * sizeof(u8);
   const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
   std::vector<std::vector<u8*>> staging_buffers(PUS_PER_NODE);
   size_t buffer_size = frame_size * frames_per_work_item();
@@ -774,9 +753,8 @@ void run_job(
   }
 
   // Setup evaluate workers
-  std::vector<Profiler> eval_thread_profilers(
-    PUS_PER_NODE,
-    Profiler(base_time));
+  std::vector<Profiler> eval_thread_profilers(PUS_PER_NODE,
+                                              Profiler(base_time));
   std::vector<EvaluateThreadArgs> eval_thread_args;
 
   EvaluatorConfig eval_config;
@@ -823,8 +801,7 @@ void run_job(
   }
   std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-    pthread_create(&save_threads[i], NULL, save_thread,
-                   &save_thread_args[i]);
+    pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
   }
 
   // Push work into load queues
@@ -843,12 +820,11 @@ void run_job(
         entry.work_item_index = next_work_item_to_allocate++;
         load_work.push(entry);
 
-        if ((static_cast<i32>(work_items.size()) - next_work_item_to_allocate)
-            % 10 == 0)
-        {
-          printf("Work items left: %d\n",
-                 static_cast<i32>(work_items.size()) -
-                 next_work_item_to_allocate);
+        if ((static_cast<i32>(work_items.size()) - next_work_item_to_allocate) %
+                10 ==
+            0) {
+          printf("Work items left: %d\n", static_cast<i32>(work_items.size()) -
+                                              next_work_item_to_allocate);
           fflush(stdout);
         }
         continue;
@@ -857,16 +833,14 @@ void run_job(
       if (num_nodes > 1) {
         i32 more_work;
         MPI_Status status;
-        MPI_Recv(&more_work, 1, MPI_INT,
-                 MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
+                 MPI_COMM_WORLD, &status);
         i32 next_item = next_work_item_to_allocate++;
-        MPI_Send(&next_item, 1, MPI_INT,
-                 status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+        MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
 
         if (next_work_item_to_allocate % 10 == 0) {
-          printf("Work items left: %d\n",
-                 static_cast<i32>(work_items.size()) -
-                 next_work_item_to_allocate);
+          printf("Work items left: %d\n", static_cast<i32>(work_items.size()) -
+                                              next_work_item_to_allocate);
         }
       }
       std::this_thread::yield();
@@ -875,11 +849,10 @@ void run_job(
     while (workers_done < num_nodes) {
       i32 more_work;
       MPI_Status status;
-      MPI_Recv(&more_work, 1, MPI_INT,
-               MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
+               MPI_COMM_WORLD, &status);
       i32 next_item = -1;
-      MPI_Send(&next_item, 1, MPI_INT,
-               status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+      MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
       workers_done += 1;
       std::this_thread::yield();
     }
@@ -926,7 +899,6 @@ void run_job(
       exit(EXIT_FAILURE);
     }
     free(result);
-
   }
 
   // Push sentinel work entries into queue to terminate decode threads
@@ -1003,13 +975,13 @@ void run_job(
   timepoint_t end_time = now();
 
   i64 start_time_ns =
-    std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
-    .time_since_epoch()
-    .count();
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
+          .time_since_epoch()
+          .count();
   i64 end_time_ns =
-    std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
-    .time_since_epoch()
-    .count();
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
+          .time_since_epoch()
+          .count();
   profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
   profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
 
@@ -1018,8 +990,8 @@ void run_job(
   u8 load_worker_count = LOAD_WORKERS_PER_NODE;
   profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-    write_profiler_to_file(
-      profiler_output, out_rank, "load", i, load_thread_profilers[i]);
+    write_profiler_to_file(profiler_output, out_rank, "load", i,
+                           load_thread_profilers[i]);
   }
 
   // Decode worker profilers
@@ -1027,25 +999,24 @@ void run_job(
   profiler_output.write((char*)&decode_worker_count,
                         sizeof(decode_worker_count));
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
-    write_profiler_to_file(
-      profiler_output, out_rank, "decode", i, decode_thread_profilers[i]);
+    write_profiler_to_file(profiler_output, out_rank, "decode", i,
+                           decode_thread_profilers[i]);
   }
 
   // Evaluate worker profilers
   u8 eval_worker_count = PUS_PER_NODE;
-  profiler_output.write((char*)&eval_worker_count,
-                        sizeof(eval_worker_count));
+  profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
-    write_profiler_to_file(
-      profiler_output, out_rank, "eval", i, eval_thread_profilers[i]);
+    write_profiler_to_file(profiler_output, out_rank, "eval", i,
+                           eval_thread_profilers[i]);
   }
 
   // Save worker profilers
   u8 save_worker_count = SAVE_WORKERS_PER_NODE;
   profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-    write_profiler_to_file(
-      profiler_output, out_rank, "save", i, save_thread_profilers[i]);
+    write_profiler_to_file(profiler_output, out_rank, "save", i,
+                           save_thread_profilers[i]);
   }
 
   profiler_output.close();
@@ -1060,5 +1031,4 @@ void run_job(
 
   delete storage;
 }
-
 }

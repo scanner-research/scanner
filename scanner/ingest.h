@@ -19,9 +19,7 @@
 
 namespace scanner {
 
-void ingest(
-  storehouse::StorageConfig* storage_config,
-  const std::string& dataset_name,
-  const std::string& video_paths_file);
-
+void ingest(storehouse::StorageConfig* storage_config,
+            const std::string& dataset_name,
+            const std::string& video_paths_file);
 }

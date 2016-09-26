@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/server/results_parser.h"
 #include "scanner/server/video_handler.h"
 #include "scanner/server/video_handler_stats.h"
 #include "scanner/util/common.h"
@@ -30,22 +31,19 @@ namespace scanner {
 
 class VideoHandlerFactory : public proxygen::RequestHandlerFactory {
  public:
-  VideoHandlerFactory(
-    storehouse::StorageConfig* storage_config,
-    const std::string& job_name);
+  VideoHandlerFactory(storehouse::StorageConfig* storage_config,
+                      const std::string& job_name);
 
   void onServerStart(folly::EventBase* evb) noexcept override;
 
   void onServerStop() noexcept override;
 
-  proxygen::RequestHandler* onRequest(
-    proxygen::RequestHandler*,
-    proxygen::HTTPMessage*) noexcept override;
+  proxygen::RequestHandler* onRequest(proxygen::RequestHandler*,
+                                      proxygen::HTTPMessage*) noexcept override;
 
  private:
   storehouse::StorageConfig* storage_config_;
   std::string job_name_;
   folly::ThreadLocalPtr<VideoHandlerStats> stats_;
 };
-
 }

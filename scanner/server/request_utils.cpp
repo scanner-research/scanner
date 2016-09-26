@@ -24,16 +24,12 @@ namespace pg = proxygen;
 
 namespace scanner {
 
-void serve_static(
-  const std::string& static_root,
-  const std::string& path,
-  pg::HTTPMessage* message,
-  pg::ResponseBuilder& response)
-{
+void serve_static(const std::string& static_root, const std::string& path,
+                  pg::HTTPMessage* message, pg::ResponseBuilder& response) {
   const std::map<std::string, std::string> mime_types = {
-    {"html", "text/html"},
-    {"js", "application/x-javascript"},
-    {"css", "text/css"},
+      {"html", "text/html"},
+      {"js", "application/x-javascript"},
+      {"css", "text/css"},
   };
 
   std::string path_ext = "";
@@ -71,17 +67,12 @@ void serve_static(
 
   file.seekg(0);
 
-  std::unique_ptr<folly::IOBuf> buffer{
-    folly::IOBuf::createCombined(file_size)};
+  std::unique_ptr<folly::IOBuf> buffer{folly::IOBuf::createCombined(file_size)};
   buffer->append(file_size);
-  file.read(reinterpret_cast<char*>(buffer->writableData()),
-            file_size);
+  file.read(reinterpret_cast<char*>(buffer->writableData()), file_size);
 
-  response
-    .status(200, "OK")
-    .header(pg::HTTP_HEADER_CONTENT_TYPE,
-            mime_type)
-    .body(std::move(buffer));
+  response.status(200, "OK")
+      .header(pg::HTTP_HEADER_CONTENT_TYPE, mime_type)
+      .body(std::move(buffer));
 }
-
 }

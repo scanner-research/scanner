@@ -7,5 +7,4 @@ cv::Mat bytesToImage(u8* buf, i32 i, const DatasetItemMetadata& metadata) {
   u8* frame_buffer = buf + frame_size * i;
   return cv::Mat(metadata.height, metadata.width, CV_8UC3, frame_buffer);
 }
-
 }

@@ -17,25 +17,24 @@
 
 #include "scanner/server/results_parser.h"
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace scanner {
 
 class FacenetParser : public ResultsParser {
-public:
+ public:
   FacenetParser(double threshold);
 
   std::vector<std::string> get_output_names() override;
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  void parse_output(
-    const std::vector<u8*>& output,
-    const std::vector<i64>& output_size,
-    folly::dynamic& parsed_results) override;
+  void parse_output(const std::vector<u8*>& output,
+                    const std::vector<i64>& output_size,
+                    folly::dynamic& parsed_results) override;
 
-protected:
+ protected:
   struct Box {
     f32 x1;
     f32 y1;
@@ -45,7 +44,7 @@ protected:
   };
 
   std::vector<Box> nms(std::vector<Box> boxes, f32 overlap);
-  
+
   i32 num_templates_;
   i32 net_input_width_;
   i32 net_input_height_;
@@ -61,5 +60,4 @@ protected:
 
   DatasetItemMetadata metadata_;
 };
-
 }

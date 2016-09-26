@@ -17,18 +17,13 @@
 
 namespace scanner {
 
-ImagenetParser::ImagenetParser() {
-}
+ImagenetParser::ImagenetParser() {}
 
-std::vector<std::string> ImagenetParser::get_output_names() {
-  return {"fc8"};
-}
+std::vector<std::string> ImagenetParser::get_output_names() { return {"fc8"}; }
 
-void ImagenetParser::parse_output(
-  const std::vector<u8*>& output,
-  const std::vector<i64>& output_size,
-  folly::dynamic& parsed_results)
-{
+void ImagenetParser::parse_output(const std::vector<u8*>& output,
+                                  const std::vector<i64>& output_size,
+                                  folly::dynamic& parsed_results) {
   assert(output_size[0] == FEATURE_VECTOR_SIZE);
   f32* feature_vector = reinterpret_cast<f32*>(output[0]);
 
@@ -56,5 +51,4 @@ void ImagenetParser::parse_output(
   parsed_results["class"] = max_index;
   parsed_results["confidence"] = max_confidence;
 }
-
 }

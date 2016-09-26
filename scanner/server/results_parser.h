@@ -19,21 +19,19 @@
 
 #include <folly/dynamic.h>
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace scanner {
 
 class ResultsParser {
-public:
+ public:
   virtual std::vector<std::string> get_output_names() = 0;
 
   virtual void configure(const DatasetItemMetadata& metadata) = 0;
 
-  virtual void parse_output(
-    const std::vector<u8*>& output,
-    const std::vector<i64>& output_size,
-    folly::dynamic& parsed_results) = 0;
+  virtual void parse_output(const std::vector<u8*>& output,
+                            const std::vector<i64>& output_size,
+                            folly::dynamic& parsed_results) = 0;
 };
-
 }

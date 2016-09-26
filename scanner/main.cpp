@@ -13,22 +13,22 @@
  * limitations under the License.
  */
 
-#include "scanner/ingest.h"
 #include "scanner/engine.h"
+#include "scanner/ingest.h"
 
 #include "scanner/util/common.h"
-#include "scanner/util/queue.h"
 #include "scanner/util/profiler.h"
+#include "scanner/util/queue.h"
 
-#include "storehouse/storage_config.h"
 #include "storehouse/storage_backend.h"
+#include "storehouse/storage_config.h"
 
 #include "scanner/video/video_decoder.h"
 
 #ifdef HAVE_CAFFE
-#include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
+#include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
 
@@ -37,22 +37,22 @@
 #endif
 
 // For parsing command line args
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/variables_map.hpp>
-#include <boost/program_options/parsers.hpp>
 #include <boost/program_options/errors.hpp>
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/variables_map.hpp>
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
 #include "scanner/util/cuda.h"
 #endif
 
-#include <mpi.h>
-#include <cstdlib>
-#include <string>
 #include <libgen.h>
+#include <mpi.h>
 #include <atomic>
+#include <cstdlib>
 #include <iostream>
+#include <string>
 
 // For setting up libav*
 extern "C" {
@@ -84,8 +84,7 @@ using storehouse::RandomReadFile;
 
 namespace {
 
-const std::string DB_PATH = "/export/data1/stanford/lightscan/db";
-
+const std::string DB_PATH = "/Users/apoms/scanner_db";
 }
 
 void startup(int argc, char** argv) {
@@ -97,208 +96,200 @@ void startup(int argc, char** argv) {
 #endif
 }
 
-void shutdown() {
-  MPI_Finalize();
-}
+void shutdown() { MPI_Finalize(); }
 
 int main(int argc, char** argv) {
   // Variables for holding parsed command line arguments
 
-  std::string cmd; // sub-command to execute
+  std::string cmd;  // sub-command to execute
   // Common among sub-commands
-  std::string dataset_name; // name of dataset to create/operate on
+  std::string dataset_name;  // name of dataset to create/operate on
   // For ingest sub-command
-  std::string video_paths_file; // paths of video files to turn into dataset
+  std::string video_paths_file;  // paths of video files to turn into dataset
   // For run sub-command
-  std::string job_name; // name of job to refer to after run
+  std::string job_name;  // name of job to refer to after run
   {
     po::variables_map vm;
 
     po::options_description main_desc("Allowed options");
-    main_desc.add_options()
-      ("help", "Produce help message")
-      ("command", po::value<std::string>()->required(),
-       "Command to execute")
-      ("subargs", po::value<std::vector<std::string> >(),
-       "Arguments for command")
-      ("config_file", po::value<std::string>(),
-       "System configuration (# pus, batch, etc) in toml format. "
-       "Explicit command line options will overide file settings.")
-      ("pus_per_node", po::value<int>(), "Number of PUs per node")
-      ("batch_size", po::value<int>(), "Neural Net input batch size")
-      ("batches_per_work_item", po::value<int>(),
-       "Number of batches in each work item")
-      ("tasks_in_queue_per_pu", po::value<int>(),
-       "Number of tasks a node will try to maintain in the work queue per PU")
-      ("load_workers_per_node", po::value<int>(),
-       "Number of worker threads processing load jobs per node")
-      ("save_workers_per_node", po::value<int>(),
-       "Number of worker threads processing save jobs per node");
+    main_desc.add_options()("help", "Produce help message")(
+        "command", po::value<std::string>()->required(), "Command to execute")(
+        "subargs", po::value<std::vector<std::string> >(),
+        "Arguments for command")(
+        "config_file", po::value<std::string>(),
+        "System configuration (# pus, batch, etc) in toml format. "
+        "Explicit command line options will overide file settings.")(
+        "pus_per_node", po::value<int>(), "Number of PUs per node")(
+        "batch_size", po::value<int>(), "Neural Net input batch size")(
+        "batches_per_work_item", po::value<int>(),
+        "Number of batches in each work item")(
+        "tasks_in_queue_per_pu", po::value<int>(),
+        "Number of tasks a node will try to maintain in the work queue per PU")(
+        "load_workers_per_node", po::value<int>(),
+        "Number of worker threads processing load jobs per node")(
+        "save_workers_per_node", po::value<int>(),
+        "Number of worker threads processing save jobs per node");
 
-      po::positional_options_description main_pos;
-      main_pos.add("command", 1);
-      main_pos.add("subargs", -1);
+    po::positional_options_description main_pos;
+    main_pos.add("command", 1);
+    main_pos.add("subargs", -1);
 
-      std::vector<std::string> opts;
+    std::vector<std::string> opts;
+    try {
+      auto parsed = po::command_line_parser(argc, argv)
+                        .options(main_desc)
+                        .positional(main_pos)
+                        .allow_unregistered()
+                        .run();
+      po::store(parsed, vm);
+      po::notify(vm);
+
+      // Collect all the unrecognized options from the first pass.
+      // This will include the (positional) command name, so we need to erase
+      // that.
+      opts = po::collect_unrecognized(parsed.options, po::include_positional);
+      opts.erase(opts.begin());
+
+    } catch (const po::required_option& e) {
+      if (vm.count("help")) {
+        std::cout << main_desc << std::endl;
+        return 1;
+      } else {
+        throw e;
+      }
+    }
+
+    if (vm.count("help")) {
+      std::cout << main_desc << std::endl;
+      return 1;
+    }
+
+    if (vm.count("config_file")) {
+      std::string config_file_path = vm["config_file"].as<std::string>();
+    }
+
+    if (vm.count("pus_per_node")) {
+      PUS_PER_NODE = vm["pus_per_node"].as<int>();
+    }
+    if (vm.count("batch_size")) {
+      GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
+    }
+    if (vm.count("batches_per_work_item")) {
+      BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"].as<int>();
+    }
+    if (vm.count("tasks_in_queue_per_pu")) {
+      TASKS_IN_QUEUE_PER_PU = vm["tasks_in_queue_per_pu"].as<int>();
+    }
+    if (vm.count("load_workers_per_node")) {
+      LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"].as<int>();
+    }
+    if (vm.count("save_workers_per_node")) {
+      SAVE_WORKERS_PER_NODE = vm["save_workers_per_node"].as<int>();
+    }
+
+    cmd = vm["command"].as<std::string>();
+
+    if (cmd == "ingest") {
+      po::options_description ingest_desc("ingest options");
+      ingest_desc.add_options()("help", "Produce help message")(
+          "dataset_name", po::value<std::string>()->required(),
+          "Unique name of the dataset to store persistently")(
+          "video_paths_file", po::value<std::string>()->required(),
+          "File which contains paths to video files to process");
+
+      po::positional_options_description ingest_pos;
+      ingest_pos.add("dataset_name", 1);
+      ingest_pos.add("video_paths_file", 1);
+
       try {
-        auto parsed = po::command_line_parser(argc, argv).
-          options(main_desc).
-          positional(main_pos).
-          allow_unregistered().
-          run();
-        po::store(parsed, vm);
+        vm.clear();
+        po::store(po::command_line_parser(opts)
+                      .options(ingest_desc)
+                      .positional(ingest_pos)
+                      .run(),
+                  vm);
         po::notify(vm);
-
-        // Collect all the unrecognized options from the first pass.
-        // This will include the (positional) command name, so we need to erase
-        // that.
-        opts = po::collect_unrecognized(parsed.options, po::include_positional);
-        opts.erase(opts.begin());
-
       } catch (const po::required_option& e) {
         if (vm.count("help")) {
-          std::cout << main_desc << std::endl;
+          std::cout << ingest_desc << std::endl;
           return 1;
         } else {
           throw e;
         }
       }
 
-      if (vm.count("help")) {
-        std::cout << main_desc << std::endl;
-        return 1;
-      }
+      dataset_name = vm["dataset_name"].as<std::string>();
+      video_paths_file = vm["video_paths_file"].as<std::string>();
 
-      if (vm.count("config_file")) {
-        std::string config_file_path = vm["config_file"].as<std::string>();
-      }
+    } else if (cmd == "run") {
+      po::options_description run_desc("run options");
+      run_desc.add_options()("help", "Produce help message")(
+          "job_name", po::value<std::string>()->required(),
+          "Unique name to refer to the output of the job after completion")(
+          "dataset_name", po::value<std::string>()->required(),
+          "Unique name of the dataset to store persistently");
 
-      if (vm.count("pus_per_node")) {
-        PUS_PER_NODE = vm["pus_per_node"].as<int>();
-      }
-      if (vm.count("batch_size")) {
-        GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
-      }
-      if (vm.count("batches_per_work_item")) {
-        BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"].as<int>();
-      }
-      if (vm.count("tasks_in_queue_per_pu")) {
-        TASKS_IN_QUEUE_PER_PU = vm["tasks_in_queue_per_pu"].as<int>();
-      }
-      if (vm.count("load_workers_per_node")) {
-        LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"].as<int>();
-      }
-      if (vm.count("save_workers_per_node")) {
-        SAVE_WORKERS_PER_NODE = vm["save_workers_per_node"].as<int>();
-      }
+      po::positional_options_description run_pos;
+      run_pos.add("job_name", 1);
+      run_pos.add("dataset_name", 1);
 
-      cmd = vm["command"].as<std::string>();
-
-      if (cmd == "ingest") {
-        po::options_description ingest_desc("ingest options");
-        ingest_desc.add_options()
-          ("help", "Produce help message")
-          ("dataset_name", po::value<std::string>()->required(),
-           "Unique name of the dataset to store persistently")
-          ("video_paths_file", po::value<std::string>()->required(),
-           "File which contains paths to video files to process");
-
-        po::positional_options_description ingest_pos;
-        ingest_pos.add("dataset_name", 1);
-        ingest_pos.add("video_paths_file", 1);
-
-        try {
-          vm.clear();
-          po::store(po::command_line_parser(opts)
-                    .options(ingest_desc)
-                    .positional(ingest_pos)
-                    .run(),
-                    vm);
-          po::notify(vm);
-        } catch (const po::required_option& e) {
-          if (vm.count("help")) {
-            std::cout << ingest_desc << std::endl;
-            return 1;
-          } else {
-            throw e;
-          }
+      try {
+        po::store(po::command_line_parser(opts)
+                      .options(run_desc)
+                      .positional(run_pos)
+                      .run(),
+                  vm);
+        po::notify(vm);
+      } catch (const po::required_option& e) {
+        if (vm.count("help")) {
+          std::cout << run_desc << std::endl;
+          return 1;
+        } else {
+          throw e;
         }
+      }
 
-        dataset_name = vm["dataset_name"].as<std::string>();
-        video_paths_file = vm["video_paths_file"].as<std::string>();
+      job_name = vm["job_name"].as<std::string>();
+      dataset_name = vm["dataset_name"].as<std::string>();
 
-      } else if (cmd == "run") {
-        po::options_description run_desc("run options");
-        run_desc.add_options()
-          ("help", "Produce help message")
-          ("job_name", po::value<std::string>()->required(),
-           "Unique name to refer to the output of the job after completion")
-          ("dataset_name", po::value<std::string>()->required(),
-           "Unique name of the dataset to store persistently");
-
-        po::positional_options_description run_pos;
-        run_pos.add("job_name", 1);
-        run_pos.add("dataset_name", 1);
-
-        try {
-          po::store(po::command_line_parser(opts)
-                    .options(run_desc)
-                    .positional(run_pos)
-                    .run(),
-                    vm);
-          po::notify(vm);
-        } catch (const po::required_option& e) {
-          if (vm.count("help")) {
-            std::cout << run_desc << std::endl;
-            return 1;
-          } else {
-            throw e;
-          }
-        }
-
-        job_name = vm["job_name"].as<std::string>();
-        dataset_name = vm["dataset_name"].as<std::string>();
-
-      } else if (cmd == "serve") {
+    } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
-        po::options_description serve_desc("serve options");
-        serve_desc.add_options()
-          ("help", "Produce help message")
-          ("job_name", po::value<std::string>()->required(),
-           "Name of job to serve results for");
+      po::options_description serve_desc("serve options");
+      serve_desc.add_options()("help", "Produce help message")(
+          "job_name", po::value<std::string>()->required(),
+          "Name of job to serve results for");
 
-        po::positional_options_description serve_pos;
-        serve_pos.add("job_name", 1);
+      po::positional_options_description serve_pos;
+      serve_pos.add("job_name", 1);
 
-        try {
-          po::store(po::command_line_parser(opts)
-                    .options(serve_desc)
-                    .positional(serve_pos)
-                    .run(),
-                    vm);
-          po::notify(vm);
-        } catch (const po::required_option& e) {
-          if (vm.count("help")) {
-            std::cout << serve_desc << std::endl;
-            return 1;
-          } else {
-            throw e;
-          }
+      try {
+        po::store(po::command_line_parser(opts)
+                      .options(serve_desc)
+                      .positional(serve_pos)
+                      .run(),
+                  vm);
+        po::notify(vm);
+      } catch (const po::required_option& e) {
+        if (vm.count("help")) {
+          std::cout << serve_desc << std::endl;
+          return 1;
+        } else {
+          throw e;
         }
+      }
 
-        job_name = vm["job_name"].as<std::string>();
+      job_name = vm["job_name"].as<std::string>();
 
 #else
-        std::cout << "Scanner not built with results serving support."
-                  << std::endl;
-        return 1;
+      std::cout << "Scanner not built with results serving support."
+                << std::endl;
+      return 1;
 #endif
-      } else {
-        std::cout << "Command must be one of "
-                  << "'ingest', 'run', or 'serve'."
-                  << std::endl;
-        return 1;
-      }
+    } else {
+      std::cout << "Command must be one of "
+                << "'ingest', 'run', or 'serve'." << std::endl;
+      return 1;
+    }
   }
 
   startup(argc, argv);
@@ -312,7 +303,7 @@ int main(int argc, char** argv) {
   // For now, we use a disk based persistent storage with a hardcoded
   // path for storing video and output data persistently
   storehouse::StorageConfig* config =
-    storehouse::StorageConfig::make_posix_config(DB_PATH);
+      storehouse::StorageConfig::make_posix_config(DB_PATH);
 
   if (cmd == "ingest") {
     // The ingest command takes 1) a new dataset name, 2) a file with paths to
@@ -338,7 +329,7 @@ int main(int argc, char** argv) {
       descriptor = descriptor_from_net_file(net_file);
     }
     FacenetCPUInputTransformerFactory* factory =
-      new FacenetCPUInputTransformerFactory();
+        new FacenetCPUInputTransformerFactory();
     CaffeCPUEvaluatorFactory evaluator_factory(descriptor, factory);
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
@@ -347,12 +338,7 @@ int main(int argc, char** argv) {
     FaceEvaluatorFactory evaluator_factory;
 #endif
 
-    run_job(
-      config,
-      decoder_type,
-      &evaluator_factory,
-      job_name,
-      dataset_name);
+    run_job(config, decoder_type, &evaluator_factory, job_name, dataset_name);
   } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
     std::string ip = "0.0.0.0";
@@ -361,14 +347,14 @@ int main(int argc, char** argv) {
     i32 http2_port = 11002;
     i32 threads = 8;
     std::vector<pg::HTTPServer::IPConfig> IPs = {
-      {folly::SocketAddress(ip, http_port, true),
-       pg::HTTPServer::Protocol::HTTP},
+        {folly::SocketAddress(ip, http_port, true),
+         pg::HTTPServer::Protocol::HTTP},
 
-      {folly::SocketAddress(ip, spdy_port, true),
-       pg::HTTPServer::Protocol::SPDY},
+        {folly::SocketAddress(ip, spdy_port, true),
+         pg::HTTPServer::Protocol::SPDY},
 
-      {folly::SocketAddress(ip, http2_port, true),
-       pg::HTTPServer::Protocol::HTTP2},
+        {folly::SocketAddress(ip, http2_port, true),
+         pg::HTTPServer::Protocol::HTTP2},
     };
 
     pg::HTTPServerOptions options;
@@ -376,17 +362,16 @@ int main(int argc, char** argv) {
     options.idleTimeout = std::chrono::milliseconds(60000);
     options.shutdownOn = {SIGINT, SIGTERM};
     options.enableContentCompression = false;
-    options.handlerFactories = pg::RequestHandlerChain()
-      .addThen<VideoHandlerFactory>(config, job_name)
-      .build();
+    options.handlerFactories =
+        pg::RequestHandlerChain()
+            .addThen<VideoHandlerFactory>(config, job_name)
+            .build();
 
     pg::HTTPServer server(std::move(options));
     server.bind(IPs);
 
     // Start HTTPServer mainloop in a separate thread
-    std::thread t([&] () {
-        server.start();
-      });
+    std::thread t([&]() { server.start(); });
 
     t.join();
 #endif

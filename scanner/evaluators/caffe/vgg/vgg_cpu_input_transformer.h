@@ -18,25 +18,22 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
-#include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
 
 namespace scanner {
 
 class VGGCPUInputTransformer : public CaffeInputTransformer {
-public:
+ public:
   VGGCPUInputTransformer(const NetDescriptor& descriptor);
 
-  void configure(
-    const DatasetItemMetadata& metadata,
-    caffe::Net<float>* net) override;
+  void configure(const DatasetItemMetadata& metadata,
+                 caffe::Net<float>* net) override;
 
-  void transform_input(
-    u8* input_buffer,
-    f32* net_input,
-    i32 batch_size) override;
+  void transform_input(u8* input_buffer, f32* net_input,
+                       i32 batch_size) override;
 
-private:
+ private:
   static const i32 NET_INPUT_WIDTH = 224;
   static const i32 NET_INPUT_HEIGHT = 224;
 
@@ -54,10 +51,8 @@ private:
 };
 
 class VGGCPUInputTransformerFactory : public CaffeInputTransformerFactory {
-public:
-  CaffeInputTransformer* construct(
-    const EvaluatorConfig& config,
-    const NetDescriptor& descriptor) override;
+ public:
+  CaffeInputTransformer* construct(const EvaluatorConfig& config,
+                                   const NetDescriptor& descriptor) override;
 };
-
 }

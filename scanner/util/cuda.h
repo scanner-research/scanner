@@ -18,32 +18,27 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
-#define CU_CHECK(ans) { cuAssert((ans), __FILE__, __LINE__); }
+#define CU_CHECK(ans) \
+  { cuAssert((ans), __FILE__, __LINE__); }
 
-inline void cuAssert(cudaError_t code,
-                     const char *file,
-                     int line,
-                     bool abort=true)
-{
+inline void cuAssert(cudaError_t code, const char *file, int line,
+                     bool abort = true) {
   if (code != cudaSuccess) {
-    fprintf(stderr,"GPUassert: %s %s %d\n",
-            cudaGetErrorString(code), file, line);
+    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
+            line);
     if (abort) exit(code);
   }
 }
 
-#define CUD_CHECK(ans) { cudAssert((ans), __FILE__, __LINE__); }
+#define CUD_CHECK(ans) \
+  { cudAssert((ans), __FILE__, __LINE__); }
 
-inline void cudAssert(CUresult code,
-                      const char *file,
-                      int line,
-                      bool abort=true)
-{
+inline void cudAssert(CUresult code, const char *file, int line,
+                      bool abort = true) {
   if (code != CUDA_SUCCESS) {
-    const char* err_str;
+    const char *err_str;
     cuGetErrorString(code, &err_str);
-    fprintf(stderr,"GPUassert: %s %s %d\n",
-            err_str, file, line);
+    fprintf(stderr, "GPUassert: %s %s %d\n", err_str, file, line);
     if (abort) exit(code);
   }
 }

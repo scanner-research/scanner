@@ -15,15 +15,12 @@
 
 #pragma once
 
-#include <proxygen/lib/http/HTTPMessage.h>
 #include <proxygen/httpserver/ResponseBuilder.h>
+#include <proxygen/lib/http/HTTPMessage.h>
 
 namespace scanner {
 
-void serve_static(
-  const std::string& static_root,
-  const std::string& path,
-  proxygen::HTTPMessage* message,
-  proxygen::ResponseBuilder& response);
-
+void serve_static(const std::string& static_root, const std::string& path,
+                  proxygen::HTTPMessage* message,
+                  proxygen::ResponseBuilder& response);
 }

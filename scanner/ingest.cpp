@@ -27,18 +27,17 @@
 // For video
 extern "C" {
 #include "libavcodec/avcodec.h"
+#include "libavfilter/avfilter.h"
 #include "libavformat/avformat.h"
 #include "libavformat/avio.h"
-#include "libavfilter/avfilter.h"
-#include "libswscale/swscale.h"
-#include "libavutil/pixdesc.h"
 #include "libavutil/error.h"
 #include "libavutil/opt.h"
+#include "libavutil/pixdesc.h"
+#include "libswscale/swscale.h"
 }
 
-#include <fstream>
 #include <cassert>
-
+#include <fstream>
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -52,44 +51,43 @@ namespace {
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct BufferData {
-  u8 *ptr;
-  size_t size; // size left in the buffer
+  u8* ptr;
+  size_t size;  // size left in the buffer
 
-  u8 *orig_ptr;
+  u8* orig_ptr;
   size_t initial_size;
 };
 
 // For custom AVIOContext that loads from memory
-i32 read_packet(void *opaque, u8 *buf, i32 buf_size) {
+i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
   BufferData* bd = (BufferData*)opaque;
   buf_size = std::min(static_cast<size_t>(buf_size), bd->size);
   /* copy internal buffer data to buf */
   memcpy(buf, bd->ptr, buf_size);
-  bd->ptr  += buf_size;
+  bd->ptr += buf_size;
   bd->size -= buf_size;
   return buf_size;
 }
 
-i64 seek(void *opaque, i64 offset, i32 whence) {
+i64 seek(void* opaque, i64 offset, i32 whence) {
   BufferData* bd = (BufferData*)opaque;
   {
-    switch (whence)
-    {
-    case SEEK_SET:
-      bd->ptr = bd->orig_ptr + offset;
-      bd->size = bd->initial_size - offset;
-      break;
-    case SEEK_CUR:
-      bd->ptr += offset;
-      bd->size -= offset;
-      break;
-    case SEEK_END:
-      bd->ptr = bd->orig_ptr + bd->initial_size;
-      bd->size = 0;
-      break;
-    case AVSEEK_SIZE:
-      return bd->initial_size;
-      break;
+    switch (whence) {
+      case SEEK_SET:
+        bd->ptr = bd->orig_ptr + offset;
+        bd->size = bd->initial_size - offset;
+        break;
+      case SEEK_CUR:
+        bd->ptr += offset;
+        bd->size -= offset;
+        break;
+      case SEEK_END:
+        bd->ptr = bd->orig_ptr + bd->initial_size;
+        bd->size = 0;
+        break;
+      case AVSEEK_SIZE:
+        return bd->initial_size;
+        break;
     }
     return bd->initial_size - bd->size;
   }
@@ -115,10 +113,10 @@ CodecState setup_video_codec(BufferData* buffer) {
 
   size_t avio_context_buffer_size = 4096;
   u8* avio_context_buffer =
-    static_cast<u8*>(av_malloc(avio_context_buffer_size));
+      static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
-    avio_alloc_context(avio_context_buffer, avio_context_buffer_size,
-                       0, buffer, &read_packet, NULL, &seek);
+      avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0,
+                         buffer, &read_packet, NULL, &seek);
   state.format_context->pb = state.io_context;
 
   // Read file header
@@ -136,20 +134,16 @@ CodecState setup_video_codec(BufferData* buffer) {
   av_dump_format(state.format_context, 0, NULL, 0);
 
   // Find the best video stream in our input video
-  state.video_stream_index =
-    av_find_best_stream(state.format_context,
-                        AVMEDIA_TYPE_VIDEO,
-                        -1 /* auto select */,
-                        -1 /* no related stream */,
-                        &state.in_codec,
-                        0 /* flags */);
+  state.video_stream_index = av_find_best_stream(
+      state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
+      -1 /* no related stream */, &state.in_codec, 0 /* flags */);
   if (state.video_stream_index < 0) {
     fprintf(stderr, "could not find best stream\n");
     assert(false);
   }
 
   AVStream const* const in_stream =
-    state.format_context->streams[state.video_stream_index];
+      state.format_context->streams[state.video_stream_index];
 
   state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   if (state.in_codec == NULL) {
@@ -182,16 +176,14 @@ void cleanup_video_codec(CodecState state) {
 #endif
   avformat_close_input(&state.format_context);
   if (state.io_context) {
-      av_freep(&state.io_context->buffer);
-      av_freep(&state.io_context);
+    av_freep(&state.io_context->buffer);
+    av_freep(&state.io_context);
   }
   av_frame_free(&state.picture);
   av_bitstream_filter_close(state.annexb);
 }
 
-bool read_timestamps(std::string video_path,
-                     DatasetItemWebTimestamps& meta)
-{
+bool read_timestamps(std::string video_path, DatasetItemWebTimestamps& meta) {
   // Load the entire input
   std::vector<u8> video_bytes;
   {
@@ -222,7 +214,7 @@ bool read_timestamps(std::string video_path,
   CodecState state = setup_video_codec(&buffer);
 
   AVStream const* const in_stream =
-    state.format_context->streams[state.video_stream_index];
+      state.format_context->streams[state.video_stream_index];
 
   meta.time_base_numerator = in_stream->time_base.num;
   meta.time_base_denominator = in_stream->time_base.den;
@@ -240,8 +232,8 @@ bool read_timestamps(std::string video_path,
     } else if (err != 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-              frame, err, err_msg);
+      fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, err,
+              err_msg);
 
       cleanup_video_codec(state);
       return false;
@@ -272,15 +264,13 @@ bool read_timestamps(std::string video_path,
     i32 orig_size = state.av_packet.size;
     while (state.av_packet.size > 0) {
       i32 got_picture = 0;
-      i32 len = avcodec_decode_video2(state.in_cc,
-                                      state.picture,
-                                      &got_picture,
+      i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
                                       &state.av_packet);
       if (len < 0) {
         char err_msg[256];
         av_strerror(len, err_msg, 256);
-        fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-                frame, len, err_msg);
+        fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, len,
+                err_msg);
         assert(false);
       }
       if (got_picture) {
@@ -303,18 +293,16 @@ bool read_timestamps(std::string video_path,
     av_packet_unref(&state.av_packet);
   }
 
-// /* some codecs, such as MPEG, transmit the I and P frame with a
-//    latency of one frame. You must do the following to have a
-//    chance to get the last frame of the video */
+  // /* some codecs, such as MPEG, transmit the I and P frame with a
+  //    latency of one frame. You must do the following to have a
+  //    chance to get the last frame of the video */
   state.av_packet.data = NULL;
   state.av_packet.size = 0;
 
   i32 got_picture;
   do {
     got_picture = 0;
-    i32 len = avcodec_decode_video2(state.in_cc,
-                                    state.picture,
-                                    &got_picture,
+    i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
                                     &state.av_packet);
     (void)len;
     if (got_picture) {
@@ -331,16 +319,10 @@ bool read_timestamps(std::string video_path,
   return true;
 }
 
-void next_nal(
-  u8*& buffer,
-  i32& buffer_size_left,
-  u8*& nal_start,
-  i32& nal_size)
-{
+void next_nal(u8*& buffer, i32& buffer_size_left, u8*& nal_start,
+              i32& nal_size) {
   while (buffer_size_left > 2 &&
-         !(buffer[0] == 0x00 &&
-           buffer[1] == 0x00 &&
-           buffer[2] == 0x01)) {
+         !(buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x01)) {
     buffer++;
     buffer_size_left--;
   }
@@ -351,10 +333,8 @@ void next_nal(
   nal_start = buffer;
   nal_size = 0;
   if (buffer_size_left > 2) {
-    while (!(buffer[0] == 0x00 &&
-             buffer[1] == 0x00 &&
-             (buffer[2] == 0x00 ||
-              buffer[2] == 0x01))) {
+    while (!(buffer[0] == 0x00 && buffer[1] == 0x00 &&
+             (buffer[2] == 0x00 || buffer[2] == 0x01))) {
       buffer++;
       buffer_size_left--;
       nal_size++;
@@ -366,13 +346,11 @@ void next_nal(
   }
 }
 
-bool preprocess_video(
-  storehouse::StorageBackend* storage,
-  const std::string& dataset_name,
-  const std::string& video_path,
-  const std::string& item_name,
-  DatasetItemMetadata& video_metadata)
-{
+bool preprocess_video(storehouse::StorageBackend* storage,
+                      const std::string& dataset_name,
+                      const std::string& video_path,
+                      const std::string& item_name,
+                      DatasetItemMetadata& video_metadata) {
   // Load the entire input
   std::vector<u8> video_bytes;
   {
@@ -383,7 +361,8 @@ bool preprocess_video(
     while (file) {
       size_t prev_size = video_bytes.size();
       video_bytes.resize(prev_size + READ_SIZE);
-      file.read(reinterpret_cast<char*>(video_bytes.data() + prev_size), READ_SIZE);
+      file.read(reinterpret_cast<char*>(video_bytes.data() + prev_size),
+                READ_SIZE);
       size_t size_read = file.gcount();
       if (size_read != READ_SIZE) {
         video_bytes.resize(prev_size + size_read);
@@ -406,15 +385,12 @@ bool preprocess_video(
   video_metadata.chroma_format = VideoChromaFormat::YUV_420;
   video_metadata.codec_type = VideoCodecType::H264;
 
-  std::vector<u8>& metadata_bytes =
-    video_metadata.metadata_packets;
+  std::vector<u8>& metadata_bytes = video_metadata.metadata_packets;
   std::vector<u8> bytestream_bytes;
-  std::vector<i64>& keyframe_positions =
-    video_metadata.keyframe_positions;
-  std::vector<i64>& keyframe_timestamps =
-    video_metadata.keyframe_timestamps;
+  std::vector<i64>& keyframe_positions = video_metadata.keyframe_positions;
+  std::vector<i64>& keyframe_timestamps = video_metadata.keyframe_timestamps;
   std::vector<i64>& keyframe_byte_offsets =
-    video_metadata.keyframe_byte_offsets;
+      video_metadata.keyframe_byte_offsets;
 
   bool succeeded = true;
   i32 frame = 0;
@@ -430,8 +406,8 @@ bool preprocess_video(
     } else if (err != 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-              frame, err, err_msg);
+      fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, err,
+              err_msg);
       cleanup_video_codec(state);
       return false;
     }
@@ -462,12 +438,8 @@ bool preprocess_video(
 
     u8* filtered_data;
     i32 filtered_data_size;
-    av_bitstream_filter_filter(state.annexb,
-                               state.in_cc,
-                               NULL,
-                               &filtered_data,
-                               &filtered_data_size,
-                               state.av_packet.data,
+    av_bitstream_filter_filter(state.annexb, state.in_cc, NULL, &filtered_data,
+                               &filtered_data_size, state.av_packet.data,
                                state.av_packet.size,
                                state.av_packet.flags & AV_PKT_FLAG_KEY);
 
@@ -491,13 +463,12 @@ bool preprocess_video(
     }
 
     i64 nal_bytestream_offset = bytestream_bytes.size();
-    bytestream_bytes.resize(bytestream_bytes.size() +
-                            filtered_data_size + sizeof(i32));
+    bytestream_bytes.resize(bytestream_bytes.size() + filtered_data_size +
+                            sizeof(i32));
     *((i32*)(bytestream_bytes.data() + nal_bytestream_offset)) =
-      filtered_data_size;
+        filtered_data_size;
     memcpy(bytestream_bytes.data() + nal_bytestream_offset + sizeof(i32),
-           filtered_data,
-           filtered_data_size);
+           filtered_data, filtered_data_size);
 
     // Parse NAL unit
     u8* nal_parse = filtered_data;
@@ -534,23 +505,20 @@ bool preprocess_video(
       i32 got_picture = 0;
       u8* dec;
       size_t size;
-      i32 len = avcodec_decode_video2(state.in_cc,
-                                      state.picture,
-                                      &got_picture,
+      i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
                                       &state.av_packet);
       if (len < 0) {
         char err_msg[256];
         av_strerror(len, err_msg, 256);
-        fprintf(stderr, "Error while decoding frame %d (%d): %s\n",
-                frame, len, err_msg);
+        fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, len,
+                err_msg);
         assert(false);
       }
       if (got_picture) {
         state.picture->pts = frame;
 
         if (state.picture->key_frame == 1) {
-          printf("keyframe dts %d\n",
-                 state.picture->pkt_dts);
+          printf("keyframe dts %d\n", state.picture->pkt_dts);
         }
         // the picture is allocated by the decoder. no need to free
         frame++;
@@ -564,18 +532,16 @@ bool preprocess_video(
     av_packet_unref(&state.av_packet);
   }
 
-// /* some codecs, such as MPEG, transmit the I and P frame with a
-//    latency of one frame. You must do the following to have a
-//    chance to get the last frame of the video */
+  // /* some codecs, such as MPEG, transmit the I and P frame with a
+  //    latency of one frame. You must do the following to have a
+  //    chance to get the last frame of the video */
   state.av_packet.data = NULL;
   state.av_packet.size = 0;
 
   i32 got_picture;
   do {
     got_picture = 0;
-    i32 len = avcodec_decode_video2(state.in_cc,
-                                    state.picture,
-                                    &got_picture,
+    i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
                                     &state.av_packet);
     (void)len;
     if (got_picture) {
@@ -596,10 +562,10 @@ bool preprocess_video(
   // Write out our metadata video stream
   {
     std::string metadata_path =
-      dataset_item_metadata_path(dataset_name, item_name);
+        dataset_item_metadata_path(dataset_name, item_name);
     std::unique_ptr<WriteFile> metadata_file;
     exit_on_error(
-      make_unique_write_file(storage, metadata_path, metadata_file));
+        make_unique_write_file(storage, metadata_path, metadata_file));
 
     serialize_dataset_item_metadata(metadata_file.get(), video_metadata);
     metadata_file->save();
@@ -609,21 +575,19 @@ bool preprocess_video(
   {
     std::string data_path = dataset_item_data_path(dataset_name, item_name);
     std::unique_ptr<WriteFile> output_file{};
-    exit_on_error(
-      make_unique_write_file(storage, data_path, output_file));
+    exit_on_error(make_unique_write_file(storage, data_path, output_file));
 
     const size_t WRITE_SIZE = 16 * 1024;
     u8 buffer[WRITE_SIZE];
     size_t pos = 0;
     while (pos != demuxed_video_stream.size()) {
       const size_t size_to_write =
-        std::min(WRITE_SIZE, demuxed_video_stream.size() - pos);
+          std::min(WRITE_SIZE, demuxed_video_stream.size() - pos);
       StoreResult result;
-      EXP_BACKOFF(
-        output_file->append(
-          size_to_write,
-          reinterpret_cast<const u8*>(demuxed_video_stream.data() + pos)),
-        result);
+      EXP_BACKOFF(output_file->append(size_to_write,
+                                      reinterpret_cast<const u8*>(
+                                          demuxed_video_stream.data() + pos)),
+                  result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
       pos += size_to_write;
@@ -642,13 +606,15 @@ bool preprocess_video(
   // vsync 0 needed to never drop or duplicate frames to match fps
   // alternatively we could figure out how to make output fps same as input
   std::string conversion_command =
-    "ffmpeg "
-    "-i " + video_path + " "
-    "-vsync 0 "
-    "-c:v h264 "
-    "-strict -2 "
-    "-movflags faststart " +
-    temp_output_path;
+      "ffmpeg "
+      "-i " +
+      video_path +
+      " "
+      "-vsync 0 "
+      "-c:v h264 "
+      "-strict -2 "
+      "-movflags faststart " +
+      temp_output_path;
 
   std::system(conversion_command.c_str());
 
@@ -659,10 +625,9 @@ bool preprocess_video(
 
     // Write to database storage
     std::string web_video_path =
-      dataset_item_video_path(dataset_name, item_name);
+        dataset_item_video_path(dataset_name, item_name);
     std::unique_ptr<WriteFile> output_file{};
-    exit_on_error(
-      make_unique_write_file(storage, web_video_path, output_file));
+    exit_on_error(make_unique_write_file(storage, web_video_path, output_file));
 
     const size_t READ_SIZE = 1024 * 1024;
     std::vector<u8> buffer(READ_SIZE);
@@ -672,8 +637,8 @@ bool preprocess_video(
 
       StoreResult result;
       EXP_BACKOFF(
-        output_file->append(size_read, reinterpret_cast<u8*>(buffer.data())),
-        result);
+          output_file->append(size_read, reinterpret_cast<u8*>(buffer.data())),
+          result);
       assert(result == StoreResult::Success ||
              result == StoreResult::EndOfFile);
     }
@@ -692,17 +657,16 @@ bool preprocess_video(
 
   printf("time base (%d/%d), orig frames %d, dts size %lu\n",
          timestamps_meta.time_base_numerator,
-         timestamps_meta.time_base_denominator,
-         frame,
+         timestamps_meta.time_base_denominator, frame,
          timestamps_meta.pts_timestamps.size());
 
   {
     // Write to database storage
     std::string web_video_timestamp_path =
-      dataset_item_video_timestamps_path(dataset_name, item_name);
+        dataset_item_video_timestamps_path(dataset_name, item_name);
     std::unique_ptr<WriteFile> output_file{};
     exit_on_error(
-      make_unique_write_file(storage, web_video_timestamp_path, output_file));
+        make_unique_write_file(storage, web_video_timestamp_path, output_file));
 
     serialize_dataset_item_web_timestamps(output_file.get(), timestamps_meta);
   }
@@ -716,20 +680,18 @@ bool preprocess_video(
  *
  *   @return: index of the last successfully processed video
  */
-i32 read_last_processed_video(
-  storehouse::StorageBackend* storage,
-  const std::string& dataset_name)
-{
+i32 read_last_processed_video(storehouse::StorageBackend* storage,
+                              const std::string& dataset_name) {
   StoreResult result;
 
   const std::string last_written_path =
-    dataset_name + "_dataset/last_written.bin";
+      dataset_name + "_dataset/last_written.bin";
 
   // File will not exist when first running ingest so check first
   // and return default value if not there
   storehouse::FileInfo info;
   result = storage->get_file_info(last_written_path, info);
-  (void) info;
+  (void)info;
   if (result == StoreResult::FileDoesNotExist) {
     return -1;
   }
@@ -742,13 +704,10 @@ i32 read_last_processed_video(
 
   i32 last_processed_video;
   EXP_BACKOFF(
-    file->read(pos,
-               sizeof(i32),
-               reinterpret_cast<u8*>(&last_processed_video),
-               size_read),
-    result);
-  assert(result == StoreResult::Success ||
-         result == StoreResult::EndOfFile);
+      file->read(pos, sizeof(i32), reinterpret_cast<u8*>(&last_processed_video),
+                 size_read),
+      result);
+  assert(result == StoreResult::Success || result == StoreResult::EndOfFile);
   assert(size_read == sizeof(i32));
 
   return last_processed_video;
@@ -759,31 +718,26 @@ i32 read_last_processed_video(
  *   Used to recover from failures midway through the ingest process.
  *
  */
-void write_last_processed_video(
-  storehouse::StorageBackend* storage,
-  const std::string& dataset_name,
-  i32 file_index)
-{
+void write_last_processed_video(storehouse::StorageBackend* storage,
+                                const std::string& dataset_name,
+                                i32 file_index) {
   const std::string last_written_path =
-    dataset_name + "_dataset/last_written.bin";
+      dataset_name + "_dataset/last_written.bin";
   std::unique_ptr<WriteFile> file;
   make_unique_write_file(storage, last_written_path, file);
 
   StoreResult result;
   EXP_BACKOFF(
-    file->append(sizeof(i32),
-                 reinterpret_cast<const u8*>(&file_index)),
-    result);
+      file->append(sizeof(i32), reinterpret_cast<const u8*>(&file_index)),
+      result);
   exit_on_error(result);
 }
 
-} // end anonymous namespace
+}  // end anonymous namespace
 
-void ingest(
-  storehouse::StorageConfig* storage_config,
-  const std::string& dataset_name,
-  const std::string& video_paths_file)
-{
+void ingest(storehouse::StorageConfig* storage_config,
+            const std::string& dataset_name,
+            const std::string& video_paths_file) {
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -808,7 +762,7 @@ void ingest(
   }
 
   storehouse::StorageBackend* storage =
-    storehouse::StorageBackend::make_from_config(storage_config);
+      storehouse::StorageBackend::make_from_config(storage_config);
 
   // Start from the file after the one we last processed succesfully before
   // crashing/exiting
@@ -825,8 +779,8 @@ void ingest(
     LOG(INFO) << "Ingesting video " << path << "..." << std::endl;
 
     DatasetItemMetadata video_metadata;
-    bool valid_video =
-      preprocess_video(storage, dataset_name, path, item_name, video_metadata);
+    bool valid_video = preprocess_video(storage, dataset_name, path, item_name,
+                                        video_metadata);
     if (!valid_video) {
       LOG(WARNING) << "Failed to ingest video " << path << "! "
                    << "Adding to bad paths file "
@@ -838,22 +792,22 @@ void ingest(
       // We are summing into the average variables but we will divide
       // by the number of entries at the end
       descriptor.min_frames =
-        std::min(descriptor.min_frames, video_metadata.frames);
+          std::min(descriptor.min_frames, video_metadata.frames);
       descriptor.average_frames += video_metadata.frames;
       descriptor.max_frames =
-        std::max(descriptor.max_frames, video_metadata.frames);
+          std::max(descriptor.max_frames, video_metadata.frames);
 
       descriptor.min_width =
-        std::min(descriptor.min_width, video_metadata.width);
+          std::min(descriptor.min_width, video_metadata.width);
       descriptor.average_width = video_metadata.width;
       descriptor.max_width =
-        std::max(descriptor.max_width, video_metadata.width);
+          std::max(descriptor.max_width, video_metadata.width);
 
       descriptor.min_height =
-        std::min(descriptor.min_height, video_metadata.height);
+          std::min(descriptor.min_height, video_metadata.height);
       descriptor.average_height = video_metadata.height;
       descriptor.max_height =
-        std::max(descriptor.max_height, video_metadata.height);
+          std::max(descriptor.max_height, video_metadata.height);
 
       LOG(INFO) << "Finished ingesting video " << path << "." << std::endl;
     }
@@ -875,8 +829,7 @@ void ingest(
   descriptor.average_height /= total_frames;
   // Write out dataset descriptor
   {
-    const std::string dataset_file_path =
-      dataset_descriptor_path(dataset_name);
+    const std::string dataset_file_path = dataset_descriptor_path(dataset_name);
     std::unique_ptr<WriteFile> output_file;
     make_unique_write_file(storage, dataset_file_path, output_file);
 
@@ -891,5 +844,4 @@ void ingest(
 
   delete storage;
 }
-
 }

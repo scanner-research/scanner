@@ -17,25 +17,22 @@
 
 #include "scanner/util/util.h"
 
-#include <vector>
-#include <string>
 #include <atomic>
 #include <fstream>
+#include <string>
+#include <vector>
 
 namespace scanner {
 
 class Profiler {
-public:
+ public:
   Profiler(timepoint_t base_time);
 
   Profiler(const Profiler& other);
 
   ~Profiler(void);
 
-  void add_interval(
-    const std::string& key,
-    timepoint_t start,
-    timepoint_t end);
+  void add_interval(const std::string& key, timepoint_t start, timepoint_t end);
 
   struct TaskRecord {
     std::string key;
@@ -45,7 +42,7 @@ public:
 
   const std::vector<TaskRecord>& get_records() const;
 
-protected:
+ protected:
   void spin_lock();
   void unlock();
 
@@ -54,13 +51,10 @@ protected:
   std::vector<TaskRecord> records_;
 };
 
-void write_profiler_to_file(
-  std::ofstream& output,
-  int64_t node,
-  std::string type_name,
-  int64_t worker_num,
-  const Profiler& profiler);
+void write_profiler_to_file(std::ofstream& output, int64_t node,
+                            std::string type_name, int64_t worker_num,
+                            const Profiler& profiler);
 
-} // namespace scanner
+}  // namespace scanner
 
 #include "scanner/util/profiler.inl"

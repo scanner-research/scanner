@@ -6,25 +6,24 @@
 namespace scanner {
 
 class HistogramEvaluator : public Evaluator {
-public:
+ public:
   HistogramEvaluator(EvaluatorConfig config);
 
   virtual ~HistogramEvaluator();
 
   virtual void configure(const DatasetItemMetadata& metadata) override;
 
-  virtual void evaluate(
-    u8* input_buffer,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes,
-    i32 batch_size) override;
+  virtual void evaluate(u8* input_buffer,
+                        std::vector<std::vector<u8*>>& output_buffers,
+                        std::vector<std::vector<size_t>>& output_sizes,
+                        i32 batch_size) override;
 
-private:
+ private:
   DatasetItemMetadata metadata;
 };
 
 class HistogramEvaluatorConstructor : public EvaluatorConstructor {
-public:
+ public:
   HistogramEvaluatorConstructor();
 
   virtual ~HistogramEvaluatorConstructor();
@@ -41,16 +40,12 @@ public:
 
   virtual u8* new_input_buffer(const EvaluatorConfig& config) override;
 
-  virtual void delete_input_buffer(
-    const EvaluatorConfig& config,
-    u8* buffer) override;
+  virtual void delete_input_buffer(const EvaluatorConfig& config,
+                                   u8* buffer) override;
 
-  virtual void delete_output_buffer(
-    const EvaluatorConfig& config,
-    u8* buffers) override;
+  virtual void delete_output_buffer(const EvaluatorConfig& config,
+                                    u8* buffers) override;
 
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
-
 };
-
 }

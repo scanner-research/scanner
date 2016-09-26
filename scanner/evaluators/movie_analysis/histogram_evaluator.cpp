@@ -30,11 +30,8 @@ void HistogramEvaluator::configure(const DatasetItemMetadata& metadata) {
 }
 
 void HistogramEvaluator::evaluate(
-  u8* input_buffer,
-  std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes,
-  i32 batch_size)
-{
+    u8* input_buffer, std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes, i32 batch_size) {
   i64 hist_size = BINS * 3 * sizeof(u8);
   for (i32 i = 0; i < batch_size; i++) {
     cv::Mat img = bytesToImage(input_buffer, i, metadata);
@@ -43,13 +40,13 @@ void HistogramEvaluator::evaluate(
 
     cv::Mat r_hist, g_hist, b_hist;
     float range[] = {0, 256};
-    const float* histRange = { range };
+    const float* histRange = {range};
 
     cv::calcHist(&bgr_planes[0], 1, 0, cv::Mat(), b_hist, 1, &BINS, &histRange);
     cv::calcHist(&bgr_planes[1], 1, 0, cv::Mat(), g_hist, 1, &BINS, &histRange);
     cv::calcHist(&bgr_planes[2], 1, 0, cv::Mat(), r_hist, 1, &BINS, &histRange);
 
-    std::vector<cv::Mat> hists = { r_hist, g_hist, b_hist };
+    std::vector<cv::Mat> hists = {r_hist, g_hist, b_hist};
     cv::Mat hist, hist_u8;
     cv::hconcat(hists, hist);
     hist.convertTo(hist_u8, CV_8U);
@@ -66,9 +63,7 @@ HistogramEvaluatorConstructor::HistogramEvaluatorConstructor() {}
 
 HistogramEvaluatorConstructor::~HistogramEvaluatorConstructor() {}
 
-i32 HistogramEvaluatorConstructor::get_number_of_devices() {
-  return 1;
-}
+i32 HistogramEvaluatorConstructor::get_number_of_devices() { return 1; }
 
 DeviceType HistogramEvaluatorConstructor::get_input_buffer_type() {
   return DeviceType::CPU;
@@ -78,41 +73,30 @@ DeviceType HistogramEvaluatorConstructor::get_output_buffer_type() {
   return DeviceType::CPU;
 }
 
-i32 HistogramEvaluatorConstructor::get_number_of_outputs() {
-  return 1;
-}
+i32 HistogramEvaluatorConstructor::get_number_of_outputs() { return 1; }
 
 std::vector<std::string> HistogramEvaluatorConstructor::get_output_names() {
   return {"histogram"};
 }
 
-u8*
-HistogramEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
-  return new u8[
-    config.max_batch_size *
-    config.max_frame_width *
-    config.max_frame_height *
-    3 *
-    sizeof(u8)];
+u8* HistogramEvaluatorConstructor::new_input_buffer(
+    const EvaluatorConfig& config) {
+  return new u8[config.max_batch_size * config.max_frame_width *
+                config.max_frame_height * 3 * sizeof(u8)];
 }
 
 void HistogramEvaluatorConstructor::delete_input_buffer(
-  const EvaluatorConfig& config,
-  u8* buffer)
-{
+    const EvaluatorConfig& config, u8* buffer) {
   delete[] buffer;
 }
 
 void HistogramEvaluatorConstructor::delete_output_buffer(
-  const EvaluatorConfig& config,
-  u8* buffer)
-{
+    const EvaluatorConfig& config, u8* buffer) {
   delete[] buffer;
 }
 
-Evaluator*
-HistogramEvaluatorConstructor::new_evaluator(const EvaluatorConfig& config) {
+Evaluator* HistogramEvaluatorConstructor::new_evaluator(
+    const EvaluatorConfig& config) {
   return new HistogramEvaluator(config);
 }
-
 }

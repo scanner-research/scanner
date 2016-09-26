@@ -17,16 +17,12 @@
 
 #include "storehouse/storage_backend.h"
 
-#include <string>
 #include <cassert>
+#include <string>
 
 namespace scanner {
 
-inline void write(
-  storehouse::WriteFile* file,
-  const u8* buffer,
-  size_t size)
-{
+inline void write(storehouse::WriteFile* file, const u8* buffer, size_t size) {
   storehouse::StoreResult result;
   EXP_BACKOFF(file->append(size, buffer), result);
   exit_on_error(result);
@@ -42,12 +38,8 @@ inline void write(storehouse::WriteFile* file, const std::string& s) {
   write(file, reinterpret_cast<const u8*>(s.c_str()), s.size() + 1);
 }
 
-inline void read(
-  storehouse::RandomReadFile* file,
-  u8* buffer,
-  size_t size,
-  u64& pos)
-{
+inline void read(storehouse::RandomReadFile* file, u8* buffer, size_t size,
+                 u64& pos) {
   storehouse::StoreResult result;
   size_t size_read;
   EXP_BACKOFF(file->read(pos, size, buffer, size_read), result);
@@ -95,5 +87,4 @@ inline std::string read(storehouse::RandomReadFile* file, u64& pos) {
   pos += var.size() + 1;
   return var;
 }
-
 }

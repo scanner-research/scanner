@@ -22,23 +22,16 @@
 #ifdef HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
 
-void convertNV12toRGBA(
-  const cv::cuda::GpuMat& in,
-  cv::cuda::GpuMat& outFrame,
-  int width,
-  int height,
-  cv::cuda::Stream& stream = cv::cuda::Stream::Null());
+void convertNV12toRGBA(const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame,
+                       int width, int height,
+                       cv::cuda::Stream& stream = cv::cuda::Stream::Null());
 
 void convertRGBInterleavedToPlanar(
-  const cv::cuda::GpuMat& in,
-  cv::cuda::GpuMat& outFrame,
-  int width,
-  int height,
-  cv::cuda::Stream& stream = cv::cuda::Stream::Null());
+    const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame, int width,
+    int height, cv::cuda::Stream& stream = cv::cuda::Stream::Null());
 #endif
 
 namespace scanner {
 
 cv::Mat bytesToImage(u8* buf, i32 i, const DatasetItemMetadata& metadata);
-
 }

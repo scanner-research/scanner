@@ -30,15 +30,11 @@ class Evaluator {
 
   virtual void reset(){};
 
-  virtual void warmup(
-    i32 input_count,
-    u8* input_buffer){};
+  virtual void warmup(i32 input_count, u8* input_buffer){};
 
-  virtual void evaluate(
-    i32 input_count,
-    u8* input_buffer,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) = 0;
+  virtual void evaluate(i32 input_count, u8* input_buffer,
+                        std::vector<std::vector<u8*>>& output_buffers,
+                        std::vector<std::vector<size_t>>& output_sizes) = 0;
 
   void set_profiler(Profiler* profiler) { profiler_ = profiler; }
 

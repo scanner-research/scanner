@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "scanner/video/video_decoder.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
+#include "scanner/video/video_decoder.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -64,11 +64,7 @@ struct SaveWorkEntry {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-void run_job(
-  storehouse::StorageConfig* storage_config,
-  VideoDecoderType decoder_type,
-  EvaluatorFactory* evaluator_factory,
-  const std::string& job_name,
-  const std::string& dataset_name);
-
+void run_job(storehouse::StorageConfig* storage_config,
+             VideoDecoderType decoder_type, EvaluatorFactory* evaluator_factory,
+             const std::string& job_name, const std::string& dataset_name);
 }

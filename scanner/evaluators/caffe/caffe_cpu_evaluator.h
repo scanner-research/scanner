@@ -17,8 +17,8 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
-#include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
+#include "scanner/evaluators/caffe/net_descriptor.h"
 
 #include <memory>
 #include <vector>
@@ -26,22 +26,18 @@
 namespace scanner {
 
 class CaffeCPUEvaluator : public Evaluator {
-public:
-  CaffeCPUEvaluator(
-    const EvaluatorConfig& config,
-    const NetDescriptor& descriptor,
-    CaffeInputTransformer* transformer,
-    i32 device_id);
+ public:
+  CaffeCPUEvaluator(const EvaluatorConfig& config,
+                    const NetDescriptor& descriptor,
+                    CaffeInputTransformer* transformer, i32 device_id);
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  void evaluate(
-    i32 input_count,
-    u8* input_buffer,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) override;
+  void evaluate(i32 input_count, u8* input_buffer,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
-protected:
+ protected:
   EvaluatorConfig config_;
   NetDescriptor descriptor_;
   std::unique_ptr<CaffeInputTransformer> transformer_;
@@ -52,10 +48,9 @@ protected:
 };
 
 class CaffeCPUEvaluatorFactory : public EvaluatorFactory {
-public:
-  CaffeCPUEvaluatorFactory(
-    const NetDescriptor& net_descriptor,
-    CaffeInputTransformerFactory* transformer_factory);
+ public:
+  CaffeCPUEvaluatorFactory(const NetDescriptor& net_descriptor,
+                           CaffeInputTransformerFactory* transformer_factory);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -65,9 +60,8 @@ public:
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
-private:
+ private:
   NetDescriptor net_descriptor_;
   std::unique_ptr<CaffeInputTransformerFactory> transformer_factory_;
 };
-
-}
+}  // end namespace scanner

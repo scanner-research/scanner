@@ -52,5 +52,4 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file);
 //////////////////////////////////////////////////////////////////////
 /// Utils
 caffe::Caffe::Brew device_type_to_caffe_mode(DeviceType type);
-
 }

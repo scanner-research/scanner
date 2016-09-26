@@ -17,9 +17,9 @@
 
 #include "storehouse/storage_backend.h"
 
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
 
 namespace scanner {
 
@@ -35,55 +35,45 @@ using f64 = double;
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
 extern i32 PUS_PER_NODE;           // # of available processing units per node
-extern i32 GLOBAL_BATCH_SIZE;       // Batch size for network
-extern i32 BATCHES_PER_WORK_ITEM;   // How many batches per work item
+extern i32 GLOBAL_BATCH_SIZE;      // Batch size for network
+extern i32 BATCHES_PER_WORK_ITEM;  // How many batches per work item
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
-extern i32 LOAD_WORKERS_PER_NODE;   // # of worker threads loading data
-extern i32 SAVE_WORKERS_PER_NODE;   // # of worker threads loading data
-extern i32 NUM_CUDA_STREAMS;        // # of cuda streams for image processing
+extern i32 LOAD_WORKERS_PER_NODE;  // # of worker threads loading data
+extern i32 SAVE_WORKERS_PER_NODE;  // # of worker threads loading data
+extern i32 NUM_CUDA_STREAMS;       // # of cuda streams for image processing
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Path functions
-inline std::string dataset_descriptor_path(const std::string& dataset_name)
-{
+inline std::string dataset_descriptor_path(const std::string& dataset_name) {
   return dataset_name + "_dataset_descriptor.bin";
 }
 
 inline std::string dataset_item_data_path(const std::string& dataset_name,
-                                          const std::string& item_name)
-{
+                                          const std::string& item_name) {
   return dataset_name + "_dataset/" + item_name + "_data.bin";
 }
 
 inline std::string dataset_item_video_path(const std::string& dataset_name,
-                                           const std::string& item_name)
-{
+                                           const std::string& item_name) {
   return dataset_name + "_dataset/" + item_name + ".mp4";
 }
 
 inline std::string dataset_item_video_timestamps_path(
-  const std::string& dataset_name,
-  const std::string& item_name)
-{
+    const std::string& dataset_name, const std::string& item_name) {
   return dataset_name + "_dataset/" + item_name + "_web_timestamps.bin";
 }
 
 inline std::string dataset_item_metadata_path(const std::string& dataset_name,
-                                              const std::string& item_name)
-{
+                                              const std::string& item_name) {
   return dataset_name + "_dataset/" + item_name + "_metadata.bin";
 }
 
 inline std::string job_item_output_path(const std::string& job_name,
                                         const std::string& item_name,
                                         const std::string& layer_name,
-                                        i32 start,
-                                        i32 end)
-{
-  return job_name + "_job/" + item_name + "_" +
-    layer_name + "_" +
-    std::to_string(start) + "-" +
-    std::to_string(end) + ".bin";
+                                        i32 start, i32 end) {
+  return job_name + "_job/" + item_name + "_" + layer_name + "_" +
+         std::to_string(start) + "-" + std::to_string(end) + ".bin";
 }
 
 inline std::string job_descriptor_path(const std::string& job_name) {
@@ -110,7 +100,7 @@ enum struct VideoCodecType {
   // MPEG2,                   /**<  MPEG2  */
   // MPEG4,                   /**<  MPEG4   */
   // VC1,                     /**<  VC1   */
-  H264,                    /**<  H264   */
+  H264, /**<  H264   */
   // JPEG,                    /**<  JPEG   */
   // H264_SVC,                /**<  H264-SVC   */
   // H264_MVC,                /**<  H264-MVC   */
@@ -173,36 +163,27 @@ struct JobDescriptor {
   std::map<std::string, std::vector<std::tuple<i32, i32>>> intervals;
 };
 
-void serialize_dataset_descriptor(
-  storehouse::WriteFile* file,
-  const DatasetDescriptor& descriptor);
+void serialize_dataset_descriptor(storehouse::WriteFile* file,
+                                  const DatasetDescriptor& descriptor);
 
 DatasetDescriptor deserialize_dataset_descriptor(
-  storehouse::RandomReadFile* file,
-  u64& file_pos);
+    storehouse::RandomReadFile* file, u64& file_pos);
 
-void serialize_dataset_item_metadata(
-  storehouse::WriteFile* file,
-  const DatasetItemMetadata& metadata);
+void serialize_dataset_item_metadata(storehouse::WriteFile* file,
+                                     const DatasetItemMetadata& metadata);
 
 DatasetItemMetadata deserialize_dataset_item_metadata(
-  storehouse::RandomReadFile* file,
-  u64& file_pos);
+    storehouse::RandomReadFile* file, u64& file_pos);
 
 void serialize_dataset_item_web_timestamps(
-  storehouse::WriteFile* file,
-  const DatasetItemWebTimestamps& metadata);
+    storehouse::WriteFile* file, const DatasetItemWebTimestamps& metadata);
 
 DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
-  storehouse::RandomReadFile* file,
-  u64& file_pos);
+    storehouse::RandomReadFile* file, u64& file_pos);
 
-void serialize_job_descriptor(
-  storehouse::WriteFile* file,
-  const JobDescriptor& descriptor);
+void serialize_job_descriptor(storehouse::WriteFile* file,
+                              const JobDescriptor& descriptor);
 
-JobDescriptor deserialize_job_descriptor(
-  storehouse::RandomReadFile* file,
-  u64& file_pos);
-
+JobDescriptor deserialize_job_descriptor(storehouse::RandomReadFile* file,
+                                         u64& file_pos);
 }
