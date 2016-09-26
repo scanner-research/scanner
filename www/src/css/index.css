@@ -2,7 +2,7 @@
     display: inline-block;
 }
 
-#video-browser {
+.video-browser {
     width: 48%;
     display: inline-block;
     vertical-align: top;
@@ -11,7 +11,7 @@
     width: 100;
 }
 
-#main-panel {
+.viewer-panel {
     width: 48%;
     display: inline-block;
     position: fixed;

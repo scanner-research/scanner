@@ -3,6 +3,9 @@ var React = require('react')
 var ReactDOM = require('react-dom');
 var _ = require('lodash');
 var $ = require('jquery');
+var update = require('react-addons-update');
+var Video = require('react-html5video/dist/ReactHtml5Video').default;
+
 
 require("../css/index.css");
 
@@ -73,33 +76,24 @@ var classificationGraphics = {
     },
 };
 
-var viewWidth = 800;
-var viewHeight = 450;
-
 var detectionGraphics = {
-    setup: function(mainPanel) {
-        mainPanel.append();
-        detectionGraphics.svgContainer = d3.select(mainPanel.get(0))
+    setup: function(container, videoElement) {
+        var container = $(container);
+        var videoElement = $(videoElement);
+        container.append();
+        detectionGraphics.svgContainer = d3.select(container.get(0))
             .append("svg")
             .classed("bbox-container", true)
-            .attr("width", viewWidth)
-            .attr("height", viewHeight)
+            .attr("width", videoElement.width())
+            .attr("height", videoElement.height())
             .append("g");
     },
-    plotValues: function(sampledData) {
-        var certaintyData = [];
-        for (var i = 0; i < sampledData.length; ++i) {
-            var item = sampledData[i];
-            certaintyData.push({
-                frame: item.frame,
-                value: item.data.certainty,
-            });
-        }
-        return certaintyData;
+    teardown: function(container) {
     },
     show: function() {
     },
-    draw: function(videoMetadata, item) {
+    draw: function(videoElement, videoMetadata, item) {
+        var videoElement = $(videoElement);
         var bboxes = detectionGraphics.svgContainer.selectAll(".bbox")
             .data(item.data.bboxes, function (d, i) {
                 var id = item.frame + ':' + i;
@@ -107,6 +101,8 @@ var detectionGraphics = {
             });
         var w = videoMetadata.width;
         var h = videoMetadata.height;
+        var viewWidth = videoElement.width();
+        var viewHeight = videoElement.height();
         bboxes.enter()
             .append("rect")
             .attr("class", "bbox")
@@ -262,41 +258,6 @@ function setupTimeline(container,
     var tickHeight = 80;
     var ticks = Math.floor(width / tickWidth);
 
-    var labelWidth = 50;
-    var labelHeight = 20;
-
-    var axis = $('<div/>', {'class': 'timeline-axis'})
-        .css('width', tickWidth * ticks);
-    for (var i = 0; i < ticks; ++i) {
-        var tick = $('<div/>', {'class': 'timeline-tick'})
-            .css('left', tickWidth * i)
-            .css('width', tickWidth - 1) // for padding
-            .css('top', 0)
-            .css('height', tickHeight);
-        var tickLabel = $('<div/>', {'class': 'timeline-tick-label'})
-            .css('left', tickWidth * i - labelWidth / 2)
-            .css('width', labelWidth)
-            .css('top', tickHeight)
-            .css('height', labelHeight);
-        tickLabel.text(Math.round(videoMetadata.frames / ticks * i));
-        axis.append(tick);
-        axis.append(tickLabel);
-    }
-    var lastWidth = tickWidth * ticks;
-    var tick = $('<div/>', {'class': 'timeline-tick'})
-        .css('left', lastWidth - 1)
-        .css('width', 0) // for padding
-        .css('top', 0)
-        .css('height', tickHeight);
-    var tickLabel = $('<div/>', {'class': 'timeline-tick-label'})
-        .css('left', lastWidth - labelWidth / 2)
-        .css('width', labelWidth)
-        .css('top', tickHeight)
-        .css('height', labelHeight);
-    tickLabel.text(videoMetadata.frames);
-    axis.append(tick);
-    axis.append(tickLabel);
-
     var hoveredFrame = -1;
     var selectedFrame = -1;
     var predictionData = _.times(videoMetadata.frames, function (i) {
@@ -387,37 +348,6 @@ function setupTimeline(container,
         });
         handleUpdate();
     });
-
-    axis.mousemove(function(e) {
-        var offset = axis.offset();
-        var xPos = e.pageX - offset.left;
-        var percent = xPos / axis.width();
-        var targetedFrame = Math.floor(videoMetadata.frames * percent);
-
-        frameIndicator.text(targetedFrame);
-        selectedFrame = targetedFrame;
-
-        handleUpdate();
-    });
-
-    axis.click(function() {
-
-        selectedFrame = -1;
-    });
-
-    axis.mouseenter(function() {
-        frameIndicator.show();
-        jobMetadata.graphics.show();
-    });
-
-    axis.mouseleave(function() {
-        frameIndicator.hide();
-        jobMetadata.graphics.hide();
-
-        selectedFrame = -1;
-    });
-
-    container.append(axis);
 }
 
 function setupTimelinePlot(axis,
@@ -488,7 +418,7 @@ var VideoTimeline = React.createClass({
     handleMouseMove: function(e) {
         var targetedFrame = this.posToFrameNumber(e.pageX);
 
-        this.props.onSelectedFrameChange({
+        this.state.onSelectedFrameChange({
             videoId: this.props.video.id,
             frame: targetedFrame,
         });
@@ -496,15 +426,33 @@ var VideoTimeline = React.createClass({
     handleClick: function(e) {
         var targetedFrame = this.posToFrameNumber(e.pageX);
 
-        this.props.onSelectedFrameChange({
+        this.state.onSelectedFrameChange({
             videoId: this.props.video.id,
             frame: targetedFrame,
         });
         this.setState({selectedFrame: targetedFrame});
     },
+    handleMouseLeave: function(e) {
+        this.state.onSelectedFrameChange({
+            videoId: this.props.video.id,
+            frame: this.state.selectedFrame,
+        });
+    },
     componentDidMount: function() {
         var width = $(ReactDOM.findDOMNode(this)).width();
-        this.setState({width: width});
+        var onSelectedFrameChange =
+            _.debounce(this.props.onSelectedFrameChange, 50);
+        this.setState({
+            width: width,
+            onSelectedFrameChange: onSelectedFrameChange
+        });
+    },
+    componentWillReceiveProps: function(nextProps) {
+        var onSelectedFrameChange =
+            _.debounce(this.props.onSelectedFrameChange, 50);
+        this.setState({
+            onSelectedFrameChange: onSelectedFrameChange
+        });
     },
     render: function() {
         var video = this.props.video;
@@ -530,6 +478,19 @@ var VideoTimeline = React.createClass({
                 </div>
             );
         });
+        var style = {
+            left: tickWidth * numTicks - 1,
+            width: 0,
+            top: 0,
+            height: tickHeight,
+        };
+        var lastTick = (
+            <div className="timeline-tick"
+                 style={style}
+                 key={numTicks}>
+            </div>
+        );
+        ticks.push(lastTick);
         var tickLabels = _.times(numTicks, function(i) {
             var style = {
                 left: tickWidth * i - labelWidth / 2,
@@ -545,10 +506,26 @@ var VideoTimeline = React.createClass({
                 </div>
             );
         });
+        var style = {
+            left: tickWidth * numTicks - labelWidth / 2,
+            width: labelWidth,
+            top: tickHeight,
+            height: labelHeight,
+        };
+        var lastTickLabel = (
+            <div className="timeline-tick-label"
+                 style={style}
+                 key={numTicks}>
+              {video.frames}
+            </div>
+        );
+        tickLabels.push(lastTickLabel);
+
         return (
             <div className="video-timeline"
                  onClick={this.handleClick}
-                 onMouseMove={this.handleMouseMove}>
+                 onMouseMove={this.handleMouseMove}
+                 onMouseLeave={this.handleMouseLeave}>
               <div className="timeline-axis"
                    ref="axis">
                 {ticks}
@@ -606,6 +583,13 @@ var ViewerPanel = React.createClass({
     handlePlotTypeChange: function(e) {
         this.setState({plotType: e.target.value});
     },
+    handleVideoResize: function(e) {
+        this.props.graphics.teardown(this.refs.container);
+        var videoElement = ReactDOM.findDOMNode(this.refs.video)
+                                   .getElementsByTagName('video')[0];
+        console.log(videoElement);
+        this.props.graphics.setup(this.refs.container, videoElement);
+    },
     componentDidMount: function() {
         var frameIndicator = $('<div/>', {'id': 'frame-indicator',
                                           'class': 'timeline-pos-indicator'})
@@ -618,13 +602,39 @@ var ViewerPanel = React.createClass({
             .css('left', "50%")
             .hide();
         $("#main-panel").append(classIndicator);
+
+        var videoElement = ReactDOM.findDOMNode(this.refs.video)
+                                   .getElementsByTagName('video')[0];
+        console.log(videoElement);
+        this.props.graphics.setup(this.refs.container, videoElement);
+        videoElement.addEventListener('resize', this.handleVideoResize);
+    },
+    componentDidUpdate: function(prevProps, prevState) {
+        var videoElement = ReactDOM.findDOMNode(this.refs.video)
+                                   .getElementsByTagName('video')[0];
+        // Setup new graphics if it changes
+        if (prevProps.graphics != this.props.graphics) {
+            prevProps.graphics.teardown(this.refs.container);
+            console.log(videoElement);
+            this.props.graphics.setup(this.refs.container, videoElement);
+        }
+        if (prevProps.video.mediaPath != this.props.video.mediaPath) {
+            this.refs.video.load();
+        }
+        if (this.props.selectedFrame.status == 'valid') {
+            this.refs.video.seek(this.props.selectedFrame.data.time);
+            this.props.graphics.draw(
+                videoElement,
+                this.props.video,
+                this.props.selectedFrame.data);
+        }
     },
     render: function() {
         return (
-            <div className="viewer-panel">
-              <video id="video-viewer">
-                <source src="" type="video/mp4"></source>
-              </video>
+            <div className="viewer-panel" ref="container">
+              <Video id="video-viewer" width="100%" ref="video">
+                <source src={this.props.video.mediaPath} type="video/mp4" />
+              </Video>
               <select
                   value={this.state.plotType}
                   onChange={this.handlePlotTypeChange}>
@@ -648,18 +658,85 @@ var VisualizerApp = React.createClass({
     getInitialState: function() {
         return {
             jobs: [{}],
-            videos: [],
+            videos: [{
+                frames: 1,
+                width: 1280,
+                height: 720,
+                id: -1,
+                mediaPath: '',
+                name: "Loading...",
+            }],
+            frameData: [
+                [{
+                    status: 'invalid',
+                    data: {},
+                }]
+            ],
+            selectedFrame: {
+                videoId: 0,
+                frame: 0,
+            }
         };
     },
     handleSelectedFrameChange: function(d) {
-        console.log('video ' + d.videoId + ', frame ' + d.frame);
+        var frame = d.frame;
+        this.loadPredictionData(d.videoId, frame - 1, frame + 1);
+        this.setState({selectedFrame: d});
+    },
+    loadPredictionData: function(videoId, start, end) {
+        var frameData = this.state.frameData[videoId];
+
+        var foundStart = false;
+        var requestStart = start;
+        var requestEnd = end;
+        for (var i = start; i < end; ++i) {
+            if (frameData[i].status != 'invalid') {
+                if (foundStart) {
+                    requestEnd = i;
+                    break;
+                } else {
+                    requestStart = i + 1;
+                }
+            } else {
+                foundStart = true;
+                frameData =
+                    update(frameData, {[i]: {status: {$set: 'loading'}}});
+            }
+        }
+        // The entire range is already loaded so we don't need to send a request
+        if (requestStart == requestEnd) return;
+        $.ajax({
+            url: "jobs/" + this.state.jobs[0].id + "/features/" + videoId,
+            dataType: "json",
+            data: {
+                start: requestStart,
+                end: requestEnd,
+                stride: 1,
+                category: -1,
+                threshold: $("#threshold-input").val(),
+            }
+        }).done(function(data) {
+            for (var i = 0; i < (requestEnd - requestStart); ++i) {
+                var frame = requestStart + i;
+                frameData = update(frameData, {
+                    [frame]: {
+                        status: {$set: 'valid'},
+                        data: {$set: data[i]}
+                    }
+                });
+            }
+            this.setState({
+                frameData: update(this.state.frameData,
+                                  {[videoId]: {$set: frameData}})
+            });
+        }.bind(this));
     },
     componentDidMount: function() {
         $.ajax({
             url: "jobs",
             dataType: "json",
             success: function(jobsData) {
-                this.setState({jobs: jobsData, videos: []});
+                this.setState({jobs: jobsData});
                 //jobMetadata = data[0];
                 //jobMetadata.graphics =
                 //  graphicsOptions[jobMetadata.featureType];
@@ -671,9 +748,14 @@ var VisualizerApp = React.createClass({
                         job_id: jobsData[0]["id"],
                     },
                     success: function(videoData) {
+                        var frameData = _.map(videoData, function(video) {
+                            return _.times(video.frames, function(i) {
+                                return {status: 'invalid', data: {}};
+                            });
+                        })
                         this.setState({
-                            jobs: this.state.jobs,
                             videos: videoData,
+                            frameData: frameData
                         });
                     }.bind(this)
                 });
@@ -681,6 +763,8 @@ var VisualizerApp = React.createClass({
         });
     },
     render: function() {
+        var frameIdx = this.state.selectedFrame;
+        var frame = this.state.frameData[frameIdx.videoId][frameIdx.frame];
         return (
             <div className="visualizer-app">
               <VideoBrowser job={this.state.jobs[0]}
@@ -688,7 +772,9 @@ var VisualizerApp = React.createClass({
                             onSelectedFrameChange={
                                 this.handleSelectedFrameChange}/>
               <ViewerPanel job={this.state.jobs[0]}
-                           videos={this.state.videos}/>
+                           video={this.state.videos[frameIdx.videoId]}
+                           graphics={detectionGraphics}
+                           selectedFrame={frame}/>
             </div>
         );
     }
