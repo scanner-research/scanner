@@ -20,10 +20,12 @@ project(Scanner)
 option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
 option(BUILD_SERVER "" OFF)
 
 enable_testing()
+
+link_directories(/homes/wcrichto/local/lib)
 
 ###### Setup #########
 # Verify C++11 support
@@ -96,9 +98,15 @@ if (BUILD_SERVER)
 endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
+  set(STRUCK_DIR /homes/wcrichto/struck)
   set(OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect)
   find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-  include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+  find_package (Eigen REQUIRED)
+  file(GLOB STRUCK_SOURCES "${STRUCK_DIR}/src/*.cpp")
+  include_directories(SYSTEM
+    ${OpenCV_INCLUDE_DIRS}
+    ${STRUCK_DIR}/src
+    ${EIGEN_INCLUDE_DIRS})
 endif()
 
 ###### Required Dependencies #######
@@ -190,7 +198,8 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:evaluators>
   $<TARGET_OBJECTS:parsers>
   $<TARGET_OBJECTS:server>
-  $<TARGET_OBJECTS:util>)
+  $<TARGET_OBJECTS:util>
+  ${STRUCK_SOURCES})
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

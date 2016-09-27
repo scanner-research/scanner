@@ -31,6 +31,8 @@
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
+#include "scanner/evaluators/movie_analysis/face_evaluator.h"
+#include "scanner/evaluators/movie_analysis/histogram_evaluator.h"
 
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
