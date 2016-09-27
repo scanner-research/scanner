@@ -74,7 +74,7 @@ if (BUILD_CAFFE_EVALUATORS)
     # Requires opencv3
     set(OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
     if (CUDA_FOUND)
-      append(OPENCV_DESIRED_COMPONENTS
+      list(APPEND OPENCV_DESIRED_COMPONENTS
         cudawarping cudaimgproc cudafilters cudaarithm)
     endif()
 
@@ -161,7 +161,7 @@ include_directories(
   "${GOOGLETEST_INCLUDE_DIRS}")
 
 if (CUDA_FOUND)
-  append(SCANNER_LIBRARIES
+  list(APPEND SCANNER_LIBRARIES
     util_cuda
     "${CUDA_LIBRARIES}"
     "-lcuda"

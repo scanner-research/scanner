@@ -25,11 +25,11 @@
 
 namespace scanner {
 
-class CaffeCPUEvaluator : public Evaluator {
+class CaffeEvaluator : public Evaluator {
  public:
-  CaffeCPUEvaluator(const EvaluatorConfig& config,
-                    const NetDescriptor& descriptor,
-                    CaffeInputTransformer* transformer, i32 device_id);
+  CaffeEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                 const NetDescriptor& descriptor,
+                 CaffeInputTransformer* transformer, i32 device_id);
 
   void configure(const DatasetItemMetadata& metadata) override;
 
@@ -39,6 +39,7 @@ class CaffeCPUEvaluator : public Evaluator {
 
  protected:
   EvaluatorConfig config_;
+  DeviceType device_type_;
   NetDescriptor descriptor_;
   std::unique_ptr<CaffeInputTransformer> transformer_;
   i32 device_id_;
@@ -47,10 +48,11 @@ class CaffeCPUEvaluator : public Evaluator {
   DatasetItemMetadata metadata_;
 };
 
-class CaffeCPUEvaluatorFactory : public EvaluatorFactory {
+class CaffeEvaluatorFactory : public EvaluatorFactory {
  public:
-  CaffeCPUEvaluatorFactory(const NetDescriptor& net_descriptor,
-                           CaffeInputTransformerFactory* transformer_factory);
+  CaffeEvaluatorFactory(DeviceType device_type,
+                        const NetDescriptor& net_descriptor,
+                        CaffeInputTransformerFactory* transformer_factory);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -61,6 +63,7 @@ class CaffeCPUEvaluatorFactory : public EvaluatorFactory {
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
  private:
+  DeviceType device_type_;
   NetDescriptor net_descriptor_;
   std::unique_ptr<CaffeInputTransformerFactory> transformer_factory_;
 };

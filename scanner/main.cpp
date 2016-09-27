@@ -26,7 +26,7 @@
 #include "scanner/video/video_decoder.h"
 
 #ifdef HAVE_CAFFE
-#include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
+#include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
         "Arguments for command")(
         "config_file", po::value<std::string>(),
         "System configuration (# pus, batch, etc) in toml format. "
-        "Explicit command line options will overide file settings.")(
+        "Explicit command line options will override file settings.")(
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
         "batch_size", po::value<int>(), "Neural Net input batch size")(
         "batches_per_work_item", po::value<int>(),
@@ -349,7 +349,8 @@ int main(int argc, char** argv) {
     }
     FacenetCPUInputTransformerFactory* factory =
         new FacenetCPUInputTransformerFactory();
-    CaffeCPUEvaluatorFactory evaluator_factory(descriptor, factory);
+    CaffeEvaluatorFactory evaluator_factory(DeviceType::CPU, descriptor,
+                                            factory);
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.

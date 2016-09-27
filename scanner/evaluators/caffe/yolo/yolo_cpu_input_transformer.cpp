@@ -47,12 +47,12 @@ void YoloCPUInputTransformer::configure(const DatasetItemMetadata& metadata,
   metadata_ = metadata;
 }
 
-void YoloCPUInputTransformer::transform_input(u8* input_buffer, f32* net_input,
-                                              int batch_size) {
+void YoloCPUInputTransformer::transform_input(i32 input_count, u8* input_buffer,
+                                              f32* net_input) {
   i32 frame_width = metadata_.width;
   i32 frame_height = metadata_.height;
   size_t frame_size = frame_width * frame_height * 3 * sizeof(u8);
-  for (i32 i = 0; i < batch_size; ++i) {
+  for (i32 i = 0; i < input_count; ++i) {
     u8* buffer = input_buffer + frame_size * i;
 
     cv::Mat input_mat = cv::Mat(frame_height, frame_width, CV_8UC3, buffer);

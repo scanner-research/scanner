@@ -28,7 +28,7 @@ class CaffeInputTransformer {
   virtual void configure(const DatasetItemMetadata& metadata,
                          caffe::Net<float>* net) = 0;
 
-  virtual void transform_input(u8* input_buffer, f32* net_input,
-                               i32 batch_size) = 0;
+  virtual void transform_input(i32 input_count, u8* input_buffer,
+                               f32* net_input) = 0;
 };
 }

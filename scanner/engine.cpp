@@ -575,8 +575,10 @@ void* save_thread(void* arg) {
 
       output_file->save();
 
+      // TODO(apoms): For now, all evaluators are expected to return CPU
+      //   buffers as output so just assume CPU
       for (size_t i = 0; i < num_frames; ++i) {
-        delete_buffer(save_work_entry.buffer_type,
+        delete_buffer(DeviceType::CPU, // save_work_entry.buffer_type,
                       save_work_entry.buffer_device_id,
                       save_work_entry.output_buffers[out_idx][i]);
       }

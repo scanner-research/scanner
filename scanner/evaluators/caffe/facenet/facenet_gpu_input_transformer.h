@@ -18,14 +18,18 @@
 #include "scanner/evaluators/caffe/caffe_input_transformer.h"
 #include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 
-#include <opencv2/imgproc.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudawarping.hpp>
 #include <opencv2/opencv.hpp>
 
 namespace scanner {
 
-class YoloCPUInputTransformer : public CaffeInputTransformer {
+class FacenetGPUInputTransformer : public CaffeInputTransformer {
  public:
-  YoloCPUInputTransformer(const NetDescriptor& descriptor);
+  FacenetGPUInputTransformer(const NetDescriptor& descriptor);
 
   void configure(const DatasetItemMetadata& metadata,
                  caffe::Net<float>* net) override;
@@ -34,23 +38,25 @@ class YoloCPUInputTransformer : public CaffeInputTransformer {
                        f32* net_input) override;
 
  private:
-  static const i32 NET_INPUT_WIDTH = 448;
-  static const i32 NET_INPUT_HEIGHT = 448;
-
   NetDescriptor descriptor_;
   DatasetItemMetadata metadata_;
+  i32 num_cuda_streams_;
 
-  cv::Mat mean_mat;
+  i32 net_input_width_;
+  i32 net_input_height_;
 
-  cv::Mat resized_input;
-  cv::Mat bgr_input;
-  std::vector<cv::Mat> input_planes;
-  cv::Mat planar_input;
-  cv::Mat float_input;
-  cv::Mat normalized_input;
+  cv::cuda::GpuMat mean_mat_;
+
+  std::vector<cv::cuda::Stream> streams_;
+  std::vector<cv::cuda::GpuMat> frame_input_;
+  std::vector<cv::cuda::GpuMat> float_input_;
+  std::vector<cv::cuda::GpuMat> normalized_input_;
+  std::vector<cv::cuda::GpuMat> flipped_input_;
+  std::vector<std::vector<cv::cuda::GpuMat>> input_planes_;
+  std::vector<cv::cuda::GpuMat> planar_input_;
 };
 
-class YoloCPUInputTransformerFactory : public CaffeInputTransformerFactory {
+class FacenetGPUInputTransformerFactory : public CaffeInputTransformerFactory {
  public:
   CaffeInputTransformer* construct(const EvaluatorConfig& config,
                                    const NetDescriptor& descriptor) override;

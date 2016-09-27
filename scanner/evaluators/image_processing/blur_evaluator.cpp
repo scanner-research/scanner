@@ -67,7 +67,6 @@ BlurEvaluatorFactory::BlurEvaluatorFactory(i32 kernel_size, f64 sigma)
 EvaluatorCapabilities BlurEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
   caps.device_type = DeviceType::CPU;
-  caps.device_usage = EvaluatorCapabilities::Single;
   caps.max_devices = 1;
   caps.warmup_size = 0;
   return caps;

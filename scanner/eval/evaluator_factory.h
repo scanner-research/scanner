@@ -23,8 +23,9 @@
 namespace scanner {
 
 struct EvaluatorCapabilities {
+  static const i32 UnlimitedDevices = 0;
+
   DeviceType device_type;
-  enum { Single, Multiple } device_usage;
   i32 max_devices;
   i32 warmup_size;
 };

@@ -13,29 +13,43 @@
  * limitations under the License.
  */
 
-#include "scanner/evaluators/caffe/caffe_cpu_evaluator.h"
+#include "scanner/evaluators/caffe/caffe_evaluator.h"
 
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
 namespace scanner {
 
-CaffeCPUEvaluator::CaffeCPUEvaluator(const EvaluatorConfig& config,
-                                     const NetDescriptor& descriptor,
-                                     CaffeInputTransformer* transformer,
-                                     i32 device_id)
+CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
+                               DeviceType device_type,
+                               const NetDescriptor& descriptor,
+                               CaffeInputTransformer* transformer,
+                               i32 device_id)
     : config_(config),
+      device_type_(device_type),
       descriptor_(descriptor),
       transformer_(transformer),
       device_id_(device_id) {
-  caffe::Caffe::set_mode(device_type_to_caffe_mode(DeviceType::CPU));
-
+  caffe::Caffe::set_mode(device_type_to_caffe_mode(device_type));
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    CU_CHECK(cudaSetDevice(device_id));
+    caffe::Caffe::SetDevice(device_id);
+    cv::cuda::setDevice(device_id);
+#else
+    LOG(FATAL) << "Not built with CUDA support.";
+#endif
+  }
   // Initialize our network
   net_.reset(new caffe::Net<float>(descriptor_.model_path, caffe::TEST));
   net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
 }
 
-void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
+void CaffeEvaluator::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
@@ -48,10 +62,9 @@ void CaffeCPUEvaluator::configure(const DatasetItemMetadata& metadata) {
   transformer_->configure(metadata, net_.get());
 }
 
-void CaffeCPUEvaluator::evaluate(
-    i32 input_count, u8* input_buffer,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void CaffeEvaluator::evaluate(i32 input_count, u8* input_buffer,
+                              std::vector<std::vector<u8*>>& output_buffers,
+                              std::vector<std::vector<size_t>>& output_sizes) {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net_->blob_by_name(descriptor_.input_layer_name)};
 
@@ -60,11 +73,24 @@ void CaffeCPUEvaluator::evaluate(
         {input_count, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
-  f32* net_input_buffer = input_blob->mutable_cpu_data();
+  f32* net_input_buffer = nullptr;
+
+  caffe::Caffe::set_mode(device_type_to_caffe_mode(device_type_));
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    CU_CHECK(cudaSetDevice(device_id_));
+    caffe::Caffe::SetDevice(device_id_);
+    net_input_buffer = input_blob->mutable_gpu_data();
+#else
+    LOG(FATAL) << "Not built with CUDA support.";
+#endif
+  } else {
+    net_input_buffer = input_blob->mutable_cpu_data();
+  }
 
   // Process batch of frames
   auto cv_start = now();
-  transformer_->transform_input(input_buffer, net_input_buffer, input_count);
+  transformer_->transform_input(input_count, input_buffer, net_input_buffer);
   if (profiler_) {
     profiler_->add_interval("caffe:transform_input", cv_start, now());
   }
@@ -93,33 +119,37 @@ void CaffeCPUEvaluator::evaluate(
   }
 }
 
-CaffeCPUEvaluatorFactory::CaffeCPUEvaluatorFactory(
-    const NetDescriptor& net_descriptor,
+CaffeEvaluatorFactory::CaffeEvaluatorFactory(
+    DeviceType device_type, const NetDescriptor& net_descriptor,
     CaffeInputTransformerFactory* transformer_factory)
-    : net_descriptor_(net_descriptor),
+    : device_type_(device_type),
+      net_descriptor_(net_descriptor),
       transformer_factory_(transformer_factory) {}
 
-EvaluatorCapabilities CaffeCPUEvaluatorFactory::get_capabilities() {
+EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
-  caps.device_type = DeviceType::CPU;
-  caps.device_usage = EvaluatorCapabilities::Multiple;
-  caps.max_devices = 0;
+  caps.device_type = device_type_;
+  if (device_type_ == DeviceType::GPU) {
+    caps.max_devices = 1;
+  } else {
+    caps.max_devices = EvaluatorCapabilities::UnlimitedDevices;
+  }
   caps.warmup_size = 0;
   return caps;
 }
 
-i32 CaffeCPUEvaluatorFactory::get_number_of_outputs() {
+i32 CaffeEvaluatorFactory::get_number_of_outputs() {
   return static_cast<i32>(net_descriptor_.output_layer_names.size());
 }
 
-std::vector<std::string> CaffeCPUEvaluatorFactory::get_output_names() {
+std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
   return net_descriptor_.output_layer_names;
 }
 
-Evaluator* CaffeCPUEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator* CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
   CaffeInputTransformer* transformer =
       transformer_factory_->construct(config, net_descriptor_);
-  return new CaffeCPUEvaluator(config, net_descriptor_, transformer, 0);
+  return new CaffeEvaluator(config, device_type_, net_descriptor_, transformer,
+                            0);
 }
 }
