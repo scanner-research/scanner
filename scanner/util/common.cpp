@@ -42,6 +42,43 @@ int LOAD_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;      // Number of cuda streams for image processing
 
+void serialize_database_metadata(storehouse::WriteFile* file,
+                                 const DatabaseMetadata& metadata) {
+  assert(metadata.dataset_names.size() == metadata.dataset_job_names.size());
+  size_t num_datasets = metadata.dataset_names.size();
+  write(file, num_datasets);
+  for (const std::string& s : metadata.dataset_names) {
+    write(file, s);
+  }
+  for (const std::vector<std::string>& jobs : metadata.dataset_job_names) {
+    size_t num_jobs = jobs.size();
+    write(file, num_jobs);
+    for (const std::string& s : jobs) {
+      write(file, s);
+    }
+  }
+}
+
+DatabaseMetadata deserialize_database_metadata(storehouse::RandomReadFile* file,
+                                               u64& pos) {
+  DatabaseMetadata meta;
+  size_t num_datasets = read<size_t>(file, pos);
+  meta.dataset_names.resize(num_datasets);
+  for (size_t i = 0; i < num_datasets; ++i) {
+    meta.dataset_names[i] = read<std::string>(file, pos);
+  }
+  meta.dataset_job_names.resize(num_datasets);
+  for (size_t i = 0; i < num_datasets; ++i) {
+    size_t num_jobs = read<size_t>(file, pos);
+    meta.dataset_job_names[i].resize(num_jobs);
+    for (size_t j = 0; j < num_jobs; ++j) {
+      meta.dataset_job_names[i][j] = read<std::string>(file, pos);
+    }
+  }
+
+  return meta;
+}
+
 void serialize_dataset_descriptor(WriteFile* file,
                                   const DatasetDescriptor& descriptor) {
   write(file, descriptor.total_frames);

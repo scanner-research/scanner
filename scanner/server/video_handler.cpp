@@ -50,6 +50,15 @@ namespace scanner {
 
 namespace {
 
+DatabaseMetadata read_database_metadata(StorageBackend* storage) {
+  const std::string db_meta_path = database_metadata_path();
+  std::unique_ptr<RandomReadFile> file;
+  make_unique_random_read_file(storage, db_meta_path, file);
+
+  u64 pos = 0;
+  return deserialize_database_metadata(file.get(), pos);
+}
+
 DatasetDescriptor read_dataset_descriptor(StorageBackend* storage,
                                           const std::string& dataset_name) {
   const std::string dataset_path = dataset_descriptor_path(dataset_name);
@@ -125,381 +134,16 @@ void VideoHandler::onEOM() noexcept {
     path = "/index.html";
   }
 
-  // Static job name and parser for now
-  const i32 job_id = 1;
+  DatabaseMetadata meta = read_database_metadata(storage_.get());
 
-  ResultsParser* parser = new FacenetParser(2.5);
-
-  static const boost::regex jobs_regex("^/jobs");
-  static const boost::regex videos_regex("^/videos");
-  static const boost::regex features_regex(
-      "^/jobs/([[:digit:]]+)/features/([[:digit:]]+)");
-  static const boost::regex media_regex(
-      "^/jobs/([[:digit:]]+)/media/([[:digit:]]+).mp4");
+  static const boost::regex datasets_regex("^/datasets");
 
   auto response = pg::ResponseBuilder(downstream_);
 
   boost::smatch match_result;
-  if (boost::regex_match(path, match_result, jobs_regex)) {
-    JobDescriptor job_descriptor =
-        read_job_descriptor(storage_.get(), job_name_);
-
-    folly::dynamic json = folly::dynamic::object;
-
-    bool bad = false;
-    static const boost::regex ex("^/jobs/([[:digit:]]+)");
-    if (boost::regex_match(path, match_result, ex)) {
-      // Requesting a specific video's metadata
-      i32 item_id = std::atoi(match_result[1].str().c_str());
-
-      if (item_id != job_id) {
-        response.status(400, "Bad Request");
-        bad = true;
-      } else {
-        // List all jobs, which right now is only one hardcoded one
-        folly::dynamic meta = folly::dynamic::object;
-
-        meta["id"] = job_id;
-        meta["name"] = job_name_;
-        meta["dataset"] = job_descriptor.dataset_name;
-        meta["featureType"] = "detection";
-        // meta["featureType"] = "classification";
-
-        json = meta;
-      }
-    } else {
-      // List all jobs, which right now is only one hardcoded one
-      json = folly::dynamic::array();
-
-      folly::dynamic meta = folly::dynamic::object;
-
-      meta["id"] = job_id;
-      meta["name"] = job_name_;
-      meta["dataset"] = job_descriptor.dataset_name;
-      meta["featureType"] = "detection";
-      // meta["featureType"] = "classification";
-
-      json.push_back(meta);
-    }
-
-    if (!bad) {
-      std::string body = folly::toJson(json);
-
-      response.status(200, "OK").body(body);
-    }
-  } else if (boost::regex_match(path, match_result, videos_regex)) {
-    if (!message_->hasQueryParam("job_id")) {
-      response.status(400, "Bad Request");
-    } else {
-      i32 requested_job_id = message_->getIntQueryParam("job_id");
-      if (requested_job_id != job_id) {
-        response.status(400, "Bad Request");
-      } else {
-        JobDescriptor job_descriptor =
-            read_job_descriptor(storage_.get(), job_name_);
-        DatasetDescriptor dataset_descriptor = read_dataset_descriptor(
-            storage_.get(), job_descriptor.dataset_name);
-
-        auto item_to_json = [](
-            i32 item_id, const std::string& item_name,
-            const std::string& media_path,
-            const DatasetItemMetadata& item) -> folly::dynamic {
-          folly::dynamic meta = folly::dynamic::object;
-          meta["id"] = item_id;
-          meta["name"] = item_name;
-          meta["mediaPath"] = media_path;
-          meta["frames"] = item.frames;
-          meta["width"] = item.width;
-          meta["height"] = item.height;
-          return meta;
-        };
-
-        folly::dynamic json = folly::dynamic::object;
-
-        bool bad = false;
-        static const boost::regex ex("^/videos/([[:digit:]]+)");
-        if (boost::regex_match(path, match_result, ex)) {
-          // Requesting a specific video's metadata
-          i32 item_id = std::atoi(match_result[1].str().c_str());
-
-          if (item_id >= dataset_descriptor.item_names.size()) {
-            response.status(400, "Bad Request");
-            bad = true;
-          } else {
-            const std::string& item_name =
-                dataset_descriptor.item_names[item_id];
-            const std::string& media_path = "jobs/" +
-                                            std::to_string(requested_job_id) +
-                                            "/media/" + item_name + ".mp4";
-
-            DatasetItemMetadata item = read_dataset_item_metadata(
-                storage_.get(), job_descriptor.dataset_name, item_name);
-
-            json = item_to_json(item_id, item_name, media_path, item);
-          }
-        } else {
-          // Requesting all videos metadata
-          json = folly::dynamic::array();
-          i32 item_id = 0;
-          for (const std::string& item_name : dataset_descriptor.item_names) {
-            const std::string& media_path = "jobs/" +
-                                            std::to_string(requested_job_id) +
-                                            "/media/" + item_name + ".mp4";
-
-            DatasetItemMetadata item = read_dataset_item_metadata(
-                storage_.get(), job_descriptor.dataset_name, item_name);
-
-            folly::dynamic meta =
-                item_to_json(item_id++, item_name, media_path, item);
-
-            json.push_back(meta);
-          }
-        }
-        if (!bad) {
-          std::string body = folly::toJson(json);
-
-          response.status(200, "OK").body(body);
-        }
-      }
-    }
-  } else if (boost::regex_match(path, match_result, features_regex)) {
-    if (!(message_->hasQueryParam("start") && message_->hasQueryParam("end"))) {
-      response.status(400, "Bad Request");
-    } else {
-      i32 requested_job_id = std::atoi(match_result[1].str().c_str());
-      if (requested_job_id != job_id) {
-        response.status(400, "Bad Request");
-      } else {
-        JobDescriptor job_descriptor =
-            read_job_descriptor(storage_.get(), job_name_);
-        DatasetDescriptor dataset_descriptor = read_dataset_descriptor(
-            storage_.get(), job_descriptor.dataset_name);
-
-        i32 start_frame = message_->getIntQueryParam("start");
-        i32 end_frame = message_->getIntQueryParam("end");
-
-        i32 stride = 1;
-        if (message_->hasQueryParam("stride")) {
-          stride = message_->getIntQueryParam("stride");
-        }
-
-        i32 filtered_category = -1;
-        if (message_->hasQueryParam("category")) {
-          filtered_category = message_->getIntQueryParam("category");
-        }
-
-        f32 threshold = -1;
-        if (message_->hasQueryParam("threshold")) {
-          threshold = folly::to<f32>(message_->getQueryParam("threshold"));
-        }
-
-        // if (message_->has("sampling_filter")) {
-        // }
-
-        i32 item_id = std::atoi(match_result[2].str().c_str());
-        std::string item_name = dataset_descriptor.item_names[item_id];
-        const std::vector<std::tuple<i32, i32>>& intervals =
-            job_descriptor.intervals[item_name];
-        std::vector<std::string> output_names = parser->get_output_names();
-
-        // Get the mapping from frames to timestamps to guide UI toward
-        // exact video frame corresponding to the returned features. Needed
-        // because some UIs (looking at you html5) do not support frame
-        // accurate seeking.
-        DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
-            storage_.get(), job_descriptor.dataset_name, item_name);
-
-        DatasetItemMetadata meta = read_dataset_item_metadata(
-            storage_.get(), job_descriptor.dataset_name, item_name);
-
-        parser->configure(meta);
-
-        folly::dynamic feature_classes = folly::dynamic::array();
-
-        std::vector<std::vector<u8>> output_buffers(output_names.size());
-        std::vector<std::vector<i64>> output_buffers_item_sizes(
-            output_names.size());
-        std::vector<u64> output_buffers_pos(output_names.size());
-        i64 total_frames_in_output_buffer = 0;
-        i64 current_frame_in_output_buffer = 0;
-
-        i32 start_difference = 0;
-        i32 current_frame = start_frame;
-        while (current_frame < end_frame) {
-          if (current_frame_in_output_buffer >= total_frames_in_output_buffer) {
-            // Find the correct interval
-            size_t i;
-            for (i = 0; i < intervals.size(); ++i) {
-              if (current_frame >= std::get<0>(intervals[i]) &&
-                  current_frame < std::get<1>(intervals[i])) {
-                break;
-              }
-            }
-            const auto& interval = intervals[i];
-
-            i64 start = std::get<0>(interval);
-            i64 end = std::get<1>(interval);
-
-            i32 max_start = std::max((i64)start_frame, start);
-            i32 min_end = std::min((i64)end_frame, end);
-
-            for (size_t output_index = 0; output_index < output_names.size();
-                 ++output_index) {
-              std::string output_path = job_item_output_path(
-                  job_name_, item_name, output_names[output_index], start, end);
-              std::cout << output_path << std::endl;
-
-              std::unique_ptr<RandomReadFile> file;
-              make_unique_random_read_file(storage_.get(), output_path, file);
-
-              u64 pos = 0;
-              output_buffers_item_sizes[output_index].resize(end - start);
-              read(file.get(),
-                   (u8*)output_buffers_item_sizes[output_index].data(),
-                   (end - start) * sizeof(i64), pos);
-
-              size_t size_left = 0;
-              start_difference = current_frame - start;
-              for (i32 i = 0; i < start_difference; ++i) {
-                pos += output_buffers_item_sizes[output_index][i];
-              }
-
-              i64 frames_left = min_end - start;
-              for (i32 i = start_difference; i < frames_left; ++i) {
-                size_left += output_buffers_item_sizes[output_index][i];
-              }
-
-              output_buffers[output_index].resize(size_left);
-              read(file.get(), (u8*)output_buffers[output_index].data(),
-                   size_left, pos);
-              output_buffers_pos[output_index] = 0;
-            }
-
-            // Skip past frames at the beginning to fulfill our striding
-            current_frame_in_output_buffer = 0;
-            total_frames_in_output_buffer = min_end - current_frame;
-          }
-
-          // Extract row of feature vectors from output buffers
-          std::vector<u8*> output(output_names.size());
-          std::vector<i64> output_sizes(output_names.size());
-          for (size_t output_idx = 0; output_idx < output_names.size();
-               ++output_idx) {
-            size_t size_offset =
-                current_frame_in_output_buffer + start_difference;
-            ;
-            size_t element_size =
-                output_buffers_item_sizes[output_idx][size_offset];
-            output_sizes[output_idx] = element_size;
-
-            size_t offset = output_buffers_pos[output_idx];
-            output[output_idx] = output_buffers[output_idx].data() + offset;
-            output_buffers_pos[output_idx] += element_size;
-          }
-
-          // Process vectors
-          folly::dynamic feature_data = folly::dynamic::object();
-          feature_data["frame"] = current_frame;
-          feature_data["time"] =
-              timestamps.pts_timestamps[current_frame] /
-              static_cast<f64>(timestamps.time_base_denominator);
-          feature_data["data"] = folly::dynamic::object();
-
-          parser->parse_output(output, output_sizes, feature_data["data"]);
-
-          feature_classes.push_back(feature_data);
-
-          current_frame += stride;
-          current_frame_in_output_buffer += stride;
-        }
-
-        std::cout << "to json " << std::endl;
-        std::string body = folly::toJson(feature_classes);
-        std::cout << "finished to json " << std::endl;
-
-        response.status(200, "OK").body(body);
-      }
-    }
-  } else if (boost::regex_match(path, match_result, media_regex)) {
-    i32 requested_job_id = std::atoi(match_result[1].str().c_str());
-    if (requested_job_id != job_id) {
-      response.status(400, "Bad Request");
-    } else {
-      JobDescriptor job_descriptor =
-          read_job_descriptor(storage_.get(), job_name_);
-      DatasetDescriptor dataset_descriptor =
-          read_dataset_descriptor(storage_.get(), job_descriptor.dataset_name);
-
-      std::string media_path = match_result[2].str();
-
-      const std::string mp4_path =
-          dataset_item_video_path(job_descriptor.dataset_name, media_path);
-      std::unique_ptr<RandomReadFile> file;
-      make_unique_random_read_file(storage_.get(), mp4_path, file);
-
-      std::cout << mp4_path << std::endl;
-
-      // movie.mp4
-      std::string mime_type = "video/mp4";
-
-      StoreResult result;
-
-      u64 file_size;
-      EXP_BACKOFF(file->get_size(file_size), result);
-      exit_on_error(result);
-
-      i64 byte_range_start = -1;
-      i64 byte_range_end = -1;
-      if (headers.exists(pg::HTTP_HEADER_RANGE)) {
-        static boost::regex range_regex("^bytes=([0-9]*)-([0-9]*)");
-
-        const std::string& range_str =
-            headers.getSingleOrEmpty(pg::HTTP_HEADER_RANGE);
-
-        boost::smatch match_result;
-        if (boost::regex_match(range_str, match_result, range_regex)) {
-          if (match_result[1].length() != 0) {
-            byte_range_start = std::atoi(match_result[1].str().c_str());
-          }
-          if (match_result[2].length() != 0) {
-            byte_range_end = std::atoi(match_result[2].str().c_str());
-          }
-        }
-        if (byte_range_start == -1) {
-          // Last N bytes
-          byte_range_start = file_size - byte_range_end;
-        } else if (byte_range_end == -1) {
-          // Until end
-          byte_range_end = static_cast<i64>(file_size) - 1;
-        }
-      } else {
-        byte_range_start = 0;
-        byte_range_end = static_cast<i64>(file_size) - 1;
-      }
-
-      u64 read_size = byte_range_end - byte_range_start + 1;
-      std::unique_ptr<folly::IOBuf> buffer{
-          folly::IOBuf::createCombined(read_size)};
-      buffer->append(read_size);
-      size_t size_read;
-
-      std::cout << "reading request " << message_->getPath() << std::endl;
-      fflush(stdout);
-      u64 pos = byte_range_start;
-      read(file.get(), buffer->writableData(), read_size, pos);
-      std::cout << "finished reading request " << message_->getPath()
-                << std::endl;
-      fflush(stdout);
-
-      response.status(206, "Partial Content")
-          .header(pg::HTTP_HEADER_CONTENT_TYPE, mime_type)
-          .header(pg::HTTP_HEADER_ACCEPT_RANGES, "bytes")
-          .header(pg::HTTP_HEADER_CONTENT_RANGE,
-                  "bytes " + std::to_string(byte_range_start) + "-" +
-                      std::to_string(byte_range_end) + "/" +
-                      std::to_string(file_size))
-          .body(std::move(buffer));
-    }
+  if (boost::regex_search(path, match_result, datasets_regex)) {
+    std::string suffix = match_result.suffix();
+    handle_datasets(meta, suffix, response);
   } else {
     // Serve static files
     serve_static("www/dist", path, message_.get(), response);
@@ -524,5 +168,406 @@ void VideoHandler::requestComplete() noexcept {
 void VideoHandler::onError(pg::ProxygenError err) noexcept {
   std::cout << "on error request " << message_->getPath() << std::endl;
   delete this;
+}
+
+void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
+                                   const std::string& path,
+                                   pg::ResponseBuilder& response) {
+  folly::dynamic json = folly::dynamic::array();
+  bool bad = false;
+  boost::smatch match_result;
+  if (path.empty()) {
+    for (size_t i = 0; i < meta.dataset_names.size(); ++i) {
+      folly::dynamic dataset_info = folly::dynamic::object();
+      dataset_info["id"] = i;
+      dataset_info["name"] = meta.dataset_names[i];
+
+      json.push_back(dataset_info);
+    }
+    std::string body = folly::toJson(json);
+    response.status(200, "OK").body(body);
+  } else if (boost::regex_search(path, match_result, id_regex)) {
+    static const boost::regex jobs_regex("^/jobs");
+    static const boost::regex videos_regex("^/videos");
+    static const boost::regex media_regex("^/media/([[:digit:]]+)\\.mp4");
+
+    std::string suffix = match_result.suffix();
+
+    i32 dataset_id = std::atoi(match_result[1].str().c_str());
+    if (!(dataset_id < meta.dataset_names.size())) {
+      response.status(400, "Bad Request");
+      bad = true;
+    } else {
+      if (suffix.empty()) {
+        // TODO(apoms): handle returning individual dataset result
+        LOG(FATAL) << "NOT IMPLEMENTED";
+      } else if (boost::regex_search(suffix, match_result, jobs_regex)) {
+        suffix = match_result.suffix();
+        handle_jobs(meta, dataset_id, suffix, response);
+      } else if (boost::regex_search(suffix, match_result, videos_regex)) {
+        suffix = match_result.suffix();
+        handle_videos(meta, dataset_id, suffix, response);
+      } else if (boost::regex_search(suffix, match_result, media_regex)) {
+        std::string media_path = match_result[1];
+        suffix = match_result.suffix();
+        handle_media(meta, dataset_id, media_path, suffix, response);
+      }
+    }
+  } else {
+    response.status(400, "Bad Request");
+  }
+}
+
+void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
+                               const std::string& path,
+                               pg::ResponseBuilder& response) {
+  static const boost::regex features_regex("^/features/([[:digit:]]+)");
+
+  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  const std::vector<std::string>& job_names =
+      meta.dataset_job_names[dataset_id];
+
+  boost::smatch match_result;
+  if (boost::regex_search(path, match_result, id_regex)) {
+    std::string suffix = match_result.suffix();
+    // Asking for a specific job's information
+    i32 job_id = std::atoi(match_result[1].str().c_str());
+    if (!(job_id < job_names.size())) {
+      response.status(400, "Bad Request");
+      return;
+    }
+    if (suffix.empty()) {
+      const std::string& job_name = job_names[job_id];
+      JobDescriptor job_descriptor =
+          read_job_descriptor(storage_.get(), job_name);
+
+      folly::dynamic m = folly::dynamic::object;
+
+      m["id"] = job_id;
+      m["name"] = job_name;
+      m["featureType"] = "detection";
+      // meta["featureType"] = "classification";
+
+      std::string body = folly::toJson(m);
+      response.status(200, "OK").body(body);
+    } else if (boost::regex_search(suffix, match_result, features_regex)) {
+      LOG(FATAL) << "NOT IMPLEMENTED";
+      suffix = match_result.suffix();
+
+      i32 video_id = std::atoi(match_result[1].str().c_str());
+
+      handle_features(meta, dataset_id, job_id, video_id, suffix, response);
+    } else {
+      response.status(400, "Bad Request");
+      return;
+    }
+  } else if (path.empty()) {
+    // Asking for all job's information
+    folly::dynamic json = folly::dynamic::array();
+
+    for (size_t i = 0; i < job_names.size(); ++i) {
+      folly::dynamic m = folly::dynamic::object;
+
+      m["id"] = i;
+      m["name"] = job_names[i];
+      m["featureType"] = "detection";
+      // meta["featureType"] = "classification";
+
+      json.push_back(m);
+    }
+    std::string body = folly::toJson(json);
+    response.status(200, "OK").body(body);
+
+  } else {
+  }
+}
+
+void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
+                                   i32 job_id, i32 video_id,
+                                   const std::string& path,
+                                   pg::ResponseBuilder& response) {
+  if (!(message_->hasQueryParam("start") && message_->hasQueryParam("end"))) {
+    response.status(400, "Bad Request");
+    return;
+  }
+
+  i32 start_frame = message_->getIntQueryParam("start");
+  i32 end_frame = message_->getIntQueryParam("end");
+
+  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  DatasetDescriptor dataset_descriptor =
+      read_dataset_descriptor(storage_.get(), dataset_name);
+  const std::string& job_name = meta.dataset_job_names[dataset_id][job_id];
+  JobDescriptor job_descriptor = read_job_descriptor(storage_.get(), job_name);
+
+  i32 stride = 1;
+  if (message_->hasQueryParam("stride")) {
+    stride = message_->getIntQueryParam("stride");
+  }
+
+  i32 filtered_category = -1;
+  if (message_->hasQueryParam("category")) {
+    filtered_category = message_->getIntQueryParam("category");
+  }
+
+  f32 threshold = -1;
+  if (message_->hasQueryParam("threshold")) {
+    threshold = folly::to<f32>(message_->getQueryParam("threshold"));
+  }
+
+  // if (message_->has("sampling_filter")) {
+  // }
+
+  ResultsParser* parser = new FacenetParser(2.5);
+
+  const std::string& video_name = dataset_descriptor.item_names[video_id];
+  const std::vector<std::tuple<i32, i32>>& intervals =
+      job_descriptor.intervals[video_name];
+  std::vector<std::string> output_names = parser->get_output_names();
+
+  // Get the mapping from frames to timestamps to guide UI toward
+  // exact video frame corresponding to the returned features.
+  // Needed
+  // because some UIs (looking at you html5) do not support frame
+  // accurate seeking.
+  DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
+      storage_.get(), dataset_name, video_name);
+
+  DatasetItemMetadata item_meta =
+      read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
+
+  parser->configure(item_meta);
+
+  folly::dynamic feature_classes = folly::dynamic::array();
+
+  std::vector<std::vector<u8>> output_buffers(output_names.size());
+  std::vector<std::vector<i64>> output_buffers_item_sizes(output_names.size());
+  std::vector<u64> output_buffers_pos(output_names.size());
+  i64 total_frames_in_output_buffer = 0;
+  i64 current_frame_in_output_buffer = 0;
+
+  i32 start_difference = 0;
+  i32 current_frame = start_frame;
+  while (current_frame < end_frame) {
+    if (current_frame_in_output_buffer >= total_frames_in_output_buffer) {
+      // Find the correct interval
+      size_t i;
+      for (i = 0; i < intervals.size(); ++i) {
+        if (current_frame >= std::get<0>(intervals[i]) &&
+            current_frame < std::get<1>(intervals[i])) {
+          break;
+        }
+      }
+      const auto& interval = intervals[i];
+
+      i64 start = std::get<0>(interval);
+      i64 end = std::get<1>(interval);
+
+      i32 max_start = std::max((i64)start_frame, start);
+      i32 min_end = std::min((i64)end_frame, end);
+
+      for (size_t output_index = 0; output_index < output_names.size();
+           ++output_index) {
+        std::string output_path = job_item_output_path(
+            job_name_, video_name, output_names[output_index], start, end);
+
+        std::unique_ptr<RandomReadFile> file;
+        make_unique_random_read_file(storage_.get(), output_path, file);
+
+        u64 pos = 0;
+        output_buffers_item_sizes[output_index].resize(end - start);
+        read(file.get(), (u8*)output_buffers_item_sizes[output_index].data(),
+             (end - start) * sizeof(i64), pos);
+
+        size_t size_left = 0;
+        start_difference = current_frame - start;
+        for (i32 i = 0; i < start_difference; ++i) {
+          pos += output_buffers_item_sizes[output_index][i];
+        }
+
+        i64 frames_left = min_end - start;
+        for (i32 i = start_difference; i < frames_left; ++i) {
+          size_left += output_buffers_item_sizes[output_index][i];
+        }
+
+        output_buffers[output_index].resize(size_left);
+        read(file.get(), (u8*)output_buffers[output_index].data(), size_left,
+             pos);
+        output_buffers_pos[output_index] = 0;
+      }
+
+      // Skip past frames at the beginning to fulfill our striding
+      current_frame_in_output_buffer = 0;
+      total_frames_in_output_buffer = min_end - current_frame;
+    }
+
+    // Extract row of feature vectors from output buffers
+    std::vector<u8*> output(output_names.size());
+    std::vector<i64> output_sizes(output_names.size());
+    for (size_t output_idx = 0; output_idx < output_names.size();
+         ++output_idx) {
+      size_t size_offset = current_frame_in_output_buffer + start_difference;
+      size_t element_size = output_buffers_item_sizes[output_idx][size_offset];
+      output_sizes[output_idx] = element_size;
+
+      size_t offset = output_buffers_pos[output_idx];
+      output[output_idx] = output_buffers[output_idx].data() + offset;
+      output_buffers_pos[output_idx] += element_size;
+    }
+
+    // Process vectors
+    folly::dynamic feature_data = folly::dynamic::object();
+    feature_data["frame"] = current_frame;
+    feature_data["time"] = timestamps.pts_timestamps[current_frame] /
+                           static_cast<f64>(timestamps.time_base_denominator);
+    feature_data["data"] = folly::dynamic::object();
+
+    parser->parse_output(output, output_sizes, feature_data["data"]);
+
+    feature_classes.push_back(feature_data);
+
+    current_frame += stride;
+    current_frame_in_output_buffer += stride;
+  }
+
+  std::string body = folly::toJson(feature_classes);
+  response.status(200, "OK").body(body);
+}
+
+void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
+                                 const std::string& path,
+                                 pg::ResponseBuilder& response) {
+  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  DatasetDescriptor dataset_descriptor =
+      read_dataset_descriptor(storage_.get(), dataset_name);
+
+  auto item_to_json = [](i32 item_id, const std::string& video_name,
+                         const std::string& media_path,
+                         const DatasetItemMetadata& item) -> folly::dynamic {
+    folly::dynamic meta = folly::dynamic::object;
+    meta["id"] = item_id;
+    meta["name"] = video_name;
+    meta["mediaPath"] = media_path;
+    meta["frames"] = item.frames;
+    meta["width"] = item.width;
+    meta["height"] = item.height;
+    return meta;
+  };
+
+  folly::dynamic json = folly::dynamic::array();
+  boost::smatch match_result;
+  if (boost::regex_search(path, match_result, id_regex)) {
+    // Asking for a specific videos's information
+    i32 video_id = std::atoi(match_result[1].str().c_str());
+    if (!(video_id < dataset_descriptor.item_names.size())) {
+      response.status(400, "Bad Request");
+      return;
+    } else {
+      folly::dynamic json = folly::dynamic::object;
+
+      const std::string& video_name = dataset_descriptor.item_names[video_id];
+      const std::string& media_path = "datasets/" + std::to_string(dataset_id) +
+                                      "/media/" + video_name + ".mp4";
+
+      DatasetItemMetadata item =
+          read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
+
+      json = item_to_json(video_id, video_name, media_path, item);
+    }
+  } else {
+    // Requesting all videos metadata
+    json = folly::dynamic::array();
+    i32 video_id = 0;
+    for (const std::string& video_name : dataset_descriptor.item_names) {
+      const std::string& media_path = "datasets/" + std::to_string(dataset_id) +
+                                      "/media/" + video_name + ".mp4";
+
+      DatasetItemMetadata item =
+          read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
+
+      folly::dynamic meta =
+          item_to_json(video_id++, video_name, media_path, item);
+
+      json.push_back(meta);
+    }
+  }
+
+  std::string body = folly::toJson(json);
+  response.status(200, "OK").body(body);
+}
+
+void VideoHandler::handle_media(const DatabaseMetadata& meta,
+                                i32 dataset_id,
+                                const std::string& media_path,
+                                const std::string& path,
+                                pg::ResponseBuilder& response) {
+  const pg::HTTPHeaders& headers = message_->getHeaders();
+  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  DatasetDescriptor dataset_descriptor =
+      read_dataset_descriptor(storage_.get(), dataset_name);
+
+  const std::string mp4_path =
+      dataset_item_video_path(dataset_name, media_path);
+  std::unique_ptr<RandomReadFile> file;
+  make_unique_random_read_file(storage_.get(), mp4_path, file);
+
+  // movie.mp4
+  std::string mime_type = "video/mp4";
+
+  StoreResult result;
+
+  u64 file_size;
+  EXP_BACKOFF(file->get_size(file_size), result);
+  exit_on_error(result);
+
+  i64 byte_range_start = -1;
+  i64 byte_range_end = -1;
+  if (headers.exists(pg::HTTP_HEADER_RANGE)) {
+    static boost::regex range_regex("^bytes=([0-9]*)-([0-9]*)");
+
+    const std::string& range_str =
+        headers.getSingleOrEmpty(pg::HTTP_HEADER_RANGE);
+
+    boost::smatch match_result;
+    if (boost::regex_match(range_str, match_result, range_regex)) {
+      if (match_result[1].length() != 0) {
+        byte_range_start = std::atoi(match_result[1].str().c_str());
+      }
+      if (match_result[2].length() != 0) {
+        byte_range_end = std::atoi(match_result[2].str().c_str());
+      }
+    }
+    if (byte_range_start == -1) {
+      // Last N bytes
+      byte_range_start = file_size - byte_range_end;
+    } else if (byte_range_end == -1) {
+      // Until end
+      byte_range_end = static_cast<i64>(file_size) - 1;
+    }
+  } else {
+    byte_range_start = 0;
+    byte_range_end = static_cast<i64>(file_size) - 1;
+  }
+
+  u64 read_size = byte_range_end - byte_range_start + 1;
+  std::unique_ptr<folly::IOBuf> buffer{folly::IOBuf::createCombined(read_size)};
+  buffer->append(read_size);
+  size_t size_read;
+
+  std::cout << "reading request " << message_->getPath() << std::endl;
+  fflush(stdout);
+  u64 pos = byte_range_start;
+  read(file.get(), buffer->writableData(), read_size, pos);
+  std::cout << "finished reading request " << message_->getPath() << std::endl;
+  fflush(stdout);
+
+  response.status(206, "Partial Content")
+      .header(pg::HTTP_HEADER_CONTENT_TYPE, mime_type)
+      .header(pg::HTTP_HEADER_ACCEPT_RANGES, "bytes")
+      .header(pg::HTTP_HEADER_CONTENT_RANGE,
+              "bytes " + std::to_string(byte_range_start) + "-" +
+                  std::to_string(byte_range_end) + "/" +
+                  std::to_string(file_size))
+      .body(std::move(buffer));
 }
 }

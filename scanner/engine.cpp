@@ -967,6 +967,32 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
     output_file->save();
   }
 
+  // Add job name into database metadata so we can look up what jobs have been
+  // ran
+  {
+    const std::string db_meta_path = database_metadata_path();
+
+    std::unique_ptr<RandomReadFile> meta_in_file;
+    make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+    u64 pos = 0;
+    DatabaseMetadata meta =
+        deserialize_database_metadata(meta_in_file.get(), pos);
+
+    size_t dataset_id = 0;
+    for (size_t i = 0; i < meta.dataset_names.size(); ++i) {
+      if (meta.dataset_names[i] == dataset_name) {
+        dataset_id = i;
+        break;
+      }
+    }
+    meta.dataset_job_names[dataset_id].push_back(dataset_name);
+
+    std::unique_ptr<WriteFile> meta_out_file;
+    make_unique_write_file(storage, db_meta_path, meta_out_file);
+    serialize_database_metadata(meta_out_file.get(), meta);
+  }
+
+
   // Execution done, write out profiler intervals for each worker
   std::string profiler_file_name = job_profiler_path(job_name, rank);
   std::ofstream profiler_output(profiler_file_name, std::fstream::binary);

@@ -27,8 +27,9 @@ module.exports = {
                 // the entire project. In addition to being slow,
                 // that will most likely result in an error.
             },
+            { test: /\.scss$/, loaders: ['style', 'css', 'sass'] },
             { test: /\.css$/, loader: "style!css" },
-            { test: /\.html$/, loader: 'html'},
+            { test: /\.html$/, loader: 'html' },
         ]
     },
     output: {

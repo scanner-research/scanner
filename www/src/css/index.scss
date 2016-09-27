@@ -1,5 +1,27 @@
+$p1: #1C1D21;
+$p2: #31353D;
+$p3: #445878;
+$p4: #92CDCF;
+$p5: #EEEFF7;
+
 .thumbnail {
     display: inline-block;
+}
+
+.dataset-panel {
+    height: 40px;
+}
+
+.dataset-info {
+    display: inline-block;
+    height: 100%;
+    background: $p3;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+.job-panel {
+    height: 40px;
 }
 
 .video-browser {
@@ -7,6 +29,7 @@
     display: inline-block;
     vertical-align: top;
 }
+
 .video-timeline {
     width: 100;
 }

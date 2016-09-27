@@ -7,7 +7,7 @@ var update = require('react-addons-update');
 var Video = require('react-html5video/dist/ReactHtml5Video').default;
 
 
-require("../css/index.css");
+require("../css/index.scss");
 
 var item_bbox = {
     frame: 100,
@@ -569,7 +569,11 @@ var ViewerPanel = React.createClass({
 var VisualizerApp = React.createClass({
     getInitialState: function() {
         return {
-            jobs: [{}],
+            datasets: [{
+                id: -1,
+                name: "Loading...",
+            }],
+            selectedDataset: 0,
             videos: [{
                 frames: 1,
                 width: 1280,
@@ -578,22 +582,74 @@ var VisualizerApp = React.createClass({
                 mediaPath: '',
                 name: "Loading...",
             }],
+            selectedVideo: 0,
+            selectedFrame: 0,
+            jobs: [{}],
+            selectedJob: 0,
             frameData: [
                 [{
                     status: 'invalid',
                     data: {},
                 }]
             ],
-            selectedFrame: {
-                videoId: 0,
-                frame: 0,
-            }
         };
     },
     handleSelectedFrameChange: function(d) {
         var frame = d.frame;
         this.loadPredictionData(d.videoId, frame - 1, frame + 1);
-        this.setState({selectedFrame: d});
+        this.setState({
+            selectedVideo: d.videoId,
+            selectedFrame: d.frame
+        });
+    },
+    handleSelectedDatasetChange: function(datasetId) {
+        $.ajax({
+            url: "datasets/" + datasetId + "/jobs",
+            dataType: "json",
+            success: function(jobsData) {
+                this.setState({jobs: jobsData});
+                //jobMetadata = data[0];
+                //jobMetadata.graphics =
+                //  graphicsOptions[jobMetadata.featureType];
+                //jobMetadata.graphics.setup($("#main-panel"));
+            }.bind(this),
+        });
+        $.ajax({
+            url: "datasets/" + datasetId + "/videos",
+            dataType: "json",
+            success: function(videosData) {
+                this.setState({videos: videosData});
+                var frameData = _.map(videosData, function(video) {
+                    return _.times(video.frames, function(i) {
+                        return {status: 'invalid', data: {}};
+                    });
+                })
+                this.setState({
+                    videos: videosData,
+                    frameData: frameData
+                });
+            }.bind(this)
+        });
+    },
+    loadDatasetJobData: function(datasetx) {
+        $.ajax({
+            url: "videos",
+            dataType: "json",
+            data: {
+                job_id: jobsData[0]["id"],
+            },
+            success: function(videoData) {
+                var frameData = _.map(videoData, function(video) {
+                    return _.times(video.frames, function(i) {
+                        return {status: 'invalid', data: {}};
+                    });
+                })
+                this.setState({
+                    videos: videoData,
+                    frameData: frameData
+                });
+            }.bind(this)
+        });
     },
     loadPredictionData: function(videoId, start, end) {
         var frameData = this.state.frameData[videoId];
@@ -618,7 +674,9 @@ var VisualizerApp = React.createClass({
         // The entire range is already loaded so we don't need to send a request
         if (requestStart == requestEnd) return;
         $.ajax({
-            url: "jobs/" + this.state.jobs[0].id + "/features/" + videoId,
+            url: "datasets/" + this.state.selectedDataset +
+                 "/jobs/" + this.state.jobs[0].id +
+                 "/features/" + videoId,
             dataType: "json",
             data: {
                 start: requestStart,
@@ -645,46 +703,43 @@ var VisualizerApp = React.createClass({
     },
     componentDidMount: function() {
         $.ajax({
-            url: "jobs",
+            url: "datasets",
             dataType: "json",
-            success: function(jobsData) {
-                this.setState({jobs: jobsData});
-                //jobMetadata = data[0];
-                //jobMetadata.graphics =
-                //  graphicsOptions[jobMetadata.featureType];
-                //jobMetadata.graphics.setup($("#main-panel"));
-                $.ajax({
-                    url: "videos",
-                    dataType: "json",
-                    data: {
-                        job_id: jobsData[0]["id"],
-                    },
-                    success: function(videoData) {
-                        var frameData = _.map(videoData, function(video) {
-                            return _.times(video.frames, function(i) {
-                                return {status: 'invalid', data: {}};
-                            });
-                        })
-                        this.setState({
-                            videos: videoData,
-                            frameData: frameData
-                        });
-                    }.bind(this)
-                });
+            success: function(datasetsData) {
+                this.setState({datasets: datasetsData});
             }.bind(this),
         });
+
     },
     render: function() {
-        var frameIdx = this.state.selectedFrame;
-        var frame = this.state.frameData[frameIdx.videoId][frameIdx.frame];
+        var datasetDivs = _.map(this.state.datasets, function(dataset) {
+            return (
+                <div className="dataset-info"
+                     key={dataset.id}
+                     onClick={()=>this.handleSelectedDatasetChange(dataset.id)}>
+                  {dataset.name}
+                </div>
+            );
+        }.bind(this));
+        var jobDivs = _.map(this.state.jobs, function(job) {
+        });
+        var selectedVideo = this.state.selectedVideo;
+        var selectedFrame = this.state.selectedFrame;
+        var frame =
+            this.state.frameData[selectedVideo][selectedFrame];
         return (
             <div className="visualizer-app">
+              <div className="dataset-panel">
+                {datasetDivs}
+              </div>
+              <div className="job-panel">
+              </div>
               <VideoBrowser job={this.state.jobs[0]}
                             videos={this.state.videos}
                             onSelectedFrameChange={
                                 this.handleSelectedFrameChange}/>
               <ViewerPanel job={this.state.jobs[0]}
-                           video={this.state.videos[frameIdx.videoId]}
+                           video={this.state.videos[selectedVideo]}
                            graphics={detectionGraphics}
                            selectedFrame={frame}/>
             </div>

@@ -746,7 +746,7 @@ void ingest(storehouse::StorageConfig* storage_config,
   LOG(INFO) << "Creating dataset " << dataset_name << "..." << std::endl;
 
   // Read in list of video paths and assign unique name to each
-  DatasetDescriptor descriptor;
+  DatasetDescriptor descriptor{};
   std::vector<std::string>& video_paths = descriptor.original_video_paths;
   std::vector<std::string>& item_names = descriptor.item_names;
   {
@@ -839,6 +839,24 @@ void ingest(storehouse::StorageConfig* storage_config,
   // TODO(apoms): alternatively we could delete the file but apparently
   // that was never designed into the storage interface!
   write_last_processed_video(storage, dataset_name, -1);
+
+  // Add new dataset name to database metadata so we know it exists
+  {
+    const std::string db_meta_path = database_metadata_path();
+
+    std::unique_ptr<RandomReadFile> meta_in_file;
+    make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+    u64 pos = 0;
+    DatabaseMetadata meta =
+        deserialize_database_metadata(meta_in_file.get(), pos);
+
+    meta.dataset_names.push_back(dataset_name);
+    meta.dataset_job_names.push_back({});
+
+    std::unique_ptr<WriteFile> meta_out_file;
+    make_unique_write_file(storage, db_meta_path, meta_out_file);
+    serialize_database_metadata(meta_out_file.get(), meta);
+  }
 
   LOG(INFO) << "Finished creating dataset " << dataset_name << "." << std::endl;
 

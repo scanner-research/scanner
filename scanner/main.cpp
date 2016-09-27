@@ -90,7 +90,7 @@ const std::string DB_PATH = "/Users/apoms/scanner_db";
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
-  FLAGS_minloglevel = 2;
+  FLAGS_minloglevel = 3;
 #ifdef HAVE_CUDA
   CUD_CHECK(cuInit(0));
 #endif
@@ -304,6 +304,25 @@ int main(int argc, char** argv) {
   // path for storing video and output data persistently
   storehouse::StorageConfig* config =
       storehouse::StorageConfig::make_posix_config(DB_PATH);
+
+  // Setup db metadata if it does not exist yet
+  {
+    storehouse::StorageBackend* storage =
+        storehouse::StorageBackend::make_from_config(config);
+
+    std::string db_meta_path = database_metadata_path();
+    storehouse::FileInfo info;
+    storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
+    if (result == storehouse::StoreResult::FileDoesNotExist) {
+      // Need to initialize db metadata
+      DatabaseMetadata meta;
+      std::unique_ptr<storehouse::WriteFile> meta_out_file;
+      make_unique_write_file(storage, db_meta_path, meta_out_file);
+      serialize_database_metadata(meta_out_file.get(), meta);
+    }
+
+    delete storage;
+  }
 
   if (cmd == "ingest") {
     // The ingest command takes 1) a new dataset name, 2) a file with paths to

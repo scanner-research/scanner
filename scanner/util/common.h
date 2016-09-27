@@ -44,6 +44,8 @@ extern i32 NUM_CUDA_STREAMS;       // # of cuda streams for image processing
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Path functions
+inline std::string database_metadata_path() { return "db_metadata.bin"; }
+
 inline std::string dataset_descriptor_path(const std::string& dataset_name) {
   return dataset_name + "_dataset_descriptor.bin";
 }
@@ -90,6 +92,11 @@ inline i32 frames_per_work_item() {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
+struct DatabaseMetadata {
+  std::vector<std::string> dataset_names;
+  std::vector<std::vector<std::string>> dataset_job_names;
+};
+
 enum class DeviceType {
   GPU,
   CPU,
@@ -117,6 +124,7 @@ enum struct VideoChromaFormat {
 };
 
 struct DatasetDescriptor {
+  i64 id;
   /// Statistics
   // Frames per video
   i64 total_frames;
@@ -159,9 +167,16 @@ struct DatasetItemWebTimestamps {
 };
 
 struct JobDescriptor {
+  i64 id;
   std::string dataset_name;
   std::map<std::string, std::vector<std::tuple<i32, i32>>> intervals;
 };
+
+void serialize_database_metadata(storehouse::WriteFile* file,
+                                 const DatabaseMetadata& metadata);
+
+DatabaseMetadata deserialize_database_metadata(storehouse::RandomReadFile* file,
+                                               u64& file_pos);
 
 void serialize_dataset_descriptor(storehouse::WriteFile* file,
                                   const DatasetDescriptor& descriptor);

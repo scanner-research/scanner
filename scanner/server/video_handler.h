@@ -15,10 +15,14 @@
 
 #pragma once
 
+#include "scanner/util/common.h"
 #include "storehouse/storage_backend.h"
 
 #include <folly/Memory.h>
 #include <proxygen/httpserver/RequestHandler.h>
+#include <proxygen/httpserver/ResponseBuilder.h>
+
+#include <boost/regex.hpp>
 
 namespace proxygen {
 class ResponseHandler;
@@ -48,6 +52,27 @@ class VideoHandler : public proxygen::RequestHandler {
   void onError(proxygen::ProxygenError err) noexcept override;
 
  private:
+  void handle_datasets(const DatabaseMetadata& meta, const std::string& path,
+                       proxygen::ResponseBuilder& response);
+
+  void handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
+                   const std::string& path,
+                   proxygen::ResponseBuilder& response);
+
+  void handle_features(const DatabaseMetadata& meta, i32 dataset_id, i32 job_id,
+                       i32 video_id, const std::string& path,
+                       proxygen::ResponseBuilder& response);
+
+  void handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
+                     const std::string& path,
+                     proxygen::ResponseBuilder& response);
+
+  void handle_media(const DatabaseMetadata& meta, i32 dataset_id,
+                    const std::string& media_path, const std::string& path,
+                    proxygen::ResponseBuilder& response);
+
+  const boost::regex id_regex{"^/([[:digit:]]+)"};
+
   VideoHandlerStats* const stats_{nullptr};
   std::unique_ptr<storehouse::StorageBackend> storage_{nullptr};
   std::string job_name_;
