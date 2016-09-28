@@ -86,7 +86,7 @@ void delete_buffer(DeviceType type, int device_id, u8* buffer) {
   buffer = nullptr;
 }
 
-}  // end anonymous namespace
+} // end anonymous namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
@@ -187,6 +187,9 @@ void* load_video_thread(void* arg) {
       break;
     }
 
+    LOG(DEBUG) << "Load (N/PU: " << rank << "/" << args.device_id
+               << "): processing item " << load_work_entry.work_item_index;
+
     args.profiler.add_interval("idle", idle_start, now());
 
     auto work_start = now();
@@ -267,7 +270,8 @@ void* load_video_thread(void* arg) {
     args.decode_work.push(decode_work_entry);
   }
 
-  printf("(N: %d) Load thread finished.\n", rank);
+  LOG(DEBUG) << "Load (N/PU: " << rank << "/" << args.device_id
+             << "): thread finished";
 
   // Cleanup
   if (video_file != nullptr) {
@@ -308,6 +312,9 @@ void* decode_thread(void* arg) {
     if (decode_work_entry.work_item_index == -1) {
       break;
     }
+
+    LOG(DEBUG) << "Decode (N/PU: " << rank << "/" << args.device_id
+               << "): processing item " << decode_work_entry.work_item_index;
 
     DecodeBufferEntry decode_buffer_entry;
     args.empty_decode_buffers.pop(decode_buffer_entry);
@@ -382,6 +389,9 @@ void* decode_thread(void* arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
+    LOG(DEBUG) << "Decode (N/PU: " << rank << "/" << args.device_id
+               << "): finished item " << decode_work_entry.work_item_index;
+
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = decode_work_entry.work_item_index;
     eval_work_entry.decoded_frames_size = decoded_buffer_size;
@@ -389,7 +399,8 @@ void* decode_thread(void* arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  printf("(N/PU: %d/%d) Decode thread finished.\n", rank, args.device_id);
+  LOG(DEBUG) << "Decode (N/PU: " << rank << "/" << args.device_id
+             << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
 }
@@ -421,6 +432,9 @@ void* evaluate_thread(void* arg) {
     if (work_entry.work_item_index == -1) {
       break;
     }
+
+    LOG(DEBUG) << "Evaluate (N/PU: " << rank << "/" << args.device_id
+               << "): processing item " << work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -479,6 +493,9 @@ void* evaluate_thread(void* arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
+    LOG(DEBUG) << "Evaluate (N/PU: " << rank << "/" << args.device_id
+               << "): finished item " << work_entry.work_item_index;
+
     DecodeBufferEntry empty_buffer_entry;
     empty_buffer_entry.buffer_size = work_entry.decoded_frames_size;
     empty_buffer_entry.buffer = work_entry.buffer;
@@ -487,7 +504,8 @@ void* evaluate_thread(void* arg) {
     args.save_work.push(save_work_entry);
   }
 
-  printf("(N/PU: %d/%d) Evaluate thread finished.\n", rank, args.device_id);
+  LOG(DEBUG) << "Evaluate (N/PU: " << rank << "/" << args.device_id
+             << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
 }
@@ -517,6 +535,9 @@ void* save_thread(void* arg) {
     if (save_work_entry.work_item_index == -1) {
       break;
     }
+
+    LOG(DEBUG) << "Save (N/PU: " << rank << "/" << args.device_id
+               << "): processing item " << save_work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -588,10 +609,14 @@ void* save_thread(void* arg) {
       args.profiler.add_interval("io", io_start, now());
     }
 
+    LOG(DEBUG) << "Save (N/PU: " << rank << "/" << args.device_id
+               << "): finished item " << save_work_entry.work_item_index;
+
     args.profiler.add_interval("task", work_start, now());
   }
 
-  printf("(N: %d) Save thread finished.\n", rank);
+  LOG(DEBUG) << "Save (N/PU: " << rank << "/" << args.device_id
+             << "): thread finished ";
 
   // Cleanup
   delete storage;
@@ -823,8 +848,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         load_work.push(entry);
 
         if ((static_cast<i32>(work_items.size()) - next_work_item_to_allocate) %
-                10 ==
-            0) {
+            10 == 0) {
           printf("Work items left: %d\n", static_cast<i32>(work_items.size()) -
                                               next_work_item_to_allocate);
           fflush(stdout);
