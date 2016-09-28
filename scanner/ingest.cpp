@@ -490,67 +490,22 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       } else {
         in_meta_packet_sequence = false;
       }
+      if (nal_unit_type < 6) {
+        frame++;
+      }
     }
 
     if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
       // printf("av packet keyframe pts %d\n",
       //        state.av_packet.pts);
       keyframe_byte_offsets.push_back(nal_bytestream_offset);
-      keyframe_positions.push_back(frame);
+      keyframe_positions.push_back(frame - 1);
       keyframe_timestamps.push_back(state.av_packet.pts);
       in_meta_packet_sequence = false;
     }
 
-    while (state.av_packet.size > 0) {
-      i32 got_picture = 0;
-      u8* dec;
-      size_t size;
-      i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
-                                      &state.av_packet);
-      if (len < 0) {
-        char err_msg[256];
-        av_strerror(len, err_msg, 256);
-        fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, len,
-                err_msg);
-        assert(false);
-      }
-      if (got_picture) {
-        state.picture->pts = frame;
-
-        if (state.picture->key_frame == 1) {
-          printf("keyframe dts %d\n", state.picture->pkt_dts);
-        }
-        // the picture is allocated by the decoder. no need to free
-        frame++;
-      }
-      // cuvid decoder uses entire packet without setting size or returning len
-      state.av_packet.size = 0;
-    }
-    state.av_packet.data = orig_data;
-    state.av_packet.size = orig_size;
-
     av_packet_unref(&state.av_packet);
   }
-
-  // /* some codecs, such as MPEG, transmit the I and P frame with a
-  //    latency of one frame. You must do the following to have a
-  //    chance to get the last frame of the video */
-  state.av_packet.data = NULL;
-  state.av_packet.size = 0;
-
-  i32 got_picture;
-  do {
-    got_picture = 0;
-    i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
-                                    &state.av_packet);
-    (void)len;
-    if (got_picture) {
-      if (state.picture->key_frame == 1) {
-      }
-      // the picture is allocated by the decoder. no need to free
-      frame++;
-    }
-  } while (got_picture);
 
   // Cleanup video decoder
   cleanup_video_codec(state);

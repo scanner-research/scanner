@@ -79,13 +79,14 @@ void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
 bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                                 bool discontinuity) {
   if (av_new_packet(&packet_, encoded_size) < 0) {
-    fprintf(stderr, "could not allocated packet for feeding into decoder\n");
+    fprintf(stderr, "could not allocate packet for feeding into decoder\n");
     assert(false);
   }
   memcpy(packet_.data, encoded_buffer, encoded_size);
 
-  uint8_t* orig_data = packet_.data;
+  uint8_t *orig_data = packet_.data;
   int orig_size = packet_.size;
+  int got_picture = 0;
   do {
     // Get frame from pool of allocated frames to decode video into
     if (frame_pool_.empty()) {
@@ -95,7 +96,6 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     AVFrame* frame = frame_pool_.back();
     frame_pool_.pop_back();
 
-    int got_picture = 0;
     int consumed_length =
         avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
     if (consumed_length < 0) {
@@ -119,10 +119,12 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
         // Frame is reference counted so we can just take it directly
         decoded_frame_queue_.push_back(frame);
       }
+    } else {
+      frame_pool_.push_back(frame);
     }
     packet_.data += consumed_length;
     packet_.size -= consumed_length;
-  } while (packet_.size > 0);
+  } while (got_picture || packet_.size > 0);
   packet_.data = orig_data;
   packet_.size = orig_size;
   av_packet_unref(&packet_);
