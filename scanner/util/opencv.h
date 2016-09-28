@@ -15,6 +15,14 @@
 
 #pragma once
 
+#include "scanner/util/common.h"
+
+#include <opencv2/opencv.hpp>
+
+namespace scanner {
+cv::Mat bytesToImage(u8* buf, i32 i, const DatasetItemMetadata& metadata);
+}
+
 #ifdef HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
 

@@ -14,6 +14,9 @@
  */
 
 #include "scanner/evaluators/movie_analysis/face_evaluator.h"
+
+#include "scanner/util/opencv.h"
+
 #include "Tracker.h"
 #include "Config.h"
 
@@ -66,21 +69,21 @@ void FaceEvaluator::evaluate(
     cv::cvtColor(img, img, CV_RGB2GRAY);
     std::vector<cv::Rect> all_faces;
     std::vector<Tracker*> valid_trackers;
-    if (i > 0) {
-      for (auto& tracker : trackers) {
-        tracker->Track(img);
-        float score = tracker->GetScore();
-        // LOG(ERROR) << score;
-        // if (score < 0.1) {
-        //   delete tracker;
-        //   continue;
-        // }
-        const FloatRect bb = tracker->GetBB();
-        all_faces.push_back(cv::Rect(bb.XMin(), bb.YMin(), bb.Width(), bb.Height()));
-        valid_trackers.push_back(tracker);
-      }
-    }
-    trackers.swap(valid_trackers);
+    // if (i > 0) {
+    //   for (auto& tracker : trackers) {
+    //     tracker->Track(img);
+    //     float score = tracker->GetScore();
+    //     // LOG(ERROR) << score;
+    //     // if (score < 0.1) {
+    //     //   delete tracker;
+    //     //   continue;
+    //     // }
+    //     const FloatRect bb = tracker->GetBB();
+    //     all_faces.push_back(cv::Rect(bb.XMin(), bb.YMin(), bb.Width(), bb.Height()));
+    //     valid_trackers.push_back(tracker);
+    //   }
+    // }
+    // trackers.swap(valid_trackers);
 
     std::vector<cv::Rect> detected_faces;
     face_detector.detectMultiScale(
@@ -96,10 +99,10 @@ void FaceEvaluator::evaluate(
       }
       if (is_new) {
         all_faces.push_back(new_face);
-        Tracker* tracker = build_tracker();
-        FloatRect bb(new_face.x, new_face.y, new_face.width, new_face.height);
-        tracker->Initialise(img, bb);
-        trackers.push_back(tracker);
+        // Tracker* tracker = build_tracker();
+        // FloatRect bb(new_face.x, new_face.y, new_face.width, new_face.height);
+        // tracker->Initialise(img, bb);
+        // trackers.push_back(tracker);
       }
     }
 
@@ -128,7 +131,6 @@ FaceEvaluatorFactory::FaceEvaluatorFactory() {}
 EvaluatorCapabilities FaceEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
   caps.device_type = DeviceType::CPU;
-  caps.device_usage = EvaluatorCapabilities::Single;
   caps.max_devices = 1;
   caps.warmup_size = 0;
   return caps;

@@ -17,6 +17,7 @@ set(SOURCE_FILES
   memory.cpp
   profiler.cpp
   util.cpp
+  opencv.cpp
   jpeg/JPEGReader.cpp
   jpeg/JPEGWriter.cpp)
 
