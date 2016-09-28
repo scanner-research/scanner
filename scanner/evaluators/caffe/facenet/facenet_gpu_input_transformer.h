@@ -25,6 +25,8 @@
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/opencv.hpp>
 
+#include "scanner/util/cuda.h"
+
 namespace scanner {
 
 class FacenetGPUInputTransformer : public CaffeInputTransformer {
@@ -51,8 +53,8 @@ class FacenetGPUInputTransformer : public CaffeInputTransformer {
   std::vector<cv::cuda::GpuMat> frame_input_;
   std::vector<cv::cuda::GpuMat> float_input_;
   std::vector<cv::cuda::GpuMat> normalized_input_;
-  std::vector<cv::cuda::GpuMat> flipped_input_;
   std::vector<std::vector<cv::cuda::GpuMat>> input_planes_;
+  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_;
   std::vector<cv::cuda::GpuMat> planar_input_;
 };
 

@@ -48,8 +48,8 @@ void FacenetGPUInputTransformer::configure(const DatasetItemMetadata& metadata,
     frame_input_.clear();
     float_input_.clear();
     normalized_input_.clear();
-    flipped_input_.clear();
     input_planes_.clear();
+    flipped_planes_.clear();
     planar_input_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_.push_back(
@@ -58,14 +58,16 @@ void FacenetGPUInputTransformer::configure(const DatasetItemMetadata& metadata,
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
       normalized_input_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      flipped_input_.push_back(
-          cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC3));
       std::vector<cv::cuda::GpuMat> planes;
+      std::vector<cv::cuda::GpuMat> flipped_planes;
       for (i32 i = 0; i < 3; ++i) {
         planes.push_back(
-            cv::Mat(net_input_width_, net_input_height_, CV_32FC1));
+            cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
+        flipped_planes.push_back(
+            cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC1));
       }
       input_planes_.push_back(planes);
+      flipped_planes_.push_back(flipped_planes);
       planar_input_.push_back(
           cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
     }
@@ -86,19 +88,24 @@ void FacenetGPUInputTransformer::transform_input(i32 input_count,
     frame_input_[sid].convertTo(float_input_[sid], CV_32FC3, cv_stream);
     cv::cuda::subtract(float_input_[sid], mean_mat_, normalized_input_[sid],
                        cv::noArray(), -1, cv_stream);
-    cv::cuda::transpose(normalized_input_[sid], flipped_input_[sid], cv_stream);
     // Changed from interleaved RGB to planar RGB
-    cv::cuda::split(flipped_input_[sid], input_planes_[sid], cv_stream);
-    auto& plane1 = input_planes_[sid][0];
-    auto& plane2 = input_planes_[sid][1];
-    auto& plane3 = input_planes_[sid][2];
+    cv::cuda::split(normalized_input_[sid], input_planes_[sid], cv_stream);
+    cv::cuda::transpose(input_planes_[sid][0], flipped_planes_[sid][0],
+                        cv_stream);
+    cv::cuda::transpose(input_planes_[sid][1], flipped_planes_[sid][1],
+                        cv_stream);
+    cv::cuda::transpose(input_planes_[sid][2], flipped_planes_[sid][2],
+                        cv_stream);
+    auto& plane1 = flipped_planes_[sid][0];
+    auto& plane2 = flipped_planes_[sid][1];
+    auto& plane3 = flipped_planes_[sid][2];
     auto& planar_input = planar_input_[sid];
     plane1.copyTo(planar_input(cv::Rect(0, net_input_width_ * 0,
-                                        net_input_width_, net_input_height_)));
+                                        net_input_height_, net_input_width_)));
     plane2.copyTo(planar_input(cv::Rect(0, net_input_width_ * 1,
-                                        net_input_width_, net_input_height_)));
+                                        net_input_height_, net_input_width_)));
     plane3.copyTo(planar_input(cv::Rect(0, net_input_width_ * 2,
-                                        net_input_width_, net_input_height_)));
+                                        net_input_height_, net_input_width_)));
     assert(planar_input.cols == net_input_height_);
     cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
     CU_CHECK(cudaMemcpy2DAsync(
