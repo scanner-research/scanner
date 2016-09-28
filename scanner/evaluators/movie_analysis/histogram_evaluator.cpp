@@ -14,7 +14,6 @@
  */
 
 #include "scanner/evaluators/movie_analysis/histogram_evaluator.h"
-
 #include "scanner/util/opencv.h"
 
 namespace scanner {
@@ -23,17 +22,17 @@ const i32 BINS = 256;
 
 HistogramEvaluator::HistogramEvaluator(EvaluatorConfig) {}
 
-HistogramEvaluator::~HistogramEvaluator() {}
-
 void HistogramEvaluator::configure(const DatasetItemMetadata& metadata) {
   this->metadata = metadata;
 }
 
 void HistogramEvaluator::evaluate(
-    u8* input_buffer, std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes, i32 batch_size) {
+  i32 input_count, u8* input_buffer,
+  std::vector<std::vector<u8*>>& output_buffers,
+  std::vector<std::vector<size_t>>& output_sizes)
+{
   i64 hist_size = BINS * 3 * sizeof(u8);
-  for (i32 i = 0; i < batch_size; i++) {
+  for (i32 i = 0; i < input_count; i++) {
     cv::Mat img = bytesToImage(input_buffer, i, metadata);
     std::vector<cv::Mat> bgr_planes;
     cv::split(img, bgr_planes);
@@ -59,44 +58,25 @@ void HistogramEvaluator::evaluate(
   }
 }
 
-HistogramEvaluatorConstructor::HistogramEvaluatorConstructor() {}
+HistogramEvaluatorFactory::HistogramEvaluatorFactory() {}
 
-HistogramEvaluatorConstructor::~HistogramEvaluatorConstructor() {}
-
-i32 HistogramEvaluatorConstructor::get_number_of_devices() { return 1; }
-
-DeviceType HistogramEvaluatorConstructor::get_input_buffer_type() {
-  return DeviceType::CPU;
+EvaluatorCapabilities HistogramEvaluatorFactory::get_capabilities() {
+  EvaluatorCapabilities caps;
+  caps.device_type = DeviceType::CPU;
+  caps.device_usage = EvaluatorCapabilities::Single;
+  caps.max_devices = 1;
+  caps.warmup_size = 0;
+  return caps;
 }
 
-DeviceType HistogramEvaluatorConstructor::get_output_buffer_type() {
-  return DeviceType::CPU;
-}
+i32 HistogramEvaluatorFactory::get_number_of_outputs() { return 1; }
 
-i32 HistogramEvaluatorConstructor::get_number_of_outputs() { return 1; }
-
-std::vector<std::string> HistogramEvaluatorConstructor::get_output_names() {
+std::vector<std::string> HistogramEvaluatorFactory::get_output_names() {
   return {"histogram"};
 }
 
-u8* HistogramEvaluatorConstructor::new_input_buffer(
-    const EvaluatorConfig& config) {
-  return new u8[config.max_batch_size * config.max_frame_width *
-                config.max_frame_height * 3 * sizeof(u8)];
-}
-
-void HistogramEvaluatorConstructor::delete_input_buffer(
-    const EvaluatorConfig& config, u8* buffer) {
-  delete[] buffer;
-}
-
-void HistogramEvaluatorConstructor::delete_output_buffer(
-    const EvaluatorConfig& config, u8* buffer) {
-  delete[] buffer;
-}
-
-Evaluator* HistogramEvaluatorConstructor::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator* HistogramEvaluatorFactory::new_evaluator(
+  const EvaluatorConfig& config) {
   return new HistogramEvaluator(config);
 }
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_constructor.h"
+#include "scanner/eval/evaluator_factory.h"
 #include "scanner/util/opencv.h"
 
 namespace scanner {
@@ -10,44 +10,30 @@ class FaceEvaluator : public Evaluator {
  public:
   FaceEvaluator(EvaluatorConfig config);
 
-  virtual ~FaceEvaluator();
+  void configure(const DatasetItemMetadata& metadata) override;
 
-  virtual void configure(const DatasetItemMetadata& metadata) override;
-
-  virtual void evaluate(u8* input_buffer,
-                        std::vector<std::vector<u8*>>& output_buffers,
-                        std::vector<std::vector<size_t>>& output_sizes,
-                        i32 batch_size) override;
+  void evaluate(i32 input_count,
+                u8* input_buffer,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
  private:
   DatasetItemMetadata metadata;
   cv::CascadeClassifier face_detector;
 };
 
-class FaceEvaluatorConstructor : public EvaluatorConstructor {
+
+class FaceEvaluatorFactory : public EvaluatorFactory {
  public:
-  FaceEvaluatorConstructor();
+  FaceEvaluatorFactory();
 
-  virtual ~FaceEvaluatorConstructor();
+  EvaluatorCapabilities get_capabilities() override;
 
-  virtual i32 get_number_of_devices() override;
+  i32 get_number_of_outputs() override;
 
-  virtual DeviceType get_input_buffer_type() override;
+  std::vector<std::string> get_output_names() override;
 
-  virtual DeviceType get_output_buffer_type() override;
-
-  virtual i32 get_number_of_outputs() override;
-
-  virtual std::vector<std::string> get_output_names() override;
-
-  virtual u8* new_input_buffer(const EvaluatorConfig& config) override;
-
-  virtual void delete_input_buffer(const EvaluatorConfig& config,
-                                   u8* buffer) override;
-
-  virtual void delete_output_buffer(const EvaluatorConfig& config,
-                                    u8* buffers) override;
-
-  virtual Evaluator* new_evaluator(const EvaluatorConfig& config) override;
+  Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 };
+
 }

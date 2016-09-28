@@ -26,8 +26,6 @@ FaceEvaluator::FaceEvaluator(EvaluatorConfig) {
   }
 }
 
-FaceEvaluator::~FaceEvaluator() {}
-
 void FaceEvaluator::configure(const DatasetItemMetadata& metadata) {
   this->metadata = metadata;
 }
@@ -57,13 +55,13 @@ float iou(const cv::Rect& bx, const cv::Rect& by) {
 }
 
 void FaceEvaluator::evaluate(
+  i32 input_count,
   u8* input_buffer,
   std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes,
-  i32 batch_size)
+  std::vector<std::vector<size_t>>& output_sizes)
 {
   std::vector<Tracker*> trackers;
-  for (i32 i = 0; i < batch_size; ++i) {
+  for (i32 i = 0; i < input_count; ++i) {
     cv::Mat img = bytesToImage(input_buffer, i, metadata);
     cv::cvtColor(img, img, CV_RGB2GRAY);
     std::vector<cv::Rect> all_faces;
@@ -125,43 +123,25 @@ void FaceEvaluator::evaluate(
   }
 }
 
-FaceEvaluatorConstructor::FaceEvaluatorConstructor() {}
+FaceEvaluatorFactory::FaceEvaluatorFactory() {}
 
-FaceEvaluatorConstructor::~FaceEvaluatorConstructor() {}
-
-i32 FaceEvaluatorConstructor::get_number_of_devices() { return 1; }
-
-DeviceType FaceEvaluatorConstructor::get_input_buffer_type() {
-  return DeviceType::CPU;
+EvaluatorCapabilities FaceEvaluatorFactory::get_capabilities() {
+  EvaluatorCapabilities caps;
+  caps.device_type = DeviceType::CPU;
+  caps.device_usage = EvaluatorCapabilities::Single;
+  caps.max_devices = 1;
+  caps.warmup_size = 0;
+  return caps;
 }
 
-DeviceType FaceEvaluatorConstructor::get_output_buffer_type() {
-  return DeviceType::CPU;
-}
+i32 FaceEvaluatorFactory::get_number_of_outputs() { return 1; }
 
-i32 FaceEvaluatorConstructor::get_number_of_outputs() { return 1; }
-
-std::vector<std::string> FaceEvaluatorConstructor::get_output_names() {
+std::vector<std::string> FaceEvaluatorFactory::get_output_names() {
   return {"face"};
 }
 
-u8* FaceEvaluatorConstructor::new_input_buffer(const EvaluatorConfig& config) {
-  return new u8[config.max_batch_size * config.max_frame_width *
-                config.max_frame_height * 3 * sizeof(u8)];
-}
-
-void FaceEvaluatorConstructor::delete_input_buffer(
-    const EvaluatorConfig& config, u8* buffer) {
-  delete[] buffer;
-}
-
-void FaceEvaluatorConstructor::delete_output_buffer(
-    const EvaluatorConfig& config, u8* buffer) {
-  delete[] buffer;
-}
-
-Evaluator* FaceEvaluatorConstructor::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator* FaceEvaluatorFactory::new_evaluator(
+  const EvaluatorConfig& config) {
   return new FaceEvaluator(config);
 }
 }
