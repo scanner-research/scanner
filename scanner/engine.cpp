@@ -24,6 +24,8 @@
 
 #include "storehouse/storage_backend.h"
 
+#include <glog/logging.h>
+
 #include <libgen.h>
 #include <mpi.h>
 #include <pthread.h>
@@ -98,6 +100,7 @@ struct LoadThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
+  int id;
   storehouse::StorageConfig* storage_config;
   Profiler& profiler;
 
@@ -112,6 +115,7 @@ struct DecodeThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
+  int id;
   DeviceType device_type;
   i32 device_id;
   VideoDecoderType decoder_type;
@@ -129,6 +133,7 @@ struct EvaluateThreadArgs {
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
+  int id;
   DeviceType device_type;
   i32 device_id;
   EvaluatorFactory& evaluator_factory;
@@ -150,6 +155,7 @@ struct SaveThreadArgs {
   std::vector<std::string> output_names;
 
   // Per worker arguments
+  int id;
   storehouse::StorageConfig* storage_config;
   Profiler& profiler;
 
@@ -187,7 +193,7 @@ void* load_video_thread(void* arg) {
       break;
     }
 
-    LOG(DEBUG) << "Load (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id
                << "): processing item " << load_work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -270,7 +276,7 @@ void* load_video_thread(void* arg) {
     args.decode_work.push(decode_work_entry);
   }
 
-  LOG(DEBUG) << "Load (N/PU: " << rank << "/" << args.device_id
+  LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id
              << "): thread finished";
 
   // Cleanup
@@ -313,7 +319,7 @@ void* decode_thread(void* arg) {
       break;
     }
 
-    LOG(DEBUG) << "Decode (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Decode (N/PU: " << rank << "/" << args.id
                << "): processing item " << decode_work_entry.work_item_index;
 
     DecodeBufferEntry decode_buffer_entry;
@@ -346,7 +352,7 @@ void* decode_thread(void* arg) {
       auto video_start = now();
 
       i32 encoded_packet_size = 0;
-      u8* encoded_packet = nullptr;
+      u8* encoded_packet = NULL;
       if (encoded_buffer_offset < encoded_buffer_size) {
         encoded_packet_size =
             *reinterpret_cast<i32*>(encoded_buffer + encoded_buffer_offset);
@@ -389,7 +395,7 @@ void* decode_thread(void* arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
-    LOG(DEBUG) << "Decode (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Decode (N/PU: " << rank << "/" << args.id
                << "): finished item " << decode_work_entry.work_item_index;
 
     EvalWorkEntry eval_work_entry;
@@ -399,7 +405,7 @@ void* decode_thread(void* arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  LOG(DEBUG) << "Decode (N/PU: " << rank << "/" << args.device_id
+  LOG(INFO) << "Decode (N/PU: " << rank << "/" << args.id
              << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
@@ -433,7 +439,7 @@ void* evaluate_thread(void* arg) {
       break;
     }
 
-    LOG(DEBUG) << "Evaluate (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
                << "): processing item " << work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -493,7 +499,7 @@ void* evaluate_thread(void* arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
-    LOG(DEBUG) << "Evaluate (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
                << "): finished item " << work_entry.work_item_index;
 
     DecodeBufferEntry empty_buffer_entry;
@@ -504,7 +510,7 @@ void* evaluate_thread(void* arg) {
     args.save_work.push(save_work_entry);
   }
 
-  LOG(DEBUG) << "Evaluate (N/PU: " << rank << "/" << args.device_id
+  LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
              << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
@@ -536,7 +542,7 @@ void* save_thread(void* arg) {
       break;
     }
 
-    LOG(DEBUG) << "Save (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
                << "): processing item " << save_work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -609,13 +615,13 @@ void* save_thread(void* arg) {
       args.profiler.add_interval("io", io_start, now());
     }
 
-    LOG(DEBUG) << "Save (N/PU: " << rank << "/" << args.device_id
+    LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
                << "): finished item " << save_work_entry.work_item_index;
 
     args.profiler.add_interval("task", work_start, now());
   }
 
-  LOG(DEBUG) << "Save (N/PU: " << rank << "/" << args.device_id
+  LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
              << "): thread finished ";
 
   // Cleanup
@@ -743,7 +749,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         dataset_name, video_paths, video_metadata, work_items,
 
         // Per worker arguments
-        config, load_thread_profilers[i],
+        i, config, load_thread_profilers[i],
 
         // Queues
         load_work, decode_work,
@@ -766,7 +772,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         video_metadata, work_items,
 
         // Per worker arguments
-        caps.device_type, i % PUS_PER_NODE, decoder_type,
+        i, caps.device_type, i % PUS_PER_NODE, decoder_type,
         decode_thread_profilers[i],
 
         // Queues
@@ -796,7 +802,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         video_metadata, work_items,
 
         // Per worker arguments
-        caps.device_type, i, *evaluator_factory, eval_config,
+        i, caps.device_type, i, *evaluator_factory, eval_config,
         eval_thread_profilers[i],
 
         // Queues
@@ -820,7 +826,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         evaluator_factory->get_output_names(),
 
         // Per worker arguments
-        config, save_thread_profilers[i],
+        i, config, save_thread_profilers[i],
 
         // Queues
         save_work,
