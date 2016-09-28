@@ -60,7 +60,7 @@ u8* new_buffer(DeviceType type, int device_id, size_t size) {
 #ifdef HAVE_CUDA
   else if (type == DeviceType::GPU) {
     CU_CHECK(cudaSetDevice(device_id));
-    CU_CHECK(cudaMalloc(&buffer, size));
+    CU_CHECK(cudaMalloc((void**)&buffer, size));
   }
 #endif
   else {
