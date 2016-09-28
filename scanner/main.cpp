@@ -23,6 +23,8 @@
 #include "storehouse/storage_backend.h"
 #include "storehouse/storage_config.h"
 
+#include "toml/toml.h"
+
 #include "scanner/video/video_decoder.h"
 
 #ifdef HAVE_CAFFE
@@ -84,10 +86,7 @@ using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
-namespace {
-
-const std::string DB_PATH = "/Users/apoms/scanner_db";
-}
+const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
@@ -100,9 +99,36 @@ void startup(int argc, char** argv) {
 
 void shutdown() { MPI_Finalize(); }
 
+class Config {
+public:
+
+  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml) : vm(vm), pr(pr), has_toml(has_toml) {}
+
+  bool has(std::string key) {
+    return vm.count(key) || (has_toml && pr.value.find(key) != nullptr);
+  }
+
+  template<typename T>
+  T get(std::string key) {
+    if (vm.count(key)) {
+      return vm[key].as<T>();
+    } else if (has_toml) {
+      return pr.value.find(key)->as<T>();
+    } else {
+      LOG(FATAL) << "Config key `" << key << "` not found";
+    }
+  }
+
+private:
+  po::variables_map vm;
+  toml::ParseResult pr;
+  bool has_toml;
+};
+
 int main(int argc, char** argv) {
   // Variables for holding parsed command line arguments
 
+  std::string db_path;
   std::string cmd;  // sub-command to execute
   // Common among sub-commands
   std::string dataset_name;  // name of dataset to create/operate on
@@ -130,7 +156,9 @@ int main(int argc, char** argv) {
         "load_workers_per_node", po::value<int>(),
         "Number of worker threads processing load jobs per node")(
         "save_workers_per_node", po::value<int>(),
-        "Number of worker threads processing save jobs per node");
+        "Number of worker threads processing save jobs per node")(
+        "db_path", po::value<std::string>(),
+        "Absolute path to scanner database directory");
 
     po::positional_options_description main_pos;
     main_pos.add("command", 1);
@@ -166,30 +194,42 @@ int main(int argc, char** argv) {
       return 1;
     }
 
-    if (vm.count("config_file")) {
-      std::string config_file_path = vm["config_file"].as<std::string>();
+    Config* config;
+    char path[256];
+    snprintf(path, 256, CONFIG_DEFAULT_PATH.c_str(), getenv("HOME"));
+    std::string config_path =
+      vm.count("config_file") ? vm["config_file"].as<std::string>() : std::string(path);
+    std::ifstream config_ifs(config_path);
+    if (config_ifs.good()) {
+      toml::ParseResult pr = toml::parse(config_ifs);
+      config = new Config(vm, pr, true);
+    } else {
+      toml::Value val;
+      toml::ParseResult pr(val, "");
+      config = new Config(vm, pr, false);
     }
 
-    if (vm.count("pus_per_node")) {
-      PUS_PER_NODE = vm["pus_per_node"].as<int>();
+    if (config->has("pus_per_node")) {
+      PUS_PER_NODE = config->get<int>("pus_per_node");
     }
-    if (vm.count("batch_size")) {
-      GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
+    if (config->has("batch_size")) {
+      GLOBAL_BATCH_SIZE = config->get<int>("batch_size");
     }
-    if (vm.count("batches_per_work_item")) {
-      BATCHES_PER_WORK_ITEM = vm["batches_per_work_item"].as<int>();
+    if (config->has("batches_per_work_item")) {
+      BATCHES_PER_WORK_ITEM = config->get<int>("batches_per_work_item");
     }
-    if (vm.count("tasks_in_queue_per_pu")) {
-      TASKS_IN_QUEUE_PER_PU = vm["tasks_in_queue_per_pu"].as<int>();
+    if (config->has("tasks_in_queue_per_pu")) {
+      TASKS_IN_QUEUE_PER_PU = config->get<int>("tasks_in_queue_per_pu");
     }
-    if (vm.count("load_workers_per_node")) {
-      LOAD_WORKERS_PER_NODE = vm["load_workers_per_node"].as<int>();
+    if (config->has("load_workers_per_node")) {
+      LOAD_WORKERS_PER_NODE = config->get<int>("load_workers_per_node");
     }
-    if (vm.count("save_workers_per_node")) {
-      SAVE_WORKERS_PER_NODE = vm["save_workers_per_node"].as<int>();
+    if (config->has("save_workers_per_node")) {
+      SAVE_WORKERS_PER_NODE = config->get<int>("save_workers_per_node");
     }
 
-    cmd = vm["command"].as<std::string>();
+    db_path = config->get<std::string>("db_path");
+    cmd = config->get<std::string>("command");
 
     if (cmd == "ingest") {
       po::options_description ingest_desc("ingest options");
@@ -305,7 +345,7 @@ int main(int argc, char** argv) {
   // For now, we use a disk based persistent storage with a hardcoded
   // path for storing video and output data persistently
   storehouse::StorageConfig* config =
-      storehouse::StorageConfig::make_posix_config(DB_PATH);
+      storehouse::StorageConfig::make_posix_config(db_path);
 
   // Setup db metadata if it does not exist yet
   {
