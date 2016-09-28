@@ -20,12 +20,10 @@ project(Scanner)
 option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
 
 enable_testing()
-
-link_directories(/homes/wcrichto/local/lib)
 
 ###### Setup #########
 # Verify C++11 support
