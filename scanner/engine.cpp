@@ -119,6 +119,7 @@ struct DecodeThreadArgs {
   DeviceType device_type;
   i32 device_id;
   VideoDecoderType decoder_type;
+  DeviceType output_type;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -234,7 +235,7 @@ void* load_video_thread(void* arg) {
 
     size_t start_keyframe_index = std::numeric_limits<size_t>::max();
     for (size_t i = 1; i < keyframe_positions.size(); ++i) {
-      if (keyframe_positions[i] > work_item.start_frame) {
+      if (keyframe_positions[i] > work_item.warmup_start_frame) {
         start_keyframe_index = i - 1;
         break;
       }
@@ -302,7 +303,7 @@ void* decode_thread(void* arg) {
   //              codec type) all videos should be the same for now so just use
   //              the first.
   std::unique_ptr<VideoDecoder> decoder{VideoDecoder::make_from_config(
-      args.device_type, args.device_id, args.decoder_type)};
+      args.device_type, args.device_id, args.decoder_type, args.output_type)};
   assert(decoder.get());
 
   decoder->set_profiler(&args.profiler);
@@ -365,9 +366,9 @@ void* decode_thread(void* arg) {
         // New frames
         bool more_frames = true;
         while (more_frames && current_frame < work_item.end_frame) {
-          if (current_frame >= work_item.start_frame) {
+          if (current_frame >= work_item.warmup_start_frame) {
             size_t frames_buffer_offset =
-                frame_size * (current_frame - work_item.start_frame);
+                frame_size * (current_frame - work_item.warmup_start_frame);
             assert(frames_buffer_offset < decoded_buffer_size);
             u8* current_frame_buffer_pos =
                 decoded_buffer + frames_buffer_offset;
@@ -452,13 +453,11 @@ void* evaluate_thread(void* arg) {
 
     // Make the evaluator aware of the format of the data we are about to
     // feed it
+    // TODO(apoms): check if the video is the same as the prevous work item
+    //   and elide this call if so.
     evaluator->configure(metadata);
 
     size_t frame_size = metadata.width * metadata.height * 3 * sizeof(u8);
-
-    // Create output buffer to hold results from net evaluation for all frames
-    // in the current work item
-    i32 num_inputs = work_item.end_frame - work_item.start_frame;
 
     SaveWorkEntry save_work_entry;
     save_work_entry.buffer_type = args.device_type;
@@ -472,9 +471,25 @@ void* evaluate_thread(void* arg) {
     work_item_output_sizes.resize(num_outputs);
     work_item_output_buffers.resize(num_outputs);
 
-    i32 current_frame = work_item.start_frame;
+    // TODO(apoms): conservatively call reset and provide warmup frames for
+    //   every work item for now. We need to track what the last item consumed
+    //   by the evaluator was and elide the reset/warmup if its video id is the
+    //   same and the end frame is equal to this item's start frame.
+    evaluator->reset();
+    i32 current_frame = work_item.warmup_start_frame;
+    while (current_frame < work_item.start_frame) {
+      i32 frame_offset = current_frame - work_item.warmup_start_frame;
+      i32 batch_size =
+          std::min(GLOBAL_BATCH_SIZE, work_item.start_frame - current_frame);
+
+      u8* frame_buffer = work_entry.buffer + frame_size * frame_offset;
+
+      evaluator->warmup(batch_size, frame_buffer);
+      current_frame += batch_size;
+    }
+
     while (current_frame < work_item.end_frame) {
-      i32 frame_offset = current_frame - work_item.start_frame;
+      i32 frame_offset = current_frame - work_item.warmup_start_frame;
       i32 batch_size =
           std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
@@ -644,6 +659,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   i32 num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
+  EvaluatorCapabilities caps = evaluator_factory->get_capabilities();
+
   // Load the dataset descriptor to find all data files
   DatasetDescriptor descriptor;
   {
@@ -673,7 +690,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   }
 
   // Break up videos and their frames into equal sized work items
-  const i32 WORK_ITEM_SIZE = frames_per_work_item();
+  const i32 work_item_size = frames_per_work_item();
   std::vector<VideoWorkItem> work_items;
 
   // Track how work was broken up for each video so we can know how the
@@ -689,10 +706,12 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
     i32 allocated_frames = 0;
     while (allocated_frames < meta.frames) {
       i32 frames_to_allocate =
-          std::min(WORK_ITEM_SIZE, meta.frames - allocated_frames);
+          std::min(work_item_size, meta.frames - allocated_frames);
 
       VideoWorkItem item;
       item.video_index = i;
+      item.warmup_start_frame =
+          std::max(0, allocated_frames - caps.warmup_size);
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
@@ -721,13 +740,12 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   //   We should allocate the buffer in the load thread if we need to support
   //   multiple sizes or analyze all the videos an allocate buffers for the
   //   largest possible size
-  EvaluatorCapabilities caps = evaluator_factory->get_capabilities();
 
   size_t frame_size =
       descriptor.max_width * descriptor.max_height * 3 * sizeof(u8);
   const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
   std::vector<std::vector<u8*>> staging_buffers(PUS_PER_NODE);
-  size_t buffer_size = frame_size * frames_per_work_item();
+  size_t buffer_size = frame_size * (frames_per_work_item() + caps.warmup_size);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     int device_id = pu;
     for (i32 i = 0; i < LOAD_BUFFERS; ++i) {
@@ -772,7 +790,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         video_metadata, work_items,
 
         // Per worker arguments
-        i, caps.device_type, i % PUS_PER_NODE, decoder_type,
+        i, caps.device_type, i % PUS_PER_NODE, decoder_type, caps.device_type,
         decode_thread_profilers[i],
 
         // Queues
@@ -791,7 +809,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   std::vector<EvaluateThreadArgs> eval_thread_args;
 
   EvaluatorConfig eval_config;
-  eval_config.max_input_count = frames_per_work_item();
+  eval_config.max_input_count =
+      std::max(frames_per_work_item(), caps.warmup_size);
   eval_config.max_frame_width = descriptor.max_width;
   eval_config.max_frame_height = descriptor.max_height;
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
@@ -1011,14 +1030,16 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       DatabaseMetadata meta =
           deserialize_database_metadata(meta_in_file.get(), pos);
 
-      size_t dataset_id = 0;
-      for (size_t i = 0; i < meta.dataset_names.size(); ++i) {
-        if (meta.dataset_names[i] == dataset_name) {
-          dataset_id = i;
+      i32 job_id = meta.next_job_id++;
+      meta.job_names[job_id] = job_name;
+      i32 dataset_id = 0;
+      for (const auto& kv : meta.dataset_names) {
+        if (kv.second == dataset_name) {
+          dataset_id = kv.first;
           break;
         }
       }
-      meta.dataset_job_names[dataset_id].push_back(dataset_name);
+      meta.dataset_job_ids[dataset_id].insert(job_id);
 
       std::unique_ptr<WriteFile> meta_out_file;
       make_unique_write_file(storage, db_meta_path, meta_out_file);

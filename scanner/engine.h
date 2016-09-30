@@ -28,6 +28,7 @@ namespace scanner {
 ///   execution of the run command.
 struct VideoWorkItem {
   i32 video_index;
+  i32 warmup_start_frame;
   i32 start_frame;
   i32 end_frame;
 };

@@ -27,5 +27,10 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
     movie_analysis/face_evaluator.cpp)
 endif()
 
+if (BUILD_TRACKER_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    tracker/tracker_evaluator.cpp)
+endif()
+
 add_library(evaluators OBJECT
   ${SOURCE_FILES})
