@@ -104,11 +104,9 @@ JobDescriptor read_job_descriptor(StorageBackend* storage,
 }
 }
 
-VideoHandler::VideoHandler(VideoHandlerStats* stats, StorageConfig* config,
-                           const std::string& job_name)
+VideoHandler::VideoHandler(VideoHandlerStats* stats, StorageConfig* config)
     : stats_(stats),
-      storage_(StorageBackend::make_from_config(config)),
-      job_name_(job_name) {}
+      storage_(StorageBackend::make_from_config(config)) {}
 
 void VideoHandler::onRequest(
     std::unique_ptr<pg::HTTPMessage> message) noexcept {
@@ -177,10 +175,10 @@ void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
   bool bad = false;
   boost::smatch match_result;
   if (path.empty()) {
-    for (size_t i = 0; i < meta.dataset_names.size(); ++i) {
+    for (const auto& kv : meta.dataset_names) {
       folly::dynamic dataset_info = folly::dynamic::object();
-      dataset_info["id"] = i;
-      dataset_info["name"] = meta.dataset_names[i];
+      dataset_info["id"] = kv.first;
+      dataset_info["name"] = kv.second;
 
       json.push_back(dataset_info);
     }
@@ -194,7 +192,7 @@ void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
     std::string suffix = match_result.suffix();
 
     i32 dataset_id = std::atoi(match_result[1].str().c_str());
-    if (!(dataset_id < meta.dataset_names.size())) {
+    if (meta.dataset_names.count(dataset_id) < 1) {
       response.status(400, "Bad Request");
       bad = true;
     } else {
@@ -223,21 +221,21 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
                                pg::ResponseBuilder& response) {
   static const boost::regex features_regex("^/features/([[:digit:]]+)");
 
-  const std::string& dataset_name = meta.dataset_names[dataset_id];
-  const std::vector<std::string>& job_names =
-      meta.dataset_job_names[dataset_id];
+  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
+  const std::set<i32>& job_ids =
+      meta.dataset_job_ids.at(dataset_id);
 
   boost::smatch match_result;
   if (boost::regex_search(path, match_result, id_regex)) {
     std::string suffix = match_result.suffix();
     // Asking for a specific job's information
     i32 job_id = std::atoi(match_result[1].str().c_str());
-    if (!(job_id < job_names.size())) {
+    if (job_ids.count(job_id) < 1) {
       response.status(400, "Bad Request");
       return;
     }
     if (suffix.empty()) {
-      const std::string& job_name = job_names[job_id];
+      const std::string& job_name = meta.job_names.at(job_id);
       JobDescriptor job_descriptor =
           read_job_descriptor(storage_.get(), job_name);
 
@@ -251,7 +249,6 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
       std::string body = folly::toJson(m);
       response.status(200, "OK").body(body);
     } else if (boost::regex_search(suffix, match_result, features_regex)) {
-      LOG(FATAL) << "NOT IMPLEMENTED";
       suffix = match_result.suffix();
 
       i32 video_id = std::atoi(match_result[1].str().c_str());
@@ -265,11 +262,11 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
     // Asking for all job's information
     folly::dynamic json = folly::dynamic::array();
 
-    for (size_t i = 0; i < job_names.size(); ++i) {
+    for (i32 job_id : job_ids) {
       folly::dynamic m = folly::dynamic::object;
 
-      m["id"] = i;
-      m["name"] = job_names[i];
+      m["id"] = job_id;
+      m["name"] = meta.job_names.at(job_id);
       m["featureType"] = "detection";
       // meta["featureType"] = "classification";
 
@@ -294,10 +291,10 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   i32 start_frame = message_->getIntQueryParam("start");
   i32 end_frame = message_->getIntQueryParam("end");
 
-  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
   DatasetDescriptor dataset_descriptor =
       read_dataset_descriptor(storage_.get(), dataset_name);
-  const std::string& job_name = meta.dataset_job_names[dataset_id][job_id];
+  const std::string& job_name = meta.job_names.at(job_id);
   JobDescriptor job_descriptor = read_job_descriptor(storage_.get(), job_name);
 
   i32 stride = 1;
@@ -369,7 +366,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
       for (size_t output_index = 0; output_index < output_names.size();
            ++output_index) {
         std::string output_path = job_item_output_path(
-            job_name_, video_name, output_names[output_index], start, end);
+            job_name, video_name, output_names[output_index], start, end);
 
         std::unique_ptr<RandomReadFile> file;
         make_unique_random_read_file(storage_.get(), output_path, file);
@@ -437,7 +434,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
 void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
                                  const std::string& path,
                                  pg::ResponseBuilder& response) {
-  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
   DatasetDescriptor dataset_descriptor =
       read_dataset_descriptor(storage_.get(), dataset_name);
 
@@ -502,7 +499,7 @@ void VideoHandler::handle_media(const DatabaseMetadata& meta,
                                 const std::string& path,
                                 pg::ResponseBuilder& response) {
   const pg::HTTPHeaders& headers = message_->getHeaders();
-  const std::string& dataset_name = meta.dataset_names[dataset_id];
+  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
   DatasetDescriptor dataset_descriptor =
       read_dataset_descriptor(storage_.get(), dataset_name);
 

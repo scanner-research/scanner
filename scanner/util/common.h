@@ -18,6 +18,7 @@
 #include "storehouse/storage_backend.h"
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -93,8 +94,24 @@ inline i32 frames_per_work_item() {
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
 struct DatabaseMetadata {
-  std::vector<std::string> dataset_names;
-  std::vector<std::vector<std::string>> dataset_job_names;
+ public:
+  bool has_dataset(const std::string& dataset);
+  bool has_dataset(i32 dataset_id);
+  i32 get_dataset_id(const std::string& dataset);
+  const std::string& get_dataset_name(i32 dataset_id);
+  void add_dataset(const std::string& dataset);
+
+  bool has_job(i32 dataset_id, const std::string& job);
+  bool has_job(i32 dataset_id, i32 job_id);
+  i32 get_job_id(i32 dataset_id, const std::string& job_name);
+  const std::string& get_job_name(i32 dataset_id, i32 job_id);
+  void add_job(i32 dataset_id, const std::string& job_name);
+
+  i32 next_dataset_id;
+  i32 next_job_id;
+  std::map<i32, std::string> dataset_names;
+  std::map<i32, std::set<i32>> dataset_job_ids;
+  std::map<i32, std::string> job_names;
 };
 
 enum class DeviceType {

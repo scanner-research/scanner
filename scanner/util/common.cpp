@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cstdarg>
 #include <sstream>
+#include <iostream>
 
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
@@ -42,38 +43,135 @@ int LOAD_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;      // Number of cuda streams for image processing
 
+bool DatabaseMetadata::has_dataset(const std::string& dataset) {
+  for (const auto& kv : dataset_names) {
+    if (kv.second == dataset) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool DatabaseMetadata::has_dataset(i32 dataset_id) {
+  return dataset_names.count(dataset_id) > 0;
+}
+
+i32 DatabaseMetadata::get_dataset_id(const std::string &dataset) {
+  i32 id = -1;
+  for (const auto& kv : dataset_names) {
+    if (kv.second == dataset) {
+      id = kv.first;
+      break;
+    }
+  }
+  assert(id != -1);
+  return id;
+}
+
+const std::string& DatabaseMetadata::get_dataset_name(i32 dataset_id) {
+  return dataset_names.at(dataset_id);
+}
+
+void DatabaseMetadata::add_dataset(const std::string &dataset) {
+  i32 dataset_id = next_dataset_id++;
+  dataset_names[dataset_id] = dataset;
+  dataset_job_ids[dataset_id] = {};
+}
+
+bool DatabaseMetadata::has_job(i32 dataset_id, const std::string &job) {
+  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
+  for (i32 job_id : job_ids) {
+    const std::string& job_name = job_names.at(job_id);
+    if (job_name == job) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool DatabaseMetadata::has_job(i32 dataset_id, i32 job_id) {
+  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
+  return job_ids.count(job_id) > 0;
+}
+
+i32 DatabaseMetadata::get_job_id(i32 dataset_id, const std::string &job) {
+  i32 job_id = -1;
+  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
+  for (i32 id : job_ids) {
+    const std::string& job_name = job_names.at(id);
+    if (job_name == job) {
+      job_id = id;
+      break;
+    }
+  }
+  assert(job_id != -1);
+  return job_id;
+}
+
+const std::string &DatabaseMetadata::get_job_name(i32 dataset_id, i32 job_id) {
+  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
+  assert(job_ids.count(job_id) > 0);
+  return job_names.at(job_id);
+}
+
+void DatabaseMetadata::add_job(i32 dataset_id, const std::string &job_name) {
+  i32 job_id = next_job_id++;
+  dataset_job_ids.at(dataset_id).insert(job_id);
+  job_names[job_id] = job_name;
+}
+
 void serialize_database_metadata(storehouse::WriteFile* file,
                                  const DatabaseMetadata& metadata) {
-  assert(metadata.dataset_names.size() == metadata.dataset_job_names.size());
+  assert(metadata.dataset_names.size() == metadata.dataset_job_ids.size());
+
+  write(file, metadata.next_dataset_id);
+  write(file, metadata.next_job_id);
+
   size_t num_datasets = metadata.dataset_names.size();
   write(file, num_datasets);
-  for (const std::string& s : metadata.dataset_names) {
-    write(file, s);
+  for (const auto& kv : metadata.dataset_names) {
+    write(file, kv.first);
+    write(file, kv.second);
   }
-  for (const std::vector<std::string>& jobs : metadata.dataset_job_names) {
-    size_t num_jobs = jobs.size();
-    write(file, num_jobs);
-    for (const std::string& s : jobs) {
-      write(file, s);
+  for (const auto& kv : metadata.dataset_job_ids) {
+    write(file, kv.first);
+    size_t num_job_ids = kv.second.size();
+    write(file, num_job_ids);
+    for (i32 job_id : kv.second) {
+      write(file, job_id);
     }
+  }
+  size_t num_jobs = metadata.job_names.size();
+  write(file, num_jobs);
+  for (const auto& kv : metadata.job_names) {
+    write(file, kv.first);
+    write(file, kv.second);
   }
 }
 
 DatabaseMetadata deserialize_database_metadata(storehouse::RandomReadFile* file,
                                                u64& pos) {
   DatabaseMetadata meta;
+  meta.next_dataset_id = read<i32>(file, pos);
+  meta.next_job_id = read<i32>(file, pos);
+
   size_t num_datasets = read<size_t>(file, pos);
-  meta.dataset_names.resize(num_datasets);
   for (size_t i = 0; i < num_datasets; ++i) {
-    meta.dataset_names[i] = read<std::string>(file, pos);
+    i32 dataset_id = read<i32>(file, pos);
+    meta.dataset_names[dataset_id] = read<std::string>(file, pos);
   }
-  meta.dataset_job_names.resize(num_datasets);
   for (size_t i = 0; i < num_datasets; ++i) {
-    size_t num_jobs = read<size_t>(file, pos);
-    meta.dataset_job_names[i].resize(num_jobs);
-    for (size_t j = 0; j < num_jobs; ++j) {
-      meta.dataset_job_names[i][j] = read<std::string>(file, pos);
+    i32 dataset_id = read<i32>(file, pos);
+    size_t num_job_ids = read<size_t>(file, pos);
+    meta.dataset_job_ids[i] = {};
+    for (size_t j = 0; j < num_job_ids; ++j) {
+      meta.dataset_job_ids[i].insert(read<i32>(file, pos));
     }
+  }
+  size_t num_jobs = read<size_t>(file, pos);
+  for (size_t i = 0; i < num_jobs; ++i) {
+    i32 job_id = read<i32>(file, pos);
+    meta.job_names[job_id] = read<std::string>(file, pos);
   }
 
   return meta;

@@ -4,6 +4,7 @@ $p3: #445878;
 $p4: #92CDCF;
 $p5: #EEEFF7;
 
+
 .thumbnail {
     display: inline-block;
 }
@@ -14,9 +15,19 @@ $p5: #EEEFF7;
 
 .dataset-info {
     display: inline-block;
-    height: 100%;
+    color: $p5;
     background: $p3;
     padding: 5px;
+    margin: 2px;
+    border-radius: 3px;
+}
+
+.job-info {
+    display: inline-block;
+    color: $p5;
+    background: $p3;
+    padding: 5px;
+    margin: 2px;
     border-radius: 3px;
 }
 

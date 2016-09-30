@@ -35,8 +35,7 @@ class VideoHandlerStats;
 class VideoHandler : public proxygen::RequestHandler {
  public:
   explicit VideoHandler(VideoHandlerStats* stats,
-                        storehouse::StorageConfig* config,
-                        const std::string& job_name);
+                        storehouse::StorageConfig* config);
 
   void onRequest(
       std::unique_ptr<proxygen::HTTPMessage> message) noexcept override;
@@ -75,7 +74,6 @@ class VideoHandler : public proxygen::RequestHandler {
 
   VideoHandlerStats* const stats_{nullptr};
   std::unique_ptr<storehouse::StorageBackend> storage_{nullptr};
-  std::string job_name_;
 
   std::unique_ptr<proxygen::HTTPMessage> message_;
   std::unique_ptr<folly::IOBuf> body_;

@@ -573,7 +573,7 @@ var VisualizerApp = React.createClass({
                 id: -1,
                 name: "Loading...",
             }],
-            selectedDataset: 0,
+            selectedDataset: -1,
             videos: [{
                 frames: 1,
                 width: 1280,
@@ -582,21 +582,41 @@ var VisualizerApp = React.createClass({
                 mediaPath: '',
                 name: "Loading...",
             }],
-            selectedVideo: 0,
-            selectedFrame: 0,
-            jobs: [{}],
-            selectedJob: 0,
+            selectedVideo: -1,
+            jobs: [{
+                id: -1,
+                name: "Loading...",
+            }],
+            selectedJob: -1,
             frameData: [
                 [{
                     status: 'invalid',
                     data: {},
                 }]
             ],
+            selectedFrame: 0,
         };
+    },
+    findDataset: function(id) {
+        return _.find(this.state.datasets, function(d) { return d.id == id; });
+    },
+    findVideo: function(id) {
+        return _.find(this.state.videos, function(d) { return d.id == id; });
+    },
+    findVideoIndex: function(id) {
+        return _.findIndex(this.state.videos, function(d) {
+            return d.id == id;
+        });
+    },
+    findJob: function(id) {
+        return _.find(this.state.jobs, function(d) { return d.id == id; });
     },
     handleSelectedFrameChange: function(d) {
         var frame = d.frame;
-        this.loadPredictionData(d.videoId, frame - 1, frame + 1);
+
+        if (this.state.selectedJob != -1) {
+            this.loadPredictionData(d.videoId, frame - 1, frame + 1);
+        }
         this.setState({
             selectedVideo: d.videoId,
             selectedFrame: d.frame
@@ -618,17 +638,34 @@ var VisualizerApp = React.createClass({
             url: "datasets/" + datasetId + "/videos",
             dataType: "json",
             success: function(videosData) {
-                this.setState({videos: videosData});
                 var frameData = _.map(videosData, function(video) {
                     return _.times(video.frames, function(i) {
                         return {status: 'invalid', data: {}};
                     });
                 })
                 this.setState({
+                    selectedVideo: videosData[0].id,
+                    selectedFrame: 0,
                     videos: videosData,
                     frameData: frameData
                 });
             }.bind(this)
+        });
+        this.setState({
+            selectedDataset: datasetId,
+            selectedJob: -1,
+        });
+    },
+    handleSelectedJobChange: function(jobId) {
+        var frameData = _.map(this.state.videos, function(video) {
+            return _.times(video.frames, function(i) {
+                return {status: 'invalid', data: {}};
+            });
+        })
+
+        this.setState({
+            selectedJob: jobId,
+            frameData: frameData
         });
     },
     loadDatasetJobData: function(datasetx) {
@@ -675,7 +712,7 @@ var VisualizerApp = React.createClass({
         if (requestStart == requestEnd) return;
         $.ajax({
             url: "datasets/" + this.state.selectedDataset +
-                 "/jobs/" + this.state.jobs[0].id +
+                 "/jobs/" + this.state.selectedJob +
                  "/features/" + videoId,
             dataType: "json",
             data: {
@@ -722,24 +759,33 @@ var VisualizerApp = React.createClass({
             );
         }.bind(this));
         var jobDivs = _.map(this.state.jobs, function(job) {
-        });
+            return (
+                <div className="job-info"
+                     key={job.id}
+                     onClick={()=>this.handleSelectedJobChange(job.id)}>
+                  {job.name}
+                </div>
+            );
+        }.bind(this));
         var selectedVideo = this.state.selectedVideo;
+        var selectedVideoIndex = this.findVideoIndex(selectedVideo);
         var selectedFrame = this.state.selectedFrame;
         var frame =
-            this.state.frameData[selectedVideo][selectedFrame];
+            this.state.frameData[selectedVideoIndex][selectedFrame];
         return (
             <div className="visualizer-app">
               <div className="dataset-panel">
                 {datasetDivs}
               </div>
               <div className="job-panel">
+                {jobDivs}
               </div>
-              <VideoBrowser job={this.state.jobs[0]}
+              <VideoBrowser job={this.findJob(this.state.selectedJob)}
                             videos={this.state.videos}
                             onSelectedFrameChange={
                                 this.handleSelectedFrameChange}/>
-              <ViewerPanel job={this.state.jobs[0]}
-                           video={this.state.videos[selectedVideo]}
+              <ViewerPanel job={this.findJob(this.state.selectedJob)}
+                           video={this.findVideo(selectedVideo)}
                            graphics={detectionGraphics}
                            selectedFrame={frame}/>
             </div>

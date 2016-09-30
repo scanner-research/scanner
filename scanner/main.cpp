@@ -142,21 +142,30 @@ int main(int argc, char** argv) {
     po::options_description main_desc("Allowed options");
     main_desc.add_options()("help", "Produce help message")(
         "command", po::value<std::string>()->required(), "Command to execute")(
-        "subargs", po::value<std::vector<std::string> >(),
+
+        "subargs", po::value<std::vector<std::string>>(),
         "Arguments for command")(
+
         "config_file", po::value<std::string>(),
         "System configuration (# pus, batch, etc) in toml format. "
         "Explicit command line options will override file settings.")(
+
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
+
         "batch_size", po::value<int>(), "Neural Net input batch size")(
+
         "batches_per_work_item", po::value<int>(),
         "Number of batches in each work item")(
+
         "tasks_in_queue_per_pu", po::value<int>(),
         "Number of tasks a node will try to maintain in the work queue per PU")(
+
         "load_workers_per_node", po::value<int>(),
         "Number of worker threads processing load jobs per node")(
+
         "save_workers_per_node", po::value<int>(),
         "Number of worker threads processing save jobs per node")(
+
         "db_path", po::value<std::string>(),
         "Absolute path to scanner database directory");
 
@@ -297,12 +306,9 @@ int main(int argc, char** argv) {
     } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
       po::options_description serve_desc("serve options");
-      serve_desc.add_options()("help", "Produce help message")(
-          "job_name", po::value<std::string>()->required(),
-          "Name of job to serve results for");
+      serve_desc.add_options()("help", "Produce help message");
 
       po::positional_options_description serve_pos;
-      serve_pos.add("job_name", 1);
 
       try {
         po::store(po::command_line_parser(opts)
@@ -319,8 +325,6 @@ int main(int argc, char** argv) {
           throw e;
         }
       }
-
-      job_name = vm["job_name"].as<std::string>();
 
 #else
       std::cout << "Scanner not built with results serving support."
@@ -348,8 +352,9 @@ int main(int argc, char** argv) {
       storehouse::StorageConfig::make_posix_config(db_path);
 
   // Setup db metadata if it does not exist yet
+  DatabaseMetadata meta{};
   {
-    storehouse::StorageBackend* storage =
+    storehouse::StorageBackend *storage =
         storehouse::StorageBackend::make_from_config(config);
 
     std::string db_meta_path = database_metadata_path();
@@ -357,12 +362,15 @@ int main(int argc, char** argv) {
     storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
     if (result == storehouse::StoreResult::FileDoesNotExist) {
       // Need to initialize db metadata
-      DatabaseMetadata meta;
       std::unique_ptr<storehouse::WriteFile> meta_out_file;
       make_unique_write_file(storage, db_meta_path, meta_out_file);
       serialize_database_metadata(meta_out_file.get(), meta);
+    } else {
+      std::unique_ptr<RandomReadFile> meta_in_file;
+      make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+      u64 pos = 0;
+      meta = deserialize_database_metadata(meta_in_file.get(), pos);
     }
-
     delete storage;
   }
 
@@ -372,6 +380,10 @@ int main(int argc, char** argv) {
     // persistently stored dataset which can then be operated on by the run
     // command.
 
+    if (meta.has_dataset(dataset_name)) {
+      LOG(FATAL) << "Dataset with that name already exists.";
+    }
+
     ingest(config, dataset_name, video_paths_file);
   } else if (cmd == "run") {
     // The run command takes 1) a name for the job, 2) an existing dataset name,
@@ -379,6 +391,15 @@ int main(int argc, char** argv) {
     // the network on every frame of the given dataset, saving the results and
     // the metadata for the job persistently. The metadata file for the job can
     // be used to find the results for any given video frame.
+
+    if (!meta.has_dataset(dataset_name)) {
+      LOG(FATAL) << "Dataset with that name does not exist.";
+    }
+
+    i32 dataset_id = meta.get_dataset_id(dataset_name);
+    if (meta.has_job(dataset_id, job_name)) {
+      LOG(FATAL) << "Job with that name already exists for that dataset";
+    }
 
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
 
@@ -426,7 +447,7 @@ int main(int argc, char** argv) {
     options.enableContentCompression = false;
     options.handlerFactories =
         pg::RequestHandlerChain()
-            .addThen<VideoHandlerFactory>(config, job_name)
+            .addThen<VideoHandlerFactory>(config)
             .build();
 
     pg::HTTPServer server(std::move(options));

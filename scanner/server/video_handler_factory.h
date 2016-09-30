@@ -31,8 +31,7 @@ namespace scanner {
 
 class VideoHandlerFactory : public proxygen::RequestHandlerFactory {
  public:
-  VideoHandlerFactory(storehouse::StorageConfig* storage_config,
-                      const std::string& job_name);
+  VideoHandlerFactory(storehouse::StorageConfig* storage_config);
 
   void onServerStart(folly::EventBase* evb) noexcept override;
 
@@ -43,7 +42,6 @@ class VideoHandlerFactory : public proxygen::RequestHandlerFactory {
 
  private:
   storehouse::StorageConfig* storage_config_;
-  std::string job_name_;
   folly::ThreadLocalPtr<VideoHandlerStats> stats_;
 };
 }

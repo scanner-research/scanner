@@ -805,8 +805,9 @@ void ingest(storehouse::StorageConfig* storage_config,
     DatabaseMetadata meta =
         deserialize_database_metadata(meta_in_file.get(), pos);
 
-    meta.dataset_names.push_back(dataset_name);
-    meta.dataset_job_names.push_back({});
+    i32 dataset_id = meta.next_dataset_id++;
+    meta.dataset_names[dataset_id] = dataset_name;
+    meta.dataset_job_ids[dataset_id] = {};
 
     std::unique_ptr<WriteFile> meta_out_file;
     make_unique_write_file(storage, db_meta_path, meta_out_file);
