@@ -45,20 +45,13 @@ extern "C" {
 
 namespace scanner {
 
-NVIDIAVideoDecoder::NVIDIAVideoDecoder(DatasetItemMetadata metadata,
-                                       int device_id, CUcontext cuda_context)
-    : metadata_(metadata),
-      device_id_(device_id),
-      cuda_context_(cuda_context),
-      metadata_packets_(metadata.metadata_packets),
-      max_output_frames_(32),
-      max_mapped_frames_(8),
-      streams_(max_mapped_frames_),
-      parser_(nullptr),
-      decoder_(nullptr),
-      mapped_frames_(max_mapped_frames_, 0),
-      prev_frame_(0),
-      decode_time_(0) {
+NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
+                                       CUcontext cuda_context)
+    : device_id_(device_id), output_type_(output_type),
+      cuda_context_(cuda_context), metadata_packets_(metadata.metadata_packets),
+      max_output_frames_(32), max_mapped_frames_(8),
+      streams_(max_mapped_frames_), parser_(nullptr), decoder_(nullptr),
+      mapped_frames_(max_mapped_frames_, 0), prev_frame_(0), decode_time_(0) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -95,6 +88,8 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
 }
 
 void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
+  metadata_ = metadata;
+
   CUVIDPARSERPARAMS cuparseinfo = {};
   cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.ulMaxNumDecodeSurfaces = max_output_frames_;
@@ -239,6 +234,10 @@ bool NVIDIAVideoDecoder::get_frame(char* decoded_buffer, size_t decoded_size) {
     // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
     //              on that here to copy the data properly
     for (int i = 0; i < 2; i++) {
+      cudaMemcpyKind copy_kind =
+          output_type_ == DeviceType::GPU ?
+          cudaMemcpyDeviceToDevice :
+          cudaMemcpyDeviceToHost;
       CU_CHECK(cudaMemcpy2DAsync(
           decoded_buffer + i * metadata_.width * metadata_.height,
           metadata_.width,  // dst pitch
@@ -246,7 +245,7 @@ bool NVIDIAVideoDecoder::get_frame(char* decoded_buffer, size_t decoded_size) {
           pitch,                                             // src pitch
           metadata_.width,                                   // width
           i == 0 ? metadata_.height : metadata_.height / 2,  // height
-          cudaMemcpyDeviceToDevice, streams_[mapped_frame_index]));
+          copy_kind, streams_[mapped_frame_index]));
     }
   }
 

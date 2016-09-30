@@ -37,7 +37,7 @@ namespace scanner {
 /// SoftwareVideoDecoder
 class SoftwareVideoDecoder : public VideoDecoder {
  public:
-  SoftwareVideoDecoder(int device_id);
+  SoftwareVideoDecoder(int device_id, DeviceType output_type);
 
   ~SoftwareVideoDecoder();
 
@@ -56,11 +56,13 @@ class SoftwareVideoDecoder : public VideoDecoder {
 
  private:
   int device_id_;
+  DeviceType output_type_;
   AVPacket packet_;
   AVCodec* codec_;
   AVCodecContext* cc_;
 
   DatasetItemMetadata metadata_;
+  std::vector<u8> conversion_buffer_;
   bool reset_context_;
   SwsContext* sws_context_;
 

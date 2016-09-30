@@ -27,8 +27,9 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// NVIDIAVideoDecoder
 class NVIDIAVideoDecoder : public VideoDecoder {
- public:
-  NVIDIAVideoDecoder(int device_id, CUcontext cuda_context);
+public:
+  NVIDIAVideoDecoder(int device_id, DeviceType output_type,
+                     CUcontext cuda_context);
 
   ~NVIDIAVideoDecoder();
 
@@ -55,6 +56,7 @@ class NVIDIAVideoDecoder : public VideoDecoder {
                                           CUVIDPARSERDISPINFO* dispinfo);
 
   int device_id_;
+  DeviceType output_type_;
   CUcontext cuda_context_;
   const int max_output_frames_;
   const int max_mapped_frames_;

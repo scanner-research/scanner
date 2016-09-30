@@ -53,9 +53,10 @@ bool VideoDecoder::has_decoder_type(VideoDecoderType type) {
   return false;
 }
 
-VideoDecoder* VideoDecoder::make_from_config(DeviceType device_type,
+VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
                                              int device_id,
-                                             VideoDecoderType type) {
+                                             VideoDecoderType type,
+                                             DeviceType output_type) {
   VideoDecoder* decoder = nullptr;
 
   switch (type) {
@@ -74,7 +75,7 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceType device_type,
       CUcontext cuda_context;
       CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_id));
 
-      decoder = new NVIDIAVideoDecoder(device_id, cuda_context);
+      decoder = new NVIDIAVideoDecoder(device_id, output_type, cuda_context);
 #else
 #endif
       break;
@@ -86,7 +87,7 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceType device_type,
       break;
     }
     case VideoDecoderType::SOFTWARE: {
-      decoder = new SoftwareVideoDecoder(device_id);
+      decoder = new SoftwareVideoDecoder(device_id, output_type);
       break;
     }
     default: {}

@@ -25,17 +25,23 @@ extern "C" {
 #include "libswscale/swscale.h"
 }
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
 #include <cassert>
 
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
-SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id)
-    : codec_(nullptr),
-      cc_(nullptr),
-      reset_context_(true),
-      sws_context_(nullptr) {
+SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id,
+                                           DeviceType output_type)
+    : device_id_(device_id), output_type_(output_type), codec_(nullptr),
+      cc_(nullptr), reset_context_(true), sws_context_(nullptr) {
+  if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
+    LOG(FATAL) << "Unsupported output type for software decoder";
+  }
   av_init_packet(&packet_);
 
   codec_ = avcodec_find_decoder(AV_CODEC_ID_H264);
@@ -74,6 +80,11 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
 void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
   reset_context_ = true;
+
+  int required_size = av_image_get_buffer_size(
+      AV_PIX_FMT_RGB24, metadata_.width, metadata_.height, 1);
+
+  conversion_buffer_.resize(required_size);
 }
 
 bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
@@ -160,10 +171,18 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     exit(EXIT_FAILURE);
   }
 
+  u8* scale_buffer = nullptr;
+  if (output_type_ == DeviceType::CPU) {
+    scale_buffer = conversion_buffer_.data();
+  } else if (output_type_ == DeviceType::GPU) {
+    scale_buffer = decoded_buffer;
+  } 
+
   uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size = av_image_fill_arrays(
-      out_slices, out_linesizes, reinterpret_cast<uint8_t*>(decoded_buffer),
+      out_slices, out_linesizes,
+      scale_buffer,
       AV_PIX_FMT_RGB24, metadata_.width, metadata_.height, 1);
   if (required_size < 0) {
     fprintf(stderr, "Error in av_image_fill_arrays\n");
@@ -177,6 +196,11 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
                 out_slices, out_linesizes) < 0) {
     fprintf(stderr, "sws_scale failed\n");
     exit(EXIT_FAILURE);
+  }
+
+  if (output_type_ == DeviceType::GPU) {
+    cudaMemcpy(decoded_buffer, scale_buffer, required_size,
+               cudaMemcpyHostToDevice);
   }
 
   av_frame_unref(frame);
