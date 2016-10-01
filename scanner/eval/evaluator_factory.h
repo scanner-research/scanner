@@ -43,8 +43,6 @@ class EvaluatorFactory {
 
   virtual EvaluatorCapabilities get_capabilities() = 0;
 
-  virtual i32 get_number_of_outputs() = 0;
-
   virtual std::vector<std::string> get_output_names() = 0;
 
   /* new_evaluator - constructs an evaluator to be used for processing

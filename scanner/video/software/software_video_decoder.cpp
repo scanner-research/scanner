@@ -172,9 +172,9 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   }
 
   u8* scale_buffer = nullptr;
-  if (output_type_ == DeviceType::CPU) {
+  if (output_type_ == DeviceType::GPU) {
     scale_buffer = conversion_buffer_.data();
-  } else if (output_type_ == DeviceType::GPU) {
+  } else if (output_type_ == DeviceType::CPU) {
     scale_buffer = decoded_buffer;
   } 
 

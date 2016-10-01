@@ -43,18 +43,18 @@ void TrackerEvaluator::reset() {
   LOG(INFO) << "Tracker reset";
 }
 
-void TrackerEvaluator::warmup(i32 input_count, u8* input_buffer) {
-  LOG(INFO) << "Tracker warmup " << input_count;
-}
+void TrackerEvaluator::evaluate(
+    const std::vector<std::vector<u8 *>> &input_buffers,
+    const std::vector<std::vector<size_t>> &input_sizes,
+    std::vector<std::vector<u8 *>> &output_buffers,
+    std::vector<std::vector<size_t>> &output_sizes) {
+  i32 input_count = input_buffers[0].size();
 
-void TrackerEvaluator::evaluate(i32 input_count, u8* input_buffer,
-                              std::vector<std::vector<u8*>>& output_buffers,
-                              std::vector<std::vector<size_t>>& output_sizes) {
   LOG(INFO) << "Tracker evaluate " << input_count;
   for (int i = 0; i < input_count; ++i) {
-    u8 *buf = new u8[1];
+    u8 *buf = new u8[10000];
     output_buffers[0].push_back(buf);
-    output_sizes[0].push_back(1);
+    output_sizes[0].push_back(10000);
   }
 }
 
@@ -72,10 +72,6 @@ EvaluatorCapabilities TrackerEvaluatorFactory::get_capabilities() {
   caps.max_devices = 1;
   caps.warmup_size = warmup_count_;
   return caps;
-}
-
-i32 TrackerEvaluatorFactory::get_number_of_outputs() {
-  return 1;
 }
 
 std::vector<std::string> TrackerEvaluatorFactory::get_output_names() {

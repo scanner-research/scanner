@@ -18,27 +18,30 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+#include <glog/logging.h>
+
 #define CU_CHECK(ans) \
   { cuAssert((ans), __FILE__, __LINE__); }
 
-inline void cuAssert(cudaError_t code, const char *file, int line,
-                     bool abort = true) {
+inline void cuAssert(cudaError_t code, const char *file, int line) {
   if (code != cudaSuccess) {
-    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
-            line);
-    if (abort) exit(code);
+    LOG(FATAL) << "GPUassert: "
+               << cudaGetErrorString(code) << " "
+               << file << " "
+               << line;
   }
 }
 
 #define CUD_CHECK(ans) \
   { cudAssert((ans), __FILE__, __LINE__); }
 
-inline void cudAssert(CUresult code, const char *file, int line,
-                      bool abort = true) {
+inline void cudAssert(CUresult code, const char *file, int line) {
   if (code != CUDA_SUCCESS) {
     const char *err_str;
     cuGetErrorString(code, &err_str);
-    fprintf(stderr, "GPUassert: %s %s %d\n", err_str, file, line);
-    if (abort) exit(code);
+    LOG(FATAL) << "GPUassert: "
+               << err_str << " "
+               << file << " "
+               << line;
   }
 }

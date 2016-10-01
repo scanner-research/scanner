@@ -24,48 +24,8 @@
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Work structs - structs used to exchange data between workers during
-///   execution of the run command.
-struct VideoWorkItem {
-  i32 video_index;
-  i32 warmup_start_frame;
-  i32 start_frame;
-  i32 end_frame;
-};
-
-struct LoadWorkEntry {
-  i32 work_item_index;
-};
-
-struct DecodeWorkEntry {
-  i32 work_item_index;
-  i32 start_keyframe;
-  i32 end_keyframe;
-  size_t encoded_data_size;
-  u8* buffer;
-};
-
-struct DecodeBufferEntry {
-  size_t buffer_size;
-  u8* buffer;
-};
-
-struct EvalWorkEntry {
-  i32 work_item_index;
-  size_t decoded_frames_size;
-  u8* buffer;
-};
-
-struct SaveWorkEntry {
-  i32 work_item_index;
-  std::vector<std::vector<size_t>> output_buffer_sizes;
-  std::vector<std::vector<u8*>> output_buffers;
-  DeviceType buffer_type;
-  i32 buffer_device_id;
-};
-
-///////////////////////////////////////////////////////////////////////////////
 void run_job(storehouse::StorageConfig* storage_config,
-             VideoDecoderType decoder_type, EvaluatorFactory* evaluator_factory,
-             const std::string& job_name, const std::string& dataset_name);
+             VideoDecoderType decoder_type,
+             std::vector<EvaluatorFactory*> evaluator_factory,
+             const std::string& job_name, const std::string &dataset_name);
 }

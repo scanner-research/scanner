@@ -14,6 +14,7 @@
 
 set(SOURCE_FILES
   common.cpp
+  memory.cpp
   profiler.cpp
   util.cpp
   jpeg/JPEGReader.cpp
@@ -23,6 +24,5 @@ add_library(util OBJECT
   ${SOURCE_FILES})
 
 if (CUDA_FOUND)
-  cuda_add_library(util_cuda
-    opencv.cu)
+  cuda_add_library(util_cuda)
 endif()

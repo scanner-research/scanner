@@ -16,6 +16,7 @@
 #include "scanner/engine.h"
 
 #include "scanner/util/common.h"
+#include "scanner/util/memory.h"
 #include "scanner/util/jpeg/JPEGWriter.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
@@ -52,43 +53,46 @@ using storehouse::RandomReadFile;
 using storehouse::exit_on_error;
 
 namespace scanner {
-namespace {
+///////////////////////////////////////////////////////////////////////////////
+/// Work structs - structs used to exchange data between workers during
+///   execution of the run command.
+struct VideoWorkItem {
+  i32 video_index;
+  i32 warmup_start_frame;
+  i32 start_frame;
+  i32 end_frame;
+};
 
-u8* new_buffer(DeviceType type, int device_id, size_t size) {
-  u8* buffer = nullptr;
-  if (type == DeviceType::CPU) {
-    buffer = new u8[size];
-  }
-#ifdef HAVE_CUDA
-  else if (type == DeviceType::GPU) {
-    CU_CHECK(cudaSetDevice(device_id));
-    CU_CHECK(cudaMalloc((void**)&buffer, size));
-  }
-#endif
-  else {
-    LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
-  }
-  return buffer;
-}
+struct LoadWorkEntry {
+  i32 work_item_index;
+};
 
-void delete_buffer(DeviceType type, int device_id, u8* buffer) {
-  assert(buffer != nullptr);
-  if (type == DeviceType::CPU) {
-    delete[] buffer;
-  }
-#ifdef HAVE_CUDA
-  else if (type == DeviceType::GPU) {
-    CU_CHECK(cudaSetDevice(device_id));
-    CU_CHECK(cudaFree(buffer));
-  }
-#endif
-  else {
-    LOG(FATAL) << "Tried to delete buffer of unsupported device type";
-  }
-  buffer = nullptr;
-}
+struct DecodeWorkEntry {
+  i32 work_item_index;
+  i32 start_keyframe;
+  i32 end_keyframe;
+  size_t encoded_data_size;
+  u8* buffer;
+};
 
-} // end anonymous namespace
+struct DecodeBufferEntry {
+  size_t buffer_size;
+  u8* buffer;
+};
+
+struct EvalWorkEntry {
+  i32 work_item_index;
+  size_t decoded_frames_size;
+  u8* buffer;
+};
+
+struct SaveWorkEntry {
+  i32 work_item_index;
+  std::vector<std::vector<size_t>> output_buffer_sizes;
+  std::vector<std::vector<u8*>> output_buffers;
+  DeviceType buffer_type;
+  i32 buffer_device_id;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
@@ -135,10 +139,8 @@ struct EvaluateThreadArgs {
 
   // Per worker arguments
   int id;
-  DeviceType device_type;
-  i32 device_id;
-  EvaluatorFactory& evaluator_factory;
-  EvaluatorConfig evaluator_config;
+  std::vector<EvaluatorFactory*> evaluator_factories;
+  std::vector<EvaluatorConfig> evaluator_configs;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -422,11 +424,23 @@ void* evaluate_thread(void* arg) {
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  EvaluatorCapabilities caps = args.evaluator_factory.get_capabilities();
+  assert(args.evaluator_factories.size() == args.evaluator_configs.size());
+  std::vector<EvaluatorCapabilities> evaluator_caps;
+  std::vector<std::unique_ptr<Evaluator>> evaluators;
+  std::vector<i32> num_evaluator_outputs;
+  for (size_t i = 0; i < args.evaluator_factories.size(); ++i) {
+    EvaluatorFactory* factory = args.evaluator_factories[i];
+    const EvaluatorConfig& config = args.evaluator_configs[i];
+    evaluator_caps.push_back(factory->get_capabilities());
+    evaluators.emplace_back(factory->new_evaluator(config));
+    num_evaluator_outputs.push_back(factory->get_output_names().size());
+  }
+  assert(evaluators.size() > 0);
 
-  std::unique_ptr<Evaluator> evaluator{
-      args.evaluator_factory.new_evaluator(args.evaluator_config)};
-  i32 num_outputs = args.evaluator_factory.get_number_of_outputs();
+  i32 last_evaluator_num_outputs =
+      args.evaluator_factories.back()->get_output_names().size();
+  i32 last_evaluator_device_id = args.evaluator_configs.back().device_ids[0];
+  DeviceType last_evaluator_device_type = evaluator_caps.back().device_type;
 
   args.profiler.add_interval("setup", setup_start, now());
 
@@ -451,64 +465,144 @@ void* evaluate_thread(void* arg) {
         args.work_items[work_entry.work_item_index];
     const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
 
-    // Make the evaluator aware of the format of the data we are about to
-    // feed it
-    // TODO(apoms): check if the video is the same as the prevous work item
-    //   and elide this call if so.
-    evaluator->configure(metadata);
+    for (auto& evaluator : evaluators) {
+      // Make the evaluator aware of the format of the data we are about to
+      // feed it
+      // TODO(apoms): check if the video is the same as the prevous work item
+      //   and elide this call if so.
+      evaluator->configure(metadata);
+
+      // TODO(apoms): conservatively call reset and provide warmup frames for
+      //   every work item for now. We need to track what the last item consumed
+      //   by the evaluator was and elide the reset/warmup if its video id is
+      //   the same and the end frame is equal to this item's start frame.
+      evaluator->reset();
+    }
 
     size_t frame_size = metadata.width * metadata.height * 3 * sizeof(u8);
 
     SaveWorkEntry save_work_entry;
-    save_work_entry.buffer_type = args.device_type;
-    save_work_entry.buffer_device_id = args.device_id;
+    save_work_entry.buffer_type = DeviceType::CPU;
+    save_work_entry.buffer_device_id = 0;
     save_work_entry.work_item_index = work_entry.work_item_index;
 
     std::vector<std::vector<size_t>>& work_item_output_sizes =
         save_work_entry.output_buffer_sizes;
     std::vector<std::vector<u8*>>& work_item_output_buffers =
         save_work_entry.output_buffers;
-    work_item_output_sizes.resize(num_outputs);
-    work_item_output_buffers.resize(num_outputs);
+    work_item_output_sizes.resize(last_evaluator_num_outputs);
+    work_item_output_buffers.resize(last_evaluator_num_outputs);
 
-    // TODO(apoms): conservatively call reset and provide warmup frames for
-    //   every work item for now. We need to track what the last item consumed
-    //   by the evaluator was and elide the reset/warmup if its video id is the
-    //   same and the end frame is equal to this item's start frame.
-    evaluator->reset();
     i32 current_frame = work_item.warmup_start_frame;
-    while (current_frame < work_item.start_frame) {
-      i32 frame_offset = current_frame - work_item.warmup_start_frame;
-      i32 batch_size =
-          std::min(GLOBAL_BATCH_SIZE, work_item.start_frame - current_frame);
-
-      u8* frame_buffer = work_entry.buffer + frame_size * frame_offset;
-
-      evaluator->warmup(batch_size, frame_buffer);
-      current_frame += batch_size;
-    }
-
     while (current_frame < work_item.end_frame) {
       i32 frame_offset = current_frame - work_item.warmup_start_frame;
       i32 batch_size =
           std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
 
-      u8* frame_buffer = work_entry.buffer + frame_size * frame_offset;
+      std::vector<std::vector<u8 *>> input_buffers;
+      std::vector<std::vector<size_t>> input_sizes;
+      DeviceType input_buffer_type;
+      i32 input_device_id;
+      // Initialize the output buffers with the frame input because we
+      // perform a swap from output to input on each iterator to pass outputs
+      // from the previous evaluator into the input of the next one
+      std::vector<std::vector<u8 *>> output_buffers(1);
+      std::vector<std::vector<size_t>> output_sizes(1);
+      DeviceType output_buffer_type = evaluator_caps[0].device_type;
+      i32 output_device_id = args.evaluator_configs[0].device_ids[0];
 
-      std::vector<std::vector<u8*>> output_buffers(num_outputs);
-      std::vector<std::vector<size_t>> output_sizes(num_outputs);
-      evaluator->evaluate(batch_size, frame_buffer, output_buffers,
-                          output_sizes);
-      for (i32 i = 0; i < num_outputs; ++i) {
-        assert(output_sizes[i].size() == output_buffers[i].size());
-        work_item_output_sizes[i].insert(work_item_output_sizes[i].end(),
-                                         output_sizes[i].begin(),
-                                         output_sizes[i].end());
-        work_item_output_buffers[i].insert(work_item_output_buffers[i].end(),
-                                           output_buffers[i].begin(),
-                                           output_buffers[i].end());
+      u8 *frame_buffer = work_entry.buffer + frame_size * frame_offset;
+      for (i32 b = 0; b < batch_size; ++b) {
+        output_buffers[0].push_back(frame_buffer + b * frame_size);
+        output_sizes[0].push_back(frame_size);
       }
 
+      for (size_t e = 0; e < evaluators.size(); ++e) {
+        i32 device_id = args.evaluator_configs[e].device_ids[0];
+        EvaluatorCapabilities& caps = evaluator_caps[e];
+        std::unique_ptr<Evaluator>& evaluator = evaluators[e];
+        i32 num_outputs = num_evaluator_outputs[e];
+
+        input_buffers.swap(output_buffers);
+        input_sizes.swap(output_sizes);
+        input_buffer_type = output_buffer_type;
+        input_device_id = output_device_id;
+        // If current evaluator type and input buffer type differ, then move
+        // the data in the input buffer into a new buffer which has the same
+        // type as the evaluator input
+        if (input_buffer_type != caps.device_type ||
+            input_device_id != device_id)
+        {
+          for (i32 i = 0; i < num_outputs; ++i) {
+            std::vector<u8*>& buffers = input_buffers[i];
+            std::vector<size_t>& sizes = input_sizes[i];
+            for (i32 b = 0; b < batch_size; ++b) {
+              size_t size = sizes[b];
+              u8* buffer = new_buffer(caps.device_type, device_id, size);
+              memcpy_buffer(buffer, caps.device_type, device_id, buffers[b],
+                            input_buffer_type, input_device_id, size);
+              delete_buffer(input_buffer_type, input_device_id, buffers[b]);
+              buffers[b] = buffer;
+            }
+          }
+          input_buffer_type = caps.device_type;
+          input_device_id = device_id;
+        }
+
+        // Setup output buffers to receive evaluator output
+        output_buffers.clear();
+        output_sizes.clear();
+        output_buffer_type = caps.device_type;
+        output_device_id = device_id;
+        output_buffers.resize(num_outputs);
+        output_sizes.resize(num_outputs);
+
+        evaluator->evaluate(input_buffers, input_sizes, output_buffers,
+                            output_sizes);
+
+        // Delete input buffers after they are used if not the frame input
+        // buffers
+        if (e > 0) {
+          for (std::vector<u8*>& buffers : input_buffers) {
+            for (u8* buff : buffers) {
+              delete_buffer(input_buffer_type, input_device_id, buff);
+            }
+          }
+        }
+      }
+      i32 warmup_frames = std::min(
+          batch_size, std::max(0, work_item.start_frame - current_frame));
+      for (i32 i = 0; i < last_evaluator_num_outputs; ++i) {
+        assert(output_sizes[i].size() == output_buffers[i].size());
+
+        // Delete warmup frame outputs
+        for (i32 w = 0; w < warmup_frames; ++w) {
+          delete_buffer(last_evaluator_device_type, last_evaluator_device_id,
+                        output_buffers[i][w]);
+        }
+
+        // Make sure all outputs are in CPU memory so downstream code does not
+        // need to condition on buffer type
+        if (output_buffer_type != DeviceType::CPU) {
+          for (i32 f = warmup_frames; f < (i32)output_sizes[i].size(); ++f) {
+            size_t size = output_sizes[i][f];
+            u8 *src_buffer = output_buffers[i][f];
+            u8 *dest_buffer = new_buffer(DeviceType::CPU, 0, size);
+            memcpy_buffer(dest_buffer, DeviceType::CPU, 0,
+                          src_buffer, output_buffer_type, output_device_id,
+                          size);
+            delete_buffer(output_buffer_type, output_device_id, src_buffer);
+            output_buffers[i][f] = dest_buffer;
+          }
+        }
+        // Keep non-warmup frame outputs
+        work_item_output_sizes[i].insert(
+            work_item_output_sizes[i].end(),
+            output_sizes[i].begin() + warmup_frames, output_sizes[i].end());
+        work_item_output_buffers[i].insert(
+            work_item_output_buffers[i].end(),
+            output_buffers[i].begin() + warmup_frames, output_buffers[i].end());
+      }
       current_frame += batch_size;
     }
 
@@ -648,8 +742,8 @@ void* save_thread(void* arg) {
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
 void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
-             EvaluatorFactory* evaluator_factory, const std::string& job_name,
-             const std::string& dataset_name) {
+             std::vector<EvaluatorFactory*> evaluator_factories,
+             const std::string& job_name, const std::string& dataset_name) {
   storehouse::StorageBackend* storage =
       storehouse::StorageBackend::make_from_config(config);
 
@@ -659,7 +753,10 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   i32 num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
-  EvaluatorCapabilities caps = evaluator_factory->get_capabilities();
+  std::vector<EvaluatorCapabilities> evaluator_caps;
+  for (EvaluatorFactory* factory : evaluator_factories) {
+    evaluator_caps.push_back(factory->get_capabilities());
+  }
 
   // Load the dataset descriptor to find all data files
   DatasetDescriptor descriptor;
@@ -695,6 +792,15 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
 
   // Track how work was broken up for each video so we can know how the
   // output will be chunked up when saved out
+
+  // We need to know the maximum warmup size across all evaluators to correctly
+  // warm up across all of them
+  i32 warmup_size = 0;
+  for (EvaluatorCapabilities& caps : evaluator_caps) {
+    warmup_size = std::max(warmup_size, caps.warmup_size);
+  }
+  // determine
+
   JobDescriptor job_descriptor;
   job_descriptor.dataset_name = dataset_name;
   u32 total_frames = 0;
@@ -711,7 +817,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       VideoWorkItem item;
       item.video_index = i;
       item.warmup_start_frame =
-          std::max(0, allocated_frames - caps.warmup_size);
+          std::max(0, allocated_frames - warmup_size);
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
@@ -745,11 +851,12 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       descriptor.max_width * descriptor.max_height * 3 * sizeof(u8);
   const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
   std::vector<std::vector<u8*>> staging_buffers(PUS_PER_NODE);
-  size_t buffer_size = frame_size * (frames_per_work_item() + caps.warmup_size);
+  size_t buffer_size = frame_size * (frames_per_work_item() + warmup_size);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     int device_id = pu;
     for (i32 i = 0; i < LOAD_BUFFERS; ++i) {
-      u8* staging_buffer = new_buffer(caps.device_type, device_id, buffer_size);
+      u8* staging_buffer =
+          new_buffer(evaluator_caps[0].device_type, device_id, buffer_size);
       staging_buffers[pu].push_back(staging_buffer);
       empty_decode_buffers[pu].emplace(
           DecodeBufferEntry{buffer_size, staging_buffer});
@@ -790,8 +897,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         video_metadata, work_items,
 
         // Per worker arguments
-        i, caps.device_type, i % PUS_PER_NODE, decoder_type, caps.device_type,
-        decode_thread_profilers[i],
+        i, evaluator_caps[0].device_type, i % PUS_PER_NODE, decoder_type,
+        evaluator_caps[0].device_type, decode_thread_profilers[i],
 
         // Queues
         decode_work, empty_decode_buffers[i], eval_work[i],
@@ -810,19 +917,20 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
 
   EvaluatorConfig eval_config;
   eval_config.max_input_count =
-      std::max(frames_per_work_item(), caps.warmup_size);
+      std::max(frames_per_work_item(), warmup_size);
   eval_config.max_frame_width = descriptor.max_width;
   eval_config.max_frame_height = descriptor.max_height;
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
     eval_config.device_ids = {i};
+    std::vector<EvaluatorConfig> eval_configs{evaluator_factories.size(),
+                                              eval_config};
     // Create eval thread for passing data through neural net
     eval_thread_args.emplace_back(EvaluateThreadArgs{
         // Uniform arguments
         video_metadata, work_items,
 
         // Per worker arguments
-        i, caps.device_type, i, *evaluator_factory, eval_config,
-        eval_thread_profilers[i],
+        i, evaluator_factories, eval_configs, eval_thread_profilers[i],
 
         // Queues
         eval_work[i], empty_decode_buffers[i], save_work});
@@ -842,7 +950,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
     save_thread_args.emplace_back(SaveThreadArgs{
         // Uniform arguments
         job_name, video_paths, video_metadata, work_items,
-        evaluator_factory->get_output_names(),
+        evaluator_factories.back()->get_output_names(),
 
         // Per worker arguments
         i, config, save_thread_profilers[i],
@@ -1105,7 +1213,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     std::vector<u8*> frame_buffers = staging_buffers[pu];
     for (u8* buffer : frame_buffers) {
-      delete_buffer(caps.device_type, pu, buffer);
+      delete_buffer(evaluator_caps[0].device_type, pu, buffer);
     }
   }
 

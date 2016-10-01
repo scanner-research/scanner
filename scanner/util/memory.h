@@ -16,28 +16,14 @@
 #pragma once
 
 #include "scanner/util/common.h"
-#include "scanner/util/profiler.h"
-
-#include <vector>
 
 namespace scanner {
 
-class Evaluator {
- public:
-  virtual ~Evaluator(){};
+u8* new_buffer(DeviceType type, int device_id, size_t size);
 
-  virtual void configure(const DatasetItemMetadata& metadata) = 0;
+void delete_buffer(DeviceType type, int device_id, u8 *buffer);
 
-  virtual void reset(){};
-
-  virtual void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-                        const std::vector<std::vector<size_t>>& input_sizes,
-                        std::vector<std::vector<u8*>>& output_buffers,
-                        std::vector<std::vector<size_t>>& output_sizes) = 0;
-
-  void set_profiler(Profiler* profiler) { profiler_ = profiler; }
-
- protected:
-  Profiler* profiler_ = nullptr;
-};
+void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
+                   u8* src_buffer, DeviceType src_type, i32 src_device_id,
+                   size_t size);
 }
