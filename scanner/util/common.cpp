@@ -168,9 +168,9 @@ DatabaseMetadata deserialize_database_metadata(storehouse::RandomReadFile* file,
   for (size_t i = 0; i < num_datasets; ++i) {
     i32 dataset_id = read<i32>(file, pos);
     size_t num_job_ids = read<size_t>(file, pos);
-    meta.dataset_job_ids[i] = {};
+    meta.dataset_job_ids[dataset_id] = {};
     for (size_t j = 0; j < num_job_ids; ++j) {
-      meta.dataset_job_ids[i].insert(read<i32>(file, pos));
+      meta.dataset_job_ids[dataset_id].insert(read<i32>(file, pos));
     }
   }
   size_t num_jobs = read<size_t>(file, pos);
