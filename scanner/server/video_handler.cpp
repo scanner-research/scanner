@@ -176,9 +176,18 @@ void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
   boost::smatch match_result;
   if (path.empty()) {
     for (const auto& kv : meta.dataset_names) {
+      DatasetDescriptor dataset_descriptor =
+          read_dataset_descriptor(storage_.get(), kv.second);
+
       folly::dynamic dataset_info = folly::dynamic::object();
       dataset_info["id"] = kv.first;
       dataset_info["name"] = kv.second;
+      dataset_info["total_frames"] = dataset_descriptor.total_frames;
+      folly::dynamic video_names = folly::dynamic::array();
+      for (const std::string& path : dataset_descriptor.original_video_paths) {
+        video_names.push_back(path);
+      }
+      dataset_info["video_names"] = video_names;
 
       json.push_back(dataset_info);
     }
