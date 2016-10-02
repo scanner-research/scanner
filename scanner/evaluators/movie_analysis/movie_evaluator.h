@@ -6,9 +6,26 @@
 
 namespace scanner {
 
-class FaceEvaluator : public Evaluator {
+class MovieItemEvaluator {
+public:
+  virtual ~MovieItemEvaluator(){};
+
+  void configure(const DatasetItemMetadata& metadata) {
+    this->metadata = metadata;
+  }
+
+  virtual void evaluate(
+    std::vector<cv::Mat>& inputs,
+    std::vector<u8*>& output_buffers,
+    std::vector<size_t>& output_sizes) = 0;
+
+protected:
+  DatasetItemMetadata metadata;
+};
+
+class MovieEvaluator : public Evaluator {
  public:
-  FaceEvaluator(EvaluatorConfig config);
+  MovieEvaluator(EvaluatorConfig config);
 
   void configure(const DatasetItemMetadata& metadata) override;
 
@@ -19,13 +36,12 @@ class FaceEvaluator : public Evaluator {
 
  private:
   DatasetItemMetadata metadata;
-  cv::CascadeClassifier face_detector;
+  std::map<std::string, std::unique_ptr<MovieItemEvaluator>> evaluators;
 };
 
-
-class FaceEvaluatorFactory : public EvaluatorFactory {
- public:
-  FaceEvaluatorFactory();
+class MovieEvaluatorFactory : public EvaluatorFactory {
+public:
+  MovieEvaluatorFactory();
 
   EvaluatorCapabilities get_capabilities() override;
 
