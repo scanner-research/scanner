@@ -199,8 +199,12 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   }
 
   if (output_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
     cudaMemcpy(decoded_buffer, scale_buffer, required_size,
                cudaMemcpyHostToDevice);
+#else
+    LOG(FATAL) << "Unsupported output type for software decoder";
+#Endif
   }
 
   av_frame_unref(frame);

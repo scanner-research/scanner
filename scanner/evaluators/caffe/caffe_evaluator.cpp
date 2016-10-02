@@ -83,7 +83,7 @@ void CaffeEvaluator::evaluate(
 
   caffe::Caffe::set_mode(device_type_to_caffe_mode(device_type_));
   if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_OPENCV && HAVE_CUDA
+#if defined(HAVE_OPENCV) && defined(HAVE_CUDA)
     cv::cuda::setDevice(device_id_);
 #endif
 #ifdef HAVE_CUDA
