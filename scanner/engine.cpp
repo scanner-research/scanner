@@ -1138,16 +1138,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       DatabaseMetadata meta =
           deserialize_database_metadata(meta_in_file.get(), pos);
 
-      i32 job_id = meta.next_job_id++;
-      meta.job_names[job_id] = job_name;
-      i32 dataset_id = 0;
-      for (const auto& kv : meta.dataset_names) {
-        if (kv.second == dataset_name) {
-          dataset_id = kv.first;
-          break;
-        }
-      }
-      meta.dataset_job_ids[dataset_id].insert(job_id);
+      i32 dataset_id = meta.get_dataset_id(dataset_name);
+      meta.add_job(dataset_id, job_name);
 
       std::unique_ptr<WriteFile> meta_out_file;
       make_unique_write_file(storage, db_meta_path, meta_out_file);

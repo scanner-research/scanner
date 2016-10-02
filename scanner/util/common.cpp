@@ -78,29 +78,32 @@ void DatabaseMetadata::add_dataset(const std::string &dataset) {
   dataset_job_ids[dataset_id] = {};
 }
 
-bool DatabaseMetadata::has_job(i32 dataset_id, const std::string &job) {
-  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
-  for (i32 job_id : job_ids) {
-    const std::string& job_name = job_names.at(job_id);
-    if (job_name == job) {
+void DatabaseMetadata::remove_dataset(i32 dataset_id) {
+  for (i32 job_id : dataset_job_ids.at(dataset_id)) {
+    job_names.erase(job_id);
+  }
+  dataset_job_ids.erase(dataset_id);
+  dataset_names.erase(dataset_id);
+}
+
+bool DatabaseMetadata::has_job(const std::string &job) {
+  for (const auto& kv : job_names) {
+    if (job == kv.second) {
       return true;
     }
   }
   return false;
 }
 
-bool DatabaseMetadata::has_job(i32 dataset_id, i32 job_id) {
-  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
-  return job_ids.count(job_id) > 0;
+bool DatabaseMetadata::has_job(i32 job_id) {
+  return job_names.count(job_id) > 0;
 }
 
-i32 DatabaseMetadata::get_job_id(i32 dataset_id, const std::string &job) {
+i32 DatabaseMetadata::get_job_id(const std::string &job) {
   i32 job_id = -1;
-  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
-  for (i32 id : job_ids) {
-    const std::string& job_name = job_names.at(id);
-    if (job_name == job) {
-      job_id = id;
+  for (const auto& kv : job_names) {
+    if (job == kv.second) {
+      job_id = kv.first;
       break;
     }
   }
@@ -108,9 +111,7 @@ i32 DatabaseMetadata::get_job_id(i32 dataset_id, const std::string &job) {
   return job_id;
 }
 
-const std::string &DatabaseMetadata::get_job_name(i32 dataset_id, i32 job_id) {
-  const std::set<i32>& job_ids = dataset_job_ids.at(dataset_id);
-  assert(job_ids.count(job_id) > 0);
+const std::string &DatabaseMetadata::get_job_name(i32 job_id) {
   return job_names.at(job_id);
 }
 
@@ -118,6 +119,10 @@ void DatabaseMetadata::add_job(i32 dataset_id, const std::string &job_name) {
   i32 job_id = next_job_id++;
   dataset_job_ids.at(dataset_id).insert(job_id);
   job_names[job_id] = job_name;
+}
+
+void DatabaseMetadata::remove_job(i32 job_id) {
+  job_names.erase(job_id);
 }
 
 void serialize_database_metadata(storehouse::WriteFile* file,

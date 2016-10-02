@@ -136,6 +136,9 @@ int main(int argc, char** argv) {
   std::string video_paths_file;  // paths of video files to turn into dataset
   // For run sub-command
   std::string job_name;  // name of job to refer to after run
+  // For rm sub-command
+  std::string resource_type;  // dataset or job
+  std::string resource_name;  // name of resource to rm
   {
     po::variables_map vm;
 
@@ -303,6 +306,37 @@ int main(int argc, char** argv) {
       job_name = vm["job_name"].as<std::string>();
       dataset_name = vm["dataset_name"].as<std::string>();
 
+    } else if (cmd == "rm") {
+      po::options_description rm_desc("rm options");
+      rm_desc.add_options()("help", "Produce help message")(
+          "resource_type", po::value<std::string>()->required(),
+          "Type of resource to remove: dataset or job")(
+          "resource_name", po::value<std::string>()->required(),
+          "Unique name of the resource to remove");
+
+      po::positional_options_description rm_pos;
+      rm_pos.add("resource_type", 1);
+      rm_pos.add("resource_name", 1);
+
+      try {
+        po::store(po::command_line_parser(opts)
+                      .options(rm_desc)
+                      .positional(rm_pos)
+                      .run(),
+                  vm);
+        po::notify(vm);
+      } catch (const po::required_option& e) {
+        if (vm.count("help")) {
+          std::cout << rm_desc << std::endl;
+          return 1;
+        } else {
+          throw e;
+        }
+      }
+
+      resource_type = vm["resource_type"].as<std::string>();
+      resource_name = vm["resource_name"].as<std::string>();
+
     } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
       po::options_description serve_desc("serve options");
@@ -333,7 +367,7 @@ int main(int argc, char** argv) {
 #endif
     } else {
       std::cout << "Command must be one of "
-                << "'ingest', 'run', or 'serve'." << std::endl;
+                << "'ingest', 'run', 'rm', or 'serve'." << std::endl;
       return 1;
     }
   }
@@ -351,12 +385,12 @@ int main(int argc, char** argv) {
   storehouse::StorageConfig* config =
       storehouse::StorageConfig::make_posix_config(db_path);
 
+  storehouse::StorageBackend *storage =
+      storehouse::StorageBackend::make_from_config(config);
+
   // Setup db metadata if it does not exist yet
   DatabaseMetadata meta{};
   {
-    storehouse::StorageBackend *storage =
-        storehouse::StorageBackend::make_from_config(config);
-
     std::string db_meta_path = database_metadata_path();
     storehouse::FileInfo info;
     storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
@@ -371,7 +405,6 @@ int main(int argc, char** argv) {
       u64 pos = 0;
       meta = deserialize_database_metadata(meta_in_file.get(), pos);
     }
-    delete storage;
   }
 
   if (cmd == "ingest") {
@@ -397,7 +430,7 @@ int main(int argc, char** argv) {
     }
 
     i32 dataset_id = meta.get_dataset_id(dataset_name);
-    if (meta.has_job(dataset_id, job_name)) {
+    if (meta.has_job(job_name)) {
       LOG(FATAL) << "Job with that name already exists for that dataset";
     }
 
@@ -422,6 +455,25 @@ int main(int argc, char** argv) {
 #endif
 
     run_job(config, decoder_type, &evaluator_factory, job_name, dataset_name);
+  } else if (cmd == "rm") {
+    // TODO(apoms): properly delete the excess files for the resource we are
+    // removing instead of just clearing the metadat
+    if (resource_type == "dataset") {
+      if (!meta.has_dataset(resource_name)) {
+        LOG(FATAL) << "Cannot remove: dataset with that name does not exist";
+      }
+      meta.remove_dataset(meta.get_dataset_id(resource_name));
+    } else if (resource_type == "job") {
+      if (!meta.has_job(resource_name)) {
+        LOG(FATAL) << "Cannot remove: job with that name does not exist";
+      }
+      meta.remove_job(meta.get_job_id(resource_name));
+    }
+
+    std::string db_meta_path = database_metadata_path();
+    std::unique_ptr<storehouse::WriteFile> meta_out_file;
+    make_unique_write_file(storage, db_meta_path, meta_out_file);
+    serialize_database_metadata(meta_out_file.get(), meta);
   } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
     std::string ip = "0.0.0.0";
@@ -461,6 +513,7 @@ int main(int argc, char** argv) {
   }
 
   // Cleanup
+  delete storage;
   delete config;
   shutdown();
 

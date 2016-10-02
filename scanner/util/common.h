@@ -100,12 +100,14 @@ struct DatabaseMetadata {
   i32 get_dataset_id(const std::string& dataset);
   const std::string& get_dataset_name(i32 dataset_id);
   void add_dataset(const std::string& dataset);
+  void remove_dataset(i32 dataset_id);
 
-  bool has_job(i32 dataset_id, const std::string& job);
-  bool has_job(i32 dataset_id, i32 job_id);
-  i32 get_job_id(i32 dataset_id, const std::string& job_name);
-  const std::string& get_job_name(i32 dataset_id, i32 job_id);
+  bool has_job(const std::string& job);
+  bool has_job(i32 job_id);
+  i32 get_job_id(const std::string& job_name);
+  const std::string& get_job_name(i32 job_id);
   void add_job(i32 dataset_id, const std::string& job_name);
+  void remove_job(i32 job_id);
 
   i32 next_dataset_id;
   i32 next_job_id;
