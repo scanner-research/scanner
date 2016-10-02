@@ -204,7 +204,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
                cudaMemcpyHostToDevice);
 #else
     LOG(FATAL) << "Unsupported output type for software decoder";
-#Endif
+#endif
   }
 
   av_frame_unref(frame);
