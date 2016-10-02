@@ -186,7 +186,7 @@ endif()
 ###### Project code #######
 
 add_subdirectory(scanner)
-#add_subdirectory(comparison)
+add_subdirectory(comparison)
 
 add_executable(scanner_server
   scanner/main.cpp

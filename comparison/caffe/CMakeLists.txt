@@ -1,13 +1,13 @@
 set(LIBRARIES
-  "${OpenCV_LIBRARIES}"
   "${Boost_LIBRARIES}")
 
-if(HAVE_CUDA AND HAVE_OPENCV) 
-  add_executable(opencv_compare
+if (BUILD_CAFFE_EVALUATORS)
+  add_executable(caffe_throughput
     main.cpp
+    $<TARGET_OBJECTS:evaluators>
     $<TARGET_OBJECTS:util>)
 
-  target_link_libraries(opencv_compare
+  target_link_libraries(caffe_throughput
     "${LIBRARIES}"
     "${PUBLIC_LIBRARIES}"
     "${SCANNER_LIBRARIES}"

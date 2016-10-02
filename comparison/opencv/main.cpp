@@ -13,21 +13,23 @@
  * limitations under the License.
  */
 
-#include "lightscan/util/caffe.h"
-#include "lightscan/util/queue.h"
-#include "lightscan/util/cuda.h"
+#include "scanner/evaluators/caffe/net_descriptor.h"
+#include "scanner/util/queue.h"
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/errors.hpp>
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/cudaarithm.hpp>
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
+#endif
 
 #include <fstream>
 #include <thread>
@@ -35,7 +37,7 @@
 namespace po = boost::program_options;
 
 int GPUS_PER_NODE = 1;           // GPUs to use per node
-int GLOBAL_BATCH_SIZE = 64;      // Batch size for network
+int BATCH_SIZE = 64;      // Batch size for network
 
 const std::string KCAM_DIRECTORY = "/Users/abpoms/kcam";
 
@@ -97,7 +99,7 @@ void worker(
     bool done = false;
     int frame_index = 0;
     while (!done) {
-      int batch_size = GLOBAL_BATCH_SIZE;
+      int batch_size = BATCH_SIZE;
       float* net_input_buffer = input_blob->mutable_cpu_data();
       // Get batch of frames and convert into proper net input format
       int i = 0;
@@ -156,7 +158,7 @@ int main(int argc, char** argv) {
       }
 
       if (vm.count("batch_size")) {
-        GLOBAL_BATCH_SIZE = vm["batch_size"].as<int>();
+        BATCH_SIZE = vm["batch_size"].as<int>();
       }
 
       if (vm.count("gpus_per_node")) {
