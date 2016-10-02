@@ -91,7 +91,7 @@ const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
-  FLAGS_minloglevel = 3;
+  FLAGS_minloglevel = 0;
 #ifdef HAVE_CUDA
   CUD_CHECK(cuInit(0));
 #endif
@@ -155,10 +155,7 @@ int main(int argc, char** argv) {
 
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
 
-        "batch_size", po::value<int>(), "Neural Net input batch size")(
-
-        "batches_per_work_item", po::value<int>(),
-        "Number of batches in each work item")(
+        "work_item_size", po::value<int>(), "Size of a work item")(
 
         "tasks_in_queue_per_pu", po::value<int>(),
         "Number of tasks a node will try to maintain in the work queue per PU")(
@@ -224,11 +221,8 @@ int main(int argc, char** argv) {
     if (config->has("pus_per_node")) {
       PUS_PER_NODE = config->get<int>("pus_per_node");
     }
-    if (config->has("batch_size")) {
-      GLOBAL_BATCH_SIZE = config->get<int>("batch_size");
-    }
-    if (config->has("batches_per_work_item")) {
-      BATCHES_PER_WORK_ITEM = config->get<int>("batches_per_work_item");
+    if (config->has("work_item_size")) {
+      WORK_ITEM_SIZE = config->get<int>("work_item_size");
     }
     if (config->has("tasks_in_queue_per_pu")) {
       TASKS_IN_QUEUE_PER_PU = config->get<int>("tasks_in_queue_per_pu");

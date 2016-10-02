@@ -497,7 +497,7 @@ void* evaluate_thread(void* arg) {
     while (current_frame < work_item.end_frame) {
       i32 frame_offset = current_frame - work_item.warmup_start_frame;
       i32 batch_size =
-          std::min(GLOBAL_BATCH_SIZE, work_item.end_frame - current_frame);
+          std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame);
 
       std::vector<std::vector<u8 *>> input_buffers;
       std::vector<std::vector<size_t>> input_sizes;

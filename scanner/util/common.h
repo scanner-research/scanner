@@ -36,8 +36,7 @@ using f64 = double;
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
 extern i32 PUS_PER_NODE;           // # of available processing units per node
-extern i32 GLOBAL_BATCH_SIZE;      // Batch size for network
-extern i32 BATCHES_PER_WORK_ITEM;  // How many batches per work item
+extern i32 WORK_ITEM_SIZE;         // Base size of a work item
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 LOAD_WORKERS_PER_NODE;  // # of worker threads loading data
 extern i32 SAVE_WORKERS_PER_NODE;  // # of worker threads loading data
@@ -88,7 +87,7 @@ inline std::string job_profiler_path(const std::string& job_name, i32 node) {
 }
 
 inline i32 frames_per_work_item() {
-  return GLOBAL_BATCH_SIZE * BATCHES_PER_WORK_ITEM;
+  return WORK_ITEM_SIZE;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
