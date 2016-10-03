@@ -212,37 +212,41 @@ def run_opencv_trial(video_file,
     return elapsed
 
 
-def run_caffe_trial(net_descriptor_file,
+def run_caffe_trial(net,
+                    net_descriptor_file,
                     device_type,
                     net_input_width,
                     net_input_height,
                     num_elements,
                     batch_size):
-    print(('Running trial: {}, {}, {:d}x{:d} net input, {:d} elements, '
+    print(('Running trial: {}, {}, {}, {:d}x{:d} net input, {:d} elements, '
            '{:d} batch_size').format(
+               net,
                net_descriptor_file,
                device_type,
                net_input_width,
-               net_input_height
+               net_input_height,
                num_elements,
                batch_size
            ))
     current_env = os.environ.copy()
     start = time.time()
     p = subprocess.Popen([
-        'build/comparison/caffe/caffe_throughput'
+        'build/comparison/caffe/caffe_throughput',
         '--net_descriptor_file', net_descriptor_file,
         '--device_type', device_type,
         '--net_input_width', str(net_input_width),
         '--net_input_height', str(net_input_height),
         '--num_elements', str(num_elements),
         '--batch_size', str(batch_size),
-    ], env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
+    ], env=current_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = ''.join([line for line in p.stdout])
     pid, rc, ru = os.wait4(p.pid, 0)
     elapsed = time.time() - start
     profiler_output = {}
     if rc != 0:
         print('Trial FAILED after {:.3f}s'.format(elapsed))
+        print(output, file=sys.stderr)
         # elapsed = -1
     else:
         print('Trial succeeded, took {:.3f}s'.format(elapsed))
@@ -425,26 +429,26 @@ def multi_node_scaling_trials():
 
 
 nets = [
-    {'alex_net': 'features/alex_net.toml'},
-    {'resnet': 'features/resnet.toml'},
-    {'googlenet': 'features/googlenet.toml'},
-    {'fcn': 'features/fcn8s.toml'},
-    {'vgg': 'features/vgg.toml'},
+    ['alex_net', 'features/alex_net.toml'],
+    ['resnet', 'features/resnet.toml'],
+    ['googlenet', 'features/googlenet.toml'],
+    ['fcn', 'features/fcn8s.toml'],
+    ['vgg', 'features/vgg.toml'],
 ]
 
 def caffe_benchmark_cpu_trials():
-    trial_settings = [{'net': net,
-                       'net_descriptor_file': net_descriptor_file,
+    trial_settings = [{'net': net[0],
+                       'net_descriptor_file': net[1],
                        'device_type': 'CPU',
-                       'net_input_width': width,
-                       'net_input_height': height,
-                       'num_elements': 48,
+                       'net_input_width': -1,
+                       'net_input_height': -1,
+                       'num_elements': 64,
                        'batch_size': batch_size}
-                      for net, net_descriptor_file in nets.iteritems(),
+                      for net in nets
                       for batch_size in [1, 2, 4, 8, 16]]
     times = []
     for settings in trial_settings:
-        t = run_trial(**setings)
+        t = run_caffe_trial(**settings)
         times.append(t)
 
     print_caffe_trial_times('Caffe Throughput Benchmark', trial_settings, times)
