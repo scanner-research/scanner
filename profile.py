@@ -10,6 +10,7 @@ import struct
 import json
 import re
 from collections import defaultdict
+from pprint import pprint
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -211,6 +212,44 @@ def run_opencv_trial(video_file,
     return elapsed
 
 
+def run_caffe_trial(net_descriptor_file,
+                    device_type,
+                    net_input_width,
+                    net_input_height,
+                    num_elements,
+                    batch_size):
+    print(('Running trial: {}, {}, {:d}x{:d} net input, {:d} elements, '
+           '{:d} batch_size').format(
+               net_descriptor_file,
+               device_type,
+               net_input_width,
+               net_input_height
+               num_elements,
+               batch_size
+           ))
+    current_env = os.environ.copy()
+    start = time.time()
+    p = subprocess.Popen([
+        'build/comparison/caffe/caffe_throughput'
+        '--net_descriptor_file', net_descriptor_file,
+        '--device_type', device_type,
+        '--net_input_width', str(net_input_width),
+        '--net_input_height', str(net_input_height),
+        '--num_elements', str(num_elements),
+        '--batch_size', str(batch_size),
+    ], env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
+    pid, rc, ru = os.wait4(p.pid, 0)
+    elapsed = time.time() - start
+    profiler_output = {}
+    if rc != 0:
+        print('Trial FAILED after {:.3f}s'.format(elapsed))
+        # elapsed = -1
+    else:
+        print('Trial succeeded, took {:.3f}s'.format(elapsed))
+        elapsed *= float(1000)  # s to ms
+    return elapsed
+
+
 def print_trial_times(title, trial_settings, trial_times):
     print(' {:^58s} '.format(title))
     print(' =========================================================== ')
@@ -247,6 +286,25 @@ def print_opencv_trial_times(title, trial_settings, trial_times):
                   settings['batch_size'],
                   1,
                   total_time))
+
+
+def print_caffe_trial_times(title, trial_settings, trial_times):
+    print(' {:^58s} '.format(title))
+    print(' ================================================================= ')
+    print(' Net      | Device |    WxH    | Elems | Batch | Time   | ms/frame ')
+    for settings, t in zip(trial_settings, trial_times):
+        total_time = t[0]
+        print((' {:>8s} | {:>6s} | {:>4d}x{:<4d} | {:>5d} | {:>5d} | {:>6.3f}s '
+               ' {:>8.3fs}ms')
+              .format(
+                  settings['net'],
+                  settings['device_type'],
+                  settings['net_input_width'],
+                  settings['net_input_height'],
+                  settings['num_elements'],
+                  settings['batch_size'],
+                  total_time / 1000.0,
+                  total_time / settings['num_elements']))
 
 
 def write_trace_file(profilers):
@@ -365,7 +423,36 @@ def multi_node_scaling_trials():
         trial_settings,
         times)
 
-import pprint
+
+nets = [
+    {'alex_net': 'features/alex_net.toml'},
+    {'resnet': 'features/resnet.toml'},
+    {'googlenet': 'features/googlenet.toml'},
+    {'fcn': 'features/fcn8s.toml'},
+    {'vgg': 'features/vgg.toml'},
+]
+
+def caffe_benchmark_cpu_trials():
+    trial_settings = [{'net': net,
+                       'net_descriptor_file': net_descriptor_file,
+                       'device_type': 'CPU',
+                       'net_input_width': width,
+                       'net_input_height': height,
+                       'num_elements': 48,
+                       'batch_size': batch_size}
+                      for net, net_descriptor_file in nets.iteritems(),
+                      for batch_size in [1, 2, 4, 8, 16]]
+    times = []
+    for settings in trial_settings:
+        t = run_trial(**setings)
+        times.append(t)
+
+    print_caffe_trial_times('Caffe Throughput Benchmark', trial_settings, times)
+
+
+def caffe_benchmark_gpu_trials():
+    pass
+
 def main(args):
     profilers = parse_profiler_files('big')
     write_trace_file(profilers)
