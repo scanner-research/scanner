@@ -18,8 +18,6 @@
         ]
 
 [mean-image]
-    width = 224
-    height = 224
     [mean-image.colors]
         red = 119.29959869
         green = 110.54627228

@@ -1,0 +1,25 @@
+[net]
+    model = "features/googlenet/deploy.prototxt"
+    weights = "features/googlenet/bvlc_googlenet.caffemodel"
+    source = "https://github.com/BVLC/caffe/tree/master/models/bvlc_googlenet"
+    input_layer = "data"
+    output_layers = ["loss3/classifier"]
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width",
+        ]
+        channel_ordering = [
+            "blue"
+            "green"
+            "red"
+        ]
+
+[mean-image]
+    [mean-image.colors]
+        blue = 104.00698793
+        green = 116.66876762
+        red = 122.67891434
