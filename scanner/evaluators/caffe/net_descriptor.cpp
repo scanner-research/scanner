@@ -99,23 +99,6 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     exit(EXIT_FAILURE);
   }
 
-  auto mean_image_width = mean_image->find("width");
-  if (!mean_image_width) {
-    std::cout << "Missing 'mean-image.width': width of mean" << std::endl;
-    exit(EXIT_FAILURE);
-  }
-  auto mean_image_height = mean_image->find("height");
-  if (!mean_image_height) {
-    std::cout << "Missing 'mean-image.height': height of mean" << std::endl;
-    exit(EXIT_FAILURE);
-  }
-
-  descriptor.mean_width = mean_image_width->as<int>();
-  descriptor.mean_height = mean_image_height->as<int>();
-
-  int mean_size = descriptor.mean_width * descriptor.mean_height;
-  descriptor.mean_image.resize(mean_size * 3);
-
   if (mean_image->has("colors")) {
     auto mean_blue = mean_image->find("colors.blue");
     if (!mean_blue) {
@@ -150,6 +133,23 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     }
   } else if (mean_image->has("path")) {
     std::string mean_path = mean_image->get<std::string>("path");
+
+    auto mean_image_width = mean_image->find("width");
+    if (!mean_image_width) {
+      std::cout << "Missing 'mean-image.width': width of mean" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    auto mean_image_height = mean_image->find("height");
+    if (!mean_image_height) {
+      std::cout << "Missing 'mean-image.height': height of mean" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    descriptor.mean_width = mean_image_width->as<int>();
+    descriptor.mean_height = mean_image_height->as<int>();
+
+    int mean_size = descriptor.mean_width * descriptor.mean_height;
+    descriptor.mean_image.resize(mean_size * 3);
 
     // Load mean image
     Blob<float> data_mean;
