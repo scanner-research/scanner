@@ -297,9 +297,9 @@ def print_caffe_trial_times(title, trial_settings, trial_times):
     print(' ================================================================= ')
     print(' Net      | Device |    WxH    | Elems | Batch | Time   | ms/frame ')
     for settings, t in zip(trial_settings, trial_times):
-        total_time = t[0]
+        total_time = min(t)
         print((' {:>8s} | {:>6s} | {:>4d}x{:<4d} | {:>5d} | {:>5d} | {:>6.3f}s '
-               ' {:>8.3fs}ms')
+               ' {:>8.3f}ms')
               .format(
                   settings['net'],
                   settings['device_type'],
@@ -448,8 +448,11 @@ def caffe_benchmark_cpu_trials():
                       for batch_size in [1, 2, 4, 8, 16]]
     times = []
     for settings in trial_settings:
-        t = run_caffe_trial(**settings)
-        times.append(t)
+        trial_times = []
+        for i in range(5):
+            t = run_caffe_trial(**settings)
+            trial_times.append(t)
+        times.append(trial_times)
 
     print_caffe_trial_times('Caffe Throughput Benchmark', trial_settings, times)
 
