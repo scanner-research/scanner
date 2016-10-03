@@ -33,8 +33,6 @@
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
-#include "scanner/evaluators/movie_analysis/face_evaluator.h"
-#include "scanner/evaluators/movie_analysis/histogram_evaluator.h"
 
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
@@ -100,15 +98,15 @@ void startup(int argc, char** argv) {
 void shutdown() { MPI_Finalize(); }
 
 class Config {
-public:
-
-  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml) : vm(vm), pr(pr), has_toml(has_toml) {}
+ public:
+  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml)
+      : vm(vm), pr(pr), has_toml(has_toml) {}
 
   bool has(std::string key) {
     return vm.count(key) || (has_toml && pr.value.find(key) != nullptr);
   }
 
-  template<typename T>
+  template <typename T>
   T get(std::string key) {
     if (vm.count(key)) {
       return vm[key].as<T>();
@@ -119,7 +117,7 @@ public:
     }
   }
 
-private:
+ private:
   po::variables_map vm;
   toml::ParseResult pr;
   bool has_toml;
@@ -206,8 +204,9 @@ int main(int argc, char** argv) {
     Config* config;
     char path[256];
     snprintf(path, 256, CONFIG_DEFAULT_PATH.c_str(), getenv("HOME"));
-    std::string config_path =
-      vm.count("config_file") ? vm["config_file"].as<std::string>() : std::string(path);
+    std::string config_path = vm.count("config_file")
+                                  ? vm["config_file"].as<std::string>()
+                                  : std::string(path);
     std::ifstream config_ifs(config_path);
     if (config_ifs.good()) {
       toml::ParseResult pr = toml::parse(config_ifs);
@@ -448,7 +447,7 @@ int main(int argc, char** argv) {
     FaceEvaluatorFactory evaluator_factory;
 #endif
 
-    run_job(config, decoder_type, &evaluator_factory, job_name, dataset_name);
+    run_job(config, decoder_type, {&evaluator_factory}, job_name, dataset_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadat

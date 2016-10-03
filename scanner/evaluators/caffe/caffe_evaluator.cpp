@@ -87,6 +87,9 @@ void CaffeEvaluator::evaluate(
     cv::cuda::setDevice(device_id_);
 #endif
 #ifdef HAVE_CUDA
+#ifdef HAVE_OPENCV
+    cv::cuda::setDevice(device_id);
+#endif
     CU_CHECK(cudaSetDevice(device_id_));
     caffe::Caffe::SetDevice(device_id_);
     net_input_buffer = input_blob->mutable_gpu_data();
