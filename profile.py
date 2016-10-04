@@ -471,7 +471,7 @@ def caffe_benchmark_gpu_trials():
     trial_settings = [
         {'net': nets[0][0],
          'net_descriptor_file': nets[0][1],
-         'device_type': 'CPU',
+         'device_type': 'GPU',
          'net_input_width': -1,
          'net_input_height': -1,
          'num_elements': 4096,
@@ -480,7 +480,7 @@ def caffe_benchmark_gpu_trials():
     ] + [
         {'net': net[0],
          'net_descriptor_file': net[1],
-         'device_type': 'CPU',
+         'device_type': 'GPU',
          'net_input_width': -1,
          'net_input_height': -1,
          'num_elements': 2048,
