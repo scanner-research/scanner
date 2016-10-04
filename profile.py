@@ -296,8 +296,8 @@ def print_caffe_trial_times(title, trial_settings, trial_times):
     print(' {:^58s} '.format(title))
     print(' ================================================================= ')
     print(' Net      | Device |    WxH    | Elems | Batch | Time   | ms/frame ')
-    for settings, t in zip(trial_settings, trial_times):
-        total_time = min(t)
+    for settings, times in zip(trial_settings, trial_times):
+        total_time = min([t for t in times if t != -1])
         print((' {:>8s} | {:>6s} | {:>4d}x{:<4d} | {:>5d} | {:>5d} | {:>6.3f}s '
                ' {:>8.3f}ms')
               .format(
@@ -437,15 +437,25 @@ nets = [
 ]
 
 def caffe_benchmark_cpu_trials():
-    trial_settings = [{'net': net[0],
-                       'net_descriptor_file': net[1],
-                       'device_type': 'CPU',
-                       'net_input_width': -1,
-                       'net_input_height': -1,
-                       'num_elements': 64,
-                       'batch_size': batch_size}
-                      for net in nets
-                      for batch_size in [1, 2, 4, 8, 16]]
+    trial_settings = [
+        {'net': nets[0][0],
+         'net_descriptor_file': nets[0][1],
+         'device_type': 'CPU',
+         'net_input_width': -1,
+         'net_input_height': -1,
+         'num_elements': 256,
+         'batch_size': batch_size}
+        for batch_size in [1, 2, 4, 8, 16, 32]
+    ] + [
+        {'net': net[0],
+         'net_descriptor_file': net[1],
+         'device_type': 'CPU',
+         'net_input_width': -1,
+         'net_input_height': -1,
+         'num_elements': 64,
+         'batch_size': batch_size}
+        for net in nets
+        for batch_size in [1, 2, 4, 8, 16]]
     times = []
     for settings in trial_settings:
         trial_times = []
@@ -458,7 +468,35 @@ def caffe_benchmark_cpu_trials():
 
 
 def caffe_benchmark_gpu_trials():
-    pass
+    trial_settings = [
+        {'net': nets[0][0],
+         'net_descriptor_file': nets[0][1],
+         'device_type': 'CPU',
+         'net_input_width': -1,
+         'net_input_height': -1,
+         'num_elements': 4096,
+         'batch_size': batch_size}
+        for batch_size in [1, 2, 4, 8, 16, 32]
+    ] + [
+        {'net': net[0],
+         'net_descriptor_file': net[1],
+         'device_type': 'CPU',
+         'net_input_width': -1,
+         'net_input_height': -1,
+         'num_elements': 2048,
+         'batch_size': batch_size}
+        for net in nets
+        for batch_size in [1, 2, 4, 8, 16]]
+    times = []
+    for settings in trial_settings:
+        trial_times = []
+        for i in range(5):
+            t = run_caffe_trial(**settings)
+            trial_times.append(t)
+        times.append(trial_times)
+
+    print_caffe_trial_times('Caffe Throughput Benchmark', trial_settings, times)
+
 
 def main(args):
     profilers = parse_profiler_files('big')
