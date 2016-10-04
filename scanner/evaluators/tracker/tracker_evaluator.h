@@ -18,6 +18,8 @@
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
 
+#include "struck/Tracker.h"
+
 #include <memory>
 #include <vector>
 
@@ -44,6 +46,8 @@ protected:
   i32 warmup_count_;
 
   DatasetItemMetadata metadata_;
+
+  std::vector<std::unique_ptr<struck::Tracker>> trackers_;
 };
 
 class TrackerEvaluatorFactory : public EvaluatorFactory {

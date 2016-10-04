@@ -456,8 +456,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
         i32 nal_unit_type = (*nal_start) & 0x1F;
-        // printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
-        //        nal_size, nal_ref_idc, nal_unit_type);
+        printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
+               nal_size, nal_ref_idc, nal_unit_type);
       }
       extradata_extracted = true;
     }
@@ -480,8 +480,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      // printf("nal size: %d, nal ref %d, nal unit %d\n",
-      //        nal_size, nal_ref_idc, nal_unit_type);
+      printf("nal size: %d, nal ref %d, nal unit %d\n",
+             nal_size, nal_ref_idc, nal_unit_type);
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
           meta_packet_sequence_start_offset = nal_bytestream_offset;

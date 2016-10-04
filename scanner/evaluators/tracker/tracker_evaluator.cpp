@@ -18,6 +18,9 @@
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
 
+#include "struck/Tracker.h"
+#include "struck/Config.h"
+
 namespace scanner {
 
 TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
@@ -40,6 +43,7 @@ void TrackerEvaluator::configure(const DatasetItemMetadata& metadata) {
 }
 
 void TrackerEvaluator::reset() {
+  trackers_.clear();
   LOG(INFO) << "Tracker reset";
 }
 
@@ -48,6 +52,8 @@ void TrackerEvaluator::evaluate(
     const std::vector<std::vector<size_t>> &input_sizes,
     std::vector<std::vector<u8 *>> &output_buffers,
     std::vector<std::vector<size_t>> &output_sizes) {
+  assert(input_buffers.size() >= 2);
+
   i32 input_count = input_buffers[0].size();
 
   LOG(INFO) << "Tracker evaluate " << input_count;
@@ -75,7 +81,7 @@ EvaluatorCapabilities TrackerEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> TrackerEvaluatorFactory::get_output_names() {
-  return {"track"};
+  return {"image", "before_bboxes", "after_bboxes"};
 }
 
 Evaluator *

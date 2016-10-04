@@ -24,6 +24,7 @@
 #include "storehouse/storage_backend.h"
 
 #include "scanner/parsers/facenet_parser.h"
+#include "scanner/parsers/bbox_parser.h"
 
 #include <proxygen/httpserver/RequestHandler.h>
 #include <proxygen/httpserver/ResponseBuilder.h>
@@ -324,7 +325,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   // if (message_->has("sampling_filter")) {
   // }
 
-  ResultsParser* parser = new FacenetParser(2.5);
+  BBoxParser* parser = new BBoxParser();
 
   const std::string& video_name = dataset_descriptor.item_names[video_id];
   const std::vector<std::tuple<i32, i32>>& intervals =

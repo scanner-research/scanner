@@ -27,16 +27,17 @@
 
 namespace scanner {
 
-CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
+CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig &config,
                                DeviceType device_type,
-                               const NetDescriptor& descriptor,
-                               CaffeInputTransformer* transformer,
-                               i32 device_id)
+                               const NetDescriptor &descriptor,
+                               CaffeInputTransformer *transformer,
+                               i32 device_id, bool forward_input)
     : config_(config),
       device_type_(device_type),
       descriptor_(descriptor),
       transformer_(transformer),
-      device_id_(device_id) {
+      device_id_(device_id),
+      forward_input_(forward_input) {
   caffe::Caffe::set_mode(device_type_to_caffe_mode(device_type));
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -88,7 +89,7 @@ void CaffeEvaluator::evaluate(
 #endif
 #ifdef HAVE_CUDA
 #ifdef HAVE_OPENCV
-    cv::cuda::setDevice(device_id);
+    cv::cuda::setDevice(device_id_);
 #endif
     CU_CHECK(cudaSetDevice(device_id_));
     caffe::Caffe::SetDevice(device_id_);
@@ -120,8 +121,19 @@ void CaffeEvaluator::evaluate(
 
   // Save batch of frames
   size_t num_outputs = descriptor_.output_layer_names.size();
+  i32 output_offset = 0;
+  if (forward_input_) {
+    output_offset++;
+
+    for (i32 b = 0; b < input_count; ++b) {
+      output_buffers[0].push_back(input_buffers[0][b]);
+      output_sizes[0].push_back(input_sizes[0][b]);
+    }
+  }
+
   for (size_t i = 0; i < num_outputs; ++i) {
-    const std::string& output_layer_name = descriptor_.output_layer_names[i];
+    const std::string &output_layer_name =
+        descriptor_.output_layer_names[i];
     const boost::shared_ptr<caffe::Blob<float>> output_blob{
         net_->blob_by_name(output_layer_name)};
     size_t output_length = output_blob->count(1);
@@ -133,8 +145,8 @@ void CaffeEvaluator::evaluate(
         cudaMalloc((void**)&buffer, output_size);;
         cudaMemcpy(buffer, output_blob->gpu_data() + b * output_length,
                    output_size, cudaMemcpyDefault);
-        output_buffers[i].push_back(buffer);
-        output_sizes[i].push_back(output_size);
+        output_buffers[output_offset + i].push_back(buffer);
+        output_sizes[output_offset + i].push_back(output_size);
 #else
         LOG(FATAL) << "Not built with CUDA support.";
 #endif
@@ -142,8 +154,8 @@ void CaffeEvaluator::evaluate(
         u8 *buffer = new u8[output_size];
         memcpy(buffer, output_blob->cpu_data() + b * output_length,
                output_size);
-        output_buffers[i].push_back(buffer);
-        output_sizes[i].push_back(output_size);
+        output_buffers[output_offset + i].push_back(buffer);
+        output_sizes[output_offset + i].push_back(output_size);
       }
     }
   }
@@ -151,9 +163,11 @@ void CaffeEvaluator::evaluate(
 
 CaffeEvaluatorFactory::CaffeEvaluatorFactory(
     DeviceType device_type, const NetDescriptor &net_descriptor,
-    CaffeInputTransformerFactory *transformer_factory)
-    : device_type_(device_type), net_descriptor_(net_descriptor),
-      transformer_factory_(transformer_factory) {}
+    CaffeInputTransformerFactory *transformer_factory, bool forward_input)
+    : device_type_(device_type),
+      net_descriptor_(net_descriptor),
+      transformer_factory_(transformer_factory),
+      forward_input_(forward_input) {}
 
 EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -168,7 +182,16 @@ EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   }
 
   std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
-    return net_descriptor_.output_layer_names;
+    std::vector<std::string> output_names;
+    if (forward_input_) {
+      output_names.push_back("frame");
+    }
+    const std::vector<std::string> &layer_names =
+        net_descriptor_.output_layer_names;
+    output_names.insert(output_names.end(), layer_names.begin(),
+                        layer_names.end());
+
+    return output_names;
   }
 
   Evaluator *CaffeEvaluatorFactory::new_evaluator(
@@ -176,6 +199,6 @@ EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
     CaffeInputTransformer *transformer =
         transformer_factory_->construct(config, net_descriptor_);
     return new CaffeEvaluator(config, device_type_, net_descriptor_,
-                              transformer, 0);
+                              transformer, 0, forward_input_);
   }
 }

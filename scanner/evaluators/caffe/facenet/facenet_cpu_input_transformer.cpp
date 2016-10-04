@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include "scanner/util/common.h"
 #include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
 
 namespace scanner {

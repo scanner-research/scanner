@@ -30,6 +30,7 @@
 #ifdef HAVE_CAFFE
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
+#include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
@@ -438,8 +439,9 @@ int main(int argc, char** argv) {
     }
     FacenetCPUInputTransformerFactory* factory =
         new FacenetCPUInputTransformerFactory();
-    CaffeEvaluatorFactory evaluator_factory(DeviceType::CPU, descriptor,
-                                            factory);
+    CaffeEvaluatorFactory caffe_factory(DeviceType::CPU, descriptor,
+                                        factory, true);
+    FacenetParserEvaluatorFactory parser_factory(DeviceType::CPU, 2.5, true);
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
@@ -447,7 +449,8 @@ int main(int argc, char** argv) {
     FaceEvaluatorFactory evaluator_factory;
 #endif
 
-    run_job(config, decoder_type, {&evaluator_factory}, job_name, dataset_name);
+    run_job(config, decoder_type, {&caffe_factory, &parser_factory}, job_name,
+            dataset_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadat

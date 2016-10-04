@@ -349,6 +349,11 @@ void* decode_thread(void* arg) {
 
     size_t encoded_buffer_offset = 0;
 
+    printf("decode work sk %d, ek %d, s %d, e %d\n",
+           decode_work_entry.start_keyframe,
+           decode_work_entry.end_keyframe,
+           work_item.start_frame,
+           work_item.end_frame);
     bool discontinuity = true;
     i32 current_frame = decode_work_entry.start_keyframe;
     while (current_frame < work_item.end_frame) {
@@ -356,7 +361,7 @@ void* decode_thread(void* arg) {
 
       i32 encoded_packet_size = 0;
       u8* encoded_packet = NULL;
-      if (encoded_buffer_offset < encoded_buffer_size) {
+      if (!discontinuity && encoded_buffer_offset < encoded_buffer_size) {
         encoded_packet_size =
             *reinterpret_cast<i32*>(encoded_buffer + encoded_buffer_offset);
         encoded_buffer_offset += sizeof(i32);
@@ -364,7 +369,9 @@ void* decode_thread(void* arg) {
         encoded_buffer_offset += encoded_packet_size;
       }
 
+      printf("frame %d\n", current_frame);
       if (decoder->feed(encoded_packet, encoded_packet_size, discontinuity)) {
+        printf("got frame %d\n", current_frame);
         // New frames
         bool more_frames = true;
         while (more_frames && current_frame < work_item.end_frame) {
@@ -563,9 +570,14 @@ void* evaluate_thread(void* arg) {
         // Delete input buffers after they are used if not the frame input
         // buffers
         if (e > 0) {
-          for (std::vector<u8*>& buffers : input_buffers) {
-            for (u8* buff : buffers) {
-              delete_buffer(input_buffer_type, input_device_id, buff);
+          std::vector<std::string> names =
+              args.evaluator_factories[e - 1]->get_output_names();
+          for (size_t i = 0; i < num_evaluator_outputs[e]; ++i) {
+            if (names[i] != "frame") {
+              std::vector<u8*>& buffers = input_buffers[i];
+              for (u8* buff : buffers) {
+                delete_buffer(input_buffer_type, input_device_id, buff);
+              }
             }
           }
         }

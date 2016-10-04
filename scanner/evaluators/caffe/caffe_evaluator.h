@@ -29,7 +29,8 @@ class CaffeEvaluator : public Evaluator {
  public:
   CaffeEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                  const NetDescriptor& descriptor,
-                 CaffeInputTransformer* transformer, i32 device_id);
+                 CaffeInputTransformer* transformer, i32 device_id,
+                 bool forward_input = false);
 
   void configure(const DatasetItemMetadata& metadata) override;
 
@@ -44,6 +45,7 @@ class CaffeEvaluator : public Evaluator {
   NetDescriptor descriptor_;
   std::unique_ptr<CaffeInputTransformer> transformer_;
   i32 device_id_;
+  bool forward_input_;
   std::unique_ptr<caffe::Net<float>> net_;
 
   DatasetItemMetadata metadata_;
@@ -53,7 +55,8 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
  public:
   CaffeEvaluatorFactory(DeviceType device_type,
                         const NetDescriptor& net_descriptor,
-                        CaffeInputTransformerFactory* transformer_factory);
+                        CaffeInputTransformerFactory* transformer_factory,
+                        bool forward_input = false);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -65,5 +68,6 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   std::unique_ptr<CaffeInputTransformerFactory> transformer_factory_;
+  bool forward_input_;
 };
 }  // end namespace scanner
