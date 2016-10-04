@@ -230,6 +230,10 @@ def run_caffe_trial(net,
                batch_size
            ))
     current_env = os.environ.copy()
+    if device_type == "CPU":
+        current_env["OMP_NUM_THREADS"] = "68"
+        current_env["KMP_BLOCKTIME"] = "10000000"
+        current_env["KMP_AFFINITY"] = "granularity=fine,verbose,compact,1,0"
     start = time.time()
     p = subprocess.Popen([
         'build/comparison/caffe/caffe_throughput',
