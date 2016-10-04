@@ -361,7 +361,7 @@ void* decode_thread(void* arg) {
 
       i32 encoded_packet_size = 0;
       u8* encoded_packet = NULL;
-      if (!discontinuity && encoded_buffer_offset < encoded_buffer_size) {
+      if (encoded_buffer_offset < encoded_buffer_size) {
         encoded_packet_size =
             *reinterpret_cast<i32*>(encoded_buffer + encoded_buffer_offset);
         encoded_buffer_offset += sizeof(i32);
@@ -369,9 +369,7 @@ void* decode_thread(void* arg) {
         encoded_buffer_offset += encoded_packet_size;
       }
 
-      printf("frame %d\n", current_frame);
       if (decoder->feed(encoded_packet, encoded_packet_size, discontinuity)) {
-        printf("got frame %d\n", current_frame);
         // New frames
         bool more_frames = true;
         while (more_frames && current_frame < work_item.end_frame) {

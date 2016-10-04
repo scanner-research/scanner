@@ -89,6 +89,9 @@ void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
 
 bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                                 bool discontinuity) {
+  if (discontinuity) {
+    avcodec_flush_buffers(cc_);
+  }
   if (av_new_packet(&packet_, encoded_size) < 0) {
     fprintf(stderr, "could not allocate packet for feeding into decoder\n");
     assert(false);
