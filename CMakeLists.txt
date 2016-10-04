@@ -17,10 +17,10 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
 option(BUILD_TRACKER_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
 
@@ -98,14 +98,20 @@ endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set(STRUCK_DIR /homes/wcrichto/struck)
+  set(HEADHUNTER_DIR /homes/wcrichto/rodrigob-doppia-2f93f2657960/src)
   set(OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect)
   find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
   find_package (Eigen REQUIRED)
-  file(GLOB STRUCK_SOURCES "${STRUCK_DIR}/src/*.cpp")
+  # file(GLOB STRUCK_SOURCES "${STRUCK_DIR}/src/*.cpp")
   include_directories(SYSTEM
     ${OpenCV_INCLUDE_DIRS}
     ${STRUCK_DIR}/src
-    ${EIGEN_INCLUDE_DIRS})
+    ${EIGEN_INCLUDE_DIRS}
+    ${HEADHUNTER_DIR})
+  link_directories(${HEADHUNTER_DIR}/applications/objects_detection_lib/build)
+  set(SCANNER_LIBRARIES
+    "-lmonocular_objects_detection"
+    "${SCANNER_LIBRARIES}")
 endif()
 
 ###### Required Dependencies #######

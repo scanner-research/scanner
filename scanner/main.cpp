@@ -34,6 +34,7 @@
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
+#include "scanner/evaluators/movie_analysis/movie_evaluator.h"
 
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
@@ -442,15 +443,15 @@ int main(int argc, char** argv) {
     CaffeEvaluatorFactory caffe_factory(DeviceType::CPU, descriptor,
                                         factory, true);
     FacenetParserEvaluatorFactory parser_factory(DeviceType::CPU, 2.5, true);
+    run_job(config, decoder_type, {&caffe_factory, &parser_factory}, job_name,
+            dataset_name);
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    FaceEvaluatorFactory evaluator_factory;
+    MovieEvaluatorFactory evaluator_factory;
+    run_job(config, decoder_type, {&evaluator_factory}, job_name, dataset_name);
 #endif
-
-    run_job(config, decoder_type, {&caffe_factory, &parser_factory}, job_name,
-            dataset_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadat

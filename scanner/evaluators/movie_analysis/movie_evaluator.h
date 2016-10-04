@@ -29,8 +29,8 @@ class MovieEvaluator : public Evaluator {
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  void evaluate(i32 input_count,
-                u8* input_buffer,
+  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+                const std::vector<std::vector<size_t>>& input_sizes,
                 std::vector<std::vector<u8*>>& output_buffers,
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
@@ -44,8 +44,6 @@ public:
   MovieEvaluatorFactory();
 
   EvaluatorCapabilities get_capabilities() override;
-
-  i32 get_number_of_outputs() override;
 
   std::vector<std::string> get_output_names() override;
 
