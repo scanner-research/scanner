@@ -77,6 +77,7 @@ void TrackerEvaluator::evaluate(
     // last being seen
 
     // For boxes which don't overlap existing ones, create a new track for them
+    std::vector<BoundingBox> detected_bboxes;
     std::vector<BoundingBox> new_detected_bboxes;
     for (size_t i = 0; i < num_bboxes; ++i) {
       BoundingBox box;
@@ -90,6 +91,7 @@ void TrackerEvaluator::evaluate(
       bbox_buffer += sizeof(f32);
       box.confidence = *((f32 *)bbox_buffer);
       bbox_buffer += sizeof(f32);
+      detected_bboxes.push_back(box);
 
       i32 overlap_idx = -1;
       for (size_t j = 0; j < tracked_bboxes_.size(); ++j) {
@@ -169,15 +171,15 @@ void TrackerEvaluator::evaluate(
 
     {
       size_t size =
-          sizeof(size_t) + sizeof(BoundingBox) * generated_bboxes.size();
+          sizeof(size_t) + sizeof(BoundingBox) * detected_bboxes.size();
       u8 *buffer = new u8[size];
       output_buffers[1].push_back(buffer);
       output_sizes[1].push_back(size);
 
-      *((size_t *)buffer) = generated_bboxes.size();
+      *((size_t *)buffer) = detected_bboxes.size();
       u8 *buf = buffer + sizeof(size_t);
-      for (size_t i = 0; i < generated_bboxes.size(); ++i) {
-        const BoundingBox &box = generated_bboxes[i];
+      for (size_t i = 0; i < detected_bboxes.size(); ++i) {
+        const BoundingBox &box = detected_bboxes[i];
         memcpy(buf + i * sizeof(BoundingBox), &box, sizeof(BoundingBox));
       }
     }
