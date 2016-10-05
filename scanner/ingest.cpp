@@ -100,6 +100,7 @@ struct CodecState {
   AVIOContext* io_context;
   AVCodec* in_codec;
   AVCodecContext* in_cc;
+  AVCodecParameters* in_cc_params;
   i32 video_stream_index;
   AVBitStreamFilterContext* annexb;
 };
@@ -152,9 +153,15 @@ CodecState setup_video_codec(BufferData* buffer) {
   }
 
   state.in_cc = avcodec_alloc_context3(state.in_codec);
-  if (avcodec_copy_context(state.in_cc, in_stream->codec) < 0) {
-    fprintf(stderr, "could not copy codec context from input stream\n");
+  state.in_cc_params = avcodec_parameters_alloc();
+  if (avcodec_parameters_from_context(state.in_cc_params, in_stream->codec) < 0)
+  {
+    fprintf(stderr, "could not copy codec params from input stream\n");
     exit(EXIT_FAILURE);
+  }
+  if (avcodec_parameters_to_context(state.in_cc, state.in_cc_params) < 0) {
+    fprintf(stderr, "could not copy codec params to in cc\n");
+    assert(false);
   }
 
   if (avcodec_open2(state.in_cc, state.in_codec, NULL) < 0) {
@@ -397,6 +404,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   bool extradata_extracted = false;
   bool in_meta_packet_sequence = false;
   i64 meta_packet_sequence_start_offset = 0;
+
+  i32 avcodec_frame = 0;
   while (true) {
     // Read from format context
     i32 err = av_read_frame(state.format_context, &state.av_packet);
@@ -438,10 +447,17 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
     u8* filtered_data;
     i32 filtered_data_size;
-    av_bitstream_filter_filter(state.annexb, state.in_cc, NULL, &filtered_data,
-                               &filtered_data_size, state.av_packet.data,
-                               state.av_packet.size,
-                               state.av_packet.flags & AV_PKT_FLAG_KEY);
+    if (av_bitstream_filter_filter(
+            state.annexb, state.in_cc, NULL, &filtered_data,
+            &filtered_data_size, state.av_packet.data, state.av_packet.size,
+            state.av_packet.flags & AV_PKT_FLAG_KEY) < 0) {
+      char err_msg[256];
+      av_strerror(err, err_msg, 256);
+      fprintf(stderr, "Error while filtering %d (%d): %s\n", frame, err,
+              err_msg);
+      cleanup_video_codec(state);
+      return false;
+    }
 
     if (!extradata_extracted) {
       u8* extradata = state.in_cc->extradata;
@@ -456,8 +472,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
         i32 nal_unit_type = (*nal_start) & 0x1F;
-        printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
-               nal_size, nal_ref_idc, nal_unit_type);
+        // printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
+        //        nal_size, nal_ref_idc, nal_unit_type);
       }
       extradata_extracted = true;
     }
@@ -480,8 +496,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      printf("nal size: %d, nal ref %d, nal unit %d\n",
-             nal_size, nal_ref_idc, nal_unit_type);
+      // printf("frame %d, nal size: %d, nal ref %d, nal unit %d\n",
+      //        frame, nal_size, nal_ref_idc, nal_unit_type);
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
           meta_packet_sequence_start_offset = nal_bytestream_offset;
@@ -502,10 +518,61 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       keyframe_positions.push_back(frame - 1);
       keyframe_timestamps.push_back(state.av_packet.pts);
       in_meta_packet_sequence = false;
+      // printf("keyframe %d, byte offset %d\n", frame, nal_bytestream_offset);
     }
+
+    free(filtered_data);
 
     av_packet_unref(&state.av_packet);
   }
+
+  // u8* walk = bytestream_bytes.data();
+  // int64_t pos = 0;
+  // AVPacket packet;
+  // while (pos < bytestream_bytes.size()) {
+  //   i32 size = *((i32*)(walk + pos));
+  //   pos += sizeof(i32);
+
+  //   if (av_new_packet(&packet, size) < 0) {
+  //     fprintf(stderr, "could not allocate packet for feeding into decoder\n");
+  //     assert(false);
+  //   }
+  //   u8* orig_data = packet.data;
+  //   i32 orig_size = packet.size;
+
+  //   memcpy(packet.data, walk + pos, size);
+  //   pos += size;
+
+  //   i32 got_picture = 0;
+  //   while (got_picture || packet.size > 0) {
+  //     i32 len = avcodec_decode_video2(state.in_cc_b, state.picture,
+  //                                     &got_picture, &packet);
+  //     if (len < 0) {
+  //       char err_msg[256];
+  //       av_strerror(len, err_msg, 256);
+  //       fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, len,
+  //               err_msg);
+  //       assert(false);
+  //     }
+  //     if (got_picture) {
+  //       state.picture->pts = frame;
+
+  //       if (state.picture->key_frame == 1) {
+  //         printf("avcodec_frame key %d\n", avcodec_frame);
+  //       } else {
+  //         printf("avcodec_frame %d, ex size %d, ex data %p\n", avcodec_frame,
+  //                state.in_cc_b->extradata_size, state.in_cc_b->extradata);
+  //       }
+  //       // the picture is allocated by the decoder. no need to free
+  //       avcodec_frame++;
+  //     }
+  //     packet.data += len;
+  //     packet.size -= len;
+  //   }
+  //   packet.data = orig_data;
+  //   packet.size = orig_size;
+  //   av_packet_unref(&packet);
+  // }
 
   // Cleanup video decoder
   cleanup_video_codec(state);
@@ -550,6 +617,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     output_file->save();
   }
 
+  return true;
   // Create temporary file for writing ffmpeg output to
   std::string temp_output_path;
   FILE* fptr;

@@ -18,47 +18,37 @@
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
 
-#include "struck/Tracker.h"
-
 #include <memory>
 #include <vector>
 
 namespace scanner {
 
-class TrackerEvaluator : public Evaluator {
+class SwizzleEvaluator : public Evaluator {
 public:
-  TrackerEvaluator(const EvaluatorConfig &config, DeviceType device_type,
-                   i32 device_id, i32 warmup_count);
+ SwizzleEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                  i32 device_id, const std::vector<i32>& output_to_input_idx);
 
-  void configure(const DatasetItemMetadata &metadata) override;
+ void configure(const DatasetItemMetadata& metadata) override;
 
-  void reset() override;
-
-  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-                const std::vector<std::vector<size_t>>& input_sizes,
-                std::vector<std::vector<u8*>>& output_buffers,
-                std::vector<std::vector<size_t>>& output_sizes) override;
+ void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+               const std::vector<std::vector<size_t>>& input_sizes,
+               std::vector<std::vector<u8*>>& output_buffers,
+               std::vector<std::vector<size_t>>& output_sizes) override;
 
 protected:
-  float iou(const BoundingBox& bl, const BoundingBox& br);
-
-  const i32 UNDETECTED_WINDOW = 10;
-
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
-  i32 warmup_count_;
+  std::vector<i32> output_to_input_idx_;
 
   DatasetItemMetadata metadata_;
-  std::vector<struck::Config> tracker_configs_;
-  std::vector<BoundingBox> tracked_bboxes_;
-  std::vector<i32> frames_since_last_detection_;
-  std::vector<std::unique_ptr<struck::Tracker>> trackers_;
 };
 
-class TrackerEvaluatorFactory : public EvaluatorFactory {
+class SwizzleEvaluatorFactory : public EvaluatorFactory {
  public:
-  TrackerEvaluatorFactory(DeviceType device_type, i32 warmup_count);
+  SwizzleEvaluatorFactory(DeviceType device_type,
+                          const std::vector<i32>& output_to_input_idx,
+                          const std::vector<std::string>& output_names);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -68,6 +58,7 @@ class TrackerEvaluatorFactory : public EvaluatorFactory {
 
  private:
   DeviceType device_type_;
-  i32 warmup_count_;
+  std::vector<i32> output_to_input_idx_;
+  std::vector<std::string> output_names_;
 };
 }  // end namespace scanner

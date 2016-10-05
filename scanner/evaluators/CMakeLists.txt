@@ -32,5 +32,10 @@ if (BUILD_TRACKER_EVALUATORS)
     tracker/tracker_evaluator.cpp)
 endif()
 
+if (BUILD_UTIL_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    util/swizzle_evaluator.cpp)
+endif()
+
 add_library(evaluators OBJECT
   ${SOURCE_FILES})

@@ -27,6 +27,7 @@ find_package(TinyToml)
 find_package(JsonCpp)
 find_package(Storehouse CONFIG)
 find_package(GoogleTest)
+find_package(Struck CONFIG)
 
 if (NOT TINYTOML_FOUND)
   ExternalProject_Add(TinyToml
@@ -107,4 +108,27 @@ if (NOT GOOGLETEST_FOUND)
 
     INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/googletest"
     )
+endif()
+
+if (NOT STRUCK_FOUND)
+  find_package(OpenCV)
+  # struck
+  ExternalProject_Add(Struck
+    GIT_REPOSITORY "https://github.com/apoms/struck"
+    GIT_TAG "70c1d7c2b7fab777de88a68cbe0a2606c4887424"
+
+    UPDATE_COMMAND ""
+
+    SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/struck"
+
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/struck
+    -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    -DCMAKE_LIBRARY_PATH=${CMAKE_LIBRARY_PATH}
+    -DOPENCV_ROOT_DIR=${OPENCV_ROOT_DIR}
+
+    CMAKE_CACHE_ARGS ""
+
+    INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/struck")
 endif()

@@ -349,11 +349,6 @@ void* decode_thread(void* arg) {
 
     size_t encoded_buffer_offset = 0;
 
-    printf("decode work sk %d, ek %d, s %d, e %d\n",
-           decode_work_entry.start_keyframe,
-           decode_work_entry.end_keyframe,
-           work_item.start_frame,
-           work_item.end_frame);
     bool discontinuity = true;
     i32 current_frame = decode_work_entry.start_keyframe;
     while (current_frame < work_item.end_frame) {
@@ -504,6 +499,7 @@ void* evaluate_thread(void* arg) {
       i32 batch_size =
           std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame);
 
+      std::vector<std::string> input_names;
       std::vector<std::vector<u8 *>> input_buffers;
       std::vector<std::vector<size_t>> input_sizes;
       DeviceType input_buffer_type;
@@ -511,6 +507,7 @@ void* evaluate_thread(void* arg) {
       // Initialize the output buffers with the frame input because we
       // perform a swap from output to input on each iterator to pass outputs
       // from the previous evaluator into the input of the next one
+      std::vector<std::string> output_names = {"frame"};
       std::vector<std::vector<u8 *>> output_buffers(1);
       std::vector<std::vector<size_t>> output_sizes(1);
       DeviceType output_buffer_type = evaluator_caps[0].device_type;
@@ -528,17 +525,20 @@ void* evaluate_thread(void* arg) {
         std::unique_ptr<Evaluator>& evaluator = evaluators[e];
         i32 num_outputs = num_evaluator_outputs[e];
 
+        input_names.swap(output_names);
         input_buffers.swap(output_buffers);
         input_sizes.swap(output_sizes);
         input_buffer_type = output_buffer_type;
         input_device_id = output_device_id;
+
+        i32 num_inputs = input_buffers.size();
         // If current evaluator type and input buffer type differ, then move
         // the data in the input buffer into a new buffer which has the same
         // type as the evaluator input
         if (input_buffer_type != caps.device_type ||
             input_device_id != device_id)
         {
-          for (i32 i = 0; i < num_outputs; ++i) {
+          for (i32 i = 0; i < num_inputs; ++i) {
             std::vector<u8*>& buffers = input_buffers[i];
             std::vector<size_t>& sizes = input_sizes[i];
             for (i32 b = 0; b < batch_size; ++b) {
@@ -546,7 +546,12 @@ void* evaluate_thread(void* arg) {
               u8* buffer = new_buffer(caps.device_type, device_id, size);
               memcpy_buffer(buffer, caps.device_type, device_id, buffers[b],
                             input_buffer_type, input_device_id, size);
-              delete_buffer(input_buffer_type, input_device_id, buffers[b]);
+              // To handle the case of forwarding the input frame, we need to
+              // make sure not to delete that input buffer, so check for
+              // special "frame" output name before deleting
+              if (input_names[i] != "frame") {
+                delete_buffer(input_buffer_type, input_device_id, buffers[b]);
+              }
               buffers[b] = buffer;
             }
           }
@@ -561,21 +566,19 @@ void* evaluate_thread(void* arg) {
         output_device_id = device_id;
         output_buffers.resize(num_outputs);
         output_sizes.resize(num_outputs);
+        output_names = args.evaluator_factories[e]->get_output_names();
 
         evaluator->evaluate(input_buffers, input_sizes, output_buffers,
                             output_sizes);
+        assert(output_buffers[0].size() == output_sizes[0].size());
 
         // Delete input buffers after they are used if not the frame input
         // buffers
         if (e > 0) {
-          std::vector<std::string> names =
-              args.evaluator_factories[e - 1]->get_output_names();
-          for (size_t i = 0; i < num_evaluator_outputs[e]; ++i) {
-            if (names[i] != "frame") {
-              std::vector<u8*>& buffers = input_buffers[i];
-              for (u8* buff : buffers) {
-                delete_buffer(input_buffer_type, input_device_id, buff);
-              }
+          for (size_t i = 0; i < num_inputs; ++i) {
+            std::vector<u8*>& buffers = input_buffers[i];
+            for (u8* buff : buffers) {
+              delete_buffer(input_buffer_type, input_device_id, buff);
             }
           }
         }

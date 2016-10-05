@@ -125,9 +125,22 @@ void CaffeEvaluator::evaluate(
   if (forward_input_) {
     output_offset++;
 
+    u8 *buffer = nullptr;
     for (i32 b = 0; b < input_count; ++b) {
-      output_buffers[0].push_back(input_buffers[0][b]);
-      output_sizes[0].push_back(input_sizes[0][b]);
+      size_t size = input_sizes[0][b];
+      if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+        cudaMalloc((void**)&buffer, size);
+        cudaMemcpy(buffer, input_buffers[0][b], size, cudaMemcpyDefault);
+#else
+        LOG(FATAL) << "Not built with CUDA support.";
+#endif
+      } else {
+        buffer = new u8[size];
+        memcpy(buffer, input_buffers[0][b], size);
+      }
+      output_buffers[0].push_back(buffer);
+      output_sizes[0].push_back(size);
     }
   }
 
@@ -139,24 +152,23 @@ void CaffeEvaluator::evaluate(
     size_t output_length = output_blob->count(1);
     size_t output_size = output_length * sizeof(float);
     for (i32 b = 0; b < input_count; ++b) {
+      u8* buffer = nullptr;
       if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-        u8 *buffer;
-        cudaMalloc((void**)&buffer, output_size);;
+        cudaMalloc((void**)&buffer, output_size);
         cudaMemcpy(buffer, output_blob->gpu_data() + b * output_length,
                    output_size, cudaMemcpyDefault);
-        output_buffers[output_offset + i].push_back(buffer);
-        output_sizes[output_offset + i].push_back(output_size);
 #else
         LOG(FATAL) << "Not built with CUDA support.";
 #endif
       } else {
-        u8 *buffer = new u8[output_size];
+        buffer = new u8[output_size];
         memcpy(buffer, output_blob->cpu_data() + b * output_length,
                output_size);
-        output_buffers[output_offset + i].push_back(buffer);
-        output_sizes[output_offset + i].push_back(output_size);
       }
+      assert(buffer != nullptr);
+      output_buffers[output_offset + i].push_back(buffer);
+      output_sizes[output_offset + i].push_back(output_size);
     }
   }
 }

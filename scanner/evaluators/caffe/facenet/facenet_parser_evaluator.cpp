@@ -173,25 +173,34 @@ void FacenetParserEvaluator::evaluate(
 
     size_t size = sizeof(size_t) + sizeof(BoundingBox) * best_bboxes.size();
     u8* buffer = new u8[size];
-    output_buffers[feature_idx - 1].push_back(buffer);
-    output_sizes[feature_idx - 1].push_back(size);
+    output_buffers[feature_idx].push_back(buffer);
+    output_sizes[feature_idx].push_back(size);
 
     *((size_t*)buffer) = best_bboxes.size();
     u8* buf = buffer + sizeof(size_t);
     for (size_t i = 0; i < best_bboxes.size(); ++i) {
-      const BoundingBox &box = best_bboxes[i];
+      const BoundingBox& box = best_bboxes[i];
       memcpy(buf + i * sizeof(BoundingBox), &box, sizeof(BoundingBox));
     }
   }
 
-  size_t num_outputs = 1;
-  i32 output_offset = 0;
-  if (false && forward_input_) {
-    output_offset++;
-
+  if (forward_input_) {
+    u8 *buffer = nullptr;
     for (i32 b = 0; b < input_count; ++b) {
-      output_buffers[0].push_back(input_buffers[0][b]);
-      output_sizes[0].push_back(input_sizes[0][b]);
+      size_t size = input_sizes[0][b];
+      if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+        cudaMalloc((void**)&buffer, size);
+        cudaMemcpy(buffer, input_buffers[0][b], size, cudaMemcpyDefault);
+#else
+        LOG(FATAL) << "Not built with CUDA support.";
+#endif
+      } else {
+        buffer = new u8[size];
+        memcpy(buffer, input_buffers[0][b], size);
+      }
+      output_buffers[0].push_back(buffer);
+      output_sizes[0].push_back(size);
     }
   }
 }
@@ -263,7 +272,7 @@ EvaluatorCapabilities FacenetParserEvaluatorFactory::get_capabilities() {
 
 std::vector<std::string> FacenetParserEvaluatorFactory::get_output_names() {
   std::vector<std::string> output_names;
-  if (false && forward_input_) {
+  if (forward_input_) {
     output_names.push_back("frame");
   }
   output_names.push_back("bboxes");

@@ -22,6 +22,7 @@ option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
 option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
 option(BUILD_TRACKER_EVALUATORS "" OFF)
+option(BUILD_UTIL_EVALUATORS "" ON)
 option(BUILD_SERVER "" OFF)
 
 enable_testing()
@@ -45,6 +46,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 set(GLOBAL_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(THIRDPARTY_SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty")
+
+if (NOT CMAKE_BUILD_TYPE)
+    message(STATUS "No build type selected, defaulting to Release")
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
@@ -85,6 +91,15 @@ if (BUILD_CAFFE_EVALUATORS)
     list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
     add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
   endif()
+endif()
+
+if (BUILD_TRACKER_EVALUATORS)
+  find_package(Eigen REQUIRED)
+  find_package(Struck REQUIRED CONFIG
+    PATHS "thirdparty/build/bin/struck")
+  include_directories(
+    "${EIGEN_INCLUDE_DIRS}"
+    "${STRUCK_INCLUDE_DIRS}")
 endif()
 
 if (BUILD_SERVER)
@@ -157,6 +172,7 @@ set(SCANNER_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
+  "${STRUCK_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
   "-ljpeg"
   "-lz")

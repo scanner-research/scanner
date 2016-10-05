@@ -121,7 +121,11 @@ void DatabaseMetadata::add_job(i32 dataset_id, const std::string &job_name) {
 }
 
 void DatabaseMetadata::remove_job(i32 job_id) {
-  job_names.erase(job_id);
+  for (auto& kv : dataset_job_ids) {
+    if (kv.second.count(job_id) > 0) {
+      kv.second.erase(job_id);
+    }
+  }
 }
 
 void serialize_database_metadata(storehouse::WriteFile* file,
