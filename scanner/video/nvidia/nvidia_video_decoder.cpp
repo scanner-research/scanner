@@ -14,6 +14,7 @@
  */
 
 #include "scanner/video/nvidia/nvidia_video_decoder.h"
+#include "scanner/util/queue.h"
 #include "scanner/util/cuda.h"
 
 #include "storehouse/storage_backend.h"
@@ -23,35 +24,14 @@
 #include <cuda.h>
 #include <nvcuvid.h>
 
-// For video
-extern "C" {
-#include "libavcodec/avcodec.h"
-#include "libavformat/avformat.h"
-#include "libavformat/avio.h"
-#include "libavutil/error.h"
-#include "libswscale/swscale.h"
-
-#include "libavcodec/avcodec.h"
-#include "libavfilter/avfilter.h"
-#include "libavformat/avformat.h"
-#include "libavutil/opt.h"
-#include "libavutil/pixdesc.h"
-#include "libswscale/swscale.h"
-
-// For hardware decode
-#include "libavutil/hwcontext.h"
-#include "libavutil/hwcontext_cuda.h"
-}
-
 namespace scanner {
 
 NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
                                        CUcontext cuda_context)
     : device_id_(device_id), output_type_(output_type),
-      cuda_context_(cuda_context), metadata_packets_(metadata.metadata_packets),
-      max_output_frames_(32), max_mapped_frames_(8),
-      streams_(max_mapped_frames_), parser_(nullptr), decoder_(nullptr),
-      mapped_frames_(max_mapped_frames_, 0), prev_frame_(0), decode_time_(0) {
+      cuda_context_(cuda_context), max_output_frames_(32),
+      max_mapped_frames_(8), streams_(max_mapped_frames_), parser_(nullptr),
+      decoder_(nullptr), mapped_frames_(max_mapped_frames_, 0), prev_frame_(0) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -90,8 +70,11 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
 void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   metadata_ = metadata;
 
+  CUcontext dummy;
+
   CUVIDPARSERPARAMS cuparseinfo = {};
-  cuparseinfo.CodecType = metadata.codec_type;
+  //cuparseinfo.CodecType = metadata.codec_type;
+  cuparseinfo.CodecType = cudaVideoCodec_H264;
   cuparseinfo.ulMaxNumDecodeSurfaces = max_output_frames_;
   cuparseinfo.ulMaxDisplayDelay = 4;
   cuparseinfo.pUserData = this;
@@ -105,8 +88,10 @@ void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   CUD_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
 
   CUVIDDECODECREATEINFO cuinfo = {};
-  cuinfo.CodecType = metadata.codec_type;
-  cuinfo.ChromaFormat = metadata.chroma_format;
+  //cuinfo.CodecType = metadata.codec_type;
+  cuinfo.CodecType = cudaVideoCodec_H264;
+  //cuinfo.ChromaFormat = metadata.chroma_format;
+  cuinfo.ChromaFormat = cudaVideoChromaFormat_420;
   cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
 
   cuinfo.ulWidth = metadata.width;
@@ -134,14 +119,14 @@ void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
     int encoded_packet_size =
         *reinterpret_cast<int*>(metadata_packets_.data() + pos);
     pos += sizeof(int);
-    char* encoded_packet = metadata_packets_.data() + pos;
+    u8* encoded_packet = (u8*)(metadata_packets_.data() + pos);
     pos += encoded_packet_size;
 
     feed(encoded_packet, encoded_packet_size);
   }
 }
 
-bool NVIDIAVideoDecoder::feed(const char* encoded_buffer, size_t encoded_size,
+bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                               bool discontinuity) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
@@ -169,7 +154,7 @@ bool NVIDIAVideoDecoder::feed(const char* encoded_buffer, size_t encoded_size,
       int encoded_packet_size =
           *reinterpret_cast<int*>(metadata_packets_.data() + pos);
       pos += sizeof(int);
-      char* encoded_packet = metadata_packets_.data() + pos;
+      u8* encoded_packet = (u8*)(metadata_packets_.data() + pos);
       pos += encoded_packet_size;
 
       feed(encoded_packet, encoded_packet_size);
@@ -196,7 +181,7 @@ bool NVIDIAVideoDecoder::discard_frame() {
   return frame_queue_.size() > 0;
 }
 
-bool NVIDIAVideoDecoder::get_frame(char* decoded_buffer, size_t decoded_size) {
+bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   if (frame_queue_.size() > 0) {
@@ -273,6 +258,7 @@ int NVIDIAVideoDecoder::cuvid_handle_video_sequence(void* opaque,
 int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
                                                     CUVIDPICPARAMS* picparams) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
+  printf("decode\n");
 
   int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
   if (decoder.mapped_frames_[mapped_frame_index] != 0) {
@@ -291,6 +277,7 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_display(
     void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
+  printf("display\n");
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
   decoder.prev_frame_++;

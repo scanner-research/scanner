@@ -21,6 +21,13 @@
 #include "struck/Tracker.h"
 #include "struck/Config.h"
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
+#include <cmath>
+
+
 namespace scanner {
 
 TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
@@ -223,7 +230,7 @@ float TrackerEvaluator::iou(const BoundingBox& bl, const BoundingBox& br) {
   float intersection = (y2 - y1) * (x2 - x1);
   float _union = (bl_width * bl_height) + (br_width * br_height) - intersection;
   float iou = intersection / _union;
-  return isnan(iou) ? 0.0 : iou;
+  return std::isnan(iou) ? 0.0 : iou;
 }
 
 

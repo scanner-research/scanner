@@ -16,6 +16,7 @@
 #include "scanner/video/video_decoder.h"
 
 #ifdef HAVE_NVIDIA_VIDEO_HARDWARE
+#include "scanner/util/cuda.h"
 #include "scanner/video/nvidia/nvidia_video_decoder.h"
 #endif
 

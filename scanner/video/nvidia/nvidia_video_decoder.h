@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/util/common.h"
+#include "scanner/util/queue.h"
 #include "scanner/video/video_decoder.h"
 
 #include <cuda.h>
@@ -35,12 +36,12 @@ public:
 
   void configure(const DatasetItemMetadata& metadata) override;
 
-  bool feed(const char* encoded_buffer, size_t encoded_size,
+  bool feed(const u8* encoded_buffer, size_t encoded_size,
             bool discontinuity = false) override;
 
   bool discard_frame() override;
 
-  bool get_frame(char* decoded_buffer, size_t decoded_size) override;
+  bool get_frame(u8* decoded_buffer, size_t decoded_size) override;
 
   int decoded_frames_buffered() override;
 

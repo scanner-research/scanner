@@ -19,6 +19,10 @@
 #include "scanner/util/memory.h"
 #include "scanner/util/util.h"
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
 #include <cassert>
 
 namespace scanner {

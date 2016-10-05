@@ -1,7 +1,8 @@
 set(SOURCE_FILES
   video_decoder.cpp)
 
-if (HAVE_CUDA)
+if (CUDA_FOUND)
+  add_definitions(-DHAVE_NVIDIA_VIDEO_HARDWARE)
   list(APPEND SOURCE_FILES
     nvidia/nvidia_video_decoder.cpp)
 endif()

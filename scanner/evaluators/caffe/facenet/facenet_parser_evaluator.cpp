@@ -18,6 +18,10 @@
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
 #include <queue>
 #include <cassert>
 #include <cmath>
