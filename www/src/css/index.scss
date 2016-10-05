@@ -4,86 +4,127 @@ $p3: #445878;
 $p4: #92CDCF;
 $p5: #EEEFF7;
 
-
-.thumbnail {
-    display: inline-block;
+body {
+    font-family: 'Source Sans Pro', sans-serif;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
 }
 
-.dataset-panel {
-    height: 40px;
+.header {
+    overflow:auto;
+    padding: 10px;
+
+    > * {
+        float: left;
+    }
+
+    h1 {
+        margin: 0 20px 0 0;
+    }
+
+    .dataset-panel, .job-panel {
+        height: 40px;
+        position: relative;
+        top: 4px;
+    }
+
+    .dataset-panel {
+        margin-right: 10px;
+    }
+
+    .dataset-info {
+        display: inline-block;
+        color: $p5;
+        background: $p3;
+        padding: 5px;
+        margin: 2px;
+        border-radius: 3px;
+    }
+
+    .job-info {
+        display: inline-block;
+        color: $p5;
+        background: $p3;
+        padding: 5px;
+        margin: 2px;
+        border-radius: 3px;
+    }
 }
 
-.dataset-info {
-    display: inline-block;
-    color: $p5;
-    background: $p3;
-    padding: 5px;
-    margin: 2px;
-    border-radius: 3px;
-}
+.body {
+    background: #eee;
+    overflow: auto;
+    box-sizing: border-box;
 
-.job-info {
-    display: inline-block;
-    color: $p5;
-    background: $p3;
-    padding: 5px;
-    margin: 2px;
-    border-radius: 3px;
-}
+    > * {
+        float: left;
+        width: 50%;
+        padding: 5px;
+        box-sizing: border-box;
+        height: 100%;
+        overflow-x: hidden;
+    }
 
-.job-panel {
-    height: 40px;
-}
+    .video-browser {
+        //border-right: 3px solid #ccc;
+        padding: 20px;
+        overflow-y: scroll;
+    }
 
-.video-browser {
-    width: 48%;
-    display: inline-block;
-    vertical-align: top;
-}
+    .video-timeline {
+        width: 100;
+    }
 
-.video-timeline {
-    width: 100;
-}
+    .viewer-panel {
+        overflow-y: hidden;
+    }
 
-.viewer-panel {
-    width: 48%;
-    display: inline-block;
-    position: fixed;
-    left: 50%;
-    top: 0px;
-    vertical-align: top;
-}
+    .viewer-controls {
+        text-align: center;
 
-.timeline-axis {
-    position: relative;
-    height: 100px;
-    background-color: transparent;
-}
+        div {
+            margin-left: 15px;
+            display: inline-block;
+        }
 
-.timeline-tick {
-    position: absolute;
-    border-left: 1px solid;
-    border-color: #dedede;
-    background-color: transparent;
-}
+        input {
+            margin-left: 5px;
+        }
+    }
 
-.timeline-tick-label {
-    position: absolute;
-    text-align: center;
-}
+    .timeline-axis {
+        position: relative;
+        height: 100px;
+        background-color: transparent;
+    }
 
-.timeline-pos-indicator {
-    text-align: center;
-}
+    .timeline-tick {
+        position: absolute;
+        border-left: 1px solid;
+        border-color: #dedede;
+        background-color: transparent;
+    }
 
-.bbox-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 10;
-}
+    .timeline-tick-label {
+        position: absolute;
+        text-align: center;
+    }
 
-.bbox {
-    fill: transparent;
-    stroke: red;
+    .timeline-pos-indicator {
+        text-align: center;
+    }
+
+    .bbox-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10;
+    }
+
+    .bbox {
+        fill: transparent;
+        stroke: red;
+    }
+
 }
