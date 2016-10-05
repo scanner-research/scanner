@@ -50,7 +50,7 @@ protected:
   i32 warmup_count_;
 
   DatasetItemMetadata metadata_;
-  std::vector<struck::Config> tracker_configs_;
+  std::vector<std::unique_ptr<struck::Config>> tracker_configs_;
   std::vector<BoundingBox> tracked_bboxes_;
   std::vector<i32> frames_since_last_detection_;
   std::vector<std::unique_ptr<struck::Tracker>> trackers_;

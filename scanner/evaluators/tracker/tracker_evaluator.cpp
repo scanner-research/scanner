@@ -46,6 +46,8 @@ void TrackerEvaluator::reset() {
   LOG(INFO) << "Tracker reset";
   trackers_.clear();
   tracker_configs_.clear();
+  tracked_bboxes_.clear();
+  frames_since_last_detection_.clear();
 }
 
 void TrackerEvaluator::evaluate(
@@ -80,6 +82,7 @@ void TrackerEvaluator::evaluate(
       box.y2 = *((f32 *)bbox_buffer);
       bbox_buffer += sizeof(f32);
       box.confidence = *((f32 *)bbox_buffer);
+      bbox_buffer += sizeof(f32);
 
       i32 overlap_idx = -1;
       for (size_t j = 0; j < tracked_bboxes_.size(); ++j) {
@@ -136,8 +139,8 @@ void TrackerEvaluator::evaluate(
     for (const BoundingBox &box : new_detected_bboxes) {
       struck::FloatRect r(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
 
-      tracker_configs_.push_back(struck::Config{});
-      struck::Config &config = tracker_configs_.back();
+      tracker_configs_.emplace_back(new struck::Config{});
+      struck::Config &config = *(tracker_configs_.back().get());
       config.frameWidth = metadata_.width;
       config.frameHeight = metadata_.height;
       struck::Config::FeatureKernelPair fkp;
@@ -146,7 +149,7 @@ void TrackerEvaluator::evaluate(
       config.features.push_back(fkp);
       struck::Tracker *tracker = new struck::Tracker(config);
 
-      u8 *buffer = input_buffers[0][0];
+      u8 *buffer = input_buffers[0][b];
       cv::Mat frame(metadata_.height, metadata_.width, CV_8UC3, buffer);
       tracker->Initialise(frame, r);
 
@@ -179,7 +182,7 @@ void TrackerEvaluator::evaluate(
       output_sizes[2].push_back(size);
 
       *((size_t *)buffer) = generated_bboxes.size();
-      u8 *buf = buf + sizeof(size_t);
+      u8 *buf = buffer + sizeof(size_t);
       for (size_t i = 0; i < generated_bboxes.size(); ++i) {
         const BoundingBox &box = generated_bboxes[i];
         memcpy(buf + i * sizeof(BoundingBox), &box, sizeof(BoundingBox));

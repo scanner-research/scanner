@@ -164,6 +164,11 @@ void FacenetParserEvaluator::evaluate(
           bbox.x2 = x + width / 2;
           bbox.y2 = y + height / 2;
           bbox.confidence = confidence;
+
+          if (bbox.x1 < 0 || bbox.y1 < 0 ||
+              bbox.x2 > metadata_.width || bbox.y2 > metadata_.height)
+            continue;
+
           bboxes.push_back(bbox);
         }
       }

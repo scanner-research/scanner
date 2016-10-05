@@ -126,6 +126,7 @@ void DatabaseMetadata::remove_job(i32 job_id) {
       kv.second.erase(job_id);
     }
   }
+  job_names.erase(job_id);
 }
 
 void serialize_database_metadata(storehouse::WriteFile* file,

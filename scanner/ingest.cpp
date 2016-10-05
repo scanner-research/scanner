@@ -617,7 +617,6 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     output_file->save();
   }
 
-  return true;
   // Create temporary file for writing ffmpeg output to
   std::string temp_output_path;
   FILE* fptr;
