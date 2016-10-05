@@ -546,12 +546,7 @@ void* evaluate_thread(void* arg) {
               u8* buffer = new_buffer(caps.device_type, device_id, size);
               memcpy_buffer(buffer, caps.device_type, device_id, buffers[b],
                             input_buffer_type, input_device_id, size);
-              // To handle the case of forwarding the input frame, we need to
-              // make sure not to delete that input buffer, so check for
-              // special "frame" output name before deleting
-              if (input_names[i] != "frame") {
-                delete_buffer(input_buffer_type, input_device_id, buffers[b]);
-              }
+              delete_buffer(input_buffer_type, input_device_id, buffers[b]);
               buffers[b] = buffer;
             }
           }
