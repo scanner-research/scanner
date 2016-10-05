@@ -138,7 +138,7 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     }
     packet_.data += consumed_length;
     packet_.size -= consumed_length;
-  } while (got_picture || packet_.size > 0);
+  } while (packet_.size > 0);
   packet_.data = orig_data;
   packet_.size = orig_size;
   av_packet_unref(&packet_);
