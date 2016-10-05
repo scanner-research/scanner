@@ -100,7 +100,9 @@ struct CodecState {
   AVIOContext* io_context;
   AVCodec* in_codec;
   AVCodecContext* in_cc;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 34, 0)
   AVCodecParameters* in_cc_params;
+#endif
   i32 video_stream_index;
   AVBitStreamFilterContext* annexb;
 };
@@ -153,9 +155,10 @@ CodecState setup_video_codec(BufferData* buffer) {
   }
 
   state.in_cc = avcodec_alloc_context3(state.in_codec);
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 34, 0)
   state.in_cc_params = avcodec_parameters_alloc();
-  if (avcodec_parameters_from_context(state.in_cc_params, in_stream->codec) < 0)
-  {
+  if (avcodec_parameters_from_context(state.in_cc_params, in_stream->codec) <
+      0) {
     fprintf(stderr, "could not copy codec params from input stream\n");
     exit(EXIT_FAILURE);
   }
@@ -163,6 +166,12 @@ CodecState setup_video_codec(BufferData* buffer) {
     fprintf(stderr, "could not copy codec params to in cc\n");
     assert(false);
   }
+#else
+  if (avcodec_copy_context(state.in_cc, in_stream->codec) < 0) {
+    fprintf(stderr, "could not copy codec params to in cc\n");
+    assert(false);
+  }
+#endif
 
   if (avcodec_open2(state.in_cc, state.in_codec, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");
