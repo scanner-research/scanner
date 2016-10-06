@@ -533,7 +533,8 @@ var ViewerPanel = React.createClass({
     if (prevProps.video.mediaPath != this.props.video.mediaPath) {
       this.refs.video.load();
     }
-    if (this.props.selectedFrame.status == 'valid') {
+    if (this.props.selectedFrame &&
+        this.props.selectedFrame.status == 'valid') {
       this.refs.video.seek(this.props.selectedFrame.data.time);
       this.props.graphics.draw(
         videoElement,
@@ -723,6 +724,7 @@ var VisualizerApp = React.createClass({
       data: {
         start: requestStart,
         end: requestEnd,
+        column: "base_bboxes",
         stride: 1,
         category: -1,
         threshold: $("#threshold-input").val(),

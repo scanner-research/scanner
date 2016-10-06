@@ -33,22 +33,14 @@ body {
         margin-right: 10px;
     }
 
-    .dataset-info {
+    .dataset-info, .job-info {
         display: inline-block;
         color: $p5;
         background: $p3;
         padding: 5px;
         margin: 2px;
         border-radius: 3px;
-    }
-
-    .job-info {
-        display: inline-block;
-        color: $p5;
-        background: $p3;
-        padding: 5px;
-        margin: 2px;
-        border-radius: 3px;
+        cursor: pointer;
     }
 }
 
@@ -64,6 +56,7 @@ body {
         box-sizing: border-box;
         height: 100%;
         overflow-x: hidden;
+        position: relative;
     }
 
     .video-browser {
