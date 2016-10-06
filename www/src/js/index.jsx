@@ -1,6 +1,6 @@
 var Immutable = require('immutable');
 var React = require('react')
-  var ReactDOM = require('react-dom');
+var ReactDOM = require('react-dom');
 var _ = require('lodash');
 var $ = require('jquery');
 var update = require('react-addons-update');
@@ -121,21 +121,21 @@ var detectionGraphics = {
           })
           .style("stroke", color);
     bboxes
-        .attr("x", function(d) {
-            return (d.x - d.width / 2) / w * viewWidth;
-        })
-        .attr("y", function(d) {
-            return (d.y - d.height / 2) / h * viewHeight;
-        })
-        .attr("width", function(d) {
-            return d.width / w * viewWidth;
-        })
-        .attr("height", function(d) {
-            return d.height / h * viewHeight;
-        })
-        .style("stroke", color);
-      bboxes.exit()
-            .remove();
+      .attr("x", function(d) {
+        return (d.x - d.width / 2) / w * viewWidth;
+      })
+      .attr("y", function(d) {
+        return (d.y - d.height / 2) / h * viewHeight;
+      })
+      .attr("width", function(d) {
+        return d.width / w * viewWidth;
+      })
+      .attr("height", function(d) {
+        return d.height / h * viewHeight;
+      })
+      .style("stroke", color);
+    bboxes.exit()
+          .remove();
   },
   hide: function() {
     // detectionGraphics.svgContainer.selectAll("rect.bbox")
@@ -159,11 +159,11 @@ function setupViewer(container, mainPanel, jobMetadata, videoMetadata) {
   var viewer = $('<div/>', {'class': 'video-viewer'});
   container.append(viewer)
 
-    var video = $('<video/>', {'width': viewWidth,
-                               'height': viewHeight,
-                               'class': 'video-viewer',
-                               'controls': 'on'})
-        .hide();
+  var video = $('<video/>', {'width': viewWidth,
+                             'height': viewHeight,
+                             'class': 'video-viewer',
+                             'controls': 'on'})
+    .hide();
   viewer.append(video);
 
   /*var videoSource = $('<source/>', {'src': videoMetadata.mediaPath,
@@ -187,27 +187,27 @@ function setupViewer(container, mainPanel, jobMetadata, videoMetadata) {
   var thumbnailWidth = 100;
   var thumbnailHeight = 56.26;
   var totalThumbnails =
-  Math.floor(thumbnailsContainer.width() / thumbnailWidth);
+    Math.floor(thumbnailsContainer.width() / thumbnailWidth);
 
   //var currentThumbnail = 0;
   var currentThumbnail = totalThumbnails;
   for (var i = 0; i < totalThumbnails; ++i) {
     var thumbnailCanvas = $('<canvas/>',{'class':'thumbnail'})
-            .width(thumbnailWidth)
-            .height(thumbnailHeight);
+      .width(thumbnailWidth)
+      .height(thumbnailHeight);
     thumbnailsContainer.append(thumbnailCanvas);
   }
 
   $(htmlVideo).on("seeked", function() {
     if (currentThumbnail < totalThumbnails) {
       var thumbnailContext = thumbnailsContainer
-                .children()[currentThumbnail]
-                .getContext("2d");
+        .children()[currentThumbnail]
+        .getContext("2d");
       draw(this, thumbnailContext);
 
       currentThumbnail += 1;
       this.currentTime =
-      (totalDuration / (totalThumbnails)) * currentThumbnail;
+        (totalDuration / (totalThumbnails)) * currentThumbnail;
     }
   });
 
@@ -251,11 +251,11 @@ function setupTimelinePlot(axis,
   var plotCanvas = $('<canvas/>', {'class': 'timeline-plot',
                                    'width': plotWidth,
                                    'height': plotHeight})
-        .css('width', plotWidth)
-        .css('height', plotHeight);
+    .css('width', plotWidth)
+    .css('height', plotHeight);
   axis.append(plotCanvas)
 
-    plotCanvas[0].width = plotWidth;
+  plotCanvas[0].width = plotWidth;
   plotCanvas[0].height = plotHeight;
   var context = plotCanvas[0].getContext("2d");
 
@@ -331,7 +331,7 @@ var VideoTimeline = React.createClass({
   componentDidMount: function() {
     var width = $(ReactDOM.findDOMNode(this)).width();
     var onSelectedFrameChange =
-    _.debounce(this.props.onSelectedFrameChange, 50);
+      _.debounce(this.props.onSelectedFrameChange, 50);
     this.setState({
       width: width,
       onSelectedFrameChange: onSelectedFrameChange
@@ -339,7 +339,7 @@ var VideoTimeline = React.createClass({
   },
   componentWillReceiveProps: function(nextProps) {
     var onSelectedFrameChange =
-    _.debounce(this.props.onSelectedFrameChange, 50);
+      _.debounce(this.props.onSelectedFrameChange, 50);
     this.setState({
       onSelectedFrameChange: onSelectedFrameChange
     });
@@ -433,7 +433,7 @@ var VideoNavigator = React.createClass({
         <VideoTimeline job={this.props.job}
                        video={this.props.video}
                        onSelectedFrameChange={
-                                              this.props.onSelectedFrameChange}/>
+                         this.props.onSelectedFrameChange}/>
       </div>
     );
   }
@@ -483,14 +483,14 @@ var ViewerPanel = React.createClass({
   componentDidMount: function() {
     var frameIndicator = $('<div/>', {'id': 'frame-indicator',
                                       'class': 'timeline-pos-indicator'})
-            .css('left', "50%")
-            .hide();
+      .css('left', "50%")
+      .hide();
     $("#main-panel").append(frameIndicator);
 
     var classIndicator = $('<div/>', {'id': 'class-indicator',
                                       'class': 'timeline-pos-indicator'})
-            .css('left', "50%")
-            .hide();
+      .css('left', "50%")
+      .hide();
     $("#main-panel").append(classIndicator);
 
     var videoElement = ReactDOM.findDOMNode(this.refs.video)
@@ -511,50 +511,58 @@ var ViewerPanel = React.createClass({
     if (prevProps.video.mediaPath != this.props.video.mediaPath) {
       this.refs.video.load();
     }
-    if (this.props.selectedFrame.data.hasOwnProperty('time')) {
-      this.refs.video.seek(this.props.selectedFrame.data.time);
-    }
-    if (this.props.selectedFrame &&
-        this.props.selectedFrame.status == 'valid') {
+    if (this.props.selectedFrame) {
+      if (this.props.selectedFrame.data.hasOwnProperty('time')) {
+        this.refs.video.seek(this.props.selectedFrame.data.time);
+      }
+      if (this.props.selectedFrame.status == 'valid') {
         console.log(this.props.selectedFrame.data);
-      this.props.graphics.draw(
-        videoElement,
-        this.props.video,
-        this.props.selectedFrame.data.frame + 'b',
-        this.props.selectedFrame.data.data.base_bboxes,
-        'base',
-        'red');
-      this.props.graphics.draw(
-        videoElement,
-        this.props.video,
-        this.props.selectedFrame.data.frame + 'g',
-        this.props.selectedFrame.data.data.tracked_bboxes,
-        'tracked',
-        'green');
+        this.props.graphics.draw(
+          videoElement,
+          this.props.video,
+          this.props.selectedFrame.data.frame + 'b',
+          this.props.selectedFrame.data.data.base_bboxes,
+          'base',
+          'red');
+        this.props.graphics.draw(
+          videoElement,
+          this.props.video,
+          this.props.selectedFrame.data.frame + 'g',
+          this.props.selectedFrame.data.data.tracked_bboxes,
+          'tracked',
+          'green');
+      }
     }
   },
   render: function() {
+    var frame = this.props.selectedFrame;
+    var frameNum = frame ? (frame.data.frame ? ('Frame ' + frame.data.frame) : '') : '';
     return (
       <div className="viewer-panel" ref="container">
         <Video id="video-viewer" width="100%" ref="video">
           <source src={this.props.video.mediaPath} type="video/mp4" />
         </Video>
         <div className="viewer-controls">
-          <select
-                  value={this.state.plotType}
-                  onChange={this.handlePlotTypeChange}>
-            <option value="certainty">Certainty</option>
-            <option value="bbox"># of bounding boxes</option>
-          </select>
-          <div>
-            Threshold:
-            <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="any"
-                    value={this.state.threshold}
-                    onChange={this.handleThresholdChange}/>
+          <div className="controls-left">
+            {frameNum}
+          </div>
+          <div className="controls-right">
+            <select
+                value={this.state.plotType}
+                onChange={this.handlePlotTypeChange}>
+              <option value="certainty">Certainty</option>
+              <option value="bbox"># of bounding boxes</option>
+            </select>
+            <div>
+              Threshold:
+              <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="any"
+                  value={this.state.threshold}
+                  onChange={this.handleThresholdChange}/>
+            </div>
           </div>
         </div>
       </div>
@@ -640,12 +648,12 @@ var VisualizerApp = React.createClass({
             return {status: 'invalid', data: {time: t}};
           });
         })
-          this.setState({
-            selectedVideo: videosData[0].id,
-            selectedFrame: 0,
-            videos: videosData,
-            frameData: frameData
-          });
+        this.setState({
+          selectedVideo: videosData[0].id,
+          selectedFrame: 0,
+          videos: videosData,
+          frameData: frameData
+        });
       }.bind(this)
     });
     this.setState({
@@ -682,7 +690,7 @@ var VisualizerApp = React.createClass({
       } else {
         foundStart = true;
         frameData =
-        update(frameData, {[i]: {status: {$set: 'loading'}}});
+          update(frameData, {[i]: {status: {$set: 'loading'}}});
       }
     }
     // The entire range is already loaded so we don't need to send a request
@@ -736,8 +744,9 @@ var VisualizerApp = React.createClass({
   },
   render: function() {
     var datasetDivs = _.map(this.state.datasets, function(dataset) {
+      var cls = "dataset-info " + (this.state.selectedDataset == dataset.id ? 'active' : '');
       return (
-        <div className="dataset-info"
+        <div className={cls}
              key={dataset.id}
              onClick={()=>this.handleSelectedDatasetChange(dataset.id)}>
           {dataset.name}
@@ -745,8 +754,9 @@ var VisualizerApp = React.createClass({
       );
     }.bind(this));
     var jobDivs = _.map(this.state.jobs, function(job) {
+      var cls = "job-info " + (this.state.selectedJob == job.id ? 'active' : '');
       return (
-        <div className="job-info"
+        <div className={cls}
              key={job.id}
              onClick={()=>this.handleSelectedJobChange(job.id)}>
           {job.name}
@@ -757,15 +767,17 @@ var VisualizerApp = React.createClass({
     var selectedVideoIndex = this.findVideoIndex(selectedVideo);
     var selectedFrame = this.state.selectedFrame;
     var frame =
-    this.state.frameData[selectedVideoIndex][selectedFrame];
+      this.state.frameData[selectedVideoIndex][selectedFrame];
     return (
       <div className="visualizer-app">
         <div className="header">
           <h1>Scanner</h1>
           <div className="dataset-panel">
+            <h2>Datasets</h2>
             {datasetDivs}
           </div>
-          <div className="job-panel">
+          <div className={"job-panel " + (this.state.selectedDataset == -1 ? 'hidden' : '')}>
+            <h2>Jobs</h2>
             {jobDivs}
           </div>
         </div>

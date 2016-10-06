@@ -20,17 +20,30 @@ body {
     }
 
     h1 {
-        margin: 0 20px 0 0;
+        margin: 0 20px 0 5px;
+        position: relative;
+        top: 3px;
+    }
+
+    h2 {
+        display: inline-block;
+        margin: 0 5px 0 3px;
+        font-size: 18px;
     }
 
     .dataset-panel, .job-panel {
-        height: 40px;
         position: relative;
-        top: 4px;
+        background: #888;
+        padding: 5px;
+        color: white;
     }
 
     .dataset-panel {
         margin-right: 10px;
+    }
+
+    .job-panel.hidden {
+        display: none;
     }
 
     .dataset-info, .job-info {
@@ -41,6 +54,12 @@ body {
         margin: 2px;
         border-radius: 3px;
         cursor: pointer;
+        border: 1px solid #aaa;
+    }
+
+    .active {
+        background: #7caeff;
+        color: white;
     }
 }
 
@@ -74,16 +93,26 @@ body {
     }
 
     .viewer-controls {
-        text-align: center;
-
-        div {
-            margin-left: 15px;
-            display: inline-block;
+        .controls-left {
+            float: left;
         }
 
-        input {
-            margin-left: 5px;
+        .controls-right {
+            float: right;
+
+            div {
+                margin-left: 15px;
+                display: inline-block;
+            }
+
+            input {
+                margin-left: 5px;
+            }
         }
+    }
+
+    .video {
+        min-height: 402px;
     }
 
     .timeline-axis {
