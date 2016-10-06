@@ -42,7 +42,7 @@ public:
 protected:
   float iou(const BoundingBox& bl, const BoundingBox& br);
 
-  const i32 UNDETECTED_WINDOW = 10;
+  const i32 UNDETECTED_WINDOW = 32;
 
   EvaluatorConfig config_;
   DeviceType device_type_;

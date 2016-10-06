@@ -6,6 +6,11 @@ var $ = require('jquery');
 var update = require('react-addons-update');
 var Video = require('react-html5video/dist/ReactHtml5Video').default;
 
+$.whenall = function(arr) {
+    return $.when.apply($, arr).pipe(function() {
+        return Array.prototype.slice.call(arguments);
+    });
+};
 
 require("../css/index.scss");
 
@@ -301,8 +306,12 @@ var VideoTimeline = React.createClass({
     var axis = $(this.refs.axis);
     var offset = axis.offset();
     var xPos = pageX - offset.left;
-    var percent = xPos / axis.width();
-    var frame = Math.floor(this.props.video.frames * percent);
+    var numTicks = Math.floor(this.state.width / 100);
+    var axisWidth = numTicks * 100;
+    var percent = Math.min(xPos / axisWidth, 1);
+    var frame = Math.min(Math.floor(this.props.video.frames * percent),
+                         this.props.video.frames - 1);
+      console.log(frame);
     return frame;
   },
   handleMouseMove: function(e) {
@@ -336,6 +345,46 @@ var VideoTimeline = React.createClass({
       width: width,
       onSelectedFrameChange: onSelectedFrameChange
     });
+  },
+  componentDidUpdate: function() {
+      var context = ReactDOM.findDOMNode(this.refs.canvas).getContext("2d");
+
+      var plotWidth = this.state.width;
+      var plotHeight = 80;
+      context.clearRect(0, 0, plotWidth, plotHeight);
+
+      var margin = {top: 0, right: 0, bottom: 0, left: 0},
+          canvasWidth = plotWidth - margin.left - margin.right,
+          canvasHeight = plotHeight - margin.top - margin.bottom;
+
+      var x = d3.scaleLinear()
+                .range([0, canvasWidth]);
+
+      var y = d3.scaleLinear()
+                .range([canvasHeight, 0]);
+
+      var line = d3.line()
+                   .x(function(d) { return x(d.frame); })
+                   .y(function(d) { return y(d.value); })
+                   .curve(d3.curveStep)
+                   .context(context);
+
+      context.translate(margin.left, margin.top);
+
+      //var lineData = jobMetadata.graphics.plotValues(predictionData);
+      var lineData = _.map(this.props.plotValues, function(d, i) {
+          return {frame: i, value: d};
+      });
+
+      //x.domain(d3.extent(confusionData, function(d) { return d.frame; }));
+      x.domain([0, this.props.video.frames]);
+      y.domain([0, _.max(this.props.plotValues)]);
+      //y.domain(d3.extent(lineData, function(d) { return d.value; }));
+      context.beginPath();
+      line(lineData);
+      context.lineWidth = 1.5;
+      context.strokeStyle = "steelblue";
+      context.stroke();
   },
   componentWillReceiveProps: function(nextProps) {
     var onSelectedFrameChange =
@@ -411,6 +460,20 @@ var VideoTimeline = React.createClass({
     );
     tickLabels.push(lastTickLabel);
 
+    var plotWidth = tickWidth * numTicks;
+    var plotHeight = tickHeight;
+    var plotStyle = {
+      width: plotWidth,
+      height: plotHeight,
+    };
+    var plotCanvas = (
+        <canvas className="timeline-plot"
+                width={plotWidth}
+                height={plotHeight}
+                style={plotStyle}
+                ref="canvas">
+        </canvas>
+    );
     return (
       <div className="video-timeline"
            onClick={this.handleClick}
@@ -420,6 +483,7 @@ var VideoTimeline = React.createClass({
              ref="axis">
           {ticks}
           {tickLabels}
+          {plotCanvas}
         </div>
       </div>
     )
@@ -432,6 +496,7 @@ var VideoNavigator = React.createClass({
       <div className="video-navigator">
         <VideoTimeline job={this.props.job}
                        video={this.props.video}
+                       plotValues={this.props.plotValues}
                        onSelectedFrameChange={
                          this.props.onSelectedFrameChange}/>
       </div>
@@ -443,12 +508,16 @@ var VideoBrowser = React.createClass({
   render: function() {
     var job = this.props.job;
     var onSelectedFrameChange = this.props.onSelectedFrameChange;
-    var videoNavigators = this.props.videos.map(function(video) {
+    var videoNavigators = _.map(
+        _.zip(this.props.videos, this.props.videoPlotValues),
+        function(video)
+    {
       return (
         <VideoNavigator job={job}
-                        video={video}
+                        video={video[0]}
+                        plotValues={video[1]}
                         onSelectedFrameChange={onSelectedFrameChange}
-                        key={video['id']}/>
+                        key={video[0]['id']}/>
       );
     });
 
@@ -477,7 +546,6 @@ var ViewerPanel = React.createClass({
     this.props.graphics.teardown(this.refs.container);
     var videoElement = ReactDOM.findDOMNode(this.refs.video)
                                .getElementsByTagName('video')[0];
-    console.log(videoElement);
     this.props.graphics.setup(this.refs.container, videoElement);
   },
   componentDidMount: function() {
@@ -495,7 +563,6 @@ var ViewerPanel = React.createClass({
 
     var videoElement = ReactDOM.findDOMNode(this.refs.video)
                                .getElementsByTagName('video')[0];
-    console.log(videoElement);
     this.props.graphics.setup(this.refs.container, videoElement);
     videoElement.addEventListener('resize', this.handleVideoResize);
   },
@@ -586,6 +653,9 @@ var VisualizerApp = React.createClass({
         mediaPath: '',
         name: "Loading...",
       }],
+      videoPlotValues: [
+        []
+      ],
       selectedVideo: -1,
       jobs: [{
         id: -1,
@@ -620,7 +690,8 @@ var VisualizerApp = React.createClass({
     var frame = d.frame;
 
     if (this.state.selectedJob != -1) {
-      this.loadPredictionData(d.videoId, frame - 1, frame + 1);
+      this.loadPredictionData(
+          d.videoId, this.state.selectedJob, frame - 1, frame + 1);
     }
     this.setState({
       selectedVideo: d.videoId,
@@ -648,12 +719,15 @@ var VisualizerApp = React.createClass({
             return {status: 'invalid', data: {time: t}};
           });
         })
-        this.setState({
-          selectedVideo: videosData[0].id,
-          selectedFrame: 0,
-          videos: videosData,
-          frameData: frameData
-        });
+          this.setState({
+            selectedVideo: videosData[0].id,
+            selectedFrame: 0,
+            videos: videosData,
+            videoPlotValues: _.times(_.size(videosData), function(i) {
+                return [];
+            }),
+            frameData: frameData
+          });
       }.bind(this)
     });
     this.setState({
@@ -672,8 +746,26 @@ var VisualizerApp = React.createClass({
       selectedJob: jobId,
       frameData: frameData
     });
+    this.loadPlotValues(jobId);
   },
-  loadPredictionData: function(videoId, start, end) {
+  loadPlotValues: function(jobId) {
+    var promises = _.map(this.state.videos, function(video) {
+        return this.loadPredictionData(video.id, jobId, 0, video.frames);
+    }.bind(this));
+    $.whenall(promises).done(function(data) {
+       this.setState({
+         videoPlotValues: _.map(data, function(p) {
+            var vals = p[0];
+            return _.map(vals, function(perFrame) {
+                return _.size(perFrame.data.base_bboxes) +
+                       _.size(perFrame.data.tracked_bboxes);
+            });
+          }),
+       })
+     }.bind(this));
+
+  },
+  loadPredictionData: function(videoId, jobId, start, end) {
     var frameData = this.state.frameData[videoId];
 
     var foundStart = false;
@@ -695,9 +787,9 @@ var VisualizerApp = React.createClass({
     }
     // The entire range is already loaded so we don't need to send a request
     if (requestStart == requestEnd) return;
-    $.ajax({
+    var p = $.ajax({
       url: "datasets/" + this.state.selectedDataset +
-           "/jobs/" + this.state.selectedJob +
+           "/jobs/" + jobId +
            "/features/" + videoId,
       dataType: "json",
       data: {
@@ -708,7 +800,8 @@ var VisualizerApp = React.createClass({
         category: -1,
         threshold: $("#threshold-input").val(),
       }
-    }).done(function(data) {
+    });
+    p.done(function(data) {
       for (var i = 0; i < (requestEnd - requestStart); ++i) {
         var frame = requestStart + i;
         frameData = update(frameData, {
@@ -723,6 +816,7 @@ var VisualizerApp = React.createClass({
                           {[videoId]: {$set: frameData}})
       });
     }.bind(this));
+    return p;
   },
   componentDidMount: function() {
     this.setState({height: this._getHeight()});
@@ -784,6 +878,7 @@ var VisualizerApp = React.createClass({
         <div className="body" ref="body" style={{height: this.state.height}}>
           <VideoBrowser job={this.findJob(this.state.selectedJob)}
                         videos={this.state.videos}
+                        videoPlotValues={this.state.videoPlotValues}
                         onSelectedFrameChange={this.handleSelectedFrameChange} />
           <ViewerPanel job={this.findJob(this.state.selectedJob)}
                        video={this.findVideo(selectedVideo)}

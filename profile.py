@@ -433,10 +433,10 @@ def multi_node_scaling_trials():
 
 
 nets = [
-    ['alex_net', 'features/alex_net.toml'],
-    ['resnet', 'features/resnet.toml'],
-    ['googlenet', 'features/googlenet.toml'],
-    ['fcn', 'features/fcn8s.toml'],
+    #['alex_net', 'features/alex_net.toml'],
+    #['resnet', 'features/resnet.toml'],
+    #['googlenet', 'features/googlenet.toml'],
+    #['fcn', 'features/fcn8s.toml'],
     ['vgg', 'features/vgg.toml'],
 ]
 
@@ -490,7 +490,7 @@ def caffe_benchmark_gpu_trials():
          'num_elements': 2048,
          'batch_size': batch_size}
         for net in nets
-        for batch_size in [1, 2, 4, 8, 16]]
+        for batch_size in [1, 2, 4, 8, 16, 32]]
     times = []
     for settings in trial_settings:
         trial_times = []
@@ -503,8 +503,9 @@ def caffe_benchmark_gpu_trials():
 
 
 def main(args):
-    profilers = parse_profiler_files('big')
-    write_trace_file(profilers)
+   caffe_benchmark_gpu_trials()
+    #profilers = parse_profiler_files('facenet')
+    #write_trace_file(profilers)
     # pp = pprint.PrettyPrinter(indent=2)
     # pp.pprint(profilers['load'])
 
