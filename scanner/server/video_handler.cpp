@@ -455,7 +455,8 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
 
   auto item_to_json = [](i32 item_id, const std::string& video_name,
                          const std::string& media_path,
-                         const DatasetItemMetadata& item) -> folly::dynamic {
+                         const DatasetItemMetadata& item,
+                         const DatasetItemWebTimestamps& ts) -> folly::dynamic {
     folly::dynamic meta = folly::dynamic::object;
     meta["id"] = item_id;
     meta["name"] = video_name;
@@ -463,6 +464,11 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
     meta["frames"] = item.frames;
     meta["width"] = item.width;
     meta["height"] = item.height;
+    folly::dynamic times = folly::dynamic::array();
+    for (auto t : ts.pts_timestamps) {
+      times.push_back(t / (f64)ts.time_base_denominator);
+    }
+    meta["times"] = times;
     return meta;
   };
 
@@ -484,7 +490,10 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
       DatasetItemMetadata item =
           read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
 
-      json = item_to_json(video_id, video_name, media_path, item);
+      DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
+          storage_.get(), dataset_name, video_name);
+
+      json = item_to_json(video_id, video_name, media_path, item, timestamps);
     }
   } else {
     // Requesting all videos metadata
@@ -497,8 +506,11 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
       DatasetItemMetadata item =
           read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
 
+      DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
+          storage_.get(), dataset_name, video_name);
+
       folly::dynamic meta =
-          item_to_json(video_id++, video_name, media_path, item);
+          item_to_json(video_id++, video_name, media_path, item, timestamps);
 
       json.push_back(meta);
     }

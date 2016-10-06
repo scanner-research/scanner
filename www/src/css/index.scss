@@ -115,9 +115,11 @@ body {
         z-index: 10;
     }
 
-    .bbox {
+    .bbox-base {
         fill: transparent;
-        stroke: red;
+    }
+    .bbox-tracked {
+        fill: transparent;
     }
 
 }

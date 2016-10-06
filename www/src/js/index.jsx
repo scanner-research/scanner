@@ -93,9 +93,9 @@ var detectionGraphics = {
   },
   show: function() {
   },
-  draw: function(videoElement, videoMetadata, frame, boxes, color) {
+  draw: function(videoElement, videoMetadata, frame, boxes, c, color) {
     var videoElement = $(videoElement);
-    var bboxes = detectionGraphics.svgContainer.selectAll(".bbox")
+    var bboxes = detectionGraphics.svgContainer.selectAll(".bbox-" + c)
                                   .data(boxes, function (d, i) {
                                     var id = frame + ':' + i;
                                     return id;
@@ -106,7 +106,7 @@ var detectionGraphics = {
     var viewHeight = videoElement.height();
     bboxes.enter()
           .append("rect")
-          .attr("class", "bbox")
+          .attr("class", "bbox-" + c)
           .attr("x", function(d) {
             return (d.x - d.width / 2) / w * viewWidth;
           })
@@ -511,22 +511,26 @@ var ViewerPanel = React.createClass({
     if (prevProps.video.mediaPath != this.props.video.mediaPath) {
       this.refs.video.load();
     }
+    if (this.props.selectedFrame.data.hasOwnProperty('time')) {
+      this.refs.video.seek(this.props.selectedFrame.data.time);
+    }
     if (this.props.selectedFrame &&
         this.props.selectedFrame.status == 'valid') {
-      this.refs.video.seek(this.props.selectedFrame.data.time);
         console.log(this.props.selectedFrame.data);
       this.props.graphics.draw(
         videoElement,
         this.props.video,
         this.props.selectedFrame.data.frame + 'b',
         this.props.selectedFrame.data.data.base_bboxes,
+        'base',
         'red');
       this.props.graphics.draw(
         videoElement,
         this.props.video,
         this.props.selectedFrame.data.frame + 'g',
         this.props.selectedFrame.data.data.tracked_bboxes,
-       'green');
+        'tracked',
+        'green');
     }
   },
   render: function() {
@@ -632,8 +636,8 @@ var VisualizerApp = React.createClass({
       dataType: "json",
       success: function(videosData) {
         var frameData = _.map(videosData, function(video) {
-          return _.times(video.frames, function(i) {
-            return {status: 'invalid', data: {}};
+          return _.map(video.times, function(t) {
+            return {status: 'invalid', data: {time: t}};
           });
         })
           this.setState({
@@ -656,29 +660,9 @@ var VisualizerApp = React.createClass({
       });
     })
 
-      this.setState({
-        selectedJob: jobId,
-        frameData: frameData
-      });
-  },
-  loadDatasetJobData: function(datasetx) {
-    $.ajax({
-      url: "videos",
-      dataType: "json",
-      data: {
-        job_id: jobsData[0]["id"],
-      },
-      success: function(videoData) {
-        var frameData = _.map(videoData, function(video) {
-          return _.times(video.frames, function(i) {
-            return {status: 'invalid', data: {}};
-          });
-        })
-          this.setState({
-            videos: videoData,
-            frameData: frameData
-          });
-      }.bind(this)
+    this.setState({
+      selectedJob: jobId,
+      frameData: frameData
     });
   },
   loadPredictionData: function(videoId, start, end) {
