@@ -20,10 +20,11 @@
 
 namespace scanner {
 
-BBoxParser::BBoxParser() {}
+BBoxParser::BBoxParser(const std::vector<std::string>& column_names)
+    : column_names_(column_names) {}
 
 std::vector<std::string> BBoxParser::get_output_names() {
-  return {"bboxes"};
+  return column_names_;
 }
 
 void BBoxParser::configure(const DatasetItemMetadata& metadata) {
@@ -33,41 +34,41 @@ void BBoxParser::configure(const DatasetItemMetadata& metadata) {
 void BBoxParser::parse_output(const std::vector<u8*>& output,
                               const std::vector<i64>& output_size,
                               folly::dynamic& parsed_results) {
+  size_t column_count = column_names_.size();
+  for (size_t i = 0; i < column_count; ++i) {
+    u8 *buf = output[i];
+    size_t num_boxes = *((size_t *)buf);
+    buf += sizeof(size_t);
+    assert(output_size[i] == sizeof(size_t) + num_boxes * sizeof(BoundingBox));
+    std::vector<BoundingBox> boxes(num_boxes);
+    for (size_t i = 0; i < num_boxes; ++i) {
+      boxes[i].x1 = *((f32 *)buf);
+      buf += sizeof(f32);
+      boxes[i].y1 = *((f32 *)buf);
+      buf += sizeof(f32);
+      boxes[i].x2 = *((f32 *)buf);
+      buf += sizeof(f32);
+      boxes[i].y2 = *((f32 *)buf);
+      buf += sizeof(f32);
+      boxes[i].confidence = *((f32 *)buf);
+      buf += sizeof(f32);
+    }
 
-  u8* buf = output[0];
-  size_t num_boxes = *((size_t*)buf);
-  buf += sizeof(size_t);
-  assert(output_size[0] == sizeof(size_t) + num_boxes * sizeof(BoundingBox));
-  std::vector<BoundingBox> boxes(num_boxes);
-  for (size_t i = 0; i < num_boxes; ++i) {
-    boxes[i].x1 = *((f32*)buf);
-    buf += sizeof(f32);
-    boxes[i].y1 = *((f32*)buf);
-    buf += sizeof(f32);
-    boxes[i].x2 = *((f32*)buf);
-    buf += sizeof(f32);
-    boxes[i].y2 = *((f32*)buf);
-    buf += sizeof(f32);
-    boxes[i].confidence = *((f32*)buf);
-    buf += sizeof(f32);
+    folly::dynamic out_bboxes = folly::dynamic::array();
+    for (auto &b : boxes) {
+      folly::dynamic bbox = folly::dynamic::object();
+      f32 width = b.x2 - b.x1;
+      f32 height = b.y2 - b.y1;
+      bbox["category"] = 0;
+      bbox["x"] = b.x1 + width / 2;
+      bbox["y"] = b.y1 + height / 2;
+      bbox["width"] = width;
+      bbox["height"] = height;
+      bbox["confidence"] = b.confidence;
+      out_bboxes.push_back(bbox);
+    }
+
+    parsed_results[column_names_[i]] = out_bboxes;
   }
-
-  folly::dynamic out_bboxes = folly::dynamic::array();
-  for (auto& b : boxes) {
-    folly::dynamic bbox = folly::dynamic::object();
-    f32 width = b.x2 - b.x1;
-    f32 height = b.y2 - b.y1;
-    bbox["category"] = 0;
-    bbox["x"] = b.x1 + width / 2;
-    bbox["y"] = b.y1 + height / 2;
-    bbox["width"] = width;
-    bbox["height"] = height;
-    bbox["confidence"] = b.confidence;
-    out_bboxes.push_back(bbox);
-  }
-
-  parsed_results["bboxes"] = out_bboxes;
-  parsed_results["certainty"] = 0;
 }
-
 }

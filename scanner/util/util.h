@@ -22,6 +22,7 @@
 #include <chrono>
 #include <cstring>
 #include <string>
+#include <sstream>
 #include <vector>
 
 namespace scanner {
@@ -64,6 +65,24 @@ inline std::string basename_s(const std::string& path) {
 int mkdir_p(const char* path, mode_t mode);
 
 void temp_file(FILE** file, std::string& name);
+
+///////////////////////////////////////////////////////////////////////////////
+/// String processing
+inline void split(const std::string &s, char delim,
+                  std::vector<std::string> &elems) {
+  std::stringstream ss;
+  ss.str(s);
+  std::string item;
+  while (std::getline(ss, item, delim)) {
+    elems.push_back(item);
+  }
+}
+
+inline std::vector<std::string> split(const std::string &s, char delim) {
+  std::vector<std::string> elems;
+  split(s, delim, elems);
+  return elems;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// pthread utils

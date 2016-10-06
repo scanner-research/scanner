@@ -293,13 +293,18 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
                                    i32 job_id, i32 video_id,
                                    const std::string& path,
                                    pg::ResponseBuilder& response) {
-  if (!(message_->hasQueryParam("start") && message_->hasQueryParam("end"))) {
+  if (!(message_->hasQueryParam("start") &&
+        message_->hasQueryParam("end") &&
+        message_->hasQueryParam("columns"))) {
     response.status(400, "Bad Request");
     return;
   }
 
   i32 start_frame = message_->getIntQueryParam("start");
   i32 end_frame = message_->getIntQueryParam("end");
+  std::string columns_string = message_->getDecodedQueryParam("columns");
+
+  std::vector<std::string> columns = split(columns_string, ',');
 
   const std::string& dataset_name = meta.dataset_names.at(dataset_id);
   DatasetDescriptor dataset_descriptor =
@@ -325,7 +330,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   // if (message_->has("sampling_filter")) {
   // }
 
-  BBoxParser* parser = new BBoxParser();
+  BBoxParser* parser = new BBoxParser(columns);
 
   const std::string& video_name = dataset_descriptor.item_names[video_id];
   const std::vector<std::tuple<i32, i32>>& intervals =

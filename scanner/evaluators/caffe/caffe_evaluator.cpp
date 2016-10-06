@@ -87,7 +87,6 @@ void CaffeEvaluator::evaluate(
   i32 input_count = (i32)input_buffers[0].size();
 
   for (i32 frame = 0; frame < input_count; frame += batch_size_) {
-    printf("batch %d\n", frame);
     i32 batch_count = std::min(input_count - frame, batch_size_);
     if (input_blob->shape(0) != batch_count) {
       input_blob->Reshape(
@@ -174,7 +173,6 @@ void CaffeEvaluator::evaluate(
       }
     }
   }
-  printf("num outputs %lu\n", output_buffers[1].size());
 }
 
 CaffeEvaluatorFactory::CaffeEvaluatorFactory(
@@ -195,26 +193,25 @@ EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   }
   caps.warmup_size = 0;
   return caps;
-  }
+}
 
-  std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
-    std::vector<std::string> output_names;
-    if (forward_input_) {
-      output_names.push_back("frame");
-    }
-    const std::vector<std::string> &layer_names =
-        net_descriptor_.output_layer_names;
-    output_names.insert(output_names.end(), layer_names.begin(),
-                        layer_names.end());
-
-    return output_names;
+std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
+  std::vector<std::string> output_names;
+  if (forward_input_) {
+    output_names.push_back("frame");
   }
+  const std::vector<std::string> &layer_names =
+      net_descriptor_.output_layer_names;
+  output_names.insert(output_names.end(), layer_names.begin(),
+                      layer_names.end());
 
-  Evaluator *CaffeEvaluatorFactory::new_evaluator(
-      const EvaluatorConfig &config) {
-    CaffeInputTransformer *transformer =
-        transformer_factory_->construct(config, net_descriptor_);
-    return new CaffeEvaluator(config, device_type_, 0, net_descriptor_,
-                              transformer, batch_size_, forward_input_);
-  }
+  return output_names;
+}
+
+Evaluator *CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+  CaffeInputTransformer *transformer =
+      transformer_factory_->construct(config, net_descriptor_);
+  return new CaffeEvaluator(config, device_type_, 0, net_descriptor_,
+                            transformer, batch_size_, forward_input_);
+}
 }

@@ -24,7 +24,7 @@ namespace scanner {
 
 class BBoxParser : public ResultsParser {
  public:
-  BBoxParser();
+  BBoxParser(const std::vector<std::string>& column_names);
 
   std::vector<std::string> get_output_names() override;
 
@@ -35,6 +35,7 @@ class BBoxParser : public ResultsParser {
                     folly::dynamic& parsed_results) override;
 
  protected:
+  std::vector<std::string> column_names_;
   DatasetItemMetadata metadata_;
 };
 }

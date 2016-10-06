@@ -27,19 +27,17 @@ namespace scanner {
 
 class CaffeEvaluator : public Evaluator {
  public:
-  CaffeEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                 i32 device_id,
-                 const NetDescriptor& descriptor,
-                 CaffeInputTransformer* transformer,
-                 i32 batch_size,
-                 bool forward_input = false);
+   CaffeEvaluator(const EvaluatorConfig &config, DeviceType device_type,
+                  i32 device_id, const NetDescriptor &descriptor,
+                  CaffeInputTransformer *transformer, i32 batch_size,
+                  bool forward_input = false);
 
-  void configure(const DatasetItemMetadata& metadata) override;
+   void configure(const DatasetItemMetadata &metadata) override;
 
-  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-                const std::vector<std::vector<size_t>>& input_sizes,
-                std::vector<std::vector<u8*>>& output_buffers,
-                std::vector<std::vector<size_t>>& output_sizes) override;
+   void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
+                 const std::vector<std::vector<size_t>> &input_sizes,
+                 std::vector<std::vector<u8 *>> &output_buffers,
+                 std::vector<std::vector<size_t>> &output_sizes) override;
 
  protected:
   EvaluatorConfig config_;

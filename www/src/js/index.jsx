@@ -95,7 +95,7 @@ var detectionGraphics = {
   draw: function(videoElement, videoMetadata, item) {
     var videoElement = $(videoElement);
     var bboxes = detectionGraphics.svgContainer.selectAll(".bbox")
-                                  .data(item.data.bboxes, function (d, i) {
+                                  .data(item.data.base_bboxes, function (d, i) {
                                     var id = item.frame + ':' + i;
                                     return id;
                                   });
@@ -130,31 +130,31 @@ var detectionGraphics = {
             return color;
           });
     bboxes
-            .attr("x", function(d) {
+          .attr("x", function(d) {
               return (d.x - d.width / 2) / w * viewWidth;
-            })
-            .attr("y", function(d) {
+          })
+          .attr("y", function(d) {
               return (d.y - d.height / 2) / h * viewHeight;
-            })
-            .attr("width", function(d) {
+          })
+          .attr("width", function(d) {
               return d.width / w * viewWidth;
-            })
-            .attr("height", function(d) {
+          })
+          .attr("height", function(d) {
               return d.height / h * viewHeight;
-            })
-            .style("stroke", function (d) {
+          })
+          .style("stroke", function (d) {
               var color;
               if (d.category == 0) {
-                color = 'red';
+                  color = 'red';
               } else if (d.category == 1) {
-                color = 'green';
+                  color = 'green';
               } else {
-                color = 'blue';
+                  color = 'blue';
               }
               return color;
-            });
-    bboxes.exit()
-          .remove();
+          });
+      bboxes.exit()
+            .remove();
   },
   hide: function() {
     // detectionGraphics.svgContainer.selectAll("rect.bbox")
