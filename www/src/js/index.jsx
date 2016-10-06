@@ -80,7 +80,6 @@ var detectionGraphics = {
   setup: function(container, videoElement) {
     var container = $(container);
     var videoElement = $(videoElement);
-    container.append();
     detectionGraphics.svgContainer = d3.select(container.get(0))
                                        .append("svg")
                                        .classed("bbox-container", true)
@@ -89,14 +88,16 @@ var detectionGraphics = {
                                        .append("g");
   },
   teardown: function(container) {
+    var container = $(container);
+    d3.select(container.get(0)).selectAll("svg").remove();
   },
   show: function() {
   },
-  draw: function(videoElement, videoMetadata, item) {
+  draw: function(videoElement, videoMetadata, frame, boxes, color) {
     var videoElement = $(videoElement);
     var bboxes = detectionGraphics.svgContainer.selectAll(".bbox")
-                                  .data(item.data.base_bboxes, function (d, i) {
-                                    var id = item.frame + ':' + i;
+                                  .data(boxes, function (d, i) {
+                                    var id = frame + ':' + i;
                                     return id;
                                   });
     var w = videoMetadata.width;
@@ -118,41 +119,21 @@ var detectionGraphics = {
           .attr("height", function(d) {
             return d.height / h * viewHeight;
           })
-          .style("stroke", function (d) {
-            var color;
-            if (d.category == 0) {
-              color = 'red';
-            } else if (d.category == 1) {
-              color = 'green';
-            } else {
-              color = 'blue';
-            }
-            return color;
-          });
+          .style("stroke", color);
     bboxes
-          .attr("x", function(d) {
-              return (d.x - d.width / 2) / w * viewWidth;
-          })
-          .attr("y", function(d) {
-              return (d.y - d.height / 2) / h * viewHeight;
-          })
-          .attr("width", function(d) {
-              return d.width / w * viewWidth;
-          })
-          .attr("height", function(d) {
-              return d.height / h * viewHeight;
-          })
-          .style("stroke", function (d) {
-              var color;
-              if (d.category == 0) {
-                  color = 'red';
-              } else if (d.category == 1) {
-                  color = 'green';
-              } else {
-                  color = 'blue';
-              }
-              return color;
-          });
+        .attr("x", function(d) {
+            return (d.x - d.width / 2) / w * viewWidth;
+        })
+        .attr("y", function(d) {
+            return (d.y - d.height / 2) / h * viewHeight;
+        })
+        .attr("width", function(d) {
+            return d.width / w * viewWidth;
+        })
+        .attr("height", function(d) {
+            return d.height / h * viewHeight;
+        })
+        .style("stroke", color);
       bboxes.exit()
             .remove();
   },
@@ -164,9 +145,6 @@ var detectionGraphics = {
   },
   //
 };
-
-function drawBbox() {
-}
 
 var graphicsOptions = {
   "classification": classificationGraphics,
@@ -536,10 +514,19 @@ var ViewerPanel = React.createClass({
     if (this.props.selectedFrame &&
         this.props.selectedFrame.status == 'valid') {
       this.refs.video.seek(this.props.selectedFrame.data.time);
+        console.log(this.props.selectedFrame.data);
       this.props.graphics.draw(
         videoElement,
         this.props.video,
-        this.props.selectedFrame.data);
+        this.props.selectedFrame.data.frame + 'b',
+        this.props.selectedFrame.data.data.base_bboxes,
+        'red');
+      this.props.graphics.draw(
+        videoElement,
+        this.props.video,
+        this.props.selectedFrame.data.frame + 'g',
+        this.props.selectedFrame.data.data.tracked_bboxes,
+       'green');
     }
   },
   render: function() {
@@ -722,9 +709,9 @@ var VisualizerApp = React.createClass({
            "/features/" + videoId,
       dataType: "json",
       data: {
+        columns: "base_bboxes,tracked_bboxes",
         start: requestStart,
         end: requestEnd,
-        column: "base_bboxes",
         stride: 1,
         category: -1,
         threshold: $("#threshold-input").val(),
