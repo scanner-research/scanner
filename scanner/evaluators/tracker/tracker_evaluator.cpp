@@ -44,7 +44,7 @@ TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
   }
 }
 
-void TrackerEvaluator::configure(const DatasetItemMetadata& metadata) {
+void TrackerEvaluator::configure(const VideoMetadata& metadata) {
   LOG(INFO) << "Tracker configure";
   metadata_ = metadata;
 }
@@ -128,7 +128,7 @@ void TrackerEvaluator::evaluate(
     std::vector<BoundingBox> generated_bboxes;
     {
       u8 *buffer = input_buffers[0][b];
-      cv::Mat frame(metadata_.height, metadata_.width, CV_8UC3, buffer);
+      cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       for (i32 i = 0; i < (i32)trackers_.size(); ++i) {
         auto& tracker = trackers_[i];
         tracker->Track(frame);
@@ -150,8 +150,8 @@ void TrackerEvaluator::evaluate(
 
       tracker_configs_.emplace_back(new struck::Config{});
       struck::Config &config = *(tracker_configs_.back().get());
-      config.frameWidth = metadata_.width;
-      config.frameHeight = metadata_.height;
+      config.frameWidth = metadata_.width();
+      config.frameHeight = metadata_.height();
       struck::Config::FeatureKernelPair fkp;
       fkp.feature = struck::Config::kFeatureTypeHaar;
       fkp.kernel = struck::Config::kKernelTypeLinear;
@@ -159,7 +159,7 @@ void TrackerEvaluator::evaluate(
       struck::Tracker *tracker = new struck::Tracker(config);
 
       u8 *buffer = input_buffers[0][b];
-      cv::Mat frame(metadata_.height, metadata_.width, CV_8UC3, buffer);
+      cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       tracker->Initialise(frame, r);
 
       tracked_bboxes_.push_back(box);

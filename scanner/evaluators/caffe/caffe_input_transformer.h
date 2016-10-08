@@ -25,7 +25,7 @@ class CaffeInputTransformer {
  public:
   virtual ~CaffeInputTransformer(){};
 
-  virtual void configure(const DatasetItemMetadata& metadata,
+  virtual void configure(const VideoMetadata& metadata,
                          caffe::Net<float>* net) = 0;
 
   virtual void transform_input(i32 input_count, u8* input_buffer,

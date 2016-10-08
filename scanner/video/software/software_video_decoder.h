@@ -41,7 +41,7 @@ class SoftwareVideoDecoder : public VideoDecoder {
 
   ~SoftwareVideoDecoder();
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   bool feed(const u8* encoded_buffer, size_t encoded_size,
             bool discontinuity = false) override;
@@ -61,7 +61,7 @@ class SoftwareVideoDecoder : public VideoDecoder {
   AVCodec* codec_;
   AVCodecContext* cc_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
   std::vector<u8> conversion_buffer_;
   bool reset_context_;
   SwsContext* sws_context_;

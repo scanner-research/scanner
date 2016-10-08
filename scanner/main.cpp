@@ -29,12 +29,14 @@
 
 #ifdef HAVE_CAFFE
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
-#include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
+#include "scanner/evaluators/caffe/facenet/facenet_gpu_input_transformer.h"
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
 #include "scanner/evaluators/movie_analysis/movie_evaluator.h"
+#include "scanner/evaluators/tracker/tracker_evaluator.h"
+#include "scanner/evaluators/util/swizzle_evaluator.h"
 
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
@@ -100,15 +102,15 @@ void startup(int argc, char** argv) {
 void shutdown() { MPI_Finalize(); }
 
 class Config {
- public:
-  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml)
-      : vm(vm), pr(pr), has_toml(has_toml) {}
+public:
+
+  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml) : vm(vm), pr(pr), has_toml(has_toml) {}
 
   bool has(std::string key) {
     return vm.count(key) || (has_toml && pr.value.find(key) != nullptr);
   }
 
-  template <typename T>
+  template<typename T>
   T get(std::string key) {
     if (vm.count(key)) {
       return vm[key].as<T>();
@@ -119,7 +121,7 @@ class Config {
     }
   }
 
- private:
+private:
   po::variables_map vm;
   toml::ParseResult pr;
   bool has_toml;
@@ -389,6 +391,7 @@ int main(int argc, char** argv) {
     std::string db_meta_path = database_metadata_path();
     storehouse::FileInfo info;
     storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
+
     if (result == storehouse::StoreResult::FileDoesNotExist) {
       // Need to initialize db metadata
       std::unique_ptr<storehouse::WriteFile> meta_out_file;
@@ -438,13 +441,20 @@ int main(int argc, char** argv) {
       std::ifstream net_file{net_descriptor_file};
       descriptor = descriptor_from_net_file(net_file);
     }
-    FacenetCPUInputTransformerFactory* factory =
-        new FacenetCPUInputTransformerFactory();
-    CaffeEvaluatorFactory caffe_factory(DeviceType::CPU, descriptor,
-                                        factory, true);
+    FacenetGPUInputTransformerFactory* factory =
+        new FacenetGPUInputTransformerFactory();
+    CaffeEvaluatorFactory caffe_factory(DeviceType::GPU, descriptor,
+                                        factory, 4, true);
     FacenetParserEvaluatorFactory parser_factory(DeviceType::CPU, 2.5, true);
-    run_job(config, decoder_type, {&caffe_factory, &parser_factory}, job_name,
-            dataset_name);
+    TrackerEvaluatorFactory tracker_factory(DeviceType::CPU, 1);
+    SwizzleEvaluatorFactory swizzle_factory(DeviceType::CPU, {1, 2},
+                                            {"base_bboxes", "tracked_bboxes"});
+
+    std::vector<EvaluatorFactory *> factories = {
+        &caffe_factory, &parser_factory, &tracker_factory, &swizzle_factory,
+    };
+    run_job(config, decoder_type, factories, job_name, dataset_name);
+
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
@@ -465,6 +475,8 @@ int main(int argc, char** argv) {
         LOG(FATAL) << "Cannot remove: job with that name does not exist";
       }
       meta.remove_job(meta.get_job_id(resource_name));
+    } else {
+      LOG(FATAL) << "No resource type named: " << resource_type;
     }
 
     std::string db_meta_path = database_metadata_path();
@@ -474,9 +486,9 @@ int main(int argc, char** argv) {
   } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
     std::string ip = "0.0.0.0";
-    i32 http_port = 11000;
-    i32 spdy_port = 11001;
-    i32 http2_port = 11002;
+    i32 http_port = 12000;
+    i32 spdy_port = 12001;
+    i32 http2_port = 12002;
     i32 threads = 8;
     std::vector<pg::HTTPServer::IPConfig> IPs = {
         {folly::SocketAddress(ip, http_port, true),

@@ -128,7 +128,7 @@ MovieEvaluator::MovieEvaluator(EvaluatorConfig config) {
   evaluators["histogram"] = std::move(histogram);
 }
 
-void MovieEvaluator::configure(const DatasetItemMetadata& metadata) {
+void MovieEvaluator::configure(const VideoMetadata& metadata) {
   this->metadata = metadata;
   for (auto& entry : evaluators) {
     entry.second->configure(metadata);

@@ -22,20 +22,20 @@ FacenetCPUInputTransformer::FacenetCPUInputTransformer(
     const NetDescriptor& descriptor)
     : descriptor_(descriptor), net_input_width_(224), net_input_height_(224) {}
 
-void FacenetCPUInputTransformer::configure(const DatasetItemMetadata& metadata,
+void FacenetCPUInputTransformer::configure(const VideoMetadata& metadata,
                                            caffe::Net<float>* net) {
   metadata_ = metadata;
 
-  net_input_width_ = metadata.width;
-  net_input_height_ = metadata.height;
+  net_input_width_ = metadata.width();
+  net_input_height_ = metadata.height();
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net->blob_by_name(descriptor_.input_layer_name)};
 
-  if (input_blob->shape(2) != metadata.width ||
-      input_blob->shape(3) != metadata.height) {
+  if (input_blob->shape(2) != metadata.width() ||
+      input_blob->shape(3) != metadata.height()) {
     input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-                         metadata.width, metadata.height});
+                         metadata.width(), metadata.height()});
 
     mean_mat_ = cv::Mat(
         net_input_height_, net_input_width_, CV_32FC3,

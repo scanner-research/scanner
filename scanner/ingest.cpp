@@ -199,7 +199,7 @@ void cleanup_video_codec(CodecState state) {
   av_bitstream_filter_close(state.annexb);
 }
 
-bool read_timestamps(std::string video_path, DatasetItemWebTimestamps& meta) {
+bool read_timestamps(std::string video_path, WebTimestamps& meta) {
   // Load the entire input
   std::vector<u8> video_bytes;
   {
@@ -232,10 +232,10 @@ bool read_timestamps(std::string video_path, DatasetItemWebTimestamps& meta) {
   AVStream const* const in_stream =
       state.format_context->streams[state.video_stream_index];
 
-  meta.time_base_numerator = in_stream->time_base.num;
-  meta.time_base_denominator = in_stream->time_base.den;
-  std::vector<i64>& pts_timestamps = meta.pts_timestamps;
-  std::vector<i64>& dts_timestamps = meta.dts_timestamps;
+  meta.set_time_base_numerator(in_stream->time_base.num);
+  meta.set_time_base_denominator(in_stream->time_base.den);
+  std::vector<i64> pts_timestamps; 
+  std::vector<i64> dts_timestamps;
 
   bool succeeded = true;
   i32 frame = 0;
@@ -332,6 +332,13 @@ bool read_timestamps(std::string video_path, DatasetItemWebTimestamps& meta) {
 
   cleanup_video_codec(state);
 
+  for (i64 ts : pts_timestamps) {
+    meta.add_pts_timestamps(ts);
+  }
+  for (i64 ts : dts_timestamps) {
+    meta.add_dts_timestamps(ts);
+  }
+
   return true;
 }
 
@@ -366,7 +373,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
                       const std::string& dataset_name,
                       const std::string& video_path,
                       const std::string& item_name,
-                      DatasetItemMetadata& video_metadata) {
+                      VideoDescriptor& video_descriptor) {
   // Load the entire input
   std::vector<u8> video_bytes;
   {
@@ -396,17 +403,16 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
   CodecState state = setup_video_codec(&buffer);
 
-  video_metadata.width = state.in_cc->coded_width;
-  video_metadata.height = state.in_cc->coded_height;
-  video_metadata.chroma_format = VideoChromaFormat::YUV_420;
-  video_metadata.codec_type = VideoCodecType::H264;
+  video_descriptor.set_width(state.in_cc->coded_width);
+  video_descriptor.set_height(state.in_cc->coded_height);
+  video_descriptor.set_chroma_format(VideoDescriptor::YUV_420);
+  video_descriptor.set_codec_type(VideoDescriptor::H264);
 
-  std::vector<u8>& metadata_bytes = video_metadata.metadata_packets;
+  std::vector<u8> metadata_bytes;
   std::vector<u8> bytestream_bytes;
-  std::vector<i64>& keyframe_positions = video_metadata.keyframe_positions;
-  std::vector<i64>& keyframe_timestamps = video_metadata.keyframe_timestamps;
-  std::vector<i64>& keyframe_byte_offsets =
-      video_metadata.keyframe_byte_offsets;
+  std::vector<i64> keyframe_positions;
+  std::vector<i64> keyframe_timestamps;
+  std::vector<i64> keyframe_byte_offsets;
 
   bool succeeded = true;
   i32 frame = 0;
@@ -586,7 +592,18 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   // Cleanup video decoder
   cleanup_video_codec(state);
 
-  video_metadata.frames = frame;
+  video_descriptor.set_frames(frame);
+  video_descriptor.set_metadata_packets(metadata_bytes.data(),
+                                        metadata_bytes.size());
+  for (i64 v : keyframe_positions) {
+    video_descriptor.add_keyframe_positions(v);
+  }
+  for (i64 v : keyframe_timestamps) {
+    video_descriptor.add_keyframe_timestamps(v);
+  }
+  for (i64 v : keyframe_byte_offsets) {
+    video_descriptor.add_keyframe_byte_offsets(v);
+  }
 
   const std::vector<u8>& demuxed_video_stream = bytestream_bytes;
 
@@ -598,7 +615,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     exit_on_error(
         make_unique_write_file(storage, metadata_path, metadata_file));
 
-    serialize_dataset_item_metadata(metadata_file.get(), video_metadata);
+    VideoMetadata m{video_descriptor};
+    serialize_video_metadata(metadata_file.get(), m);
     metadata_file->save();
   }
 
@@ -678,7 +696,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   }
 
   // Get timestamp info for web video
-  DatasetItemWebTimestamps timestamps_meta;
+  WebTimestamps timestamps_meta;
   succeeded = read_timestamps(temp_output_path, timestamps_meta);
   if (!succeeded) {
     fprintf(stderr, "Could not get timestamps from web data\n");
@@ -687,9 +705,9 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   }
 
   printf("time base (%d/%d), orig frames %d, dts size %lu\n",
-         timestamps_meta.time_base_numerator,
-         timestamps_meta.time_base_denominator, frame,
-         timestamps_meta.pts_timestamps.size());
+         timestamps_meta.time_base_numerator(),
+         timestamps_meta.time_base_denominator(), frame,
+         timestamps_meta.pts_timestamps_size());
 
   {
     // Write to database storage
@@ -699,7 +717,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     exit_on_error(
         make_unique_write_file(storage, web_video_timestamp_path, output_file));
 
-    serialize_dataset_item_web_timestamps(output_file.get(), timestamps_meta);
+    serialize_web_timestamps(output_file.get(), timestamps_meta);
   }
 
   return succeeded;
@@ -778,11 +796,12 @@ void ingest(storehouse::StorageConfig* storage_config,
 
   // Read in list of video paths and assign unique name to each
   DatasetDescriptor descriptor{};
-  std::vector<std::string>& video_paths = descriptor.original_video_paths;
-  std::vector<std::string>& item_names = descriptor.item_names;
+  std::vector<std::string> video_paths; 
+  std::vector<std::string> item_names;
   {
     i32 video_count = 0;
     std::fstream fs(video_paths_file, std::fstream::in);
+    assert(fs.good());
     while (fs) {
       std::string path;
       fs >> path;
@@ -800,8 +819,20 @@ void ingest(storehouse::StorageConfig* storage_config,
   i32 last_processed_index = read_last_processed_video(storage, dataset_name);
 
   // Keep track of videos which we can't parse
-  i64& total_frames = descriptor.total_frames;
-  total_frames = 0;
+  i64 total_frames{};
+
+  i64 min_frames{};
+  i64 average_frames{};
+  i64 max_frames{};
+
+  i64 min_width{};
+  i64 average_width{};
+  i64 max_width{};
+
+  i64 min_height{};
+  i64 average_height{};
+  i64 max_height{};
+
   std::vector<std::string> bad_paths;
   for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
     const std::string& path = video_paths[i];
@@ -809,9 +840,9 @@ void ingest(storehouse::StorageConfig* storage_config,
 
     LOG(INFO) << "Ingesting video " << path << "..." << std::endl;
 
-    DatasetItemMetadata video_metadata;
+    VideoDescriptor video_descriptor;
     bool valid_video = preprocess_video(storage, dataset_name, path, item_name,
-                                        video_metadata);
+                                        video_descriptor);
     if (!valid_video) {
       LOG(WARNING) << "Failed to ingest video " << path << "! "
                    << "Adding to bad paths file "
@@ -819,26 +850,20 @@ void ingest(storehouse::StorageConfig* storage_config,
                    << std::endl;
       bad_paths.push_back(path);
     } else {
-      total_frames += video_metadata.frames;
+      total_frames += video_descriptor.frames();
       // We are summing into the average variables but we will divide
       // by the number of entries at the end
-      descriptor.min_frames =
-          std::min(descriptor.min_frames, video_metadata.frames);
-      descriptor.average_frames += video_metadata.frames;
-      descriptor.max_frames =
-          std::max(descriptor.max_frames, video_metadata.frames);
+      min_frames = std::min(min_frames, (i64)video_descriptor.frames());
+      average_frames += video_descriptor.frames();
+      max_frames = std::max(max_frames, (i64)video_descriptor.frames());
 
-      descriptor.min_width =
-          std::min(descriptor.min_width, video_metadata.width);
-      descriptor.average_width = video_metadata.width;
-      descriptor.max_width =
-          std::max(descriptor.max_width, video_metadata.width);
+      min_width = std::min(min_width, (i64)video_descriptor.width());
+      average_width = video_descriptor.width();
+      max_width = std::max(max_width, (i64)video_descriptor.width());
 
-      descriptor.min_height =
-          std::min(descriptor.min_height, video_metadata.height);
-      descriptor.average_height = video_metadata.height;
-      descriptor.max_height =
-          std::max(descriptor.max_height, video_metadata.height);
+      min_height = std::min(min_height, (i64)video_descriptor.height());
+      average_height = video_descriptor.height();
+      max_height = std::max(max_height, (i64)video_descriptor.height());
 
       LOG(INFO) << "Finished ingesting video " << path << "." << std::endl;
     }
@@ -855,9 +880,46 @@ void ingest(storehouse::StorageConfig* storage_config,
     bad_paths_file.close();
   }
 
-  descriptor.average_frames /= video_paths.size();
-  descriptor.average_width /= total_frames;
-  descriptor.average_height /= total_frames;
+  DatabaseMetadata meta;
+  i32 dataset_id;
+  {
+    const std::string db_meta_path = database_metadata_path();
+
+    std::unique_ptr<RandomReadFile> meta_in_file;
+    make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+    u64 pos = 0;
+    meta = deserialize_database_metadata(meta_in_file.get(), pos);
+
+    dataset_id = meta.next_dataset_id++;
+  }
+
+  descriptor.set_id(dataset_id);
+  descriptor.set_total_frames(total_frames);
+
+  descriptor.set_min_frames(total_frames);
+  descriptor.set_average_frames(total_frames);
+  descriptor.set_max_frames(total_frames);
+
+  descriptor.set_min_width(min_width);
+  descriptor.set_average_width(average_width);
+  descriptor.set_max_width(max_width);
+
+  descriptor.set_min_height(min_height);
+  descriptor.set_average_height(average_height);
+  descriptor.set_max_height(max_height);
+
+  descriptor.set_average_width(average_width / total_frames);
+  descriptor.set_average_height(average_height / total_frames);
+
+  printf("max width %d, max height %d\n", max_width, max_height);
+
+  for (const std::string& path : video_paths) {
+    descriptor.add_original_video_paths(path);
+  }
+  for (const std::string& path : item_names) {
+    descriptor.add_video_names(path);
+  }
+
   // Write out dataset descriptor
   {
     const std::string dataset_file_path = dataset_descriptor_path(dataset_name);
@@ -875,13 +937,6 @@ void ingest(storehouse::StorageConfig* storage_config,
   {
     const std::string db_meta_path = database_metadata_path();
 
-    std::unique_ptr<RandomReadFile> meta_in_file;
-    make_unique_random_read_file(storage, db_meta_path, meta_in_file);
-    u64 pos = 0;
-    DatabaseMetadata meta =
-        deserialize_database_metadata(meta_in_file.get(), pos);
-
-    i32 dataset_id = meta.next_dataset_id++;
     meta.dataset_names[dataset_id] = dataset_name;
     meta.dataset_job_ids[dataset_id] = {};
 

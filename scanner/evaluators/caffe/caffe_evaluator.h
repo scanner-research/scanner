@@ -32,7 +32,7 @@ class CaffeEvaluator : public Evaluator {
                   CaffeInputTransformer *transformer, i32 batch_size,
                   bool forward_input = false);
 
-   void configure(const DatasetItemMetadata &metadata) override;
+   void configure(const VideoMetadata& descriptor) override;
 
    void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
                  const std::vector<std::vector<size_t>> &input_sizes,
@@ -49,7 +49,7 @@ class CaffeEvaluator : public Evaluator {
   bool forward_input_;
   std::unique_ptr<caffe::Net<float>> net_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
 };
 
 class CaffeEvaluatorFactory : public EvaluatorFactory {

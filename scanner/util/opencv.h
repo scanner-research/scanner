@@ -20,7 +20,7 @@
 #include <opencv2/opencv.hpp>
 
 namespace scanner {
-cv::Mat bytesToImage(u8* buf, const DatasetItemMetadata& metadata);
+cv::Mat bytesToImage(u8* buf, const VideoMetadata& metadata);
 }
 
 #ifdef HAVE_CUDA

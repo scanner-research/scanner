@@ -57,11 +57,11 @@ std::vector<std::string> FacenetParser::get_output_names() {
   return {"score_final"};
 }
 
-void FacenetParser::configure(const DatasetItemMetadata& metadata) {
+void FacenetParser::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
 
-  net_input_width_ = metadata_.width;
-  net_input_height_ = metadata_.height;
+  net_input_width_ = metadata_.width();
+  net_input_height_ = metadata_.height();
   grid_width_ = (net_input_width_ / cell_width_);
   grid_height_ = (net_input_height_ / cell_height_);
 
@@ -124,11 +124,11 @@ void FacenetParser::parse_output(const std::vector<u8*>& output,
                                        vec_offset];
         height *= std::exp(dch);
 
-        x = (x / net_input_width_) * metadata_.width;
-        y = (y / net_input_height_) * metadata_.height;
+        x = (x / net_input_width_) * metadata_.width();
+        y = (y / net_input_height_) * metadata_.height();
 
-        width = (width / net_input_width_) * metadata_.width;
-        height = (height / net_input_height_) * metadata_.height;
+        width = (width / net_input_width_) * metadata_.width();
+        height = (height / net_input_height_) * metadata_.height();
 
         if (width < 0 || height < 0) continue;
 

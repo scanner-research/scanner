@@ -33,7 +33,7 @@ class FacenetGPUInputTransformer : public CaffeInputTransformer {
  public:
   FacenetGPUInputTransformer(const NetDescriptor& descriptor);
 
-  void configure(const DatasetItemMetadata& metadata,
+  void configure(const VideoMetadata& metadata,
                  caffe::Net<float>* net) override;
 
   void transform_input(i32 input_count, u8* input_buffer,
@@ -41,7 +41,7 @@ class FacenetGPUInputTransformer : public CaffeInputTransformer {
 
  private:
   NetDescriptor descriptor_;
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
   i32 num_cuda_streams_;
 
   i32 net_input_width_;

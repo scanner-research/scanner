@@ -28,7 +28,7 @@ public:
  SwizzleEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                   i32 device_id, const std::vector<i32>& output_to_input_idx);
 
- void configure(const DatasetItemMetadata& metadata) override;
+ void configure(const VideoMetadata& metadata) override;
 
  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                const std::vector<std::vector<size_t>>& input_sizes,
@@ -41,7 +41,7 @@ protected:
   i32 device_id_;
   std::vector<i32> output_to_input_idx_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
 };
 
 class SwizzleEvaluatorFactory : public EvaluatorFactory {

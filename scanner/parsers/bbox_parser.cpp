@@ -27,7 +27,7 @@ std::vector<std::string> BBoxParser::get_output_names() {
   return column_names_;
 }
 
-void BBoxParser::configure(const DatasetItemMetadata& metadata) {
+void BBoxParser::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
 }
 

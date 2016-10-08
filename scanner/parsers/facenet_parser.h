@@ -28,7 +28,7 @@ class FacenetParser : public ResultsParser {
 
   std::vector<std::string> get_output_names() override;
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   void parse_output(const std::vector<u8*>& output,
                     const std::vector<i64>& output_size,
@@ -58,6 +58,6 @@ class FacenetParser : public ResultsParser {
 
   double threshold_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
 };
 }

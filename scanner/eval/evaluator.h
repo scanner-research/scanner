@@ -26,7 +26,7 @@ class Evaluator {
  public:
   virtual ~Evaluator(){};
 
-  virtual void configure(const DatasetItemMetadata& metadata) = 0;
+  virtual void configure(const VideoMetadata& metadata) = 0;
 
   virtual void reset(){};
 

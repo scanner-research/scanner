@@ -30,7 +30,7 @@ public:
   TrackerEvaluator(const EvaluatorConfig &config, DeviceType device_type,
                    i32 device_id, i32 warmup_count);
 
-  void configure(const DatasetItemMetadata &metadata) override;
+  void configure(const VideoMetadata &metadata) override;
 
   void reset() override;
 
@@ -49,7 +49,7 @@ protected:
   i32 device_id_;
   i32 warmup_count_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
   std::vector<std::unique_ptr<struck::Config>> tracker_configs_;
   std::vector<BoundingBox> tracked_bboxes_;
   std::vector<i32> frames_since_last_detection_;

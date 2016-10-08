@@ -16,6 +16,7 @@
 #pragma once
 
 #include "storehouse/storage_backend.h"
+#include "metadata.pb.h"
 
 #include <map>
 #include <set>
@@ -94,25 +95,34 @@ inline i32 frames_per_work_item() {
 /// Common persistent data structs and their serialization helpers
 struct DatabaseMetadata {
  public:
-  bool has_dataset(const std::string& dataset);
-  bool has_dataset(i32 dataset_id);
-  i32 get_dataset_id(const std::string& dataset);
-  const std::string& get_dataset_name(i32 dataset_id);
+  DatabaseMetadata();
+  DatabaseMetadata(const DatabaseDescriptor& descriptor);
+
+  const DatabaseDescriptor& get_descriptor() const;
+
+  bool has_dataset(const std::string& dataset) const;
+  bool has_dataset(i32 dataset_id) const;
+  i32 get_dataset_id(const std::string& dataset) const;
+  const std::string& get_dataset_name(i32 dataset_id) const;
   void add_dataset(const std::string& dataset);
   void remove_dataset(i32 dataset_id);
 
-  bool has_job(const std::string& job);
-  bool has_job(i32 job_id);
-  i32 get_job_id(const std::string& job_name);
-  const std::string& get_job_name(i32 job_id);
+  bool has_job(const std::string& job) const;
+  bool has_job(i32 job_id) const;
+  i32 get_job_id(const std::string& job_name) const;
+  const std::string& get_job_name(i32 job_id) const;
   void add_job(i32 dataset_id, const std::string& job_name);
   void remove_job(i32 job_id);
 
+//private:
   i32 next_dataset_id;
   i32 next_job_id;
   std::map<i32, std::string> dataset_names;
   std::map<i32, std::set<i32>> dataset_job_ids;
   std::map<i32, std::string> job_names;
+
+private:
+  mutable DatabaseDescriptor descriptor;
 };
 
 enum class DeviceType {
@@ -120,74 +130,21 @@ enum class DeviceType {
   CPU,
 };
 
-enum struct VideoCodecType {
-  // MPEG1,                 /**<  MPEG1   */
-  // MPEG2,                   /**<  MPEG2  */
-  // MPEG4,                   /**<  MPEG4   */
-  // VC1,                     /**<  VC1   */
-  H264, /**<  H264   */
-  // JPEG,                    /**<  JPEG   */
-  // H264_SVC,                /**<  H264-SVC   */
-  // H264_MVC,                /**<  H264-MVC   */
-  // HEVC,                    /**<  HEVC   */
-  // VP8,                     /**<  VP8   */
-  // VP9,                     /**<  VP9   */
-};
+struct VideoMetadata {
+ public:
+  VideoMetadata();
+  VideoMetadata(const VideoDescriptor& descriptor);
 
-enum struct VideoChromaFormat {
-  Monochrome,
-  YUV_420,
-  YUV_422,
-  YUV_444,
-};
+  const VideoDescriptor& get_descriptor() const;
 
-struct DatasetDescriptor {
-  i64 id;
-  /// Statistics
-  // Frames per video
-  i64 total_frames;
+  i32 frames() const;
+  i32 width() const;
+  i32 height() const;
+  std::vector<i64> keyframe_positions() const;
+  std::vector<i64> keyframe_byte_offsets() const;
 
-  i32 min_frames;
-  i32 average_frames;
-  i32 max_frames;
-
-  // Frame width
-  i32 min_width;
-  i32 average_width;
-  i32 max_width;
-
-  // Frame height
-  i32 min_height;
-  i32 average_height;
-  i32 max_height;
-
-  std::vector<std::string> original_video_paths;
-  std::vector<std::string> item_names;
-};
-
-struct DatasetItemMetadata {
-  i32 frames;
-  i32 width;
-  i32 height;
-  VideoCodecType codec_type;
-  VideoChromaFormat chroma_format;
-  std::vector<u8> metadata_packets;
-  std::vector<i64> keyframe_positions;
-  std::vector<i64> keyframe_timestamps;
-  std::vector<i64> keyframe_byte_offsets;
-};
-
-struct DatasetItemWebTimestamps {
-  i32 time_base_numerator;
-  i32 time_base_denominator;
-  std::vector<i64> dts_timestamps;
-  std::vector<i64> pts_timestamps;
-};
-
-struct JobDescriptor {
-  i64 id;
-  std::string dataset_name;
-  std::map<std::string, std::vector<std::tuple<i32, i32>>> intervals;
+ private:
+  mutable VideoDescriptor descriptor;
 };
 
 void serialize_database_metadata(storehouse::WriteFile* file,
@@ -202,16 +159,16 @@ void serialize_dataset_descriptor(storehouse::WriteFile* file,
 DatasetDescriptor deserialize_dataset_descriptor(
     storehouse::RandomReadFile* file, u64& file_pos);
 
-void serialize_dataset_item_metadata(storehouse::WriteFile* file,
-                                     const DatasetItemMetadata& metadata);
+void serialize_video_metadata(storehouse::WriteFile *file,
+                                const VideoMetadata &metadata);
 
-DatasetItemMetadata deserialize_dataset_item_metadata(
-    storehouse::RandomReadFile* file, u64& file_pos);
+VideoMetadata deserialize_video_metadata(storehouse::RandomReadFile *file,
+                                         u64 &file_pos);
 
-void serialize_dataset_item_web_timestamps(
-    storehouse::WriteFile* file, const DatasetItemWebTimestamps& metadata);
+void serialize_web_timestamps(storehouse::WriteFile *file,
+                              const WebTimestamps &metadata);
 
-DatasetItemWebTimestamps deserialize_dataset_item_web_timestamps(
+WebTimestamps deserialize_web_timestamps(
     storehouse::RandomReadFile* file, u64& file_pos);
 
 void serialize_job_descriptor(storehouse::WriteFile* file,

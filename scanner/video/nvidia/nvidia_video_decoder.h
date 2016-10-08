@@ -34,7 +34,7 @@ public:
 
   ~NVIDIAVideoDecoder();
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   bool feed(const u8* encoded_buffer, size_t encoded_size,
             bool discontinuity = false) override;
@@ -63,7 +63,7 @@ public:
   const int max_mapped_frames_;
   std::vector<cudaStream_t> streams_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
   std::vector<char> metadata_packets_;
   CUvideoparser parser_;
   CUvideodecoder decoder_;

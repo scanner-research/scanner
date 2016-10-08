@@ -25,7 +25,7 @@ BlurEvaluator::BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma)
       filter_right_(kernel_size / 2),
       sigma_(sigma) {}
 
-void BlurEvaluator::configure(const DatasetItemMetadata& metadata) {
+void BlurEvaluator::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
 }
 
@@ -40,8 +40,8 @@ void BlurEvaluator::evaluate(
   //   frames contiguously in memory right now
   u8 *input_buffer = input_buffers[0][0];
 
-  i32 width = metadata_.width;
-  i32 height = metadata_.height;
+  i32 width = metadata_.width();
+  i32 height = metadata_.height();
   size_t frame_size = width * height * 3 * sizeof(u8);
 
   for (i32 i = 0; i < input_count; ++i) {

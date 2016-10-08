@@ -77,12 +77,12 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   }
 }
 
-void SoftwareVideoDecoder::configure(const DatasetItemMetadata& metadata) {
+void SoftwareVideoDecoder::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
   reset_context_ = true;
 
   int required_size = av_image_get_buffer_size(
-      AV_PIX_FMT_RGB24, metadata_.width, metadata_.height, 1);
+      AV_PIX_FMT_RGB24, metadata_.width(), metadata_.height(), 1);
 
   conversion_buffer_.resize(required_size);
 }
@@ -164,9 +164,9 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   if (reset_context_) {
     AVPixelFormat decoder_pixel_format = cc_->pix_fmt;
     sws_context_ = sws_getCachedContext(
-        sws_context_, metadata_.width, metadata_.height, decoder_pixel_format,
-        metadata_.width, metadata_.height, AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL,
-        NULL, NULL);
+        sws_context_, metadata_.width(), metadata_.height(),
+        decoder_pixel_format, metadata_.width(), metadata_.height(),
+        AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
   }
 
   if (sws_context_ == NULL) {
@@ -186,7 +186,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   int required_size = av_image_fill_arrays(
       out_slices, out_linesizes,
       scale_buffer,
-      AV_PIX_FMT_RGB24, metadata_.width, metadata_.height, 1);
+      AV_PIX_FMT_RGB24, metadata_.width(), metadata_.height(), 1);
   if (required_size < 0) {
     fprintf(stderr, "Error in av_image_fill_arrays\n");
     exit(EXIT_FAILURE);

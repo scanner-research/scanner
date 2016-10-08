@@ -29,7 +29,7 @@ public:
                         i32 device_id, double threshold,
                         bool forward_input = false);
 
- void configure(const DatasetItemMetadata& metadata) override;
+ void configure(const VideoMetadata& metadata) override;
 
  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                const std::vector<std::vector<size_t>>& input_sizes,
@@ -58,7 +58,7 @@ protected:
 
   double threshold_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
 
 };
 

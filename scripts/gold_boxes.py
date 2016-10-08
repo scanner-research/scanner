@@ -260,11 +260,15 @@ def nms(boxes, overlapThresh):
 	# if there are no boxes, return an empty list
 	if len(boxes) == 0:
 		return []
+        elif len(boxes) == 1:
+            return boxes
  
+        npboxes = np.array(boxes[0])
+        for box in boxes[1:]:
+            npboxes = np.vstack((npboxes, box))
+        boxes = npboxes
 	# if the bounding boxes integers, convert them to floats --
 	# this is important since we'll be doing a bunch of divisions
-	if boxes.dtype.kind == "i":
-		boxes = boxes.astype("float")
  
 	# initialize the list of picked indexes	
 	pick = []
@@ -312,6 +316,12 @@ def nms(boxes, overlapThresh):
 	# integer data type
 	return boxes[pick].astype("int")
 
+DETECT_OVERLAP_THRESH = 0.3
+TRACK_OVERLAP_THRESH = 0.3
+BOX_SCORE_THRESH = 3
+LAST_DETECTION_THRESH = 25
+TOTAL_DETECTIONS_THRESH = 80
+TRIM_AMOUNT = 10
 
 def collate_boxes(base, tr):
     gold = [[] for i in range(len(base))]
@@ -329,16 +339,19 @@ def collate_boxes(base, tr):
             # check for overlap
             overlapped = False
             for t in tracks:
-                if iou(box, t['boxes'][-1]) > 0.2:
-                    t['last_detection'] = 0
-                    t['total_detections'] += 1
-                    t['boxes'].append(box)
+                if iou(box, t['boxes'][-1]) > OVERLAP_THRESH:
                     overlapped = True
+                    if len(t['boxes']) + t['start'] > i:
+                        t['boxes'][i - t['start']] = box
+                    else:
+                        t['last_detection'] = 0
+                        t['total_detections'] += 1
+                        t['boxes'].append(box)
                     break
             if overlapped:
                 continue
             # else add new track if threshold high enough
-            if box[4] > 3:
+            if box[4] > BOX_SCORE_THRESH:
                 track = {
                     'start': i,
                     'start_box': box,
@@ -351,19 +364,22 @@ def collate_boxes(base, tr):
         dead_tracks = []
         for z, t in enumerate(tracks):
             t['last_detection'] += 1
-            if t['last_detection'] > 10:
+            if t['last_detection'] > LAST_DETECTION_THRESH:
                 # remove track
-                if t['total_detections'] > 8:
-                    for n in range(0, i - t['start']):
+                if t['total_detections'] > TOTAL_DETECTIONS_THRESH:
+                    print(t['total_detections'])
+                    num_valid_frames = (
+                        i - t['last_detection'] + TRIM_AMOUNT - t['start'])
+                    for n in range(0, num_valid_frames):
                         gold[t['start'] + n].append(t['boxes'][n])
                 dead_tracks.append(z)
                 continue
 
-            if len(t['boxes']) > i: continue
+            if len(t['boxes']) + t['start'] > i: continue
             overlapped = False
             for box in tracked_boxes:
                 # check for overlap
-                if iou(box, t['boxes'][-1]) > 0.2:
+                if iou(box, t['boxes'][-1]) > TRACK_OVERLAP_THRESH:
                     t['boxes'].append(box)
                     t['total_detections'] += 1
                     overlapped = True
@@ -380,8 +396,10 @@ def collate_boxes(base, tr):
     for boxes in gold:
         gold_avg += len(boxes)
 
-    gold_avg /= len(base)
-    avg /= len(base)
+    print(gold_avg)
+    print(avg)
+    gold_avg /= 1.0 * len(base)
+    avg /= 1.0 * len(base)
     print("gold", gold_avg)
     print("avg", avg)
 
@@ -398,6 +416,7 @@ def main():
     data = load_bboxes("facenet_eating_bg", "tracked_bboxes")
     tracked_boxes = data[0]["buffers"]
     gold_boxes = collate_boxes(base_boxes, tracked_boxes)
+    gold_boxes = [nms(boxes, 0.3) for boxes in gold_boxes]
     save_bboxes("eating_test", "bboxes_test", "base_bboxes", gold_boxes)
     job_id = meta["next_job_id"]
     meta["next_job_id"] += 1

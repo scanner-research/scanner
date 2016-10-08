@@ -24,7 +24,7 @@ class BlurEvaluator : public Evaluator {
  public:
   BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma);
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -37,7 +37,7 @@ class BlurEvaluator : public Evaluator {
   i32 filter_right_;
   f64 sigma_;
 
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
 };
 
 class BlurEvaluatorFactory : public EvaluatorFactory {

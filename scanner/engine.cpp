@@ -100,7 +100,7 @@ struct LoadThreadArgs {
   // Uniform arguments
   std::string dataset_name;
   const std::vector<std::string>& video_paths;
-  const std::vector<DatasetItemMetadata>& metadata;
+  const std::vector<VideoMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -115,7 +115,7 @@ struct LoadThreadArgs {
 
 struct DecodeThreadArgs {
   // Uniform arguments
-  const std::vector<DatasetItemMetadata>& metadata;
+  const std::vector<VideoMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -134,7 +134,7 @@ struct DecodeThreadArgs {
 
 struct EvaluateThreadArgs {
   // Uniform arguments
-  const std::vector<DatasetItemMetadata>& metadata;
+  const std::vector<VideoMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
 
   // Per worker arguments
@@ -153,7 +153,7 @@ struct SaveThreadArgs {
   // Uniform arguments
   std::string job_name;
   const std::vector<std::string>& video_paths;
-  const std::vector<DatasetItemMetadata>& metadata;
+  const std::vector<VideoMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
   std::vector<std::string> output_names;
 
@@ -207,7 +207,7 @@ void* load_video_thread(void* arg) {
         args.work_items[load_work_entry.work_item_index];
 
     const std::string& video_path = args.video_paths[work_item.video_index];
-    const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
+    const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     if (video_path != last_video_path) {
       if (video_file != nullptr) {
@@ -224,9 +224,9 @@ void* load_video_thread(void* arg) {
     last_video_path = video_path;
 
     // Place end of file and num frame at end of iframe to handle edge case
-    std::vector<i64> keyframe_positions = metadata.keyframe_positions;
-    std::vector<i64> keyframe_byte_offsets = metadata.keyframe_byte_offsets;
-    keyframe_positions.push_back(metadata.frames);
+    std::vector<i64> keyframe_positions{metadata.keyframe_positions()};
+    std::vector<i64> keyframe_byte_offsets{metadata.keyframe_byte_offsets()};
+    keyframe_positions.push_back(metadata.frames());
     keyframe_byte_offsets.push_back(file_size);
 
     // Read the bytes from the file that correspond to the sequences
@@ -334,7 +334,7 @@ void* decode_thread(void* arg) {
 
     const VideoWorkItem& work_item =
         args.work_items[decode_work_entry.work_item_index];
-    const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
+    const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     decoder->configure(metadata);
 
@@ -345,7 +345,7 @@ void* decode_thread(void* arg) {
     u8* decoded_buffer = decode_buffer_entry.buffer;
 
     size_t frame_size = av_image_get_buffer_size(
-        AV_PIX_FMT_RGB24, metadata.width, metadata.height, 1);
+        AV_PIX_FMT_RGB24, metadata.width(), metadata.height(), 1);
 
     size_t encoded_buffer_offset = 0;
 
@@ -463,7 +463,7 @@ void* evaluate_thread(void* arg) {
 
     const VideoWorkItem& work_item =
         args.work_items[work_entry.work_item_index];
-    const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
+    const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     for (auto& evaluator : evaluators) {
       // Make the evaluator aware of the format of the data we are about to
@@ -479,7 +479,7 @@ void* evaluate_thread(void* arg) {
       evaluator->reset();
     }
 
-    size_t frame_size = metadata.width * metadata.height * 3 * sizeof(u8);
+    size_t frame_size = metadata.width() * metadata.height() * 3 * sizeof(u8);
 
     SaveWorkEntry save_work_entry;
     save_work_entry.buffer_type = DeviceType::CPU;
@@ -670,7 +670,7 @@ void* save_thread(void* arg) {
         args.work_items[save_work_entry.work_item_index];
 
     const std::string& video_path = args.video_paths[work_item.video_index];
-    const DatasetItemMetadata& metadata = args.metadata[work_item.video_index];
+    const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
     // HACK(apoms): debugging
     if (false) {
@@ -678,10 +678,10 @@ void* save_thread(void* arg) {
           reinterpret_cast<u8*>(save_work_entry.output_buffers[0][0]);
 
       JPEGWriter writer;
-      writer.header(metadata.width, metadata.height, 3, JPEG::COLOR_RGB);
-      std::vector<u8*> rows(metadata.height);
-      for (i32 i = 0; i < metadata.height; ++i) {
-        rows[i] = frame_buffer + metadata.width * 3 * i;
+      writer.header(metadata.width(), metadata.height(), 3, JPEG::COLOR_RGB);
+      std::vector<u8*> rows(metadata.height());
+      for (i32 i = 0; i < metadata.height(); ++i) {
+        rows[i] = frame_buffer + metadata.width() * 3 * i;
       }
       std::string image_path =
           "frame" + std::to_string(work_item.start_frame) + ".jpg";
@@ -780,18 +780,19 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   timepoint_t base_time = now();
 
   // Get video metadata for all videos for distributing with work items
-  std::vector<std::string>& video_paths = descriptor.item_names;
+  std::vector<std::string> video_paths(descriptor.video_names().begin(),
+                                       descriptor.video_names().end());
 
-  std::vector<DatasetItemMetadata> video_metadata;
+  std::vector<VideoMetadata> video_metadata;
   for (size_t i = 0; i < video_paths.size(); ++i) {
-    const std::string& path = video_paths[i];
+    const std::string& path = video_paths.at(i);
     std::unique_ptr<RandomReadFile> metadata_file;
     exit_on_error(make_unique_random_read_file(
         storage, dataset_item_metadata_path(dataset_name, path),
         metadata_file));
     u64 pos = 0;
     video_metadata.push_back(
-        deserialize_dataset_item_metadata(metadata_file.get(), pos));
+        deserialize_video_metadata(metadata_file.get(), pos));
   }
 
   // Break up videos and their frames into equal sized work items
@@ -810,17 +811,14 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   // determine
 
   JobDescriptor job_descriptor;
-  job_descriptor.dataset_name = dataset_name;
   u32 total_frames = 0;
   for (size_t i = 0; i < video_paths.size(); ++i) {
-    const DatasetItemMetadata& meta = video_metadata[i];
+    const VideoMetadata& meta = video_metadata[i];
 
-    std::vector<std::tuple<i32, i32>>& work_intervals =
-        job_descriptor.intervals[video_paths[i]];
     i32 allocated_frames = 0;
-    while (allocated_frames < meta.frames) {
+    while (allocated_frames < meta.frames()) {
       i32 frames_to_allocate =
-          std::min(work_item_size, meta.frames - allocated_frames);
+          std::min(work_item_size, meta.frames() - allocated_frames);
 
       VideoWorkItem item;
       item.video_index = i;
@@ -829,12 +827,14 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
-      work_intervals.emplace_back(item.start_frame, item.end_frame);
+      JobDescriptor_Interval *interval = job_descriptor.add_intervals();
+      interval->set_start(item.start_frame);
+      interval->set_end(item.end_frame);
 
       allocated_frames += frames_to_allocate;
     }
 
-    total_frames += meta.frames;
+    total_frames += meta.frames();
   }
   if (is_master(rank)) {
     printf("Total work items: %lu, Total frames: %u\n", work_items.size(),
@@ -856,7 +856,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   //   largest possible size
 
   size_t frame_size =
-      descriptor.max_width * descriptor.max_height * 3 * sizeof(u8);
+      descriptor.max_width() * descriptor.max_height() * 3 * sizeof(u8);
   const int LOAD_BUFFERS = TASKS_IN_QUEUE_PER_PU;
   std::vector<std::vector<u8*>> staging_buffers(PUS_PER_NODE);
   size_t buffer_size = frame_size * (frames_per_work_item() + warmup_size);
@@ -926,8 +926,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   EvaluatorConfig eval_config;
   eval_config.max_input_count =
       std::max(frames_per_work_item(), warmup_size);
-  eval_config.max_frame_width = descriptor.max_width;
-  eval_config.max_frame_height = descriptor.max_height;
+  eval_config.max_frame_width = descriptor.max_width();
+  eval_config.max_frame_height = descriptor.max_height();
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
     eval_config.device_ids = {i};
     std::vector<EvaluatorConfig> eval_configs{evaluator_factories.size(),

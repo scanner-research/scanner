@@ -70,28 +70,28 @@ DatasetDescriptor read_dataset_descriptor(StorageBackend* storage,
   return deserialize_dataset_descriptor(file.get(), pos);
 }
 
-DatasetItemMetadata read_dataset_item_metadata(StorageBackend* storage,
-                                               const std::string& dataset_name,
-                                               const std::string& item_name) {
+VideoMetadata read_video_metadata(StorageBackend *storage,
+                                  const std::string &dataset_name,
+                                  const std::string &item_name) {
   const std::string metadata_path =
       dataset_item_metadata_path(dataset_name, item_name);
   std::unique_ptr<RandomReadFile> file;
   make_unique_random_read_file(storage, metadata_path, file);
 
   u64 pos = 0;
-  return deserialize_dataset_item_metadata(file.get(), pos);
+  return deserialize_video_metadata(file.get(), pos);
 }
 
-DatasetItemWebTimestamps read_dataset_item_web_timestamps(
-    StorageBackend* storage, const std::string& dataset_name,
-    const std::string& item_name) {
+WebTimestamps read_web_timestamps(StorageBackend *storage,
+                                  const std::string &dataset_name,
+                                  const std::string &item_name) {
   const std::string metadata_path =
       dataset_item_video_timestamps_path(dataset_name, item_name);
   std::unique_ptr<RandomReadFile> file;
   make_unique_random_read_file(storage, metadata_path, file);
 
   u64 pos = 0;
-  return deserialize_dataset_item_web_timestamps(file.get(), pos);
+  return deserialize_web_timestamps(file.get(), pos);
 }
 
 JobDescriptor read_job_descriptor(StorageBackend* storage,
@@ -183,9 +183,10 @@ void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
       folly::dynamic dataset_info = folly::dynamic::object();
       dataset_info["id"] = kv.first;
       dataset_info["name"] = kv.second;
-      dataset_info["total_frames"] = dataset_descriptor.total_frames;
+      dataset_info["total_frames"] = dataset_descriptor.total_frames();
       folly::dynamic video_names = folly::dynamic::array();
-      for (const std::string& path : dataset_descriptor.original_video_paths) {
+      for (const std::string &path :
+           dataset_descriptor.original_video_paths()) {
         video_names.push_back(path);
       }
       dataset_info["video_names"] = video_names;
@@ -332,9 +333,8 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
 
   BBoxParser* parser = new BBoxParser(columns);
 
-  const std::string& video_name = dataset_descriptor.item_names[video_id];
-  const std::vector<std::tuple<i32, i32>>& intervals =
-      job_descriptor.intervals[video_name];
+  const std::string& video_name = dataset_descriptor.video_names(video_id);
+  const auto& intervals = job_descriptor.intervals();
   std::vector<std::string> output_names = parser->get_output_names();
 
   // Get the mapping from frames to timestamps to guide UI toward
@@ -342,11 +342,11 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   // Needed
   // because some UIs (looking at you html5) do not support frame
   // accurate seeking.
-  DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
+  WebTimestamps timestamps = read_web_timestamps(
       storage_.get(), dataset_name, video_name);
 
-  DatasetItemMetadata item_meta =
-      read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
+  VideoMetadata item_meta =
+      read_video_metadata(storage_.get(), dataset_name, video_name);
 
   parser->configure(item_meta);
 
@@ -365,15 +365,15 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
       // Find the correct interval
       size_t i;
       for (i = 0; i < intervals.size(); ++i) {
-        if (current_frame >= std::get<0>(intervals[i]) &&
-            current_frame < std::get<1>(intervals[i])) {
+        if (current_frame >= intervals.Get(i).start() &&
+            current_frame < intervals.Get(i).end()) {
           break;
         }
       }
-      const auto& interval = intervals[i];
+      const auto& interval = intervals.Get(i);
 
-      i64 start = std::get<0>(interval);
-      i64 end = std::get<1>(interval);
+      i64 start = interval.start();
+      i64 end = interval.end();
 
       i32 max_start = std::max((i64)start_frame, start);
       i32 min_end = std::min((i64)end_frame, end);
@@ -430,8 +430,8 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
     // Process vectors
     folly::dynamic feature_data = folly::dynamic::object();
     feature_data["frame"] = current_frame;
-    feature_data["time"] = timestamps.pts_timestamps[current_frame] /
-                           static_cast<f64>(timestamps.time_base_denominator);
+    feature_data["time"] = timestamps.pts_timestamps(current_frame) /
+                           static_cast<f64>(timestamps.time_base_denominator());
     feature_data["data"] = folly::dynamic::object();
 
     parser->parse_output(output, output_sizes, feature_data["data"]);
@@ -455,18 +455,18 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
 
   auto item_to_json = [](i32 item_id, const std::string& video_name,
                          const std::string& media_path,
-                         const DatasetItemMetadata& item,
-                         const DatasetItemWebTimestamps& ts) -> folly::dynamic {
+                         const VideoMetadata& item,
+                         const WebTimestamps& ts) -> folly::dynamic {
     folly::dynamic meta = folly::dynamic::object;
     meta["id"] = item_id;
     meta["name"] = video_name;
     meta["mediaPath"] = media_path;
-    meta["frames"] = item.frames;
-    meta["width"] = item.width;
-    meta["height"] = item.height;
+    meta["frames"] = item.frames();
+    meta["width"] = item.width();
+    meta["height"] = item.height();
     folly::dynamic times = folly::dynamic::array();
-    for (auto t : ts.pts_timestamps) {
-      times.push_back(t / (f64)ts.time_base_denominator);
+    for (auto t : ts.pts_timestamps()) {
+      times.push_back(t / (f64)ts.time_base_denominator());
     }
     meta["times"] = times;
     return meta;
@@ -477,20 +477,20 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
   if (boost::regex_search(path, match_result, id_regex)) {
     // Asking for a specific videos's information
     i32 video_id = std::atoi(match_result[1].str().c_str());
-    if (!(video_id < dataset_descriptor.item_names.size())) {
+    if (!(video_id < dataset_descriptor.video_names_size())) {
       response.status(400, "Bad Request");
       return;
     } else {
       folly::dynamic json = folly::dynamic::object;
 
-      const std::string& video_name = dataset_descriptor.item_names[video_id];
+      const std::string& video_name = dataset_descriptor.video_names(video_id);
       const std::string& media_path = "datasets/" + std::to_string(dataset_id) +
                                       "/media/" + video_name + ".mp4";
 
-      DatasetItemMetadata item =
-          read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
+      VideoMetadata item =
+          read_video_metadata(storage_.get(), dataset_name, video_name);
 
-      DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
+      WebTimestamps timestamps = read_web_timestamps(
           storage_.get(), dataset_name, video_name);
 
       json = item_to_json(video_id, video_name, media_path, item, timestamps);
@@ -499,14 +499,14 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
     // Requesting all videos metadata
     json = folly::dynamic::array();
     i32 video_id = 0;
-    for (const std::string& video_name : dataset_descriptor.item_names) {
+    for (const std::string& video_name : dataset_descriptor.video_names()) {
       const std::string& media_path = "datasets/" + std::to_string(dataset_id) +
                                       "/media/" + video_name + ".mp4";
 
-      DatasetItemMetadata item =
-          read_dataset_item_metadata(storage_.get(), dataset_name, video_name);
+      VideoMetadata item =
+          read_video_metadata(storage_.get(), dataset_name, video_name);
 
-      DatasetItemWebTimestamps timestamps = read_dataset_item_web_timestamps(
+      WebTimestamps timestamps = read_web_timestamps(
           storage_.get(), dataset_name, video_name);
 
       folly::dynamic meta =

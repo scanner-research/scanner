@@ -48,7 +48,7 @@ YoloParser::YoloParser(double threshold) : threshold_(threshold) {
 
 std::vector<std::string> YoloParser::get_output_names() { return {"result"}; }
 
-void YoloParser::configure(const DatasetItemMetadata& metadata) {}
+void YoloParser::configure(const VideoMetadata& metadata) {}
 
 void YoloParser::parse_output(const std::vector<u8*>& output,
                               const std::vector<i64>& output_size,

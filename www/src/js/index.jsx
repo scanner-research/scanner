@@ -584,22 +584,41 @@ var ViewerPanel = React.createClass({
       }
       if (this.props.selectedFrame.status == 'valid') {
         console.log(this.props.selectedFrame.data);
+          var color;
+          if (this.props.job["name"] == "bboxes_test") {
+              color = "yellow";
+          } else {
+              color = "red";
+          }
         this.props.graphics.draw(
           videoElement,
           this.props.video,
           this.props.selectedFrame.data.frame + 'b',
           this.props.selectedFrame.data.data.base_bboxes,
           'base',
-          'red');
-        this.props.graphics.draw(
-          videoElement,
-          this.props.video,
-          this.props.selectedFrame.data.frame + 'g',
-          this.props.selectedFrame.data.data.tracked_bboxes,
-          'tracked',
-          'green');
+          color);
+          if (color != "yellow" && this.props.selectedFrame.data.data.hasOwnProperty("tracked_bboxes")) {
+              this.props.graphics.draw(
+                  videoElement,
+                  this.props.video,
+                  this.props.selectedFrame.data.frame + 'g',
+                  this.props.selectedFrame.data.data.tracked_bboxes,
+                  'tracked',
+                  'green');
+          } else {
+              this.props.graphics.draw(
+                  videoElement,
+                  this.props.video,
+                  this.props.selectedFrame.data.frame + 'g',
+                  [],
+                  'tracked',
+                  'green');
+          }
       }
     }
+  },
+  handleReset: function() {
+    this.props.handleReset();
   },
   render: function() {
     var frame = this.props.selectedFrame;
@@ -613,24 +632,9 @@ var ViewerPanel = React.createClass({
           <div className="controls-left">
             {frameNum}
           </div>
-          <div className="controls-right">
-            <select
-                value={this.state.plotType}
-                onChange={this.handlePlotTypeChange}>
-              <option value="certainty">Certainty</option>
-              <option value="bbox"># of bounding boxes</option>
-            </select>
-            <div>
-              Threshold:
-              <input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="any"
-                  value={this.state.threshold}
-                  onChange={this.handleThresholdChange}/>
-            </div>
-          </div>
+          <button type="button" className="controls-right"onClick={this.handleReset}>
+            Demo Jump
+          </button>
         </div>
       </div>
     );
@@ -748,6 +752,33 @@ var VisualizerApp = React.createClass({
     });
     this.loadPlotValues(jobId);
   },
+  handleKeyPress: function(event) {
+      var selectedFrame = this.state.selectedFrame;
+      var videoId = this.state.selectedVideo;
+      if (event.keyCode == 37) {
+          // left
+          this.handleSelectedFrameChange({
+              videoId: videoId,
+              frame: selectedFrame - 1,
+          });
+      } else if (event.keyCode == 39) {
+          // right
+          this.handleSelectedFrameChange({
+              videoId: videoId,
+              frame: selectedFrame + 1,
+          });
+      }
+  },
+  handleReset: function() {
+      var selectedFrame = this.state.selectedFrame;
+      var videoId = this.state.selectedVideo;
+
+      this.handleSelectedFrameChange({
+          videoId: videoId,
+          frame: 4600,
+      });
+
+  },
   loadPlotValues: function(jobId) {
     var promises = _.map(this.state.videos, function(video) {
         return this.loadPredictionData(video.id, jobId, 0, video.frames);
@@ -787,13 +818,20 @@ var VisualizerApp = React.createClass({
     }
     // The entire range is already loaded so we don't need to send a request
     if (requestStart == requestEnd) return;
+      console.log(this.findJob(jobId))
+      var columns;
+      if (this.findJob(jobId)["name"] == "facenet_eating_bg") {
+          columns = "base_bboxes,tracked_bboxes";
+      } else {
+          columns = "base_bboxes";
+      }
     var p = $.ajax({
       url: "datasets/" + this.state.selectedDataset +
            "/jobs/" + jobId +
            "/features/" + videoId,
       dataType: "json",
       data: {
-        columns: "base_bboxes,tracked_bboxes",
+        columns: columns,
         start: requestStart,
         end: requestEnd,
         stride: 1,
@@ -821,6 +859,8 @@ var VisualizerApp = React.createClass({
   componentDidMount: function() {
     this.setState({height: this._getHeight()});
     window.addEventListener('resize', this._onResize);
+    $(document).on("keydown", this.handleKeyPress);
+
     $.ajax({
       url: "datasets",
       dataType: "json",
@@ -863,7 +903,7 @@ var VisualizerApp = React.createClass({
     var frame =
       this.state.frameData[selectedVideoIndex][selectedFrame];
     return (
-      <div className="visualizer-app">
+        <div className="visualizer-app" onKeyDown={this.handleKeyPress}>
         <div className="header">
           <h1>Scanner</h1>
           <div className="dataset-panel">
@@ -883,7 +923,8 @@ var VisualizerApp = React.createClass({
           <ViewerPanel job={this.findJob(this.state.selectedJob)}
                        video={this.findVideo(selectedVideo)}
                        graphics={detectionGraphics}
-                       selectedFrame={frame}/>
+                       selectedFrame={frame}
+                       handleReset={this.handleReset}/>
         </div>
       </div>
     );

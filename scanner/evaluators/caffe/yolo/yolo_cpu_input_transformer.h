@@ -27,7 +27,7 @@ class YoloCPUInputTransformer : public CaffeInputTransformer {
  public:
   YoloCPUInputTransformer(const NetDescriptor& descriptor);
 
-  void configure(const DatasetItemMetadata& metadata,
+  void configure(const VideoMetadata& metadata,
                  caffe::Net<float>* net) override;
 
   void transform_input(i32 input_count, u8* input_buffer,
@@ -38,7 +38,7 @@ class YoloCPUInputTransformer : public CaffeInputTransformer {
   static const i32 NET_INPUT_HEIGHT = 448;
 
   NetDescriptor descriptor_;
-  DatasetItemMetadata metadata_;
+  VideoMetadata metadata_;
 
   cv::Mat mean_mat;
 

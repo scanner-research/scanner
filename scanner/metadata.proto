@@ -1,0 +1,99 @@
+package scanner;
+
+message DatabaseDescriptor {
+  optional int32 next_dataset_id = 1;
+  optional int32 next_job_id = 2;
+
+  message Dataset {
+    required int32 id = 1;
+    required string name = 2;
+  }
+
+  message Job {
+    required int32 id = 1;
+    required string name = 2;
+  }
+
+  message JobToDataset {
+    required int32 job_id = 1;
+    required int32 dataset_id = 2;
+  }
+
+  repeated Dataset datasets = 3;
+  repeated Job jobs = 4;
+  repeated JobToDataset job_to_datasets = 5;
+}
+
+message DatasetDescriptor {
+  required int32 id = 3;
+  optional int64 total_frames = 4;
+
+  /// Per video
+  // Number of frames
+  optional int32 min_frames = 5;
+  optional int32 average_frames = 6;
+  optional int32 max_frames = 7;
+
+  // Frame width
+  optional int32 min_width = 8;
+  optional int32 average_width = 9;
+  optional int32 max_width = 10;
+
+  // Frame height
+  optional int64 min_height = 11;
+  optional int64 average_height = 12;
+  optional int64 max_height = 13;
+
+  repeated string original_video_paths = 1;
+  repeated string video_names = 2;
+}
+
+message VideoDescriptor {
+  required int32 frames = 1;
+  required int32 width = 2;
+  required int32 height = 3;
+
+  enum VideoCodecType {
+    H264 = 0;
+  }
+
+  enum VideoChromaFormat {
+    Monochrome = 0;
+    YUV_420 = 1;
+    YUV_422 = 2;
+    YUV_444 = 3;
+  }
+
+  optional VideoCodecType codec_type = 4;
+  optional VideoChromaFormat chroma_format = 5;
+
+  repeated int64 keyframe_positions = 7 [packed=true];
+  repeated int64 keyframe_timestamps = 8 [packed=true];
+  repeated int64 keyframe_byte_offsets = 9 [packed=true];
+  optional bytes metadata_packets = 6;
+}
+
+message WebTimestamps {
+  required int32 time_base_numerator = 1;
+  required int32 time_base_denominator = 2;
+  repeated int64 dts_timestamps = 3 [packed=true];
+  repeated int64 pts_timestamps = 4 [packed=true];
+}
+
+message JobDescriptor {
+  required int32 id = 1;
+
+  message Interval {
+    required int32 start = 1;
+    required int32 end = 2;
+  }
+
+  repeated Interval intervals = 3;
+
+  message Column {
+    required int32 id = 1;
+    required string name = 2;
+  }
+
+  repeated Column columns = 2;
+}

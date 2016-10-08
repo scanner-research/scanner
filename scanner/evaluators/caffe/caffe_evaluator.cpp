@@ -49,7 +49,7 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig &config,
   net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
 }
 
-void CaffeEvaluator::configure(const DatasetItemMetadata& metadata) {
+void CaffeEvaluator::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{

@@ -40,7 +40,7 @@ class VideoDecoder {
 
   virtual ~VideoDecoder(){};
 
-  virtual void configure(const DatasetItemMetadata& metadata) = 0;
+  virtual void configure(const VideoMetadata& metadata) = 0;
 
   virtual bool feed(const u8* encoded_buffer, size_t encoded_size,
                     bool discontinuity = false) = 0;

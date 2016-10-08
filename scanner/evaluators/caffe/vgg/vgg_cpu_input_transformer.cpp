@@ -41,15 +41,15 @@ VGGCPUInputTransformer::VGGCPUInputTransformer(const NetDescriptor& descriptor)
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void VGGCPUInputTransformer::configure(const DatasetItemMetadata& metadata,
+void VGGCPUInputTransformer::configure(const VideoMetadata& metadata,
                                        caffe::Net<float>* net) {
   metadata_ = metadata;
 }
 
 void VGGCPUInputTransformer::transform_input(i32 input_count, u8* input_buffer,
                                              f32* net_input) {
-  i32 frame_width = metadata_.width;
-  i32 frame_height = metadata_.height;
+  i32 frame_width = metadata_.width();
+  i32 frame_height = metadata_.height();
   size_t frame_size = frame_width * frame_height * 3 * sizeof(u8);
   for (i32 i = 0; i < input_count; ++i) {
     u8* buffer = input_buffer + frame_size * i;

@@ -17,9 +17,9 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
-option(BUILD_CAFFE_EVALUATORS "" OFF)
-option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
+option(BUILD_CAFFE_EVALUATORS "" ON)
+option(BUILD_CAFFE_INPUT_TRANSFORMERS "" ON)
 option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
 option(BUILD_TRACKER_EVALUATORS "" OFF)
 option(BUILD_UTIL_EVALUATORS "" ON)
@@ -53,7 +53,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
@@ -130,7 +130,7 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
 endif()
 
 ###### Required Dependencies #######
-
+find_package(Protobuf REQUIRED)
 find_package(FFmpeg REQUIRED)
 find_package(MPI REQUIRED)
 find_package(LibLZMA REQUIRED)
@@ -155,6 +155,7 @@ set(GTEST_LIB_MAIN
   "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
 set(SCANNER_LIBRARIES
+  "${PROTOBUF_LIBRARY}"
   "${STOREHOUSE_LIBRARIES}"
   "${JSONCPP_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
@@ -179,6 +180,8 @@ set(SCANNER_LIBRARIES
 
 include_directories(
   "."
+  "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files
+  "${PROTOBUF_INCLUDE_DIRS}"
   "${FFMPEG_INCLUDE_DIR}"
   "${TINYTOML_INCLUDE_DIR}"
   "${JSONCPP_INCLUDE_DIR}"
@@ -196,6 +199,7 @@ if (CUDA_FOUND)
     "${CUDA_LIBRARIES}"
     "-lcuda"
     "-lcudart"
+    "-L/usr/lib/nvidia-367"
     "-lnvcuvid")
 endif()
 
@@ -206,6 +210,16 @@ elseif()
 endif()
 
 ###### Project code #######
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
+  scanner/metadata.proto)
+
+add_custom_target(proto_files DEPENDS ${PROTO_HDRS})
+
+function(add_library targetName)
+  _add_library(${targetName} ${ARGN})
+  add_dependencies(${targetName} proto_files)
+endfunction()
+
 
 add_subdirectory(scanner)
 add_subdirectory(comparison)
@@ -214,6 +228,7 @@ add_executable(scanner_server
   scanner/main.cpp
   scanner/ingest.cpp
   scanner/engine.cpp
+  ${PROTO_SRCS}
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:eval>
   $<TARGET_OBJECTS:evaluators>
@@ -221,6 +236,9 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:server>
   $<TARGET_OBJECTS:util>
   ${STRUCK_SOURCES})
+
+message(${PROTO_SRCS})
+
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

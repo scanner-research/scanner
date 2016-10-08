@@ -67,7 +67,7 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
   CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
-void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
+void NVIDIAVideoDecoder::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
 
   CUcontext dummy;
@@ -94,8 +94,8 @@ void NVIDIAVideoDecoder::configure(const DatasetItemMetadata& metadata) {
   cuinfo.ChromaFormat = cudaVideoChromaFormat_420;
   cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
 
-  cuinfo.ulWidth = metadata.width;
-  cuinfo.ulHeight = metadata.height;
+  cuinfo.ulWidth = metadata.width();
+  cuinfo.ulHeight = metadata.height();
   cuinfo.ulTargetWidth = cuinfo.ulWidth;
   cuinfo.ulTargetHeight = cuinfo.ulHeight;
 
@@ -224,12 +224,12 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
           cudaMemcpyDeviceToDevice :
           cudaMemcpyDeviceToHost;
       CU_CHECK(cudaMemcpy2DAsync(
-          decoded_buffer + i * metadata_.width * metadata_.height,
-          metadata_.width,  // dst pitch
-          (const void*)(mapped_frame + i * pitch * metadata_.height),  // src
+          decoded_buffer + i * metadata_.width() * metadata_.height(),
+          metadata_.width(),  // dst pitch
+          (const void*)(mapped_frame + i * pitch * metadata_.height()),  // src
           pitch,                                             // src pitch
-          metadata_.width,                                   // width
-          i == 0 ? metadata_.height : metadata_.height / 2,  // height
+          metadata_.width(),                                   // width
+          i == 0 ? metadata_.height() : metadata_.height() / 2,  // height
           copy_kind, streams_[mapped_frame_index]));
     }
   }

@@ -10,7 +10,7 @@ class MovieItemEvaluator {
 public:
   virtual ~MovieItemEvaluator(){};
 
-  void configure(const DatasetItemMetadata& metadata) {
+  void configure(const VideoMetadata& metadata) {
     this->metadata = metadata;
   }
 
@@ -20,14 +20,14 @@ public:
     std::vector<size_t>& output_sizes) = 0;
 
 protected:
-  DatasetItemMetadata metadata;
+  VideoMetadata metadata;
 };
 
 class MovieEvaluator : public Evaluator {
  public:
   MovieEvaluator(EvaluatorConfig config);
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -35,7 +35,7 @@ class MovieEvaluator : public Evaluator {
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
  private:
-  DatasetItemMetadata metadata;
+  VideoMetadata metadata;
   std::map<std::string, std::unique_ptr<MovieItemEvaluator>> evaluators;
 };
 

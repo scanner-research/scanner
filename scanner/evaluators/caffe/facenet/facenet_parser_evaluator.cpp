@@ -70,11 +70,11 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig &config,
   };
 }
 
-void FacenetParserEvaluator::configure(const DatasetItemMetadata &metadata) {
+void FacenetParserEvaluator::configure(const VideoMetadata &metadata) {
   metadata_ = metadata;
 
-  net_input_width_ = metadata_.width;
-  net_input_height_ = metadata_.height;
+  net_input_width_ = metadata_.width();
+  net_input_height_ = metadata_.height();
   grid_width_ = (net_input_width_ / cell_width_);
   grid_height_ = (net_input_height_ / cell_height_);
 
@@ -154,11 +154,11 @@ void FacenetParserEvaluator::evaluate(
                                          vec_offset];
           height *= std::exp(dch);
 
-          x = (x / net_input_width_) * metadata_.width;
-          y = (y / net_input_height_) * metadata_.height;
+          x = (x / net_input_width_) * metadata_.width();
+          y = (y / net_input_height_) * metadata_.height();
 
-          width = (width / net_input_width_) * metadata_.width;
-          height = (height / net_input_height_) * metadata_.height;
+          width = (width / net_input_width_) * metadata_.width();
+          height = (height / net_input_height_) * metadata_.height();
 
           if (width < 0 || height < 0) continue;
 
@@ -170,7 +170,7 @@ void FacenetParserEvaluator::evaluate(
           bbox.confidence = confidence;
 
           if (bbox.x1 < 0 || bbox.y1 < 0 ||
-              bbox.x2 > metadata_.width || bbox.y2 > metadata_.height)
+              bbox.x2 > metadata_.width() || bbox.y2 > metadata_.height())
             continue;
 
           bboxes.push_back(bbox);
