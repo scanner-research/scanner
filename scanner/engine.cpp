@@ -1123,6 +1123,28 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   }
 
   if (is_master(rank)) {
+    // Add job name into database metadata so we can look up what jobs have been
+    // ran
+    i32 job_id;
+    {
+      const std::string db_meta_path = database_metadata_path();
+
+      std::unique_ptr<RandomReadFile> meta_in_file;
+      make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+      u64 pos = 0;
+      DatabaseMetadata meta =
+          deserialize_database_metadata(meta_in_file.get(), pos);
+
+      i32 dataset_id = meta.get_dataset_id(dataset_name);
+      job_id = meta.add_job(dataset_id, job_name);
+
+      std::unique_ptr<WriteFile> meta_out_file;
+      make_unique_write_file(storage, db_meta_path, meta_out_file);
+      serialize_database_metadata(meta_out_file.get(), meta);
+    }
+
+    job_descriptor.set_id(job_id);
+
     // Write out metadata to describe where the output results are for each
     // video
     {
@@ -1135,24 +1157,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       output_file->save();
     }
 
-    // Add job name into database metadata so we can look up what jobs have been
-    // ran
-    {
-      const std::string db_meta_path = database_metadata_path();
 
-      std::unique_ptr<RandomReadFile> meta_in_file;
-      make_unique_random_read_file(storage, db_meta_path, meta_in_file);
-      u64 pos = 0;
-      DatabaseMetadata meta =
-          deserialize_database_metadata(meta_in_file.get(), pos);
-
-      i32 dataset_id = meta.get_dataset_id(dataset_name);
-      meta.add_job(dataset_id, job_name);
-
-      std::unique_ptr<WriteFile> meta_out_file;
-      make_unique_write_file(storage, db_meta_path, meta_out_file);
-      serialize_database_metadata(meta_out_file.get(), meta);
-    }
   }
 
   // Execution done, write out profiler intervals for each worker

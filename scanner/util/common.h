@@ -104,14 +104,14 @@ struct DatabaseMetadata {
   bool has_dataset(i32 dataset_id) const;
   i32 get_dataset_id(const std::string& dataset) const;
   const std::string& get_dataset_name(i32 dataset_id) const;
-  void add_dataset(const std::string& dataset);
+  i32 add_dataset(const std::string& dataset);
   void remove_dataset(i32 dataset_id);
 
   bool has_job(const std::string& job) const;
   bool has_job(i32 job_id) const;
   i32 get_job_id(const std::string& job_name) const;
   const std::string& get_job_name(i32 job_id) const;
-  void add_job(i32 dataset_id, const std::string& job_name);
+  i32 add_job(i32 dataset_id, const std::string& job_name);
   void remove_job(i32 job_id);
 
 //private:

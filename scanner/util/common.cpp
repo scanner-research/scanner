@@ -122,10 +122,11 @@ const std::string& DatabaseMetadata::get_dataset_name(i32 dataset_id) const {
   return dataset_names.at(dataset_id);
 }
 
-void DatabaseMetadata::add_dataset(const std::string &dataset) {
+i32 DatabaseMetadata::add_dataset(const std::string &dataset) {
   i32 dataset_id = next_dataset_id++;
   dataset_names[dataset_id] = dataset;
   dataset_job_ids[dataset_id] = {};
+  return dataset_id;
 }
 
 void DatabaseMetadata::remove_dataset(i32 dataset_id) {
@@ -165,10 +166,11 @@ const std::string &DatabaseMetadata::get_job_name(i32 job_id) const {
   return job_names.at(job_id);
 }
 
-void DatabaseMetadata::add_job(i32 dataset_id, const std::string &job_name) {
+i32 DatabaseMetadata::add_job(i32 dataset_id, const std::string &job_name) {
   i32 job_id = next_job_id++;
   dataset_job_ids.at(dataset_id).insert(job_id);
   job_names[job_id] = job_name;
+  return job_id;
 }
 
 void DatabaseMetadata::remove_job(i32 job_id) {
