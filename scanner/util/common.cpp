@@ -86,8 +86,8 @@ const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
   for (auto& kv : dataset_job_ids) {
     for (i32 job_id : kv.second) {
       auto job = descriptor.add_job_to_datasets();
-      job->set_job_id(kv.first);
-      job->set_dataset_id(job_id);
+      job->set_dataset_id(kv.first);
+      job->set_job_id(job_id);
     }
   }
 
