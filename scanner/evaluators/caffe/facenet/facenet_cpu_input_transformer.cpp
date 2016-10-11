@@ -20,7 +20,9 @@ namespace scanner {
 
 FacenetCPUInputTransformer::FacenetCPUInputTransformer(
     const NetDescriptor& descriptor)
-    : descriptor_(descriptor), net_input_width_(224), net_input_height_(224) {}
+    : descriptor_(descriptor), net_input_width_(224), net_input_height_(224) {
+  initialize();
+}
 
 void FacenetCPUInputTransformer::configure(const VideoMetadata& metadata,
                                            caffe::Net<float>* net) {
@@ -29,27 +31,9 @@ void FacenetCPUInputTransformer::configure(const VideoMetadata& metadata,
   net_input_width_ = metadata.width();
   net_input_height_ = metadata.height();
 
-  const boost::shared_ptr<caffe::Blob<float>> input_blob{
-      net->blob_by_name(descriptor_.input_layer_name)};
-
-  if (input_blob->shape(2) != metadata.width() ||
-      input_blob->shape(3) != metadata.height()) {
-    input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-                         metadata.width(), metadata.height()});
-
-    mean_mat_ = cv::Mat(
-        net_input_height_, net_input_width_, CV_32FC3,
-        cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
-                   descriptor_.mean_colors[2]));
-
-    float_input = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
-    normalized_input = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
-    flipped_input = cv::Mat(net_input_width_, net_input_height_, CV_32FC3);
-    for (i32 i = 0; i < 3; ++i) {
-      input_planes.push_back(
-          cv::Mat(net_input_width_, net_input_height_, CV_32FC1));
-    }
-    planar_input = cv::Mat(net_input_width_ * 3, net_input_height_, CV_32FC1);
+  if (input_blob->shape(2) != net_input_width_ ||
+      input_blob->shape(3) != net_input_height_) {
+    initialize();
   }
 }
 
@@ -78,6 +62,28 @@ void FacenetCPUInputTransformer::transform_input(i32 input_count,
       memcpy(input_pos, mat_pos, planar_input.cols * sizeof(float));
     }
   }
+}
+
+void FacenetCPUInputTransformer::initialize() {
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+      net->blob_by_name(descriptor_.input_layer_name)};
+
+  input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
+                       metadata.width(), metadata.height()});
+
+  mean_mat_ =
+      cv::Mat(net_input_height_, net_input_width_, CV_32FC3,
+              cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
+                         descriptor_.mean_colors[2]));
+
+  float_input = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
+  normalized_input = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
+  flipped_input = cv::Mat(net_input_width_, net_input_height_, CV_32FC3);
+  for (i32 i = 0; i < 3; ++i) {
+    input_planes.push_back(
+        cv::Mat(net_input_width_, net_input_height_, CV_32FC1));
+  }
+  planar_input = cv::Mat(net_input_width_ * 3, net_input_height_, CV_32FC1);
 }
 
 CaffeInputTransformer* FacenetCPUInputTransformerFactory::construct(

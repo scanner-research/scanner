@@ -23,7 +23,9 @@ FacenetGPUInputTransformer::FacenetGPUInputTransformer(
       num_cuda_streams_(32),
       net_input_width_(224),
       net_input_height_(224),
-      streams_(num_cuda_streams_) {}
+      streams_(num_cuda_streams_) {
+  initialize();
+}
 
 void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
                                            caffe::Net<float>* net) {
@@ -32,45 +34,9 @@ void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
   net_input_width_ = metadata.width();
   net_input_height_ = metadata.height();
 
-  const boost::shared_ptr<caffe::Blob<float>> input_blob{
-      net->blob_by_name(descriptor_.input_layer_name)};
-
   if (input_blob->shape(2) != metadata.width() ||
       input_blob->shape(3) != metadata.height()) {
-    input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-                         metadata.width(), metadata.height()});
-
-    mean_mat_ = cv::cuda::GpuMat(
-        net_input_height_, net_input_width_, CV_32FC3,
-        cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
-                   descriptor_.mean_colors[2]));
-
-    frame_input_.clear();
-    float_input_.clear();
-    normalized_input_.clear();
-    input_planes_.clear();
-    flipped_planes_.clear();
-    planar_input_.clear();
-    for (size_t i = 0; i < num_cuda_streams_; ++i) {
-      frame_input_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      float_input_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      normalized_input_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      std::vector<cv::cuda::GpuMat> planes;
-      std::vector<cv::cuda::GpuMat> flipped_planes;
-      for (i32 i = 0; i < 3; ++i) {
-        planes.push_back(
-            cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
-        flipped_planes.push_back(
-            cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC1));
-      }
-      input_planes_.push_back(planes);
-      flipped_planes_.push_back(flipped_planes);
-      planar_input_.push_back(
-          cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
-    }
+    initialize();
   }
 }
 
@@ -116,6 +82,47 @@ void FacenetGPUInputTransformer::transform_input(i32 input_count,
   }
   for (cv::cuda::Stream& s : streams_) {
     s.waitForCompletion();
+  }
+}
+
+void FacenetGPUInputTransformer::initialize() {
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+      net->blob_by_name(descriptor_.input_layer_name)};
+
+  input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
+                       net_input_width_, net_input_height_});
+
+  mean_mat_ = cv::cuda::GpuMat(
+      net_input_height_, net_input_width_, CV_32FC3,
+      cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
+                 descriptor_.mean_colors[2]));
+
+  frame_input_.clear();
+  float_input_.clear();
+  normalized_input_.clear();
+  input_planes_.clear();
+  flipped_planes_.clear();
+  planar_input_.clear();
+  for (size_t i = 0; i < num_cuda_streams_; ++i) {
+    frame_input_.push_back(
+        cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
+    float_input_.push_back(
+        cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
+    normalized_input_.push_back(
+        cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
+    std::vector<cv::cuda::GpuMat> planes;
+    std::vector<cv::cuda::GpuMat> flipped_planes;
+    for (i32 i = 0; i < 3; ++i) {
+      planes.push_back(
+          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
+      flipped_planes.push_back(
+          cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC1));
+    }
+    input_planes_.push_back(planes);
+    flipped_planes_.push_back(flipped_planes);
+    planar_input_.push_back(
+        cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
+    }
   }
 }
 

@@ -40,6 +40,8 @@ class FacenetGPUInputTransformer : public CaffeInputTransformer {
                        f32* net_input) override;
 
  private:
+  void initialize();
+
   NetDescriptor descriptor_;
   VideoMetadata metadata_;
   i32 num_cuda_streams_;
