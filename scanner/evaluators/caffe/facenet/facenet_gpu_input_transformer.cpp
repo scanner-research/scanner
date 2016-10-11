@@ -34,6 +34,8 @@ void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
   net_input_width_ = metadata.width();
   net_input_height_ = metadata.height();
 
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+      net->blob_by_name(descriptor_.input_layer_name)};
   if (input_blob->shape(2) != metadata.width() ||
       input_blob->shape(3) != metadata.height()) {
     initialize();
