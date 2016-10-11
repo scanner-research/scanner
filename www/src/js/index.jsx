@@ -7,33 +7,12 @@ var update = require('react-addons-update');
 var Video = require('react-html5video/dist/ReactHtml5Video').default;
 
 $.whenall = function(arr) {
-    return $.when.apply($, arr).pipe(function() {
-        return Array.prototype.slice.call(arguments);
-    });
+  return $.when.apply($, arr).pipe(function() {
+    return Array.prototype.slice.call(arguments);
+  });
 };
 
 require("../css/index.scss");
-
-var item_bbox = {
-  frame: 100,
-  time: 36,
-  data: {
-    bboxes: [
-      {
-        x: 100,
-        y: 125,
-        width: 50,
-        height: 20,
-      },
-      {
-        x: 200,
-        y: 75,
-        width: 28,
-        height: 60,
-      },
-    ],
-  },
-};
 
 var classificationGraphics = {
   setup: function(mainPanel) {
@@ -219,81 +198,67 @@ function setupViewer(container, mainPanel, jobMetadata, videoMetadata) {
   setupTimeline(timeline, mainPanel, htmlVideo, jobMetadata, videoMetadata);
 }
 
-function setupTimeline(container,
-                       mainPanel,
-                       video,
-                       jobMetadata,
-                       videoMetadata)
-{
-  var requestRadius = 1;
-  var stride = 1;
+var TimelinePlot = React.createClass({
+  getInitialState: function() {
+    return {};
+  },
+  componentDidUpdate: function() {
+    var context = ReactDOM.findDOMNode(this.refs.canvas).getContext("2d");
 
-  var mainVideo = mainPanel.children("#main-viewer")[0];
-  var mainVideoSource = $(mainVideo).children("source");
-  var frameIndicator = mainPanel.children("#frame-indicator");
-  var classIndicator = mainPanel.children("#class-indicator");
+    var plotWidth = this.props.width;
+    var plotHeight = this.props.height;
+    context.clearRect(0, 0, plotWidth, plotHeight);
 
-  $(mainVideo).attr('width', viewWidth);
-  $(mainVideo).attr('height', viewHeight);
+    var margin = {top: 0, right: 0, bottom: 0, left: 0},
+        canvasWidth = plotWidth - margin.left - margin.right,
+        canvasHeight = plotHeight - margin.top - margin.bottom;
 
-  var width = container.width();
-  var tickWidth = 100;
-  var tickHeight = 80;
-  var ticks = Math.floor(width / tickWidth);
+    var x = d3.scaleLinear()
+              .range([0, canvasWidth]);
 
-  var hoveredFrame = -1;
-  var selectedFrame = -1;
-}
+    var y = d3.scaleLinear()
+              .range([canvasHeight, 0]);
 
-function setupTimelinePlot(axis,
-                           video,
-                           jobMetadata,
-                           videoMetadata,
-                           plotWidth,
-                           plotHeight,
-                           predictionData)
-{
-  var plotCanvas = $('<canvas/>', {'class': 'timeline-plot',
-                                   'width': plotWidth,
-                                   'height': plotHeight})
-    .css('width', plotWidth)
-    .css('height', plotHeight);
-  axis.append(plotCanvas)
+    var line = d3.line()
+                 .x(function(d) { return x(d.frame); })
+                 .y(function(d) { return y(d.value); })
+                 .curve(d3.curveStep)
+                 .context(context);
 
-  plotCanvas[0].width = plotWidth;
-  plotCanvas[0].height = plotHeight;
-  var context = plotCanvas[0].getContext("2d");
+    context.translate(margin.left, margin.top);
 
-  var margin = {top: 0, right: 0, bottom: 0, left: 0},
-      canvasWidth = plotWidth - margin.left - margin.right,
-      canvasHeight = plotHeight - margin.top - margin.bottom;
+    //var lineData = jobMetadata.graphics.plotValues(predictionData);
+    var lineData = _.map(this.props.plotValues, function(d, i) {
+      return {frame: i, value: d};
+    });
 
-  var x = d3.scaleLinear()
-            .range([0, canvasWidth]);
+    x.domain([0, this.props.maxX]);
+    y.domain([0, this.props.maxY]);
+    context.beginPath();
+    line(lineData);
+    context.lineWidth = 1.5;
+    context.strokeStyle = this.props.color;
+    context.stroke();
+  },
 
-  var y = d3.scaleLinear()
-            .range([canvasHeight, 0]);
-
-  var line = d3.line()
-               .x(function(d) { return x(d.frame); })
-               .y(function(d) { return y(d.value); })
-               .curve(d3.curveStep)
-               .context(context);
-
-  context.translate(margin.left, margin.top);
-
-  var lineData = jobMetadata.graphics.plotValues(predictionData);
-
-  //x.domain(d3.extent(confusionData, function(d) { return d.frame; }));
-  x.domain([0, videoMetadata.frames]);
-  y.domain([0, 1]);
-  //y.domain(d3.extent(lineData, function(d) { return d.value; }));
-  context.beginPath();
-  line(lineData);
-  context.lineWidth = 1.5;
-  context.strokeStyle = "steelblue";
-  context.stroke();
-}
+  render: function() {
+    var plotWidth = this.props.width;
+    var plotHeight = this.props.height;
+    var plotStyle = {
+      width: plotWidth,
+      height: plotHeight,
+    };
+    var plotCanvas = (
+      <canvas className="timeline-plot"
+              width={plotWidth}
+              height={plotHeight}
+              style={plotStyle}
+              ref="canvas">
+      </canvas>
+    );
+    return plotCanvas;
+  }
+});
 
 var VideoTimeline = React.createClass({
   getInitialState: function() {
@@ -306,12 +271,11 @@ var VideoTimeline = React.createClass({
     var axis = $(this.refs.axis);
     var offset = axis.offset();
     var xPos = pageX - offset.left;
-    var numTicks = Math.floor(this.state.width / 100);
-    var axisWidth = numTicks * 100;
+    var axisWidth = axis.width();
     var percent = Math.min(xPos / axisWidth, 1);
     var frame = Math.min(Math.floor(this.props.video.frames * percent),
                          this.props.video.frames - 1);
-      console.log(frame);
+    console.log(frame);
     return frame;
   },
   handleMouseMove: function(e) {
@@ -346,46 +310,6 @@ var VideoTimeline = React.createClass({
       onSelectedFrameChange: onSelectedFrameChange
     });
   },
-  componentDidUpdate: function() {
-      var context = ReactDOM.findDOMNode(this.refs.canvas).getContext("2d");
-
-      var plotWidth = this.state.width;
-      var plotHeight = 80;
-      context.clearRect(0, 0, plotWidth, plotHeight);
-
-      var margin = {top: 0, right: 0, bottom: 0, left: 0},
-          canvasWidth = plotWidth - margin.left - margin.right,
-          canvasHeight = plotHeight - margin.top - margin.bottom;
-
-      var x = d3.scaleLinear()
-                .range([0, canvasWidth]);
-
-      var y = d3.scaleLinear()
-                .range([canvasHeight, 0]);
-
-      var line = d3.line()
-                   .x(function(d) { return x(d.frame); })
-                   .y(function(d) { return y(d.value); })
-                   .curve(d3.curveStep)
-                   .context(context);
-
-      context.translate(margin.left, margin.top);
-
-      //var lineData = jobMetadata.graphics.plotValues(predictionData);
-      var lineData = _.map(this.props.plotValues, function(d, i) {
-          return {frame: i, value: d};
-      });
-
-      //x.domain(d3.extent(confusionData, function(d) { return d.frame; }));
-      x.domain([0, this.props.video.frames]);
-      y.domain([0, _.max(this.props.plotValues)]);
-      //y.domain(d3.extent(lineData, function(d) { return d.value; }));
-      context.beginPath();
-      line(lineData);
-      context.lineWidth = 1.5;
-      context.strokeStyle = "steelblue";
-      context.stroke();
-  },
   componentWillReceiveProps: function(nextProps) {
     var onSelectedFrameChange =
       _.debounce(this.props.onSelectedFrameChange, 50);
@@ -402,7 +326,8 @@ var VideoTimeline = React.createClass({
     var labelWidth = 50;
     var labelHeight = 20;
 
-    var numTicks = Math.floor(this.state.width / tickWidth);
+    var numTicks = Math.ceil(this.state.width / tickWidth);
+    var framesPerTick = (video.frames / this.state.width) * tickWidth;
     var ticks = _.times(numTicks, function(i) {
       var style = {
         left: tickWidth * i,
@@ -417,9 +342,10 @@ var VideoTimeline = React.createClass({
         </div>
       );
     });
+    var lastTickWidth = this.state.width - (numTicks - 1) * tickWidth;
     var style = {
       left: tickWidth * numTicks - 1,
-      width: 0,
+      width: lastTickWidth,
       top: 0,
       height: tickHeight,
     };
@@ -430,7 +356,7 @@ var VideoTimeline = React.createClass({
       </div>
     );
     ticks.push(lastTick);
-    var tickLabels = _.times(numTicks, function(i) {
+    var tickLabels = _.times(numTicks - 1, function(i) {
       var style = {
         left: tickWidth * i - labelWidth / 2,
         width: labelWidth,
@@ -441,12 +367,12 @@ var VideoTimeline = React.createClass({
         <div className="timeline-tick-label"
              style={style}
              key={i}>
-          {Math.round(video.frames / numTicks * i)}
+          {Math.floor(framesPerTick * i)}
         </div>
       );
     });
     var style = {
-      left: tickWidth * numTicks - labelWidth / 2,
+      left: tickWidth * (numTicks - 1) - labelWidth / 2,
       width: labelWidth,
       top: tickHeight,
       height: labelHeight,
@@ -455,25 +381,36 @@ var VideoTimeline = React.createClass({
       <div className="timeline-tick-label"
            style={style}
            key={numTicks}>
-        {video.frames}
+        {Math.floor(framesPerTick * (numTicks - 1))}
       </div>
     );
     tickLabels.push(lastTickLabel);
 
-    var plotWidth = tickWidth * numTicks;
-    var plotHeight = tickHeight;
-    var plotStyle = {
-      width: plotWidth,
-      height: plotHeight,
-    };
-    var plotCanvas = (
-        <canvas className="timeline-plot"
-                width={plotWidth}
-                height={plotHeight}
-                style={plotStyle}
-                ref="canvas">
-        </canvas>
+    var timelinePlots = [];
+
+
+    var baseValues = _.map(this.props.plotValues, x => x.base_bboxes);
+    var trackedValues = _.map(this.props.plotValues, x => x.tracked_bboxes);
+    var maxY = _.max([_.max(baseValues), _.max(trackedValues)]);
+    timelinePlots.push(
+      <TimelinePlot width={this.state.width}
+                    height={tickHeight}
+                    plotValues={baseValues}
+                    maxX={this.props.video.frames}
+                    maxY={maxY}
+                    key="base"
+                    color="red"/>
     );
+    timelinePlots.push(
+      <TimelinePlot width={this.state.width}
+                    height={tickHeight}
+                    plotValues={trackedValues}
+                    maxX={this.props.video.frames}
+                    maxY={maxY}
+                    key="tracked"
+                    color="green"/>
+    );
+
     return (
       <div className="video-timeline"
            onClick={this.handleClick}
@@ -483,7 +420,7 @@ var VideoTimeline = React.createClass({
              ref="axis">
           {ticks}
           {tickLabels}
-          {plotCanvas}
+          {timelinePlots}
         </div>
       </div>
     )
@@ -509,17 +446,16 @@ var VideoBrowser = React.createClass({
     var job = this.props.job;
     var onSelectedFrameChange = this.props.onSelectedFrameChange;
     var videoNavigators = _.map(
-        _.zip(this.props.videos, this.props.videoPlotValues),
-        function(video)
-    {
-      return (
-        <VideoNavigator job={job}
-                        video={video[0]}
-                        plotValues={video[1]}
-                        onSelectedFrameChange={onSelectedFrameChange}
-                        key={video[0]['id']}/>
-      );
-    });
+      _.zip(this.props.videos, this.props.videoPlotValues),
+      function(video) {
+        return (
+          <VideoNavigator job={job}
+                          video={video[0]}
+                          plotValues={video[1]}
+                          onSelectedFrameChange={onSelectedFrameChange}
+                          key={video[0]['id']}/>
+        );
+      });
 
     return (
       <div className="video-browser">
@@ -579,50 +515,38 @@ var ViewerPanel = React.createClass({
       this.refs.video.load();
     }
     if (this.props.selectedFrame) {
-      if (this.props.selectedFrame.data.hasOwnProperty('time')) {
-        this.refs.video.seek(this.props.selectedFrame.data.time);
+      if (this.props.selectedFrame.feature.hasOwnProperty('time')) {
+        this.refs.video.seek(this.props.selectedFrame.feature.time);
       }
       if (this.props.selectedFrame.status == 'valid') {
-        console.log(this.props.selectedFrame.data);
-          var color;
-          if (this.props.job["name"] == "bboxes_test") {
-              color = "yellow";
-          } else {
-              color = "red";
-          }
         this.props.graphics.draw(
           videoElement,
           this.props.video,
-          this.props.selectedFrame.data.frame + 'b',
-          this.props.selectedFrame.data.data.base_bboxes,
+          this.props.selectedFrame.feature.frame + 'b',
+          this.props.selectedFrame.feature.columns.base_bboxes,
           'base',
-          color);
-          if (color != "yellow" && this.props.selectedFrame.data.data.hasOwnProperty("tracked_bboxes")) {
-              this.props.graphics.draw(
-                  videoElement,
-                  this.props.video,
-                  this.props.selectedFrame.data.frame + 'g',
-                  this.props.selectedFrame.data.data.tracked_bboxes,
-                  'tracked',
-                  'green');
-          } else {
-              this.props.graphics.draw(
-                  videoElement,
-                  this.props.video,
-                  this.props.selectedFrame.data.frame + 'g',
-                  [],
-                  'tracked',
-                  'green');
-          }
+          'red');
+        var tracked_bboxes = [];
+        if (this.props.selectedFrame.feature.columns.hasOwnProperty(
+          "tracked_bboxes")) {
+          tracked_bboxes =
+            this.props.selectedFrame.feature.columns.tracked_bboxes;
+        }
+        this.props.graphics.draw(
+          videoElement,
+          this.props.video,
+          this.props.selectedFrame.feature.frame + 'g',
+          tracked_bboxes,
+          'tracked',
+          'green');
       }
     }
   },
-  handleReset: function() {
-    this.props.handleReset();
-  },
   render: function() {
     var frame = this.props.selectedFrame;
-    var frameNum = frame ? (frame.data.frame ? ('Frame ' + frame.data.frame) : '') : '';
+    var frameNum = frame ?
+                   (frame.feature.frame ?
+                    ('Frame ' + frame.feature.frame) : '') : '';
     return (
       <div className="viewer-panel" ref="container">
         <Video id="video-viewer" width="100%" ref="video">
@@ -632,9 +556,6 @@ var ViewerPanel = React.createClass({
           <div className="controls-left">
             {frameNum}
           </div>
-          <button type="button" className="controls-right"onClick={this.handleReset}>
-            Demo Jump
-          </button>
         </div>
       </div>
     );
@@ -669,7 +590,7 @@ var VisualizerApp = React.createClass({
       frameData: [
         [{
           status: 'invalid',
-          data: {},
+          feature: {},
         }]
       ],
       selectedFrame: 0,
@@ -695,7 +616,7 @@ var VisualizerApp = React.createClass({
 
     if (this.state.selectedJob != -1) {
       this.loadPredictionData(
-          d.videoId, this.state.selectedJob, frame - 1, frame + 1);
+        d.videoId, this.state.selectedJob, frame - 1, frame + 1);
     }
     this.setState({
       selectedVideo: d.videoId,
@@ -720,18 +641,18 @@ var VisualizerApp = React.createClass({
       success: function(videosData) {
         var frameData = _.map(videosData, function(video) {
           return _.map(video.times, function(t) {
-            return {status: 'invalid', data: {time: t}};
+            return {status: 'invalid', feature: {time: t}};
           });
         })
-          this.setState({
-            selectedVideo: videosData[0].id,
-            selectedFrame: 0,
-            videos: videosData,
-            videoPlotValues: _.times(_.size(videosData), function(i) {
-                return [];
-            }),
-            frameData: frameData
-          });
+        this.setState({
+          selectedVideo: videosData[0].id,
+          selectedFrame: 0,
+          videos: videosData,
+          videoPlotValues: _.times(_.size(videosData), function(i) {
+            return [];
+          }),
+          frameData: frameData
+        });
       }.bind(this)
     });
     this.setState({
@@ -742,7 +663,7 @@ var VisualizerApp = React.createClass({
   handleSelectedJobChange: function(jobId) {
     var frameData = _.map(this.state.videos, function(video) {
       return _.times(video.frames, function(i) {
-        return {status: 'invalid', data: {}};
+        return {status: 'invalid', feature: {}};
       });
     })
 
@@ -753,47 +674,36 @@ var VisualizerApp = React.createClass({
     this.loadPlotValues(jobId);
   },
   handleKeyPress: function(event) {
-      var selectedFrame = this.state.selectedFrame;
-      var videoId = this.state.selectedVideo;
-      if (event.keyCode == 37) {
-          // left
-          this.handleSelectedFrameChange({
-              videoId: videoId,
-              frame: selectedFrame - 1,
-          });
-      } else if (event.keyCode == 39) {
-          // right
-          this.handleSelectedFrameChange({
-              videoId: videoId,
-              frame: selectedFrame + 1,
-          });
-      }
-  },
-  handleReset: function() {
-      var selectedFrame = this.state.selectedFrame;
-      var videoId = this.state.selectedVideo;
-
+    var selectedFrame = this.state.selectedFrame;
+    var videoId = this.state.selectedVideo;
+    if (event.keyCode == 37) {
+      // left
       this.handleSelectedFrameChange({
-          videoId: videoId,
-          frame: 4600,
+        videoId: videoId,
+        frame: selectedFrame - 1,
       });
-
+    } else if (event.keyCode == 39) {
+      // right
+      this.handleSelectedFrameChange({
+        videoId: videoId,
+        frame: selectedFrame + 1,
+      });
+    }
   },
   loadPlotValues: function(jobId) {
     var promises = _.map(this.state.videos, function(video) {
-        return this.loadPredictionData(video.id, jobId, 0, video.frames);
+      return this.loadPredictionData(video.id, jobId, 0, video.frames);
     }.bind(this));
     $.whenall(promises).done(function(data) {
-       this.setState({
-         videoPlotValues: _.map(data, function(p) {
-            var vals = p[0];
-            return _.map(vals, function(perFrame) {
-                return _.size(perFrame.data.base_bboxes) +
-                       _.size(perFrame.data.tracked_bboxes);
-            });
-          }),
-       })
-     }.bind(this));
+      var videos = [data[0]];
+      this.setState({
+        videoPlotValues: _.map(videos, function(videoFeatures) {
+          return _.map(videoFeatures, function(frameFeatures) {
+            return _.mapValues(frameFeatures.columns, values => _.size(values));
+          });
+        }),
+      })
+    }.bind(this));
 
   },
   loadPredictionData: function(videoId, jobId, start, end) {
@@ -818,39 +728,38 @@ var VisualizerApp = React.createClass({
     }
     // The entire range is already loaded so we don't need to send a request
     if (requestStart == requestEnd) return;
-      console.log(this.findJob(jobId))
-      var columns;
-      columns = "base_bboxes,tracked_bboxes";
-      var p = $.ajax({
-          url: "datasets/" + this.state.selectedDataset +
-               "/jobs/" + jobId +
-               "/features/" + videoId,
-          dataType: "json",
-          data: {
-              columns: columns,
-              start: requestStart,
-              end: requestEnd,
-              stride: 1,
-              category: -1,
-              threshold: $("#threshold-input").val(),
+    console.log(this.findJob(jobId))
+    var columns;
+    columns = "base_bboxes,tracked_bboxes";
+    var p = $.ajax({
+      url: "datasets/" + this.state.selectedDataset +
+           "/jobs/" + jobId +
+           "/features/" + videoId,
+      dataType: "json",
+      data: {
+        columns: columns,
+        start: requestStart,
+        end: requestEnd,
+        stride: 1,
+        threshold: $("#threshold-input").val(),
+      }
+    });
+    p.done(function(data) {
+      for (var i = 0; i < (requestEnd - requestStart); ++i) {
+        var frame = requestStart + i;
+        frameData = update(frameData, {
+          [frame]: {
+            status: {$set: 'valid'},
+            feature: {$set: data[i]}
           }
+        });
+      }
+      this.setState({
+        frameData: update(this.state.frameData,
+                          {[videoId]: {$set: frameData}})
       });
-      p.done(function(data) {
-          for (var i = 0; i < (requestEnd - requestStart); ++i) {
-              var frame = requestStart + i;
-              frameData = update(frameData, {
-                  [frame]: {
-                      status: {$set: 'valid'},
-                      data: {$set: data[i]}
-                  }
-              });
-          }
-          this.setState({
-              frameData: update(this.state.frameData,
-                                {[videoId]: {$set: frameData}})
-          });
-      }.bind(this));
-      return p;
+    }.bind(this));
+    return p;
   },
   componentDidMount: function() {
     this.setState({height: this._getHeight()});
@@ -874,7 +783,8 @@ var VisualizerApp = React.createClass({
   },
   render: function() {
     var datasetDivs = _.map(this.state.datasets, function(dataset) {
-      var cls = "dataset-info " + (this.state.selectedDataset == dataset.id ? 'active' : '');
+      var cls = ("dataset-info " +
+                 (this.state.selectedDataset == dataset.id ? 'active' : ''));
       return (
         <div className={cls}
              key={dataset.id}
@@ -884,7 +794,8 @@ var VisualizerApp = React.createClass({
       );
     }.bind(this));
     var jobDivs = _.map(this.state.jobs, function(job) {
-      var cls = "job-info " + (this.state.selectedJob == job.id ? 'active' : '');
+      var cls = ("job-info " +
+                 (this.state.selectedJob == job.id ? 'active' : ''));
       return (
         <div className={cls}
              key={job.id}
@@ -899,14 +810,15 @@ var VisualizerApp = React.createClass({
     var frame =
       this.state.frameData[selectedVideoIndex][selectedFrame];
     return (
-        <div className="visualizer-app" onKeyDown={this.handleKeyPress}>
+      <div className="visualizer-app" onKeyDown={this.handleKeyPress}>
         <div className="header">
           <h1>Scanner</h1>
           <div className="dataset-panel">
             <h2>Datasets</h2>
             {datasetDivs}
           </div>
-          <div className={"job-panel " + (this.state.selectedDataset == -1 ? 'hidden' : '')}>
+          <div className={"job-panel " +
+             (this.state.selectedDataset == -1 ? 'hidden' : '')}>
             <h2>Jobs</h2>
             {jobDivs}
           </div>
@@ -915,12 +827,11 @@ var VisualizerApp = React.createClass({
           <VideoBrowser job={this.findJob(this.state.selectedJob)}
                         videos={this.state.videos}
                         videoPlotValues={this.state.videoPlotValues}
-                        onSelectedFrameChange={this.handleSelectedFrameChange} />
+                        onSelectedFrameChange={this.handleSelectedFrameChange}/>
           <ViewerPanel job={this.findJob(this.state.selectedJob)}
                        video={this.findVideo(selectedVideo)}
                        graphics={detectionGraphics}
-                       selectedFrame={frame}
-                       handleReset={this.handleReset}/>
+                       selectedFrame={frame}/>
         </div>
       </div>
     );

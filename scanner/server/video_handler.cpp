@@ -318,11 +318,6 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
     stride = message_->getIntQueryParam("stride");
   }
 
-  i32 filtered_category = -1;
-  if (message_->hasQueryParam("category")) {
-    filtered_category = message_->getIntQueryParam("category");
-  }
-
   f32 threshold = -1;
   if (message_->hasQueryParam("threshold")) {
     threshold = folly::to<f32>(message_->getQueryParam("threshold"));
@@ -432,9 +427,9 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
     feature_data["frame"] = current_frame;
     feature_data["time"] = timestamps.pts_timestamps(current_frame) /
                            static_cast<f64>(timestamps.time_base_denominator());
-    feature_data["data"] = folly::dynamic::object();
+    feature_data["columns"] = folly::dynamic::object();
 
-    parser->parse_output(output, output_sizes, feature_data["data"]);
+    parser->parse_output(output, output_sizes, feature_data["columns"]);
 
     feature_classes.push_back(feature_data);
 

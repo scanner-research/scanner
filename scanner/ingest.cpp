@@ -896,9 +896,9 @@ void ingest(storehouse::StorageConfig* storage_config,
   descriptor.set_id(dataset_id);
   descriptor.set_total_frames(total_frames);
 
-  descriptor.set_min_frames(total_frames);
-  descriptor.set_average_frames(total_frames);
-  descriptor.set_max_frames(total_frames);
+  descriptor.set_min_frames(min_frames);
+  descriptor.set_average_frames(average_frames);
+  descriptor.set_max_frames(max_frames);
 
   descriptor.set_min_width(min_width);
   descriptor.set_average_width(average_width);
