@@ -75,7 +75,7 @@ void FacenetCPUInputTransformer::initialize(caffe::Net<float>* net) {
       net->blob_by_name(descriptor_.input_layer_name)};
 
   input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-                       metadata.width(), metadata.height()});
+                       net_input_width_, net_input_height_});
 
   mean_mat_ =
       cv::Mat(net_input_height_, net_input_width_, CV_32FC3,
