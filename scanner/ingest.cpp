@@ -880,7 +880,7 @@ void ingest(storehouse::StorageConfig* storage_config,
     bad_paths_file.close();
   }
 
-  DatabaseMetadata meta;
+  DatabaseMetadata meta{};
   i32 dataset_id;
   {
     const std::string db_meta_path = database_metadata_path();
@@ -890,7 +890,7 @@ void ingest(storehouse::StorageConfig* storage_config,
     u64 pos = 0;
     meta = deserialize_database_metadata(meta_in_file.get(), pos);
 
-    dataset_id = meta.next_dataset_id++;
+    dataset_id = meta.add_dataset(dataset_name);;
   }
 
   descriptor.set_id(dataset_id);
@@ -936,9 +936,6 @@ void ingest(storehouse::StorageConfig* storage_config,
   // Add new dataset name to database metadata so we know it exists
   {
     const std::string db_meta_path = database_metadata_path();
-
-    meta.dataset_names[dataset_id] = dataset_name;
-    meta.dataset_job_ids[dataset_id] = {};
 
     std::unique_ptr<WriteFile> meta_out_file;
     make_unique_write_file(storage, db_meta_path, meta_out_file);

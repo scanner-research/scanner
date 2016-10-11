@@ -17,6 +17,7 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
+#include "scanner/evaluators/types.pb.h"
 
 #include "struck/Tracker.h"
 
@@ -50,6 +51,9 @@ protected:
   i32 warmup_count_;
 
   VideoMetadata metadata_;
+
+  i32 next_tracker_id_;
+  std::vector<i32> tracker_ids_;
   std::vector<std::unique_ptr<struck::Config>> tracker_configs_;
   std::vector<BoundingBox> tracked_bboxes_;
   std::vector<i32> frames_since_last_detection_;

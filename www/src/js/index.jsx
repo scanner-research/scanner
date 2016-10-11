@@ -820,41 +820,37 @@ var VisualizerApp = React.createClass({
     if (requestStart == requestEnd) return;
       console.log(this.findJob(jobId))
       var columns;
-      if (this.findJob(jobId)["name"] == "facenet_eating_bg") {
-          columns = "base_bboxes,tracked_bboxes";
-      } else {
-          columns = "base_bboxes";
-      }
-    var p = $.ajax({
-      url: "datasets/" + this.state.selectedDataset +
-           "/jobs/" + jobId +
-           "/features/" + videoId,
-      dataType: "json",
-      data: {
-        columns: columns,
-        start: requestStart,
-        end: requestEnd,
-        stride: 1,
-        category: -1,
-        threshold: $("#threshold-input").val(),
-      }
-    });
-    p.done(function(data) {
-      for (var i = 0; i < (requestEnd - requestStart); ++i) {
-        var frame = requestStart + i;
-        frameData = update(frameData, {
-          [frame]: {
-            status: {$set: 'valid'},
-            data: {$set: data[i]}
+      columns = "base_bboxes,tracked_bboxes";
+      var p = $.ajax({
+          url: "datasets/" + this.state.selectedDataset +
+               "/jobs/" + jobId +
+               "/features/" + videoId,
+          dataType: "json",
+          data: {
+              columns: columns,
+              start: requestStart,
+              end: requestEnd,
+              stride: 1,
+              category: -1,
+              threshold: $("#threshold-input").val(),
           }
-        });
-      }
-      this.setState({
-        frameData: update(this.state.frameData,
-                          {[videoId]: {$set: frameData}})
       });
-    }.bind(this));
-    return p;
+      p.done(function(data) {
+          for (var i = 0; i < (requestEnd - requestStart); ++i) {
+              var frame = requestStart + i;
+              frameData = update(frameData, {
+                  [frame]: {
+                      status: {$set: 'valid'},
+                      data: {$set: data[i]}
+                  }
+              });
+          }
+          this.setState({
+              frameData: update(this.state.frameData,
+                                {[videoId]: {$set: frameData}})
+          });
+      }.bind(this));
+      return p;
   },
   componentDidMount: function() {
     this.setState({height: this._getHeight()});

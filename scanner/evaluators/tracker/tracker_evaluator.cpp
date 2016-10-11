@@ -14,6 +14,7 @@
  */
 
 #include "scanner/evaluators/tracker/tracker_evaluator.h"
+#include "scanner/evaluators/serialize.h"
 
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
@@ -26,7 +27,6 @@
 #endif
 
 #include <cmath>
-
 
 namespace scanner {
 
@@ -51,6 +51,7 @@ void TrackerEvaluator::configure(const VideoMetadata& metadata) {
 
 void TrackerEvaluator::reset() {
   LOG(INFO) << "Tracker reset";
+  tracker_ids_.clear();
   trackers_.clear();
   tracker_configs_.clear();
   tracked_bboxes_.clear();
@@ -71,6 +72,8 @@ void TrackerEvaluator::evaluate(
     u8 *bbox_buffer = input_buffers[1][b];
     size_t num_bboxes = *((size_t *)bbox_buffer);
     bbox_buffer += sizeof(size_t);
+    i32 bbox_size = *((i32 *)bbox_buffer);
+    bbox_buffer += sizeof(i32);
 
     // Find all the boxes which overlap the existing tracked boxes and update
     // the tracked boxes confidence values to those as well as the time since
@@ -81,17 +84,8 @@ void TrackerEvaluator::evaluate(
     std::vector<BoundingBox> new_detected_bboxes;
     for (size_t i = 0; i < num_bboxes; ++i) {
       BoundingBox box;
-      box.x1 = *((f32 *)bbox_buffer);
-      bbox_buffer += sizeof(f32);
-      box.y1 = *((f32 *)bbox_buffer);
-      bbox_buffer += sizeof(f32);
-      box.x2 = *((f32 *)bbox_buffer);
-      bbox_buffer += sizeof(f32);
-      box.y2 = *((f32 *)bbox_buffer);
-      bbox_buffer += sizeof(f32);
-      box.confidence = *((f32 *)bbox_buffer);
-      bbox_buffer += sizeof(f32);
-      detected_bboxes.push_back(box);
+      box.ParseFromArray(bbox_buffer, bbox_size);
+      bbox_buffer += bbox_size;
 
       i32 overlap_idx = -1;
       for (size_t j = 0; j < tracked_bboxes_.size(); ++j) {
@@ -109,6 +103,7 @@ void TrackerEvaluator::evaluate(
         // New box
         new_detected_bboxes.push_back(box);
       }
+      detected_bboxes.push_back(box);
     }
 
     // Check if any tracks have been many frames without being redetected and
@@ -120,6 +115,7 @@ void TrackerEvaluator::evaluate(
             frames_since_last_detection_.begin() + i);
         trackers_.erase(trackers_.begin() + i);
         tracker_configs_.erase(tracker_configs_.begin() + i);
+        tracker_ids_.erase(tracker_ids_.begin() + i);
         i--;
       }
     }
@@ -134,10 +130,12 @@ void TrackerEvaluator::evaluate(
         tracker->Track(frame);
         const struck::FloatRect &tracked_bbox = tracker->GetBB();
         BoundingBox box;
-        box.x1 = tracked_bbox.XMin();
-        box.y1 = tracked_bbox.YMin();
-        box.x2 = tracked_bbox.XMax();
-        box.y2 = tracked_bbox.YMax();
+        box.set_x1(tracked_bbox.XMin());
+        box.set_y1(tracked_bbox.YMin());
+        box.set_x2(tracked_bbox.XMax());
+        box.set_y2(tracked_bbox.YMax());
+        box.set_score(tracked_bboxes_[i].score());
+        box.set_track_id(tracker_ids_[i]);
         generated_bboxes.push_back(box);
 
         frames_since_last_detection_[i]++;
@@ -145,8 +143,9 @@ void TrackerEvaluator::evaluate(
     }
 
     // Add new detected bounding boxes to the fold
-    for (const BoundingBox &box : new_detected_bboxes) {
-      struck::FloatRect r(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
+    for (BoundingBox &box : new_detected_bboxes) {
+      struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
+                          box.y2() - box.y1());
 
       tracker_configs_.emplace_back(new struck::Config{});
       struck::Config &config = *(tracker_configs_.back().get());
@@ -162,6 +161,9 @@ void TrackerEvaluator::evaluate(
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       tracker->Initialise(frame, r);
 
+      i32 tracker_id = next_tracker_id_++;
+      tracker_ids_.push_back(tracker_id);
+      box.set_track_id(tracker_id);
       tracked_bboxes_.push_back(box);
       trackers_.emplace_back(tracker);
       frames_since_last_detection_.push_back(0);
@@ -170,32 +172,16 @@ void TrackerEvaluator::evaluate(
     }
 
     {
-      size_t size =
-          sizeof(size_t) + sizeof(BoundingBox) * detected_bboxes.size();
-      u8 *buffer = new u8[size];
+      size_t size;
+      u8 *buffer;
+
+      serialize_bbox_vector(detected_bboxes, buffer, size);
       output_buffers[1].push_back(buffer);
       output_sizes[1].push_back(size);
 
-      *((size_t *)buffer) = detected_bboxes.size();
-      u8 *buf = buffer + sizeof(size_t);
-      for (size_t i = 0; i < detected_bboxes.size(); ++i) {
-        const BoundingBox &box = detected_bboxes[i];
-        memcpy(buf + i * sizeof(BoundingBox), &box, sizeof(BoundingBox));
-      }
-    }
-    {
-      size_t size =
-          sizeof(size_t) + sizeof(BoundingBox) * generated_bboxes.size();
-      u8 *buffer = new u8[size];
+      serialize_bbox_vector(generated_bboxes, buffer, size);
       output_buffers[2].push_back(buffer);
       output_sizes[2].push_back(size);
-
-      *((size_t *)buffer) = generated_bboxes.size();
-      u8 *buf = buffer + sizeof(size_t);
-      for (size_t i = 0; i < generated_bboxes.size(); ++i) {
-        const BoundingBox &box = generated_bboxes[i];
-        memcpy(buf + i * sizeof(BoundingBox), &box, sizeof(BoundingBox));
-      }
     }
   }
 
@@ -219,15 +205,15 @@ void TrackerEvaluator::evaluate(
 }
 
 float TrackerEvaluator::iou(const BoundingBox& bl, const BoundingBox& br) {
-  float x1 = std::max(bl.x1, br.x1);
-  float y1 = std::max(bl.y1, br.y1);
-  float x2 = std::min(bl.x2, br.x2);
-  float y2 = std::min(bl.y2, br.y2);
+  float x1 = std::max(bl.x1(), br.x1());
+  float y1 = std::max(bl.y1(), br.y1());
+  float x2 = std::min(bl.x2(), br.x2());
+  float y2 = std::min(bl.y2(), br.y2());
 
-  float bl_width = bl.x2 - bl.x1;
-  float bl_height = bl.y2 - bl.y1;
-  float br_width = br.x2 - br.x1;
-  float br_height= br.y2 - br.y1;
+  float bl_width = bl.x2() - bl.x1();
+  float bl_height = bl.y2() - bl.y1();
+  float br_width = br.x2() - br.x1();
+  float br_height= br.y2() - br.y1();
   if (x1 >= x2 || y1 >= y2) { return 0.0; }
   float intersection = (y2 - y1) * (x2 - x1);
   float _union = (bl_width * bl_height) + (br_width * br_height) - intersection;

@@ -220,6 +220,11 @@ function(add_library targetName)
   add_dependencies(${targetName} proto_files)
 endfunction()
 
+function(add_executable targetName)
+  _add_executable(${targetName} ${ARGN})
+  add_dependencies(${targetName} proto_files)
+endfunction()
+
 
 add_subdirectory(scanner)
 add_subdirectory(comparison)
@@ -236,9 +241,6 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:server>
   $<TARGET_OBJECTS:util>
   ${STRUCK_SOURCES})
-
-message(${PROTO_SRCS})
-
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

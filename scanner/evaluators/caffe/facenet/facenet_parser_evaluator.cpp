@@ -14,6 +14,7 @@
  */
 
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
+#include "scanner/evaluators/serialize.h"
 
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
@@ -163,14 +164,14 @@ void FacenetParserEvaluator::evaluate(
           if (width < 0 || height < 0) continue;
 
           BoundingBox bbox;
-          bbox.x1 = x - width / 2;
-          bbox.y1 = y - height / 2;
-          bbox.x2 = x + width / 2;
-          bbox.y2 = y + height / 2;
-          bbox.confidence = confidence;
+          bbox.set_x1(x - width / 2);
+          bbox.set_y1(y - height / 2);
+          bbox.set_x2(x + width / 2);
+          bbox.set_y2(y + height / 2);
+          bbox.set_score(confidence);
 
-          if (bbox.x1 < 0 || bbox.y1 < 0 ||
-              bbox.x2 > metadata_.width() || bbox.y2 > metadata_.height())
+          if (bbox.x1() < 0 || bbox.y1() < 0 ||
+              bbox.x2() > metadata_.width() || bbox.y2() > metadata_.height())
             continue;
 
           bboxes.push_back(bbox);
@@ -180,17 +181,12 @@ void FacenetParserEvaluator::evaluate(
 
     std::vector<BoundingBox> best_bboxes = nms(bboxes, 0.3);
 
-    size_t size = sizeof(size_t) + sizeof(BoundingBox) * best_bboxes.size();
-    u8* buffer = new u8[size];
+    // Assume size of a bounding box is the same size as all bounding boxes
+    size_t size;
+    u8* buffer;
+    serialize_bbox_vector(best_bboxes, buffer, size);
     output_buffers[feature_idx].push_back(buffer);
     output_sizes[feature_idx].push_back(size);
-
-    *((size_t*)buffer) = best_bboxes.size();
-    u8* buf = buffer + sizeof(size_t);
-    for (size_t i = 0; i < best_bboxes.size(); ++i) {
-      const BoundingBox& box = best_bboxes[i];
-      memcpy(buf + i * sizeof(BoundingBox), &box, sizeof(BoundingBox));
-    }
   }
 
   if (forward_input_) {
@@ -224,7 +220,7 @@ std::vector<BoundingBox> FacenetParserEvaluator::nms(
                       decltype(cmp)>
       q(cmp);
   for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-    q.emplace(boxes[i].confidence, i);
+    q.emplace(boxes[i].score(), i);
   }
   std::vector<i32> best;
   while (!q.empty()) {
@@ -238,16 +234,16 @@ std::vector<BoundingBox> FacenetParserEvaluator::nms(
     for (i32 i = 0; i < (i32)boxes.size(); ++i) {
       if (!valid[i]) continue;
 
-      f32 x1 = std::max(boxes[c_idx].x1, boxes[i].x1);
-      f32 y1 = std::max(boxes[c_idx].y1, boxes[i].y1);
-      f32 x2 = std::min(boxes[c_idx].x2, boxes[i].x2);
-      f32 y2 = std::min(boxes[c_idx].y2, boxes[i].y2);
+      f32 x1 = std::max(boxes[c_idx].x1(), boxes[i].x1());
+      f32 y1 = std::max(boxes[c_idx].y1(), boxes[i].y1());
+      f32 x2 = std::min(boxes[c_idx].x2(), boxes[i].x2());
+      f32 y2 = std::min(boxes[c_idx].y2(), boxes[i].y2());
 
       f32 o_w = std::max(0.0f, x2 - x1 + 1);
       f32 o_h = std::max(0.0f, y2 - y1 + 1);
 
-      f32 box_overlap = o_w * o_h / ((boxes[i].x2 - boxes[i].x1 + 1) *
-                                     (boxes[i].y2 - boxes[i].y1 + 1));
+      f32 box_overlap = o_w * o_h / ((boxes[i].x2() - boxes[i].x1() + 1) *
+                                     (boxes[i].y2() - boxes[i].y1() + 1));
 
       valid[i] = box_overlap < overlap;
     }

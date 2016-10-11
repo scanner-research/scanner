@@ -29,12 +29,11 @@
 
 #ifdef HAVE_CAFFE
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
-#include "scanner/evaluators/caffe/facenet/facenet_gpu_input_transformer.h"
+#include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
-#include "scanner/evaluators/movie_analysis/movie_evaluator.h"
 #include "scanner/evaluators/tracker/tracker_evaluator.h"
 #include "scanner/evaluators/util/swizzle_evaluator.h"
 
@@ -441,9 +440,9 @@ int main(int argc, char** argv) {
       std::ifstream net_file{net_descriptor_file};
       descriptor = descriptor_from_net_file(net_file);
     }
-    FacenetGPUInputTransformerFactory* factory =
-        new FacenetGPUInputTransformerFactory();
-    CaffeEvaluatorFactory caffe_factory(DeviceType::GPU, descriptor,
+    FacenetCPUInputTransformerFactory* factory =
+        new FacenetCPUInputTransformerFactory();
+    CaffeEvaluatorFactory caffe_factory(DeviceType::CPU, descriptor,
                                         factory, 4, true);
     FacenetParserEvaluatorFactory parser_factory(DeviceType::CPU, 2.5, true);
     TrackerEvaluatorFactory tracker_factory(DeviceType::CPU, 1);
@@ -462,6 +461,10 @@ int main(int argc, char** argv) {
     MovieEvaluatorFactory evaluator_factory;
     run_job(config, decoder_type, {&evaluator_factory}, job_name, dataset_name);
 #endif
+
+    // run_job(config, decoder_type, {&caffe_factory, &parser_factory,
+    //                                &tracker_factory, &swizzle_factory},
+    //         job_name, dataset_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadat

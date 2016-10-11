@@ -17,6 +17,7 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
+#include "scanner/evaluators/types.pb.h"
 
 #include <memory>
 #include <vector>

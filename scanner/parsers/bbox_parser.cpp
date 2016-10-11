@@ -14,6 +14,7 @@
  */
 
 #include "scanner/parsers/bbox_parser.h"
+#include "scanner/evaluators/types.pb.h"
 
 #include <fstream>
 #include <queue>
@@ -39,32 +40,27 @@ void BBoxParser::parse_output(const std::vector<u8*>& output,
     u8 *buf = output[i];
     size_t num_boxes = *((size_t *)buf);
     buf += sizeof(size_t);
-    assert(output_size[i] == sizeof(size_t) + num_boxes * sizeof(BoundingBox));
+    i32 bbox_size = *((i32 *)buf);
+    buf += sizeof(i32);
+    assert(output_size[i] ==
+           sizeof(size_t) + sizeof(i32) + num_boxes * bbox_size);
     std::vector<BoundingBox> boxes(num_boxes);
     for (size_t i = 0; i < num_boxes; ++i) {
-      boxes[i].x1 = *((f32 *)buf);
-      buf += sizeof(f32);
-      boxes[i].y1 = *((f32 *)buf);
-      buf += sizeof(f32);
-      boxes[i].x2 = *((f32 *)buf);
-      buf += sizeof(f32);
-      boxes[i].y2 = *((f32 *)buf);
-      buf += sizeof(f32);
-      boxes[i].confidence = *((f32 *)buf);
-      buf += sizeof(f32);
+      boxes[i].ParseFromArray(buf, bbox_size);
+      buf += bbox_size;
     }
 
     folly::dynamic out_bboxes = folly::dynamic::array();
     for (auto &b : boxes) {
       folly::dynamic bbox = folly::dynamic::object();
-      f32 width = b.x2 - b.x1;
-      f32 height = b.y2 - b.y1;
+      f32 width = b.x2() - b.x1();
+      f32 height = b.y2() - b.y1();
       bbox["category"] = 0;
-      bbox["x"] = b.x1 + width / 2;
-      bbox["y"] = b.y1 + height / 2;
+      bbox["x"] = b.x1() + width / 2;
+      bbox["y"] = b.y1() + height / 2;
       bbox["width"] = width;
       bbox["height"] = height;
-      bbox["confidence"] = b.confidence;
+      bbox["confidence"] = b.score();
       out_bboxes.push_back(bbox);
     }
 

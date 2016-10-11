@@ -4,9 +4,9 @@ set(LIBRARIES
 if (BUILD_CAFFE_EVALUATORS)
   add_executable(caffe_throughput
     main.cpp
+    ${PROTO_SRCS}
     $<TARGET_OBJECTS:evaluators>
-    $<TARGET_OBJECTS:util>
-    ${PROTO_SRCS})
+    $<TARGET_OBJECTS:util>)
 
   target_link_libraries(caffe_throughput
     "${LIBRARIES}"

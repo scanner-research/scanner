@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package scanner;
+
+message BoundingBox {
+  required float x1 = 1;
+  required float y1 = 2;
+  required float x2 = 3;
+  required float y2 = 4;
+  optional float score = 5 [default = 0];
+  optional int32 track_id = 6 [default = 0];
+}

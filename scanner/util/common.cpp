@@ -42,14 +42,15 @@ int LOAD_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;      // Number of cuda streams for image processing
 
-DatabaseMetadata::DatabaseMetadata() {}
+DatabaseMetadata::DatabaseMetadata() : next_dataset_id(0), next_job_id(0) {}
 
 DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
-    : descriptor(d), next_dataset_id(descriptor.next_dataset_id()),
-      next_job_id(descriptor.next_job_id()) {
+    : descriptor(d), next_dataset_id(d.next_dataset_id()),
+      next_job_id(d.next_job_id()) {
   for (int i = 0; i < descriptor.datasets_size(); ++i) {
     const DatabaseDescriptor_Dataset& dataset = descriptor.datasets(i);
     dataset_names.insert({dataset.id(), dataset.name()});
+    dataset_job_ids[dataset.id()] = {};
   }
   for (int i = 0; i < descriptor.jobs_size(); ++i) {
     const DatabaseDescriptor_Job& job = descriptor.jobs(i);
