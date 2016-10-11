@@ -21,10 +21,10 @@ FacenetGPUInputTransformer::FacenetGPUInputTransformer(
     const NetDescriptor& descriptor)
     : descriptor_(descriptor),
       num_cuda_streams_(32),
+      initialized_(false),
       net_input_width_(224),
       net_input_height_(224),
       streams_(num_cuda_streams_) {
-  initialize();
 }
 
 void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
@@ -36,9 +36,10 @@ void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net->blob_by_name(descriptor_.input_layer_name)};
-  if (input_blob->shape(2) != metadata.width() ||
+  if (!initialized_ ||
+      input_blob->shape(2) != metadata.width() ||
       input_blob->shape(3) != metadata.height()) {
-    initialize();
+    initialize(net);
   }
 }
 
@@ -87,7 +88,9 @@ void FacenetGPUInputTransformer::transform_input(i32 input_count,
   }
 }
 
-void FacenetGPUInputTransformer::initialize() {
+void FacenetGPUInputTransformer::initialize(caffe::Net<float>* net) {
+  initialized_ = true;
+
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net->blob_by_name(descriptor_.input_layer_name)};
 

@@ -34,10 +34,11 @@ class FacenetCPUInputTransformer : public CaffeInputTransformer {
                        f32* net_input) override;
 
  private:
-  void initialize();
+  void initialize(caffe::Net<float>* net);
 
   NetDescriptor descriptor_;
   VideoMetadata metadata_;
+  bool initialized_;
 
   i32 net_input_width_;
   i32 net_input_height_;
