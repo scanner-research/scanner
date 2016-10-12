@@ -444,6 +444,8 @@ void* evaluate_thread(void* arg) {
 
   args.profiler.add_interval("setup", setup_start, now());
 
+  int last_video_index = -1;
+  int last_end_frame = -1;
   while (true) {
     auto idle_start = now();
     // Wait for buffer to process
@@ -465,6 +467,8 @@ void* evaluate_thread(void* arg) {
         args.work_items[work_entry.work_item_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
+    bool needs_reset = (!(work_item.video_index == last_video_index &&
+                          work_item.start_frame == last_end_frame));
     for (auto& evaluator : evaluators) {
       // Make the evaluator aware of the format of the data we are about to
       // feed it
@@ -476,8 +480,12 @@ void* evaluate_thread(void* arg) {
       //   every work item for now. We need to track what the last item consumed
       //   by the evaluator was and elide the reset/warmup if its video id is
       //   the same and the end frame is equal to this item's start frame.
-      evaluator->reset();
+      if (needs_reset) {
+        evaluator->reset();
+      }
     }
+    last_video_index = work_item.video_index;
+    last_end_frame = work_item.end_frame;
 
     size_t frame_size = metadata.width() * metadata.height() * 3 * sizeof(u8);
 
@@ -493,7 +501,8 @@ void* evaluate_thread(void* arg) {
     work_item_output_sizes.resize(last_evaluator_num_outputs);
     work_item_output_buffers.resize(last_evaluator_num_outputs);
 
-    i32 current_frame = work_item.warmup_start_frame;
+    i32 current_frame =
+        needs_reset ? work_item.warmup_start_frame : work_item.start_frame;
     while (current_frame < work_item.end_frame) {
       i32 frame_offset = current_frame - work_item.warmup_start_frame;
       i32 batch_size =
@@ -827,7 +836,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
-      JobDescriptor_Interval *interval = job_descriptor.add_intervals();
+      JobDescriptor_Interval* interval = job_descriptor.add_intervals();
+      interval->set_video_index(i);
       interval->set_start(item.start_frame);
       interval->set_end(item.end_frame);
 

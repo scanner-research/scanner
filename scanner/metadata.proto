@@ -86,8 +86,9 @@ message JobDescriptor {
   required int32 id = 1;
 
   message Interval {
-    required int32 start = 1;
-    required int32 end = 2;
+    required int32 video_index = 1;
+    required int32 start = 2;
+    required int32 end = 3;
   }
 
   repeated Interval intervals = 3;

@@ -127,7 +127,6 @@ void FacenetGPUInputTransformer::initialize(caffe::Net<float>* net) {
     flipped_planes_.push_back(flipped_planes);
     planar_input_.push_back(
         cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
-    }
   }
 }
 
