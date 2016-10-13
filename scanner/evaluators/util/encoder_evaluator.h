@@ -9,7 +9,7 @@ class EncoderEvaluator : public Evaluator {
  public:
   EncoderEvaluator(EvaluatorConfig config);
 
-  void configure(const DatasetItemMetadata& metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -17,7 +17,7 @@ class EncoderEvaluator : public Evaluator {
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
  private:
-  DatasetItemMetadata metadata;
+  VideoMetadata metadata;
 };
 
 class EncoderEvaluatorFactory : public EvaluatorFactory {

@@ -713,7 +713,13 @@ void* save_thread(void* arg) {
         exit_on_error(result);
       }
 
-      assert(save_work_entry.output_buffers[out_idx].size() == num_frames);
+      if (save_work_entry.output_buffer_sizes[out_idx].size() != num_frames) {
+        LOG(FATAL) << "Output layer's size vector has wrong length";
+      }
+      if (save_work_entry.output_buffers[out_idx].size() != num_frames) {
+        LOG(FATAL) << "Output layer's buffer vector has wrong length";
+      }
+
       // Write out all output sizes first so we can easily index into the file
       for (size_t i = 0; i < num_frames; ++i) {
         i64 buffer_size = save_work_entry.output_buffer_sizes[out_idx][i];
@@ -823,6 +829,9 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   u32 total_frames = 0;
   for (size_t i = 0; i < video_paths.size(); ++i) {
     const VideoMetadata& meta = video_metadata[i];
+    JobDescriptor_Column* column = job_descriptor.add_columns();
+    column->set_id(i);
+    column->set_name("???");
 
     i32 allocated_frames = 0;
     while (allocated_frames < meta.frames()) {
@@ -836,7 +845,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
-      JobDescriptor_Interval* interval = job_descriptor.add_intervals();
+      JobDescriptor_Column_Interval *interval = column->add_intervals();
       interval->set_video_index(i);
       interval->set_start(item.start_frame);
       interval->set_end(item.end_frame);

@@ -4,24 +4,9 @@
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/util/opencv.h"
 
+#include "movie_feature_evaluator.h"
+
 namespace scanner {
-
-class MovieItemEvaluator {
-public:
-  virtual ~MovieItemEvaluator(){};
-
-  void configure(const VideoMetadata& metadata) {
-    this->metadata = metadata;
-  }
-
-  virtual void evaluate(
-    std::vector<cv::Mat>& inputs,
-    std::vector<u8*>& output_buffers,
-    std::vector<size_t>& output_sizes) = 0;
-
-protected:
-  VideoMetadata metadata;
-};
 
 class MovieEvaluator : public Evaluator {
  public:
@@ -36,7 +21,7 @@ class MovieEvaluator : public Evaluator {
 
  private:
   VideoMetadata metadata;
-  std::map<std::string, std::unique_ptr<MovieItemEvaluator>> evaluators;
+  std::map<std::string, std::unique_ptr<MovieFeatureEvaluator>> evaluators;
 };
 
 class MovieEvaluatorFactory : public EvaluatorFactory {

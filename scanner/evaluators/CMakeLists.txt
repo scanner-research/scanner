@@ -37,7 +37,11 @@ endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   list(APPEND SOURCE_FILES
-    movie_analysis/movie_evaluator.cpp)
+    movie_analysis/movie_evaluator.cpp
+    movie_analysis/histogram_evaluator.cpp
+    movie_analysis/face_evaluator.cpp
+    movie_analysis/optical_flow_evaluator.cpp
+    movie_analysis/camera_motion_evaluator.cpp)
 endif()
 
 if (BUILD_TRACKER_EVALUATORS)
@@ -47,6 +51,7 @@ endif()
 
 if (BUILD_UTIL_EVALUATORS)
   list(APPEND SOURCE_FILES
+    util/encoder_evaluator.cpp
     util/swizzle_evaluator.cpp)
 endif()
 

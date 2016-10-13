@@ -85,17 +85,16 @@ message WebTimestamps {
 message JobDescriptor {
   required int32 id = 1;
 
-  message Interval {
-    required int32 video_index = 1;
-    required int32 start = 2;
-    required int32 end = 3;
-  }
-
-  repeated Interval intervals = 3;
-
   message Column {
+    message Interval {
+      required int32 video_index = 1;
+      required int32 start = 2;
+      required int32 end = 3;
+    }
+
     required int32 id = 1;
     required string name = 2;
+    repeated Interval intervals = 3;
   }
 
   repeated Column columns = 2;

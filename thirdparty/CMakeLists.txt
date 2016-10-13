@@ -115,7 +115,7 @@ if (NOT STRUCK_FOUND)
   # struck
   ExternalProject_Add(Struck
     GIT_REPOSITORY "https://github.com/apoms/struck"
-    GIT_TAG "70c1d7c2b7fab777de88a68cbe0a2606c4887424"
+    GIT_TAG "11076c3a5d8c65106bc2d91df2c20d371c889dd9"
 
     UPDATE_COMMAND ""
 

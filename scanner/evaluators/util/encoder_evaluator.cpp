@@ -1,4 +1,4 @@
-#include "scanner/evaluators/movie_analysis/encoder_evaluator.h"
+#include "scanner/evaluators/util/encoder_evaluator.h"
 
 #include "scanner/util/opencv.h"
 
@@ -6,7 +6,7 @@ namespace scanner {
 
 EncoderEvaluator::EncoderEvaluator(EvaluatorConfig config) {}
 
-void EncoderEvaluator::configure(const DatasetItemMetadata& metadata) {
+void EncoderEvaluator::configure(const VideoMetadata& metadata) {
   this->metadata = metadata;
 }
 
@@ -23,7 +23,7 @@ void EncoderEvaluator::evaluate(
       path,
       CV_FOURCC('H','2','6','4'),
       24.0, // TODO: get this from metadata
-      cv::Size(metadata.width, metadata.height));
+      cv::Size(metadata.width(), metadata.height()));
 
     for (auto& buf : input_buffers[0]) {
       cv::Mat img = bytesToImage(buf, metadata);

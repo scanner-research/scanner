@@ -33,9 +33,11 @@
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
+#include "scanner/evaluators/movie_analysis/movie_evaluator.h"
 #include "scanner/evaluators/image_processing/blur_evaluator.h"
 #include "scanner/evaluators/tracker/tracker_evaluator.h"
 #include "scanner/evaluators/util/swizzle_evaluator.h"
+#include "scanner/evaluators/util/encoder_evaluator.h"
 
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
@@ -434,7 +436,7 @@ int main(int argc, char** argv) {
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
 
 #ifdef HAVE_CAFFE
-    std::string net_descriptor_file = "features/caffe_facenet.toml";
+    std::string net_descriptor_file = "features/alex_net.toml";
     NetDescriptor descriptor;
     {
       std::ifstream net_file{net_descriptor_file};
@@ -453,13 +455,13 @@ int main(int argc, char** argv) {
         &caffe_factory, &parser_factory, &tracker_factory, &swizzle_factory,
     };
     run_job(config, decoder_type, factories, job_name, dataset_name);
-
 #else
     // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
     //   to specify their own evaluator soon.
 
-    MovieEvaluatorFactory evaluator_factory;
-    run_job(config, decoder_type, {&evaluator_factory}, job_name, dataset_name);
+    MovieEvaluatorFactory movie_factory;
+    EncoderEvaluatorFactory encoder_factory;
+    run_job(config, decoder_type, {&movie_factory, &encoder_factory}, job_name, dataset_name);
 #endif
 
     // run_job(config, decoder_type, {&caffe_factory, &parser_factory,

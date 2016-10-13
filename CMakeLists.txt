@@ -17,11 +17,11 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
-option(BUILD_CAFFE_EVALUATORS "" ON)
-option(BUILD_CAFFE_INPUT_TRANSFORMERS "" ON)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
-option(BUILD_TRACKER_EVALUATORS "" OFF)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
+option(BUILD_CAFFE_EVALUATORS "" OFF)
+option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
+option(BUILD_TRACKER_EVALUATORS "" ON)
 option(BUILD_UTIL_EVALUATORS "" ON)
 option(BUILD_SERVER "" OFF)
 
@@ -112,20 +112,26 @@ if (BUILD_SERVER)
 endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
-  set(STRUCK_DIR /homes/wcrichto/struck)
-  set(HEADHUNTER_DIR /homes/wcrichto/rodrigob-doppia-2f93f2657960/src)
-  set(OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect)
+  set(DOPPIA_DIR /homes/wcrichto/rodrigob-doppia-2f93f2657960/src)
+  set(OFDIS_DIR /homes/wcrichto/OF_DIS)
+  set(OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video xfeatures2d sfm)
   find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-  find_package (Eigen REQUIRED)
-  # file(GLOB STRUCK_SOURCES "${STRUCK_DIR}/src/*.cpp")
+  find_package(Eigen REQUIRED)
   include_directories(SYSTEM
     ${OpenCV_INCLUDE_DIRS}
-    ${STRUCK_DIR}/src
     ${EIGEN_INCLUDE_DIRS}
-    ${HEADHUNTER_DIR})
-  link_directories(${HEADHUNTER_DIR}/applications/objects_detection_lib/build)
+    ${OFDIS_DIR}
+    ${DOPPIA_DIR})
+  file(GLOB OFDIS_SOURCES
+    ${OFDIS_DIR}/FDF1.0.1/*.c
+    ${OFDIS_DIR}/oflow.cpp
+    ${OFDIS_DIR}/patchgrid.cpp
+    ${OFDIS_DIR}/patch.cpp
+    ${OFDIS_DIR}/refine_variational.cpp)
+  #link_directories(${DOPPIA_DIR}/applications/objects_detection_lib/build)
   set(SCANNER_LIBRARIES
-    "-lmonocular_objects_detection"
+    #"-lmonocular_objects_detection"
+    "-liomp5"
     "${SCANNER_LIBRARIES}")
 endif()
 
@@ -213,7 +219,9 @@ endif()
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
   scanner/metadata.proto)
 
-add_custom_target(proto_files DEPENDS ${PROTO_HDRS})
+protobuf_generate_python(PROTO_PY scanner/metadata.proto)
+
+add_custom_target(proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY})
 
 function(add_library targetName)
   _add_library(${targetName} ${ARGN})
@@ -240,7 +248,8 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:parsers>
   $<TARGET_OBJECTS:server>
   $<TARGET_OBJECTS:util>
-  ${STRUCK_SOURCES})
+  ${STRUCK_SOURCES}
+  ${OFDIS_SOURCES})
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

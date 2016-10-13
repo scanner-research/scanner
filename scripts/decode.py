@@ -3,16 +3,22 @@ import numpy as np
 import struct
 import sys
 
+sys.path.append('build')
+from metadata_pb2 import JobDescriptor
+
 def load_output_buffers(job_name, column, fn, intvl=None):
+    job = JobDescriptor()
     with open('db/{}_job_descriptor.bin'.format(job_name), 'r') as f:
-        job = json.loads(f.read())
+        job.ParseFromString(f.read())
 
     videos = []
-    for json_video in job['videos']:
-        video = {'path': json_video['path'], 'buffers': []}
+    for entry in job.columns:
+        video = {'path': entry.name, 'buffers': []}
         (istart, iend) = intvl if intvl is not None else (0, sys.maxint)
-        for [start, end] in json_video['intervals']:
-            path = 'db/{}_job/{}_{}_{}-{}.bin'.format(job_name, json_video['path'], column, start, end)
+        for intvl in entry.intervals:
+            start = intvl.start
+            end = intvl.end
+            path = 'db/{}_job/{}_{}_{}-{}.bin'.format(job_name, entry.id, column, start, end)
             if start > iend or end < istart: continue
             try:
                 with open(path, 'rb') as f:
@@ -64,11 +70,17 @@ def load_faces(job_name):
         return faces
     return load_output_buffers(job_name, 'faces', buf_to_faces)
 
-JOB = 'star'
+def load_opticalflow(job_name):
+    def buf_to_flow(buf):
+        return np.frombuffer(buf, dtype=np.dtype(np.float32)).reshape((640, 320, 2))
+    return load_output_buffers(job_name, 'opticalflow', buf_to_flow)
+
+JOB = 'olivs'
 
 def save_movie_info():
     np.save('{}_faces.npy'.format(JOB), load_faces(JOB)[0]['buffers'])
     np.save('{}_histograms.npy'.format(JOB), load_histograms(JOB)[0]['buffers'])
+    np.save('{}_opticalflow.npy'.format(JOB), load_opticalflow(JOB)[0]['buffers'])
 
 # After running this, run:
 # ffmpeg -safe 0 -f concat -i <(for f in ./*.mkv; do echo "file '$PWD/$f'"; done) -c copy output.mkv

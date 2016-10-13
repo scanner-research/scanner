@@ -329,7 +329,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   BBoxParser* parser = new BBoxParser(columns);
 
   const std::string& video_name = dataset_descriptor.video_names(video_id);
-  const auto& intervals = job_descriptor.intervals();
+  const auto& intervals = job_descriptor.columns().Get(0).intervals();
   std::vector<std::string> output_names = parser->get_output_names();
 
   // Get the mapping from frames to timestamps to guide UI toward
