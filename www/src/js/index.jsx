@@ -695,7 +695,7 @@ var VisualizerApp = React.createClass({
       return this.loadPredictionData(video.id, jobId, 0, video.frames);
     }.bind(this));
     $.whenall(promises).done(function(data) {
-      var videos = [data[0]];
+      var videos = _.map(data, function(d) { return d[0]; });
       this.setState({
         videoPlotValues: _.map(videos, function(videoFeatures) {
           return _.map(videoFeatures, function(frameFeatures) {

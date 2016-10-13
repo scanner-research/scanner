@@ -360,7 +360,8 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
       // Find the correct interval
       size_t i;
       for (i = 0; i < intervals.size(); ++i) {
-        if (current_frame >= intervals.Get(i).start() &&
+        if (intervals.Get(i).video_index() == video_id &&
+            current_frame >= intervals.Get(i).start() &&
             current_frame < intervals.Get(i).end()) {
           break;
         }
