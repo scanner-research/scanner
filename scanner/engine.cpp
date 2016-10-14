@@ -825,14 +825,19 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
   }
   // determine
 
-  JobDescriptor job_descriptor;
   u32 total_frames = 0;
+  std::vector<std::string> final_column_names =
+      evaluator_factories.back()->get_output_names();
+  JobDescriptor job_descriptor;
+  for (size_t j = 0; j < final_column_names.size(); ++j) {
+    JobDescriptor_Column *column = job_descriptor.add_columns();
+    column->set_id(j);
+    column->set_name(final_column_names[j]);
+  }
   for (size_t i = 0; i < video_paths.size(); ++i) {
-    const VideoMetadata& meta = video_metadata[i];
-    JobDescriptor_Column* column = job_descriptor.add_columns();
-    column->set_id(i);
-    column->set_name("???");
-
+    const VideoMetadata &meta = video_metadata[i];
+    JobDescriptor_Video *video_descriptor = job_descriptor.add_videos();
+    video_descriptor->set_index(i);
     i32 allocated_frames = 0;
     while (allocated_frames < meta.frames()) {
       i32 frames_to_allocate =
@@ -840,13 +845,12 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
 
       VideoWorkItem item;
       item.video_index = i;
-      item.warmup_start_frame =
-          std::max(0, allocated_frames - warmup_size);
+      item.warmup_start_frame = std::max(0, allocated_frames - warmup_size);
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
-      JobDescriptor_Column_Interval *interval = column->add_intervals();
-      interval->set_video_index(i);
+      JobDescriptor_Video_Interval *interval =
+          video_descriptor->add_intervals();
       interval->set_start(item.start_frame);
       interval->set_end(item.end_frame);
 
