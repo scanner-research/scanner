@@ -20,9 +20,9 @@ project(Scanner)
 option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
-option(BUILD_TRACKER_EVALUATORS "" ON)
-option(BUILD_UTIL_EVALUATORS "" ON)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
+option(BUILD_TRACKER_EVALUATORS "" OFF)
+option(BUILD_UTIL_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
 
 enable_testing()
@@ -63,6 +63,8 @@ if(NOT APPLE AND UNIX)
 endif()
 
 ###### Optional Dependencies #######
+set(OPENCV_DESIRED_COMPONENTS)
+
 find_package(CUDA)
 if (CUDA_FOUND)
   add_definitions(-DHAVE_CUDA)
@@ -80,16 +82,11 @@ if (BUILD_CAFFE_EVALUATORS)
 
   if (BUILD_CAFFE_INPUT_TRANSFORMERS)
     # Requires opencv3
-    set(OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
+    list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
     if (CUDA_FOUND)
       list(APPEND OPENCV_DESIRED_COMPONENTS
         cudawarping cudaimgproc cudafilters cudaarithm)
     endif()
-
-    find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-    include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-    list(APPEND Caffe_LINKER_LIBS ${OpenCV_LIBS})
-    add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
   endif()
 endif()
 
@@ -111,14 +108,16 @@ if (BUILD_SERVER)
     "${FOLLY_INCLUDE_DIRS}")
 endif()
 
+if (BUILD_UTIL_EVALUATORS)
+  list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video videoio)
+endif()
+
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set(DOPPIA_DIR /homes/wcrichto/rodrigob-doppia-2f93f2657960/src)
   set(OFDIS_DIR /homes/wcrichto/OF_DIS)
-  set(OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video xfeatures2d sfm)
-  find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
+  list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video xfeatures2d sfm)
   find_package(Eigen REQUIRED)
   include_directories(SYSTEM
-    ${OpenCV_INCLUDE_DIRS}
     ${EIGEN_INCLUDE_DIRS}
     ${OFDIS_DIR}
     ${DOPPIA_DIR})
@@ -133,6 +132,13 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
     #"-lmonocular_objects_detection"
     "-liomp5"
     "${SCANNER_LIBRARIES}")
+endif()
+
+if (OPENCV_DESIRED_COMPONENTS)
+  find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
+  include_directories(SYSTEM
+    ${OpenCV_INCLUDE_DIRS})
+  add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
 endif()
 
 ###### Required Dependencies #######
