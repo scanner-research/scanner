@@ -12,13 +12,13 @@ def load_output_buffers(job_name, column, fn, intvl=None):
         job.ParseFromString(f.read())
 
     videos = []
-    for entry in job.columns:
-        video = {'path': entry.name, 'buffers': []}
+    for entry in job.videos:
+        video = {'index': entry.index, 'buffers': []}
         (istart, iend) = intvl if intvl is not None else (0, sys.maxint)
         for intvl in entry.intervals:
             start = intvl.start
             end = intvl.end
-            path = 'db/{}_job/{}_{}_{}-{}.bin'.format(job_name, entry.id, column, start, end)
+            path = 'db/{}_job/{}_{}_{}-{}.bin'.format(job_name, entry.index, column, start, end)
             if start > iend or end < istart: continue
             try:
                 with open(path, 'rb') as f:
@@ -75,7 +75,12 @@ def load_opticalflow(job_name):
         return np.frombuffer(buf, dtype=np.dtype(np.float32)).reshape((640, 320, 2))
     return load_output_buffers(job_name, 'opticalflow', buf_to_flow)
 
-JOB = 'olivs'
+def load_cameramotion(job_name):
+    def buf_to_cameramotion(buf):
+        return struct.unpack('d', buf)
+    return load_output_buffers(job_name, 'cameramotion', buf_to_cameramotion)
+
+JOB = sys.argv[1]
 
 def save_movie_info():
     np.save('{}_faces.npy'.format(JOB), load_faces(JOB)[0]['buffers'])
@@ -94,7 +99,9 @@ def save_debug_video():
         i += 1
 
 def main():
-    save_debug_video()
+    np.save('{}_cameramotion.npy'.format(JOB),
+            load_cameramotion(JOB)[0]['buffers'])
+
 
 if __name__ == "__main__":
     main()
