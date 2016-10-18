@@ -35,9 +35,10 @@ using storehouse::StoreResult;
 
 namespace scanner {
 
-int PUS_PER_NODE = 1;           // Number of available GPUs per node
+int PUS_PER_NODE = 1;           // Number of available PUs per node
+int GPUS_PER_NODE = 2;          // Number of available GPUs per node
 int WORK_ITEM_SIZE = 8;         // Base size of a work item
-int TASKS_IN_QUEUE_PER_PU = 4;  // How many tasks per GPU to allocate to a node
+int TASKS_IN_QUEUE_PER_PU = 4;  // How many tasks per PU to allocate to a node
 int LOAD_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;  // Number of worker threads loading data
 int NUM_CUDA_STREAMS = 32;      // Number of cuda streams for image processing

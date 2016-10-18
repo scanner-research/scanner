@@ -200,14 +200,29 @@ function setupViewer(container, mainPanel, jobMetadata, videoMetadata) {
 
 var TimelinePlot = React.createClass({
   getInitialState: function() {
-    return {};
+    return {plotValues: []};
   },
   componentDidUpdate: function() {
-    var context = ReactDOM.findDOMNode(this.refs.canvas).getContext("2d");
+    var arraysEqual = function(arr1, arr2) {
+      if(arr1.length !== arr2.length)
+        return false;
+      for(var i = arr1.length; i--;) {
+        if(arr1[i] !== arr2[i])
+          return false;
+      }
+
+      return true;
+    }
+
+    if (arraysEqual(this.props.plotValues, this.state.plotValues)) {
+      return;
+    }
+    this.setState({plotValues: this.props.plotValues});
+
+    var context = d3.select(ReactDOM.findDOMNode(this.refs.svg));
 
     var plotWidth = this.props.width;
     var plotHeight = this.props.height;
-    context.clearRect(0, 0, plotWidth, plotHeight);
 
     var margin = {top: 0, right: 0, bottom: 0, left: 0},
         canvasWidth = plotWidth - margin.left - margin.right,
@@ -220,12 +235,10 @@ var TimelinePlot = React.createClass({
               .range([canvasHeight, 0]);
 
     var line = d3.line()
+                 //.interpolate("monotone")
                  .x(function(d) { return x(d.frame); })
                  .y(function(d) { return y(d.value); })
-                 .curve(d3.curveStep)
-                 .context(context);
-
-    context.translate(margin.left, margin.top);
+                 .curve(d3.curveStep);
 
     //var lineData = jobMetadata.graphics.plotValues(predictionData);
     var lineData = _.map(this.props.plotValues, function(d, i) {
@@ -234,11 +247,12 @@ var TimelinePlot = React.createClass({
 
     x.domain([0, this.props.maxX]);
     y.domain([0, this.props.maxY]);
-    context.beginPath();
-    line(lineData);
-    context.lineWidth = 1.5;
-    context.strokeStyle = this.props.color;
-    context.stroke();
+
+    var lineGraph = context.append("path")
+                           .attr("d", line(lineData))
+                           .attr("stroke", this.props.color)
+                           .attr("stroke-width", 1.5)
+                           .attr("fill", "none");
   },
 
   render: function() {
@@ -249,12 +263,12 @@ var TimelinePlot = React.createClass({
       height: plotHeight,
     };
     var plotCanvas = (
-      <canvas className="timeline-plot"
+      <svg className="timeline-plot"
               width={plotWidth}
               height={plotHeight}
               style={plotStyle}
-              ref="canvas">
-      </canvas>
+              ref="svg">
+      </svg>
     );
     return plotCanvas;
   }

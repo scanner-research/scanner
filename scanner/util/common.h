@@ -37,6 +37,7 @@ using f64 = double;
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
 extern i32 PUS_PER_NODE;           // # of available processing units per node
+extern i32 GPUS_PER_NODE;          // # of available GPUs per node
 extern i32 WORK_ITEM_SIZE;         // Base size of a work item
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 LOAD_WORKERS_PER_NODE;  // # of worker threads loading data

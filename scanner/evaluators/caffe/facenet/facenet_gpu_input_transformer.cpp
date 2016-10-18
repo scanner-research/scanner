@@ -18,8 +18,9 @@
 namespace scanner {
 
 FacenetGPUInputTransformer::FacenetGPUInputTransformer(
-    const NetDescriptor& descriptor)
-    : descriptor_(descriptor),
+    i32 device_id, const NetDescriptor& descriptor)
+    : device_id_(device_id),
+      descriptor_(descriptor),
       num_cuda_streams_(32),
       initialized_(false),
       net_input_width_(224),
@@ -34,6 +35,9 @@ void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
   net_input_width_ = metadata.width();
   net_input_height_ = metadata.height();
 
+  cv::cuda::setDevice(device_id_);
+  cudaSetDevice(device_id_);
+
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net->blob_by_name(descriptor_.input_layer_name)};
   if (!initialized_ ||
@@ -46,6 +50,11 @@ void FacenetGPUInputTransformer::configure(const VideoMetadata& metadata,
 void FacenetGPUInputTransformer::transform_input(i32 input_count,
                                                  u8* input_buffer,
                                                  f32* net_input) {
+  cv::cuda::setDevice(device_id_);
+  cudaSetDevice(device_id_);
+
+  streams_.resize(0);
+  streams_.resize(num_cuda_streams_);
   size_t frame_size = net_input_width_ * net_input_height_ * 3 * sizeof(u8);
   for (i32 i = 0; i < input_count; ++i) {
     int sid = i % num_cuda_streams_;
@@ -132,6 +141,7 @@ void FacenetGPUInputTransformer::initialize(caffe::Net<float>* net) {
 
 CaffeInputTransformer* FacenetGPUInputTransformerFactory::construct(
     const EvaluatorConfig& config, const NetDescriptor& descriptor) {
-  return new FacenetGPUInputTransformer(descriptor);
+
+  return new FacenetGPUInputTransformer(config.device_ids[0], descriptor);
 }
 }

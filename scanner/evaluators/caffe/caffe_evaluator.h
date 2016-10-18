@@ -40,6 +40,8 @@ class CaffeEvaluator : public Evaluator {
                  std::vector<std::vector<size_t>> &output_sizes) override;
 
  protected:
+  void set_device();
+  
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;

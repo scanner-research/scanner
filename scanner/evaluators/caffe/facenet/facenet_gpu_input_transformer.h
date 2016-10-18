@@ -31,7 +31,7 @@ namespace scanner {
 
 class FacenetGPUInputTransformer : public CaffeInputTransformer {
  public:
-  FacenetGPUInputTransformer(const NetDescriptor& descriptor);
+  FacenetGPUInputTransformer(i32 device_id, const NetDescriptor& descriptor);
 
   void configure(const VideoMetadata& metadata,
                  caffe::Net<float>* net) override;
@@ -42,6 +42,7 @@ class FacenetGPUInputTransformer : public CaffeInputTransformer {
  private:
   void initialize(caffe::Net<float>* net);
 
+  i32 device_id_;
   NetDescriptor descriptor_;
   VideoMetadata metadata_;
   i32 num_cuda_streams_;
