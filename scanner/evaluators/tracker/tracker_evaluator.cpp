@@ -102,20 +102,6 @@ void TrackerEvaluator::evaluate(
       detected_bboxes.push_back(box);
     }
 
-    // Check if any tracks have been many frames without being redetected and
-    // remove them
-    for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
-      if (frames_since_last_detection_[i] > UNDETECTED_WINDOW) {
-        tracked_bboxes_.erase(tracked_bboxes_.begin() + i);
-        frames_since_last_detection_.erase(
-            frames_since_last_detection_.begin() + i);
-        trackers_.erase(trackers_.begin() + i);
-        tracker_configs_.erase(tracker_configs_.begin() + i);
-        tracker_ids_.erase(tracker_ids_.begin() + i);
-        i--;
-      }
-    }
-
     // Perform tracking for all existing tracks that we have
     std::vector<BoundingBox> generated_bboxes;
     {
@@ -137,12 +123,12 @@ void TrackerEvaluator::evaluate(
           box.set_y1(tracked_bbox.YMin());
           box.set_x2(tracked_bbox.XMax());
           box.set_y2(tracked_bbox.YMax());
-          box.set_score(tracked_bboxes_[i].score());
-          box.set_track_id(tracker_ids_[i]);
+          box.set_score(track.box.score());
+          box.set_track_id(track.id);
           box.set_track_score(score);
           generated_bboxes.push_back(box);
 
-          track.frames_since_last_detection_++;
+          track.frames_since_last_detection++;
         }
       }
     }
@@ -162,7 +148,7 @@ void TrackerEvaluator::evaluate(
       fkp.feature = struck::Config::kFeatureTypeHaar;
       fkp.kernel = struck::Config::kKernelTypeLinear;
       config.features.push_back(fkp);
-      track.tracker = new struck::Tracker(config);
+      track.tracker.reset(new struck::Tracker(config));
 
       u8 *buffer = input_buffers[0][b];
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
