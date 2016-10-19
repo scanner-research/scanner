@@ -574,7 +574,20 @@ void* evaluate_thread(void* arg) {
 
         evaluator->evaluate(input_buffers, input_sizes, output_buffers,
                             output_sizes);
-        assert(output_buffers[0].size() == output_sizes[0].size());
+        LOG_IF(FATAL, output_buffers.size() != output_sizes.size())
+            << "Evaluator " << e << " produced " << output_buffers.size() << " "
+            << "output buffers but " << output_sizes.size() << " output sizes. "
+            << "These should be equal.";
+        for (size_t i = 0; i < output_buffers.size(); ++i) {
+          LOG_IF(FATAL, output_buffers[i].size() != batch_size)
+              << "Evaluator " << e << " produced " << output_buffers[i].size()
+              << " output buffers for column " << output_names[i]
+              << ". Expected " << batch_size << " outputs.";
+          LOG_IF(FATAL, output_sizes[i].size() != batch_size)
+              << "Evaluator " << e << " produced " << output_sizes[i].size()
+              << "output sizes for column " << output_names[i]
+              << ". Expected " << batch_size << " outputs.";
+        }
 
         // Delete input buffers after they are used if not the frame input
         // buffers
@@ -601,7 +614,7 @@ void* evaluate_thread(void* arg) {
         // Make sure all outputs are in CPU memory so downstream code does not
         // need to condition on buffer type
         if (output_buffer_type != DeviceType::CPU) {
-          for (i32 f = warmup_frames; f < (i32)output_sizes[i].size(); ++f) {
+          for (i32 f = warmup_frames; f < (i32)batch_size; ++f) {
             size_t size = output_sizes[i][f];
             u8 *src_buffer = output_buffers[i][f];
             u8 *dest_buffer = new_buffer(DeviceType::CPU, 0, size);
