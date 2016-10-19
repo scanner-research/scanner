@@ -1,5 +1,5 @@
 from __future__ import print_function
-import json
+import pickle
 import numpy as np
 import struct
 import sys
@@ -23,7 +23,8 @@ def load_bboxes(dataset_name, job_name, column_name):
                     box.track_id, box.track_score]
             bboxes.append(bbox)
         return bboxes
-    return scanner.load_output_buffers(dataset_name, job_name, column_name, buf_to_bboxes)
+    return scanner.load_output_buffers(dataset_name, job_name, column_name,
+                                       buf_to_bboxes)
 
 
 def save_bboxes(dataset_name, job_name, ident, column_name, bboxes):
@@ -49,8 +50,8 @@ def save_bboxes(dataset_name, job_name, ident, column_name, bboxes):
             data += box.SerializeToString()
         return data
 
-    return scanner.write_output_buffers(dataset_name, job_name, ident, column_name,
-                                bboxes_to_buf, bboxes)
+    return scanner.write_output_buffers(dataset_name, job_name, ident,
+                                        column_name, bboxes_to_buf, bboxes)
 
 
 def iou(bl, br):
@@ -150,8 +151,9 @@ TOTAL_DETECTIONS_THRESH = 10
 TRIM_AMOUNT = 1
 
 def collate_boxes(base, tr):
-    gold = [[] for i in range(len(base))]
+    gold_boxes = [[] for i in range(len(base))]
     tracks = []
+    gold_tracks = []
 
     avg = 0
     for i in range(len(base)):
@@ -200,7 +202,9 @@ def collate_boxes(base, tr):
                     num_valid_frames = (
                         i - t['last_detection'] + TRIM_AMOUNT - t['start'])
                     for n in range(num_valid_frames):
-                        gold[t['start'] + n].append(t['boxes'][n])
+                        gold_boxes[t['start'] + n].append(t['boxes'][n])
+                    # add to list of positive tracks
+                    gold_tracks.append(t)
                 dead_tracks.append(z)
                 continue
 
@@ -226,7 +230,7 @@ def collate_boxes(base, tr):
             tracks.pop(z)
 
     gold_avg = 0
-    for boxes in gold:
+    for boxes in gold_boxes:
         gold_avg += len(boxes)
 
     gold_avg /= 1.0 * len(base)
@@ -234,7 +238,7 @@ def collate_boxes(base, tr):
     print("gold", gold_avg)
     print("avg", avg)
 
-    return gold
+    return gold_boxes, gold_tracks
 
 
 def main():
@@ -250,12 +254,15 @@ def main():
     base_boxes = load_bboxes(dataset_name, input_job, input_base_column)
     tracked_boxes = load_bboxes(dataset_name, input_job, input_track_column)
     gold_boxes = []
+    gold_tracks = []
     for base, tracked in zip(base_boxes, tracked_boxes):
         base_data = base["buffers"]
         tracked_data = tracked["buffers"]
-        gold_data = collate_boxes(base_data, tracked_data)
-        gold_data = [nms(boxes, 0.3) for boxes in gold_data]
-        gold_boxes.append(gold_data)
+        per_video_boxes, per_video_tracks = collate_boxes(base_data,
+                                                          tracked_data)
+        per_video_boxes = [nms(boxes, 0.3) for boxes in per_video_boxes]
+        gold_boxes.append(per_video_boxes)
+        gold_tracks.append(per_video_tracks)
 
     job_id = -1
     for job in meta.jobs:
@@ -286,6 +293,7 @@ def main():
     video_paths = []
     frame_indices = []
     frame_bboxes = []
+    sequence_bboxes = [[] for i in range(len(video_paths))]
     avg_bboxes = 0.0
     for vi, video_boxes in enumerate(gold_boxes):
         # Write out frames with nonzero number of boxes and their bboxes
@@ -294,6 +302,12 @@ def main():
             frame_indices.append((vi, fi))
             frame_bboxes.append(frame_boxes)
             avg_bboxes += len(frame_boxes)
+    for vi, per_video_tracks in enumerate(gold_tracks):
+        for ti, track in enumerate(per_video_tracks):
+            seq_bboxes = []
+            for i, box in enumerate(t['boxes']):
+                seq_bboxes.push((t['start'] + i, box))
+            sequence_bboxes[vi].push(seq_bboxes)
 
     avg_bboxes /= len(frame_indices)
     print(str(len(frame_indices)), 'frames with avg of ', str(avg_bboxes),
@@ -316,6 +330,9 @@ def main():
                 f.write(',')
             f.seek(-1, 1)
             f.write('\n')
+
+    with open('sequence_bboxes.pickle', 'w') as f:
+        pickle.dump(sequence_boxes, f)
 
 
 if __name__ == "__main__":
