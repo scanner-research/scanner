@@ -248,11 +248,18 @@ var TimelinePlot = React.createClass({
     x.domain([0, this.props.maxX]);
     y.domain([0, this.props.maxY]);
 
-    var lineGraph = context.append("path")
-                           .attr("d", line(lineData))
-                           .attr("stroke", this.props.color)
-                           .attr("stroke-width", 1.5)
-                           .attr("fill", "none");
+    var path = context.selectAll('path').data([lineData]);
+    path.attr('d', function(d){ return line(d); })
+        .style('stroke-width', 1.5)
+        .style('stroke', this.props.color)
+        .style('fill', 'none');
+    path.enter().append('svg:path')
+        .attr('d', function(d){ return line(d); })
+        .style('stroke-width', 1.5)
+        .style('stroke', this.props.color)
+        .style('fill', 'none');
+    path.exit().remove();
+
   },
 
   render: function() {
@@ -404,7 +411,13 @@ var VideoTimeline = React.createClass({
 
 
     var baseValues = _.map(this.props.plotValues, x => x.base_bboxes);
-    var trackedValues = _.map(this.props.plotValues, x => x.tracked_bboxes);
+    var trackedValues =
+      _.map(this.props.plotValues, function(x) {
+        if (x.hasOwnProperty("tracked_bboxes")) {
+          return x.tracked_bboxes;
+        } else {
+          return [];
+        }});
     var maxY = _.max([_.max(baseValues), _.max(trackedValues)]);
     timelinePlots.push(
       <TimelinePlot width={this.state.width}
@@ -742,9 +755,8 @@ var VisualizerApp = React.createClass({
     }
     // The entire range is already loaded so we don't need to send a request
     if (requestStart == requestEnd) return;
-    console.log(this.findJob(jobId))
-    var columns;
-    columns = "base_bboxes,tracked_bboxes";
+    var job = this.findJob(jobId);
+    var columns = job.columns.join();
     var p = $.ajax({
       url: "datasets/" + this.state.selectedDataset +
            "/jobs/" + jobId +

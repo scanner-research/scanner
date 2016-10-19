@@ -255,7 +255,11 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
       m["id"] = job_id;
       m["name"] = job_name;
       m["featureType"] = "detection";
-      // meta["featureType"] = "classification";
+      auto columns = folly::dynamic::array();
+      for (auto column : job_descriptor.columns()) {
+        columns.push_back(column.name());
+      }
+      m["columns"] = columns;
 
       std::string body = folly::toJson(m);
       response.status(200, "OK").body(body);
@@ -274,12 +278,20 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
     folly::dynamic json = folly::dynamic::array();
 
     for (i32 job_id : job_ids) {
+      const std::string& job_name = meta.job_names.at(job_id);
+      JobDescriptor job_descriptor =
+          read_job_descriptor(storage_.get(), job_name);
+
       folly::dynamic m = folly::dynamic::object;
 
       m["id"] = job_id;
       m["name"] = meta.job_names.at(job_id);
       m["featureType"] = "detection";
-      // meta["featureType"] = "classification";
+      auto columns = folly::dynamic::array();
+      for (auto column : job_descriptor.columns()) {
+        columns.push_back(column.name());
+      }
+      m["columns"] = columns;
 
       json.push_back(m);
     }
