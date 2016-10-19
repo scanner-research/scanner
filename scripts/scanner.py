@@ -7,7 +7,7 @@ from pprint import pprint
 import metadata_pb2
 import evaluators.types_pb2
 
-DB_PATH = '/home/apoms/data/scanner_db'
+DB_PATH = '/data/apoms/scanner_db'
 
 def read_string(f):
     s = ""
@@ -47,14 +47,16 @@ def load_output_buffers(dataset_name, job_name, column, fn, intvl=None):
     for v_index, json_video in enumerate(dataset.video_names):
         video = {'path': str(v_index), 'buffers': []}
         (istart, iend) = intvl if intvl is not None else (0, sys.maxint)
-        for interval in job.intervals:
+        intervals = None
+        for v in job.videos:
+            if v.index == v_index:
+                intervals = v.intervals
+        assert(intervals is not None)
+        for interval in intervals:
             start = interval.start
             end = interval.end
-            video_index = interval.video_index
-            if video_index != v_index:
-                continue
             path = DB_PATH + '/{}_job/{}_{}_{}-{}.bin'.format(
-                job_name, str(video_index), column, start, end)
+                job_name, str(v_index), column, start, end)
             if start > iend or end < istart: continue
             try:
                 with open(path, 'rb') as f:
@@ -98,8 +100,9 @@ def write_output_buffers(dataset_name, job_name, ident, column, fn, video_data):
     for i, data in enumerate(video_data):
         start = 0
         end = len(data)
-        interval = job.intervals.add()
-        interval.video_index = i
+        video = job.videos.add()
+        video.index = i
+        interval = video.intervals.add()
         interval.start = start
         interval.end = end
 

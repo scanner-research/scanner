@@ -82,71 +82,72 @@ def iou(bl, br):
 
 
 def nms(boxes, overlapThresh):
-	# if there are no boxes, return an empty list
-	if len(boxes) == 0:
-		return []
-        elif len(boxes) == 1:
-            return boxes
- 
-        npboxes = np.array(boxes[0])
-        for box in boxes[1:]:
-            npboxes = np.vstack((npboxes, box))
-        boxes = npboxes
-	# if the bounding boxes integers, convert them to floats --
-	# this is important since we'll be doing a bunch of divisions
- 
-	# initialize the list of picked indexes	
-	pick = []
- 
-	# grab the coordinates of the bounding boxes
-	x1 = boxes[:,0]
-	y1 = boxes[:,1]
-	x2 = boxes[:,2]
-	y2 = boxes[:,3]
- 
-	# compute the area of the bounding boxes and sort the bounding
-	# boxes by the bottom-right y-coordinate of the bounding box
-	area = (x2 - x1 + 1) * (y2 - y1 + 1)
-	idxs = np.argsort(y2)
- 
-	# keep looping while some indexes still remain in the indexes
-	# list
-	while len(idxs) > 0:
-		# grab the last index in the indexes list and add the
-		# index value to the list of picked indexes
-		last = len(idxs) - 1
-		i = idxs[last]
-		pick.append(i)
- 
-		# find the largest (x, y) coordinates for the start of
-		# the bounding box and the smallest (x, y) coordinates
-		# for the end of the bounding box
-		xx1 = np.maximum(x1[i], x1[idxs[:last]])
-		yy1 = np.maximum(y1[i], y1[idxs[:last]])
-		xx2 = np.minimum(x2[i], x2[idxs[:last]])
-		yy2 = np.minimum(y2[i], y2[idxs[:last]])
- 
-		# compute the width and height of the bounding box
-		w = np.maximum(0, xx2 - xx1 + 1)
-		h = np.maximum(0, yy2 - yy1 + 1)
- 
-		# compute the ratio of overlap
-		overlap = (w * h) / area[idxs[:last]]
- 
-		# delete all indexes from the index list that have
-		idxs = np.delete(idxs, np.concatenate(([last],
-			np.where(overlap > overlapThresh)[0])))
- 
-	# return only the bounding boxes that were picked using the
-	# integer data type
-	return boxes[pick].astype("int")
+    # if there are no boxes, return an empty list
+    if len(boxes) == 0:
+        return []
+    elif len(boxes) == 1:
+        return boxes
 
-DETECT_OVERLAP_THRESH = 0.3
-TRACK_OVERLAP_THRESH = 0.3
-BOX_SCORE_THRESH = 3
-LAST_DETECTION_THRESH = 25
-TOTAL_DETECTIONS_THRESH = 5
-TRIM_AMOUNT = 10
+    npboxes = np.array(boxes[0])
+    for box in boxes[1:]:
+        npboxes = np.vstack((npboxes, box))
+    boxes = npboxes
+    # if the bounding boxes integers, convert them to floats --
+    # this is important since we'll be doing a bunch of divisions
+
+    # initialize the list of picked indexes 
+    pick = []
+
+    # grab the coordinates of the bounding boxes
+    x1 = boxes[:,0]
+    y1 = boxes[:,1]
+    x2 = boxes[:,2]
+    y2 = boxes[:,3]
+
+    # compute the area of the bounding boxes and sort the bounding
+    # boxes by the bottom-right y-coordinate of the bounding box
+    area = (x2 - x1 + 1) * (y2 - y1 + 1)
+    idxs = np.argsort(y2)
+
+    # keep looping while some indexes still remain in the indexes
+    # list
+    while len(idxs) > 0:
+        # grab the last index in the indexes list and add the
+        # index value to the list of picked indexes
+        last = len(idxs) - 1
+        i = idxs[last]
+        pick.append(i)
+
+        # find the largest (x, y) coordinates for the start of
+        # the bounding box and the smallest (x, y) coordinates
+        # for the end of the bounding box
+        xx1 = np.maximum(x1[i], x1[idxs[:last]])
+        yy1 = np.maximum(y1[i], y1[idxs[:last]])
+        xx2 = np.minimum(x2[i], x2[idxs[:last]])
+        yy2 = np.minimum(y2[i], y2[idxs[:last]])
+
+        # compute the width and height of the bounding box
+        w = np.maximum(0, xx2 - xx1 + 1)
+        h = np.maximum(0, yy2 - yy1 + 1)
+
+        # compute the ratio of overlap
+        overlap = (w * h) / area[idxs[:last]]
+
+        # delete all indexes from the index list that have
+        idxs = np.delete(idxs, np.concatenate(
+            ([last], np.where(overlap > overlapThresh)[0])))
+
+    # return only the bounding boxes that were picked using the
+    # integer data type
+    return boxes[pick].astype("int")
+
+BOX_SCORE_THRESH = 2.5
+DETECT_OVERLAP_THRESH = 0.5
+TRACK_OVERLAP_THRESH = 0.1
+TRACK_SCORE_THRESH = 0.6
+LAST_DETECTION_THRESH = 30
+TOTAL_DETECTIONS_THRESH = 10
+TRIM_AMOUNT = 1
 
 def collate_boxes(base, tr):
     gold = [[] for i in range(len(base))]
@@ -183,19 +184,22 @@ def collate_boxes(base, tr):
                     'boxes': [box],
                     'last_detection': 0,
                     'total_detections': 0,
+                    'track_score': float('Inf'),
+                    'track_id': box[5],
                 }
                 tracks.append(track)
 
         dead_tracks = []
         for z, t in enumerate(tracks):
             t['last_detection'] += 1
-            if t['last_detection'] > LAST_DETECTION_THRESH:
+            if (t['last_detection'] > LAST_DETECTION_THRESH or
+                t['track_score'] < TRACK_SCORE_THRESH):
                 # remove track
                 if t['total_detections'] > TOTAL_DETECTIONS_THRESH:
                     print(t['total_detections'])
                     num_valid_frames = (
                         i - t['last_detection'] + TRIM_AMOUNT - t['start'])
-                    for n in range(0, num_valid_frames):
+                    for n in range(num_valid_frames):
                         gold[t['start'] + n].append(t['boxes'][n])
                 dead_tracks.append(z)
                 continue
@@ -203,10 +207,14 @@ def collate_boxes(base, tr):
             if len(t['boxes']) + t['start'] > i: continue
             overlapped = False
             for box in tracked_boxes:
+                # only look at tracked boxes of the same track
+                if box[5] != t['track_id']:
+                    continue
                 # check for overlap
                 if iou(box, t['boxes'][-1]) > TRACK_OVERLAP_THRESH:
+                    if t['track_id'] == -1:
                     t['boxes'].append(box)
-                    t['total_detections'] += 1
+                    t['track_score'] = box[6]
                     overlapped = True
                     break
             if not overlapped:
@@ -231,10 +239,10 @@ def collate_boxes(base, tr):
 
 def main():
     dataset_name = "kcam_three"
-    input_job = "facenet_k3"
+    input_job = "facenet_avg_k3"
     input_base_column = "base_bboxes"
     input_track_column = "tracked_bboxes"
-    output_job = "gold_k3"
+    output_job = "gold_avg_k3"
     output_column = "base_bboxes"
 
     #save_debug_video()
@@ -249,23 +257,66 @@ def main():
         gold_data = [nms(boxes, 0.3) for boxes in gold_data]
         gold_boxes.append(gold_data)
 
-    job_id = meta.next_job_id
-    meta.next_job_id += 1
+    job_id = -1
+    for job in meta.jobs:
+        if job.name == output_job:
+            job_id = job.id
+            break
+    if job_id == -1:
+        job_id = meta.next_job_id
+        meta.next_job_id += 1
+        job = meta.jobs.add()
+        job.id = job_id
+        job.name = output_job
+        dataset_id = -1
+        for dataset in meta.datasets:
+            if dataset.name == dataset_name:
+                dataset_id = dataset.id
+                break;
+        assert(dataset_id != -1)
+        jtd = meta.job_to_datasets.add()
+        jtd.job_id = job_id
+        jtd.dataset_id = dataset_id
+
     save_bboxes(dataset_name, output_job, job_id, output_column, gold_boxes)
-    job = meta.jobs.add()
-    job.id = job_id
-    job.name = output_job
-    dataset_id = -1
-    for dataset in meta.datasets:
-        if dataset.name == dataset_name:
-            dataset_id = dataset.id
-            break;
-    assert(dataset_id != -1)
-    jtd = meta.job_to_datasets.add()
-    jtd.job_id = job_id
-    jtd.dataset_id = dataset_id
 
     scanner.write_db_metadata(meta)
+
+    # Write out data to use for extracting frames in extract_frames.py
+    video_paths = []
+    frame_indices = []
+    frame_bboxes = []
+    avg_bboxes = 0.0
+    for vi, video_boxes in enumerate(gold_boxes):
+        # Write out frames with nonzero number of boxes and their bboxes
+        for fi, frame_boxes in enumerate(video_boxes):
+            if len(frame_boxes) == 0: continue
+            frame_indices.append((vi, fi))
+            frame_bboxes.append(frame_boxes)
+            avg_bboxes += len(frame_boxes)
+
+    avg_bboxes /= len(frame_indices)
+    print(str(len(frame_indices)), 'frames with avg of ', str(avg_bboxes),
+          'bounding boxes')
+
+    with open('video_paths.txt', 'w') as f:
+        for path in video_paths:
+            f.write(path + '\n')
+
+    with open('frame_indices.txt', 'w') as f:
+        for (vi, fi) in frame_indices:
+            f.write(str(vi) + ' ' + str(fi) + '\n')
+
+    with open('frame_bboxes.txt', 'w') as f:
+        for bboxes in frame_bboxes:
+            for box in bboxes:
+                for c in box[0:4]:
+                    f.write(str(c) + ' ')
+                f.seek(-1, 1)
+                f.write(',')
+            f.seek(-1, 1)
+            f.write('\n')
+
 
 if __name__ == "__main__":
     main()
