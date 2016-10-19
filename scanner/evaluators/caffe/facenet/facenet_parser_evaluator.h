@@ -25,25 +25,35 @@
 namespace scanner {
 
 class FacenetParserEvaluator : public Evaluator {
-public:
- FacenetParserEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                        i32 device_id, double threshold,
-                        bool forward_input = false);
+ public:
+  enum struct NMSType {
+    Best,
+    Average,
+    None
+  };
 
- void configure(const VideoMetadata& metadata) override;
+  FacenetParserEvaluator(const EvaluatorConfig &config, DeviceType device_type,
+                         i32 device_id, double threshold,
+                         NMSType nms_type, bool forward_input = false);
 
- void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-               const std::vector<std::vector<size_t>>& input_sizes,
-               std::vector<std::vector<u8*>>& output_buffers,
-               std::vector<std::vector<size_t>>& output_sizes) override;
+  void configure(const VideoMetadata &metadata) override;
+
+  void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
+                const std::vector<std::vector<size_t>> &input_sizes,
+                std::vector<std::vector<u8 *>> &output_buffers,
+                std::vector<std::vector<size_t>> &output_sizes) override;
 
 protected:
-  std::vector<BoundingBox> nms(const std::vector<BoundingBox>& boxes,
-                               f32 overlap);
+  std::vector<BoundingBox> best_nms(const std::vector<BoundingBox> &boxes,
+                                    f32 overlap);
+
+  std::vector<BoundingBox> average_nms(const std::vector<BoundingBox> &boxes,
+                                       f32 overlap);
 
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
+  NMSType nms_type_;
   bool forward_input_;
 
   i32 num_templates_;
@@ -60,12 +70,12 @@ protected:
   double threshold_;
 
   VideoMetadata metadata_;
-
 };
 
 class FacenetParserEvaluatorFactory : public EvaluatorFactory {
- public:
+public:
   FacenetParserEvaluatorFactory(DeviceType device_type, double threshold,
+                                FacenetParserEvaluator::NMSType nms_type,
                                 bool forward_input = false);
 
   EvaluatorCapabilities get_capabilities() override;
@@ -77,6 +87,7 @@ class FacenetParserEvaluatorFactory : public EvaluatorFactory {
  private:
   DeviceType device_type_;
   double threshold_;
+  FacenetParserEvaluator::NMSType nms_type_;
   bool forward_input_;
 };
 }  // end namespace scanner

@@ -31,6 +31,7 @@ struct EvaluatorCapabilities {
 };
 
 struct EvaluatorConfig {
+  DeviceType device_type;
   std::vector<i32> device_ids;
   i32 max_input_count;
   i32 max_frame_width;
