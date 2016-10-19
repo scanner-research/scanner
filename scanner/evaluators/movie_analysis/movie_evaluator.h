@@ -19,6 +19,8 @@ class MovieEvaluator : public Evaluator {
                 std::vector<std::vector<u8*>>& output_buffers,
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
+  void reset() override;
+
  private:
   VideoMetadata metadata;
   std::map<std::string, std::unique_ptr<MovieFeatureEvaluator>> evaluators;

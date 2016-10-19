@@ -64,6 +64,7 @@ endif()
 
 ###### Optional Dependencies #######
 set(OPENCV_DESIRED_COMPONENTS)
+set(OPENCV_MAJOR_VERSION 3)
 
 find_package(CUDA)
 if (CUDA_FOUND)
@@ -109,24 +110,37 @@ if (BUILD_SERVER)
 endif()
 
 if (BUILD_UTIL_EVALUATORS)
-  list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video videoio)
+  if (OPENCV_MAJOR_VERSION EQUAL 3)
+     list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video videoio)
+  else()
+     list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video)
+  endif()
 endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set(DOPPIA_DIR /homes/wcrichto/rodrigob-doppia-2f93f2657960/src)
   set(OFDIS_DIR /homes/wcrichto/OF_DIS)
-  list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video xfeatures2d sfm)
+  if (OPENCV_MAJOR_VERSION EQUAL 3)
+      list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video xfeatures2d sfm)
+  else()
+      list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video)
+  endif()
   find_package(Eigen REQUIRED)
-  include_directories(SYSTEM
-    ${EIGEN_INCLUDE_DIRS}
-    ${OFDIS_DIR}
-    ${DOPPIA_DIR})
+  include_directories(
+    "${EIGEN_INCLUDE_DIRS}"
+    "${OFDIS_DIR}"
+    "${DOPPIA_DIR}")
   file(GLOB OFDIS_SOURCES
     ${OFDIS_DIR}/FDF1.0.1/*.c
     ${OFDIS_DIR}/oflow.cpp
     ${OFDIS_DIR}/patchgrid.cpp
     ${OFDIS_DIR}/patch.cpp
     ${OFDIS_DIR}/refine_variational.cpp)
+  add_definitions(-DWITH_OPENMP=true)
+  FIND_PACKAGE( OpenMP REQUIRED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
   #link_directories(${DOPPIA_DIR}/applications/objects_detection_lib/build)
   set(SCANNER_LIBRARIES
     #"-lmonocular_objects_detection"
@@ -256,6 +270,11 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:util>
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
+
+if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
+  set_target_properties(scanner_server PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
+  set_property(TARGET scanner_server APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
+endif()
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

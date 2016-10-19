@@ -16,12 +16,19 @@ void EncoderEvaluator::evaluate(
   std::vector<std::vector<u8*>>& output_buffers,
   std::vector<std::vector<size_t>>& output_sizes)
 {
+  // OpenCV 2.4.x apparently can't encode H.264 videos
+#if CV_MAJOR_VERSION >= 3
   std::string ext(".mkv");
+  int fourcc = CV_FOURCC('H','2','6','4');
+#else
+  std::string ext(".avi");
+  int fourcc = CV_FOURCC('D','I','V','X');
+#endif
   std::string path = std::tmpnam(nullptr) + ext;
   {
     cv::VideoWriter writer(
       path,
-      CV_FOURCC('H','2','6','4'),
+      fourcc,
       24.0, // TODO: get this from metadata
       cv::Size(metadata.width(), metadata.height()));
 
@@ -33,6 +40,9 @@ void EncoderEvaluator::evaluate(
   }
 
   FILE *f = fopen(path.c_str(), "rb");
+  if (f == NULL) {
+    LOG(FATAL) << path << " could not be found";
+  }
   fseek(f, 0, SEEK_END);
   long fsize = ftell(f);
   fseek(f, 0, SEEK_SET);
@@ -41,13 +51,13 @@ void EncoderEvaluator::evaluate(
   fread(buf, fsize, 1, f);
   fclose(f);
 
-  output_buffers[0].push_back(buf);
-  output_sizes[0].push_back(fsize);
-
   for (i32 i = 0; i < input_buffers[0].size() - 1; ++i) {
-    output_buffers[0].push_back(new u8[4]);
+    output_buffers[0].push_back(new u8[1]);
     output_sizes[0].push_back(0);
   }
+
+  output_buffers[0].push_back(buf);
+  output_sizes[0].push_back(fsize);
 }
 
 EncoderEvaluatorFactory::EncoderEvaluatorFactory() {}

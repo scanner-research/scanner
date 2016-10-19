@@ -1,30 +1,47 @@
 #include "camera_motion_evaluator.h"
 
+#include <cstring>
+
 namespace scanner {
 
 CameraMotionEvaluator::CameraMotionEvaluator() {
+#if CV_MAJOR_VERSION >= 3
   detector = cv::xfeatures2d::SURF::create();
   detector->setHessianThreshold(400);
+#endif
 }
 
-void CameraMotionEvaluator::evaluate(
+void CameraMotionEvaluator::from_homography(
   std::vector<cv::Mat>& inputs,
   std::vector<u8*>& output_buffers,
   std::vector<size_t>& output_sizes) {
 
+#if CV_MAJOR_VERSION >= 3
   std::vector<cv::Mat> imgs_gray;
+  cv::Size im_size = inputs[0].size();
   for (auto& input : inputs) {
     cv::Mat gray;
     cv::cvtColor(input, gray, CV_BGR2GRAY);
     imgs_gray.emplace_back(gray);
   }
 
+  if (!initial_frame.empty()) {
+    cv::Mat gray;
+    cv::cvtColor(initial_frame, gray, CV_BGR2GRAY);
+    imgs_gray.emplace(imgs_gray.begin(), std::move(gray));
+  } else {
+    i32 out_size = sizeof(double);
+    u8* out_buf = new u8[out_size];
+    *((double*)out_buf) = 0;
+    output_buffers.push_back(out_buf);
+    output_sizes.push_back(out_size);
+  }
+
+  assert(imgs_gray.size() > 1);
+
   std::vector<std::vector<cv::KeyPoint>> keypoints;
   std::vector<cv::Mat> descriptors;
 
-  double start;
-
-  start = CycleTimer::currentSeconds();
   for (auto& img : imgs_gray) {
     std::vector<cv::KeyPoint> kps;
     cv::Mat desc;
@@ -32,93 +49,93 @@ void CameraMotionEvaluator::evaluate(
     keypoints.emplace_back(std::move(kps));
     descriptors.emplace_back(std::move(desc));
   }
-  LOG(INFO) << "Features: " << CycleTimer::currentSeconds() - start;
 
-  std::vector<std::vector<std::pair<cv::Vec2f, cv::Vec2f>>> pairs;
+  double focal_length = 28, sensor_width = 4.6; // mm
+  double fx = im_size.width * focal_length / sensor_width;
+  double fy = im_size.height * focal_length / sensor_width;
+  double mx = im_size.width/2.0;
+  double my = im_size.height/2.0;
+  cv::Matx33d K(fx, 0,  mx,
+                0,  fy, my,
+                0,  0,  1);
 
-  start = CycleTimer::currentSeconds();
-  for (i32 i = 0; i < inputs.size() - 1; ++i) {
-    std::vector<cv::DMatch> matches;
-    matcher.match(descriptors[i], descriptors[i+1], matches);
+  for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
+    double norm = -1;
+    if (!descriptors[i].empty() && !descriptors[i+1].empty()) {
+      std::vector<cv::DMatch> matches;
+      matcher.match(descriptors[i], descriptors[i+1], matches);
 
-    std::vector<std::pair<cv::Vec2f, cv::Vec2f>> plist;
-
-    for (auto& match : matches) {
-      if (match.distance > 200) { continue; }
-      cv::Point2f p1 = keypoints[i][match.queryIdx].pt;
-      cv::Point2f p2 = keypoints[i+1][match.trainIdx].pt;
-      plist.emplace_back(std::make_pair(cv::Vec2f(p1.x, p1.y), cv::Vec2f(p2.x, p2.y)));
-    }
-
-    pairs.emplace_back(std::move(plist));
-  }
-  LOG(INFO) << "Matches: " << CycleTimer::currentSeconds() - start;
-
-  std::vector<std::vector<cv::Vec2f>> tracks;
-
-  start = CycleTimer::currentSeconds();
-  for (i32 i = 0; i < pairs.size(); ++i) {
-    for (auto& pts : pairs[i]) {
-      bool found = false;
-      for (auto& track : tracks) {
-        cv::Vec2f& p1 = track[track.size()-1];
-        cv::Vec2f& p2 = pts.first;
-        if (p1 == p2) {
-          track.emplace_back(pts.second);
-          found = true;
-          break;
-        }
+      std::vector<cv::Point2f> a_pts, b_pts;
+      for (auto& match : matches) {
+        if (match.distance > 600) { continue; }
+        a_pts.emplace_back(keypoints[i][match.queryIdx].pt);
+        b_pts.emplace_back(keypoints[i+1][match.trainIdx].pt);
       }
-      if (!found) {
-        std::vector<cv::Vec2f> track;
-        for (i32 j = 0; j < i; ++j) {
-          track.emplace_back(cv::Vec2f(-1));
-        }
-        track.emplace_back(pts.first);
-        track.emplace_back(pts.second);
-        tracks.emplace_back(track);
+
+      cv::Mat H = cv::findHomography(a_pts, b_pts, CV_RANSAC);
+      if (!H.empty()) {
+        std::vector<cv::Mat> rotations, translations, normals;
+        cv::decomposeHomographyMat(H, K, rotations, translations, normals);
+        LOG(INFO) << cv::norm(translations[0]);
+        norm = 100.0 * cv::norm(translations[0]);
       }
-    }
+   }
 
-    for (auto& track : tracks) {
-      if (track.size() != i+1) {
-        track.emplace_back(cv::Vec2f(-1));
+    double* out_buf = new double;
+    *out_buf = norm;
+    output_buffers.push_back((u8*)out_buf);
+    output_sizes.push_back(sizeof(double));
+  }
+#else
+  LOG(FATAL) << "Need OpenCV 3.x for homographies";
+#endif
+}
+
+void CameraMotionEvaluator::from_background_subtraction(
+  std::vector<cv::Mat>& inputs,
+  std::vector<u8*>& output_buffers,
+  std::vector<size_t>& output_sizes)
+{
+  for (i32 i = 0; i < inputs.size(); ++i) {
+    cv::Mat a, b;
+    if (i == 0) {
+      if (initial_frame.empty()) {
+        double* out_buf = new double;
+        *out_buf = 0;
+        output_buffers.push_back((u8*)out_buf);
+        output_sizes.push_back(sizeof(double));
+        continue;
+      } else {
+        a = initial_frame;
+        b = inputs[0];
       }
+    } else {
+      a = inputs[i-1];
+      b = inputs[i];
     }
-  }
-
-  tracks.resize(15);
-
-  LOG(INFO) << "Tracks: " << CycleTimer::currentSeconds() - start;
-  LOG(INFO) << tracks.size();
-
-  std::vector<cv::Mat> points2d;
-  for (i32 i = 0; i < inputs.size()-1; ++i) {
-    cv::Mat_<float> frame(2, tracks.size(), CV_32F);
-    for (i32 j = 0; j < tracks.size(); ++j) {
-      frame(0,j) = tracks[j][i][0];
-      frame(1,j) = tracks[j][i][1];
+    cv::Mat diff(inputs[0].size(), CV_8UC1);
+    cv::absdiff(a, b, diff);
+    cv::threshold(diff, diff, 10, 255, CV_THRESH_BINARY);
+    double color = 0;
+    std::vector<cv::Mat> bgr_planes;
+    cv::split(diff, bgr_planes);
+    for (auto& plane : bgr_planes) {
+      color += ((double) cv::countNonZero(plane)) / (plane.rows * plane.cols);
     }
-    points2d.emplace_back(cv::Mat(frame));
-  }
+    color /= 3.0;
 
-  start = CycleTimer::currentSeconds();
-  double f = 0.05, cx = 0.5, cy = 0.5;
-  cv::Matx33d K = cv::Matx33d(f, 0, cx,
-                              0, f, cy,
-                              0, 0, 1);
-  std::vector<cv::Mat> Rs_est, ts_est, points3d_estimated;
-  cv::sfm::reconstruct(points2d, Rs_est, ts_est, K, points3d_estimated, true);
-  LOG(INFO) << "Reconstruct: " << CycleTimer::currentSeconds() - start;
-
-  std::vector<cv::Affine3d> path_est;
-  for (i32 i = 0; i < Rs_est.size(); ++i) {
-    path_est.emplace_back(cv::Affine3d(Rs_est[i], ts_est[i]));
+    double* out_buf = new double;
+    *out_buf = color;
+    output_buffers.push_back((u8*)out_buf);
+    output_sizes.push_back(sizeof(double));
   }
+}
 
-  for (i32 i = 0; i < path_est.size(); ++i) {
-    LOG(INFO) << path_est[i].translation();
-  }
+void CameraMotionEvaluator::evaluate(
+  std::vector<cv::Mat>& inputs,
+  std::vector<u8*>& output_buffers,
+  std::vector<size_t>& output_sizes) {
+  from_homography(inputs, output_buffers, output_sizes);
 }
 
 }

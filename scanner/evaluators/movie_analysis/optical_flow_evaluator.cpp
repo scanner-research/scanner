@@ -1,21 +1,29 @@
 #include "optical_flow_evaluator.h"
 #include <opencv2/video.hpp>
+#include <cstring>
 
-#define USE_OFDIS
+//#define USE_OFDIS
 
 #ifdef USE_OFDIS
-#define SELECTMODE 1
 #include "oflow.h"
 #endif
 
 namespace scanner {
+
+#ifdef USE_OFDIS
 
 int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize)
 {
   return std::max(0,(int)std::floor(log2((2.0f*(float)imgwidth) / ((float)fratio * (float)patchsize))));
 }
 
-void ConstructImgPyramide(const cv::Mat & img_ao_fmat, cv::Mat * img_ao_fmat_pyr, cv::Mat * img_ao_dx_fmat_pyr, cv::Mat * img_ao_dy_fmat_pyr, const float ** img_ao_pyr, const float ** img_ao_dx_pyr, const float ** img_ao_dy_pyr, const int lv_f, const int lv_l, const int rpyrtype, const bool getgrad, const int imgpadding, const int padw, const int padh)
+void ConstructImgPyramide(
+  const cv::Mat & img_ao_fmat, cv::Mat * img_ao_fmat_pyr,
+  cv::Mat * img_ao_dx_fmat_pyr, cv::Mat * img_ao_dy_fmat_pyr,
+  const float ** img_ao_pyr, const float ** img_ao_dx_pyr,
+  const float ** img_ao_dy_pyr, const int lv_f, const int lv_l,
+  const int rpyrtype, const bool getgrad, const int imgpadding,
+  const int padw, const int padh)
 {
   for (int i=0; i<=lv_f; ++i)  // Construct image and gradient pyramides
   {
@@ -34,8 +42,9 @@ void ConstructImgPyramide(const cv::Mat & img_ao_fmat, cv::Mat * img_ao_fmat_pyr
       img_ao_fmat_pyr[i] = dmag.clone();
 #endif
     }
-    else
+    else {
       cv::resize(img_ao_fmat_pyr[i-1], img_ao_fmat_pyr[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+    }
 
     img_ao_fmat_pyr[i].convertTo(img_ao_fmat_pyr[i], rpyrtype);
 
@@ -51,7 +60,8 @@ void ConstructImgPyramide(const cv::Mat & img_ao_fmat, cv::Mat * img_ao_fmat_pyr
   // pad images
   for (int i=0; i<=lv_f; ++i)  // Construct image and gradient pyramides
   {
-    cv::copyMakeBorder(img_ao_fmat_pyr[i],img_ao_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_REPLICATE);  // Replicate border for image padding
+    cv::copyMakeBorder(img_ao_fmat_pyr[i],img_ao_fmat_pyr[i],imgpadding,
+                       imgpadding,imgpadding,imgpadding,cv::BORDER_REPLICATE);  // Replicate border for image padding
     img_ao_pyr[i] = (float*)img_ao_fmat_pyr[i].data;
 
     if ( getgrad )
@@ -65,7 +75,11 @@ void ConstructImgPyramide(const cv::Mat & img_ao_fmat, cv::Mat * img_ao_fmat_pyr
   }
 }
 
-void ofdis(cv::Mat& img_ao_mat, cv::Mat& img_bo_mat) {
+// Only works with OpenCV 2.4.x
+void ofdis(const cv::Mat& img_a, const cv::Mat& img_b, cv::Mat& output) {
+  cv::Mat img_ao_mat, img_bo_mat;
+  img_a.copyTo(img_ao_mat);
+  img_b.copyTo(img_bo_mat);
   cv::Size sz = img_ao_mat.size();
   int width_org = sz.width;
   int height_org = sz.height;
@@ -94,8 +108,12 @@ void ofdis(cv::Mat& img_ao_mat, cv::Mat& img_bo_mat) {
   if (div>0) padh = scfct - div;
   if (padh>0 || padw>0)
   {
-    cv::copyMakeBorder(img_ao_mat,img_ao_mat,floor((float)padh/2.0f),ceil((float)padh/2.0f),floor((float)padw/2.0f),ceil((float)padw/2.0f),cv::BORDER_REPLICATE);
-    cv::copyMakeBorder(img_bo_mat,img_bo_mat,floor((float)padh/2.0f),ceil((float)padh/2.0f),floor((float)padw/2.0f),ceil((float)padw/2.0f),cv::BORDER_REPLICATE);
+    cv::copyMakeBorder(
+      img_ao_mat,img_ao_mat,floor((float)padh/2.0f),
+      ceil((float)padh/2.0f),floor((float)padw/2.0f),ceil((float)padw/2.0f),cv::BORDER_REPLICATE);
+    cv::copyMakeBorder(
+      img_bo_mat,img_bo_mat,floor((float)padh/2.0f),
+      ceil((float)padh/2.0f),floor((float)padw/2.0f),ceil((float)padw/2.0f),cv::BORDER_REPLICATE);
   }
   sz = img_ao_mat.size();  // padded image size, ensures divisibility by 2 on all scales (except last)
 
@@ -117,8 +135,12 @@ void ofdis(cv::Mat& img_ao_mat, cv::Mat& img_bo_mat) {
   cv::Mat img_bo_dx_fmat_pyr[lv_f+1];
   cv::Mat img_bo_dy_fmat_pyr[lv_f+1];
 
-  ConstructImgPyramide(img_ao_fmat, img_ao_fmat_pyr, img_ao_dx_fmat_pyr, img_ao_dy_fmat_pyr, img_ao_pyr, img_ao_dx_pyr, img_ao_dy_pyr, lv_f, lv_l, rpyrtype, 1, patchsz, padw, padh);
-  ConstructImgPyramide(img_bo_fmat, img_bo_fmat_pyr, img_bo_dx_fmat_pyr, img_bo_dy_fmat_pyr, img_bo_pyr, img_bo_dx_pyr, img_bo_dy_pyr, lv_f, lv_l, rpyrtype, 1, patchsz, padw, padh);
+  ConstructImgPyramide(
+    img_ao_fmat, img_ao_fmat_pyr, img_ao_dx_fmat_pyr, img_ao_dy_fmat_pyr,
+    img_ao_pyr, img_ao_dx_pyr, img_ao_dy_pyr, lv_f, lv_l, rpyrtype, 1, patchsz, padw, padh);
+  ConstructImgPyramide(
+    img_bo_fmat, img_bo_fmat_pyr, img_bo_dx_fmat_pyr, img_bo_dy_fmat_pyr,
+    img_bo_pyr, img_bo_dx_pyr, img_bo_dy_pyr, lv_f, lv_l, rpyrtype, 1, patchsz, padw, padh);
 
   float sc_fct = pow(2,lv_l);
   cv::Mat flowout(sz.height / sc_fct , sz.width / sc_fct, CV_32FC2);
@@ -140,52 +162,52 @@ void ofdis(cv::Mat& img_ao_mat, cv::Mat& img_bo_mat) {
   }
 
   flowout = flowout(cv::Rect((int)floor((float)padw/2.0f),(int)floor((float)padh/2.0f),width_org,height_org));
-
-  LOG(INFO) << flowout.size();
-  exit(0);
+  flowout.copyTo(output);
 }
+#endif
 
 void OpticalFlowEvaluator::evaluate(
   std::vector<cv::Mat>& inputs,
   std::vector<u8*>& output_buffers,
   std::vector<size_t>& output_sizes) {
 
+  cv::Size img_size = inputs[0].size();
+#ifdef DEBUG_OPTICAL_FLOW
+  i32 out_buf_size = img_size.width * img_size.height * 3;
+#else
+  i32 out_buf_size = img_size.width * img_size.height * 2 * sizeof(float);
+#endif
+
   std::vector<cv::Mat> imgs_gray;
+  if (!initial_frame.empty()) {
+    cv::Mat gray;
+    cv::cvtColor(initial_frame, gray, CV_BGR2GRAY);
+    imgs_gray.emplace_back(gray);
+  } else {
+    u8* out_buf = new u8[out_buf_size];
+    std::memset(out_buf, 0, out_buf_size);
+    output_buffers.push_back(out_buf);
+    output_sizes.push_back(out_buf_size);
+  }
+
   for (auto& input : inputs) {
     cv::Mat gray;
     cv::cvtColor(input, gray, CV_BGR2GRAY);
     imgs_gray.emplace_back(gray);
   }
 
-#ifdef DEBUG_OPTICAL_FLOW
-  i32 img_buf_size = inputs[0].total() * inputs[0].elemSize();
-  output_sizes.push_back(img_buf_size);
-  u8* first_img = new u8[img_buf_size];
-  std::memset(first_img, 0, img_buf_size);
-  output_buffers.push_back(first_img);
-#else
-  output_sizes.push_back(0);
-  output_buffers.push_back(new u8[1]);
-#endif
+  double start = CycleTimer::currentSeconds();
 
   cv::Ptr<cv::DenseOpticalFlow> flow = cv::createOptFlow_DualTVL1();
-  cv::Size img_size = inputs[0].size();
-  i32 buf_size = img_size.width * img_size.height * 2 * sizeof(float);
-  for (i32 i = 0; i < inputs.size() - 1; ++i) {
-    u8* output_buf = new u8[buf_size];
-    cv::Mat output_flow(img_size, CV_32FC2, output_buf);
+  for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
+    cv::Mat output_flow(img_size, CV_32FC2);
 
-    ofdis(imgs_gray[i], imgs_gray[i+1]);
-
-    double start = CycleTimer::currentSeconds();
-    flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow);
-    LOG(INFO) << CycleTimer::currentSeconds() - start;
-
-
+    ofdis(imgs_gray[i], imgs_gray[i+1], output_flow);
+    //flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow);
 
 #ifdef DEBUG_OPTICAL_FLOW
-    u8* output_heatmap = new u8[img_buf_size];
-    cv::Mat heatmap(img_size, CV_8UC3, output_heatmap);
+    u8* output_buf = new u8[out_buf_size];
+    cv::Mat heatmap(img_size, CV_8UC3, output_buf);
     for (int x = 0; x < output_flow.rows; ++x) {
       for (int y = 0; y < output_flow.cols; ++y) {
         cv::Vec2f vel = output_flow.at<cv::Vec2f>(x, y);
@@ -194,14 +216,17 @@ void OpticalFlowEvaluator::evaluate(
         heatmap.at<cv::Vec3b>(x, y) = cv::Vec3b(inorm, inorm, inorm);
       }
     }
-
-    output_sizes.push_back(img_buf_size);
-    output_buffers.push_back(output_heatmap);
 #else
-    output_sizes.push_back(buf_size);
-    output_buffers.push_back(output_buf);
+    u8* output_buf = new u8[out_buf_size];
+    std::memcpy(output_buf, output_flow.data, out_buf_size);
 #endif
+
+    output_sizes.push_back(out_buf_size);
+    output_buffers.push_back(output_buf);
+
   }
+
+  //LOG(INFO) << imgs_gray.size() << ", " << CycleTimer::currentSeconds() - start;
 }
 
 }

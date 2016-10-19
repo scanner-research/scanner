@@ -28,6 +28,12 @@ void MovieEvaluator::configure(const VideoMetadata& metadata) {
   }
 }
 
+void MovieEvaluator::reset() {
+  for (auto& entry : evaluators) {
+    entry.second->reset_wrapper();
+  }
+}
+
 void MovieEvaluator::evaluate(
   const std::vector<std::vector<u8*>>& input_buffers,
   const std::vector<std::vector<size_t>>& input_sizes,
@@ -40,8 +46,7 @@ void MovieEvaluator::evaluate(
     imgs.push_back(img);
   }
 
-  double start = CycleTimer::currentSeconds();
-  evaluators["opticalflow"]->evaluate(imgs, output_buffers[0], output_sizes[0]);
+  evaluators["opticalflow"]->evaluate_wrapper(imgs, output_buffers[0], output_sizes[0]);
 // #if defined DEBUG_FACE_DETECTOR
 //   evaluators["faces"]->evaluate(imgs, output_buffers[0], output_sizes[0]);
 // #elif defined DEBUG_OPTICAL_FLOW
@@ -65,7 +70,7 @@ EvaluatorCapabilities MovieEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
   caps.device_type = DeviceType::CPU;
   caps.max_devices = 1;
-  caps.warmup_size = 0;
+  caps.warmup_size = 1;
   return caps;
 }
 
@@ -73,7 +78,8 @@ std::vector<std::string> MovieEvaluatorFactory::get_output_names() {
 #ifdef DEBUG_FACE_DETECTOR
   return {"faces"};
 #else
-  return {"faces", "histogram", "opticalflow"};
+  //return {"faces", "histogram", "opticalflow"};
+  return {"cameramotion"};
 #endif
 }
 

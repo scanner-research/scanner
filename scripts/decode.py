@@ -2,6 +2,7 @@ import json
 import numpy as np
 import struct
 import sys
+import cv2
 
 sys.path.append('build')
 from metadata_pb2 import JobDescriptor
@@ -81,6 +82,7 @@ def load_cameramotion(job_name):
     return load_output_buffers(job_name, 'cameramotion', buf_to_cameramotion)
 
 JOB = sys.argv[1]
+cv_version = 2 # int(cv2.__version__.split('.')[0])
 
 def save_movie_info():
     np.save('{}_faces.npy'.format(JOB), load_faces(JOB)[0]['buffers'])
@@ -94,14 +96,13 @@ def save_debug_video():
     i = 0
     for buf in bufs:
         if len(buf) == 0: continue
-        with open('out__{:06d}.mkv'.format(i), 'wb') as f:
+        ext = 'mkv' if cv_version >= 3 else 'avi'
+        with open('out_{:06d}.{}'.format(i, ext), 'wb') as f:
             f.write(buf)
         i += 1
 
 def main():
-    np.save('{}_cameramotion.npy'.format(JOB),
-            load_cameramotion(JOB)[0]['buffers'])
-
+    save_debug_video()
 
 if __name__ == "__main__":
     main()
