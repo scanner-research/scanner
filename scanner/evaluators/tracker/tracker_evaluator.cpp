@@ -51,11 +51,7 @@ void TrackerEvaluator::configure(const VideoMetadata& metadata) {
 
 void TrackerEvaluator::reset() {
   LOG(INFO) << "Tracker reset";
-  tracker_ids_.clear();
-  trackers_.clear();
-  tracker_configs_.clear();
-  tracked_bboxes_.clear();
-  frames_since_last_detection_.clear();
+  tracks_.clear();
 }
 
 void TrackerEvaluator::evaluate(
@@ -88,17 +84,17 @@ void TrackerEvaluator::evaluate(
       bbox_buffer += bbox_size;
 
       i32 overlap_idx = -1;
-      for (size_t j = 0; j < tracked_bboxes_.size(); ++j) {
-        auto& tracked_bbox = tracked_bboxes_[j];
-        if (iou(box, tracked_bbox) > 0.3) {
+      for (size_t j = 0; j < tracks_.size(); ++j) {
+        auto& tracked_bbox = tracks_[j].box;
+        if (iou(box, tracked_bbox) > IOU_THRESHOLD) {
           overlap_idx = j;
           break;
         }
       }
       if (overlap_idx != -1) {
         // Overlap with existing box
-        tracked_bboxes_[overlap_idx] = box;
-        frames_since_last_detection_[overlap_idx] = 0;
+        tracks_[overlap_idx].box = box;
+        tracks_[overlap_idx].frames_since_last_detection = 0;
       } else {
         // New box
         new_detected_bboxes.push_back(box);
@@ -108,7 +104,7 @@ void TrackerEvaluator::evaluate(
 
     // Check if any tracks have been many frames without being redetected and
     // remove them
-    for (i32 i = 0; i < (i32)trackers_.size(); ++i) {
+    for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
       if (frames_since_last_detection_[i] > UNDETECTED_WINDOW) {
         tracked_bboxes_.erase(tracked_bboxes_.begin() + i);
         frames_since_last_detection_.erase(
@@ -125,48 +121,57 @@ void TrackerEvaluator::evaluate(
     {
       u8 *buffer = input_buffers[0][b];
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
-      for (i32 i = 0; i < (i32)trackers_.size(); ++i) {
-        auto& tracker = trackers_[i];
+      for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
+        auto& track = tracks_[i];
+        auto& tracker = track.tracker;
         tracker->Track(frame);
         const struck::FloatRect &tracked_bbox = tracker->GetBB();
-        BoundingBox box;
-        box.set_x1(tracked_bbox.XMin());
-        box.set_y1(tracked_bbox.YMin());
-        box.set_x2(tracked_bbox.XMax());
-        box.set_y2(tracked_bbox.YMax());
-        box.set_score(tracked_bboxes_[i].score());
-        box.set_track_id(tracker_ids_[i]);
-        generated_bboxes.push_back(box);
+        f64 score = tracker->GetScore();
 
-        frames_since_last_detection_[i]++;
+        if (score < TRACK_SCORE_THRESHOLD) {
+          tracks_.erase(tracks_.begin() + i);
+          i--;
+        } else {
+          BoundingBox box;
+          box.set_x1(tracked_bbox.XMin());
+          box.set_y1(tracked_bbox.YMin());
+          box.set_x2(tracked_bbox.XMax());
+          box.set_y2(tracked_bbox.YMax());
+          box.set_score(tracked_bboxes_[i].score());
+          box.set_track_id(tracker_ids_[i]);
+          box.set_track_score(score);
+          generated_bboxes.push_back(box);
+
+          track.frames_since_last_detection_++;
+        }
       }
     }
 
     // Add new detected bounding boxes to the fold
-    for (BoundingBox &box : new_detected_bboxes) {
-      struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
-                          box.y2() - box.y1());
-
-      tracker_configs_.emplace_back(new struck::Config{});
-      struck::Config &config = *(tracker_configs_.back().get());
+    for (BoundingBox& box : new_detected_bboxes) {
+      tracks_.resize(tracks_.size() + 1);
+      Track& track = tracks_.back();
+      //i32 tracker_id = next_tracker_id_++;
+      i32 tracker_id = unif(gen);
+      track.id = tracker_id;
+      track.config.reset(new struck::Config{});
+      struck::Config &config = *track.config.get();;
       config.frameWidth = metadata_.width();
       config.frameHeight = metadata_.height();
       struck::Config::FeatureKernelPair fkp;
       fkp.feature = struck::Config::kFeatureTypeHaar;
       fkp.kernel = struck::Config::kKernelTypeLinear;
       config.features.push_back(fkp);
-      struck::Tracker *tracker = new struck::Tracker(config);
+      track.tracker = new struck::Tracker(config);
 
       u8 *buffer = input_buffers[0][b];
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
-      tracker->Initialise(frame, r);
+      struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
+                          box.y2() - box.y1());
+      track.tracker->Initialise(frame, r);
 
-      i32 tracker_id = next_tracker_id_++;
-      tracker_ids_.push_back(tracker_id);
-      box.set_track_id(tracker_id);
-      tracked_bboxes_.push_back(box);
-      trackers_.emplace_back(tracker);
-      frames_since_last_detection_.push_back(0);
+      box.set_track_id(track.id);
+      track.frames_since_last_detection = 0;
 
       generated_bboxes.push_back(box);
     }

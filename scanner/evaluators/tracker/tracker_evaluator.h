@@ -23,6 +23,7 @@
 
 #include <memory>
 #include <vector>
+#include <random>
 
 namespace scanner {
 
@@ -43,7 +44,8 @@ public:
 protected:
   float iou(const BoundingBox& bl, const BoundingBox& br);
 
-  const i32 UNDETECTED_WINDOW = 32;
+  const f32 IOU_THRESHOLD = 0.7;
+  const f64 TRACK_SCORE_THRESHOLD = 0.1;
 
   EvaluatorConfig config_;
   DeviceType device_type_;
@@ -53,11 +55,16 @@ protected:
   VideoMetadata metadata_;
 
   i32 next_tracker_id_;
-  std::vector<i32> tracker_ids_;
-  std::vector<std::unique_ptr<struck::Config>> tracker_configs_;
-  std::vector<BoundingBox> tracked_bboxes_;
-  std::vector<i32> frames_since_last_detection_;
-  std::vector<std::unique_ptr<struck::Tracker>> trackers_;
+  std::mt19937 gen{std::random_device{}()};
+  std::uniform_int_distribution<i32> unif;
+  struct Track {
+    i32 id;
+    BoundingBox box;
+    std::unique_ptr<struck::Config> config;
+    std::unique_ptr<struck::Tracker> tracker;
+    i32 frames_since_last_detection;
+  };
+  std::vector<Track> tracks_;
 };
 
 class TrackerEvaluatorFactory : public EvaluatorFactory {
