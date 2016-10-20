@@ -166,10 +166,64 @@ void ofdis(const cv::Mat& img_a, const cv::Mat& img_b, cv::Mat& output) {
 }
 #endif
 
+
 void OpticalFlowEvaluator::evaluate(
-  std::vector<cv::Mat>& inputs,
+  std::vector<Mat>& inputs,
   std::vector<u8*>& output_buffers,
   std::vector<size_t>& output_sizes) {
+#ifdef HAVE_CUDA
+  cv::Size img_size = inputs[0].size();
+  i32 out_buf_size = img_size.width * img_size.height * 3;
+
+  std::vector<cvc::GpuMat> imgs_gray;
+  if (!initial_frame.empty()) {
+    cvc::GpuMat gray;
+    cvc::cvtColor(initial_frame, gray, CV_BGR2GRAY);
+    imgs_gray.emplace_back(gray);
+  } else {
+    u8* out_buf;
+    cudaMalloc((void**) &out_buf, out_buf_size);
+    cudaMemset(out_buf, 0, out_buf_size);
+    output_buffers.push_back(out_buf);
+    output_sizes.push_back(out_buf_size);
+  }
+
+  for (auto& input : inputs) {
+    cvc::GpuMat gray;
+    cvc::cvtColor(input, gray, CV_BGR2GRAY);
+    imgs_gray.emplace_back(gray);
+  }
+
+  cv::Ptr<cvc::DensePyrLKOpticalFlow> flow = cvc::DensePyrLKOpticalFlow::create();
+
+  for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
+    cvc::GpuMat output_flow_gpu(img_size, CV_32FC2);
+
+    //ofdis(imgs_gray[i], imgs_gray[i+1], output_flow);
+    flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow_gpu);
+
+    cv::Mat output_flow(img_size, CV_32FC2);
+    output_flow_gpu.download(output_flow);
+
+    u8* heatmap_buf = new u8[out_buf_size];
+    cv::Mat heatmap(img_size, CV_8UC3, heatmap_buf);
+    for (int x = 0; x < output_flow.rows; ++x) {
+      for (int y = 0; y < output_flow.cols; ++y) {
+        cv::Vec2f vel = output_flow.at<cv::Vec2f>(x, y);
+        float norm = cv::norm(vel);
+        int inorm = std::min((int) std::round(norm * 5), 255);
+        heatmap.at<cv::Vec3b>(x, y) = cv::Vec3b(inorm, inorm, inorm);
+      }
+    }
+
+    u8* output_buf;
+    cudaMalloc((void**) &output_buf, out_buf_size);
+    cudaMemcpy(output_buf, heatmap_buf, out_buf_size, cudaMemcpyHostToDevice);
+
+    output_sizes.push_back(out_buf_size);
+    output_buffers.push_back(output_buf);
+  }
+#else
 
   cv::Size img_size = inputs[0].size();
 #ifdef DEBUG_OPTICAL_FLOW
@@ -202,8 +256,8 @@ void OpticalFlowEvaluator::evaluate(
   for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
     cv::Mat output_flow(img_size, CV_32FC2);
 
-    ofdis(imgs_gray[i], imgs_gray[i+1], output_flow);
-    //flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow);
+    //ofdis(imgs_gray[i], imgs_gray[i+1], output_flow);
+    flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow);
 
 #ifdef DEBUG_OPTICAL_FLOW
     u8* output_buf = new u8[out_buf_size];
@@ -227,6 +281,7 @@ void OpticalFlowEvaluator::evaluate(
   }
 
   //LOG(INFO) << imgs_gray.size() << ", " << CycleTimer::currentSeconds() - start;
+#endif // HAVE_CUDA
 }
 
 }

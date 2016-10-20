@@ -4,10 +4,20 @@
 #include "scanner/util/opencv.h"
 #include "scanner/util/cycle_timer.h"
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
 // #define DEBUG_FACE_DETECTOR
 #define DEBUG_OPTICAL_FLOW
 
 namespace scanner {
+
+#ifdef HAVE_CUDA
+typedef cvc::GpuMat Mat;
+#else
+typedef cv::Mat Mat;
+#endif
 
 class MovieFeatureEvaluator {
 public:
@@ -18,14 +28,18 @@ public:
   }
 
   void reset_wrapper() {
+#ifdef HAVE_CUDA
+    initial_frame = cvc::GpuMat();
+#else
     initial_frame = cv::Mat();
+#endif
     reset();
   }
 
   virtual void reset() {}
 
   void evaluate_wrapper(
-    std::vector<cv::Mat>& inputs,
+    std::vector<Mat>& inputs,
     std::vector<u8*>& output_buffers,
     std::vector<size_t>& output_sizes) {
     evaluate(inputs, output_buffers, output_sizes);
@@ -33,13 +47,13 @@ public:
   }
 
   virtual void evaluate(
-    std::vector<cv::Mat>& inputs,
+    std::vector<Mat>& inputs,
     std::vector<u8*>& output_buffers,
     std::vector<size_t>& output_sizes) = 0;
 
 protected:
   VideoMetadata metadata;
-  cv::Mat initial_frame;
+  Mat initial_frame;
 };
 
 }

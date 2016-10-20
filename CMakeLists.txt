@@ -122,6 +122,9 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set(OFDIS_DIR /homes/wcrichto/OF_DIS)
   if (OPENCV_MAJOR_VERSION EQUAL 3)
       list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video xfeatures2d sfm)
+      if (CUDA_FOUND)
+          list(APPEND OPENCV_DESIRED_COMPONENTS cudaoptflow)
+      endif()
   else()
       list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video)
   endif()
@@ -144,7 +147,7 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   #link_directories(${DOPPIA_DIR}/applications/objects_detection_lib/build)
   set(SCANNER_LIBRARIES
     #"-lmonocular_objects_detection"
-    "-liomp5"
+    #"-liomp5"
     "${SCANNER_LIBRARIES}")
 endif()
 

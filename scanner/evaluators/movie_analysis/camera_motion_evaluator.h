@@ -4,8 +4,12 @@
 
 #define CERES_FOUND 1
 
+#if CV_MAJOR_VERSION >= 3
 #include <opencv2/xfeatures2d.hpp>
 #include <opencv2/sfm.hpp>
+#else
+// Panic!
+#endif
 
 namespace scanner {
 
@@ -14,7 +18,7 @@ public:
   CameraMotionEvaluator();
 
   void evaluate(
-    std::vector<cv::Mat>& inputs,
+    std::vector<Mat>& inputs,
     std::vector<u8*>& output_buffers,
     std::vector<size_t>& output_sizes) override;
 

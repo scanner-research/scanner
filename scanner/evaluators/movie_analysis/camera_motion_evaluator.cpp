@@ -11,6 +11,7 @@ CameraMotionEvaluator::CameraMotionEvaluator() {
 #endif
 }
 
+#ifndef HAVE_CUDA
 void CameraMotionEvaluator::from_homography(
   std::vector<cv::Mat>& inputs,
   std::vector<u8*>& output_buffers,
@@ -130,12 +131,17 @@ void CameraMotionEvaluator::from_background_subtraction(
     output_sizes.push_back(sizeof(double));
   }
 }
+#endif
 
 void CameraMotionEvaluator::evaluate(
-  std::vector<cv::Mat>& inputs,
+  std::vector<Mat>& inputs,
   std::vector<u8*>& output_buffers,
   std::vector<size_t>& output_sizes) {
+#ifdef HAVE_CUDA
+  LOG(FATAL) << "GPU not supported.";
+#else
   from_homography(inputs, output_buffers, output_sizes);
+#endif // HAVE_CUDA
 }
 
 }

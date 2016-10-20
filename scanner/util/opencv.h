@@ -19,8 +19,11 @@
 
 #include <opencv2/opencv.hpp>
 
+namespace cvc = cv::cuda;
+
 namespace scanner {
 cv::Mat bytesToImage(u8* buf, const VideoMetadata& metadata);
+cvc::GpuMat bytesToImage_gpu(u8* buf, const VideoMetadata& metadata);
 }
 
 #ifdef HAVE_CUDA

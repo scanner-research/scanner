@@ -40,9 +40,13 @@ void MovieEvaluator::evaluate(
   std::vector<std::vector<u8*>>& output_buffers,
   std::vector<std::vector<size_t>>& output_sizes)
 {
-  std::vector<cv::Mat> imgs;
+  std::vector<Mat> imgs;
   for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    cv::Mat img = bytesToImage(input_buffers[0][i], metadata);
+#ifdef HAVE_CUDA
+    Mat img = bytesToImage_gpu(input_buffers[0][i], metadata);
+#else
+    Mat img = bytesToImage(input_buffers[0][i], metadata);
+#endif
     imgs.push_back(img);
   }
 

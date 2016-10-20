@@ -28,7 +28,7 @@ float iou(const cv::Rect& bx, const cv::Rect& by) {
   float intersection = (y2 - y1) * (x2 - x1);
   float _union = (bx.width * bx.height) + (by.width * by.height) - intersection;
   float iou = intersection / _union;
-  return isnan(iou) ? 0.0 : iou;
+  return std::isnan(iou) ? 0.0 : iou;
 }
 
 void FaceEvaluator::cv_find_faces(cv::Mat& img, std::vector<cv::Rect>& faces) {
@@ -69,10 +69,12 @@ void hh_find_faces(cv::Mat& img, std::vector<cv::Rect>& faces) {
 #endif
 
 void FaceEvaluator::evaluate(
-  std::vector<cv::Mat>& inputs,
+  std::vector<Mat>& inputs,
   std::vector<u8*>& output_buffers,
   std::vector<size_t>& output_sizes) {
-
+#ifdef HAVE_CUDA
+  LOG(FATAL) << "GPU not supported for faces";
+#else
   for (auto& img : inputs) {
     std::vector<cv::Rect> faces;
 
@@ -80,13 +82,13 @@ void FaceEvaluator::evaluate(
     hh_find_faces(img, faces);
 #else
     cv_find_faces(img, faces);
-#endif
+#endif // USE_HEADHUNTER
 
 #ifdef DEBUG_FACE_DETECTOR
     for (auto& face : faces) {
       cv::rectangle(img, face, cv::Scalar(255, 0, 0));
     }
-#endif
+#endif // DEBUG_FACE_DETECTOR
 
 #ifdef DEBUG_FACE_DETECTOR
     i32 size = img.total() * img.elemSize();
@@ -103,11 +105,12 @@ void FaceEvaluator::evaluate(
       *(offset + 2) = face.width;
       *(offset + 3) = face.height;
     }
-#endif
+#endif // DEBUG_FACE_DETECTOR
 
     output_buffers.push_back((u8*) output_buffer);
     output_sizes.push_back(size);
   }
+#endif // HAVE_GPU
 }
 
 }
