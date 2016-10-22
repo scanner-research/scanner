@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
+set(PIPELINE_FILE "" CACHE FILEPATH "Pipeline file that contains setup fn.")
 option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
@@ -262,6 +263,7 @@ add_subdirectory(comparison)
 
 add_executable(scanner_server
   scanner/main.cpp
+  ${PIPELINE_FILE}
   scanner/ingest.cpp
   scanner/engine.cpp
   ${PROTO_SRCS}

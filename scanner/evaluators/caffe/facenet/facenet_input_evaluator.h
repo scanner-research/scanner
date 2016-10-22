@@ -53,22 +53,21 @@ class FacenetInputEvaluator : public Evaluator {
 
 #ifdef USE_CUDA
   i32 num_cuda_streams_;
-  cv::cuda::GpuMat mean_mat_;
+  cv::cuda::GpuMat mean_mat_g_;
   std::vector<cv::cuda::Stream> streams_;
-  std::vector<cv::cuda::GpuMat> frame_input_;
-  std::vector<cv::cuda::GpuMat> float_input_;
-  std::vector<cv::cuda::GpuMat> normalized_input_;
-  std::vector<std::vector<cv::cuda::GpuMat>> input_planes_;
-  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_;
-  std::vector<cv::cuda::GpuMat> planar_input_;
-#else
-  cv::Mat mean_mat_;
-  cv::Mat float_input;
-  cv::Mat normalized_input;
-  cv::Mat flipped_input;
-  std::vector<cv::Mat> input_planes;
-  cv::Mat planar_input;
+  std::vector<cv::cuda::GpuMat> frame_input_g_;
+  std::vector<cv::cuda::GpuMat> float_input_g_;
+  std::vector<cv::cuda::GpuMat> normalized_input_g_;
+  std::vector<std::vector<cv::cuda::GpuMat>> input_planes_g_;
+  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_g_;
+  std::vector<cv::cuda::GpuMat> planar_input_g_;
 #endif
+  cv::Mat mean_mat_c_;
+  cv::Mat float_input_c_;
+  cv::Mat normalized_input_c_;
+  cv::Mat flipped_input_c_;
+  std::vector<cv::Mat> input_planes_c_;
+  cv::Mat planar_input_c_;
 };
 
 class FacenetInputEvaluatorFactory : public EvaluatorFactory {

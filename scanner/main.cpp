@@ -27,19 +27,6 @@
 
 #include "scanner/video/video_decoder.h"
 
-#ifdef HAVE_CAFFE
-#include "scanner/evaluators/caffe/caffe_evaluator.h"
-#include "scanner/evaluators/caffe/facenet/facenet_input_evaluator.h"
-#include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
-#include "scanner/evaluators/caffe/yolo/yolo_input_evaluator.h"
-#include "scanner/evaluators/caffe/net_descriptor.h"
-#endif
-#include "scanner/evaluators/movie_analysis/movie_evaluator.h"
-#include "scanner/evaluators/image_processing/blur_evaluator.h"
-#include "scanner/evaluators/tracker/tracker_evaluator.h"
-#include "scanner/evaluators/util/swizzle_evaluator.h"
-#include "scanner/evaluators/util/encoder_evaluator.h"
-
 #ifdef HAVE_SERVER
 #include "scanner/server/video_handler_factory.h"
 #endif
@@ -128,6 +115,9 @@ private:
   toml::ParseResult pr;
   bool has_toml;
 };
+
+extern std::vector<std::unique_ptr<EvaluatorFactory>>
+setup_evaluator_pipeline();
 
 int main(int argc, char** argv) {
   // Variables for holding parsed command line arguments
@@ -435,36 +425,13 @@ int main(int argc, char** argv) {
     }
 
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
-
-#ifdef HAVE_CAFFE
-    std::string net_descriptor_file = "features/yolo.toml";
-    NetDescriptor descriptor;
-    {
-      std::ifstream net_file{net_descriptor_file};
-      descriptor = descriptor_from_net_file(net_file);
+    std::vector<std::unique_ptr<EvaluatorFactory>> factories =
+        setup_evaluator_pipeline();
+    std::vector<EvaluatorFactory*> pfactories;
+    for (auto& fact : factories) {
+      pfactories.push_back(fact.get());
     }
-    i32 batch_size = 32;
-    YoloInputEvaluatorFactory input_factory(DeviceType::CPU, descriptor, batch_size);
-    CaffeEvaluatorFactory caffe_factory(DeviceType::CPU, descriptor,
-                                        batch_size, true);
-    FacenetParserEvaluatorFactory parser_factory(
-      DeviceType::CPU, 2.5, FacenetParserEvaluator::NMSType::Best, true);
-    TrackerEvaluatorFactory tracker_factory(DeviceType::CPU, 1);
-    SwizzleEvaluatorFactory swizzle_factory(DeviceType::CPU, {1, 2},
-                                            {"base_bboxes", "tracked_bboxes"});
-    EncoderEvaluatorFactory encoder_factory;
-    std::vector<EvaluatorFactory *> factories = {
-      &input_factory, &caffe_factory//, &parser_factory, &tracker_factory, &swizzle_factory,
-    };
-    run_job(config, decoder_type, factories, job_name, dataset_name);
-#else
-    // HACK(apoms): hardcoding the blur evaluator for now. Will allow user code
-    //   to specify their own evaluator soon.
-
-    MovieEvaluatorFactory movie_factory;
-    EncoderEvaluatorFactory encoder_factory;
-    run_job(config, decoder_type, {&movie_factory}, job_name, dataset_name);
-#endif
+    run_job(config, decoder_type, pfactories, job_name, dataset_name);
 
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
