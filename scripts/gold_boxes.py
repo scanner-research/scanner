@@ -143,6 +143,7 @@ def nms(boxes, overlapThresh):
     return boxes[pick].astype("int")
 
 BOX_SCORE_THRESH = 2.5
+BOX_SCORE_CONTINUE_THRESH = 1.5
 DETECT_OVERLAP_THRESH = 0.5
 TRACK_OVERLAP_THRESH = 0.1
 TRACK_SCORE_THRESH = 0.6
@@ -167,14 +168,19 @@ def collate_boxes(base, tr):
             # check for overlap
             overlapped = False
             for t in tracks:
-                if iou(box, t['boxes'][-1]) > DETECT_OVERLAP_THRESH:
+                if (iou(box, t['boxes'][-1]) > DETECT_OVERLAP_THRESH and
+                    box[4] > BOX_SCORE_CONTINUE_THRESH):
                     overlapped = True
-                    if len(t['boxes']) + t['start'] > i:
-                        t['boxes'][i - t['start']] = box
+                    if len(t['boxes']) > i - t['start']:
+                        # Already found a box, check if this one has a higher
+                        # score
+                        if box[4] > t['boxes'][-1][4]:
+                            t['boxes'][-1] = box
                     else:
                         t['last_detection'] = 0
                         t['total_detections'] += 1
                         t['boxes'].append(box)
+                        t['track_id'] = box[5]
                     break
             if overlapped:
                 continue
@@ -193,21 +199,6 @@ def collate_boxes(base, tr):
 
         dead_tracks = []
         for z, t in enumerate(tracks):
-            t['last_detection'] += 1
-            if (t['last_detection'] > LAST_DETECTION_THRESH or
-                t['track_score'] < TRACK_SCORE_THRESH):
-                # remove track
-                if t['total_detections'] > TOTAL_DETECTIONS_THRESH:
-                    print(t['total_detections'])
-                    num_valid_frames = (
-                        i - t['last_detection'] + TRIM_AMOUNT - t['start'])
-                    for n in range(num_valid_frames):
-                        gold_boxes[t['start'] + n].append(t['boxes'][n])
-                    # add to list of positive tracks
-                    gold_tracks.append(t)
-                dead_tracks.append(z)
-                continue
-
             if len(t['boxes']) + t['start'] > i: continue
             overlapped = False
             for box in tracked_boxes:
@@ -216,14 +207,28 @@ def collate_boxes(base, tr):
                     continue
                 # check for overlap
                 if iou(box, t['boxes'][-1]) > TRACK_OVERLAP_THRESH:
-                    if t['track_id'] == -1:
                     t['boxes'].append(box)
                     t['track_score'] = box[6]
                     overlapped = True
                     break
             if not overlapped:
-                t['boxes'].append(t['boxes'][-1])
-                print('DID NOT OVERLAP')
+                #if (t['last_detection'] > LAST_DETECTION_THRESH or
+                #    t['track_score'] < TRACK_SCORE_THRESH):
+                # remove track
+                if t['total_detections'] > TOTAL_DETECTIONS_THRESH:
+                    num_valid_frames = (
+                        i - t['last_detection'] - t['start'])
+                    print(i)
+                    print(t['last_detection'])
+                    print(t['start'])
+                    print(num_valid_frames)
+                    print(len(t['boxes']))
+                    for n in range(num_valid_frames):
+                        gold_boxes[t['start'] + n].append(t['boxes'][n])
+                        # add to list of positive tracks
+                    gold_tracks.append(t)
+                dead_tracks.append(z)
+            t['last_detection'] += 1
 
         dead_tracks.reverse()
         for z in dead_tracks:
@@ -243,10 +248,10 @@ def collate_boxes(base, tr):
 
 def main():
     dataset_name = "kcam_three"
-    input_job = "facenet_avg_k3"
+    input_job = "facenet_k3"
     input_base_column = "base_bboxes"
     input_track_column = "tracked_bboxes"
-    output_job = "gold_avg_k3"
+    output_job = "gold_k3"
     output_column = "base_bboxes"
 
     #save_debug_video()
@@ -293,7 +298,6 @@ def main():
     video_paths = []
     frame_indices = []
     frame_bboxes = []
-    sequence_bboxes = [[] for i in range(len(video_paths))]
     avg_bboxes = 0.0
     for vi, video_boxes in enumerate(gold_boxes):
         # Write out frames with nonzero number of boxes and their bboxes
@@ -302,12 +306,13 @@ def main():
             frame_indices.append((vi, fi))
             frame_bboxes.append(frame_boxes)
             avg_bboxes += len(frame_boxes)
+    sequence_bboxes = [[] for i in range(len(gold_tracks))]
     for vi, per_video_tracks in enumerate(gold_tracks):
-        for ti, track in enumerate(per_video_tracks):
+        for ti, t in enumerate(per_video_tracks):
             seq_bboxes = []
             for i, box in enumerate(t['boxes']):
-                seq_bboxes.push((t['start'] + i, box))
-            sequence_bboxes[vi].push(seq_bboxes)
+                seq_bboxes.append((t['start'] + i, box))
+            sequence_bboxes[vi].append(seq_bboxes)
 
     avg_bboxes /= len(frame_indices)
     print(str(len(frame_indices)), 'frames with avg of ', str(avg_bboxes),
@@ -332,7 +337,7 @@ def main():
             f.write('\n')
 
     with open('sequence_bboxes.pickle', 'w') as f:
-        pickle.dump(sequence_boxes, f)
+        pickle.dump(sequence_bboxes, f)
 
 
 if __name__ == "__main__":

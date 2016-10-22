@@ -141,7 +141,7 @@ void TrackerEvaluator::evaluate(
       i32 tracker_id = unif(gen);
       track.id = tracker_id;
       track.config.reset(new struck::Config{});
-      struck::Config &config = *track.config.get();;
+      struck::Config &config = *track.config.get();
       config.frameWidth = metadata_.width();
       config.frameHeight = metadata_.height();
       struck::Config::FeatureKernelPair fkp;

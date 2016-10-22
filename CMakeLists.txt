@@ -228,7 +228,7 @@ if (CUDA_FOUND)
     "${CUDA_LIBRARIES}"
     "-lcuda"
     "-lcudart"
-    "-L/usr/lib/nvidia-367"
+    "-L/usr/lib/nvidia-370"
     "-lnvcuvid")
 endif()
 

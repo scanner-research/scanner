@@ -32,7 +32,6 @@ def main(args):
         frame_bboxes = [[map(lambda x: int(float(x)), p.strip().split(' '))
                          for p in line.split(',')]
                         for line in f]
-        print(frame_bboxes)
 
     # Process into per video frame lists so we can extract sequentially
     indices_per_video = [[] for x in range(len(video_paths))]
@@ -51,8 +50,7 @@ def main(args):
         del draw
         return image
 
-    extract_frames(video_paths, indices_per_video, args.output_directory,
-                   draw_bboxes)
+    extract_frames(video_paths, indices_per_video, args.output_directory)
 
 
 if __name__ == "__main__":
