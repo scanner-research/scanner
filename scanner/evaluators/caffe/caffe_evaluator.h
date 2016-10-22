@@ -29,8 +29,7 @@ class CaffeEvaluator : public Evaluator {
  public:
    CaffeEvaluator(const EvaluatorConfig &config, DeviceType device_type,
                   i32 device_id, const NetDescriptor &descriptor,
-                  CaffeInputTransformer *transformer, i32 batch_size,
-                  bool forward_input = false);
+                  i32 batch_size, bool forward_input = false);
 
    void configure(const VideoMetadata& descriptor) override;
 
@@ -41,12 +40,11 @@ class CaffeEvaluator : public Evaluator {
 
  protected:
   void set_device();
-  
+
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
-  std::unique_ptr<CaffeInputTransformer> transformer_;
   i32 batch_size_;
   bool forward_input_;
   std::unique_ptr<caffe::Net<float>> net_;
@@ -58,7 +56,6 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
  public:
   CaffeEvaluatorFactory(DeviceType device_type,
                         const NetDescriptor& net_descriptor,
-                        CaffeInputTransformerFactory* transformer_factory,
                         i32 batch_size,
                         bool forward_input = false);
 
@@ -71,7 +68,6 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
  private:
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
-  std::unique_ptr<CaffeInputTransformerFactory> transformer_factory_;
   i32 batch_size_;
   bool forward_input_;
 };

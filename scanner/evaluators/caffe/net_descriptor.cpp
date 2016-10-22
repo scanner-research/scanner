@@ -33,8 +33,7 @@ namespace scanner {
 NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   toml::ParseResult pr = toml::parse(net_file);
   if (!pr.valid()) {
-    std::cout << pr.errorReason << std::endl;
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << pr.errorReason;
   }
   const toml::Value& root = pr.value;
 
@@ -91,6 +90,17 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   descriptor.input_layer_name = input_layer->as<std::string>();
   for (const toml::Value& v : output_layers->as<toml::Array>()) {
     descriptor.output_layer_names.push_back(v.as<std::string>());
+  }
+
+  auto input_width = net->find("input_width");
+  auto input_height = net->find("input_height");
+
+  if (input_width && input_height) {
+    descriptor.input_width = input_width->as<i32>();
+    descriptor.input_height = input_height->as<i32>();
+  } else {
+    descriptor.input_width = -1;
+    descriptor.input_height = -1;
   }
 
   auto mean_image = root.find("mean-image");

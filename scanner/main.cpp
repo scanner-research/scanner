@@ -29,8 +29,9 @@
 
 #ifdef HAVE_CAFFE
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
-#include "scanner/evaluators/caffe/facenet/facenet_cpu_input_transformer.h"
+#include "scanner/evaluators/caffe/facenet/facenet_input_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
+#include "scanner/evaluators/caffe/yolo/yolo_input_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #endif
 #include "scanner/evaluators/movie_analysis/movie_evaluator.h"
@@ -436,23 +437,24 @@ int main(int argc, char** argv) {
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
 
 #ifdef HAVE_CAFFE
-    std::string net_descriptor_file = "features/alex_net.toml";
+    std::string net_descriptor_file = "features/yolo.toml";
     NetDescriptor descriptor;
     {
       std::ifstream net_file{net_descriptor_file};
       descriptor = descriptor_from_net_file(net_file);
     }
-    FacenetCPUInputTransformerFactory* factory =
-        new FacenetCPUInputTransformerFactory();
+    i32 batch_size = 32;
+    YoloInputEvaluatorFactory input_factory(DeviceType::CPU, descriptor, batch_size);
     CaffeEvaluatorFactory caffe_factory(DeviceType::CPU, descriptor,
-                                        factory, 4, true);
-    FacenetParserEvaluatorFactory parser_factory(DeviceType::CPU, 2.5, true);
+                                        batch_size, true);
+    FacenetParserEvaluatorFactory parser_factory(
+      DeviceType::CPU, 2.5, FacenetParserEvaluator::NMSType::Best, true);
     TrackerEvaluatorFactory tracker_factory(DeviceType::CPU, 1);
     SwizzleEvaluatorFactory swizzle_factory(DeviceType::CPU, {1, 2},
                                             {"base_bboxes", "tracked_bboxes"});
-
+    EncoderEvaluatorFactory encoder_factory;
     std::vector<EvaluatorFactory *> factories = {
-        &caffe_factory, &parser_factory, &tracker_factory, &swizzle_factory,
+      &input_factory, &caffe_factory//, &parser_factory, &tracker_factory, &swizzle_factory,
     };
     run_job(config, decoder_type, factories, job_name, dataset_name);
 #else
@@ -461,15 +463,12 @@ int main(int argc, char** argv) {
 
     MovieEvaluatorFactory movie_factory;
     EncoderEvaluatorFactory encoder_factory;
-    run_job(config, decoder_type, {&movie_factory, &encoder_factory}, job_name, dataset_name);
+    run_job(config, decoder_type, {&movie_factory}, job_name, dataset_name);
 #endif
 
-    // run_job(config, decoder_type, {&caffe_factory, &parser_factory,
-    //                                &tracker_factory, &swizzle_factory},
-    //         job_name, dataset_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
-    // removing instead of just clearing the metadat
+    // removing instead of just clearing the metadata
     if (resource_type == "dataset") {
       if (!meta.has_dataset(resource_name)) {
         LOG(FATAL) << "Cannot remove: dataset with that name does not exist";

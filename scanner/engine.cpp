@@ -437,6 +437,10 @@ void* evaluate_thread(void* arg) {
   }
   assert(evaluators.size() > 0);
 
+  for (auto& evaluator : evaluators) {
+    evaluator->set_profiler(&args.profiler);
+  }
+
   i32 last_evaluator_num_outputs =
       args.evaluator_factories.back()->get_output_names().size();
   i32 last_evaluator_device_id = args.evaluator_configs.back().device_ids[0];

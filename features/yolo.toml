@@ -2,7 +2,9 @@
     model = "features/yolo/yolo_deploy.prototxt"
     weights = "features/yolo/yolo.caffemodel"
     input_layer = "data"
-    output_layers = ["result"]
+    output_layers = ["fc25"]
+    input_width = 448
+    input_height = 448
 
     [net.input]
         dimensions = [

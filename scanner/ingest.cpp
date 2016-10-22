@@ -234,7 +234,7 @@ bool read_timestamps(std::string video_path, WebTimestamps& meta) {
 
   meta.set_time_base_numerator(in_stream->time_base.num);
   meta.set_time_base_denominator(in_stream->time_base.den);
-  std::vector<i64> pts_timestamps; 
+  std::vector<i64> pts_timestamps;
   std::vector<i64> dts_timestamps;
 
   bool succeeded = true;
@@ -796,7 +796,7 @@ void ingest(storehouse::StorageConfig* storage_config,
 
   // Read in list of video paths and assign unique name to each
   DatasetDescriptor descriptor{};
-  std::vector<std::string> video_paths; 
+  std::vector<std::string> video_paths;
   std::vector<std::string> item_names;
   {
     i32 video_count = 0;

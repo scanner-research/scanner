@@ -30,11 +30,10 @@ namespace scanner {
 CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig &config,
                                DeviceType device_type, i32 device_id,
                                const NetDescriptor &descriptor,
-                               CaffeInputTransformer *transformer,
                                i32 batch_size, bool forward_input)
     : config_(config), device_type_(device_type), device_id_(device_id),
-      descriptor_(descriptor), transformer_(transformer),
-      batch_size_(batch_size), forward_input_(forward_input) {
+      descriptor_(descriptor), batch_size_(batch_size),
+      forward_input_(forward_input) {
   if (device_type_ == DeviceType::GPU) {
     assert(GPUS_PER_NODE > 0);
     device_id = device_id % GPUS_PER_NODE;
@@ -58,7 +57,15 @@ void CaffeEvaluator::configure(const VideoMetadata& metadata) {
                          input_blob->shape(3)});
   }
 
-  transformer_->configure(metadata, net_.get());
+  i32 width = metadata.width();
+  i32 height = metadata.height();
+  if (descriptor_.input_width != -1) {
+    width = descriptor_.input_width;
+    height = descriptor_.input_height;
+  }
+
+  input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
+        width, height});
 }
 
 void CaffeEvaluator::evaluate(
@@ -74,6 +81,7 @@ void CaffeEvaluator::evaluate(
 
   i32 input_count = (i32)input_buffers[0].size();
 
+  i32 batch_id = 0;
   for (i32 frame = 0; frame < input_count; frame += batch_size_) {
     i32 batch_count = std::min(input_count - frame, batch_size_);
     if (input_blob->shape(0) != batch_count) {
@@ -89,15 +97,14 @@ void CaffeEvaluator::evaluate(
       net_input_buffer = input_blob->mutable_cpu_data();
     }
 
-    // Process batch of frames
-    // HACK(apoms): We know that the frames from the video decoder are store
-    // contiguously so we can just use the first pointer as a wokaround for
-    // redoing the input transformer interface
-    u8 *input_buffer = input_buffers[0][frame];
-    auto cv_start = now();
-    transformer_->transform_input(batch_count, input_buffer, net_input_buffer);
-    if (profiler_) {
-      profiler_->add_interval("caffe:transform_input", cv_start, now());
+    if (device_type_ == DeviceType::GPU) {
+      cudaMemcpy(net_input_buffer,
+                 input_buffers[0][batch_id],
+                 input_sizes[0][batch_id],
+                 cudaMemcpyDefault);
+    } else {
+      std::memcpy(net_input_buffer, input_buffers[0][batch_id],
+                  input_sizes[0][batch_id]);
     }
 
     // Compute features
@@ -114,19 +121,19 @@ void CaffeEvaluator::evaluate(
       output_offset++;
 
       for (i32 b = 0; b < batch_count; ++b) {
-        size_t size = input_sizes[0][frame + b];
+        size_t size = input_sizes[1][frame + b];
         u8 *buffer = nullptr;
         if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
           cudaMalloc((void **)&buffer, size);
-          cudaMemcpy(buffer, input_buffers[0][frame + b], size,
+          cudaMemcpy(buffer, input_buffers[1][frame + b], size,
                      cudaMemcpyDefault);
 #else
           LOG(FATAL) << "Not built with CUDA support.";
 #endif
         } else {
           buffer = new u8[size];
-          memcpy(buffer, input_buffers[0][frame + b], size);
+          memcpy(buffer, input_buffers[1][frame + b], size);
         }
         assert(buffer != nullptr);
         output_buffers[0].push_back(buffer);
@@ -160,6 +167,8 @@ void CaffeEvaluator::evaluate(
         output_sizes[output_offset + i].push_back(output_size);
       }
     }
+
+    ++batch_id;
   }
 }
 
@@ -178,11 +187,9 @@ void CaffeEvaluator::set_device() {
 
 CaffeEvaluatorFactory::CaffeEvaluatorFactory(
     DeviceType device_type, const NetDescriptor &net_descriptor,
-    CaffeInputTransformerFactory *transformer_factory, i32 batch_size,
-    bool forward_input)
+    i32 batch_size, bool forward_input)
     : device_type_(device_type), net_descriptor_(net_descriptor),
-      transformer_factory_(transformer_factory), batch_size_(batch_size),
-      forward_input_(forward_input) {
+      batch_size_(batch_size), forward_input_(forward_input) {
 }
 
 EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
@@ -211,10 +218,7 @@ std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
 }
 
 Evaluator *CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
-  CaffeInputTransformer *transformer =
-      transformer_factory_->construct(config, net_descriptor_);
   return new CaffeEvaluator(config, device_type_, config.device_ids[0],
-                            net_descriptor_, transformer, batch_size_,
-                            forward_input_);
+                            net_descriptor_, batch_size_, forward_input_);
 }
 }

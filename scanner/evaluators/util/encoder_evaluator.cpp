@@ -16,6 +16,7 @@ void EncoderEvaluator::evaluate(
   std::vector<std::vector<u8*>>& output_buffers,
   std::vector<std::vector<size_t>>& output_sizes)
 {
+  auto start = now();
   // OpenCV 2.4.x apparently can't encode H.264 videos
 #if CV_MAJOR_VERSION >= 3
   std::string ext(".mkv");
@@ -58,6 +59,10 @@ void EncoderEvaluator::evaluate(
 
   output_buffers[0].push_back(buf);
   output_sizes[0].push_back(fsize);
+
+  if (profiler_) {
+    profiler_->add_interval("encode", start, now());
+  }
 }
 
 EncoderEvaluatorFactory::EncoderEvaluatorFactory() {}

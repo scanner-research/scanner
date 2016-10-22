@@ -20,13 +20,9 @@ if (BUILD_CAFFE_EVALUATORS)
   if (BUILD_CAFFE_INPUT_TRANSFORMERS)
     list(APPEND SOURCE_FILES
       caffe/vgg/vgg_cpu_input_transformer.cpp
-      caffe/yolo/yolo_cpu_input_transformer.cpp
-      caffe/facenet/facenet_cpu_input_transformer.cpp
-      caffe/facenet/facenet_parser_evaluator.cpp)
-    if (CUDA_FOUND)
-      list(APPEND SOURCE_FILES
-        caffe/facenet/facenet_gpu_input_transformer.cpp)
-    endif()
+      caffe/yolo/yolo_input_evaluator.cpp
+      caffe/facenet/facenet_parser_evaluator.cpp
+      caffe/facenet/facenet_input_evaluator.cpp)
   endif()
 endif()
 

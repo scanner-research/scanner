@@ -8,6 +8,13 @@ brew install openssl curl webp homebrew/science/opencv3 ffmpeg mpich
 ```
 ### Ubuntu Dependencies
 
+## General dependencies
+
+```
+sudo apt-get install -y libopenssl-dev libcurl3-dev liblzma-dev libprotobuf-dev protobuf-compiler libeigen3-dev libgflags-dev libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libx264-dev libavcodec-dev libavresample-dev libavformat-dev libavfilter-dev ffmpeg libbpng-dev libjpeg-dev libbz2-dev
+pip install numpy protobuf
+```
+
 ## Building the results server
 Enable the CMake flag `-DBUILD_SERVER=ON`.
 
