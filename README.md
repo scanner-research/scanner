@@ -2,16 +2,24 @@
 
 ## Building
 
+You will need [OpenCV](https://github.com/opencv/opencv) (2.4.x or 3.x) built with [opencv_contrib](https://github.com/opencv/opencv_contrib/).
+
 ### OS X Dependencies
 ```
 brew install openssl curl webp homebrew/science/opencv3 ffmpeg mpich
 ```
 ### Ubuntu Dependencies
 
-## General dependencies
+```
+sudo apt-get install -y libopenssl-dev libcurl3-dev liblzma-dev libprotobuf-dev protobuf-compiler \
+     libeigen3-dev libgflags-dev libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev \
+     libx264-dev libavcodec-dev libavresample-dev libavformat-dev libavfilter-dev ffmpeg \
+     libbpng-dev libjpeg-dev libbz2-dev cmake
+```
+
+### Python dependencies
 
 ```
-sudo apt-get install -y libopenssl-dev libcurl3-dev liblzma-dev libprotobuf-dev protobuf-compiler libeigen3-dev libgflags-dev libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libx264-dev libavcodec-dev libavresample-dev libavformat-dev libavfilter-dev ffmpeg libbpng-dev libjpeg-dev libbz2-dev
 pip install numpy protobuf
 ```
 
