@@ -9,7 +9,9 @@ void HistogramEvaluator::evaluate(
   std::vector<u8*>& output_buffers,
   std::vector<size_t>& output_sizes) {
   i64 hist_size = BINS * 3 * sizeof(float);
-  for (auto& img : inputs) {
+  for (auto& img_ : inputs) {
+    cv::Mat img(img_);
+
     std::vector<cv::Mat> bgr_planes;
     cv::split(img, bgr_planes);
 
@@ -25,9 +27,15 @@ void HistogramEvaluator::evaluate(
     cv::Mat hist;
     cv::hconcat(hists, hist);
 
+    #ifdef HAVE_CUDA
+    u8* hist_buffer;
+    cudaMalloc((void**) &hist_buffer, hist_size);
+    cudaMemcpy(hist_buffer, img.data, hist_size, cudaMemcpyHostToDevice);
+    #else
     u8* hist_buffer = new u8[hist_size];
     assert(hist_size == hist.total() * hist.elemSize());
     memcpy(hist_buffer, hist.data, hist_size);
+    #endif
 
     output_sizes.push_back(hist_size);
     output_buffers.push_back(hist_buffer);

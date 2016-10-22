@@ -11,6 +11,11 @@
 namespace scanner {
 
 MovieEvaluator::MovieEvaluator(EvaluatorConfig config) {
+  #ifdef HAVE_CUDA
+  assert(config.device_ids.size() == 1);
+  cvc::setDevice(config.device_ids[0]);
+  #endif
+
   std::unique_ptr<MovieFeatureEvaluator> faces(new FaceEvaluator());
   std::unique_ptr<MovieFeatureEvaluator> histogram(new HistogramEvaluator());
   std::unique_ptr<MovieFeatureEvaluator> opticalflow(new OpticalFlowEvaluator());
@@ -19,6 +24,9 @@ MovieEvaluator::MovieEvaluator(EvaluatorConfig config) {
   evaluators["histogram"] = std::move(histogram);
   evaluators["opticalflow"] = std::move(opticalflow);
   evaluators["cameramotion"] = std::move(cameramotion);
+  for (auto& entry : evaluators) {
+    entry.second->set_profiler(profiler_);
+  }
 }
 
 void MovieEvaluator::configure(const VideoMetadata& metadata) {
@@ -50,6 +58,7 @@ void MovieEvaluator::evaluate(
     imgs.push_back(img);
   }
 
+  auto start = now();
   evaluators["opticalflow"]->evaluate_wrapper(imgs, output_buffers[0], output_sizes[0]);
 // #if defined DEBUG_FACE_DETECTOR
 //   evaluators["faces"]->evaluate(imgs, output_buffers[0], output_sizes[0]);
@@ -60,6 +69,9 @@ void MovieEvaluator::evaluate(
 //   evaluators["histogram"]->evaluate(imgs, output_buffers[1], output_sizes[1]);
 //   evaluators["opticalflow"]->evaluate(imgs, output_buffers[2], output_sizes[2]);
 // #endif
+  if (profiler_) {
+    profiler_->add_interval("movie", start, now());
+  }
 }
 
 MovieEvaluatorFactory::MovieEvaluatorFactory() {
@@ -72,7 +84,11 @@ MovieEvaluatorFactory::MovieEvaluatorFactory() {
 
 EvaluatorCapabilities MovieEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
+#ifdef HAVE_CUDA
+  caps.device_type = DeviceType::GPU;
+#else
   caps.device_type = DeviceType::CPU;
+#endif
   caps.max_devices = 1;
   caps.warmup_size = 1;
   return caps;
@@ -83,7 +99,7 @@ std::vector<std::string> MovieEvaluatorFactory::get_output_names() {
   return {"faces"};
 #else
   //return {"faces", "histogram", "opticalflow"};
-  return {"cameramotion"};
+  return {"opticalflow"};
 #endif
 }
 

@@ -3,6 +3,7 @@
 #include "scanner/util/common.h"
 #include "scanner/util/opencv.h"
 #include "scanner/util/cycle_timer.h"
+#include "scanner/util/profiler.h"
 
 #ifdef HAVE_CUDA
 #include "scanner/util/cuda.h"
@@ -21,10 +22,15 @@ typedef cv::Mat Mat;
 
 class MovieFeatureEvaluator {
 public:
-  virtual ~MovieFeatureEvaluator(){};
+
+  virtual ~MovieFeatureEvaluator(){}
 
   void configure(const VideoMetadata& metadata) {
     this->metadata = metadata;
+  }
+
+  void set_profiler(Profiler* profiler) {
+    this->profiler = profiler;
   }
 
   void reset_wrapper() {
@@ -54,6 +60,7 @@ public:
 protected:
   VideoMetadata metadata;
   Mat initial_frame;
+  Profiler* profiler;
 };
 
 }

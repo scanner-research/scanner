@@ -12,7 +12,7 @@ namespace scanner {
 FaceEvaluator::FaceEvaluator() {
 #ifndef USE_HEADHUNTER
   // if (!face_detector.load("/opt/stanford/wcrichto/haarcascade_frontalface_alt.xml")) {
-  if (!face_detector.load("/export/data1/stanford/lightscan/haarcascade_frontalface_alt.xml")) {
+  if (!face_detector.load("/home/wcrichto/scanner/haarcascade_frontalface_alt.xml")) {
     LOG(FATAL) << "Failed to load face cascade";
   }
 #endif

@@ -173,7 +173,7 @@ void OpticalFlowEvaluator::evaluate(
   std::vector<size_t>& output_sizes) {
 #ifdef HAVE_CUDA
   cv::Size img_size = inputs[0].size();
-  i32 out_buf_size = img_size.width * img_size.height * 3;
+  i32 out_buf_size = img_size.width * img_size.height * 2 * sizeof(float);
 
   std::vector<cvc::GpuMat> imgs_gray;
   if (!initial_frame.empty()) {
@@ -194,31 +194,31 @@ void OpticalFlowEvaluator::evaluate(
     imgs_gray.emplace_back(gray);
   }
 
-  cv::Ptr<cvc::DensePyrLKOpticalFlow> flow = cvc::DensePyrLKOpticalFlow::create();
+  cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::OpticalFlowDual_TVL1::create();
 
   for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
-    cvc::GpuMat output_flow_gpu(img_size, CV_32FC2);
-
-    //ofdis(imgs_gray[i], imgs_gray[i+1], output_flow);
-    flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow_gpu);
-
-    cv::Mat output_flow(img_size, CV_32FC2);
-    output_flow_gpu.download(output_flow);
-
-    u8* heatmap_buf = new u8[out_buf_size];
-    cv::Mat heatmap(img_size, CV_8UC3, heatmap_buf);
-    for (int x = 0; x < output_flow.rows; ++x) {
-      for (int y = 0; y < output_flow.cols; ++y) {
-        cv::Vec2f vel = output_flow.at<cv::Vec2f>(x, y);
-        float norm = cv::norm(vel);
-        int inorm = std::min((int) std::round(norm * 5), 255);
-        heatmap.at<cv::Vec3b>(x, y) = cv::Vec3b(inorm, inorm, inorm);
-      }
-    }
-
     u8* output_buf;
     cudaMalloc((void**) &output_buf, out_buf_size);
-    cudaMemcpy(output_buf, heatmap_buf, out_buf_size, cudaMemcpyHostToDevice);
+    cvc::GpuMat output_flow_gpu(img_size, CV_32FC2, output_buf);
+
+    flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow_gpu);
+
+    // cv::Mat output_flow(output_flow_gpu);
+
+    // u8* heatmap_buf = new u8[out_buf_size];
+    // cv::Mat heatmap(img_size, CV_8UC3, heatmap_buf);
+    // for (int x = 0; x < output_flow.rows; ++x) {
+    //   for (int y = 0; y < output_flow.cols; ++y) {
+    //     cv::Vec2f vel = output_flow.at<cv::Vec2f>(x, y);
+    //     float norm = cv::norm(vel);
+    //     int inorm = std::min((int) std::round(norm * 100), 255);
+    //     heatmap.at<cv::Vec3b>(x, y) = cv::Vec3b(inorm, inorm, inorm);
+    //   }
+    // }
+
+    // u8* output_buf;
+    // cudaMalloc((void**) &output_buf, out_buf_size);
+    // cudaMemcpy(output_buf, heatmap_buf, out_buf_size, cudaMemcpyHostToDevice);
 
     output_sizes.push_back(out_buf_size);
     output_buffers.push_back(output_buf);
