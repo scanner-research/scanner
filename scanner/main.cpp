@@ -432,7 +432,6 @@ int main(int argc, char** argv) {
       pfactories.push_back(fact.get());
     }
     run_job(config, decoder_type, pfactories, job_name, dataset_name);
-
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadata
