@@ -15,6 +15,9 @@
 
 #include "scanner/evaluators/caffe/yolo/yolo_input_evaluator.h"
 
+#include "caffe/data_transformer.hpp"
+#include "caffe/blob.hpp"
+
 namespace scanner {
 
 YoloInputEvaluator::YoloInputEvaluator(
@@ -66,32 +69,34 @@ void YoloInputEvaluator::evaluate(
   } else {
     for (i32 frame = 0; frame < input_count; frame += batch_size_) {
       i32 batch_count = std::min(input_count - frame, batch_size_);
-      f32* net_input = (f32*) new u8[frame_size * batch_count];
+      u8* net_input = new u8[frame_size * batch_count];
 
       i32 frame_width = metadata_.width();
       i32 frame_height = metadata_.height();
+
+      std::vector<cv::Mat> input_mats;
       for (i32 i = 0; i < batch_count; ++i) {
         u8* buffer = input_buffers[0][frame + i];
+        cv::Mat input_mat(frame_height, frame_width, CV_8UC3, buffer);
 
-        cv::Mat input_mat = cv::Mat(frame_height, frame_width, CV_8UC3, buffer);
+        cv::Mat resized, bgr;
 
-        cv::resize(input_mat, resized_input,
+        cv::resize(input_mat, resized,
                    cv::Size(NET_INPUT_WIDTH, NET_INPUT_HEIGHT), 0, 0,
                    cv::INTER_LINEAR);
-        cv::cvtColor(resized_input, bgr_input, CV_RGB2BGR);
-        // Changed from interleaved BGR to planar BGR
-        cv::split(bgr_input, input_planes);
-        cv::vconcat(input_planes, planar_input);
-        planar_input.convertTo(float_input, CV_32FC1);
-        cv::subtract(float_input, mean_mat, normalized_input);
-        for (i32 r = 0; r < normalized_input.rows; ++r) {
-          u8* mat_pos = normalized_input.data + r * normalized_input.step;
-          u8* input_pos = reinterpret_cast<u8*>(
-            net_input + i * (NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3) +
-            r * NET_INPUT_WIDTH);
-          memcpy(input_pos, mat_pos, normalized_input.cols * sizeof(float));
-        }
+        cv::cvtColor(resized, bgr, CV_RGB2BGR);
+        input_mats.emplace_back(bgr);
       }
+
+      caffe::TransformationParameter param;
+      param.set_scale(1.0/255.0);
+      caffe::DataTransformer<f32> transformer(param, caffe::TEST);
+      caffe::Blob<f32> blob;
+      blob.Reshape(input_mats.size(), input_mats[0].channels(),
+                   NET_INPUT_HEIGHT, NET_INPUT_WIDTH);
+      transformer.Transform(input_mats, &blob);
+
+      std::memcpy(net_input, blob.cpu_data(), frame_size * batch_count);
 
       output_buffers[0].push_back((u8*)net_input);
       output_sizes[0].push_back(frame_size * batch_count);

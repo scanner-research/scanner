@@ -197,7 +197,7 @@ void FacenetInputEvaluator::evaluate(
           u8* input_pos = reinterpret_cast<u8*>(
             net_input + i * (net_input_width_ * net_input_height_ * 3) +
             r * net_input_height_);
-          memcpy(input_pos, mat_pos, planar_input_c_.cols * sizeof(float));
+          std::memcpy(input_pos, mat_pos, planar_input_c_.cols * sizeof(float));
         }
       }
 

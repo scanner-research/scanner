@@ -65,7 +65,7 @@ void CaffeEvaluator::configure(const VideoMetadata& metadata) {
   }
 
   input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-        width, height});
+        height, width});
 }
 
 void CaffeEvaluator::evaluate(

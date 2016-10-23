@@ -16,7 +16,7 @@ def load_output_buffers(dataset_name, job_name, column, fn, intvl=None):
         video = {'index': entry.index, 'buffers': []}
 
         metadata = VideoDescriptor()
-        with open('db/{}_dataset/{}_metadata.bin'.format(DATASET, entry.index), 'rb') as f:
+        with open('db/{}_dataset/{}_metadata.bin'.format(dataset_name, entry.index), 'rb') as f:
             metadata.ParseFromString(f.read())
 
         (istart, iend) = intvl if intvl is not None else (0, sys.maxint)
@@ -66,31 +66,30 @@ def scanner_loader(column):
         return loader
     return decorator
 
-def load_histograms(job_name):
-    def buf_to_histogram(buf):
-        return np.split(np.frombuffer(buf, dtype=np.dtype(np.float32)), 3)
-    return load_output_buffers(job_name, 'histogram', buf_to_histogram)
+@scanner_loader('histogram')
+def load_histograms(buf, metadata):
+    return np.split(np.frombuffer(buf, dtype=np.dtype(np.float32)), 3)
 
-def load_faces(job_name):
-    def buf_to_faces(buf):
-        num_faces = len(buf) / 16
-        faces = []
-        for i in range(num_faces):
-            faces.append(struct.unpack("iiii", buf[(16*i):(16*(i+1))]))
-        return faces
-    return load_output_buffers(job_name, 'faces', buf_to_faces)
+@scanner_loader('faces')
+def load_faces(buf, metadata):
+    num_faces = len(buf) / 16
+    faces = []
+    for i in range(num_faces):
+        faces.append(struct.unpack("iiii", buf[(16*i):(16*(i+1))]))
+    return faces
 
 @scanner_loader('opticalflow')
 def load_opticalflow(buf, metadata):
     return np.frombuffer(buf, dtype=np.dtype(np.float32)).reshape((metadata.width, metadata.height, 2))
 
-def load_cameramotion(job_name):
-    def buf_to_cameramotion(buf):
-        return struct.unpack('d', buf)
-    return load_output_buffers(job_name, 'cameramotion', buf_to_cameramotion)
+@scanner_loader('cameramotion')
+def load_cameramotion(buf, metadata):
+    return struct.unpack('d', buf)
 
-DATASET = sys.argv[2]
-JOB = sys.argv[1]
+@scanner_loader('fc25')
+def load_features(buf, metadata):
+    return np.frombuffer(buf, dtype=np.dtype(np.float32))
+
 cv_version = 3 # int(cv2.__version__.split('.')[0])
 
 def save_movie_info():
@@ -111,8 +110,12 @@ def save_debug_video():
         i += 1
 
 def main():
-    for flow in load_opticalflow(DATASET, JOB):
-        np.save('{}_{:06d}'.format(JOB, flow['index']), np.array(flow['buffers']))
+    DATASET = sys.argv[2]
+    JOB = sys.argv[1]
+    for features in load_features(DATASET, JOB): pass
+        #np.save('{}_{
+    #for flow in load_opticalflow(DATASET, JOB):
+    #    np.save('{}_{:06d}'.format(JOB, flow['index']), np.array(flow['buffers']))
 
 if __name__ == "__main__":
     main()
