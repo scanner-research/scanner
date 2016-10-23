@@ -64,3 +64,15 @@ cd www
 npm install
 ./node_modules/webpack/bin/webpack.js
 ```
+
+## Contributing
+
+Before committing, please install the Git hooks for this project.
+
+```
+git clone https://github.com/willcrichton/scanner-hooks
+<edit files>
+./scanner-hooks/install_hooks.sh </path/to/scanner>
+```
+
+You'll need to edit `pre-commit-clang-format` and change `CLANG_FORMAT` to point your `clang-format` binary. Must be version 4.0 or above.
