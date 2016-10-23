@@ -38,15 +38,15 @@
 #include <boost/program_options/variables_map.hpp>
 
 #ifdef HAVE_CUDA
-#include <cuda.h>
 #include "scanner/util/cuda.h"
+#include <cuda.h>
 #endif
 
-#include <libgen.h>
-#include <mpi.h>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <libgen.h>
+#include <mpi.h>
 #include <string>
 
 // For setting up libav*
@@ -79,7 +79,7 @@ using storehouse::RandomReadFile;
 
 const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 
-void startup(int argc, char** argv) {
+void startup(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 0;
@@ -92,15 +92,14 @@ void shutdown() { MPI_Finalize(); }
 
 class Config {
 public:
-
-  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml) : vm(vm), pr(pr), has_toml(has_toml) {}
+  Config(po::variables_map vm, toml::ParseResult pr, bool has_toml)
+      : vm(vm), pr(pr), has_toml(has_toml) {}
 
   bool has(std::string key) {
     return vm.count(key) || (has_toml && pr.value.find(key) != nullptr);
   }
 
-  template<typename T>
-  T get(std::string key) {
+  template <typename T> T get(std::string key) {
     if (vm.count(key)) {
       return vm[key].as<T>();
     } else if (has_toml) {
@@ -119,20 +118,20 @@ private:
 extern std::vector<std::unique_ptr<EvaluatorFactory>>
 setup_evaluator_pipeline();
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   // Variables for holding parsed command line arguments
 
   std::string db_path;
-  std::string cmd;  // sub-command to execute
+  std::string cmd; // sub-command to execute
   // Common among sub-commands
-  std::string dataset_name;  // name of dataset to create/operate on
+  std::string dataset_name; // name of dataset to create/operate on
   // For ingest sub-command
-  std::string video_paths_file;  // paths of video files to turn into dataset
+  std::string video_paths_file; // paths of video files to turn into dataset
   // For run sub-command
-  std::string job_name;  // name of job to refer to after run
+  std::string job_name; // name of job to refer to after run
   // For rm sub-command
-  std::string resource_type;  // dataset or job
-  std::string resource_name;  // name of resource to rm
+  std::string resource_type; // dataset or job
+  std::string resource_name; // name of resource to rm
   {
     po::variables_map vm;
 
@@ -183,7 +182,7 @@ int main(int argc, char** argv) {
       opts = po::collect_unrecognized(parsed.options, po::include_positional);
       opts.erase(opts.begin());
 
-    } catch (const po::required_option& e) {
+    } catch (const po::required_option &e) {
       if (vm.count("help")) {
         std::cout << main_desc << std::endl;
         return 1;
@@ -197,7 +196,7 @@ int main(int argc, char** argv) {
       return 1;
     }
 
-    Config* config;
+    Config *config;
     char path[256];
     snprintf(path, 256, CONFIG_DEFAULT_PATH.c_str(), getenv("HOME"));
     std::string config_path = vm.count("config_file")
@@ -252,7 +251,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << ingest_desc << std::endl;
           return 1;
@@ -283,7 +282,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << run_desc << std::endl;
           return 1;
@@ -314,7 +313,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << rm_desc << std::endl;
           return 1;
@@ -340,7 +339,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << serve_desc << std::endl;
           return 1;
@@ -371,7 +370,7 @@ int main(int argc, char** argv) {
 
   // For now, we use a disk based persistent storage with a hardcoded
   // path for storing video and output data persistently
-  storehouse::StorageConfig* config =
+  storehouse::StorageConfig *config =
       storehouse::StorageConfig::make_posix_config(db_path);
 
   storehouse::StorageBackend *storage =
@@ -427,8 +426,8 @@ int main(int argc, char** argv) {
     VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
     std::vector<std::unique_ptr<EvaluatorFactory>> factories =
         setup_evaluator_pipeline();
-    std::vector<EvaluatorFactory*> pfactories;
-    for (auto& fact : factories) {
+    std::vector<EvaluatorFactory *> pfactories;
+    for (auto &fact : factories) {
       pfactories.push_back(fact.get());
     }
     run_job(config, decoder_type, pfactories, job_name, dataset_name);
@@ -477,9 +476,7 @@ int main(int argc, char** argv) {
     options.shutdownOn = {SIGINT, SIGTERM};
     options.enableContentCompression = false;
     options.handlerFactories =
-        pg::RequestHandlerChain()
-            .addThen<VideoHandlerFactory>(config)
-            .build();
+        pg::RequestHandlerChain().addThen<VideoHandlerFactory>(config).build();
 
     pg::HTTPServer server(std::move(options));
     server.bind(IPs);
