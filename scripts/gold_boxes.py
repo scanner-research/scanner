@@ -8,6 +8,8 @@ import metadata_pb2
 import evaluators.types_pb2
 import scanner
 
+db = scanner.Scanner()
+
 def load_bboxes(dataset_name, job_name, column_name):
     def buf_to_bboxes(buf):
         (num_bboxes,) = struct.unpack("=Q", buf[:8])
@@ -23,7 +25,7 @@ def load_bboxes(dataset_name, job_name, column_name):
                     box.track_id, box.track_score]
             bboxes.append(bbox)
         return bboxes
-    return scanner.load_output_buffers(dataset_name, job_name, column_name,
+    return db.load_output_buffers(dataset_name, job_name, column_name,
                                        buf_to_bboxes)
 
 
@@ -50,7 +52,7 @@ def save_bboxes(dataset_name, job_name, ident, column_name, bboxes):
             data += box.SerializeToString()
         return data
 
-    return scanner.write_output_buffers(dataset_name, job_name, ident,
+    return db.write_output_buffers(dataset_name, job_name, ident,
                                         column_name, bboxes_to_buf, bboxes)
 
 
@@ -96,7 +98,7 @@ def nms(boxes, overlapThresh):
     # if the bounding boxes integers, convert them to floats --
     # this is important since we'll be doing a bunch of divisions
 
-    # initialize the list of picked indexes 
+    # initialize the list of picked indexes
     pick = []
 
     # grab the coordinates of the bounding boxes
@@ -255,7 +257,7 @@ def main():
     output_column = "base_bboxes"
 
     #save_debug_video()
-    meta = scanner.load_db_metadata()
+    meta = db.load_db_metadata()
     base_boxes = load_bboxes(dataset_name, input_job, input_base_column)
     tracked_boxes = load_bboxes(dataset_name, input_job, input_track_column)
     gold_boxes = []
@@ -292,7 +294,7 @@ def main():
 
     save_bboxes(dataset_name, output_job, job_id, output_column, gold_boxes)
 
-    scanner.write_db_metadata(meta)
+    db.write_db_metadata(meta)
 
     # Write out data to use for extracting frames in extract_frames.py
     video_paths = []

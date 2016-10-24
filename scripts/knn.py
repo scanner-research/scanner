@@ -2,39 +2,48 @@ import numpy as np
 import sys
 import scipy.spatial.distance as dist
 from sklearn.neighbors import NearestNeighbors
-from decode import load_features
+from decode import load_yolo_features
 from timeit import default_timer
 import os
 
-os.environ['GLOG_minloglevel'] = '3' # Silencio, Caffe!
+os.environ['GLOG_minloglevel'] = '4' # Silencio, Caffe!
 import caffe
 
 FEATURE_LAYER = 'fc25'
 K = 5
+
+def write(s):
+    sys.stdout.write(s)
+    sys.stdout.flush()
+
+
+def write_timer(start):
+    write('{:.3f}\n'.format(default_timer() - start))
+
 
 class FeatureSearch:
     def __init__(self, dataset_name, job_name):
         self.index = []
         count = 0
         norms = np.ndarray(shape=(0,4096))
-        print 'Loading features...'
+        write('Loading features... ')
         start = default_timer()
-        for video in load_features(dataset_name, job_name):
-            self.index.append((video['index'], count))
+        for video in load_yolo_features(dataset_name, job_name):
+            self.index.append((video['path'], count))
             bufs = np.array(video['buffers'])
             count += len(bufs)
             norms = np.vstack((norms, np.array(video['buffers'])))
-        print default_timer() - start
-        print 'Preparing KNN...'
+        write_timer(start)
+        write('Preparing KNN... ')
         start = default_timer()
         self.knn = NearestNeighbors(algorithm='brute', n_neighbors=K, metric='euclidean').fit(norms)
-        print default_timer() - start
+        write_timer(start)
 
     def search(self, exemplar):
-        print 'Searching KNN...'
+        write('Searching KNN... ')
         start = default_timer()
         _, indices = self.knn.kneighbors(np.array([exemplar]))
-        print default_timer() - start
+        write_timer(start)
         results = []
         for idx in indices[0]:
             for (vid, count) in self.index:
@@ -46,6 +55,9 @@ class FeatureSearch:
 
 
 def init_net():
+    write('Initializing net... ')
+    start = default_timer()
+
     caffe.set_mode_gpu()
 
     # TODO: read this from the .toml file
@@ -53,6 +65,8 @@ def init_net():
         'features/yolo/yolo_deploy.prototxt',
         'features/yolo/yolo.caffemodel',
         caffe.TEST)
+
+    write_timer(start)
 
     transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
     transformer.set_transpose('data', (2,0,1))
