@@ -11,14 +11,14 @@ std::vector<std::unique_ptr<EvaluatorFactory>> setup_evaluator_pipeline() {
     std::ifstream net_file{net_descriptor_file};
     descriptor = descriptor_from_net_file(net_file);
   }
-  i32 batch_size = 8;
+  i32 batch_size = 24;
 
   std::vector<std::unique_ptr<EvaluatorFactory>> factories;
 
   factories.emplace_back(new YoloInputEvaluatorFactory(
       DeviceType::CPU, descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(
-      DeviceType::CPU, descriptor, batch_size, false));
+      DeviceType::GPU, descriptor, batch_size, false));
 
   return factories;
 }

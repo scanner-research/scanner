@@ -1,9 +1,13 @@
-import caffe
 import numpy as np
 import sys
 import scipy.spatial.distance as dist
 from sklearn.neighbors import NearestNeighbors
 from decode import load_features
+from timeit import default_timer
+import os
+
+os.environ['GLOG_minloglevel'] = '3' # Silencio, Caffe!
+import caffe
 
 FEATURE_LAYER = 'fc25'
 K = 5
@@ -13,15 +17,24 @@ class FeatureSearch:
         self.index = []
         count = 0
         norms = np.ndarray(shape=(0,4096))
+        print 'Loading features...'
+        start = default_timer()
         for video in load_features(dataset_name, job_name):
             self.index.append((video['index'], count))
             bufs = np.array(video['buffers'])
             count += len(bufs)
             norms = np.vstack((norms, np.array(video['buffers'])))
-        self.knn = NearestNeighbors(n_neighbors=K).fit(norms)
+        print default_timer() - start
+        print 'Preparing KNN...'
+        start = default_timer()
+        self.knn = NearestNeighbors(algorithm='brute', n_neighbors=K, metric='euclidean').fit(norms)
+        print default_timer() - start
 
     def search(self, exemplar):
+        print 'Searching KNN...'
+        start = default_timer()
         _, indices = self.knn.kneighbors(np.array([exemplar]))
+        print default_timer() - start
         results = []
         for idx in indices[0]:
             for (vid, count) in self.index:
@@ -32,7 +45,7 @@ class FeatureSearch:
         return results
 
 
-def get_exemplar_features(img_path):
+def init_net():
     caffe.set_mode_gpu()
 
     # TODO: read this from the .toml file
@@ -45,19 +58,26 @@ def get_exemplar_features(img_path):
     transformer.set_transpose('data', (2,0,1))
     transformer.set_channel_swap('data', (2,1,0))
 
-    img = caffe.io.load_image(img_path)
-    preprocessed = transformer.preprocess('data', img)
+    def process(img_path):
+        img = caffe.io.load_image(img_path)
+        preprocessed = transformer.preprocess('data', img)
 
-    net.forward_all(data=np.asarray([preprocessed]))
-    return net.blobs[FEATURE_LAYER].data[0]
+        net.forward_all(data=np.asarray([preprocessed]))
+        return net.blobs[FEATURE_LAYER].data[0]
+
+    return process
 
 
 def main():
-    [img_path, job_name, dataset_name] = sys.argv[1:]
-
-    exemplar = get_exemplar_features(img_path)
+    [job_name, dataset_name] = sys.argv[1:]
     searcher = FeatureSearch(dataset_name, job_name)
-    print searcher.search(exemplar)
+    get_exemplar_features = init_net()
+
+    while True:
+        sys.stdout.write('> ')
+        img_path = sys.stdin.readline().strip()
+        exemplar = get_exemplar_features(img_path)
+        print searcher.search(exemplar)
 
 
 if __name__ == "__main__":
