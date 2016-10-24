@@ -373,7 +373,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
                       const std::string& dataset_name,
                       const std::string& video_path,
                       const std::string& item_name,
-                      VideoDescriptor& video_descriptor) {
+                      VideoDescriptor& video_descriptor,
+                      bool compute_web_metadata) {
   // Load the entire input
   std::vector<u8> video_bytes;
   {
@@ -549,7 +550,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   //   pos += sizeof(i32);
 
   //   if (av_new_packet(&packet, size) < 0) {
-  //     fprintf(stderr, "could not allocate packet for feeding into decoder\n");
+  //     fprintf(stderr, "could not allocate packet for feeding into
+  //     decoder\n");
   //     assert(false);
   //   }
   //   u8* orig_data = packet.data;
@@ -565,7 +567,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   //     if (len < 0) {
   //       char err_msg[256];
   //       av_strerror(len, err_msg, 256);
-  //       fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, len,
+  //       fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame,
+  //       len,
   //               err_msg);
   //       assert(false);
   //     }
@@ -644,80 +647,83 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     output_file->save();
   }
 
-  // Create temporary file for writing ffmpeg output to
-  std::string temp_output_path;
-  FILE* fptr;
-  temp_file(&fptr, temp_output_path);
-  fclose(fptr);
-  temp_output_path += ".mp4";
+  if (compute_web_metadata) {
+    // Create temporary file for writing ffmpeg output to
+    std::string temp_output_path;
+    FILE* fptr;
+    temp_file(&fptr, temp_output_path);
+    fclose(fptr);
+    temp_output_path += ".mp4";
 
-  // Convert to web friendly format
-  // vsync 0 needed to never drop or duplicate frames to match fps
-  // alternatively we could figure out how to make output fps same as input
-  std::string conversion_command =
-      "ffmpeg "
-      "-i " +
-      video_path +
-      " "
-      "-vsync 0 "
-      "-c:v h264 "
-      "-strict -2 "
-      "-movflags faststart " +
-      temp_output_path;
+    // Convert to web friendly format
+    // vsync 0 needed to never drop or duplicate frames to match fps
+    // alternatively we could figure out how to make output fps same as input
+    std::string conversion_command =
+        "ffmpeg "
+        "-i " +
+        video_path +
+        " "
+        "-vsync 0 "
+        "-c:v h264 "
+        "-strict -2 "
+        "-movflags faststart " +
+        temp_output_path;
 
-  std::system(conversion_command.c_str());
+    std::system(conversion_command.c_str());
 
-  // Copy the web friendly data format into database storage
-  {
-    // Read input from local path
-    std::ifstream file{temp_output_path};
+    // Copy the web friendly data format into database storage
+    {
+      // Read input from local path
+      std::ifstream file{temp_output_path};
 
-    // Write to database storage
-    std::string web_video_path =
-        dataset_item_video_path(dataset_name, item_name);
-    std::unique_ptr<WriteFile> output_file{};
-    exit_on_error(make_unique_write_file(storage, web_video_path, output_file));
+      // Write to database storage
+      std::string web_video_path =
+          dataset_item_video_path(dataset_name, item_name);
+      std::unique_ptr<WriteFile> output_file{};
+      exit_on_error(
+          make_unique_write_file(storage, web_video_path, output_file));
 
-    const size_t READ_SIZE = 1024 * 1024;
-    std::vector<u8> buffer(READ_SIZE);
-    while (file) {
-      file.read(reinterpret_cast<char*>(buffer.data()), READ_SIZE);
-      size_t size_read = file.gcount();
+      const size_t READ_SIZE = 1024 * 1024;
+      std::vector<u8> buffer(READ_SIZE);
+      while (file) {
+        file.read(reinterpret_cast<char*>(buffer.data()), READ_SIZE);
+        size_t size_read = file.gcount();
 
-      StoreResult result;
-      EXP_BACKOFF(
-          output_file->append(size_read, reinterpret_cast<u8*>(buffer.data())),
-          result);
-      assert(result == StoreResult::Success ||
-             result == StoreResult::EndOfFile);
+        StoreResult result;
+        EXP_BACKOFF(output_file->append(size_read,
+                                        reinterpret_cast<u8*>(buffer.data())),
+                    result);
+        assert(result == StoreResult::Success ||
+               result == StoreResult::EndOfFile);
+      }
+
+      output_file->save();
     }
 
-    output_file->save();
-  }
+    // Get timestamp info for web video
+    WebTimestamps timestamps_meta;
+    succeeded = read_timestamps(temp_output_path, timestamps_meta);
+    if (!succeeded) {
+      fprintf(stderr, "Could not get timestamps from web data\n");
+      cleanup_video_codec(state);
+      return false;
+    }
 
-  // Get timestamp info for web video
-  WebTimestamps timestamps_meta;
-  succeeded = read_timestamps(temp_output_path, timestamps_meta);
-  if (!succeeded) {
-    fprintf(stderr, "Could not get timestamps from web data\n");
-    cleanup_video_codec(state);
-    return false;
-  }
+    printf("time base (%d/%d), orig frames %d, dts size %lu\n",
+           timestamps_meta.time_base_numerator(),
+           timestamps_meta.time_base_denominator(), frame,
+           timestamps_meta.pts_timestamps_size());
 
-  printf("time base (%d/%d), orig frames %d, dts size %lu\n",
-         timestamps_meta.time_base_numerator(),
-         timestamps_meta.time_base_denominator(), frame,
-         timestamps_meta.pts_timestamps_size());
+    {
+      // Write to database storage
+      std::string web_video_timestamp_path =
+          dataset_item_video_timestamps_path(dataset_name, item_name);
+      std::unique_ptr<WriteFile> output_file{};
+      exit_on_error(make_unique_write_file(storage, web_video_timestamp_path,
+                                           output_file));
 
-  {
-    // Write to database storage
-    std::string web_video_timestamp_path =
-        dataset_item_video_timestamps_path(dataset_name, item_name);
-    std::unique_ptr<WriteFile> output_file{};
-    exit_on_error(
-        make_unique_write_file(storage, web_video_timestamp_path, output_file));
-
-    serialize_web_timestamps(output_file.get(), timestamps_meta);
+      serialize_web_timestamps(output_file.get(), timestamps_meta);
+    }
   }
 
   return succeeded;
@@ -786,7 +792,7 @@ void write_last_processed_video(storehouse::StorageBackend* storage,
 
 void ingest(storehouse::StorageConfig* storage_config,
             const std::string& dataset_name,
-            const std::string& video_paths_file) {
+            const std::string& video_paths_file, bool compute_web_metadata) {
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -842,7 +848,7 @@ void ingest(storehouse::StorageConfig* storage_config,
 
     VideoDescriptor video_descriptor;
     bool valid_video = preprocess_video(storage, dataset_name, path, item_name,
-                                        video_descriptor);
+                                        video_descriptor, compute_web_metadata);
     if (!valid_video) {
       LOG(WARNING) << "Failed to ingest video " << path << "! "
                    << "Adding to bad paths file "
@@ -890,7 +896,8 @@ void ingest(storehouse::StorageConfig* storage_config,
     u64 pos = 0;
     meta = deserialize_database_metadata(meta_in_file.get(), pos);
 
-    dataset_id = meta.add_dataset(dataset_name);;
+    dataset_id = meta.add_dataset(dataset_name);
+    ;
   }
 
   descriptor.set_id(dataset_id);

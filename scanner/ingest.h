@@ -21,5 +21,5 @@ namespace scanner {
 
 void ingest(storehouse::StorageConfig* storage_config,
             const std::string& dataset_name,
-            const std::string& video_paths_file);
+            const std::string& video_paths_file, bool compute_web_metadata);
 }
