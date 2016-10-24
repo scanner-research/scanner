@@ -2,7 +2,7 @@
 
 ## Building
 
-You will need [OpenCV](https://github.com/opencv/opencv) (2.4.x or 3.x) built with [opencv_contrib](https://github.com/opencv/opencv_contrib/).
+You will need [OpenCV](https://github.com/opencv/opencv) (2.4.x or 3.x, 3.x preferred) built with [opencv_contrib](https://github.com/opencv/opencv_contrib/).
 
 ### OS X Dependencies
 ```
@@ -20,7 +20,15 @@ sudo apt-get install -y libopenssl-dev libcurl3-dev liblzma-dev libprotobuf-dev 
 ### Python dependencies
 
 ```
-pip install numpy protobuf
+pip install numpy protobuf toml
+```
+
+### Building the project
+
+```
+git clone https://github.com/apoms/scanner && cd scanner
+mkdir build && cd build
+cmake -D PIPELINE_FILE=../scanner/pipelines/sample_pipeline.cpp ..
 ```
 
 ## Building the results server
