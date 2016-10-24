@@ -16,6 +16,7 @@
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 
 #include "scanner/util/common.h"
+#include "scanner/util/memory.h"
 #include "scanner/util/util.h"
 
 #ifdef HAVE_CUDA
@@ -27,12 +28,15 @@
 
 namespace scanner {
 
-CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig &config,
+CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
                                DeviceType device_type, i32 device_id,
-                               const NetDescriptor &descriptor,
-                               i32 batch_size, bool forward_input)
-    : config_(config), device_type_(device_type), device_id_(device_id),
-      descriptor_(descriptor), batch_size_(batch_size),
+                               const NetDescriptor& descriptor, i32 batch_size,
+                               bool forward_input)
+    : config_(config),
+      device_type_(device_type),
+      device_id_(device_id),
+      descriptor_(descriptor),
+      batch_size_(batch_size),
       forward_input_(forward_input) {
   if (device_type_ == DeviceType::GPU) {
     assert(GPUS_PER_NODE > 0);
@@ -53,8 +57,8 @@ void CaffeEvaluator::configure(const VideoMetadata& metadata) {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net_->blob_by_name(descriptor_.input_layer_name)};
   if (input_blob->shape(0) != batch_size_) {
-    input_blob->Reshape({batch_size_, 3, input_blob->shape(2),
-                         input_blob->shape(3)});
+    input_blob->Reshape(
+        {batch_size_, 3, input_blob->shape(2), input_blob->shape(3)});
   }
 
   i32 width = metadata.width();
@@ -64,20 +68,19 @@ void CaffeEvaluator::configure(const VideoMetadata& metadata) {
     height = descriptor_.input_height;
   }
 
-  input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-        height, width});
+  input_blob->Reshape(
+      {input_blob->shape(0), input_blob->shape(1), height, width});
 }
 
 void CaffeEvaluator::evaluate(
-    const std::vector<std::vector<u8 *>> &input_buffers,
-    const std::vector<std::vector<size_t>> &input_sizes,
-    std::vector<std::vector<u8 *>> &output_buffers,
-    std::vector<std::vector<size_t>> &output_sizes) {
-
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   set_device();
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
-    net_->blob_by_name(descriptor_.input_layer_name)};
+      net_->blob_by_name(descriptor_.input_layer_name)};
 
   i32 input_count = (i32)input_buffers[0].size();
 
@@ -89,7 +92,7 @@ void CaffeEvaluator::evaluate(
           {batch_count, 3, input_blob->shape(2), input_blob->shape(3)});
     }
 
-    f32 *net_input_buffer = nullptr;
+    f32* net_input_buffer = nullptr;
 
     if (device_type_ == DeviceType::GPU) {
       net_input_buffer = input_blob->mutable_gpu_data();
@@ -97,19 +100,9 @@ void CaffeEvaluator::evaluate(
       net_input_buffer = input_blob->mutable_cpu_data();
     }
 
-    if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      cudaMemcpy(net_input_buffer,
-                 input_buffers[0][batch_id],
-                 input_sizes[0][batch_id],
-                 cudaMemcpyDefault);
-#else
-      LOG(FATAL) << "Cuda not installed.";
-#endif
-    } else {
-      std::memcpy(net_input_buffer, input_buffers[0][batch_id],
+    memcpy_buffer((u8*)net_input_buffer, device_type_, device_id_,
+                  input_buffers[0][batch_id], device_type_, device_id_,
                   input_sizes[0][batch_id]);
-    }
 
     // Compute features
     auto net_start = now();
@@ -126,10 +119,10 @@ void CaffeEvaluator::evaluate(
 
       for (i32 b = 0; b < batch_count; ++b) {
         size_t size = input_sizes[1][frame + b];
-        u8 *buffer = nullptr;
+        u8* buffer = nullptr;
         if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-          cudaMalloc((void **)&buffer, size);
+          cudaMalloc((void**)&buffer, size);
           cudaMemcpy(buffer, input_buffers[1][frame + b], size,
                      cudaMemcpyDefault);
 #else
@@ -146,16 +139,16 @@ void CaffeEvaluator::evaluate(
     }
 
     for (size_t i = 0; i < num_outputs; ++i) {
-      const std::string &output_layer_name = descriptor_.output_layer_names[i];
+      const std::string& output_layer_name = descriptor_.output_layer_names[i];
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
       size_t output_length = output_blob->count(1);
       size_t output_size = output_length * sizeof(float);
       for (i32 b = 0; b < batch_count; ++b) {
-        u8 *buffer = nullptr;
+        u8* buffer = nullptr;
         if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-          cudaMalloc((void **)&buffer, output_size);
+          cudaMalloc((void**)&buffer, output_size);
           cudaMemcpy(buffer, output_blob->gpu_data() + b * output_length,
                      output_size, cudaMemcpyDefault);
 #else
@@ -190,11 +183,12 @@ void CaffeEvaluator::set_device() {
 }
 
 CaffeEvaluatorFactory::CaffeEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor &net_descriptor,
-    i32 batch_size, bool forward_input)
-    : device_type_(device_type), net_descriptor_(net_descriptor),
-      batch_size_(batch_size), forward_input_(forward_input) {
-}
+    DeviceType device_type, const NetDescriptor& net_descriptor, i32 batch_size,
+    bool forward_input)
+    : device_type_(device_type),
+      net_descriptor_(net_descriptor),
+      batch_size_(batch_size),
+      forward_input_(forward_input) {}
 
 EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -213,7 +207,7 @@ std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
   if (forward_input_) {
     output_names.push_back("frame");
   }
-  const std::vector<std::string> &layer_names =
+  const std::vector<std::string>& layer_names =
       net_descriptor_.output_layer_names;
   output_names.insert(output_names.end(), layer_names.begin(),
                       layer_names.end());
@@ -221,7 +215,7 @@ std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
   return output_names;
 }
 
-Evaluator *CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+Evaluator* CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
   return new CaffeEvaluator(config, device_type_, config.device_ids[0],
                             net_descriptor_, batch_size_, forward_input_);
 }

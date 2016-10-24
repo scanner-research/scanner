@@ -14,20 +14,24 @@
  */
 
 #include "scanner/evaluators/caffe/facenet/facenet_input_evaluator.h"
+#include "scanner/util/memory.h"
 
 namespace scanner {
 
-FacenetInputEvaluator::FacenetInputEvaluator(
-  DeviceType device_type, i32 device_id, const NetDescriptor& descriptor, i32 batch_size)
-  : device_type_(device_type),
-    device_id_(device_id),
-    descriptor_(descriptor),
-    batch_size_(batch_size),
-    net_input_width_(224),
-    net_input_height_(224)
+FacenetInputEvaluator::FacenetInputEvaluator(DeviceType device_type,
+                                             i32 device_id,
+                                             const NetDescriptor& descriptor,
+                                             i32 batch_size)
+    : device_type_(device_type),
+      device_id_(device_id),
+      descriptor_(descriptor),
+      batch_size_(batch_size),
+      net_input_width_(224),
+      net_input_height_(224)
 #ifdef USE_CUDA
-  , num_cuda_streams_(32),
-    streams_(num_cuda_streams_)
+      ,
+      num_cuda_streams_(32),
+      streams_(num_cuda_streams_)
 #endif
 {
 }
@@ -78,10 +82,10 @@ void FacenetInputEvaluator::configure(const VideoMetadata& metadata) {
     LOG(FATAL) << "Not built with CUDA support.";
 #endif
   } else {
-    mean_mat_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3,
-                          cv::Scalar(descriptor_.mean_colors[0],
-                                     descriptor_.mean_colors[1],
-                                     descriptor_.mean_colors[2]));
+    mean_mat_c_ = cv::Mat(
+        net_input_height_, net_input_width_, CV_32FC3,
+        cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
+                   descriptor_.mean_colors[2]));
 
     float_input_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
     normalized_input_c_ =
@@ -97,10 +101,10 @@ void FacenetInputEvaluator::configure(const VideoMetadata& metadata) {
 }
 
 void FacenetInputEvaluator::evaluate(
-  const std::vector<std::vector<u8 *>> &input_buffers,
-  const std::vector<std::vector<size_t>> &input_sizes,
-  std::vector<std::vector<u8 *>> &output_buffers,
-  std::vector<std::vector<size_t>> &output_sizes) {
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   auto eval_start = now();
 
   size_t frame_size = net_input_width_ * net_input_height_ * 3 * sizeof(u8);
@@ -120,9 +124,9 @@ void FacenetInputEvaluator::evaluate(
 
       for (i32 i = 0; i < batch_count; ++i) {
         int sid = i % num_cuda_streams_;
-        cv::cuda::Stream &cv_stream = streams_[sid];
+        cv::cuda::Stream& cv_stream = streams_[sid];
 
-        u8 *buffer = input_buffers[0][frame + i];
+        u8* buffer = input_buffers[0][frame + i];
         frame_input_g_[sid] = cv::cuda::GpuMat(
             net_input_height_, net_input_width_, CV_8UC3, buffer);
         frame_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
@@ -138,10 +142,10 @@ void FacenetInputEvaluator::evaluate(
                             cv_stream);
         cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
                             cv_stream);
-        auto &plane1 = flipped_planes_g_[sid][0];
-        auto &plane2 = flipped_planes_g_[sid][1];
-        auto &plane3 = flipped_planes_g_[sid][2];
-        auto &planar_input = planar_input_g_[sid];
+        auto& plane1 = flipped_planes_g_[sid][0];
+        auto& plane2 = flipped_planes_g_[sid][1];
+        auto& plane3 = flipped_planes_g_[sid][2];
+        auto& planar_input = planar_input_g_[sid];
         plane1.copyTo(planar_input(cv::Rect(
             0, net_input_width_ * 0, net_input_height_, net_input_width_)));
         plane2.copyTo(planar_input(cv::Rect(
@@ -183,7 +187,7 @@ void FacenetInputEvaluator::evaluate(
         u8* buffer = input_buffers[0][frame + i];
 
         cv::Mat input_mat =
-          cv::Mat(net_input_height_, net_input_width_, CV_8UC3, buffer);
+            cv::Mat(net_input_height_, net_input_width_, CV_8UC3, buffer);
 
         // Changed from interleaved RGB to planar RGB
         input_mat.convertTo(float_input_c_, CV_32FC3);
@@ -195,8 +199,8 @@ void FacenetInputEvaluator::evaluate(
         for (i32 r = 0; r < planar_input_c_.rows; ++r) {
           u8* mat_pos = planar_input_c_.data + r * planar_input_c_.step;
           u8* input_pos = reinterpret_cast<u8*>(
-            net_input + i * (net_input_width_ * net_input_height_ * 3) +
-            r * net_input_height_);
+              net_input + i * (net_input_width_ * net_input_height_ * 3) +
+              r * net_input_height_);
           std::memcpy(input_pos, mat_pos, planar_input_c_.cols * sizeof(float));
         }
       }
@@ -213,21 +217,10 @@ void FacenetInputEvaluator::evaluate(
   }
 
   for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    u8 *buffer = nullptr;
     size_t size = input_sizes[0][i];
-    if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      cudaMalloc((void **)&buffer, size);
-      cudaMemcpy(buffer, input_buffers[0][i], size,
-                 cudaMemcpyDefault);
-#else
-      LOG(FATAL) << "Not built with CUDA support.";
-#endif
-    } else {
-      buffer = new u8[size];
-      memcpy(buffer, input_buffers[0][i], size);
-    }
-    assert(buffer != nullptr);
+    u8* buffer = new_buffer(device_type_, device_id_, size);
+    memcpy_buffer(buffer, device_type_, device_id_, input_buffers[0][i],
+                  device_type_, device_id_, size);
     output_buffers[1].push_back(buffer);
     output_sizes[1].push_back(size);
   }
@@ -238,8 +231,9 @@ void FacenetInputEvaluator::evaluate(
 }
 
 FacenetInputEvaluatorFactory::FacenetInputEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor &descriptor, i32 batch_size)
-    : device_type_(device_type), net_descriptor_(descriptor),
+    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size)
+    : device_type_(device_type),
+      net_descriptor_(descriptor),
       batch_size_(batch_size) {}
 
 EvaluatorCapabilities FacenetInputEvaluatorFactory::get_capabilities() {
@@ -258,8 +252,8 @@ std::vector<std::string> FacenetInputEvaluatorFactory::get_output_names() {
   return {"net_input", "frame"};
 }
 
-Evaluator*
-FacenetInputEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+Evaluator* FacenetInputEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
   return new FacenetInputEvaluator(device_type_, config.device_ids[0],
                                    net_descriptor_, batch_size_);
 }

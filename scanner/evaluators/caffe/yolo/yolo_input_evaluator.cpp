@@ -14,24 +14,25 @@
  */
 
 #include "scanner/evaluators/caffe/yolo/yolo_input_evaluator.h"
+#include "scanner/util/memory.h"
 
-#include "caffe/data_transformer.hpp"
 #include "caffe/blob.hpp"
+#include "caffe/data_transformer.hpp"
 
 namespace scanner {
 
-YoloInputEvaluator::YoloInputEvaluator(
-  DeviceType device_type, i32 device_id, const NetDescriptor& descriptor, i32 batch_size)
-  : device_type_(device_type),
-    device_id_(device_id),
-    descriptor_(descriptor),
-    batch_size_(batch_size)
-{
+YoloInputEvaluator::YoloInputEvaluator(DeviceType device_type, i32 device_id,
+                                       const NetDescriptor& descriptor,
+                                       i32 batch_size)
+    : device_type_(device_type),
+      device_id_(device_id),
+      descriptor_(descriptor),
+      batch_size_(batch_size) {
   // Resize into
   std::vector<float>& mean_colors = descriptor_.mean_colors;
-  cv::Mat unsized_mean_mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH,
-                           CV_32FC1,
-                           cv::Scalar((mean_colors[0]+mean_colors[1]+mean_colors[2])/3.0));
+  cv::Mat unsized_mean_mat(
+      NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1,
+      cv::Scalar((mean_colors[0] + mean_colors[1] + mean_colors[2]) / 3.0));
   // HACK(apoms): Resizing the mean like this is not likely to produce a correct
   //              result because we are resizing a planar BGR layout which is
   //              represented in OpenCV as a single channel image with a height
@@ -55,10 +56,10 @@ void YoloInputEvaluator::configure(const VideoMetadata& metadata) {
 }
 
 void YoloInputEvaluator::evaluate(
-  const std::vector<std::vector<u8 *>> &input_buffers,
-  const std::vector<std::vector<size_t>> &input_sizes,
-  std::vector<std::vector<u8 *>> &output_buffers,
-  std::vector<std::vector<size_t>> &output_sizes) {
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   auto eval_start = now();
 
   size_t frame_size = NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3 * sizeof(float);
@@ -89,7 +90,7 @@ void YoloInputEvaluator::evaluate(
       }
 
       caffe::TransformationParameter param;
-      param.set_scale(1.0/255.0);
+      param.set_scale(1.0 / 255.0);
       caffe::DataTransformer<f32> transformer(param, caffe::TEST);
       caffe::Blob<f32> blob;
       blob.Reshape(input_mats.size(), input_mats[0].channels(),
@@ -110,21 +111,10 @@ void YoloInputEvaluator::evaluate(
   }
 
   for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    u8 *buffer = nullptr;
     size_t size = input_sizes[0][i];
-    if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      cudaMalloc((void **)&buffer, size);
-      cudaMemcpy(buffer, input_buffers[0][i], size,
-                 cudaMemcpyDefault);
-#else
-      LOG(FATAL) << "Not built with CUDA support.";
-#endif
-    } else {
-      buffer = new u8[size];
-      memcpy(buffer, input_buffers[0][i], size);
-    }
-    assert(buffer != nullptr);
+    u8* buffer = new_buffer(device_type_, device_id_, size);
+    memcpy_buffer(buffer, device_type_, device_id_, input_buffers[0][i],
+                  device_type_, device_id_, size);
     output_buffers[1].push_back(buffer);
     output_sizes[1].push_back(size);
   }
@@ -135,11 +125,10 @@ void YoloInputEvaluator::evaluate(
 }
 
 YoloInputEvaluatorFactory::YoloInputEvaluatorFactory(
-  DeviceType device_type,
-  const NetDescriptor& descriptor,
-  i32 batch_size) :
-  device_type_(device_type), net_descriptor_(descriptor), batch_size_(batch_size) {
-}
+    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size)
+    : device_type_(device_type),
+      net_descriptor_(descriptor),
+      batch_size_(batch_size) {}
 
 EvaluatorCapabilities YoloInputEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -157,8 +146,9 @@ std::vector<std::string> YoloInputEvaluatorFactory::get_output_names() {
   return {"net_input", "frame"};
 }
 
-Evaluator* YoloInputEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
-  return new YoloInputEvaluator(device_type_, config.device_ids[0], net_descriptor_, batch_size_);
+Evaluator* YoloInputEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
+  return new YoloInputEvaluator(device_type_, config.device_ids[0],
+                                net_descriptor_, batch_size_);
 }
-
 }
