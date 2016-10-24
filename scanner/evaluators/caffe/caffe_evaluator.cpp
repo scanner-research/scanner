@@ -98,10 +98,14 @@ void CaffeEvaluator::evaluate(
     }
 
     if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
       cudaMemcpy(net_input_buffer,
                  input_buffers[0][batch_id],
                  input_sizes[0][batch_id],
                  cudaMemcpyDefault);
+#else
+      LOG(FATAL) << "Cuda not installed.";
+#endif
     } else {
       std::memcpy(net_input_buffer, input_buffers[0][batch_id],
                   input_sizes[0][batch_id]);

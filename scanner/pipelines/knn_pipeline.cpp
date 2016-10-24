@@ -18,7 +18,7 @@ std::vector<std::unique_ptr<EvaluatorFactory>> setup_evaluator_pipeline() {
   factories.emplace_back(new YoloInputEvaluatorFactory(
       DeviceType::CPU, descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(
-      DeviceType::GPU, descriptor, batch_size, true));
+      DeviceType::CPU, descriptor, batch_size, false));
 
   return factories;
 }
