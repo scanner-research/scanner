@@ -16,21 +16,4 @@ Additionally, Scanner offers several utilities for ease of development:
 
 Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
 
-See [BUILD.md](https://github.com/apoms/scanner/blob/master/BUILD.md) for how to build Scanner.
-
-See [TUTORIAL.md](https://github.com/apoms/scanner/blob/master/TUTORIAL.md) for a walkthrough on basic usage.
-
-See [DOCS.md](https://i.imgur.com/wjANVCD.jpg) for documentation.
-
-
-## Contributing
-
-Before committing, please install the Git hooks for this project.
-
-```
-git clone https://github.com/willcrichton/scanner-hooks
-<edit files>
-./scanner-hooks/install_hooks.sh </path/to/scanner>
-```
-
-You'll need to edit `pre-commit-clang-format` and change `CLANG_FORMAT` to point your `clang-format` binary. Must be version 4.0 or above.
+For build instructions, tutorials, documentation, and contributing guidelines, visit the [Scanner wiki](https://github.com/apoms/scanner/wiki).
