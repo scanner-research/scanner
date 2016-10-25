@@ -31,6 +31,8 @@ mkdir build && cd build
 cmake -D PIPELINE_FILE=../scanner/pipelines/sample_pipeline.cpp ..
 ```
 
+Once the project is built, head over to [TUTORIAL.md](https://github.com/apoms/scanner/blob/master/TUTORIAL.md).
+
 ## Building the results server
 Enable the CMake flag `-DBUILD_SERVER=ON`.
 

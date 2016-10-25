@@ -10,7 +10,7 @@ Building Scanner produces one main executable `scanner_server` which manages dat
 Run `python scripts/setup.py` to configure Scanner for your machine. This creates a configuration file `~/.scanner.toml` used by default in all Scanner jobs.
 
 ### Ingest
-```
+```bash
 ./build/scanner_server ingest <datasetName> <path/to/videoFile.txt>
 ```
 
@@ -24,7 +24,7 @@ Ingest takes a newline-separated textfile list of images and videos and copies t
 Then Scanner will create a dataset called `movies` which contains the two videos in the text file.
 
 ### Run
-```
+```bash
 ./build/scanner_server run <jobName> <datasetName>
 ```
 
@@ -33,7 +33,7 @@ Run will execute the pipeline you specified with `-D PIPELINE_FILE=...` to cmake
 To extract the results from the Scanner database, look at the Python documentation.
 
 ### Rm
-```
+```bash
 ./build/scanner_server rm <job|dataset> <name>
 ```
 
@@ -43,7 +43,7 @@ Rm will remove an object with the given `name` of the given type, either a `job`
 
 The file `scripts/scanner.py` provides a `Scanner` class that lets you load raw byte buffers output from a Scanner job. For example, to load our `movieflow` job from earlier:
 
-```
+```python
 from scanner import Scanner
 import numpy as np
 
