@@ -27,8 +27,13 @@ pip install numpy protobuf toml
 
 ```
 git clone https://github.com/apoms/scanner && cd scanner
+cd thirdparty && mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=Release ..
+make -j
+cd ../..
 mkdir build && cd build
 cmake -D PIPELINE_FILE=../scanner/pipelines/sample_pipeline.cpp ..
+make -j
 ```
 
 Once the project is built, head over to [TUTORIAL.md](https://github.com/apoms/scanner/blob/master/TUTORIAL.md).
