@@ -51,7 +51,11 @@ cmake -D PIPELINE_FILE=../scanner/pipelines/sample_pipeline.cpp ..
 
 ## Running Scanner
 
-Building Scanner produces one main executable `scanner_server` which manages data and executes queries.
+Building Scanner produces one main executable `scanner_server` which manages data and executes queries. Scanner also comes with several Python scripts for managing configuration files and piping data in and out of Scanner.
+
+### Setup
+
+Run `python scripts/setup.py` to configure Scanner for your machine. This creates a configuration file `~/.scanner.toml` used by default in all Scanner jobs.
 
 ### Ingest
 ```
@@ -85,7 +89,27 @@ Rm will remove an object with the given `name` of the given type, either a `job`
 
 ### Python interface
 
-TODO: document me
+The file `scripts/scanner.py` provides a `Scanner` class that lets you load raw byte buffers output from a Scanner job. For example, to load our `movieflow` job from earlier:
+
+```
+from scanner import Scanner
+import numpy as np
+
+db = Scanner()
+
+@db.loader('opticalflow')
+def load_opticalflow(buf, metadata)
+    return np.frombuffer(buf, dtype=np.dtype(np.float32)) \
+             .reshape((metadata.width, metadata.height, 2))
+             
+for video in load_opticalflow('movieflow', 'movies'):
+    print("Processing {}".format(video['path']))
+    do_something_with_flow_vectors(video['buffers'])
+```
+
+In this example, the `@db.loader` decorator takes a column name to load, e.g. `'opticalflow`', and a function that converts a single output and returns a Python-understandable data type. Here, the output of Scanner's optical flow component returns a `W x H x 2` matrix where `W x H` are the dimensions of the input video, and each pixel contains a 2-D vector corresponding to its velocity from the previous frame. We convert the raw bytes into a numpy matrix using `numpy.frombuffer`.
+
+When you call the decorated function with a particular job name and dataset name, it fetches and decodes all the results in that column for that job on that dataset, shown in the for loop above.
 
 ## Building the results server
 Enable the CMake flag `-DBUILD_SERVER=ON`.
