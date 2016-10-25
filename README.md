@@ -1,5 +1,23 @@
 # Scanner
 
+Scanner is a system for low-level, high-performance batch processing of images and videos, or visual data. It lets you write functions that get mapped across batches of frames. These functions can execute on a multi-core CPU or GPU, and can be distributed across multiple machines. Scanner also includes a library of components for simplifying the handling of visual data:
+
+* Parallel video decode/encode on software or dedicated hardware
+* [Caffe](https://github.com/bvlc/caffe) support for neural network evaluation
+* [OpenCV](https://github.com/opencv/opencv) support with included kernels for color histograms and optical flow
+* Object tracking in videos with [Struck](https://github.com/samhare/struck)
+
+Additionally, Scanner offers several utilities for ease of development:
+
+* Profiling via [chrome://tracing](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool)
+* Support for different storage backends including [Google Cloud Storage](https://cloud.google.com/storage/)
+* Python interface for extracting results from the database
+* Server and web interface for visualizing Scanner query results
+
+Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
+
+TODO: have code examples
+
 ## Building
 
 You will need [OpenCV](https://github.com/opencv/opencv) (2.4.x or 3.x, 3.x preferred) built with [opencv_contrib](https://github.com/opencv/opencv_contrib/).
@@ -30,6 +48,44 @@ git clone https://github.com/apoms/scanner && cd scanner
 mkdir build && cd build
 cmake -D PIPELINE_FILE=../scanner/pipelines/sample_pipeline.cpp ..
 ```
+
+## Running Scanner
+
+Building Scanner produces one main executable `scanner_server` which manages data and executes queries.
+
+### Ingest
+```
+./build/scanner_server ingest <datasetName> <path/to/videoFile.txt>
+```
+
+Ingest takes a newline-separated textfile list of images and videos and copies them into the Scanner database, creating a new dataset from the collection. For example, if you run `ingest movies videos.txt` where `videos.txt` has the format:
+
+```
+/home/wcrichto/meanGirls.mp4
+/home/wcrichto/theBourneIdentity.mp4
+```
+
+Then Scanner will create a dataset called `movies` which contains the two videos in the text file.
+
+### Run
+```
+./build/scanner_server run <jobName> <datasetName>
+```
+
+Run will execute the pipeline you specified with `-D PIPELINE_FILE=...` to cmake over the given dataset `datasetName`. The results of that exeuction, or job, will be named `jobName`. For example, if you compile with `-D PIPELINE_FILE=../scanner/pipelines/opticalflow_viz_pipeline.cpp` and execute `run movieflow movies`, then it will compute an optical flow visualization for each frame of both movies we ingested earlier and save the results to disk.
+
+To extract the results from the Scanner database, look at the Python documentation.
+
+### Rm
+```
+./build/scanner_server rm <job|dataset> <name>
+```
+
+Rm will remove an object with the given `name` of the given type, either a `job` or a `dataset`, from the database. For example, if you run `rm job movieflow`, it will delete the results of the optical flow job we ran earlier.
+
+### Python interface
+
+TODO: document me
 
 ## Building the results server
 Enable the CMake flag `-DBUILD_SERVER=ON`.
