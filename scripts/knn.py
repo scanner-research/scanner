@@ -2,14 +2,16 @@ import numpy as np
 import sys
 import scipy.spatial.distance as dist
 from sklearn.neighbors import NearestNeighbors
-from decode import load_yolo_features
+from decode import load_yolo_features, db
 from timeit import default_timer
 import os
+import toml
 
 os.environ['GLOG_minloglevel'] = '4' # Silencio, Caffe!
 import caffe
 
-FEATURE_LAYER = 'fc25'
+USE_GPU = False
+NET = 'yolo'
 K = 5
 
 def write(s):
@@ -58,12 +60,19 @@ def init_net():
     write('Initializing net... ')
     start = default_timer()
 
-    caffe.set_mode_gpu()
+    if USE_GPU: caffe.set_mode_gpu()
+    else: caffe.set_mode_cpu()
 
-    # TODO: read this from the .toml file
+    scanner_path = db.config.scanner_path
+    net_config_path = '{}/features/{}.toml'.format(scanner_path, NET)
+    with open(net_config_path, 'r') as f:
+        net_config = toml.loads(f.read())
+
+    feature_layer = net_config['net']['output_layers'][0]
+
     net = caffe.Net(
-        'features/yolo/yolo_deploy.prototxt',
-        'features/yolo/yolo.caffemodel',
+        '{}/{}'.format(scanner_path, net_config['net']['model']),
+        '{}/{}'.format(scanner_path, net_config['net']['weights']),
         caffe.TEST)
 
     write_timer(start)
@@ -73,11 +82,14 @@ def init_net():
     transformer.set_channel_swap('data', (2,1,0))
 
     def process(img_path):
+        write('Computing exemplar features... ')
+        start = default_timer()
         img = caffe.io.load_image(img_path)
         preprocessed = transformer.preprocess('data', img)
-
         net.forward_all(data=np.asarray([preprocessed]))
-        return net.blobs[FEATURE_LAYER].data[0]
+        write_timer(start)
+
+        return net.blobs[feature_layer].data[0]
 
     return process
 
