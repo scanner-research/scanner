@@ -28,6 +28,7 @@ struct EvaluatorCapabilities {
   DeviceType device_type;
   i32 max_devices;
   i32 warmup_size;
+  bool can_overlap;
 };
 
 struct EvaluatorConfig {

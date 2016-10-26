@@ -18,9 +18,10 @@
 namespace scanner {
 
 template <typename T>
-Queue<T>::Queue()
-  : waiters_(0)
-{}
+Queue<T>::Queue() {}
+
+template <typename T>
+Queue<T>::Queue(Queue<T> &&o) : data_(std::move(o.data_)) {}
 
 template <typename T>
 int Queue<T>::size() {

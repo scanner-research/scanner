@@ -13,6 +13,12 @@ list(APPEND SOURCE_FILES
 #   add_dependencies(${targetName} proto_files)
 # endfunction()
 
+if (BUILD_VIDEO_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    video/decode_evaluator.cpp
+    video/encode_evaluator.cpp)
+endif()
+
 if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
     caffe/net_descriptor.cpp
@@ -47,7 +53,6 @@ endif()
 
 if (BUILD_UTIL_EVALUATORS)
   list(APPEND SOURCE_FILES
-    util/encoder_evaluator.cpp
     util/swizzle_evaluator.cpp)
 endif()
 

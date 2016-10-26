@@ -26,6 +26,7 @@ template <typename T>
 class Queue {
  public:
   Queue();
+  Queue(Queue<T>&& o);
 
   int size();
 
@@ -42,7 +43,7 @@ class Queue {
   std::mutex mutex_;
   std::condition_variable not_empty_;
   std::deque<T> data_;
-  std::atomic<int> waiters_;
+  std::atomic<int> waiters_{0};
 };
 }
 

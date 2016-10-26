@@ -1,4 +1,4 @@
-#include "scanner/evaluators/util/encoder_evaluator.h"
+#include "scanner/evaluators/video/encoder_evaluator.h"
 
 #include "scanner/util/opencv.h"
 
