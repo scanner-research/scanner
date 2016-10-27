@@ -6,6 +6,7 @@ if (BUILD_CAFFE_EVALUATORS)
     main.cpp
     ${PROTO_SRCS}
     $<TARGET_OBJECTS:evaluators>
+    $<TARGET_OBJECTS:video>
     $<TARGET_OBJECTS:util>)
 
   target_link_libraries(caffe_throughput

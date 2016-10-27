@@ -18,6 +18,7 @@ project(Scanner)
 
 ###### Config options #####
 set(PIPELINE_FILE "" CACHE FILEPATH "Pipeline file that contains setup fn.")
+option(BUILD_VIDEO_EVALUATORS "" ON)
 option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)

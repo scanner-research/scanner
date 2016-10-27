@@ -20,11 +20,12 @@
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/util/opencv.h"
 
-//#define USE_CUDA
+//#define HAVE_CUDA
 
 #ifdef HAVE_CUDA
 #include "scanner/util/cuda.h"
 #include <opencv2/core/cuda_stream_accessor.hpp>
+#include <opencv2/cudaarithm.hpp>
 #endif
 
 namespace scanner {
@@ -51,7 +52,7 @@ class FacenetInputEvaluator : public Evaluator {
   i32 net_input_width_;
   i32 net_input_height_;
 
-#ifdef USE_CUDA
+#ifdef HAVE_CUDA
   i32 num_cuda_streams_;
   cv::cuda::GpuMat mean_mat_g_;
   std::vector<cv::cuda::Stream> streams_;

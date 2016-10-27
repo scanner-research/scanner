@@ -413,7 +413,7 @@ void* evaluate_thread(void* arg) {
           for (i32 i = 0; i < num_inputs; ++i) {
             std::vector<u8*>& buffers = input_buffers[i];
             std::vector<size_t>& sizes = input_sizes[i];
-            for (i32 b = 0; b < batch_size; ++b) {
+            for (i32 b = 0; b < (i32)buffers.size(); ++b) {
               size_t size = sizes[b];
               u8* buffer = new_buffer(caps.device_type, device_id, size);
               memcpy_buffer(buffer, caps.device_type, device_id, buffers[b],
@@ -622,6 +622,8 @@ void* save_thread(void* arg) {
                << "): finished item " << work_entry.work_item_index;
 
     args.profiler.add_interval("task", work_start, now());
+
+    args.retired_items++;
   }
 
   LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
@@ -882,12 +884,13 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       // Wait for clients to ask for work
       while (next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
         // Check if we need to allocate work to our own processing thread
-        i32 local_work = accepted_items - retired_items;;
+        i32 local_work = accepted_items - retired_items;
         if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
           LoadWorkEntry entry;
           entry.work_item_index = next_work_item_to_allocate++;
           load_work.push(entry);
 
+          accepted_items++;
           if ((static_cast<i32>(work_items.size()) -
                next_work_item_to_allocate) %
                   10 ==
@@ -946,6 +949,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
             LoadWorkEntry entry;
             entry.work_item_index = next_item;
             load_work.push(entry);
+            accepted_items++;
           }
         }
         std::this_thread::yield();

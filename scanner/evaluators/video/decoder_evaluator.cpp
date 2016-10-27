@@ -32,6 +32,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig &config,
 void DecoderEvaluator::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
   frame_size_ = metadata_.width() * metadata_.height() * 3;
+  decoder_->configure(metadata);
 }
 
 void DecoderEvaluator::reset() {
@@ -46,7 +47,7 @@ void DecoderEvaluator::evaluate(
 {
   auto start = now();
 
-  DecodeArgs& args = reinterpret_cast<DecodeArgs*>(input_buffers[1][0]);
+  DecodeArgs& args = *reinterpret_cast<DecodeArgs*>(input_buffers[1][0]);
 
   const u8* encoded_buffer = input_buffers[0][0];
   size_t encoded_buffer_size = input_sizes[0][0];
@@ -56,39 +57,33 @@ void DecoderEvaluator::evaluate(
       needs_warmup_ ? args.warmup_start_frame : args.start_frame;
   i32 total_output_frames = args.end_frame - discard_until_frame;
 
-  size_t decoded_buffer_size = frame_size_ * total_output_frames;
-  u8* decoded_buffer =
-      new_buffer(device_type_, device_id_, decoded_buffer_size);
-
   size_t encoded_buffer_offset = 0;
   i32 current_frame = args.start_keyframe;
   while (current_frame < args.end_frame) {
     auto video_start = now();
 
     i32 encoded_packet_size = 0;
-    u8 *encoded_packet = NULL;
+    const u8 *encoded_packet = NULL;
     if (encoded_buffer_offset < encoded_buffer_size) {
       encoded_packet_size =
-          *reinterpret_cast<i32 *>(encoded_buffer + encoded_buffer_offset);
+          *reinterpret_cast<const i32*>(encoded_buffer + encoded_buffer_offset);
       encoded_buffer_offset += sizeof(i32);
       encoded_packet = encoded_buffer + encoded_buffer_offset;
       encoded_buffer_offset += encoded_packet_size;
     }
 
-    if (decoder->feed(encoded_packet, encoded_packet_size, discontinuity)) {
+    if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity)) {
       // New frames
       bool more_frames = true;
       while (more_frames && current_frame < args.end_frame) {
         if (current_frame >= discard_until_frame) {
-          size_t frames_buffer_offset =
-              frame_size_ * (current_frame - discard_until_frame);
-          assert(frames_buffer_offset < decoded_buffer_size);
-          u8* current_frame_buffer_pos = decoded_buffer + frames_buffer_offset;
-
-          more_frames =
-              decoder->get_frame(current_frame_buffer_pos, frame_size_);
+          u8* decoded_buffer =
+              new_buffer(device_type_, device_id_, frame_size_);
+          more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
+          output_buffers[0].push_back(decoded_buffer);
+          output_sizes[0].push_back(frame_size_);
         } else {
-          more_frames = decoder->discard_frame();
+          more_frames = decoder_->discard_frame();
         }
         current_frame++;
       }
@@ -96,10 +91,10 @@ void DecoderEvaluator::evaluate(
     discontinuity = false;
   }
   // Wait on all memcpys from frames to be done
-  decoder->wait_until_frames_copied();
+  decoder_->wait_until_frames_copied();
 
-  if (decoder->decoded_frames_buffered() > 0) {
-    while (decoder->discard_frame()) {
+  if (decoder_->decoded_frames_buffered() > 0) {
+    while (decoder_->discard_frame()) {
     };
   }
 

@@ -28,7 +28,7 @@ FacenetInputEvaluator::FacenetInputEvaluator(DeviceType device_type,
       batch_size_(batch_size),
       net_input_width_(224),
       net_input_height_(224)
-#ifdef USE_CUDA
+#ifdef HAVE_CUDA
       ,
       num_cuda_streams_(32),
       streams_(num_cuda_streams_)
@@ -43,7 +43,7 @@ void FacenetInputEvaluator::configure(const VideoMetadata& metadata) {
   net_input_height_ = metadata.height();
 
   if (device_type_ == DeviceType::GPU) {
-#ifdef USE_CUDA
+#ifdef HAVE_CUDA
     cv::cuda::setDevice(device_id_);
     cudaSetDevice(device_id_);
 
@@ -107,11 +107,11 @@ void FacenetInputEvaluator::evaluate(
     std::vector<std::vector<size_t>>& output_sizes) {
   auto eval_start = now();
 
-  size_t frame_size = net_input_width_ * net_input_height_ * 3 * sizeof(u8);
+  size_t frame_size = net_input_width_ * net_input_height_ * 3;
   i32 input_count = input_buffers[0].size();
 
   if (device_type_ == DeviceType::GPU) {
-#ifdef USE_CUDA
+#ifdef HAVE_CUDA
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
 
@@ -119,7 +119,7 @@ void FacenetInputEvaluator::evaluate(
       i32 batch_count = std::min(input_count - frame, batch_size_);
 
       f32* net_input;
-      i32 net_input_size = frame_size * batch_count;
+      i32 net_input_size = frame_size * batch_count * sizeof(f32);
       cudaMalloc((void**)&net_input, net_input_size);
 
       for (i32 i = 0; i < batch_count; ++i) {
@@ -173,7 +173,7 @@ void FacenetInputEvaluator::evaluate(
       void* buf;
       cudaMalloc(&buf, 1);
       output_buffers[0].push_back((u8*)buf);
-      output_sizes[0].push_back(0);
+      output_sizes[0].push_back(1);
     }
 #else
     LOG(FATAL) << "Not built with CUDA support.";

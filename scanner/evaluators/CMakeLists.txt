@@ -15,8 +15,8 @@ list(APPEND SOURCE_FILES
 
 if (BUILD_VIDEO_EVALUATORS)
   list(APPEND SOURCE_FILES
-    video/decode_evaluator.cpp
-    video/encode_evaluator.cpp)
+    video/decoder_evaluator.cpp
+    video/encoder_evaluator.cpp)
 endif()
 
 if (BUILD_CAFFE_EVALUATORS)
