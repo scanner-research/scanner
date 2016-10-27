@@ -11,27 +11,30 @@ void EncoderEvaluator::configure(const VideoMetadata& metadata) {
 }
 
 void EncoderEvaluator::evaluate(
-  const std::vector<std::vector<u8*>>& input_buffers,
-  const std::vector<std::vector<size_t>>& input_sizes,
-  std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes)
-{
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   auto start = now();
   // OpenCV 2.4.x apparently can't encode H.264 videos
-#if CV_MAJOR_VERSION >= 3
-  std::string ext(".mkv");
-  int fourcc = CV_FOURCC('H','2','6','4');
-#else
-  std::string ext(".avi");
-  int fourcc = CV_FOURCC('D','I','V','X');
-#endif
-  std::string path = std::tmpnam(nullptr) + ext;
+  std::string ext;
+  int fourcc;
+  if (CV_MAJOR_VERSION >= 3) {
+    ext = std::string(".mkv");
+    fourcc = CV_FOURCC('H', '2', '6', '4');
+  } else {
+    ext = std::string(".avi");
+    fourcc = CV_FOURCC('D', 'I', 'V', 'X');
+  }
+  char templt[] = "/tmp/videoXXXXXX";
+  if (mkstemp(templt) == -1) {
+    LOG(FATAL) << "Encoder failed to make temp file";
+  }
+  std::string path = std::string(templt) + ext;
   {
-    cv::VideoWriter writer(
-      path,
-      fourcc,
-      24.0, // TODO: get this from metadata
-      cv::Size(metadata.width(), metadata.height()));
+    cv::VideoWriter writer(path, fourcc,
+                           24.0,  // TODO: get this from metadata
+                           cv::Size(metadata.width(), metadata.height()));
 
     for (auto& buf : input_buffers[0]) {
       cv::Mat img = bytesToImage(buf, metadata);
@@ -40,17 +43,25 @@ void EncoderEvaluator::evaluate(
     }
   }
 
-  FILE *f = fopen(path.c_str(), "rb");
+  FILE* f = fopen(path.c_str(), "rb");
   if (f == NULL) {
-    LOG(FATAL) << path << " could not be found";
+    LOG(FATAL) << "Encoder could not find " << path;
   }
-  fseek(f, 0, SEEK_END);
+  if (fseek(f, 0, SEEK_END) != 0) {
+    LOG(FATAL) << "Encoder seek failed";
+  }
   long fsize = ftell(f);
-  fseek(f, 0, SEEK_SET);
+  if (fseek(f, 0, SEEK_SET) != 0) {
+    LOG(FATAL) << "Encoder seek failed";
+  }
 
   u8* buf = new u8[fsize];
-  fread(buf, fsize, 1, f);
-  fclose(f);
+  if (fread(buf, fsize, 1, f) != fsize) {
+    LOG(FATAL) << "Encoder failed to read " << fsize << " bytes from " << path;
+  }
+  if (fclose(f) != 0) {
+    LOG(FATAL) << "Encoder failed to close file " << path;
+  }
 
   for (i32 i = 0; i < input_buffers[0].size() - 1; ++i) {
     output_buffers[0].push_back(new u8[1]);
@@ -80,8 +91,7 @@ std::vector<std::string> EncoderEvaluatorFactory::get_output_names() {
 }
 
 Evaluator* EncoderEvaluatorFactory::new_evaluator(
-  const EvaluatorConfig& config) {
+    const EvaluatorConfig& config) {
   return new EncoderEvaluator(config);
 }
-
 }
