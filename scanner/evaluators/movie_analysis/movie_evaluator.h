@@ -10,7 +10,8 @@ namespace scanner {
 
 class MovieEvaluator : public Evaluator {
  public:
-  MovieEvaluator(EvaluatorConfig config);
+  MovieEvaluator(EvaluatorConfig config, DeviceType device_type,
+                 std::vector<std::string> outputs);
 
   void configure(const VideoMetadata& metadata) override;
 
@@ -24,17 +25,23 @@ class MovieEvaluator : public Evaluator {
  private:
   VideoMetadata metadata;
   std::map<std::string, std::unique_ptr<MovieFeatureEvaluator>> evaluators;
+  DeviceType device_type_;
+  std::vector<std::string> outputs_;
 };
 
 class MovieEvaluatorFactory : public EvaluatorFactory {
-public:
-  MovieEvaluatorFactory();
+ public:
+  MovieEvaluatorFactory(DeviceType device_type,
+                        std::vector<std::string> outputs);
 
   EvaluatorCapabilities get_capabilities() override;
 
   std::vector<std::string> get_output_names() override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
-};
 
+ private:
+  DeviceType device_type_;
+  std::vector<std::string> outputs_;
+};
 }

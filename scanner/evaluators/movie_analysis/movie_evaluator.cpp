@@ -3,27 +3,32 @@
 #include "scanner/evaluators/movie_analysis/movie_evaluator.h"
 #include "scanner/util/opencv.h"
 
-#include "histogram_evaluator.h"
-#include "face_evaluator.h"
-#include "optical_flow_evaluator.h"
 #include "camera_motion_evaluator.h"
+#include "face_evaluator.h"
+#include "histogram_evaluator.h"
+#include "optical_flow_evaluator.h"
 
 namespace scanner {
 
-MovieEvaluator::MovieEvaluator(EvaluatorConfig config) {
-  #ifdef HAVE_CUDA
-  assert(config.device_ids.size() == 1);
-  cvc::setDevice(config.device_ids[0]);
-  #endif
+MovieEvaluator::MovieEvaluator(EvaluatorConfig config, DeviceType device_type,
+                               std::vector<std::string> outputs)
+    : device_type_(device_type), outputs_(outputs) {
+  if (device_type == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    assert(config.device_ids.size() == 1);
+    cvc::setDevice(config.device_ids[0]);
+#endif
+  }
 
-  std::unique_ptr<MovieFeatureEvaluator> faces(new FaceEvaluator());
-  std::unique_ptr<MovieFeatureEvaluator> histogram(new HistogramEvaluator());
-  std::unique_ptr<MovieFeatureEvaluator> opticalflow(new OpticalFlowEvaluator());
-  std::unique_ptr<MovieFeatureEvaluator> cameramotion(new CameraMotionEvaluator());
+  std::unique_ptr<MovieFeatureEvaluator> faces(new FaceEvaluator(device_type_));
+  std::unique_ptr<MovieFeatureEvaluator> histogram(new HistogramEvaluator(device_type_);
+  std::unique_ptr<MovieFeatureEvaluator> opticalflow(new OpticalFlowEvaluator(device_type_));
+  std::unique_ptr<MovieFeatureEvaluator> cameramotion(new CameraMotionEvaluator(device_type_));
   evaluators["faces"] = std::move(faces);
   evaluators["histogram"] = std::move(histogram);
   evaluators["opticalflow"] = std::move(opticalflow);
   evaluators["cameramotion"] = std::move(cameramotion);
+
   for (auto& entry : evaluators) {
     entry.second->set_profiler(profiler_);
   }
@@ -43,11 +48,10 @@ void MovieEvaluator::reset() {
 }
 
 void MovieEvaluator::evaluate(
-  const std::vector<std::vector<u8*>>& input_buffers,
-  const std::vector<std::vector<size_t>>& input_sizes,
-  std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes)
-{
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   std::vector<Mat> imgs;
   for (i32 i = 0; i < input_buffers[0].size(); ++i) {
 #ifdef HAVE_CUDA
@@ -59,53 +63,40 @@ void MovieEvaluator::evaluate(
   }
 
   auto start = now();
-  evaluators["opticalflow"]->evaluate_wrapper(imgs, output_buffers[0], output_sizes[0]);
-// #if defined DEBUG_FACE_DETECTOR
-//   evaluators["faces"]->evaluate(imgs, output_buffers[0], output_sizes[0]);
-// #elif defined DEBUG_OPTICAL_FLOW
-//   evaluators["opticalflow"]->evaluate(imgs, output_buffers[0], output_sizes[0]);
-// #else
-//   evaluators["faces"]->evaluate(imgs, output_buffers[0], output_sizes[0]);
-//   evaluators["histogram"]->evaluate(imgs, output_buffers[1], output_sizes[1]);
-//   evaluators["opticalflow"]->evaluate(imgs, output_buffers[2], output_sizes[2]);
-// #endif
+  for (i32 i = 0; i < outputs_.size(); i++) {
+    evaluators[outputs_[i]]->evaluate_wrapper(imgs, output_buffers[i],
+                                              output_sizes[i]);
+  }
+
   if (profiler_) {
     profiler_->add_interval("movie", start, now());
   }
 }
 
-MovieEvaluatorFactory::MovieEvaluatorFactory() {
+MovieEvaluatorFactory::MovieEvaluatorFactory(DeviceType device_type,
+                                             std::vector<std::string> outputs)
+    : outputs_(outputs), device_type_(device_type) {
 #ifdef USE_HEADHUNTER
-  boost::filesystem::path config_path
-    ("/homes/wcrichto/lightscan/eccv2014_face_detection_fefdw_HeadHunter_baseline.config.ini");
+  boost::filesystem::path config_path(
+      "/homes/wcrichto/lightscan/"
+      "eccv2014_face_detection_fefdw_HeadHunter_baseline.config.ini");
   objects_detection::init_objects_detection(config_path);
 #endif
 }
 
 EvaluatorCapabilities MovieEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
-#ifdef HAVE_CUDA
-  caps.device_type = DeviceType::GPU;
-#else
-  caps.device_type = DeviceType::CPU;
-#endif
+  caps.device_type = device_type_;
   caps.max_devices = 1;
   caps.warmup_size = 1;
   return caps;
 }
 
 std::vector<std::string> MovieEvaluatorFactory::get_output_names() {
-#ifdef DEBUG_FACE_DETECTOR
-  return {"faces"};
-#else
-  //return {"faces", "histogram", "opticalflow"};
-  return {"opticalflow"};
-#endif
+  return outputs_;
 }
 
-Evaluator* MovieEvaluatorFactory::new_evaluator(
-  const EvaluatorConfig& config) {
-  return new MovieEvaluator(config);
+Evaluator* MovieEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
+  return new MovieEvaluator(config, device_type_, outputs_);
 }
-
 }

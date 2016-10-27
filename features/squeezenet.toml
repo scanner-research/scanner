@@ -1,0 +1,28 @@
+[net]
+    model = "features/squeezenet/deploy.prototxt"
+    weights = "features/squeezenet/squeezenet_v1.0.caffemodel"
+    input_layer = "data"
+    output_layers = ["pool10"]
+    input_width = 227
+    input_height = 227
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width"
+        ]
+        channel_ordering = [
+            "blue",
+            "green",
+            "red"
+        ]
+
+[mean-image]
+    width = 227
+    height = 227
+    [mean-image.colors]
+        blue = 104.0
+        green = 117.0
+        red = 123.0

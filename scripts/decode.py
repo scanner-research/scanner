@@ -29,6 +29,10 @@ def load_cameramotion(buf, metadata):
 def load_yolo_features(buf, metadata):
     return np.frombuffer(buf, dtype=np.dtype(np.float32))
 
+@db.loader('pool10')
+def load_squeezenet_features(buf, metadata):
+    return np.frombuffer(buf, dtype=np.dtype(np.float32))
+
 cv_version = 3 # int(cv2.__version__.split('.')[0])
 
 def save_movie_info():

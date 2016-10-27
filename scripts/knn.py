@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import scipy.spatial.distance as dist
 from sklearn.neighbors import NearestNeighbors
-from decode import load_yolo_features, db
+from decode import load_squeezenet_features, db
 from timeit import default_timer
 import os
 import toml
@@ -11,7 +11,8 @@ os.environ['GLOG_minloglevel'] = '4' # Silencio, Caffe!
 import caffe
 
 USE_GPU = False
-NET = 'yolo'
+NET = 'squeezenet'
+NUM_FEATURES = 1000
 K = 5
 
 def write(s):
@@ -24,13 +25,15 @@ def write_timer(start):
 
 
 class FeatureSearch:
+    """ TODO(wcrichto): document me """
+
     def __init__(self, dataset_name, job_name):
         self.index = []
         count = 0
-        norms = np.ndarray(shape=(0,4096))
+        norms = np.ndarray(shape=(0,NUM_FEATURES))
         write('Loading features... ')
         start = default_timer()
-        for video in load_yolo_features(dataset_name, job_name):
+        for video in load_squeezenet_features(dataset_name, job_name):
             self.index.append((video['path'], count))
             bufs = np.array(video['buffers'])
             count += len(bufs)
@@ -38,8 +41,11 @@ class FeatureSearch:
         write_timer(start)
         write('Preparing KNN... ')
         start = default_timer()
-        self.knn = NearestNeighbors(algorithm='brute', n_neighbors=K, metric='euclidean').fit(norms)
+        self.knn = NearestNeighbors(algorithm='brute', n_neighbors=K,
+                                    metric='euclidean') \
+            .fit(norms)
         write_timer(start)
+
 
     def search(self, exemplar):
         write('Searching KNN... ')
@@ -89,7 +95,7 @@ def init_net():
         net.forward_all(data=np.asarray([preprocessed]))
         write_timer(start)
 
-        return net.blobs[feature_layer].data[0]
+        return net.blobs[feature_layer].data[0].reshape((NUM_FEATURES))
 
     return process
 

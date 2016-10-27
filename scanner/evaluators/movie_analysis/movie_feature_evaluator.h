@@ -1,8 +1,8 @@
 #pragma once
 
 #include "scanner/util/common.h"
-#include "scanner/util/opencv.h"
 #include "scanner/util/cycle_timer.h"
+#include "scanner/util/opencv.h"
 #include "scanner/util/profiler.h"
 
 #ifdef HAVE_CUDA
@@ -21,46 +21,41 @@ typedef cv::Mat Mat;
 #endif
 
 class MovieFeatureEvaluator {
-public:
+ public:
+  MovieFeatureEvaluator(DeviceType device_type) : device_type_(device_type) {}
 
-  virtual ~MovieFeatureEvaluator(){}
+  virtual ~MovieFeatureEvaluator() {}
 
-  void configure(const VideoMetadata& metadata) {
-    this->metadata = metadata;
-  }
+  void configure(const VideoMetadata& metadata) { this->metadata_ = metadata; }
 
-  void set_profiler(Profiler* profiler) {
-    this->profiler = profiler;
-  }
+  void set_profiler(Profiler* profiler) { this->profiler_ = profiler; }
 
   void reset_wrapper() {
 #ifdef HAVE_CUDA
-    initial_frame = cvc::GpuMat();
+    initial_frame_ = cvc::GpuMat();
 #else
-    initial_frame = cv::Mat();
+    initial_frame_ = cv::Mat();
 #endif
     reset();
   }
 
   virtual void reset() {}
 
-  void evaluate_wrapper(
-    std::vector<Mat>& inputs,
-    std::vector<u8*>& output_buffers,
-    std::vector<size_t>& output_sizes) {
+  void evaluate_wrapper(std::vector<Mat>& inputs,
+                        std::vector<u8*>& output_buffers,
+                        std::vector<size_t>& output_sizes) {
     evaluate(inputs, output_buffers, output_sizes);
-    inputs[inputs.size()-1].copyTo(initial_frame);
+    inputs[inputs.size() - 1].copyTo(initial_frame_);
   }
 
-  virtual void evaluate(
-    std::vector<Mat>& inputs,
-    std::vector<u8*>& output_buffers,
-    std::vector<size_t>& output_sizes) = 0;
+  virtual void evaluate(std::vector<Mat>& inputs,
+                        std::vector<u8*>& output_buffers,
+                        std::vector<size_t>& output_sizes) = 0;
 
-protected:
-  VideoMetadata metadata;
-  Mat initial_frame;
-  Profiler* profiler;
+ protected:
+  VideoMetadata metadata_;
+  Mat initial_frame_;
+  Profiler* profiler_;
+  DeviceType device_type_;
 };
-
 }

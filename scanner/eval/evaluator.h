@@ -26,7 +26,9 @@ class Evaluator {
  public:
   virtual ~Evaluator(){};
 
-  virtual void configure(const VideoMetadata& metadata) = 0;
+  virtual void configure(const VideoMetadata& metadata) {
+    metadata_ = metadata;
+  };
 
   virtual void reset(){};
 
@@ -39,5 +41,6 @@ class Evaluator {
 
  protected:
   Profiler* profiler_ = nullptr;
+  VideoMetadata metadata_;
 };
 }
