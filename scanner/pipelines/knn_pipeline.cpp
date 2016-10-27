@@ -1,4 +1,5 @@
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
+#include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/squeezenet/squeezenet_input_evaluator.h"
 
@@ -15,6 +16,8 @@ std::vector<std::unique_ptr<EvaluatorFactory>> setup_evaluator_pipeline() {
 
   std::vector<std::unique_ptr<EvaluatorFactory>> factories;
 
+  factories.emplace_back(
+      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new SqueezeNetInputEvaluatorFactory(
       DeviceType::CPU, descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(DeviceType::GPU, descriptor,
