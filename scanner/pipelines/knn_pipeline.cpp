@@ -1,7 +1,7 @@
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
-#include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/squeezenet/squeezenet_input_evaluator.h"
+#include "scanner/evaluators/video/decoder_evaluator.h"
 
 using namespace scanner;
 

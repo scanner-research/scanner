@@ -190,13 +190,31 @@ void ofdis(const cv::Mat& img_a, const cv::Mat& img_b, cv::Mat& output) {
 #endif
 
 OpticalFlowEvaluator::OpticalFlowEvaluator(DeviceType device_type)
-    : device_type_(device_type) {}
+    : device_type_(device_type) {
+  reset();
+}
+
+OpticalFlowEvaluator::~OpticalFlowEvaluator() {
+  if (initial_frame != nullptr) {
+    if (device_type_ == DeviceType::GPU) {
+      delete ((cvc::GpuMat*)initial_frame_);
+    } else {
+      delete ((cv::Mat*)initial_frame_);
+    }
+  }
+}
 
 void OpticalFlowEvaluator::reset() {
   if (device_type_ == DeviceType::GPU) {
-    initial_frame_ = cvc::GpuMat();
+    if (initial_frame_ != nullptr) {
+      delete ((cvc::GpuMat*)initial_frame_);
+    }
+    initial_frame_ = (void*)new cvc::GpuMat();
   } else {
-    initial_frame_ = cv::Mat();
+    if (initial_frame_ != nullptr) {
+      delete ((cv::Mat*)initial_frame_);
+    }
+    initial_frame_ = (void*)new cv::Mat();
   }
 }
 
@@ -216,9 +234,10 @@ void OpticalFlowEvaluator::evaluate(
     i32 out_buf_size = img_size.width * img_size.height * 2 * sizeof(float);
 
     std::vector<cvc::GpuMat> imgs_gray;
-    if (!initial_frame_.empty()) {
+    cvc::GpuMat* initial = (cvc::GpuMat*)initial_frame_;
+    if (!initial->empty()) {
       cvc::GpuMat gray;
-      cvc::cvtColor(initial_frame_, gray, CV_BGR2GRAY);
+      cvc::cvtColor(*initial, gray, CV_BGR2GRAY);
       imgs_gray.emplace_back(gray);
     } else {
       u8* out_buf;
@@ -264,6 +283,8 @@ void OpticalFlowEvaluator::evaluate(
       output_sizes[0].push_back(out_buf_size);
       output_buffers[0].push_back(output_buf);
     }
+
+    inputs[inputs.size() - 1].copyTo(*initial);
 #else
     LOG(FATAL) << "Cuda not installed.";
 #endif  // HAVE_CUDA
@@ -281,9 +302,10 @@ void OpticalFlowEvaluator::evaluate(
 #endif
 
     std::vector<cv::Mat> imgs_gray;
-    if (!initial_frame_.empty()) {
+    cv::Mat* initial = (cv::Mat*)initial_frame_;
+    if (!initial->empty()) {
       cv::Mat gray;
-      cv::cvtColor(initial_frame_, gray, CV_BGR2GRAY);
+      cv::cvtColor(*initial, gray, CV_BGR2GRAY);
       imgs_gray.emplace_back(gray);
     } else {
       u8* out_buf = new u8[out_buf_size];

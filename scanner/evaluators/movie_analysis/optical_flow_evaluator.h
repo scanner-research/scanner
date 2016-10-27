@@ -13,6 +13,7 @@ namespace scanner {
 class OpticalFlowEvaluator : public Evaluator {
  public:
   OpticalFlowEvaluator(DeviceType device_type);
+  ~OpticalFlowEvaluator();
 
   void reset() override;
 
@@ -23,7 +24,7 @@ class OpticalFlowEvaluator : public Evaluator {
 
  private:
   DeviceType device_type_;
-  cv::_InputOutputArray initial_frame_;
+  void* initial_frame_;
 };
 
 class OpticalFlowEvaluatorFactory : public EvaluatorFactory {
