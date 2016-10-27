@@ -64,9 +64,12 @@ void TrackerEvaluator::evaluate(
   i32 input_count = input_buffers[0].size();
   LOG(INFO) << "Tracker evaluate on " << input_count << " inputs";
 
+  i32 frame_idx = 0;
+  i32 box_idx = 1;
+
   for (i32 b = 0; b < input_count; ++b) {
-    u8 *bbox_buffer = input_buffers[1][b];
-    size_t num_bboxes = *((size_t *)bbox_buffer);
+    u8* bbox_buffer = input_buffers[box_idx][b];
+    size_t num_bboxes = *((size_t*)bbox_buffer);
     bbox_buffer += sizeof(size_t);
     i32 bbox_size = *((i32 *)bbox_buffer);
     bbox_buffer += sizeof(i32);
@@ -105,7 +108,7 @@ void TrackerEvaluator::evaluate(
     // Perform tracking for all existing tracks that we have
     std::vector<BoundingBox> generated_bboxes;
     {
-      u8 *buffer = input_buffers[0][b];
+      u8 *buffer = input_buffers[frame_idx][b];
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
         auto& track = tracks_[i];
@@ -150,13 +153,16 @@ void TrackerEvaluator::evaluate(
       config.features.push_back(fkp);
       track.tracker.reset(new struck::Tracker(config));
 
-      u8 *buffer = input_buffers[0][b];
+      u8 *buffer = input_buffers[frame_idx][b];
+      assert(input_sizes[frame_idx][b] ==
+            metadata_.height() * metadata_.width() * 3);
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
                           box.y2() - box.y1());
       track.tracker->Initialise(frame, r);
 
       box.set_track_id(track.id);
+      box.set_track_score(0.0f);
       track.frames_since_last_detection = 0;
 
       generated_bboxes.push_back(box);
@@ -178,17 +184,17 @@ void TrackerEvaluator::evaluate(
 
   u8 *buffer = nullptr;
   for (i32 b = 0; b < input_count; ++b) {
-    size_t size = input_sizes[0][b];
+    size_t size = input_sizes[frame_idx][b];
     if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
       cudaMalloc((void **)&buffer, size);
-      cudaMemcpy(buffer, input_buffers[0][b], size, cudaMemcpyDefault);
+      cudaMemcpy(buffer, input_buffers[frame_idx][b], size, cudaMemcpyDefault);
 #else
       LOG(FATAL) << "Not built with CUDA support.";
 #endif
     } else {
       buffer = new u8[size];
-      memcpy(buffer, input_buffers[0][b], size);
+      memcpy(buffer, input_buffers[frame_idx][b], size);
     }
     output_buffers[0].push_back(buffer);
     output_sizes[0].push_back(size);
@@ -230,7 +236,7 @@ EvaluatorCapabilities TrackerEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> TrackerEvaluatorFactory::get_output_names() {
-  return {"image", "before_bboxes", "after_bboxes"};
+  return {"frame", "before_bboxes", "after_bboxes"};
 }
 
 Evaluator *

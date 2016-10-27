@@ -99,12 +99,15 @@ void FacenetParserEvaluator::evaluate(
   i32 input_count = (i32)input_buffers[0].size();
 
   i32 feature_idx;
+  i32 frame_idx;
   if (forward_input_) {
     assert(input_buffers.size() >= 2);
     feature_idx = 1;
+    frame_idx = 0;
   } else {
     assert(input_buffers.size() >= 1);
     feature_idx = 0;
+    frame_idx = 0;
   }
 
   // Get bounding box data from output feature vector and turn it
@@ -205,20 +208,20 @@ void FacenetParserEvaluator::evaluate(
   if (forward_input_) {
     u8 *buffer = nullptr;
     for (i32 b = 0; b < input_count; ++b) {
-      size_t size = input_sizes[0][b];
+      size_t size = input_sizes[frame_idx][b];
       if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
         cudaMalloc((void**)&buffer, size);
-        cudaMemcpy(buffer, input_buffers[0][b], size, cudaMemcpyDefault);
+        cudaMemcpy(buffer, input_buffers[frame_idx][b], size, cudaMemcpyDefault);
 #else
         LOG(FATAL) << "Not built with CUDA support.";
 #endif
       } else {
         buffer = new u8[size];
-        memcpy(buffer, input_buffers[0][b], size);
+        memcpy(buffer, input_buffers[frame_idx][b], size);
       }
-      output_buffers[0].push_back(buffer);
-      output_sizes[0].push_back(size);
+      output_buffers[frame_idx].push_back(buffer);
+      output_sizes[frame_idx].push_back(size);
     }
   }
 }
