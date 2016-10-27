@@ -195,7 +195,7 @@ OpticalFlowEvaluator::OpticalFlowEvaluator(DeviceType device_type)
 }
 
 OpticalFlowEvaluator::~OpticalFlowEvaluator() {
-  if (initial_frame != nullptr) {
+  if (initial_frame_ != nullptr) {
     if (device_type_ == DeviceType::GPU) {
       delete ((cvc::GpuMat*)initial_frame_);
     } else {
