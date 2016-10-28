@@ -48,6 +48,7 @@ void DecoderEvaluator::evaluate(
   auto start = now();
 
   DecodeArgs& args = *reinterpret_cast<DecodeArgs*>(input_buffers[1][0]);
+  assert(input_sizes[1][0] == sizeof(DecodeArgs));
 
   const u8* encoded_buffer = input_buffers[0][0];
   size_t encoded_buffer_size = input_sizes[0][0];
@@ -114,6 +115,7 @@ EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
   caps.device_type = device_type_;
   caps.max_devices = 1;
   caps.warmup_size = 0;
+  caps.can_overlap = true;
   return caps;
 }
 

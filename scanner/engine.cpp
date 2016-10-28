@@ -71,6 +71,7 @@ struct LoadWorkEntry {
 
 struct EvalWorkEntry {
   i32 work_item_index;
+  std::vector<std::string> column_names;
   std::vector<std::vector<size_t>> buffer_sizes;
   std::vector<std::vector<u8*>> buffers;
   DeviceType buffer_type;
@@ -104,6 +105,8 @@ struct EvaluateThreadArgs {
 
   // Per worker arguments
   int id;
+  int evaluator_group;
+  bool last_evaluator_group;
   std::vector<EvaluatorFactory*> evaluator_factories;
   std::vector<EvaluatorConfig> evaluator_configs;
   Profiler& profiler;
@@ -237,6 +240,7 @@ void* load_video_thread(void* arg) {
 
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
+    eval_work_entry.column_names = {"video", "video_args"};
     eval_work_entry.buffer_sizes.resize(2);
     eval_work_entry.buffers.resize(2);
     eval_work_entry.buffer_type = DeviceType::CPU;
@@ -259,7 +263,7 @@ void* load_video_thread(void* arg) {
     decode_args->end_keyframe = keyframe_positions[end_keyframe_index];
 
     eval_work_entry.buffers[1].push_back(decode_args_buffer);
-    eval_work_entry.buffer_sizes[1].push_back(sizeof(decode_args));
+    eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
 
     args.eval_work.push(eval_work_entry);
   }
@@ -322,8 +326,9 @@ void* evaluate_thread(void* arg) {
       break;
     }
 
-    LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
-               << "): processing item " << work_entry.work_item_index;
+    LOG(INFO) << "Evaluate (N/PU/G: " << rank << "/" << args.id << "/"
+              << args.evaluator_group << "): processing item "
+              << work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -356,9 +361,10 @@ void* evaluate_thread(void* arg) {
     size_t frame_size = metadata.width() * metadata.height() * 3 * sizeof(u8);
 
     EvalWorkEntry output_work_entry;
+    output_work_entry.work_item_index = work_entry.work_item_index;
     output_work_entry.buffer_type = DeviceType::CPU;
     output_work_entry.buffer_device_id = 0;
-    output_work_entry.work_item_index = work_entry.work_item_index;
+    output_work_entry.video_decode_item = false;
 
     std::vector<std::vector<size_t>>& work_item_output_sizes =
         output_work_entry.buffer_sizes;
@@ -369,13 +375,16 @@ void* evaluate_thread(void* arg) {
 
     // Needs
 
-    i32 current_frame =
+    i32 starting_frame =
         needs_reset ? work_item.warmup_start_frame : work_item.start_frame;
+    i32 current_frame = starting_frame;
     i32 total_frames = work_item.end_frame - current_frame;
     while (current_frame < work_item.end_frame) {
-      i32 frame_offset = current_frame - work_item.warmup_start_frame;
+      i32 frame_offset = current_frame - starting_frame;
       i32 batch_size =
-          std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame);
+          std::min(
+              static_cast<i32>(work_entry.buffers[0].size()),
+              std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame));
 
       std::vector<std::string> input_names;
       std::vector<std::vector<u8 *>> input_buffers;
@@ -385,9 +394,22 @@ void* evaluate_thread(void* arg) {
       // Initialize the output buffers with the frame input because we
       // perform a swap from output to input on each iterator to pass outputs
       // from the previous evaluator into the input of the next one
-      std::vector<std::string> output_names = {"video", "video_args"};
-      std::vector<std::vector<u8*>> output_buffers{work_entry.buffers};
-      std::vector<std::vector<size_t>> output_sizes{work_entry.buffer_sizes};
+      std::vector<std::string> output_names = work_entry.column_names;
+      std::vector<std::vector<u8*>> output_buffers(work_entry.buffers.size());
+      for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
+        output_buffers[i].insert(output_buffers[i].end(),
+                                 work_entry.buffers[i].begin() + frame_offset,
+                                 work_entry.buffers[i].begin() + frame_offset +
+                                     batch_size);
+      }
+      std::vector<std::vector<size_t>> output_sizes(
+          work_entry.buffer_sizes.size());
+      for (size_t i = 0; i < work_entry.buffer_sizes.size(); ++i) {
+        output_sizes[i].insert(
+            output_sizes[i].end(),
+            work_entry.buffer_sizes[i].begin() + frame_offset,
+            work_entry.buffer_sizes[i].begin() + frame_offset + batch_size);
+      }
       DeviceType output_buffer_type = work_entry.buffer_type;
       i32 output_device_id = work_entry.buffer_device_id;
 
@@ -455,6 +477,12 @@ void* evaluate_thread(void* arg) {
                 << ". Expected " << batch_size << " outputs.";
           }
         }
+        // HACK(apoms): Handle the case where the video decode evaluator gets a
+        //   single input but produces multiple outputs. Should be removed if we
+        //   add flatmap esque increases in output element count
+        if (e == 0 && work_entry.video_decode_item) {
+          batch_size = output_sizes[0].size();
+        }
 
         // Delete input buffers after they are used
         for (size_t i = 0; i < num_inputs; ++i) {
@@ -464,8 +492,15 @@ void* evaluate_thread(void* arg) {
           }
         }
       }
-      i32 warmup_frames = std::min(
-          batch_size, std::max(0, work_item.start_frame - current_frame));
+      // Only discard warmup frames for last evaluator group because otherwise
+      // they need to be forwarded to warm up later evaluator groups
+      i32 warmup_frames;
+      if (args.last_evaluator_group) {
+        warmup_frames = std::min(
+            batch_size, std::max(0, work_item.start_frame - current_frame));
+      } else {
+        warmup_frames = 0;
+      }
       for (i32 i = 0; i < last_evaluator_num_columns; ++i) {
         assert(output_sizes[i].size() == output_buffers[i].size());
 
@@ -482,9 +517,8 @@ void* evaluate_thread(void* arg) {
             size_t size = output_sizes[i][f];
             u8 *src_buffer = output_buffers[i][f];
             u8 *dest_buffer = new_buffer(DeviceType::CPU, 0, size);
-            memcpy_buffer(dest_buffer, DeviceType::CPU, 0,
-                          src_buffer, output_buffer_type, output_device_id,
-                          size);
+            memcpy_buffer(dest_buffer, DeviceType::CPU, 0, src_buffer,
+                          output_buffer_type, output_device_id, size);
             delete_buffer(output_buffer_type, output_device_id, src_buffer);
             output_buffers[i][f] = dest_buffer;
           }
@@ -820,14 +854,16 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       }
       // Input work queue
       Queue<EvalWorkEntry>* input_work_queue;
-      if (fg == 0) {
+      bool first_evaluator_group = (fg == 0);
+      if (first_evaluator_group) {
         input_work_queue = &initial_eval_work;
       } else {
         input_work_queue = &work_queues[fg - 1];
       }
       // Create new queue for output, reuse previous queue as input
+      bool last_evaluator_group = (fg == factory_groups_per_chain - 1);
       Queue<EvalWorkEntry>* output_work_queue;
-      if (fg == factory_groups_per_chain - 1) {
+      if (last_evaluator_group) {
         output_work_queue = &save_work;
       } else {
         output_work_queue = &work_queues[fg];
@@ -838,7 +874,8 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
           video_metadata, work_items,
 
           // Per worker arguments
-          pu, factory_groups[fg], eval_configs, eval_thread_profilers[fg],
+          pu, fg, last_evaluator_group, factory_groups[fg], eval_configs, 
+          eval_thread_profilers[fg],
 
           // Queues
           *input_work_queue, *output_work_queue});

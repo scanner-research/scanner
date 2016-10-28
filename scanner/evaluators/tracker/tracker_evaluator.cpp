@@ -164,8 +164,6 @@ void TrackerEvaluator::evaluate(
       box.set_track_id(track.id);
       box.set_track_score(0.0f);
       track.frames_since_last_detection = 0;
-
-      generated_bboxes.push_back(box);
     }
 
     {
