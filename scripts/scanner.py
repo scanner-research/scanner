@@ -4,7 +4,10 @@ import toml
 import os
 import logging
 
+
 class ScannerConfig:
+    """ TODO(wcrichto): document me """
+
     def __init__(self, config_path=None):
         if config_path is None:
             config_path = self.default_config_path()
@@ -26,13 +29,15 @@ class ScannerConfig:
             logging.critical('Error: you need to setup your Scanner config. Run `python scripts/setup.py`.')
             exit()
 
+
 class Scanner:
+    """ TODO(wcrichto): document me """
+
     def __init__(self, config_path=None):
         self.config = ScannerConfig(config_path)
         sys.path.append('{}/build'.format(self.config.scanner_path))
         import metadata_pb2
         self._meta = metadata_pb2
-
 
     def load_output_buffers(self, dataset_name, job_name, column, fn, intvl=None):
         db_path = self.config.db_path
@@ -92,7 +97,6 @@ class Scanner:
                     logging.warning(err)
             yield result
 
-
     def write_output_buffers(dataset_name, job_name, ident, column, fn, video_data):
         job = self._meta.JobDescriptor()
         job.id = ident
@@ -124,13 +128,11 @@ class Scanner:
         with open('{}/{}_job_descriptor.bin'.format(self.config.db_path, job_name), 'wb') as f:
             f.write(job.SerializeToString())
 
-
     def get_output_size(self, job_name):
         with open('{}/{}_job_descriptor.bin'.format(self.config.db_path, job_name), 'r') as f:
             job = json.loads(f.read())
 
         return job['videos'][0]['intervals'][-1][1]
-
 
     def loader(self, column):
         def decorator(f):
@@ -139,14 +141,12 @@ class Scanner:
             return loader
         return decorator
 
-
     def load_db_metadata(self):
         path = '{}/db_metadata.bin'.format(self.config.db_path)
         meta = self._meta.DatabaseDescriptor()
         with open(path, 'rb') as f:
             meta.ParseFromString(f.read())
         return meta
-
 
     def write_db_metadata(self, meta):
         path = '{}/db_metadata.bin'.format(self.config.db_path)

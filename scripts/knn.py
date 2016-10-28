@@ -7,13 +7,14 @@ from timeit import default_timer
 import os
 import toml
 
-os.environ['GLOG_minloglevel'] = '4' # Silencio, Caffe!
+os.environ['GLOG_minloglevel'] = '4'  # Silencio, Caffe!
 import caffe
 
 USE_GPU = False
 NET = 'squeezenet'
 NUM_FEATURES = 1000
 K = 5
+
 
 def write(s):
     sys.stdout.write(s)
@@ -30,7 +31,7 @@ class FeatureSearch:
     def __init__(self, dataset_name, job_name):
         self.index = []
         count = 0
-        norms = np.ndarray(shape=(0,NUM_FEATURES))
+        norms = np.ndarray(shape=(0, NUM_FEATURES))
         write('Loading features... ')
         start = default_timer()
         for video in load_squeezenet_features(dataset_name, job_name):
@@ -42,10 +43,9 @@ class FeatureSearch:
         write('Preparing KNN... ')
         start = default_timer()
         self.knn = NearestNeighbors(algorithm='brute', n_neighbors=K,
-                                    metric='euclidean') \
+                                    metric='cosine') \
             .fit(norms)
         write_timer(start)
-
 
     def search(self, exemplar):
         write('Searching KNN... ')
@@ -68,7 +68,6 @@ def init_net():
 
     if USE_GPU: caffe.set_mode_gpu()
     else: caffe.set_mode_cpu()
-
     scanner_path = db.config.scanner_path
     net_config_path = '{}/features/{}.toml'.format(scanner_path, NET)
     with open(net_config_path, 'r') as f:
@@ -84,8 +83,8 @@ def init_net():
     write_timer(start)
 
     transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
-    transformer.set_transpose('data', (2,0,1))
-    transformer.set_channel_swap('data', (2,1,0))
+    transformer.set_transpose('data', (2, 0, 1))
+    transformer.set_channel_swap('data', (2, 1, 0))
 
     def process(img_path):
         write('Computing exemplar features... ')
@@ -101,6 +100,10 @@ def init_net():
 
 
 def main():
+    if len(sys.argv) != 3:
+        print('Usage: knn.py <job_name> <dataset_name>')
+        exit()
+
     [job_name, dataset_name] = sys.argv[1:]
     searcher = FeatureSearch(dataset_name, job_name)
     get_exemplar_features = init_net()
