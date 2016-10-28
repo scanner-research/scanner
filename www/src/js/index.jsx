@@ -8,7 +8,13 @@ var Video = require('react-html5video/dist/ReactHtml5Video').default;
 
 $.whenall = function(arr) {
   return $.when.apply($, arr).pipe(function() {
-    return Array.prototype.slice.call(arguments);
+    var args;
+    if (arr.length == 1) {
+      args = [arguments];
+    } else {
+      args = arguments;
+    }
+    return Array.prototype.slice.call(args);
   });
 };
 
