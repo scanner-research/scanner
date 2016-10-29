@@ -60,13 +60,25 @@ namespace scanner {
 ///   execution of the run command.
 struct VideoWorkItem {
   i32 video_index;
-  i32 warmup_start_frame;
-  i32 start_frame;
-  i32 end_frame;
+  i64 item_id;
+  i64 next_item_id;
 };
 
 struct LoadWorkEntry {
   i32 work_item_index;
+  union {
+    // For no sampling
+    Interval interval;
+    // For stride
+    struct {
+      Interval interval;
+      i32 stride;
+    } strided;
+    // For gather
+    std::vector<i32> gather_points;
+    // For sequence gather
+    std::vector<Interval> gather_sequences;
+  };
 };
 
 struct EvalWorkEntry {
@@ -84,6 +96,7 @@ struct EvalWorkEntry {
 struct LoadThreadArgs {
   // Uniform arguments
   std::string dataset_name;
+  Sampling sampling;
   const std::vector<std::string>& video_paths;
   const std::vector<VideoMetadata>& metadata;
   const std::vector<VideoWorkItem>& work_items;
@@ -136,6 +149,27 @@ struct SaveThreadArgs {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
+std::tuple<size_t, size_t> find_keyframe_indices(i32 start_frame,
+                                                 i32 end_frame) {
+  size_t start_keyframe_index = std::numeric_limits<size_t>::max();
+  for (size_t i = 1; i < keyframe_positions.size(); ++i) {
+    if (keyframe_positions[i] > work_item.warmup_start_frame) {
+      start_keyframe_index = i - 1;
+      break;
+    }
+  }
+  assert(start_keyframe_index != std::numeric_limits<size_t>::max());
+
+  size_t end_keyframe_index = 0;
+  for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
+    if (keyframe_positions[i] >= work_item.end_frame) {
+      end_keyframe_index = i;
+      break;
+    }
+  }
+  assert(end_keyframe_index != 0);
+}
+
 void* load_video_thread(void* arg) {
   LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
@@ -154,6 +188,8 @@ void* load_video_thread(void* arg) {
 
   args.profiler.add_interval("setup", setup_start, now());
 
+  std::vector<i64> keyframe_positions{metadata.keyframe_positions()};
+  std::vector<i64> keyframe_byte_offsets{metadata.keyframe_byte_offsets()};
   while (true) {
     auto idle_start = now();
 
@@ -188,56 +224,20 @@ void* load_video_thread(void* arg) {
           dataset_item_data_path(args.dataset_name, video_path), video_file);
 
       video_file->get_size(file_size);
+
+      keyframe_positions = metadata.keyframe_positions();
+      keyframe_byte_offsets = metadata.keyframe_byte_offsets();
+      // Place end of file and num frame at end of iframe to handle edge case
+      keyframe_positions.push_back(metadata.frames());
+      keyframe_byte_offsets.push_back(file_size);
     }
     last_video_path = video_path;
-
-    // Place end of file and num frame at end of iframe to handle edge case
-    std::vector<i64> keyframe_positions{metadata.keyframe_positions()};
-    std::vector<i64> keyframe_byte_offsets{metadata.keyframe_byte_offsets()};
-    keyframe_positions.push_back(metadata.frames());
-    keyframe_byte_offsets.push_back(file_size);
 
     // Read the bytes from the file that correspond to the sequences
     // of frames we are interested in decoding. This sequence will contain
     // the bytes starting at the iframe at or preceding the first frame we are
     // interested and will continue up to the bytes before the iframe at or
     // after the last frame we are interested in.
-
-    size_t start_keyframe_index = std::numeric_limits<size_t>::max();
-    for (size_t i = 1; i < keyframe_positions.size(); ++i) {
-      if (keyframe_positions[i] > work_item.warmup_start_frame) {
-        start_keyframe_index = i - 1;
-        break;
-      }
-    }
-    assert(start_keyframe_index != std::numeric_limits<size_t>::max());
-    u64 start_keyframe_byte_offset =
-        static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
-
-    size_t end_keyframe_index = 0;
-    for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
-      if (keyframe_positions[i] >= work_item.end_frame) {
-        end_keyframe_index = i;
-        break;
-      }
-    }
-    assert(end_keyframe_index != 0);
-    u64 end_keyframe_byte_offset =
-        static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
-
-    size_t data_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
-
-    u8* buffer = new u8[data_size];
-
-    auto io_start = now();
-
-    u64 pos = start_keyframe_byte_offset;
-    read(video_file, buffer, data_size, pos);
-
-    args.profiler.add_interval("io", io_start, now());
-
-    args.profiler.add_interval("task", work_start, now());
-
     EvalWorkEntry eval_work_entry;
     eval_work_entry.work_item_index = load_work_entry.work_item_index;
     eval_work_entry.column_names = {"video", "video_args"};
@@ -247,23 +247,72 @@ void* load_video_thread(void* arg) {
     eval_work_entry.buffer_device_id = 0;
     eval_work_entry.video_decode_item = true;
 
-    // Encoded buffer
-    eval_work_entry.buffers[0].push_back(buffer);
-    eval_work_entry.buffer_sizes[0].push_back(data_size);
+    std::vector<Interval> intervals;
+    if (args.sampling == Sampling::None) {
+      intervals.emplace_back(load_work_entry.interval.start,
+                             load_work_entry.interval.end);
+    } else if (args.sampling == Sampling::Strided) {
+      // TODO(apoms): loading a consecutive portion of the video stream might
+      //   be inefficient if the stride is much larger than a single GOP.
+      intervals.emplace_back(load_work_entry.strided.interval.start,
+                             load_work_entry.strided.interval.end);
+    } else if (args.sampling == Sampling::Gather) {
+      // TODO(apoms): This implementation is not efficient for gathers which
+      //   overlap in the same GOP.
+      for (size_t i = 0; i < load_work_entry.gather_points.size(); ++i) {
+        intervals.emplace_back(load_work_entry.gather_points[i],
+                               load_work_entry.gather_points[i]);
+      }
+    } else if (args.sampling == Sampling::SequenceGather) {
+      intervals = load_work_entry.gather_sequences;
+    }
 
-    // Video decode arguments
-    u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-    DecoderEvaluator::DecodeArgs* decode_args =
-        reinterpret_cast<DecoderEvaluator::DecodeArgs*>(decode_args_buffer);
-    decode_args->warmup_start_frame = work_item.warmup_start_frame;
-    decode_args->start_frame = work_item.start_frame;
-    decode_args->end_frame = work_item.end_frame;
+    size_t num_intervals = intervals.size();
+    for (size_t i = 0; i < num_intervals; ++i) {
+      i32 start_frame = intervals[i].start;
+      i32 end_frame = intervals[i].end;
+      size_t start_keyframe_index;
+      size_t end_keyframe_index;
+      std::tie(start_keyframe_index, end_keyframe_index) =
+          find_keyframe_indicies(start_frame, end_frame);
 
-    decode_args->start_keyframe = keyframe_positions[start_keyframe_index];
-    decode_args->end_keyframe = keyframe_positions[end_keyframe_index];
+      u64 start_keyframe_byte_offset =
+          static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
 
-    eval_work_entry.buffers[1].push_back(decode_args_buffer);
-    eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
+      u64 end_keyframe_byte_offset =
+          static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
+
+      size_t buffer_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
+      u8* buffer = new u8[buffer_size];
+
+      auto io_start = now();
+
+      u64 pos = start_keyframe_byte_offset;
+      read(video_file, buffer, buffer_size, pos);
+
+      args.profiler.add_interval("io", io_start, now());
+
+      // Encoded buffer
+      eval_work_entry.buffers[0].push_back(buffer);
+      eval_work_entry.buffer_sizes[0].push_back(buffer_size);
+
+      // Video decode arguments
+      u8 *decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
+      DecoderEvaluator::DecodeArgs *decode_args =
+          reinterpret_cast<DecoderEvaluator::DecodeArgs *>(decode_args_buffer);
+      decode_args->warmup_start_frame = work_item.warmup_start_frame;
+      decode_args->start_frame = work_item.start_frame;
+      decode_args->end_frame = work_item.end_frame;
+
+      decode_args->start_keyframe = keyframe_positions[start_keyframe_index];
+      decode_args->end_keyframe = keyframe_positions[end_keyframe_index];
+
+      eval_work_entry.buffers[1].push_back(decode_args_buffer);
+      eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
+    }
+
+    args.profiler.add_interval("task", work_start, now());
+
 
     args.eval_work.push(eval_work_entry);
   }
@@ -337,19 +386,15 @@ void* evaluate_thread(void* arg) {
         args.work_items[work_entry.work_item_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
+    bool needs_configure =!(work_item.video_index == last_video_index);
     bool needs_reset = (!(work_item.video_index == last_video_index &&
                           work_item.start_frame == last_end_frame));
     for (auto& evaluator : evaluators) {
       // Make the evaluator aware of the format of the data we are about to
       // feed it
-      // TODO(apoms): check if the video is the same as the prevous work item
-      //   and elide this call if so.
-      evaluator->configure(metadata);
-
-      // TODO(apoms): conservatively call reset and provide warmup frames for
-      //   every work item for now. We need to track what the last item consumed
-      //   by the evaluator was and elide the reset/warmup if its video id is
-      //   the same and the end frame is equal to this item's start frame.
+      if (needs_configure) {
+        evaluator->configure(metadata);
+      }
       if (needs_reset) {
         evaluator->reset();
       }
@@ -372,17 +417,10 @@ void* evaluate_thread(void* arg) {
     work_item_output_sizes.resize(last_evaluator_num_columns);
     work_item_output_buffers.resize(last_evaluator_num_columns);
 
-    // Needs
-
-    i32 starting_frame =
-        needs_reset ? work_item.warmup_start_frame : work_item.start_frame;
-    i32 current_frame = starting_frame;
-    i32 total_frames = work_item.end_frame - current_frame;
-    while (current_frame < work_item.end_frame) {
-      i32 frame_offset = current_frame - starting_frame;
-      i32 batch_size = std::min(
-          static_cast<i32>(work_entry.buffers[0].size()),
-          std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame));
+    i32 current_input = 0;
+    i32 total_inputs = work_entry.empty() ? 0 : work_entry.buffers[0].size();
+    while (current_input < total_inputs) {
+      i32 batch_size = std::min(total_inputs, WORK_ITEM_SIZE);
 
       std::vector<std::string> input_names;
       std::vector<std::vector<u8*>> input_buffers;
@@ -395,18 +433,18 @@ void* evaluate_thread(void* arg) {
       std::vector<std::string> output_names = work_entry.column_names;
       std::vector<std::vector<u8*>> output_buffers(work_entry.buffers.size());
       for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
-        output_buffers[i].insert(
-            output_buffers[i].end(),
-            work_entry.buffers[i].begin() + frame_offset,
-            work_entry.buffers[i].begin() + frame_offset + batch_size);
+        output_buffers[i].insert(output_buffers[i].end(),
+                                 work_entry.buffers[i].begin() + current_input,
+                                 work_entry.buffers[i].begin() + current_input +
+                                     batch_size);
       }
       std::vector<std::vector<size_t>> output_sizes(
           work_entry.buffer_sizes.size());
       for (size_t i = 0; i < work_entry.buffer_sizes.size(); ++i) {
         output_sizes[i].insert(
             output_sizes[i].end(),
-            work_entry.buffer_sizes[i].begin() + frame_offset,
-            work_entry.buffer_sizes[i].begin() + frame_offset + batch_size);
+            work_entry.buffer_sizes[i].begin() + current_input,
+            work_entry.buffer_sizes[i].begin() + current_input + batch_size);
       }
       DeviceType output_buffer_type = work_entry.buffer_type;
       i32 output_device_id = work_entry.buffer_device_id;
@@ -493,8 +531,10 @@ void* evaluate_thread(void* arg) {
       // they need to be forwarded to warm up later evaluator groups
       i32 warmup_frames;
       if (args.last_evaluator_group) {
+        i32 total_warmup_frames =
+            work_item.start_frame - work_item.warmup_start_frame;
         warmup_frames = std::min(
-            batch_size, std::max(0, work_item.start_frame - current_frame));
+            batch_size, std::max(0, total_warmup_frames - current_input));
       } else {
         warmup_frames = 0;
       }
@@ -604,7 +644,7 @@ void* save_thread(void* arg) {
     for (size_t out_idx = 0; out_idx < args.output_names.size(); ++out_idx) {
       const std::string output_path = job_item_output_path(
           args.job_name, video_path, args.output_names[out_idx],
-          work_item.start_frame, work_item.end_frame);
+          work_entry.work_item_index);
 
       auto io_start = now();
 
@@ -668,9 +708,14 @@ void* save_thread(void* arg) {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
-void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
-             std::vector<EvaluatorFactory*> evaluator_factories,
+void run_job(storehouse::StorageConfig* config,
+             PipelineDescription& pipeline_description,
              const std::string& job_name, const std::string& dataset_name) {
+  std::vector<EvaluatorFactory*> evaluator_factories;
+  for (auto& f : pipeline_description.evaluator_factories) {
+    evaluator_factories.push_back(f.get());
+  }
+
   storehouse::StorageBackend* storage =
       storehouse::StorageBackend::make_from_config(config);
 

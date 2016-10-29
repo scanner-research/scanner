@@ -116,8 +116,7 @@ class Config {
   bool has_toml;
 };
 
-extern std::vector<std::unique_ptr<EvaluatorFactory>>
-setup_evaluator_pipeline();
+extern PipelineDescription get_pipeline_description();
 
 int main(int argc, char** argv) {
   // Variables for holding parsed command line arguments
@@ -430,9 +429,7 @@ int main(int argc, char** argv) {
       LOG(FATAL) << "Job with that name already exists for that dataset";
     }
 
-    VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
-    std::vector<std::unique_ptr<EvaluatorFactory>> factories =
-        setup_evaluator_pipeline();
+    PipelineDescription desc = get_pipeline_description();
     std::vector<EvaluatorFactory*> pfactories;
     for (auto& fact : factories) {
       pfactories.push_back(fact.get());

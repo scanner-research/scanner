@@ -23,9 +23,42 @@
 
 namespace scanner {
 
+struct PointSamples {
+  i32 video_index;
+  std::vector<i32> frames;
+};
+
+struct Interval {
+  i32 start;
+  i32 end;
+};
+
+struct SequenceSamples {
+  i32 video_index;
+  std::vector<Interval> intervals;
+};
+
+enum class Sampling {
+  None,
+  Strided,
+  Gather,
+  SequenceGather,
+};
+
+struct PipelineDescription {
+  std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
+
+  Sampling sampling = Sampling::None;
+  // For strided sampling
+  i32 stride;
+  // For gather sampling
+  std::vector<PointSamples> gather_points;
+  // For sequence gather sampling
+  std::vector<SequenceSamples> gather_sequences;
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 void run_job(storehouse::StorageConfig* storage_config,
-             VideoDecoderType decoder_type,
-             std::vector<EvaluatorFactory*> evaluator_factory,
+             PipelineDescription& pipeline_description,
              const std::string& job_name, const std::string &dataset_name);
 }

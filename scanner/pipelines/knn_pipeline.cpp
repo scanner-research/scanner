@@ -1,3 +1,4 @@
+#include "scanner/engine.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/caffe/squeezenet/squeezenet_input_evaluator.h"
@@ -5,7 +6,11 @@
 
 using namespace scanner;
 
-std::vector<std::unique_ptr<EvaluatorFactory>> setup_evaluator_pipeline() {
+PipelineDescription get_pipeline_description() {
+  PipelineDescription desc;
+  desc.sampling = PipelineDescription::Sampling::Strided;
+  desc.stride = 4;
+
   std::string net_descriptor_file = "features/squeezenet.toml";
   NetDescriptor descriptor;
   {
@@ -14,7 +19,8 @@ std::vector<std::unique_ptr<EvaluatorFactory>> setup_evaluator_pipeline() {
   }
   i32 batch_size = 96;
 
-  std::vector<std::unique_ptr<EvaluatorFactory>> factories;
+  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+      desc.evaluator_factories;
 
   factories.emplace_back(
       new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
@@ -23,5 +29,5 @@ std::vector<std::unique_ptr<EvaluatorFactory>> setup_evaluator_pipeline() {
   factories.emplace_back(new CaffeEvaluatorFactory(DeviceType::GPU, descriptor,
                                                    batch_size, false));
 
-  return factories;
+  return desc;
 }

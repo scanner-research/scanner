@@ -118,7 +118,7 @@ void FacenetInputEvaluator::evaluate(
     for (i32 frame = 0; frame < input_count; frame += batch_size_) {
       i32 batch_count = std::min(input_count - frame, batch_size_);
 
-      f32* net_input;
+      f32* net_input = nullptr;
       i32 net_input_size = frame_size * batch_count * sizeof(f32);
       cudaMalloc((void**)&net_input, net_input_size);
 
@@ -181,7 +181,8 @@ void FacenetInputEvaluator::evaluate(
   } else {
     for (i32 frame = 0; frame < input_count; frame += batch_size_) {
       i32 batch_count = std::min(input_count - frame, batch_size_);
-      f32* net_input = new f32[frame_size * batch_count];
+      f32* net_input = reinterpret_cast<f32*>(
+          new u8[frame_size * batch_count * sizeof(f32)]);
 
       for (i32 i = 0; i < batch_count; ++i) {
         u8* buffer = input_buffers[0][frame + i];
@@ -206,13 +207,13 @@ void FacenetInputEvaluator::evaluate(
       }
 
       output_buffers[0].push_back((u8*)net_input);
-      output_sizes[0].push_back(frame_size * batch_count);
+      output_sizes[0].push_back(frame_size * batch_count * sizeof(f32));
     }
 
     i32 num_batches = output_buffers[0].size();
     for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
       output_buffers[0].push_back(new u8[1]);
-      output_sizes[0].push_back(0);
+      output_sizes[0].push_back(1);
     }
   }
 

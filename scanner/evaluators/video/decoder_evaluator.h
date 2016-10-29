@@ -38,13 +38,14 @@ public:
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
   struct DecodeArgs {
+    // Encoded data args
+    i32 start_keyframe;
+    i32 end_keyframe;
+    //
     // Work item args
     i32 warmup_start_frame;
     i32 start_frame;
     i32 end_frame;
-    // Encoded data args
-    i32 start_keyframe;
-    i32 end_keyframe;
   };
 
 private:
