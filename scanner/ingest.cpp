@@ -512,8 +512,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      // printf("frame %d, nal size: %d, nal ref %d, nal unit %d\n",
-      //        frame, nal_size, nal_ref_idc, nal_unit_type);
+      printf("frame %d, nal size: %d, nal ref %d, nal unit %d\n",
+             frame, nal_size, nal_ref_idc, nal_unit_type);
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
           meta_packet_sequence_start_offset = nal_bytestream_offset;
@@ -530,11 +530,11 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
       // printf("av packet keyframe pts %d\n",
       //        state.av_packet.pts);
-      keyframe_byte_offsets.push_back(nal_bytestream_offset);
+      keyframe_byte_offsets.push_back(meta_packet_sequence_start_offset);
       keyframe_positions.push_back(frame - 1);
       keyframe_timestamps.push_back(state.av_packet.pts);
       in_meta_packet_sequence = false;
-      // printf("keyframe %d, byte offset %d\n", frame, nal_bytestream_offset);
+      printf("keyframe %d, byte offset %d\n", frame - 1, nal_bytestream_offset);
     }
 
     free(filtered_data);

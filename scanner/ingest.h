@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include "storehouse/storage_config.h"
 
 #include <string>

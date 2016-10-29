@@ -47,55 +47,90 @@ void DecoderEvaluator::evaluate(
 {
   auto start = now();
 
-  DecodeArgs& args = *reinterpret_cast<DecodeArgs*>(input_buffers[1][0]);
-  assert(input_sizes[1][0] == sizeof(DecodeArgs));
+  size_t num_inputs = input_buffers.empty() ? 0 : input_buffers[0].size();
+  for (size_t i = 0; i < num_inputs; ++i) {
+    DecodeArgs& args = *reinterpret_cast<DecodeArgs*>(input_buffers[1][i]);
+    assert(input_sizes[1][i] == sizeof(DecodeArgs));
 
-  const u8* encoded_buffer = input_buffers[0][0];
-  size_t encoded_buffer_size = input_sizes[0][0];
+    const u8* encoded_buffer = input_buffers[0][i];
+    size_t encoded_buffer_size = input_sizes[0][i];
 
-  i32 discard_until_frame =
-      discontinuity_ ? args.warmup_start_frame : args.start_frame;
-  i32 total_output_frames = args.end_frame - discard_until_frame;
-
-  size_t encoded_buffer_offset = 0;
-  i32 current_frame = args.start_keyframe;
-  while (current_frame < args.end_frame) {
-    auto video_start = now();
-
-    i32 encoded_packet_size = 0;
-    const u8 *encoded_packet = NULL;
-    if (encoded_buffer_offset < encoded_buffer_size) {
-      encoded_packet_size =
-          *reinterpret_cast<const i32*>(encoded_buffer + encoded_buffer_offset);
-      encoded_buffer_offset += sizeof(i32);
-      encoded_packet = encoded_buffer + encoded_buffer_offset;
-      encoded_buffer_offset += encoded_packet_size;
-    }
-
-    if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity_)) {
-      // New frames
-      bool more_frames = true;
-      while (more_frames && current_frame < args.end_frame) {
-        if (current_frame >= discard_until_frame) {
-          u8* decoded_buffer =
-              new_buffer(device_type_, device_id_, frame_size_);
-          more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
-          output_buffers[0].push_back(decoded_buffer);
-          output_sizes[0].push_back(frame_size_);
-        } else {
-          more_frames = decoder_->discard_frame();
+    std::vector<i32> valid_frames;
+    switch (args.sampling) {
+      case Sampling::None: {
+        for (i32 s = args.interval.start; s < args.interval.end; ++s) {
+          valid_frames.push_back(s);
         }
-        current_frame++;
+        break;
+      }
+      case Sampling::Strided: {
+        i32 s = args.strided.interval.start;
+        i32 e = args.strided.interval.end;
+        i32 stride = args.strided.stride;
+        for (; s < e; s += stride) {
+          valid_frames.push_back(s);
+        }
+        break;
+      }
+      case Sampling::Gather: {
+        valid_frames = args.gather_points;
+        break;
+      }
+      case Sampling::SequenceGather: {
+        for (Interval& interval : args.gather_sequences) {
+          for (i32 s = interval.start; s < interval.end; ++s) {
+            valid_frames.push_back(s);
+          }
+        }
+        break;
       }
     }
-    discontinuity_ = (encoded_packet_size == 0);
-  }
-  // Wait on all memcpys from frames to be done
-  decoder_->wait_until_frames_copied();
+    i32 total_output_frames = static_cast<i32>(valid_frames.size());
 
-  if (decoder_->decoded_frames_buffered() > 0) {
-    while (decoder_->discard_frame()) {
-    };
+    size_t encoded_buffer_offset = 0;
+    i32 current_frame = args.start_keyframe;
+    i32 valid_index = 0;
+    while (valid_index < total_output_frames) {
+      auto video_start = now();
+
+      i32 encoded_packet_size = 0;
+      const u8 *encoded_packet = NULL;
+      if (encoded_buffer_offset < encoded_buffer_size) {
+        encoded_packet_size = *reinterpret_cast<const i32 *>(
+            encoded_buffer + encoded_buffer_offset);
+        encoded_buffer_offset += sizeof(i32);
+        encoded_packet = encoded_buffer + encoded_buffer_offset;
+        encoded_buffer_offset += encoded_packet_size;
+      }
+
+      if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity_)) {
+        // New frames
+        bool more_frames = true;
+        while (more_frames && valid_index < total_output_frames) {
+          if (current_frame == valid_frames[valid_index]) {
+            u8 *decoded_buffer =
+                new_buffer(device_type_, device_id_, frame_size_);
+            more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
+            output_buffers[0].push_back(decoded_buffer);
+            output_sizes[0].push_back(frame_size_);
+            valid_index++;
+          } else {
+            more_frames = decoder_->discard_frame();
+          }
+          current_frame++;
+        }
+      }
+      // Set a discontinuity if we sent an empty packet to reset
+      // the stream next time
+      discontinuity_ = (encoded_packet_size == 0);
+    }
+    // Wait on all memcpys from frames to be done
+    decoder_->wait_until_frames_copied();
+
+    if (decoder_->decoded_frames_buffered() > 0) {
+      while (decoder_->discard_frame()) {
+      };
+    }
   }
 
   if (profiler_) {

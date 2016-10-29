@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/engine.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/video/video_decoder.h"
@@ -41,11 +42,22 @@ public:
     // Encoded data args
     i32 start_keyframe;
     i32 end_keyframe;
-    //
     // Work item args
-    i32 warmup_start_frame;
-    i32 start_frame;
-    i32 end_frame;
+    i32 warmup_count;
+    Sampling sampling;
+    //union {
+      // For no sampling
+      Interval interval;
+      // For stride
+      struct {
+        Interval interval;
+        i32 stride;
+      } strided;
+      // For gather
+      std::vector<i32> gather_points;
+      // For sequence gather
+      std::vector<Interval> gather_sequences;
+    //};
   };
 
 private:

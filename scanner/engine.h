@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/video/video_decoder.h"

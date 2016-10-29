@@ -110,14 +110,14 @@ message JobDescriptor {
   }
 
   required int32 id = 1;
-  repeated Column columns = 4;
-  required Sampling sampling = 2;
-  required int32 work_item_size = 2;
+  repeated Column columns = 2;
+  required Sampling sampling = 3;
+  required int32 work_item_size = 4;
 
   // For strided sampling
-  optional int32 stride = 6;
+  optional int32 stride = 5;
   // For gather sampling
   repeated PointSamples gather_points = 6;
   // For sequence gather sampling
-  repeated SequenceSamples gather_sequences = 6;
+  repeated SequenceSamples gather_sequences = 7;
 }
