@@ -42,7 +42,7 @@ To quickly dive into Scanner, you can use one of our prebuilt [Docker images](ht
 nvidia-docker run --name scanner -ti wcrichto/scanner:ubuntu16.04-cuda8.0-cv3.1.0 /bin/bash
 ```
 
-This Docker container comes prebuilt with the [k-nearest neighbors](https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm) pipeline in `scanner/pipelines/knn_pipeline.cpp`. It does reverse image search (like with Google Images) by computing deep features for each frame of the input video, and then comparing the features from query image against the video's. Here, Scanner pre-computes the video features (`scanner_server run features examples`), and then a Python script `knn.py` interactively queries against those features with a standard KNN implementation.
+This Docker container comes prebuilt with the [k-nearest neighbors](https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm) pipeline in `scanner/pipelines/knn_pipeline.cpp`. It does reverse image search (like with Google Images) by computing deep features for each frame of the input video, and then comparing the features from query image against the video's. Here, Scanner pre-computes the video features (`scanner_server run example_job example_dataset`), and then a Python script `knn.py` interactively queries against those features with a standard KNN implementation.
 
 Try running this inside your Docker container:
 
@@ -53,7 +53,7 @@ echo "example.mp4" > videos.txt
 
 # Extract features from the video
 ./build/scanner_server ingest example_dataset videos.txt
-./build/scanner_server run example_job example_dataset
+./build/scanner_server run example_job example_dataset --work_item_size=96
 
 # Compute k-nearest neighbors on an exemplar
 wget -O query.jpg https://upload.wikimedia.org/wikipedia/en/9/9b/Rickastleyposter.jpg
@@ -62,6 +62,6 @@ python scripts/knn.py example_job example_dataset
 ffmpeg -i example.mp4 -vf "select=eq(n\,FRAMENUMBER)" -vframes 1 result.png
 ```
 
-From outside the the container, run `docker cp scanner:/opt/scanner/result.png .` to view the query result. And that's it!
+From outside the the container, run `nvidia-docker cp scanner:/opt/scanner/result.png .` to view the query result. That's it!
 
 To learn more about Scanner, please visit the [Scanner wiki](https://github.com/apoms/scanner/wiki).
