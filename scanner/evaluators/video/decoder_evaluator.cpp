@@ -23,7 +23,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig &config,
                                    DeviceType device_type,
                                    VideoDecoderType decoder_type)
     : device_type_(device_type), device_id_(config.device_ids[0]),
-      decoder_type_(decoder_type) {
+      decoder_type_(decoder_type), discontinuity_(false) {
   decoder_.reset(VideoDecoder::make_from_config(device_type_, device_id_,
                                                 decoder_type_, device_type_));
   assert(decoder_.get());
@@ -36,7 +36,7 @@ void DecoderEvaluator::configure(const VideoMetadata& metadata) {
 }
 
 void DecoderEvaluator::reset() {
-  needs_warmup_ = true;
+  discontinuity_ = true;
 }
 
 void DecoderEvaluator::evaluate(
@@ -53,9 +53,8 @@ void DecoderEvaluator::evaluate(
   const u8* encoded_buffer = input_buffers[0][0];
   size_t encoded_buffer_size = input_sizes[0][0];
 
-  bool discontinuity = needs_warmup_;
   i32 discard_until_frame =
-      needs_warmup_ ? args.warmup_start_frame : args.start_frame;
+      discontinuity_ ? args.warmup_start_frame : args.start_frame;
   i32 total_output_frames = args.end_frame - discard_until_frame;
 
   size_t encoded_buffer_offset = 0;
@@ -73,7 +72,7 @@ void DecoderEvaluator::evaluate(
       encoded_buffer_offset += encoded_packet_size;
     }
 
-    if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity)) {
+    if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity_)) {
       // New frames
       bool more_frames = true;
       while (more_frames && current_frame < args.end_frame) {
@@ -89,7 +88,7 @@ void DecoderEvaluator::evaluate(
         current_frame++;
       }
     }
-    discontinuity = false;
+    discontinuity_ = (encoded_packet_size == 0);
   }
   // Wait on all memcpys from frames to be done
   decoder_->wait_until_frames_copied();
@@ -98,8 +97,6 @@ void DecoderEvaluator::evaluate(
     while (decoder_->discard_frame()) {
     };
   }
-
-  needs_warmup_ = false;
 
   if (profiler_) {
     profiler_->add_interval("decode", start, now());

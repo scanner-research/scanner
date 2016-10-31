@@ -54,7 +54,7 @@ private:
   VideoMetadata metadata_;
   size_t frame_size_;
   std::unique_ptr<VideoDecoder> decoder_;
-  bool needs_warmup_;
+  bool discontinuity_;
 };
 
 class DecoderEvaluatorFactory : public EvaluatorFactory {
