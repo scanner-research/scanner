@@ -17,9 +17,9 @@
 
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
+#include "jpegwrapper/JPEGWriter.h"
 #include "scanner/util/common.h"
 #include "scanner/util/memory.h"
-#include "scanner/util/jpeg/JPEGWriter.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
 #include "scanner/util/storehouse.h"
@@ -94,8 +94,8 @@ struct LoadThreadArgs {
   Profiler& profiler;
 
   // Queues for communicating work
-  Queue<LoadWorkEntry>& load_work; // in
-  Queue<EvalWorkEntry>& eval_work; // out
+  Queue<LoadWorkEntry>& load_work;  // in
+  Queue<EvalWorkEntry>& eval_work;  // out
 };
 
 struct EvaluateThreadArgs {
@@ -165,7 +165,7 @@ void* load_video_thread(void* arg) {
     }
 
     LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id
-               << "): processing item " << load_work_entry.work_item_index;
+              << "): processing item " << load_work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -268,8 +268,7 @@ void* load_video_thread(void* arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id
-             << "): thread finished";
+  LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id << "): thread finished";
 
   // Cleanup
   if (video_file != nullptr) {
@@ -381,13 +380,12 @@ void* evaluate_thread(void* arg) {
     i32 total_frames = work_item.end_frame - current_frame;
     while (current_frame < work_item.end_frame) {
       i32 frame_offset = current_frame - starting_frame;
-      i32 batch_size =
-          std::min(
-              static_cast<i32>(work_entry.buffers[0].size()),
-              std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame));
+      i32 batch_size = std::min(
+          static_cast<i32>(work_entry.buffers[0].size()),
+          std::min(WORK_ITEM_SIZE, work_item.end_frame - current_frame));
 
       std::vector<std::string> input_names;
-      std::vector<std::vector<u8 *>> input_buffers;
+      std::vector<std::vector<u8*>> input_buffers;
       std::vector<std::vector<size_t>> input_sizes;
       DeviceType input_buffer_type;
       i32 input_device_id;
@@ -397,10 +395,10 @@ void* evaluate_thread(void* arg) {
       std::vector<std::string> output_names = work_entry.column_names;
       std::vector<std::vector<u8*>> output_buffers(work_entry.buffers.size());
       for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
-        output_buffers[i].insert(output_buffers[i].end(),
-                                 work_entry.buffers[i].begin() + frame_offset,
-                                 work_entry.buffers[i].begin() + frame_offset +
-                                     batch_size);
+        output_buffers[i].insert(
+            output_buffers[i].end(),
+            work_entry.buffers[i].begin() + frame_offset,
+            work_entry.buffers[i].begin() + frame_offset + batch_size);
       }
       std::vector<std::vector<size_t>> output_sizes(
           work_entry.buffer_sizes.size());
@@ -430,8 +428,7 @@ void* evaluate_thread(void* arg) {
         // the data in the input buffer into a new buffer which has the same
         // type as the evaluator input
         if (input_buffer_type != caps.device_type ||
-            input_device_id != device_id)
-        {
+            input_device_id != device_id) {
           for (i32 i = 0; i < num_inputs; ++i) {
             std::vector<u8*>& buffers = input_buffers[i];
             std::vector<size_t>& sizes = input_sizes[i];
@@ -515,8 +512,8 @@ void* evaluate_thread(void* arg) {
         if (output_buffer_type != DeviceType::CPU) {
           for (i32 f = warmup_frames; f < (i32)batch_size; ++f) {
             size_t size = output_sizes[i][f];
-            u8 *src_buffer = output_buffers[i][f];
-            u8 *dest_buffer = new_buffer(DeviceType::CPU, 0, size);
+            u8* src_buffer = output_buffers[i][f];
+            u8* dest_buffer = new_buffer(DeviceType::CPU, 0, size);
             memcpy_buffer(dest_buffer, DeviceType::CPU, 0, src_buffer,
                           output_buffer_type, output_device_id, size);
             delete_buffer(output_buffer_type, output_device_id, src_buffer);
@@ -537,13 +534,13 @@ void* evaluate_thread(void* arg) {
     args.profiler.add_interval("task", work_start, now());
 
     LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
-               << "): finished item " << work_entry.work_item_index;
+              << "): finished item " << work_entry.work_item_index;
 
     args.output_work.push(output_work_entry);
   }
 
   LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
-             << "): thread finished";
+            << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
 }
@@ -575,7 +572,7 @@ void* save_thread(void* arg) {
     }
 
     LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
-               << "): processing item " << work_entry.work_item_index;
+              << "): processing item " << work_entry.work_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -642,7 +639,7 @@ void* save_thread(void* arg) {
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
       for (size_t i = 0; i < num_frames; ++i) {
-        delete_buffer(DeviceType::CPU, // work_entry.buffer_type,
+        delete_buffer(DeviceType::CPU,  // work_entry.buffer_type,
                       work_entry.buffer_device_id,
                       work_entry.buffers[out_idx][i]);
       }
@@ -652,8 +649,8 @@ void* save_thread(void* arg) {
       args.profiler.add_interval("io", io_start, now());
     }
 
-    LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
-               << "): finished item " << work_entry.work_item_index;
+    LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id << "): finished item "
+              << work_entry.work_item_index;
 
     args.profiler.add_interval("task", work_start, now());
 
@@ -661,7 +658,7 @@ void* save_thread(void* arg) {
   }
 
   LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
-             << "): thread finished ";
+            << "): thread finished ";
 
   // Cleanup
   delete storage;
@@ -736,13 +733,13 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       evaluator_factories.back()->get_output_names();
   JobDescriptor job_descriptor;
   for (size_t j = 0; j < final_column_names.size(); ++j) {
-    JobDescriptor_Column *column = job_descriptor.add_columns();
+    JobDescriptor_Column* column = job_descriptor.add_columns();
     column->set_id(j);
     column->set_name(final_column_names[j]);
   }
   for (size_t i = 0; i < video_paths.size(); ++i) {
-    const VideoMetadata &meta = video_metadata[i];
-    JobDescriptor_Video *video_descriptor = job_descriptor.add_videos();
+    const VideoMetadata& meta = video_metadata[i];
+    JobDescriptor_Video* video_descriptor = job_descriptor.add_videos();
     video_descriptor->set_index(i);
     i32 allocated_frames = 0;
     while (allocated_frames < meta.frames()) {
@@ -755,7 +752,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
       item.start_frame = allocated_frames;
       item.end_frame = allocated_frames + frames_to_allocate;
       work_items.push_back(item);
-      JobDescriptor_Video_Interval *interval =
+      JobDescriptor_Video_Interval* interval =
           video_descriptor->add_intervals();
       interval->set_start(item.start_frame);
       interval->set_end(item.end_frame);
@@ -874,7 +871,7 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
           video_metadata, work_items,
 
           // Per worker arguments
-          pu, fg, last_evaluator_group, factory_groups[fg], eval_configs, 
+          pu, fg, last_evaluator_group, factory_groups[fg], eval_configs,
           eval_thread_profilers[fg],
 
           // Queues
@@ -906,250 +903,246 @@ void run_job(storehouse::StorageConfig* config, VideoDecoderType decoder_type,
         i, config, save_thread_profilers[i],
 
         // Queues
-        save_work, retired_items
-    });
-    }
-    std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
-    for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
-    }
+        save_work, retired_items});
+  }
+  std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
+  for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+    pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
+  }
 
-    // Push work into load queues
-    if (is_master(rank)) {
-      // Begin distributing work on master node
-      i32 next_work_item_to_allocate = 0;
-      // Wait for clients to ask for work
-      while (next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
-        // Check if we need to allocate work to our own processing thread
-        i32 local_work = accepted_items - retired_items;
-        if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-          LoadWorkEntry entry;
-          entry.work_item_index = next_work_item_to_allocate++;
-          load_work.push(entry);
+  // Push work into load queues
+  if (is_master(rank)) {
+    // Begin distributing work on master node
+    i32 next_work_item_to_allocate = 0;
+    // Wait for clients to ask for work
+    while (next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
+      // Check if we need to allocate work to our own processing thread
+      i32 local_work = accepted_items - retired_items;
+      if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
+        LoadWorkEntry entry;
+        entry.work_item_index = next_work_item_to_allocate++;
+        load_work.push(entry);
 
-          accepted_items++;
-          if ((static_cast<i32>(work_items.size()) -
-               next_work_item_to_allocate) %
-                  10 ==
-              0) {
-            printf("Work items left: %d\n",
-                   static_cast<i32>(work_items.size()) -
-                       next_work_item_to_allocate);
-            fflush(stdout);
-          }
-          continue;
+        accepted_items++;
+        if ((static_cast<i32>(work_items.size()) - next_work_item_to_allocate) %
+                10 ==
+            0) {
+          printf("Work items left: %d\n", static_cast<i32>(work_items.size()) -
+                                              next_work_item_to_allocate);
+          fflush(stdout);
         }
-
-        if (num_nodes > 1) {
-          i32 more_work;
-          MPI_Status status;
-          MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
-                   MPI_COMM_WORLD, &status);
-          i32 next_item = next_work_item_to_allocate++;
-          MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0,
-                   MPI_COMM_WORLD);
-
-          if (next_work_item_to_allocate % 10 == 0) {
-            printf("Work items left: %d\n",
-                   static_cast<i32>(work_items.size()) -
-                       next_work_item_to_allocate);
-          }
-        }
-        std::this_thread::yield();
+        continue;
       }
-      i32 workers_done = 1;
-      while (workers_done < num_nodes) {
+
+      if (num_nodes > 1) {
         i32 more_work;
         MPI_Status status;
         MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
                  MPI_COMM_WORLD, &status);
-        i32 next_item = -1;
+        i32 next_item = next_work_item_to_allocate++;
         MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
-        workers_done += 1;
-        std::this_thread::yield();
-      }
-    } else {
-      // Monitor amount of work left and request more when running low
-      while (true) {
-        i32 local_work = accepted_items - retired_items;;
-        if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-          // Request work when there is only a few unprocessed items left
-          i32 more_work = true;
-          MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-          i32 next_item;
-          MPI_Recv(&next_item, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD,
-                   MPI_STATUS_IGNORE);
-          if (next_item == -1) {
-            // No more work left
-            break;
-          } else {
-            LoadWorkEntry entry;
-            entry.work_item_index = next_item;
-            load_work.push(entry);
-            accepted_items++;
-          }
+
+        if (next_work_item_to_allocate % 10 == 0) {
+          printf("Work items left: %d\n", static_cast<i32>(work_items.size()) -
+                                              next_work_item_to_allocate);
         }
-        std::this_thread::yield();
       }
+      std::this_thread::yield();
     }
-
-    // Push sentinel work entries into queue to terminate load threads
-    for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-      LoadWorkEntry entry;
-      entry.work_item_index = -1;
-      load_work.push(entry);
+    i32 workers_done = 1;
+    while (workers_done < num_nodes) {
+      i32 more_work;
+      MPI_Status status;
+      MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
+               MPI_COMM_WORLD, &status);
+      i32 next_item = -1;
+      MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+      workers_done += 1;
+      std::this_thread::yield();
     }
-
-    for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-      // Wait until load has finished
-      void* result;
-      i32 err = pthread_join(load_threads[i], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of load thread\n");
-        exit(EXIT_FAILURE);
+  } else {
+    // Monitor amount of work left and request more when running low
+    while (true) {
+      i32 local_work = accepted_items - retired_items;
+      ;
+      if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
+        // Request work when there is only a few unprocessed items left
+        i32 more_work = true;
+        MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        i32 next_item;
+        MPI_Recv(&next_item, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+        if (next_item == -1) {
+          // No more work left
+          break;
+        } else {
+          LoadWorkEntry entry;
+          entry.work_item_index = next_item;
+          load_work.push(entry);
+          accepted_items++;
+        }
       }
-      free(result);
+      std::this_thread::yield();
     }
+  }
 
-    // Push sentinel work entries into queue to terminate eval threads
-    for (i32 i = 0; i < PUS_PER_NODE; ++i) {
+  // Push sentinel work entries into queue to terminate load threads
+  for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+    LoadWorkEntry entry;
+    entry.work_item_index = -1;
+    load_work.push(entry);
+  }
+
+  for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+    // Wait until load has finished
+    void* result;
+    i32 err = pthread_join(load_threads[i], &result);
+    if (err != 0) {
+      fprintf(stderr, "error in pthread_join of load thread\n");
+      exit(EXIT_FAILURE);
+    }
+    free(result);
+  }
+
+  // Push sentinel work entries into queue to terminate eval threads
+  for (i32 i = 0; i < PUS_PER_NODE; ++i) {
+    EvalWorkEntry entry;
+    entry.work_item_index = -1;
+    initial_eval_work.push(entry);
+  }
+
+  for (i32 i = 0; i < PUS_PER_NODE; ++i) {
+    // Wait until first eval has finished
+    void* result;
+    i32 err = pthread_join(eval_chain_threads[i][0], &result);
+    if (err != 0) {
+      fprintf(stderr, "error in pthread_join of eval thread\n");
+      exit(EXIT_FAILURE);
+    }
+    free(result);
+  }
+
+  for (i32 fg = 1; fg < factory_groups_per_chain; ++fg) {
+    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       EvalWorkEntry entry;
       entry.work_item_index = -1;
-      initial_eval_work.push(entry);
+      eval_work[pu][fg - 1].push(entry);
     }
-
-    for (i32 i = 0; i < PUS_PER_NODE; ++i) {
-      // Wait until first eval has finished
+    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+      // Wait until eval has finished
       void* result;
-      i32 err = pthread_join(eval_chain_threads[i][0], &result);
+      i32 err = pthread_join(eval_chain_threads[pu][fg], &result);
       if (err != 0) {
         fprintf(stderr, "error in pthread_join of eval thread\n");
         exit(EXIT_FAILURE);
       }
       free(result);
     }
+  }
 
-    for (i32 fg = 1; fg < factory_groups_per_chain; ++fg) {
-      for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
-        EvalWorkEntry entry;
-        entry.work_item_index = -1;
-        eval_work[pu][fg - 1].push(entry);
-      }
-      for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
-        // Wait until eval has finished
-        void* result;
-        i32 err = pthread_join(eval_chain_threads[pu][fg], &result);
-        if (err != 0) {
-          fprintf(stderr, "error in pthread_join of eval thread\n");
-          exit(EXIT_FAILURE);
-        }
-        free(result);
-      }
+  // Push sentinel work entries into queue to terminate save threads
+  for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+    EvalWorkEntry entry;
+    entry.work_item_index = -1;
+    save_work.push(entry);
+  }
+
+  for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+    // Wait until eval has finished
+    void* result;
+    i32 err = pthread_join(save_threads[i], &result);
+    if (err != 0) {
+      fprintf(stderr, "error in pthread_join of save thread\n");
+      exit(EXIT_FAILURE);
+    }
+    free(result);
+  }
+
+  if (is_master(rank)) {
+    // Add job name into database metadata so we can look up what jobs have
+    // been
+    // ran
+    i32 job_id;
+    {
+      const std::string db_meta_path = database_metadata_path();
+
+      std::unique_ptr<RandomReadFile> meta_in_file;
+      make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+      u64 pos = 0;
+      DatabaseMetadata meta =
+          deserialize_database_metadata(meta_in_file.get(), pos);
+
+      i32 dataset_id = meta.get_dataset_id(dataset_name);
+      job_id = meta.add_job(dataset_id, job_name);
+
+      std::unique_ptr<WriteFile> meta_out_file;
+      make_unique_write_file(storage, db_meta_path, meta_out_file);
+      serialize_database_metadata(meta_out_file.get(), meta);
     }
 
-    // Push sentinel work entries into queue to terminate save threads
-    for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      EvalWorkEntry entry;
-      entry.work_item_index = -1;
-      save_work.push(entry);
+    job_descriptor.set_id(job_id);
+
+    // Write out metadata to describe where the output results are for each
+    // video
+    {
+      const std::string job_file_path = job_descriptor_path(job_name);
+      std::unique_ptr<WriteFile> output_file;
+      make_unique_write_file(storage, job_file_path, output_file);
+
+      serialize_job_descriptor(output_file.get(), job_descriptor);
+
+      output_file->save();
     }
+  }
 
-    for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      // Wait until eval has finished
-      void* result;
-      i32 err = pthread_join(save_threads[i], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of save thread\n");
-        exit(EXIT_FAILURE);
-      }
-      free(result);
+  // Execution done, write out profiler intervals for each worker
+  std::string profiler_file_name = job_profiler_path(job_name, rank);
+  std::ofstream profiler_output(profiler_file_name, std::fstream::binary);
+
+  // Write out total time interval
+  timepoint_t end_time = now();
+
+  i64 start_time_ns =
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
+          .time_since_epoch()
+          .count();
+  i64 end_time_ns =
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
+          .time_since_epoch()
+          .count();
+  profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
+  profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
+
+  i64 out_rank = rank;
+  // Load worker profilers
+  u8 load_worker_count = LOAD_WORKERS_PER_NODE;
+  profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
+  for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
+    write_profiler_to_file(profiler_output, out_rank, "load", i,
+                           load_thread_profilers[i]);
+  }
+
+  // Evaluate worker profilers
+  u8 eval_worker_count = PUS_PER_NODE * factory_groups_per_chain;
+  profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
+  for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
+      i32 i = pu * factory_groups_per_chain + fg;
+      write_profiler_to_file(profiler_output, out_rank, "eval", i,
+                             eval_chain_profilers[pu][fg]);
     }
+  }
 
-    if (is_master(rank)) {
-      // Add job name into database metadata so we can look up what jobs have
-      // been
-      // ran
-      i32 job_id;
-      {
-        const std::string db_meta_path = database_metadata_path();
+  // Save worker profilers
+  u8 save_worker_count = SAVE_WORKERS_PER_NODE;
+  profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
+  for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+    write_profiler_to_file(profiler_output, out_rank, "save", i,
+                           save_thread_profilers[i]);
+  }
 
-        std::unique_ptr<RandomReadFile> meta_in_file;
-        make_unique_random_read_file(storage, db_meta_path, meta_in_file);
-        u64 pos = 0;
-        DatabaseMetadata meta =
-            deserialize_database_metadata(meta_in_file.get(), pos);
+  profiler_output.close();
 
-        i32 dataset_id = meta.get_dataset_id(dataset_name);
-        job_id = meta.add_job(dataset_id, job_name);
-
-        std::unique_ptr<WriteFile> meta_out_file;
-        make_unique_write_file(storage, db_meta_path, meta_out_file);
-        serialize_database_metadata(meta_out_file.get(), meta);
-      }
-
-      job_descriptor.set_id(job_id);
-
-      // Write out metadata to describe where the output results are for each
-      // video
-      {
-        const std::string job_file_path = job_descriptor_path(job_name);
-        std::unique_ptr<WriteFile> output_file;
-        make_unique_write_file(storage, job_file_path, output_file);
-
-        serialize_job_descriptor(output_file.get(), job_descriptor);
-
-        output_file->save();
-      }
-    }
-
-    // Execution done, write out profiler intervals for each worker
-    std::string profiler_file_name = job_profiler_path(job_name, rank);
-    std::ofstream profiler_output(profiler_file_name, std::fstream::binary);
-
-    // Write out total time interval
-    timepoint_t end_time = now();
-
-    i64 start_time_ns =
-        std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
-            .time_since_epoch()
-            .count();
-    i64 end_time_ns =
-        std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
-            .time_since_epoch()
-            .count();
-    profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
-    profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
-
-    i64 out_rank = rank;
-    // Load worker profilers
-    u8 load_worker_count = LOAD_WORKERS_PER_NODE;
-    profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
-    for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-      write_profiler_to_file(profiler_output, out_rank, "load", i,
-                             load_thread_profilers[i]);
-    }
-
-    // Evaluate worker profilers
-    u8 eval_worker_count = PUS_PER_NODE * factory_groups_per_chain;
-    profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
-      for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
-        i32 i = pu * factory_groups_per_chain + fg;
-        write_profiler_to_file(profiler_output, out_rank, "eval", i,
-                               eval_chain_profilers[pu][fg]);
-      }
-    }
-
-    // Save worker profilers
-    u8 save_worker_count = SAVE_WORKERS_PER_NODE;
-    profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
-    for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      write_profiler_to_file(profiler_output, out_rank, "save", i,
-                             save_thread_profilers[i]);
-    }
-
-    profiler_output.close();
-
-    delete storage;
+  delete storage;
 }
 }

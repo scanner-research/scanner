@@ -1,2 +1,6 @@
 build
 **/*.pyc
+doxygen
+thirdparty
+!thirdparty/CMakeLists.txt
+features/*/

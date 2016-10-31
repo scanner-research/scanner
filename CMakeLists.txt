@@ -177,6 +177,8 @@ find_package(Storehouse REQUIRED CONFIG
 find_package(GoogleTest REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(JsonCpp REQUIRED)
+find_package(JPEGWrapper REQUIRED CONFIG
+    PATHS "thirdparty/build/bin/jpegwrapper")
 
 set(GTEST_INCLUDE_DIRS
   "${GLOBAL_OUTPUT_PATH}/googletest/include")
@@ -205,6 +207,7 @@ set(SCANNER_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
+  "${JPEGWRAPPER_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
   "-ljpeg"
   "-lz")
@@ -217,6 +220,7 @@ include_directories(
   "${TINYTOML_INCLUDE_DIR}"
   "${JSONCPP_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
+  "${JPEGWRAPPER_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"

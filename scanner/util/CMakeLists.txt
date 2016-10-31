@@ -17,9 +17,7 @@ set(SOURCE_FILES
   memory.cpp
   profiler.cpp
   util.cpp
-  opencv.cpp
-  jpeg/JPEGReader.cpp
-  jpeg/JPEGWriter.cpp)
+  opencv.cpp)
 
 add_library(util OBJECT
   ${SOURCE_FILES})

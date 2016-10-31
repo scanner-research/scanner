@@ -28,6 +28,7 @@ find_package(JsonCpp)
 find_package(Storehouse CONFIG)
 find_package(GoogleTest)
 find_package(Struck CONFIG)
+find_package(JPEGWrapper CONFIG)
 
 if (NOT TINYTOML_FOUND)
   ExternalProject_Add(TinyToml
@@ -131,4 +132,24 @@ if (NOT STRUCK_FOUND)
     CMAKE_CACHE_ARGS ""
 
     INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/struck")
+endif()
+
+if (NOT JPEGWRAPPER_FOUND)
+  ExternalProject_Add(JPEGWrapper
+    GIT_REPOSITORY "https://github.com/willcrichton/jpegwrapper"
+    GIT_TAG "bb3a4a9752fc5572266eb6b6260d8443649b43c4"
+
+    UPDATE_COMMAND ""
+
+    SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/jpegwrapper"
+
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/jpegwrapper
+    -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    -DCMAKE_LIBRARY_PATH=${CMAKE_LIBRARY_PATH}
+
+    CMAKE_CACHE_ARGS ""
+
+    INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/jpegwrapper")
 endif()
