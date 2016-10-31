@@ -26,10 +26,11 @@ inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
 {
   size = sizeof(size_t) + sizeof(i32);
   i32 bbox_size = 0;
-  if (!bboxes.empty()) {
-    bbox_size = bboxes[0].ByteSize();
-    size += bbox_size * bboxes.size();
+  for (size_t i = 0; i < bboxes.size(); ++i) {
+    const BoundingBox& box = bboxes[i];
+    bbox_size = std::max(bbox_size, box.ByteSize());
   }
+  size += bbox_size * bboxes.size();
   buffer = new u8[size];
 
   u8* buf = buffer;
