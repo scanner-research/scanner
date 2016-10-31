@@ -106,7 +106,7 @@ void SqueezeNetInputEvaluator::evaluate(
     i32 num_batches = output_buffers[0].size();
     for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
       output_buffers[0].push_back(new u8[1]);
-      output_sizes[0].push_back(0);
+      output_sizes[0].push_back(1);
     }
   }
 

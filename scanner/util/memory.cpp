@@ -26,6 +26,7 @@
 namespace scanner {
 
 u8* new_buffer(DeviceType type, int device_id, size_t size) {
+  assert(size > 0);
   u8* buffer = nullptr;
   if (type == DeviceType::CPU) {
     buffer = new u8[size];
@@ -61,8 +62,7 @@ void delete_buffer(DeviceType type, int device_id, u8* buffer) {
 
 void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
                    u8* src_buffer, DeviceType src_type, i32 src_device_id,
-                   size_t size)
-{
+                   size_t size) {
 #ifdef HAVE_CUDA
   CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
 #else
@@ -71,6 +71,4 @@ void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
   memcpy(dest_buffer, src_buffer, size);
 #endif
 }
-
-
 }
