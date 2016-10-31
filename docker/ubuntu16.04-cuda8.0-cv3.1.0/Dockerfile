@@ -2,7 +2,7 @@
 # This must be built in a directory containing:
 #   * Makefile.config - Caffe config for the machine
 #   * libnvcuvid.so.367.48 - Shared library from nvidia drivers
-#   * scanner - scanner source tree
+#   * scanner - scanner source tree (with pre-configured CMakeLists.txt)
 
 FROM nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
@@ -25,7 +25,7 @@ RUN apt-get install -y --no-install-recommends libboost-all-dev
 
 # Python dependencies
 RUN pip install --upgrade pip
-RUN pip install numpy protobuf toml
+RUN pip install numpy protobuf toml youtube-dl scipy scikit-learn scikit-image
 
 # Non-apt-installable dependencies
 ENV deps /deps
@@ -55,6 +55,7 @@ RUN cd caffe && mkdir build && cd build && \
           -D CUDA_ARCH_BIN="61" -DCUDA_ARCH_PTX="61" .. && \
     make install -j
 ENV Caffe_DIR /opt/caffe
+ENV PYTHONPATH /opt/caffe/python
 
 # Scanner
 # TODO(wcrichto): clone repo once it's public
@@ -64,9 +65,10 @@ WORKDIR /opt/scanner
 RUN cd thirdparty && mkdir build && cd build && \
     cmake -D CMAKE_BUILD_TYPE=Release .. && \
     make -j
-# TODO(wcrichto): why can't we symlink to existing one in /usr/local/nvidia
+# TODO(wcrichto): why can't we symlink to existing one in /usr/local/nvidia?
 ADD libnvcuvid.so.367.48 /usr/local/cuda/lib64/libnvcuvid.so
 RUN mkdir build && cd build && \
     cmake -D PIPELINE_FILE=../scanner/pipelines/knn_pipeline.cpp .. && \
     make -j
 RUN ./features/squeezenet.sh
+ADD .scanner.toml /root/.scanner.toml
