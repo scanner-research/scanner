@@ -165,7 +165,7 @@ find_keyframe_indices(i32 start_frame, i32 end_frame,
 
   size_t end_keyframe_index = 0;
   for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
-    if (keyframe_positions[i] >= end_frame) {
+    if (keyframe_positions[i] > end_frame) {
       end_keyframe_index = i;
       break;
     }
