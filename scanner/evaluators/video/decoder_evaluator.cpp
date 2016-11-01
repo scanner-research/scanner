@@ -57,7 +57,7 @@ void DecoderEvaluator::evaluate(
 
     std::vector<i32> valid_frames;
     switch (args.sampling) {
-      case Sampling::None: {
+      case Sampling::All: {
         for (i32 s = args.interval.start; s < args.interval.end; ++s) {
           valid_frames.push_back(s);
         }
@@ -74,6 +74,7 @@ void DecoderEvaluator::evaluate(
       }
       case Sampling::Gather: {
         valid_frames = args.gather_points;
+        discontinuity_ = true;
         break;
       }
       case Sampling::SequenceGather: {
@@ -82,6 +83,7 @@ void DecoderEvaluator::evaluate(
             valid_frames.push_back(s);
           }
         }
+        discontinuity_ = true;
         break;
       }
     }

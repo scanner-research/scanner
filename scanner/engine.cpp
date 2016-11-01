@@ -62,6 +62,7 @@ struct VideoWorkItem {
   i32 video_index;
   i64 item_id;
   i64 next_item_id;
+  i32 rows_from_start;
 };
 
 struct LoadWorkEntry {
@@ -252,7 +253,7 @@ void* load_video_thread(void* arg) {
     eval_work_entry.video_decode_item = true;
 
     std::vector<Interval> intervals;
-    if (args.sampling == Sampling::None) {
+    if (args.sampling == Sampling::All) {
       intervals.push_back(Interval{load_work_entry.interval.start,
                                    load_work_entry.interval.end});
 
@@ -262,7 +263,7 @@ void* load_video_thread(void* arg) {
       DecoderEvaluator::DecodeArgs *decode_args =
           new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
       decode_args->warmup_count = args.warmup_count;
-      decode_args->sampling = Sampling::None;
+      decode_args->sampling = Sampling::All;
       decode_args->interval = load_work_entry.interval;
 
       eval_work_entry.buffers[1].push_back(decode_args_buffer);
@@ -330,6 +331,9 @@ void* load_video_thread(void* arg) {
       size_t end_keyframe_index;
       std::tie(start_keyframe_index, end_keyframe_index) =
           find_keyframe_indices(start_frame, end_frame, keyframe_positions);
+      printf("start end, %d, %d, %d, %d\n", start_frame, end_frame,
+             keyframe_positions[start_keyframe_index],
+             keyframe_positions[end_keyframe_index]);
 
       u64 start_keyframe_byte_offset =
           static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
@@ -584,8 +588,9 @@ void* evaluate_thread(void* arg) {
       // Only discard warmup frames for last evaluator group because otherwise
       // they need to be forwarded to warm up later evaluator groups
       i32 warmup_frames;
-      if (args.last_evaluator_group) {
-        i32 total_warmup_frames = args.warmup_count;
+      if (args.last_evaluator_group && needs_reset) {
+        i32 total_warmup_frames = std::min(args.warmup_count,
+                                           work_item.rows_from_start);
         warmup_frames = std::min(
             batch_size, std::max(0, total_warmup_frames - current_input));
       } else {
@@ -819,8 +824,8 @@ void run_job(storehouse::StorageConfig* config,
   job_descriptor.set_work_item_size(work_item_size);
   JobDescriptor::Sampling desc_sampling;
   switch (sampling) {
-    case Sampling::None:
-      desc_sampling = JobDescriptor::None;
+    case Sampling::All:
+      desc_sampling = JobDescriptor::All;
       break;
     case Sampling::Strided:
       desc_sampling = JobDescriptor::Strided;
@@ -842,7 +847,7 @@ void run_job(storehouse::StorageConfig* config,
 
   std::vector<VideoWorkItem> work_items;
   std::vector<LoadWorkEntry> load_work_items;
-  if (sampling == Sampling::None) {
+  if (sampling == Sampling::All) {
     for (size_t i = 0; i < video_paths.size(); ++i) {
       const VideoMetadata& meta = video_metadata[i];
       i32 allocated_frames = 0;
@@ -854,6 +859,7 @@ void run_job(storehouse::StorageConfig* config,
         item.video_index = i;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
+        item.rows_from_start = allocated_frames;
         work_items.push_back(item);
 
         LoadWorkEntry load_item;
@@ -881,6 +887,7 @@ void run_job(storehouse::StorageConfig* config,
         item.video_index = i;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
+        item.rows_from_start = allocated_frames / stride;
         work_items.push_back(item);
 
         LoadWorkEntry load_item;
@@ -916,6 +923,7 @@ void run_job(storehouse::StorageConfig* config,
         item.video_index = samples.video_index;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
+        item.rows_from_start = allocated_frames;
         work_items.push_back(item);
 
         LoadWorkEntry load_item;
@@ -959,6 +967,7 @@ void run_job(storehouse::StorageConfig* config,
           item.video_index = samples.video_index;
           item.item_id = total_frames_in_sequences;
           item.next_item_id = total_frames_in_sequences + frames_to_allocate;
+          item.rows_from_start = allocated_frames;
           work_items.push_back(item);
 
           LoadWorkEntry load_item;

@@ -84,7 +84,7 @@ message WebTimestamps {
 
 message JobDescriptor {
   enum Sampling {
-    None = 0;
+    All = 0;
     Strided = 1;
     Gather = 2;
     SequenceGather = 3;

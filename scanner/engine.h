@@ -41,7 +41,7 @@ struct SequenceSamples {
 };
 
 enum class Sampling {
-  None,
+  All,
   Strided,
   Gather,
   SequenceGather,
@@ -50,7 +50,7 @@ enum class Sampling {
 struct PipelineDescription {
   std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
 
-  Sampling sampling = Sampling::None;
+  Sampling sampling = Sampling::All;
   // For strided sampling
   i32 stride;
   // For gather sampling

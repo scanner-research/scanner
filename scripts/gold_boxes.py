@@ -11,7 +11,7 @@ import scanner
 db = scanner.Scanner()
 
 def load_bboxes(dataset_name, job_name, column_name):
-    def buf_to_bboxes(buf):
+    def buf_to_bboxes(buf, md):
         (num_bboxes,) = struct.unpack("=Q", buf[:8])
         buf = buf[8:]
         (bbox_size,) = struct.unpack("=i", buf[:4])
@@ -25,8 +25,8 @@ def load_bboxes(dataset_name, job_name, column_name):
                     box.track_id, box.track_score]
             bboxes.append(bbox)
         return bboxes
-    return db.load_output_buffers(dataset_name, job_name, column_name,
-                                       buf_to_bboxes)
+    return db.get_job_result(dataset_name, job_name, column_name,
+                             buf_to_bboxes)
 
 
 def save_bboxes(dataset_name, job_name, ident, column_name, bboxes):
@@ -249,8 +249,8 @@ def collate_boxes(base, tr):
 
 
 def main():
-    dataset_name = "kcam_three"
-    input_job = "facenet_k3"
+    dataset_name = "example"
+    input_job = "facenet_example"
     input_base_column = "base_bboxes"
     input_track_column = "tracked_bboxes"
     output_job = "gold_k3"
@@ -258,8 +258,12 @@ def main():
 
     #save_debug_video()
     meta = db.load_db_metadata()
-    base_boxes = load_bboxes(dataset_name, input_job, input_base_column)
-    tracked_boxes = load_bboxes(dataset_name, input_job, input_track_column)
+    base_boxes = load_bboxes(dataset_name,
+                             input_job,
+                             input_base_column).as_outputs()
+    tracked_boxes = load_bboxes(dataset_name,
+                                input_job,
+                                input_track_column).as_outputs()
     gold_boxes = []
     gold_tracks = []
     for base, tracked in zip(base_boxes, tracked_boxes):

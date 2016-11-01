@@ -12,13 +12,11 @@ using namespace scanner;
 
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
-  // desc.sampling = Sampling::Gather;
-  // PointSamples samples;
-  // samples.video_index = 0;
-  // for (i32 i = 100; i < 300; ++i) {
-  //   samples.frames.push_back(i);
-  // }
-  // desc.gather_points = {samples};
+  desc.sampling = Sampling::SequenceGather;
+  SequenceSamples samples;
+  samples.video_index = 0;
+  samples.intervals.push_back(Interval{100, 300});
+  desc.gather_sequences.push_back(samples);
 
   std::string net_descriptor_file = "features/caffe_facenet.toml";
   NetDescriptor descriptor;
