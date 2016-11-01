@@ -1132,36 +1132,11 @@ void run_job(storehouse::StorageConfig* config,
         // Queues
         save_work, retired_items
     });
-    }
-    std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
-    for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-      pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
-    }
-
-    // Push work into load queues
-    if (is_master(rank)) {
-      // Begin distributing work on master node
-      i32 next_work_item_to_allocate = 0;
-      // Wait for clients to ask for work
-      while (next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
-        // Check if we need to allocate work to our own processing thread
-        i32 local_work = accepted_items - retired_items;
-        if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-          LoadWorkEntry& entry = load_work_items[next_work_item_to_allocate++];
-          load_work.push(entry);
-
-          accepted_items++;
-          if ((static_cast<i32>(work_items.size()) -
-               next_work_item_to_allocate) %
-                  10 ==
-              0) {
-            printf("Work items left: %d\n",
-                   static_cast<i32>(work_items.size()) -
-                       next_work_item_to_allocate);
-            fflush(stdout);
-          }
-          continue;
-        }
+  }
+  std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
+  for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
+    pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
+  }
 
   // Push work into load queues
   if (is_master(rank)) {
@@ -1172,8 +1147,7 @@ void run_job(storehouse::StorageConfig* config,
       // Check if we need to allocate work to our own processing thread
       i32 local_work = accepted_items - retired_items;
       if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-        LoadWorkEntry entry;
-        entry.work_item_index = next_work_item_to_allocate++;
+        LoadWorkEntry &entry = load_work_items[next_work_item_to_allocate++];
         load_work.push(entry);
 
         accepted_items++;
@@ -1194,31 +1168,8 @@ void run_job(storehouse::StorageConfig* config,
                  MPI_COMM_WORLD, &status);
         i32 next_item = next_work_item_to_allocate++;
         MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
-        workers_done += 1;
         std::this_thread::yield();
       }
-    } else {
-      // Monitor amount of work left and request more when running low
-      while (true) {
-        i32 local_work = accepted_items - retired_items;;
-        if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-          // Request work when there is only a few unprocessed items left
-          i32 more_work = true;
-          MPI_Send(&more_work, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-          i32 next_item;
-          MPI_Recv(&next_item, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD,
-                   MPI_STATUS_IGNORE);
-          if (next_item == -1) {
-            // No more work left
-            break;
-          } else {
-            LoadWorkEntry& entry = load_work_items[next_item];
-            load_work.push(entry);
-            accepted_items++;
-          }
-        }
-      }
-      std::this_thread::yield();
     }
     i32 workers_done = 1;
     while (workers_done < num_nodes) {
@@ -1266,7 +1217,7 @@ void run_job(storehouse::StorageConfig* config,
 
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     // Wait until load has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(load_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of load thread\n");
@@ -1284,7 +1235,7 @@ void run_job(storehouse::StorageConfig* config,
 
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
     // Wait until first eval has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(eval_chain_threads[i][0], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of eval thread\n");
@@ -1301,7 +1252,7 @@ void run_job(storehouse::StorageConfig* config,
     }
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       // Wait until eval has finished
-      void* result;
+      void *result;
       i32 err = pthread_join(eval_chain_threads[pu][fg], &result);
       if (err != 0) {
         fprintf(stderr, "error in pthread_join of eval thread\n");
@@ -1320,7 +1271,7 @@ void run_job(storehouse::StorageConfig* config,
 
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     // Wait until eval has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(save_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of save thread\n");
@@ -1381,13 +1332,13 @@ void run_job(storehouse::StorageConfig* config,
       std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
           .time_since_epoch()
           .count();
-  profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
-  profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
+  profiler_output.write((char *)&start_time_ns, sizeof(start_time_ns));
+  profiler_output.write((char *)&end_time_ns, sizeof(end_time_ns));
 
   i64 out_rank = rank;
   // Load worker profilers
   u8 load_worker_count = LOAD_WORKERS_PER_NODE;
-  profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
+  profiler_output.write((char *)&load_worker_count, sizeof(load_worker_count));
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     write_profiler_to_file(profiler_output, out_rank, "load", i,
                            load_thread_profilers[i]);
@@ -1395,7 +1346,7 @@ void run_job(storehouse::StorageConfig* config,
 
   // Evaluate worker profilers
   u8 eval_worker_count = PUS_PER_NODE * factory_groups_per_chain;
-  profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
+  profiler_output.write((char *)&eval_worker_count, sizeof(eval_worker_count));
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       i32 i = pu * factory_groups_per_chain + fg;
@@ -1406,7 +1357,7 @@ void run_job(storehouse::StorageConfig* config,
 
   // Save worker profilers
   u8 save_worker_count = SAVE_WORKERS_PER_NODE;
-  profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
+  profiler_output.write((char *)&save_worker_count, sizeof(save_worker_count));
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     write_profiler_to_file(profiler_output, out_rank, "save", i,
                            save_thread_profilers[i]);
