@@ -47,6 +47,18 @@ enum class Sampling {
   SequenceGather,
 };
 
+/**
+ * @brief Defines evaluators and a sampling pattern to run over a dataset.
+ *
+ * A pipeline is a sequence, or chain, of evaluators which execute over a stream
+ * of video data. A sampling pattern can be specified that selects a subset of
+ * frames from the videos in a given dataset. The chain of evaluators is
+ * specified by the "evaluator_factories" variable. The sampling pattern
+ * defaults to reading all frames of all videos in the dataset (Sampling::All),
+ * but can be refined to grab only every n-th frame (Sampling::Stride), select a
+ * subset of individual frames (Sampling::Gather), or select in dense sequences
+ * of consecutive frames (Sampling::SequenceGather).
+ */
 struct PipelineDescription {
   std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
 

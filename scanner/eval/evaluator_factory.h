@@ -25,7 +25,7 @@ namespace scanner {
 /**
  * @brief Describes what hardware an evaluator needs to run.
  *
- * Scanner will provide both devices and memory corresponding to the
+ * Scanner will provide both devices and memory corresponding to
  * an evaluator's capabilities. For example, if device_type = DeviceType::GPU
  * and max_devices = 2 then an evaluator will receive up to two GPU device IDs
  * to run on, and its input and output buffers must be GPU memory.
@@ -53,8 +53,8 @@ struct EvaluatorCapabilities {
    * optical flow, then warmup_size allows you to specify a number of frames $k$
    * such that just after a reset, when you would have received $n$ frames from
    * batch $i$, you instead receive $k$ frames from batch $i-1$ and $n-k$ frames
-   * batch $i$. Scanner will then discard the first $k$ outputs of your
-   * evaluator on this single evaluate call.
+   * batch $i$. Scanner will handle tracking and discarding the first $k$
+   * outputs of your evaluator pipeline after a reset.
    */
   i32 warmup_size = 0;
 
@@ -91,7 +91,7 @@ class EvaluatorFactory {
  public:
   virtual ~EvaluatorFactory(){};
 
-  /** Describes the requirements of its produced evaluators. */
+  /** Describes the capabilities of the evaluators the factory produces. */
   virtual EvaluatorCapabilities get_capabilities() = 0;
 
   /**
@@ -103,9 +103,10 @@ class EvaluatorFactory {
    */
   virtual std::vector<std::string> get_output_names() = 0;
 
-  /* new_evaluator - constructs an evaluator to be used for processing
-   *   decoded frames. This function must be thread-safe but evaluators
-   *   themself do not need to be.
+  /* @brief Constructs an evaluator to be used for processing rows of data.
+   *
+   * This function must be thread-safe but the evaluators created by it do not
+   * need to be.
    */
   virtual Evaluator* new_evaluator(const EvaluatorConfig& config) = 0;
 };
