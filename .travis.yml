@@ -1,0 +1,13 @@
+sudo: required
+
+language: cpp
+
+services:
+  - docker
+
+before_install:
+  - docker build -t wcrichto/scanner docker/ubuntu16.04-cuda8.0-cv3.1.0
+  - docker run wcrichto/scanner /bin/bash -c "echo 'nice'"
+
+script:
+  - echo "whut"
