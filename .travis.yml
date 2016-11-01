@@ -5,17 +5,27 @@ language: cpp
 services:
 - docker
 
+env:
+  global:
+    - DOCKER_TAG=ubuntu16.04-cuda8.0-cv3.1.0
+    - DOCKER_REPO=wcrichto/scanner
+    - DOCKER_EMAIL=wcrichto@cs.stanford.edu
+    - DOCKER_USER=wcrichto
+    - secure: "hgUCEu1dr/bQOXLHDhxM/DFw48vC2ztLmmQuAj5V+kvYh5Hi+qB7fgEwPq3JKavK5RYiqL4XIkqAihEuZA/tKgi5oQoAZkvW7RqB6nl6KIJ3jlsOiDGBmapMp0NuCDsouUksF5bDrV0NlRESSbtIYJMUpLB2/m7EMy2+qHFllWZ/JHdoStA51UFbPLQ2OzGDQfCUJX09XCMcA75mhikVKe1CTH//w++fdfDJb8pTMNeIeYMhJZ/nUH3yEgqp0FTg4UH+8ggxS+0xCXu/Ap1pu9fUG6WkjRZwpU6V8ivrkpxGBuhow8jlt7BL+byRsbNp3qNgoA9HKUjw8hgU/WAPnDNg1aAZGzCS+Sr6m8q7uZInTKpO5hpGik2o4CFyPQhGTtxrVhFODHn+tLAB3nzRaFfthxSDZEW6iHmlgQ2B/IJTzpUkh7a3opFPxQOdLDnAquupqoJ59st2uceWkppupUNztEVmt4ZjJlmc/5/o5yp3KQW64ofWm9p8cSVF9YzfCQ9YGFDZVQYrb+ChpCaj1aIYV59dDoqjgeiL7r7B7Owy6WnxOv0rICApwdID6cMNBS7XWweEzOAFUtHAd6upYlMVlawztfHhAXIhj5jnUZ3P9s6c84I1DJQQIe2krpsTDhAfC+JIK5Geyr9wKmaq3Ly0jzU5Wp5VQrFlGh1Kexc="
+
 before_install:
 - openssl aes-256-cbc -K $encrypted_f836c174cc56_key -iv $encrypted_f836c174cc56_iv
   -in .config/travisci_rsa.enc -out .config/travisci_rsa -d
 - chmod 0600 .config/travisci_rsa
 - cp .config/travisci_rsa ~/.ssh/id_rsa
-- docker build -t wcrichto/scanner docker/ubuntu16.04-cuda8.0-cv3.1.0
-- docker run wcrichto/scanner /bin/bash -c "echo 'nice'"
 
 install:
 - sudo apt-get install doxygen
 
 script:
-- echo "whut"
+- docker build -t $DOCKER_REPO:$DOCKER_TAG docker/$DOCKER_TAG
+- docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "echo 'nice'"
+
+after_success:
 - ./scripts/publish-doxygen.sh
+- ./scripts/publish-docker.sh
