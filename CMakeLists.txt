@@ -26,6 +26,7 @@ option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
 option(BUILD_TRACKER_EVALUATORS "" OFF)
 option(BUILD_UTIL_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
+option(BUILD_COMPARISON "" OFF)
 
 enable_testing()
 
@@ -264,7 +265,10 @@ endfunction()
 
 
 add_subdirectory(scanner)
-add_subdirectory(comparison)
+
+if (BUILD_COMPARISON)
+  add_subdirectory(comparison)
+endif()
 
 add_executable(scanner_server
   scanner/main.cpp
