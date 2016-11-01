@@ -23,7 +23,7 @@ install:
 - sudo apt-get install doxygen
 
 script:
-- docker build -t $DOCKER_REPO:$DOCKER_TAG docker/$DOCKER_TAG
+- docker build -t $DOCKER_REPO:$DOCKER_TAG .
 - docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "echo 'nice'"
 
 after_success:
