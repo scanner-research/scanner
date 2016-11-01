@@ -22,15 +22,53 @@
 
 namespace scanner {
 
+/**
+ * @brief Describes what hardware an evaluator needs to run.
+ *
+ * Scanner will provide both devices and memory corresponding to the
+ * an evaluator's capabilities. For example, if device_type = DeviceType::GPU
+ * and max_devices = 2 then an evaluator will receive up to two GPU device IDs
+ * to run on, and its input and output buffers must be GPU memory.
+ */
 struct EvaluatorCapabilities {
   static const i32 UnlimitedDevices = 0;
 
+  /** Determines what kind of hardware the evaluator will run on and what kind
+   *  of memory it uses. */
   DeviceType device_type;
+
+  /**
+   * @brief Scanner will provide up to max_devices for the evaluator to use.
+   *
+   * If max_devices = EvaluatorCapabilities::UnlimitedDevices, then it will
+   * attempt to use all the devices on the machine if possible.
+   */
   i32 max_devices;
+
+  /**
+   * @brief Specifies how many additional frames to receive per continuous set
+   *        of batches.
+   *
+   * If your stateful evaluator produces problems at discontinuities, e.g.
+   * optical flow, then warmup_size allows you to specify a number of frames $k$
+   * such that just after a reset, when you would have received $n$ frames from
+   * batch $i$, you instead receive $k$ frames from batch $i-1$ and $n-k$ frames
+   * batch $i$. Scanner will then discard the first $k$ outputs of your
+   * evaluator on this single evaluate call.
+   */
   i32 warmup_size = 0;
+
+  /**
+   * @brief Allows this evaluator to run concurrently with those around it.
+   *
+   * Currently only works on the first and last evaluators in a pipeline, most
+   * commonly the decoder and encoders.
+   */
   bool can_overlap = false;
 };
 
+/** Information for an evaluator instance on the kinds of input it will receive.
+ */
 struct EvaluatorConfig {
   DeviceType device_type;
   std::vector<i32> device_ids;
@@ -39,12 +77,30 @@ struct EvaluatorConfig {
   i32 max_frame_height;
 };
 
+/**
+ * @brief Interface for constructing evaluators at runtime.
+ *
+ * Scanner pipelines are composed of a sequence of evaluator factories. A single
+ * job may use any number of a given evaluator, so the EvaluatorFactory allows
+ * the user to capture configuration information about the evaluator (e.g. batch
+ * size of a neural net, device type) and pass that information to each new
+ * evaluator instance. The EvaluatorFactory also provides metadata about
+ * the inputs and outputs from the evaluator it produces.
+ */
 class EvaluatorFactory {
  public:
   virtual ~EvaluatorFactory(){};
 
+  /** Describes the requirements of its produced evaluators. */
   virtual EvaluatorCapabilities get_capabilities() = 0;
 
+  /**
+   * @brief Returns a list of column names for the evaluator's output.
+   *
+   * The length of the vector defines the number of columns the evaluator must
+   * return, and the string names define the column name. Column names are
+   * currently only used when retrieving outputs from disk.
+   */
   virtual std::vector<std::string> get_output_names() = 0;
 
   /* new_evaluator - constructs an evaluator to be used for processing
