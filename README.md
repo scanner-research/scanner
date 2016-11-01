@@ -1,4 +1,5 @@
 # Scanner #
+[![Build Status](https://travis-ci.com/apoms/scanner.svg?token=3riCqXaXCxyYqpsVk2yv&branch=master)](https://travis-ci.com/apoms/scanner)
 
 _For build instructions, tutorials, documentation, and contributing guidelines, visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
