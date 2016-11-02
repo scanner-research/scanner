@@ -1154,7 +1154,8 @@ void run_job(storehouse::StorageConfig* config,
         continue;
       }
 
-      if (num_nodes > 1) {
+      if (num_nodes > 1 &&
+          next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
         i32 more_work;
         MPI_Status status;
         MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
@@ -1179,7 +1180,6 @@ void run_job(storehouse::StorageConfig* config,
     // Monitor amount of work left and request more when running low
     while (true) {
       i32 local_work = accepted_items - retired_items;
-      ;
       if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
         // Request work when there is only a few unprocessed items left
         i32 more_work = true;
