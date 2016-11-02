@@ -34,11 +34,13 @@ class FeatureSearch:
         norms = np.ndarray(shape=(0, NUM_FEATURES))
         write('Loading features... ')
         start = default_timer()
-        for video in load_squeezenet_features(dataset_name, job_name):
-            self.index.append((video['path'], count))
-            bufs = np.array(video['buffers'])
+        for (video, buffers) in \
+            load_squeezenet_features(dataset_name, job_name).as_frame_list():
+            self.index.append((video, count))
+            buffers = [b for (_, b) in buffers]
+            bufs = np.array(buffers)
             count += len(bufs)
-            norms = np.vstack((norms, np.array(video['buffers'])))
+            norms = np.vstack((norms, bufs))
         write_timer(start)
         write('Preparing KNN... ')
         start = default_timer()
@@ -109,10 +111,10 @@ def main():
     get_exemplar_features = init_net()
 
     while True:
-        sys.stdout.write('> ')
+        write('> ')
         img_path = sys.stdin.readline().strip()
         exemplar = get_exemplar_features(img_path)
-        print searcher.search(exemplar)
+        print(searcher.search(exemplar))
 
 
 if __name__ == "__main__":

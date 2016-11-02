@@ -5,7 +5,10 @@ import sys
 import toml
 import os
 import logging
+import sys
 
+is_py3 = sys.version_info.major == 3
+maxint = sys.maxsize if is_py3 else sys.maxint
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -25,6 +28,7 @@ class ScannerConfig(object):
             self.scanner_path = config['scanner_path']
         except KeyError as key:
             logging.critical('Scanner config missing key: {}'.format(key))
+            exit()
 
     def default_config_path(self):
         return '{}/.scanner.toml'.format(os.path.expanduser('~'))
@@ -37,11 +41,13 @@ class ScannerConfig(object):
             logging.critical('Error: you need to setup your Scanner config. Run `python scripts/setup.py`.')
             exit()
 
+
 class Sampling(Enum):
     All = 0
     Strided = 1
     Gather = 2
     SequenceGather = 3
+
 
 class JobResult(object):
     """ TODO(apoms): document me """
@@ -74,7 +80,7 @@ class JobResult(object):
         try:
             with open(path, 'rb') as f:
                 lens = []
-                start_pos = sys.maxint
+                start_pos = maxint
                 pos = 0
                 for fi in rows:
                     byts = f.read(8)
@@ -82,7 +88,7 @@ class JobResult(object):
                     old_pos = pos
                     pos += buf_len
                     if (fi >= istart and fi <= iend):
-                        if start_pos == sys.maxint:
+                        if start_pos == maxint:
                             start_pos = old_pos
                         lens.append(buf_len)
 
@@ -120,7 +126,7 @@ class JobResult(object):
                       'frames': [],
                       'buffers': []}
             (istart, iend) = interval if interval is not None else (0,
-                                                                    sys.maxint)
+                                                                    maxint)
             for i, ivl in enumerate(intervals):
                 start = ivl[0]
                 end = ivl[1]
@@ -142,8 +148,8 @@ class JobResult(object):
         for vi, video_name in enumerate(self._dataset.video_names):
             video = self._load_video_descriptor(video_name)
 
-            intervals = [i for i in range(video.frames - 1, item_size * stride)]
-            intervals.append(video.frames)
+            intervals = [i for i in range(0, video.frames - 1, item_size * stride)]
+            #intervals.append(video.frames)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)
 
@@ -151,7 +157,7 @@ class JobResult(object):
                       'frames': [],
                       'buffers': []}
             (istart, iend) = interval if interval is not None else (0,
-                                                                    sys.maxint)
+                                                                    maxint)
             for i, ivl in enumerate(intervals):
                 start = ivl[0]
                 end = ivl[1]
@@ -183,7 +189,7 @@ class JobResult(object):
                       'frames': [],
                       'buffers': []}
             (istart, iend) = interval if interval is not None else (0,
-                                                                    sys.maxint)
+                                                                    maxint)
             for i, item in enumerate(work_items):
                 start = item[0]
                 end = item[-1]
@@ -215,7 +221,7 @@ class JobResult(object):
                       'buffers': []}
 
             (istart, iend) = interval if interval is not None else (0,
-                                                                    sys.maxint)
+                                                                    maxint)
             for intvl in sequences:
                 intervals = [i for i in range(intvl.start, intvl.end - 1,
                                               item_size)]
