@@ -108,9 +108,8 @@ struct CodecState {
   AVBitStreamFilterContext* annexb;
 };
 
-CodecState setup_video_codec(BufferData* buffer) {
+bool setup_video_codec(BufferData* buffer, CodecState& state) {
   printf("Setting up video codec\n");
-  CodecState state;
   av_init_packet(&state.av_packet);
   state.picture = av_frame_alloc();
   state.format_context = avformat_alloc_context();
@@ -127,12 +126,12 @@ CodecState setup_video_codec(BufferData* buffer) {
   printf("Opening input file to read format\n");
   if (avformat_open_input(&state.format_context, NULL, NULL, NULL) < 0) {
     fprintf(stderr, "open input failed\n");
-    assert(false);
+    return false;
   }
   // Some formats don't have a header
   if (avformat_find_stream_info(state.format_context, NULL) < 0) {
     fprintf(stderr, "find stream info failed\n");
-    assert(false);
+    return false;
   }
 
   av_dump_format(state.format_context, 0, NULL, 0);
@@ -143,7 +142,7 @@ CodecState setup_video_codec(BufferData* buffer) {
       -1 /* no related stream */, &state.in_codec, 0 /* flags */);
   if (state.video_stream_index < 0) {
     fprintf(stderr, "could not find best stream\n");
-    assert(false);
+    return false;
   }
 
   AVStream const* const in_stream =
@@ -161,27 +160,27 @@ CodecState setup_video_codec(BufferData* buffer) {
   if (avcodec_parameters_from_context(state.in_cc_params, in_stream->codec) <
       0) {
     fprintf(stderr, "could not copy codec params from input stream\n");
-    exit(EXIT_FAILURE);
+    return false;
   }
   if (avcodec_parameters_to_context(state.in_cc, state.in_cc_params) < 0) {
     fprintf(stderr, "could not copy codec params to in cc\n");
-    assert(false);
+    return false;
   }
 #else
   if (avcodec_copy_context(state.in_cc, in_stream->codec) < 0) {
     fprintf(stderr, "could not copy codec params to in cc\n");
-    assert(false);
+    return false;
   }
 #endif
 
   if (avcodec_open2(state.in_cc, state.in_codec, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");
-    assert(false);
+    return false;
   }
 
   state.annexb = av_bitstream_filter_init("h264_mp4toannexb");
 
-  return state;
+  return true;
 }
 
 void cleanup_video_codec(CodecState state) {
@@ -228,7 +227,10 @@ bool read_timestamps(std::string video_path, WebTimestamps& meta) {
   buffer.orig_ptr = buffer.ptr;
   buffer.initial_size = buffer.size;
 
-  CodecState state = setup_video_codec(&buffer);
+  CodecState state;
+  if (!setup_video_codec(&buffer, state)) {
+    return false;
+  }
 
   AVStream const* const in_stream =
       state.format_context->streams[state.video_stream_index];
@@ -376,7 +378,10 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   buffer.orig_ptr = buffer.ptr;
   buffer.initial_size = buffer.size;
 
-  CodecState state = setup_video_codec(&buffer);
+  CodecState state;
+  if (!setup_video_codec(&buffer, state)) {
+    return false;
+  }
 
   video_descriptor.set_width(state.in_cc->coded_width);
   video_descriptor.set_height(state.in_cc->coded_height);
