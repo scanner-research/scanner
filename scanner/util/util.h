@@ -24,6 +24,8 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <mpi.h>
+#include <glog/logging.h>
 
 namespace scanner {
 
@@ -110,4 +112,6 @@ template <typename T>
 T nano_to_ms(T ns) {
   return ns / 1000000;
 }
+
+void MPI_CHECK(int error_code);
 }

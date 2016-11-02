@@ -17,6 +17,7 @@
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/ingest.h"
 
+#include "scanner/util/util.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
@@ -48,6 +49,9 @@
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <libgen.h>
+#include <mpi.h>
+
 #include <string>
 
 // For setting up libav*
@@ -81,7 +85,7 @@ using storehouse::RandomReadFile;
 const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 
 void startup(int argc, char** argv) {
-  MPI_Init(&argc, &argv);
+  MPI_CHECK(MPI_Init(&argc, &argv));
   av_register_all();
   FLAGS_minloglevel = 0;
 #ifdef HAVE_CUDA
@@ -89,7 +93,18 @@ void startup(int argc, char** argv) {
 #endif
 }
 
-void shutdown() { MPI_Finalize(); }
+void shutdown() {
+  MPI_Status status;
+  int flag;
+  MPI_CHECK(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status));
+  if (flag) {
+    int count;
+    MPI_CHECK(MPI_Get_count(&status, MPI_INT, &count));
+    LOG(FATAL) << count << " " << status.MPI_SOURCE << " "
+               << status.MPI_TAG << " " << status.MPI_ERROR;
+  }
+  MPI_CHECK(MPI_Finalize());
+}
 
 class Config {
  public:
@@ -383,10 +398,10 @@ int main(int argc, char** argv) {
   startup(argc, argv);
 
   int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
 
   int num_nodes;
-  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
+  MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &num_nodes));
 
   // For now, we use a disk based persistent storage with a hardcoded
   // path for storing video and output data persistently
