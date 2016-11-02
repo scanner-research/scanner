@@ -523,7 +523,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
         frame++;
       }
     }
-    i32 bytestream_offset;
+    i64 bytestream_offset;
     if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
       // Insert an SPS NAL if we did not see one in the meta packet sequence
       keyframe_byte_offsets.push_back(nal_bytestream_offset);
@@ -556,6 +556,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       *((i32*)(bytestream_bytes.data() + nal_bytestream_offset)) =
           filtered_data_size;
     }
+
     memcpy(bytestream_bytes.data() + bytestream_offset, filtered_data,
            filtered_data_size);
 
