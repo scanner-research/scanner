@@ -8,8 +8,8 @@ using namespace scanner;
 
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
-  desc.sampling = PipelineDescription::Sampling::Strided;
-  desc.stride = 4;
+  desc.sampling = Sampling::Strided;
+  desc.stride = 10;
 
   std::string net_descriptor_file = "features/squeezenet.toml";
   NetDescriptor descriptor;

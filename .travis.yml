@@ -27,5 +27,6 @@ script:
 - docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "echo 'nice'"
 
 after_success:
-- ./scripts/publish-doxygen.sh
 - ./scripts/publish-docker.sh
+# TODO(wcrichto): enable this when repo is public
+# - ./scripts/publish-doxygen.sh
