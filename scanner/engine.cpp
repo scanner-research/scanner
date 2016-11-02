@@ -1333,17 +1333,20 @@ void run_job(storehouse::StorageConfig* config,
   u8 load_worker_count = LOAD_WORKERS_PER_NODE;
   profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-    write_profiler_to_file(profiler_output, out_rank, "load", i,
+    write_profiler_to_file(profiler_output, out_rank, "load", "", i,
                            load_thread_profilers[i]);
   }
 
   // Evaluate worker profilers
-  u8 eval_worker_count = PUS_PER_NODE * factory_groups_per_chain;
+  u8 eval_worker_count = PUS_PER_NODE;
   profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
+  u8 groups_per_chain = factory_groups_per_chain;
+  profiler_output.write((char*)&groups_per_chain, sizeof(groups_per_chain));
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       i32 i = pu * factory_groups_per_chain + fg;
-      write_profiler_to_file(profiler_output, out_rank, "eval", i,
+      std::string tag = "fg" + std::to_string(fg);
+      write_profiler_to_file(profiler_output, out_rank, "eval", tag, i,
                              eval_chain_profilers[pu][fg]);
     }
   }
@@ -1352,7 +1355,7 @@ void run_job(storehouse::StorageConfig* config,
   u8 save_worker_count = SAVE_WORKERS_PER_NODE;
   profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-    write_profiler_to_file(profiler_output, out_rank, "save", i,
+    write_profiler_to_file(profiler_output, out_rank, "save", "", i,
                            save_thread_profilers[i]);
   }
 

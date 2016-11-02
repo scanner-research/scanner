@@ -558,8 +558,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       size_t prev_size = bytestream_bytes.size();
       bytestream_offset = prev_size + sizeof(i32);
       bytestream_bytes.resize(prev_size + sizeof(i32) + filtered_data_size);
-      *((i32*)(bytestream_bytes.data() + prev_size)) =
-          filtered_data_size;
+      *((i32*)(bytestream_bytes.data() + prev_size)) = filtered_data_size;
     }
 
     memcpy(bytestream_bytes.data() + bytestream_offset, filtered_data,

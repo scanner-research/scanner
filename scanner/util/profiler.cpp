@@ -33,13 +33,15 @@ const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
 }
 
 void write_profiler_to_file(std::ofstream& output, int64_t node,
-                            std::string type_name, int64_t worker_num,
-                            const Profiler& profiler) {
+                            std::string type_name, std::string tag,
+                            int64_t worker_num, const Profiler& profiler) {
   // Write worker header information
   // Node
   output.write((char*)&node, sizeof(node));
   // Worker type
   output.write(type_name.c_str(), type_name.size() + 1);
+  // Worker tag
+  output.write(tag.c_str(), tag.size() + 1);
   // Worker number
   output.write((char*)&worker_num, sizeof(worker_num));
   // Intervals

@@ -52,8 +52,8 @@ class Profiler {
 };
 
 void write_profiler_to_file(std::ofstream& output, int64_t node,
-                            std::string type_name, int64_t worker_num,
-                            const Profiler& profiler);
+                            std::string type_name, std::string tag,
+                            int64_t worker_num, const Profiler& profiler);
 
 }  // namespace scanner
 

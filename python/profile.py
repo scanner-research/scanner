@@ -54,6 +54,8 @@ def parse_profiler_output(bytes_buffer, offset):
     node = t[0]
     # Worker type name
     worker_type, offset = unpack_string(bytes_buffer, offset)
+    # Worker tag
+    worker_tag, offset = unpack_string(bytes_buffer, offset)
     # Worker number
     t, offset = read_advance('q', bytes_buffer, offset)
     worker_num = t[0]
@@ -84,6 +86,7 @@ def parse_profiler_output(bytes_buffer, offset):
     return {
         'node': node,
         'worker_type': worker_type,
+        'worker_tag': worker_tag,
         'worker_num': worker_num,
         'intervals': intervals
     }, offset
@@ -124,18 +127,15 @@ def parse_profiler_file(profiler_path):
     for i in range(num_load_workers):
         prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
-    # Decode worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_decode_workers = t[0]
-    for i in range(num_decode_workers):
-        prof, offset = parse_profiler_output(bytes_buffer, offset)
-        profilers[prof['worker_type']].append(prof)
     # Eval worker profilers
     t, offset = read_advance('B', bytes_buffer, offset)
     num_eval_workers = t[0]
-    for i in range(num_eval_workers):
-        prof, offset = parse_profiler_output(bytes_buffer, offset)
-        profilers[prof['worker_type']].append(prof)
+    t, offset = read_advance('B', bytes_buffer, offset)
+    groups_per_chain = t[0]
+    for pu in range(num_eval_workers):
+        for fg in range(groups_per_chain):
+            prof, offset = parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
     # Save worker profilers
     t, offset = read_advance('B', bytes_buffer, offset)
     num_save_workers = t[0]
@@ -333,7 +333,8 @@ def write_trace_file(profilers, job):
                     'pid': proc,
                     'tid': tid,
                     'args': {
-                        'name': '{}{:02d}_{:02d}'.format(worker_type, proc, i)
+                        'name': '{}_{:02d}_{:02d}_{}'.format(
+                            worker_type, proc, i, prof['worker_tag'])
                     }})
                 for interval in prof['intervals']:
                     traces.append({
@@ -503,10 +504,10 @@ def caffe_benchmark_gpu_trials():
 
 
 def main(args):
-   caffe_benchmark_gpu_trials()
-   # job = sys.argv[1]
-   # profilers = parse_profiler_files(job)
-   # write_trace_file(profilers, job)
+   #caffe_benchmark_gpu_trials()
+   job = sys.argv[1]
+   profilers = parse_profiler_files(job)
+   write_trace_file(profilers, job)
 
 
 if __name__ == '__main__':
