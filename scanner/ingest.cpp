@@ -557,8 +557,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       // Append the packet to the stream
       size_t prev_size = bytestream_bytes.size();
       bytestream_offset = prev_size + sizeof(i32);
-      bytestream_bytes.resize(prev_size + filtered_data_size + sizeof(i32));
-      *((i32*)(bytestream_bytes.data() + nal_bytestream_offset)) =
+      bytestream_bytes.resize(prev_size + sizeof(i32) + filtered_data_size);
+      *((i32*)(bytestream_bytes.data() + prev_size)) =
           filtered_data_size;
     }
 
@@ -867,7 +867,7 @@ void ingest(storehouse::StorageConfig* storage_config,
   i64 average_height{};
   i64 max_height{};
 
-  std::vector<std::string> bad_paths;
+  std::vector<size_t> bad_video_indices;
   for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
     const std::string& path = video_paths[i];
     const std::string& item_name = item_names[i];
@@ -882,7 +882,7 @@ void ingest(storehouse::StorageConfig* storage_config,
                    << "Adding to bad paths file "
                    << "(" << BAD_VIDEOS_FILE_PATH << "in current directory)."
                    << std::endl;
-      bad_paths.push_back(path);
+      bad_video_indices.push_back(i);
     } else {
       total_frames += video_descriptor.frames();
       // We are summing into the average variables but we will divide
@@ -906,9 +906,10 @@ void ingest(storehouse::StorageConfig* storage_config,
     // to resume if we crash or exit early
     write_last_processed_video(storage, dataset_name, static_cast<i32>(i));
   }
-  if (!bad_paths.empty()) {
+  if (!bad_video_indices.empty()) {
     std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
-    for (const std::string& bad_path : bad_paths) {
+    for (size_t i : bad_video_indices) {
+      const std::string& bad_path = video_paths[i];
       bad_paths_file << bad_path << std::endl;
     }
     bad_paths_file.close();
@@ -925,7 +926,6 @@ void ingest(storehouse::StorageConfig* storage_config,
     meta = deserialize_database_metadata(meta_in_file.get(), pos);
 
     dataset_id = meta.add_dataset(dataset_name);
-    ;
   }
 
   descriptor.set_id(dataset_id);
@@ -943,16 +943,29 @@ void ingest(storehouse::StorageConfig* storage_config,
   descriptor.set_average_height(average_height);
   descriptor.set_max_height(max_height);
 
-  descriptor.set_average_width(average_width / total_frames);
-  descriptor.set_average_height(average_height / total_frames);
+  if (total_frames > 0) {
+    descriptor.set_average_width(average_width / total_frames);
+    descriptor.set_average_height(average_height / total_frames);
+  }
 
   printf("max width %d, max height %d\n", max_width, max_height);
 
-  for (const std::string& path : video_paths) {
-    descriptor.add_original_video_paths(path);
+  // Remove bad paths
+  size_t num_bad_videos = bad_video_indices.size();
+  for (size_t i = 0; i < num_bad_videos; ++i) {
+    size_t bad_index = bad_video_indices[num_bad_videos - 1 - i];
+    video_paths.erase(video_paths.begin() + bad_index);
+    item_names.erase(item_names.begin() + bad_index);
   }
-  for (const std::string& path : item_names) {
-    descriptor.add_video_names(path);
+
+  LOG_IF(FATAL, video_paths.size() == 0)
+      << "Dataset would be created with zero videos! Exiting";
+
+  for (size_t i = 0; i < video_paths.size(); ++i) {
+    const std::string& video_path = video_paths[i];
+    const std::string& item_path = item_names[i];
+    descriptor.add_original_video_paths(video_path);
+    descriptor.add_video_names(item_path);
   }
 
   // Write out dataset descriptor
