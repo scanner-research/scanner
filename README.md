@@ -13,7 +13,7 @@ Scanner is a system for low-level, high-performance batch processing of images a
 To write these applications, a user provides Scanner a pipeline of operations. For example, to blur faces in a video, the pipeline is:
 
 1. Decode video into frames
-2. Find faces in each frame -
+2. Find faces in each frame
 3. Blur each face in each frame
 4. Encode the blurred frames into a new video
 
@@ -58,7 +58,7 @@ echo "example.mp4" > videos.txt
 
 # Compute k-nearest neighbors on an exemplar
 wget -O query.jpg https://upload.wikimedia.org/wikipedia/en/9/9b/Rickastleyposter.jpg
-python scripts/knn.py example_job example_dataset
+python python/knn.py example_job example_dataset
 # Give "query.jpg" as the input to the prompt, then replace FRAMENUMBER below with one of the frame numbers
 ffmpeg -i example.mp4 -vf "select=eq(n\,FRAMENUMBER)" -vframes 1 result.png
 ```
