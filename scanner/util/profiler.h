@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/util/util.h"
+#include "storehouse/storage_backend.h"
 
 #include <atomic>
 #include <fstream>
@@ -51,7 +52,7 @@ class Profiler {
   std::vector<TaskRecord> records_;
 };
 
-void write_profiler_to_file(std::ofstream& output, int64_t node,
+void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
                             std::string type_name, std::string tag,
                             int64_t worker_num, const Profiler& profiler);
 

@@ -9,6 +9,7 @@ import sys
 import struct
 import json
 import re
+import scanner
 from collections import defaultdict
 from pprint import pprint
 
@@ -92,24 +93,6 @@ def parse_profiler_output(bytes_buffer, offset):
     }, offset
 
 
-def parse_profiler_files(job_name):
-    r = re.compile('^{}_job_profiler_(\d+).bin$'.format(job_name))
-    files = []
-    for f in os.listdir('.'):
-        matches = r.match(f)
-        if matches is not None:
-            files.append(int(matches.group(1)))
-
-    files.sort()
-    profilers = {}
-    for n in files:
-        path = '{}_job_profiler_{}.bin'.format(job_name, n)
-        _, profs = parse_profiler_file(path)
-        profilers[n] = profs
-
-    return profilers
-
-
 def parse_profiler_file(profiler_path):
     with open(profiler_path, 'rb') as f:
         bytes_buffer = f.read()
@@ -143,6 +126,27 @@ def parse_profiler_file(profiler_path):
         prof, offset = parse_profiler_output(bytes_buffer, offset)
         profilers[prof['worker_type']].append(prof)
     return (start_time, end_time), profilers
+
+
+def parse_profiler_files(job_name):
+    scanner_config = scanner.ScannerConfig()
+    db_path = scanner_config.db_path
+    job_path = '{}/{}_job/'.format(db_path, job_name)
+    r = re.compile('^profile_(\d+).bin$')
+    files = []
+    for f in os.listdir(job_path):
+        matches = r.match(f)
+        if matches is not None:
+            files.append(int(matches.group(1)))
+
+    files.sort()
+    profilers = {}
+    for n in files:
+        path = job_path + 'profile_{}.bin'.format(n)
+        _, profs = parse_profiler_file(path)
+        profilers[n] = profs
+
+    return profilers
 
 
 def run_trial(job_name,

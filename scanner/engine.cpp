@@ -1312,7 +1312,8 @@ void run_job(storehouse::StorageConfig* config,
 
   // Execution done, write out profiler intervals for each worker
   std::string profiler_file_name = job_profiler_path(job_name, rank);
-  std::ofstream profiler_output(profiler_file_name, std::fstream::binary);
+  std::unique_ptr<WriteFile> profiler_output;
+  make_unique_write_file(storage, profiler_file_name, profiler_output);
 
   // Write out total time interval
   timepoint_t end_time = now();
@@ -1325,41 +1326,41 @@ void run_job(storehouse::StorageConfig* config,
       std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
           .time_since_epoch()
           .count();
-  profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
-  profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
+  write(profiler_output.get(), start_time_ns);
+  write(profiler_output.get(), end_time_ns);
 
   i64 out_rank = rank;
   // Load worker profilers
   u8 load_worker_count = LOAD_WORKERS_PER_NODE;
-  profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
+  write(profiler_output.get(), load_worker_count);
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
-    write_profiler_to_file(profiler_output, out_rank, "load", "", i,
+    write_profiler_to_file(profiler_output.get(), out_rank, "load", "", i,
                            load_thread_profilers[i]);
   }
 
   // Evaluate worker profilers
   u8 eval_worker_count = PUS_PER_NODE;
-  profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
+  write(profiler_output.get(), eval_worker_count);
   u8 groups_per_chain = factory_groups_per_chain;
-  profiler_output.write((char*)&groups_per_chain, sizeof(groups_per_chain));
+  write(profiler_output.get(), groups_per_chain);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       i32 i = pu;
       std::string tag = "fg" + std::to_string(fg);
-      write_profiler_to_file(profiler_output, out_rank, "eval", tag, i,
+      write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
                              eval_chain_profilers[pu][fg]);
     }
   }
 
   // Save worker profilers
   u8 save_worker_count = SAVE_WORKERS_PER_NODE;
-  profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
+  write(profiler_output.get(), save_worker_count);
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
-    write_profiler_to_file(profiler_output, out_rank, "save", "", i,
+    write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
                            save_thread_profilers[i]);
   }
 
-  profiler_output.close();
+  profiler_output->save();
 
   delete storage;
 }

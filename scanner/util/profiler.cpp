@@ -14,6 +14,7 @@
  */
 
 #include "scanner/util/profiler.h"
+#include "scanner/util/storehouse.h"
 
 #include <cmath>
 #include <map>
@@ -32,18 +33,18 @@ const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
   return records_;
 }
 
-void write_profiler_to_file(std::ofstream& output, int64_t node,
+void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
                             std::string type_name, std::string tag,
                             int64_t worker_num, const Profiler& profiler) {
   // Write worker header information
   // Node
-  output.write((char*)&node, sizeof(node));
+  write(file, node);
   // Worker type
-  output.write(type_name.c_str(), type_name.size() + 1);
+  write(file, type_name);
   // Worker tag
-  output.write(tag.c_str(), tag.size() + 1);
+  write(file, tag);
   // Worker number
-  output.write((char*)&worker_num, sizeof(worker_num));
+  write(file, worker_num);
   // Intervals
   const std::vector<scanner::Profiler::TaskRecord>& records =
       profiler.get_records();
@@ -65,24 +66,24 @@ void write_profiler_to_file(std::ofstream& output, int64_t node,
   }
   // Write out key name dictionary
   int64_t num_keys = static_cast<int64_t>(key_names.size());
-  output.write((char*)&num_keys, sizeof(num_keys));
+  write(file, num_keys);
   for (auto& kv : key_names) {
     std::string key = kv.first;
     uint8_t key_index = kv.second;
-    output.write(key.c_str(), key.size() + 1);
-    output.write((char*)&key_index, sizeof(key_index));
+    write(file, key);
+    write(file, key_index);
   }
   // Number of intervals
   int64_t num_records = static_cast<int64_t>(records.size());
-  output.write((char*)&num_records, sizeof(num_records));
+  write(file, num_records);
   for (size_t j = 0; j < records.size(); j++) {
     const scanner::Profiler::TaskRecord& record = records[j];
     uint8_t key_index = key_names[record.key];
     int64_t start = record.start;
     int64_t end = record.end;
-    output.write((char*)&key_index, sizeof(key_index));
-    output.write((char*)&start, sizeof(start));
-    output.write((char*)&end, sizeof(end));
+    write(file, key_index);
+    write(file, start);
+    write(file, end);
   }
 }
 }

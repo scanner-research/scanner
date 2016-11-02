@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/util/common.h"
 #include "storehouse/storage_backend.h"
 
 #include <cassert>

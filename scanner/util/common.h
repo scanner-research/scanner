@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "storehouse/storage_backend.h"
 #include "metadata.pb.h"
+#include "storehouse/storage_backend.h"
 
 #include <map>
 #include <set>
@@ -77,7 +77,7 @@ inline std::string job_item_output_path(const std::string& job_name,
                                         const std::string& column_name,
                                         i32 work_item_index) {
   return job_name + "_job/" + video_name + "_" + column_name + "_" +
-      std::to_string(work_item_index) + ".bin";
+         std::to_string(work_item_index) + ".bin";
 }
 
 inline std::string job_descriptor_path(const std::string& job_name) {
@@ -85,12 +85,10 @@ inline std::string job_descriptor_path(const std::string& job_name) {
 }
 
 inline std::string job_profiler_path(const std::string& job_name, i32 node) {
-  return job_name + "_job_profiler_" + std::to_string(node) + ".bin";
+  return job_name + "_job/profile_" + std::to_string(node) + ".bin";
 }
 
-inline i32 frames_per_work_item() {
-  return WORK_ITEM_SIZE;
-}
+inline i32 frames_per_work_item() { return WORK_ITEM_SIZE; }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
@@ -115,14 +113,14 @@ struct DatabaseMetadata {
   i32 add_job(i32 dataset_id, const std::string& job_name);
   void remove_job(i32 job_id);
 
-//private:
+  // private:
   i32 next_dataset_id;
   i32 next_job_id;
   std::map<i32, std::string> dataset_names;
   std::map<i32, std::set<i32>> dataset_job_ids;
   std::map<i32, std::string> job_names;
 
-private:
+ private:
   mutable DatabaseDescriptor descriptor;
 };
 
@@ -160,17 +158,17 @@ void serialize_dataset_descriptor(storehouse::WriteFile* file,
 DatasetDescriptor deserialize_dataset_descriptor(
     storehouse::RandomReadFile* file, u64& file_pos);
 
-void serialize_video_metadata(storehouse::WriteFile *file,
-                                const VideoMetadata &metadata);
+void serialize_video_metadata(storehouse::WriteFile* file,
+                              const VideoMetadata& metadata);
 
-VideoMetadata deserialize_video_metadata(storehouse::RandomReadFile *file,
-                                         u64 &file_pos);
+VideoMetadata deserialize_video_metadata(storehouse::RandomReadFile* file,
+                                         u64& file_pos);
 
-void serialize_web_timestamps(storehouse::WriteFile *file,
-                              const WebTimestamps &metadata);
+void serialize_web_timestamps(storehouse::WriteFile* file,
+                              const WebTimestamps& metadata);
 
-WebTimestamps deserialize_web_timestamps(
-    storehouse::RandomReadFile* file, u64& file_pos);
+WebTimestamps deserialize_web_timestamps(storehouse::RandomReadFile* file,
+                                         u64& file_pos);
 
 void serialize_job_descriptor(storehouse::WriteFile* file,
                               const JobDescriptor& descriptor);
