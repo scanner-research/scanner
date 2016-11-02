@@ -67,18 +67,18 @@ struct VideoWorkItem {
 
 struct LoadWorkEntry {
   i32 work_item_index;
-  //union {
-    // For no sampling
+  // union {
+  // For no sampling
+  Interval interval;
+  // For stride
+  struct {
     Interval interval;
-    // For stride
-    struct {
-      Interval interval;
-      i32 stride;
-    } strided;
-    // For gather
-    std::vector<i32> gather_points;
-    // For sequence gather
-    std::vector<Interval> gather_sequences;
+    i32 stride;
+  } strided;
+  // For gather
+  std::vector<i32> gather_points;
+  // For sequence gather
+  std::vector<Interval> gather_sequences;
   //};
 };
 
@@ -152,9 +152,9 @@ struct SaveThreadArgs {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
-std::tuple<size_t, size_t>
-find_keyframe_indices(i32 start_frame, i32 end_frame,
-                      const std::vector<i64>& keyframe_positions) {
+std::tuple<size_t, size_t> find_keyframe_indices(
+    i32 start_frame, i32 end_frame,
+    const std::vector<i64>& keyframe_positions) {
   size_t start_keyframe_index = std::numeric_limits<size_t>::max();
   for (size_t i = 1; i < keyframe_positions.size(); ++i) {
     if (keyframe_positions[i] > start_frame) {
@@ -258,9 +258,9 @@ void* load_video_thread(void* arg) {
                                    load_work_entry.interval.end});
 
       // Video decode arguments
-      u8 *decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
+      u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
       // HACK(apoms): These placement new's are a memory leak
-      DecoderEvaluator::DecodeArgs *decode_args =
+      DecoderEvaluator::DecodeArgs* decode_args =
           new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
       decode_args->warmup_count = args.warmup_count;
       decode_args->sampling = Sampling::All;
@@ -276,8 +276,8 @@ void* load_video_thread(void* arg) {
                                    load_work_entry.strided.interval.end});
 
       // Video decode arguments
-      u8 *decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-      DecoderEvaluator::DecodeArgs *decode_args =
+      u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
+      DecoderEvaluator::DecodeArgs* decode_args =
           new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
       decode_args->warmup_count = args.warmup_count;
       decode_args->sampling = Sampling::Strided;
@@ -295,9 +295,9 @@ void* load_video_thread(void* arg) {
                                      load_work_entry.gather_points[i] + 1});
 
         // Video decode arguments
-        u8 *decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-        DecoderEvaluator::DecodeArgs *decode_args =
-            new(decode_args_buffer) DecoderEvaluator::DecodeArgs();
+        u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
+        DecoderEvaluator::DecodeArgs* decode_args =
+            new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
         decode_args->warmup_count = args.warmup_count;
         decode_args->sampling = Sampling::Gather;
         decode_args->gather_points.push_back(load_work_entry.gather_points[i]);
@@ -310,9 +310,9 @@ void* load_video_thread(void* arg) {
 
       for (size_t i = 0; i < load_work_entry.gather_sequences.size(); ++i) {
         // Video decode arguments
-        u8 *decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-        DecoderEvaluator::DecodeArgs *decode_args =
-            new(decode_args_buffer) DecoderEvaluator::DecodeArgs();
+        u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
+        DecoderEvaluator::DecodeArgs* decode_args =
+            new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
         decode_args->warmup_count = args.warmup_count;
         decode_args->sampling = Sampling::SequenceGather;
         decode_args->gather_sequences.push_back(
@@ -331,9 +331,6 @@ void* load_video_thread(void* arg) {
       size_t end_keyframe_index;
       std::tie(start_keyframe_index, end_keyframe_index) =
           find_keyframe_indices(start_frame, end_frame, keyframe_positions);
-      printf("start end, %d, %d, %d, %d\n", start_frame, end_frame,
-             keyframe_positions[start_keyframe_index],
-             keyframe_positions[end_keyframe_index]);
 
       u64 start_keyframe_byte_offset =
           static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
@@ -344,7 +341,7 @@ void* load_video_thread(void* arg) {
       size_t buffer_size =
           end_keyframe_byte_offset - start_keyframe_byte_offset;
 
-      u8 *buffer = new u8[buffer_size];
+      u8* buffer = new u8[buffer_size];
 
       auto io_start = now();
 
@@ -369,7 +366,6 @@ void* load_video_thread(void* arg) {
            eval_work_entry.buffer_sizes[1].size());
 
     args.profiler.add_interval("task", work_start, now());
-
 
     args.eval_work.push(eval_work_entry);
   }
@@ -443,7 +439,7 @@ void* evaluate_thread(void* arg) {
         args.work_items[work_entry.work_item_index];
     const VideoMetadata& metadata = args.metadata[work_item.video_index];
 
-    bool needs_configure =!(work_item.video_index == last_video_index);
+    bool needs_configure = !(work_item.video_index == last_video_index);
     bool needs_reset = (!(work_item.video_index == last_video_index &&
                           work_item.item_id == last_next_item_id));
     for (auto& evaluator : evaluators) {
@@ -491,10 +487,10 @@ void* evaluate_thread(void* arg) {
       std::vector<std::string> output_names = work_entry.column_names;
       std::vector<std::vector<u8*>> output_buffers(work_entry.buffers.size());
       for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
-        output_buffers[i].insert(output_buffers[i].end(),
-                                 work_entry.buffers[i].begin() + current_input,
-                                 work_entry.buffers[i].begin() + current_input +
-                                     batch_size);
+        output_buffers[i].insert(
+            output_buffers[i].end(),
+            work_entry.buffers[i].begin() + current_input,
+            work_entry.buffers[i].begin() + current_input + batch_size);
       }
       std::vector<std::vector<size_t>> output_sizes(
           work_entry.buffer_sizes.size());
@@ -589,8 +585,8 @@ void* evaluate_thread(void* arg) {
       // they need to be forwarded to warm up later evaluator groups
       i32 warmup_frames;
       if (args.last_evaluator_group && needs_reset) {
-        i32 total_warmup_frames = std::min(args.warmup_count,
-                                           work_item.rows_from_start);
+        i32 total_warmup_frames =
+            std::min(args.warmup_count, work_item.rows_from_start);
         warmup_frames = std::min(
             batch_size, std::max(0, total_warmup_frames - current_input));
       } else {
@@ -844,7 +840,6 @@ void run_job(storehouse::StorageConfig* config,
     column->set_name(final_column_names[j]);
   }
 
-
   std::vector<VideoWorkItem> work_items;
   std::vector<LoadWorkEntry> load_work_items;
   if (sampling == Sampling::All) {
@@ -880,8 +875,7 @@ void run_job(storehouse::StorageConfig* config,
       i32 allocated_frames = 0;
       while (allocated_frames < meta.frames()) {
         i32 frames_to_allocate =
-            std::min(work_item_size * stride,
-                     meta.frames() - allocated_frames);
+            std::min(work_item_size * stride, meta.frames() - allocated_frames);
 
         VideoWorkItem item;
         item.video_index = i;
@@ -939,10 +933,10 @@ void run_job(storehouse::StorageConfig* config,
       total_frames += frames_in_sample;
     }
   } else if (sampling == Sampling::SequenceGather) {
-    for (const SequenceSamples &samples :
+    for (const SequenceSamples& samples :
          pipeline_description.gather_sequences) {
       {
-        JobDescriptor_SequenceSamples *jd_samples =
+        JobDescriptor_SequenceSamples* jd_samples =
             job_descriptor.add_gather_sequences();
         jd_samples->set_video_index(samples.video_index);
         for (const Interval& interval : samples.intervals) {
@@ -1130,8 +1124,7 @@ void run_job(storehouse::StorageConfig* config,
         i, config, save_thread_profilers[i],
 
         // Queues
-        save_work, retired_items
-    });
+        save_work, retired_items});
   }
   std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
@@ -1147,7 +1140,7 @@ void run_job(storehouse::StorageConfig* config,
       // Check if we need to allocate work to our own processing thread
       i32 local_work = accepted_items - retired_items;
       if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-        LoadWorkEntry &entry = load_work_items[next_work_item_to_allocate++];
+        LoadWorkEntry& entry = load_work_items[next_work_item_to_allocate++];
         load_work.push(entry);
 
         accepted_items++;
@@ -1217,7 +1210,7 @@ void run_job(storehouse::StorageConfig* config,
 
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     // Wait until load has finished
-    void *result;
+    void* result;
     i32 err = pthread_join(load_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of load thread\n");
@@ -1235,7 +1228,7 @@ void run_job(storehouse::StorageConfig* config,
 
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
     // Wait until first eval has finished
-    void *result;
+    void* result;
     i32 err = pthread_join(eval_chain_threads[i][0], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of eval thread\n");
@@ -1252,7 +1245,7 @@ void run_job(storehouse::StorageConfig* config,
     }
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       // Wait until eval has finished
-      void *result;
+      void* result;
       i32 err = pthread_join(eval_chain_threads[pu][fg], &result);
       if (err != 0) {
         fprintf(stderr, "error in pthread_join of eval thread\n");
@@ -1271,7 +1264,7 @@ void run_job(storehouse::StorageConfig* config,
 
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     // Wait until eval has finished
-    void *result;
+    void* result;
     i32 err = pthread_join(save_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of save thread\n");
@@ -1332,13 +1325,13 @@ void run_job(storehouse::StorageConfig* config,
       std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
           .time_since_epoch()
           .count();
-  profiler_output.write((char *)&start_time_ns, sizeof(start_time_ns));
-  profiler_output.write((char *)&end_time_ns, sizeof(end_time_ns));
+  profiler_output.write((char*)&start_time_ns, sizeof(start_time_ns));
+  profiler_output.write((char*)&end_time_ns, sizeof(end_time_ns));
 
   i64 out_rank = rank;
   // Load worker profilers
   u8 load_worker_count = LOAD_WORKERS_PER_NODE;
-  profiler_output.write((char *)&load_worker_count, sizeof(load_worker_count));
+  profiler_output.write((char*)&load_worker_count, sizeof(load_worker_count));
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     write_profiler_to_file(profiler_output, out_rank, "load", i,
                            load_thread_profilers[i]);
@@ -1346,7 +1339,7 @@ void run_job(storehouse::StorageConfig* config,
 
   // Evaluate worker profilers
   u8 eval_worker_count = PUS_PER_NODE * factory_groups_per_chain;
-  profiler_output.write((char *)&eval_worker_count, sizeof(eval_worker_count));
+  profiler_output.write((char*)&eval_worker_count, sizeof(eval_worker_count));
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       i32 i = pu * factory_groups_per_chain + fg;
@@ -1357,7 +1350,7 @@ void run_job(storehouse::StorageConfig* config,
 
   // Save worker profilers
   u8 save_worker_count = SAVE_WORKERS_PER_NODE;
-  profiler_output.write((char *)&save_worker_count, sizeof(save_worker_count));
+  profiler_output.write((char*)&save_worker_count, sizeof(save_worker_count));
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     write_profiler_to_file(profiler_output, out_rank, "save", i,
                            save_thread_profilers[i]);

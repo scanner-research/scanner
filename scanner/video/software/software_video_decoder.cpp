@@ -14,6 +14,7 @@
  */
 
 #include "scanner/video/software/software_video_decoder.h"
+#include "scanner/util/h264.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -37,8 +38,12 @@ namespace scanner {
 /// SoftwareVideoDecoder
 SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id,
                                            DeviceType output_type)
-    : device_id_(device_id), output_type_(output_type), codec_(nullptr),
-      cc_(nullptr), reset_context_(true), sws_context_(nullptr) {
+    : device_id_(device_id),
+      output_type_(output_type),
+      codec_(nullptr),
+      cc_(nullptr),
+      reset_context_(true),
+      sws_context_(nullptr) {
   if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
     LOG(FATAL) << "Unsupported output type for software decoder";
   }
@@ -89,6 +94,30 @@ void SoftwareVideoDecoder::configure(const VideoMetadata& metadata) {
 
 bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                                 bool discontinuity) {
+// Debug read packets
+#if 0
+  i32 es = (i32)encoded_size;
+  const u8* b = encoded_buffer;
+  while (es > 0) {
+    const u8* nal_start;
+    i32 nal_size;
+    next_nal(b, es, nal_start, nal_size);
+    i32 nal_unit_type = get_nal_unit_type(nal_start);
+    printf("nal unit type %d\n", nal_unit_type);
+
+    if (nal_unit_type == 7) {
+      i32 offset = 32;
+      i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
+      printf("SPS NAL (%d)\n", sps_id);
+    }
+    if (nal_unit_type == 8) {
+      i32 offset = 8;
+      i32 pps_id = parse_exp_golomb(nal_start, nal_size, offset);
+      i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
+      printf("PPS id: %d, SPS id: %d\n", pps_id, sps_id);
+    }
+  }
+#endif
   if (discontinuity) {
     avcodec_flush_buffers(cc_);
   }
@@ -98,7 +127,7 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   }
   memcpy(packet_.data, encoded_buffer, encoded_size);
 
-  uint8_t *orig_data = packet_.data;
+  uint8_t* orig_data = packet_.data;
   int orig_size = packet_.size;
   int got_picture = 0;
   do {
@@ -179,14 +208,13 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     scale_buffer = conversion_buffer_.data();
   } else if (output_type_ == DeviceType::CPU) {
     scale_buffer = decoded_buffer;
-  } 
+  }
 
   uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size = av_image_fill_arrays(
-      out_slices, out_linesizes,
-      scale_buffer,
-      AV_PIX_FMT_RGB24, metadata_.width(), metadata_.height(), 1);
+      out_slices, out_linesizes, scale_buffer, AV_PIX_FMT_RGB24,
+      metadata_.width(), metadata_.height(), 1);
   if (required_size < 0) {
     fprintf(stderr, "Error in av_image_fill_arrays\n");
     exit(EXIT_FAILURE);

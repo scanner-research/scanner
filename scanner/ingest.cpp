@@ -16,6 +16,7 @@
 #include "scanner/ingest.h"
 
 #include "scanner/util/common.h"
+#include "scanner/util/h264.h"
 #include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
@@ -342,33 +343,6 @@ bool read_timestamps(std::string video_path, WebTimestamps& meta) {
   return true;
 }
 
-void next_nal(u8*& buffer, i32& buffer_size_left, u8*& nal_start,
-              i32& nal_size) {
-  while (buffer_size_left > 2 &&
-         !(buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x01)) {
-    buffer++;
-    buffer_size_left--;
-  }
-
-  buffer += 3;
-  buffer_size_left -= 3;
-
-  nal_start = buffer;
-  nal_size = 0;
-  if (buffer_size_left > 2) {
-    while (!(buffer[0] == 0x00 && buffer[1] == 0x00 &&
-             (buffer[2] == 0x00 || buffer[2] == 0x01))) {
-      buffer++;
-      buffer_size_left--;
-      nal_size++;
-      if (buffer_size_left < 3) {
-        nal_size += buffer_size_left;
-        break;
-      }
-    }
-  }
-}
-
 bool preprocess_video(storehouse::StorageBackend* storage,
                       const std::string& dataset_name,
                       const std::string& video_path,
@@ -420,6 +394,10 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   bool extradata_extracted = false;
   bool in_meta_packet_sequence = false;
   i64 meta_packet_sequence_start_offset = 0;
+  bool saw_sps_nal = false;
+  bool saw_pps_nal = false;
+  std::vector<u8> sps_nal_bytes;
+  std::vector<u8> pps_nal_bytes;
 
   i32 avcodec_frame = 0;
   while (true) {
@@ -476,14 +454,14 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     }
 
     if (!extradata_extracted) {
-      u8* extradata = state.in_cc->extradata;
+      const u8* extradata = state.in_cc->extradata;
       i32 extradata_size_left = state.in_cc->extradata_size;
 
       metadata_bytes.resize(extradata_size_left);
       memcpy(metadata_bytes.data(), extradata, extradata_size_left);
 
       while (extradata_size_left > 3) {
-        u8* nal_start = nullptr;
+        const u8* nal_start = nullptr;
         i32 nal_size = 0;
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
@@ -495,47 +473,91 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     }
 
     i64 nal_bytestream_offset = bytestream_bytes.size();
-    bytestream_bytes.resize(bytestream_bytes.size() + filtered_data_size +
-                            sizeof(i32));
-    *((i32*)(bytestream_bytes.data() + nal_bytestream_offset)) =
-        filtered_data_size;
-    memcpy(bytestream_bytes.data() + nal_bytestream_offset + sizeof(i32),
-           filtered_data, filtered_data_size);
 
+    printf("new packet %lu\n", nal_bytestream_offset);
+    bool insert_sps_nal = false;
     // Parse NAL unit
-    u8* nal_parse = filtered_data;
+    const u8* nal_parse = filtered_data;
     i32 size_left = filtered_data_size;
     while (size_left > 3) {
-      u8* nal_start = nullptr;
+      const u8* nal_start = nullptr;
       i32 nal_size = 0;
       next_nal(nal_parse, size_left, nal_start, nal_size);
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      printf("frame %d, nal size: %d, nal ref %d, nal unit %d\n",
-             frame, nal_size, nal_ref_idc, nal_unit_type);
+      printf("frame %d, nal size: %d, nal ref %d, nal unit %d\n", frame,
+             nal_size, nal_ref_idc, nal_unit_type);
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
+          printf("in meta sequence %lu\n", nal_bytestream_offset);
           meta_packet_sequence_start_offset = nal_bytestream_offset;
           in_meta_packet_sequence = true;
+          saw_sps_nal = false;
         }
       } else {
         in_meta_packet_sequence = false;
       }
-      if (nal_unit_type < 6) {
+      // We need to track the last SPS NAL because some streams do
+      // not insert an SPS every keyframe and we need to insert it
+      // ourselves.
+      if (nal_unit_type == 7) {
+        saw_sps_nal = true;
+        sps_nal_bytes.insert(sps_nal_bytes.end(), nal_start - 3,
+                             nal_start + nal_size + 3);
+        i32 offset = 32;
+        i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
+        printf("Last SPS NAL (%d, %d) seen at frame %d\n", sps_id, offset,
+               frame);
+      }
+      if (nal_unit_type == 8) {
+        i32 offset = 8;
+        i32 pps_id = parse_exp_golomb(nal_start, nal_size, offset);
+        i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
+        saw_pps_nal = true;
+        pps_nal_bytes.insert(pps_nal_bytes.end(), nal_start - 3,
+                             nal_start + nal_size + 3);
+        printf("PPS id: %d, SPS id: %d, frame %d\n", pps_id, sps_id, frame);
+      }
+      if (is_vcl_nal(nal_unit_type)) {
         frame++;
       }
     }
-
+    i32 bytestream_offset;
     if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
-      // printf("av packet keyframe pts %d\n",
-      //        state.av_packet.pts);
-      keyframe_byte_offsets.push_back(meta_packet_sequence_start_offset);
+      // Insert an SPS NAL if we did not see one in the meta packet sequence
+      keyframe_byte_offsets.push_back(nal_bytestream_offset);
       keyframe_positions.push_back(frame - 1);
       keyframe_timestamps.push_back(state.av_packet.pts);
       in_meta_packet_sequence = false;
-      printf("keyframe %d, byte offset %d\n", frame - 1, nal_bytestream_offset);
+      saw_sps_nal = false;
+      printf("keyframe %d, byte offset %d\n", frame - 1,
+             meta_packet_sequence_start_offset);
+
+      // Insert metadata
+      printf("inserting sps and pss nals\n");
+      size_t prev_size = bytestream_bytes.size();
+      i32 size = filtered_data_size + static_cast<i32>(sps_nal_bytes.size()) +
+                 static_cast<i32>(pps_nal_bytes.size());
+      bytestream_offset =
+          prev_size + sizeof(i32) + sps_nal_bytes.size() + pps_nal_bytes.size();
+      bytestream_bytes.resize(prev_size + sizeof(i32) + size);
+      *((i32*)(bytestream_bytes.data() + prev_size)) = size;
+      memcpy(bytestream_bytes.data() + prev_size + sizeof(i32),
+             sps_nal_bytes.data(), sps_nal_bytes.size());
+      memcpy(bytestream_bytes.data() + prev_size + sizeof(i32) +
+                 sps_nal_bytes.size(),
+             pps_nal_bytes.data(), pps_nal_bytes.size());
+    } else {
+      // Append the packet to the stream
+      size_t prev_size = bytestream_bytes.size();
+      bytestream_offset = prev_size + sizeof(i32);
+      bytestream_bytes.resize(prev_size + filtered_data_size + sizeof(i32));
+      *((i32*)(bytestream_bytes.data() + nal_bytestream_offset)) =
+          filtered_data_size;
     }
+    memcpy(bytestream_bytes.data() + bytestream_offset, filtered_data,
+           filtered_data_size);
 
     free(filtered_data);
 
