@@ -327,14 +327,17 @@ def write_trace_file(profilers, job):
             for i, prof in enumerate(profs):
                 tid = next_tid
                 next_tid += 1
+                worker_num = prof['worker_num']
+                tag = prof['worker_tag']
                 traces.append({
                     'name': 'thread_name',
                     'ph': 'M',
                     'pid': proc,
                     'tid': tid,
                     'args': {
-                        'name': '{}_{:02d}_{:02d}_{}'.format(
-                            worker_type, proc, i, prof['worker_tag'])
+                        'name': '{}_{:02d}_{:02d}'.format(
+                            worker_type, proc, worker_num) + (
+                                "_" + str(tag) if tag else "")
                     }})
                 for interval in prof['intervals']:
                     traces.append({

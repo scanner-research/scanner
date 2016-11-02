@@ -1344,7 +1344,7 @@ void run_job(storehouse::StorageConfig* config,
   profiler_output.write((char*)&groups_per_chain, sizeof(groups_per_chain));
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
-      i32 i = pu * factory_groups_per_chain + fg;
+      i32 i = pu;
       std::string tag = "fg" + std::to_string(fg);
       write_profiler_to_file(profiler_output, out_rank, "eval", tag, i,
                              eval_chain_profilers[pu][fg]);
