@@ -265,7 +265,6 @@ function(add_executable targetName)
   add_dependencies(${targetName} proto_files)
 endfunction()
 
-
 add_subdirectory(scanner)
 
 if (BUILD_COMPARISON)
@@ -311,12 +310,24 @@ target_link_libraries(scanner_server
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
 
+set(PYDIR ${CMAKE_CURRENT_BINARY_DIR}/scannerpy)
+
+add_custom_command(TARGET proto_files POST_BUILD
+  COMMAND rm -rf ${PYDIR})
+
 # Make init files so python code can import from subdirectories
 foreach(FIL ${PROTO_FILES})
   get_filename_component(DIR_FIL ${FIL} DIRECTORY)
   get_filename_component(FIL_WE ${FIL} NAME_WE)
   add_custom_command(TARGET proto_files POST_BUILD
     COMMAND
-    ${CMAKE_COMMAND} -E touch
-    ${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/__init__.py)
+    ${CMAKE_COMMAND} -E
+    make_directory ${PYDIR}/${DIR_FIL} &&
+    ${CMAKE_COMMAND} -E
+    touch ${PYDIR}/${DIR_FIL}/__init__.py &&
+    ${CMAKE_COMMAND} -E
+    copy ${DIR_FIL}/${FIL_WE}_pb2.py ${PYDIR}/${DIR_FIL})
 endforeach()
+
+add_custom_command(TARGET proto_files POST_BUILD
+  COMMAND mv -f ${PYDIR}/scanner/* ${PYDIR} && rm -r ${PYDIR}/scanner)

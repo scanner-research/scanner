@@ -288,7 +288,7 @@ class Scanner(object):
     def __init__(self, config_path=None):
         self.config = ScannerConfig(config_path)
         sys.path.append('{}/build'.format(self.config.scanner_path))
-        import metadata_pb2
+        from scannerpy import metadata_pb2
         self._meta = metadata_pb2
 
     def get_job_result(self, dataset_name, job_name, column, fn):
