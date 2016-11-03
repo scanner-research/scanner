@@ -15,7 +15,7 @@
 
 #include "scanner/engine.h"
 
-#include "scanner/evaluators/video/decoder_evaluator.h"
+#include "scanner/evaluators/serialize.h"
 
 #include "jpegwrapper/JPEGWriter.h"
 #include "scanner/util/common.h"
@@ -253,21 +253,19 @@ void* load_video_thread(void* arg) {
     eval_work_entry.video_decode_item = true;
 
     std::vector<Interval> intervals;
+    std::vector<DecodeArgs> dargs;
     if (args.sampling == Sampling::All) {
       intervals.push_back(Interval{load_work_entry.interval.start,
                                    load_work_entry.interval.end});
 
       // Video decode arguments
-      u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-      // HACK(apoms): These placement new's are a memory leak
-      DecoderEvaluator::DecodeArgs* decode_args =
-          new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
-      decode_args->warmup_count = args.warmup_count;
-      decode_args->sampling = Sampling::All;
-      decode_args->interval = load_work_entry.interval;
+      DecodeArgs decode_args;
+      decode_args.set_warmup_count(args.warmup_count);
+      decode_args.set_sampling(DecodeArgs::All);
+      decode_args.mutable_interval()->set_start(load_work_entry.interval.start);
+      decode_args.mutable_interval()->set_end(load_work_entry.interval.end);
 
-      eval_work_entry.buffers[1].push_back(decode_args_buffer);
-      eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
+      dargs.push_back(decode_args);
 
     } else if (args.sampling == Sampling::Strided) {
       // TODO(apoms): loading a consecutive portion of the video stream might
@@ -276,16 +274,16 @@ void* load_video_thread(void* arg) {
                                    load_work_entry.strided.interval.end});
 
       // Video decode arguments
-      u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-      DecoderEvaluator::DecodeArgs* decode_args =
-          new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
-      decode_args->warmup_count = args.warmup_count;
-      decode_args->sampling = Sampling::Strided;
-      decode_args->strided.interval = load_work_entry.strided.interval;
-      decode_args->strided.stride = load_work_entry.strided.stride;
+      DecodeArgs decode_args;
+      decode_args.set_warmup_count(args.warmup_count);
+      decode_args.set_sampling(DecodeArgs::Strided);
+      decode_args.mutable_interval()->set_start(
+          load_work_entry.strided.interval.start);
+      decode_args.mutable_interval()->set_end(
+          load_work_entry.strided.interval.end);
+      decode_args.set_stride(load_work_entry.strided.stride);
 
-      eval_work_entry.buffers[1].push_back(decode_args_buffer);
-      eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
+      dargs.push_back(decode_args);
 
     } else if (args.sampling == Sampling::Gather) {
       // TODO(apoms): This implementation is not efficient for gathers which
@@ -295,31 +293,26 @@ void* load_video_thread(void* arg) {
                                      load_work_entry.gather_points[i] + 1});
 
         // Video decode arguments
-        u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-        DecoderEvaluator::DecodeArgs* decode_args =
-            new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
-        decode_args->warmup_count = args.warmup_count;
-        decode_args->sampling = Sampling::Gather;
-        decode_args->gather_points.push_back(load_work_entry.gather_points[i]);
+        DecodeArgs decode_args;
+        decode_args.set_warmup_count(args.warmup_count);
+        decode_args.set_sampling(DecodeArgs::Gather);
+        decode_args.add_gather_points(load_work_entry.gather_points[i]);
 
-        eval_work_entry.buffers[1].push_back(decode_args_buffer);
-        eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
+        dargs.push_back(decode_args);
       }
     } else if (args.sampling == Sampling::SequenceGather) {
       intervals = load_work_entry.gather_sequences;
 
       for (size_t i = 0; i < load_work_entry.gather_sequences.size(); ++i) {
         // Video decode arguments
-        u8* decode_args_buffer = new u8[sizeof(DecoderEvaluator::DecodeArgs)];
-        DecoderEvaluator::DecodeArgs* decode_args =
-            new (decode_args_buffer) DecoderEvaluator::DecodeArgs();
-        decode_args->warmup_count = args.warmup_count;
-        decode_args->sampling = Sampling::SequenceGather;
-        decode_args->gather_sequences.push_back(
-            load_work_entry.gather_sequences[i]);
+        DecodeArgs decode_args;
+        decode_args.set_warmup_count(args.warmup_count);
+        decode_args.set_sampling(DecodeArgs::SequenceGather);
+        DecodeArgs::Interval* intvl = decode_args.add_gather_sequences();
+        intvl->set_start(load_work_entry.gather_sequences[i].start);
+        intvl->set_end(load_work_entry.gather_sequences[i].end);
 
-        eval_work_entry.buffers[1].push_back(decode_args_buffer);
-        eval_work_entry.buffer_sizes[1].push_back(sizeof(*decode_args));
+        dargs.push_back(decode_args);
       }
     }
 
@@ -354,11 +347,18 @@ void* load_video_thread(void* arg) {
       eval_work_entry.buffers[0].push_back(buffer);
       eval_work_entry.buffer_sizes[0].push_back(buffer_size);
 
-      DecoderEvaluator::DecodeArgs* decode_args =
-          reinterpret_cast<DecoderEvaluator::DecodeArgs*>(
-              eval_work_entry.buffers[1][i]);
-      decode_args->start_keyframe = keyframe_positions[start_keyframe_index];
-      decode_args->end_keyframe = keyframe_positions[end_keyframe_index];
+      // Decode args
+      DecodeArgs& decode_args = dargs[i];
+
+      decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index]);
+      decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index]);
+
+      u8* decode_args_buffer = nullptr;
+      size_t size;
+      serialize_decode_args(decode_args, decode_args_buffer, size);
+
+      eval_work_entry.buffers[1].push_back(decode_args_buffer);
+      eval_work_entry.buffer_sizes[1].push_back(size);
     }
     assert(eval_work_entry.buffers[0].size() ==
            eval_work_entry.buffers[1].size());

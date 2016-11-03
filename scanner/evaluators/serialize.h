@@ -44,4 +44,18 @@ inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
     box.SerializeToArray(buf + i * bbox_size, bbox_size);
   }
 }
+
+inline void serialize_decode_args(const DecodeArgs& args,
+                                  u8*& buffer, size_t& size) {
+  size = args.ByteSize();
+  buffer = new u8[size];
+  args.SerializeToArray(buffer, size);
+}
+
+inline DecodeArgs deserialize_decode_args(const u8* buffer, size_t size) {
+  DecodeArgs args;
+  args.ParseFromArray(buffer, size);
+  return args;
+}
+
 }

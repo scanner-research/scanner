@@ -38,28 +38,6 @@ public:
                 std::vector<std::vector<u8*>>& output_buffers,
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
-  struct DecodeArgs {
-    // Encoded data args
-    i32 start_keyframe;
-    i32 end_keyframe;
-    // Work item args
-    i32 warmup_count;
-    Sampling sampling;
-    //union {
-      // For no sampling
-      Interval interval;
-      // For stride
-      struct {
-        Interval interval;
-        i32 stride;
-      } strided;
-      // For gather
-      std::vector<i32> gather_points;
-      // For sequence gather
-      std::vector<Interval> gather_sequences;
-    //};
-  };
-
 private:
   DeviceType device_type_;
   i32 device_id_;

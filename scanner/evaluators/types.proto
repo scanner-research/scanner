@@ -11,3 +11,32 @@ message BoundingBox {
   optional int32 track_id = 6 [default = 0];
   optional double track_score = 7 [default = 0];
 }
+
+message DecodeArgs {
+  enum Sampling {
+    All = 1;
+    Strided = 2;
+    Gather = 3;
+    SequenceGather = 4;
+  }
+
+  message Interval {
+    required int32 start = 1;
+    required int32 end = 2;
+  }
+
+  message SequenceSamples {
+    required int32 video_index = 1;
+    repeated Interval intervals = 2;
+  }
+
+  required int32 start_keyframe = 1;
+  required int32 end_keyframe = 2;
+  required int32 warmup_count = 3;
+  required Sampling sampling = 4;
+
+  optional Interval interval = 5;
+  optional int32 stride = 6;
+  repeated int32 gather_points = 7;
+  repeated Interval gather_sequences = 8;
+}

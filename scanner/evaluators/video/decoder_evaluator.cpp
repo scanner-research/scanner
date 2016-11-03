@@ -14,6 +14,8 @@
  */
 
 #include "scanner/evaluators/video/decoder_evaluator.h"
+#include "scanner/evaluators/types.pb.h"
+#include "scanner/evaluators/serialize.h"
 
 #include "scanner/util/memory.h"
 
@@ -49,48 +51,70 @@ void DecoderEvaluator::evaluate(
 
   size_t num_inputs = input_buffers.empty() ? 0 : input_buffers[0].size();
   for (size_t i = 0; i < num_inputs; ++i) {
-    DecodeArgs& args = *reinterpret_cast<DecodeArgs*>(input_buffers[1][i]);
-    assert(input_sizes[1][i] == sizeof(DecodeArgs));
+    u8* decode_args_buffer = input_buffers[1][i];
+    size_t decode_args_buffer_size = input_sizes[1][i];
 
-    const u8* encoded_buffer = input_buffers[0][i];
-    size_t encoded_buffer_size = input_sizes[0][i];
+    const u8* in_encoded_buffer = input_buffers[0][i];
+    size_t in_encoded_buffer_size = input_sizes[0][i];
+
+    DecodeArgs args;
+    const u8* encoded_buffer;
+    size_t encoded_buffer_size = in_encoded_buffer_size;
+    if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+      u8* buffer = new u8[decode_args_buffer_size];
+      memcpy_buffer(buffer, DeviceType::CPU, 0, decode_args_buffer,
+                    DeviceType::GPU, device_id_, decode_args_buffer_size);
+      args = deserialize_decode_args(buffer, decode_args_buffer_size);
+      delete[] buffer;
+
+      buffer = new u8[encoded_buffer_size];
+      memcpy_buffer(buffer, DeviceType::CPU, 0, in_encoded_buffer,
+                    DeviceType::GPU, device_id_, encoded_buffer_size);
+      encoded_buffer = buffer;
+#else
+
+#endif
+    } else {
+      args =
+          deserialize_decode_args(decode_args_buffer, decode_args_buffer_size);
+      encoded_buffer = in_encoded_buffer;
+    }
 
     std::vector<i32> valid_frames;
-    switch (args.sampling) {
-      case Sampling::All: {
-        for (i32 s = args.interval.start; s < args.interval.end; ++s) {
+    if (args.sampling() == DecodeArgs::All) {
+      const DecodeArgs::Interval& interval = args.interval();
+      for (i32 s = interval.start(); s < interval.end(); ++s) {
+        valid_frames.push_back(s);
+      }
+    } else if (args.sampling() == DecodeArgs::Strided) {
+      const DecodeArgs::Interval& interval = args.interval();
+      i32 s = interval.start();
+      i32 e = interval.end();
+      i32 stride = args.stride();
+      for (; s < e; s += stride) {
+        valid_frames.push_back(s);
+      }
+    } else if (args.sampling() == DecodeArgs::Gather) {
+      for (i32 p : args.gather_points()) {
+        valid_frames.push_back(p);
+      }
+      discontinuity_ = true;
+    } else if (args.sampling() == DecodeArgs::SequenceGather) {
+      for (const DecodeArgs::Interval& interval : args.gather_sequences()) {
+        for (i32 s = interval.start(); s < interval.end(); ++s) {
           valid_frames.push_back(s);
         }
-        break;
       }
-      case Sampling::Strided: {
-        i32 s = args.strided.interval.start;
-        i32 e = args.strided.interval.end;
-        i32 stride = args.strided.stride;
-        for (; s < e; s += stride) {
-          valid_frames.push_back(s);
-        }
-        break;
-      }
-      case Sampling::Gather: {
-        valid_frames = args.gather_points;
-        discontinuity_ = true;
-        break;
-      }
-      case Sampling::SequenceGather: {
-        for (Interval& interval : args.gather_sequences) {
-          for (i32 s = interval.start; s < interval.end; ++s) {
-            valid_frames.push_back(s);
-          }
-        }
-        discontinuity_ = true;
-        break;
-      }
+      discontinuity_ = true;
+    } else {
+      assert(false);
     }
+
     i32 total_output_frames = static_cast<i32>(valid_frames.size());
 
     size_t encoded_buffer_offset = 0;
-    i32 current_frame = args.start_keyframe;
+    i32 current_frame = args.start_keyframe();
     i32 valid_index = 0;
     while (valid_index < total_output_frames) {
       auto video_start = now();
@@ -98,12 +122,12 @@ void DecoderEvaluator::evaluate(
       i32 encoded_packet_size = 0;
       const u8 *encoded_packet = NULL;
       if (encoded_buffer_offset < encoded_buffer_size) {
-        encoded_packet_size = *reinterpret_cast<const i32 *>(
+        encoded_packet_size = *reinterpret_cast<const i32*>(
             encoded_buffer + encoded_buffer_offset);
         encoded_buffer_offset += sizeof(i32);
         encoded_packet = encoded_buffer + encoded_buffer_offset;
         encoded_buffer_offset += encoded_packet_size;
-      }
+      } 
 
       if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity_)) {
         // New frames
@@ -132,6 +156,10 @@ void DecoderEvaluator::evaluate(
     if (decoder_->decoded_frames_buffered() > 0) {
       while (decoder_->discard_frame()) {
       };
+    }
+
+    if (device_type_ == DeviceType::GPU) {
+      delete[] encoded_buffer;
     }
   }
 
