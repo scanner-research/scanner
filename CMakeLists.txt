@@ -312,21 +312,12 @@ target_link_libraries(scanner_server
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
 
-# Copy proto files to python directory
+# Make init files so python code can import from subdirectories
 foreach(FIL ${PROTO_FILES})
   get_filename_component(DIR_FIL ${FIL} DIRECTORY)
   get_filename_component(FIL_WE ${FIL} NAME_WE)
   add_custom_command(TARGET proto_files POST_BUILD
     COMMAND
-    ${CMAKE_COMMAND} -E make_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/${DIR_FIL})
-  add_custom_command(TARGET proto_files POST_BUILD
-    COMMAND
     ${CMAKE_COMMAND} -E touch
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/${DIR_FIL}/__init__.py)
-  add_custom_command(TARGET proto_files POST_BUILD
-    COMMAND
-    ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/python/${DIR_FIL}/${FIL_WE}_pb2.py)
+    ${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/__init__.py)
 endforeach()
