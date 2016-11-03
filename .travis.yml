@@ -25,7 +25,7 @@ install:
 - sudo apt-get install doxygen
 
 script:
-- echo "TODO(wcrichto): add a test suite"
+- docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "echo 'test'"
 
 after_success:
 - ./scripts/publish-docker.sh
