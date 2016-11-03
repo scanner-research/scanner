@@ -14,6 +14,7 @@
  */
 
 #include "scanner/engine.h"
+#include "scanner/eval/pipeline_description.h"
 #include "scanner/ingest.h"
 
 #include "scanner/util/common.h"
@@ -116,8 +117,6 @@ class Config {
   bool has_toml;
 };
 
-extern PipelineDescription get_pipeline_description();
-
 int main(int argc, char** argv) {
   // Variables for holding parsed command line arguments
 
@@ -129,7 +128,8 @@ int main(int argc, char** argv) {
   std::string video_paths_file;  // paths of video files to turn into dataset
   bool compute_web_metadata = false;  // whether to compute metadata on ingest
   // For run sub-command
-  std::string job_name;  // name of job to refer to after run
+  std::string job_name;       // name of job to refer to after run
+  std::string pipeline_name;  // name of pipeline to run
   // For rm sub-command
   std::string resource_type;  // dataset or job
   std::string resource_name;  // name of resource to rm
@@ -275,11 +275,14 @@ int main(int argc, char** argv) {
           "job_name", po::value<std::string>()->required(),
           "Unique name to refer to the output of the job after completion")(
           "dataset_name", po::value<std::string>()->required(),
-          "Unique name of the dataset to store persistently");
+          "Unique name of the dataset to store persistently")(
+          "pipeline_name", po::value<std::string>()->required(),
+          "Name of the pipeline to run on the given dataset");
 
       po::positional_options_description run_pos;
       run_pos.add("job_name", 1);
       run_pos.add("dataset_name", 1);
+      run_pos.add("pipeline_name", 1);
 
       try {
         po::store(po::command_line_parser(opts)
@@ -299,6 +302,7 @@ int main(int argc, char** argv) {
 
       job_name = vm["job_name"].as<std::string>();
       dataset_name = vm["dataset_name"].as<std::string>();
+      pipeline_name = vm["pipeline_name"].as<std::string>();
 
     } else if (cmd == "rm") {
       po::options_description rm_desc("rm options");
@@ -429,7 +433,10 @@ int main(int argc, char** argv) {
       LOG(FATAL) << "Job with that name already exists for that dataset";
     }
 
-    PipelineDescription desc = get_pipeline_description();
+    std::function<PipelineDescription(void)> pipe_gen =
+        get_pipeline(pipeline_name);
+
+    PipelineDescription desc = pipe_gen();
     run_job(config, desc, job_name, dataset_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are

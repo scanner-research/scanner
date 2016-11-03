@@ -3,8 +3,8 @@
 #include "scanner/evaluators/util/swizzle_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
-using namespace scanner;
-
+namespace scanner {
+namespace {
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
 
@@ -16,4 +16,8 @@ PipelineDescription get_pipeline_description() {
   factories.emplace_back(new BlurEvaluatorFactory(3, 0.3));
 
   return desc;
+}
+}
+
+REGISTER_PIPELINE(simple, get_pipeline_description);
 }

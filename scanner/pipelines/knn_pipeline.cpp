@@ -4,12 +4,14 @@
 #include "scanner/evaluators/caffe/squeezenet/squeezenet_input_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
-using namespace scanner;
-
+namespace scanner {
+namespace {
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
   desc.sampling = Sampling::Strided;
   desc.stride = 10;
+  // desc.sampling = Sampling::SequenceGather;
+  // desc.gather_sequences.push_back({0, {Interval{183000, 186241}}});
 
   std::string net_descriptor_file = "features/squeezenet.toml";
   NetDescriptor descriptor;
@@ -30,4 +32,8 @@ PipelineDescription get_pipeline_description() {
                                                    batch_size, false));
 
   return desc;
+}
+}
+
+REGISTER_PIPELINE(knn, get_pipeline_description);
 }

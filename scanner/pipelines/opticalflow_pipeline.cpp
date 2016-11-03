@@ -2,8 +2,8 @@
 #include "scanner/evaluators/movie_analysis/optical_flow_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
-using namespace scanner;
-
+namespace scanner {
+namespace {
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
@@ -14,4 +14,8 @@ PipelineDescription get_pipeline_description() {
   factories.emplace_back(new OpticalFlowEvaluatorFactory(DeviceType::GPU));
 
   return desc;
+}
+
+REGISTER_PIPELINE(opticalflow, get_pipeline_description);
+}
 }

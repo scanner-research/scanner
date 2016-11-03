@@ -1,15 +1,15 @@
 #include "scanner/engine.h"
-#include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_input_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
-#include "scanner/evaluators/caffe/yolo/yolo_input_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
+#include "scanner/evaluators/caffe/yolo/yolo_input_evaluator.h"
 #include "scanner/evaluators/tracker/tracker_evaluator.h"
 #include "scanner/evaluators/util/swizzle_evaluator.h"
+#include "scanner/evaluators/video/decoder_evaluator.h"
 
-using namespace scanner;
-
+namespace scanner {
+namespace {
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
   desc.sampling = Sampling::SequenceGather;
@@ -33,8 +33,8 @@ PipelineDescription get_pipeline_description() {
       new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new FacenetInputEvaluatorFactory(
       DeviceType::GPU, descriptor, batch_size));
-  factories.emplace_back(new CaffeEvaluatorFactory(
-      DeviceType::GPU, descriptor, batch_size, true));
+  factories.emplace_back(
+      new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size, true));
   factories.emplace_back(new FacenetParserEvaluatorFactory(
       DeviceType::CPU, 0.5, FacenetParserEvaluator::NMSType::Average, true));
   factories.emplace_back(new TrackerEvaluatorFactory(DeviceType::CPU, 32));
@@ -42,4 +42,8 @@ PipelineDescription get_pipeline_description() {
       DeviceType::CPU, {1, 2}, {"base_bboxes", "tracked_bboxes"}));
 
   return desc;
+}
+}
+
+REGISTER_PIPELINE(kcam, get_pipeline_description);
 }

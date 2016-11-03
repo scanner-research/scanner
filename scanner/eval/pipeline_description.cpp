@@ -13,21 +13,24 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_factory.h"
 #include "scanner/eval/pipeline_description.h"
-#include "scanner/video/video_decoder.h"
-
-#include "storehouse/storage_backend.h"
-
-#include <string>
 
 namespace scanner {
+namespace {
 
-///////////////////////////////////////////////////////////////////////////////
-void run_job(storehouse::StorageConfig* storage_config,
-             PipelineDescription& pipeline_description,
-             const std::string& job_name, const std::string& dataset_name);
+std::map<std::string, std::function<PipelineDescription(void)>> pipeline_fns;
+}
+
+bool add_pipeline(std::string name,
+                  std::function<PipelineDescription(void)> fn) {
+  LOG_IF(FATAL, pipeline_fns.count(name) > 0)
+      << "Pipeline with name " << name << " has already been registered!";
+  pipeline_fns.insert({name, fn});
+  printf("insert pipeline %s\n", name.c_str());
+  return true;
+}
+
+std::function<PipelineDescription(void)> get_pipeline(const std::string& name) {
+  return pipeline_fns.at(name);
+}
 }

@@ -17,12 +17,11 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
-set(PIPELINE_FILE "" CACHE FILEPATH "Pipeline file that contains setup fn.")
 option(BUILD_VIDEO_EVALUATORS "" ON)
-option(BUILD_IMAGE_PROCESSING_EVALUATORS "" OFF)
+option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
 option(BUILD_CAFFE_EVALUATORS "" OFF)
 option(BUILD_CAFFE_INPUT_TRANSFORMERS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
+option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" ON)
 option(BUILD_TRACKER_EVALUATORS "" OFF)
 option(BUILD_UTIL_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
@@ -235,7 +234,7 @@ if (CUDA_FOUND)
     "${CUDA_LIBRARIES}"
     "-lcuda"
     "-lcudart"
-    "-L/usr/lib/nvidia-370"
+    "-L/usr/lib/nvidia-367"
     "-lnvcuvid")
 endif()
 
@@ -275,7 +274,6 @@ endif()
 
 add_executable(scanner_server
   scanner/main.cpp
-  ${PIPELINE_FILE}
   scanner/ingest.cpp
   scanner/engine.cpp
   $<TARGET_OBJECTS:video>
@@ -283,6 +281,7 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:evaluators>
   $<TARGET_OBJECTS:parsers>
   $<TARGET_OBJECTS:server>
+  $<TARGET_OBJECTS:pipelines>
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}
   ${STRUCK_SOURCES}
