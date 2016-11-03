@@ -55,10 +55,10 @@ class FeatureSearch:
         _, indices = self.knn.kneighbors(np.array([exemplar]))
         write_timer(start)
         results = []
-        for idx in indices[0]:
-            for (vid, count) in self.index:
-                if idx >= count:
-                    results.append((vid, idx - count))
+        for icnt in indices[0]:
+            for (j, (vid, jcnt)) in enumerate(self.index):
+                if j == len(self.index) - 1 or icnt < self.index[j+1][1]:
+                    results.append((vid, icnt - jcnt))
                     break
         assert len(results) == K
         return results

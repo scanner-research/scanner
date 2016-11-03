@@ -101,7 +101,8 @@ class JobResult(object):
 
                 return bufs
         except IOError as err:
-            logging.warning(err)
+            logging.critical(err)
+            exit()
 
     def _load_video_descriptor(self, video_name):
         video = self._scanner._meta.VideoDescriptor()
@@ -149,7 +150,7 @@ class JobResult(object):
             video = self._load_video_descriptor(video_name)
 
             intervals = [i for i in range(0, video.frames - 1, item_size * stride)]
-            #intervals.append(video.frames)
+            intervals.append(video.frames)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)
 
@@ -287,7 +288,7 @@ class Scanner(object):
     def __init__(self, config_path=None):
         self.config = ScannerConfig(config_path)
         sys.path.append('{}/build'.format(self.config.scanner_path))
-        import scanner.metadata_pb2
+        import metadata_pb2
         self._meta = metadata_pb2
 
     def get_job_result(self, dataset_name, job_name, column, fn):
