@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
   {
     po::variables_map vm;
 
-    po::options_description main_desc("Allowed options");
+    po::options_description main_desc("global options");
     main_desc.add_options()("help", "Produce help message")(
         "command", po::value<std::string>()->required(), "Command to execute")(
 
@@ -193,7 +193,8 @@ int main(int argc, char** argv) {
       }
     }
 
-    if (vm.count("help")) {
+    bool show_help = vm.count("help");
+    if (show_help && !vm.count("command")) {
       std::cout << main_desc << std::endl;
       return 1;
     }
@@ -235,7 +236,7 @@ int main(int argc, char** argv) {
 
     if (cmd == "ingest") {
       po::options_description ingest_desc("ingest options");
-      ingest_desc.add_options()("help", "Produce help message")(
+      ingest_desc.add_options()(
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
           "video_paths_file", po::value<std::string>()->required(),
@@ -258,8 +259,9 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (vm.count("help")) {
+        if (show_help) {
           std::cout << ingest_desc << std::endl;
+          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
@@ -273,7 +275,7 @@ int main(int argc, char** argv) {
 
     } else if (cmd == "run") {
       po::options_description run_desc("run options");
-      run_desc.add_options()("help", "Produce help message")(
+      run_desc.add_options()(
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
           "job_name", po::value<std::string>()->required(),
@@ -296,8 +298,9 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (vm.count("help")) {
+        if (show_help) {
           std::cout << run_desc << std::endl;
+          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
@@ -311,9 +314,9 @@ int main(int argc, char** argv) {
 
     } else if (cmd == "rm") {
       po::options_description rm_desc("rm options");
-      rm_desc.add_options()("help", "Produce help message")(
-          "resource_type", po::value<std::string>()->required(),
-          "Type of resource to remove: dataset or job")(
+      rm_desc.add_options()("resource_type",
+                            po::value<std::string>()->required(),
+                            "Type of resource to remove: dataset or job")(
           "resource_name", po::value<std::string>()->required(),
           "Unique name of the resource to remove");
 
@@ -329,8 +332,9 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (vm.count("help")) {
+        if (show_help) {
           std::cout << rm_desc << std::endl;
+          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
@@ -343,7 +347,7 @@ int main(int argc, char** argv) {
     } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
       po::options_description serve_desc("serve options");
-      serve_desc.add_options()("help", "Produce help message");
+      serve_desc.add_options();
 
       po::positional_options_description serve_pos;
 
@@ -355,8 +359,9 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (vm.count("help")) {
+        if (show_help) {
           std::cout << serve_desc << std::endl;
+          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
