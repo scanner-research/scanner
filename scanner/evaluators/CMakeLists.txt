@@ -17,7 +17,7 @@ if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
     caffe/net_descriptor.cpp
     caffe/caffe_evaluator.cpp)
-  if (BUILD_CAFFE_INPUT_TRANSFORMERS)
+  if (BUILD_CAFFE_INPUT_EVALUATORS)
     list(APPEND SOURCE_FILES
       caffe/vgg/vgg_cpu_input_transformer.cpp
       caffe/yolo/yolo_input_evaluator.cpp

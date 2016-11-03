@@ -30,8 +30,16 @@ bool add_pipeline(std::string name,
 }
 
 std::function<PipelineDescription(void)> get_pipeline(const std::string& name) {
-  LOG_IF(FATAL, pipeline_fns.count(name) == 0) << "Pipeline with name " << name
-                                               << " has not been registered!";
+  if (pipeline_fns.count(name) == 0) {
+    std::string current_names;
+    for (auto& entry : pipeline_fns) {
+      current_names += entry.first + " ";
+    }
+
+    LOG(FATAL) << "Pipeline with name " << name << " has not been registered. "
+               << "Valid pipelines are: " << current_names;
+  }
+
   return pipeline_fns.at(name);
 }
 }
