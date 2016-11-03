@@ -1154,8 +1154,7 @@ void run_job(storehouse::StorageConfig* config,
         continue;
       }
 
-      if (num_nodes > 1 &&
-          next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
+      if (num_nodes > 1) {
         i32 more_work;
         MPI_Status status;
         MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
@@ -1191,8 +1190,7 @@ void run_job(storehouse::StorageConfig* config,
           // No more work left
           break;
         } else {
-          LoadWorkEntry entry;
-          entry.work_item_index = next_item;
+          LoadWorkEntry& entry = load_work_items[next_item];
           load_work.push(entry);
           accepted_items++;
         }
