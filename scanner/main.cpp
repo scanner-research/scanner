@@ -274,18 +274,18 @@ int main(int argc, char** argv) {
     } else if (cmd == "run") {
       po::options_description run_desc("run options");
       run_desc.add_options()("help", "Produce help message")(
-          "job_name", po::value<std::string>()->required(),
-          "Unique name to refer to the output of the job after completion")(
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
+          "job_name", po::value<std::string>()->required(),
+          "Unique name to refer to the output of the job after completion")(
           "pipeline_name", po::value<std::string>()->required(),
           "Name of the pipeline to run on the given dataset")(
           "force,f", po::bool_switch()->default_value(false),
           "Overwrite the job if it already exists.");
 
       po::positional_options_description run_pos;
-      run_pos.add("job_name", 1);
       run_pos.add("dataset_name", 1);
+      run_pos.add("job_name", 1);
       run_pos.add("pipeline_name", 1);
 
       try {
