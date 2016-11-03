@@ -124,6 +124,7 @@ int main(int argc, char** argv) {
   std::string cmd;  // sub-command to execute
   // Common among sub-commands
   std::string dataset_name;  // name of dataset to create/operate on
+  bool force;
   // For ingest sub-command
   std::string video_paths_file;  // paths of video files to turn into dataset
   bool compute_web_metadata = false;  // whether to compute metadata on ingest
@@ -239,8 +240,10 @@ int main(int argc, char** argv) {
           "Unique name of the dataset to store persistently")(
           "video_paths_file", po::value<std::string>()->required(),
           "File which contains paths to video files to process")(
-          "compute_web_metadata", po::value<bool>(),
-          "If true, generate metadata for Scanner server");
+          "compute_web_metadata", po::bool_switch()->default_value(false),
+          "If true, generate metadata for Scanner server")(
+          "force,f", po::bool_switch()->default_value(false),
+          "Overwrite the job if it already exists.");
 
       po::positional_options_description ingest_pos;
       ingest_pos.add("dataset_name", 1);
@@ -265,10 +268,9 @@ int main(int argc, char** argv) {
 
       dataset_name = vm["dataset_name"].as<std::string>();
       video_paths_file = vm["video_paths_file"].as<std::string>();
+      compute_web_metadata = vm["compute_web_metadata"].as<bool>();
+      force = vm["force"].as<bool>();
 
-      if (vm.count("compute_web_metadata")) {
-        compute_web_metadata = vm["compute_web_metadata"].as<bool>();
-      }
     } else if (cmd == "run") {
       po::options_description run_desc("run options");
       run_desc.add_options()("help", "Produce help message")(
@@ -277,7 +279,9 @@ int main(int argc, char** argv) {
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
           "pipeline_name", po::value<std::string>()->required(),
-          "Name of the pipeline to run on the given dataset");
+          "Name of the pipeline to run on the given dataset")(
+          "force,f", po::bool_switch()->default_value(false),
+          "Overwrite the job if it already exists.");
 
       po::positional_options_description run_pos;
       run_pos.add("job_name", 1);
@@ -303,6 +307,7 @@ int main(int argc, char** argv) {
       job_name = vm["job_name"].as<std::string>();
       dataset_name = vm["dataset_name"].as<std::string>();
       pipeline_name = vm["pipeline_name"].as<std::string>();
+      force = vm["force"].as<bool>();
 
     } else if (cmd == "rm") {
       po::options_description rm_desc("rm options");
@@ -412,7 +417,7 @@ int main(int argc, char** argv) {
     // persistently stored dataset which can then be operated on by the run
     // command.
 
-    if (meta.has_dataset(dataset_name)) {
+    if (!force && meta.has_dataset(dataset_name)) {
       LOG(FATAL) << "Dataset with that name already exists.";
     }
 
@@ -429,7 +434,7 @@ int main(int argc, char** argv) {
     }
 
     i32 dataset_id = meta.get_dataset_id(dataset_name);
-    if (meta.has_job(job_name)) {
+    if (!force && meta.has_job(job_name)) {
       LOG(FATAL) << "Job with that name already exists for that dataset";
     }
 
