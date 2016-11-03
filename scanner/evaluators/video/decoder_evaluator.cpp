@@ -14,18 +14,20 @@
  */
 
 #include "scanner/evaluators/video/decoder_evaluator.h"
-#include "scanner/evaluators/types.pb.h"
 #include "scanner/evaluators/serialize.h"
+#include "scanner/evaluators/types.pb.h"
 
 #include "scanner/util/memory.h"
 
 namespace scanner {
 
-DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig &config,
+DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type,
                                    VideoDecoderType decoder_type)
-    : device_type_(device_type), device_id_(config.device_ids[0]),
-      decoder_type_(decoder_type), discontinuity_(false) {
+    : device_type_(device_type),
+      device_id_(config.device_ids[0]),
+      decoder_type_(decoder_type),
+      discontinuity_(false) {
   decoder_.reset(VideoDecoder::make_from_config(device_type_, device_id_,
                                                 decoder_type_, device_type_));
   assert(decoder_.get());
@@ -37,16 +39,13 @@ void DecoderEvaluator::configure(const VideoMetadata& metadata) {
   decoder_->configure(metadata);
 }
 
-void DecoderEvaluator::reset() {
-  discontinuity_ = true;
-}
+void DecoderEvaluator::reset() { discontinuity_ = true; }
 
 void DecoderEvaluator::evaluate(
-  const std::vector<std::vector<u8*>>& input_buffers,
-  const std::vector<std::vector<size_t>>& input_sizes,
-  std::vector<std::vector<u8*>>& output_buffers,
-  std::vector<std::vector<size_t>>& output_sizes)
-{
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   auto start = now();
 
   size_t num_inputs = input_buffers.empty() ? 0 : input_buffers[0].size();
@@ -120,21 +119,21 @@ void DecoderEvaluator::evaluate(
       auto video_start = now();
 
       i32 encoded_packet_size = 0;
-      const u8 *encoded_packet = NULL;
+      const u8* encoded_packet = NULL;
       if (encoded_buffer_offset < encoded_buffer_size) {
         encoded_packet_size = *reinterpret_cast<const i32*>(
             encoded_buffer + encoded_buffer_offset);
         encoded_buffer_offset += sizeof(i32);
         encoded_packet = encoded_buffer + encoded_buffer_offset;
         encoded_buffer_offset += encoded_packet_size;
-      } 
+      }
 
       if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity_)) {
         // New frames
         bool more_frames = true;
         while (more_frames && valid_index < total_output_frames) {
           if (current_frame == valid_frames[valid_index]) {
-            u8 *decoded_buffer =
+            u8* decoded_buffer =
                 new_buffer(device_type_, device_id_, frame_size_);
             more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
             output_buffers[0].push_back(decoded_buffer);
@@ -185,8 +184,8 @@ std::vector<std::string> DecoderEvaluatorFactory::get_output_names() {
   return {"frame"};
 }
 
-Evaluator*
-DecoderEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
+Evaluator* DecoderEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
   return new DecoderEvaluator(config, device_type_, decoder_type_);
 }
 }

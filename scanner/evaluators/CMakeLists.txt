@@ -1,11 +1,5 @@
 set(SOURCE_FILES)
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
-  types.proto)
-
-list(APPEND SOURCE_FILES
-  ${PROTO_SRCS})
-
 # add_custom_target(proto_files DEPENDS ${PROTO_HDRS})
 
 # function(add_library targetName)

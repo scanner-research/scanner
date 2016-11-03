@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "metadata.pb.h"
+#include "scanner/metadata.pb.h"
 #include "storehouse/storage_backend.h"
 
 #include <map>

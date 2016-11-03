@@ -25,11 +25,11 @@
 namespace scanner {
 
 class DecoderEvaluator : public Evaluator {
-public:
+ public:
   DecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    VideoDecoderType decoder_type);
 
-  void configure(const VideoMetadata &metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
   void reset() override;
 
@@ -38,7 +38,7 @@ public:
                 std::vector<std::vector<u8*>>& output_buffers,
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
-private:
+ private:
   DeviceType device_type_;
   i32 device_id_;
   VideoDecoderType decoder_type_;
@@ -49,7 +49,7 @@ private:
 };
 
 class DecoderEvaluatorFactory : public EvaluatorFactory {
-public:
+ public:
   DecoderEvaluatorFactory(DeviceType device_type,
                           VideoDecoderType decoder_type);
 
@@ -59,7 +59,7 @@ public:
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
-private:
+ private:
   DeviceType device_type_;
   VideoDecoderType decoder_type_;
 };

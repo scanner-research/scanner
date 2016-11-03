@@ -162,7 +162,7 @@ if (OPENCV_DESIRED_COMPONENTS)
 endif()
 
 ###### Required Dependencies #######
-find_package(Protobuf REQUIRED)
+find_package(SaneProtobuf REQUIRED)
 find_package(FFmpeg REQUIRED)
 find_package(MPI REQUIRED)
 find_package(LibLZMA REQUIRED)
@@ -246,10 +246,13 @@ elseif()
 endif()
 
 ###### Project code #######
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
-  scanner/metadata.proto)
+set(PROTO_FILES
+  scanner/metadata.proto
+  scanner/evaluators/types.proto)
 
-protobuf_generate_python(PROTO_PY scanner/metadata.proto)
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
+
+protobuf_generate_python(PROTO_PY ${PROTO_FILES})
 
 add_custom_target(proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY})
 
@@ -275,13 +278,13 @@ add_executable(scanner_server
   ${PIPELINE_FILE}
   scanner/ingest.cpp
   scanner/engine.cpp
-  ${PROTO_SRCS}
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:eval>
   $<TARGET_OBJECTS:evaluators>
   $<TARGET_OBJECTS:parsers>
   $<TARGET_OBJECTS:server>
   $<TARGET_OBJECTS:util>
+  ${PROTO_SRCS}
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 
@@ -308,3 +311,22 @@ endif()
 target_link_libraries(scanner_server
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
+
+# Copy proto files to python directory
+foreach(FIL ${PROTO_FILES})
+  get_filename_component(DIR_FIL ${FIL} DIRECTORY)
+  get_filename_component(FIL_WE ${FIL} NAME_WE)
+  add_custom_command(TARGET proto_files POST_BUILD
+    COMMAND
+    ${CMAKE_COMMAND} -E make_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/${DIR_FIL})
+  add_custom_command(TARGET proto_files POST_BUILD
+    COMMAND
+    ${CMAKE_COMMAND} -E touch
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/${DIR_FIL}/__init__.py)
+  add_custom_command(TARGET proto_files POST_BUILD
+    COMMAND
+    ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/${DIR_FIL}/${FIL_WE}_pb2.py)
+endforeach()

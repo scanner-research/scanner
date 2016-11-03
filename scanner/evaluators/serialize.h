@@ -22,8 +22,7 @@
 namespace scanner {
 
 inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
-                                  u8*& buffer, size_t& size)
-{
+                                  u8*& buffer, size_t& size) {
   size = sizeof(size_t) + sizeof(i32);
   i32 bbox_size = 0;
   for (size_t i = 0; i < bboxes.size(); ++i) {
@@ -45,8 +44,8 @@ inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
   }
 }
 
-inline void serialize_decode_args(const DecodeArgs& args,
-                                  u8*& buffer, size_t& size) {
+inline void serialize_decode_args(const DecodeArgs& args, u8*& buffer,
+                                  size_t& size) {
   size = args.ByteSize();
   buffer = new u8[size];
   args.SerializeToArray(buffer, size);
@@ -57,5 +56,4 @@ inline DecodeArgs deserialize_decode_args(const u8* buffer, size_t size) {
   args.ParseFromArray(buffer, size);
   return args;
 }
-
 }
