@@ -19,13 +19,13 @@ before_install:
   -in .config/travisci_rsa.enc -out .config/travisci_rsa -d
 - chmod 0600 .config/travisci_rsa
 - cp .config/travisci_rsa ~/.ssh/id_rsa
+- docker build -t $DOCKER_REPO:$DOCKER_TAG .
 
 install:
 - sudo apt-get install doxygen
 
-# TODO(wcrichto): add a test suite
 script:
-- docker build -t $DOCKER_REPO:$DOCKER_TAG .
+- echo "TODO(wcrichto): add a test suite"
 
 after_success:
 - ./scripts/publish-docker.sh
