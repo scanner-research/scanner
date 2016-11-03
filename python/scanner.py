@@ -6,9 +6,14 @@ import toml
 import os
 import logging
 import sys
+import tempfile
+import time
+import subprocess
 
 is_py3 = sys.version_info.major == 3
 maxint = sys.maxsize if is_py3 else sys.maxint
+
+DEVNULL = open(os.devnull, 'wb', 0)
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -290,6 +295,8 @@ class Scanner(object):
         sys.path.append('{}/build'.format(self.config.scanner_path))
         from scannerpy import metadata_pb2
         self._meta = metadata_pb2
+        self._executable_path = (
+            '{}/build/scanner_server'.format(self.config.scanner_path))
 
     def get_job_result(self, dataset_name, job_name, column, fn):
         return JobResult(self, dataset_name, job_name, column, fn)
@@ -349,3 +356,72 @@ class Scanner(object):
         path = '{}/db_metadata.bin'.format(self.config.db_path)
         with open(path, 'wb') as f:
             f.write(meta.SerializeToString())
+
+    def ingest(self, dataset_name, video_paths, opts={}):
+        def gopt(k, default):
+            return opts[k] if k in opts else default
+        force = gopt('force', False)
+
+        # Write video paths to temp file
+        fd, paths_file_name = tempfile.mkstemp()
+        with open(paths_file_name, 'w') as f:
+            for p in video_paths:
+                f.write(p + '\n')
+            # Erase last newline
+            f.seek(-1, 1)
+            f.flush()
+
+        current_env = os.environ.copy()
+        start = time.time()
+        cmd = ['mpirun',
+               '-n', str(1),
+               '--bind-to', 'none',
+               self._executable_path,
+               'ingest', dataset_name, paths_file_name]
+
+        if force:
+            cmd.append('-f')
+
+        p = subprocess.Popen(
+            cmd, env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
+        pid, rc, ru = os.wait4(p.pid, 0)
+        elapsed = time.time() - start
+        success = (rc == 0)
+        return success, elapsed
+
+    def run(self, dataset_name, job_name, pipeline_name, opts={}):
+        def gopt(k, default):
+            return opts[k] if k in opts else default
+        force = gopt('force', False)
+        node_count = gopt('node_count', 1)
+        pus_per_node = gopt('pus_per_node', 1)
+        work_item_size = gopt('work_item_size', None)
+        tasks_in_queue_per_pu = gopt('tasks_in_queue_per_pu', None)
+        load_workers_per_node = gopt('tasks_in_queue_per_pu', None)
+        save_workers_per_node = gopt('save_workers_per_node', None)
+
+        cmd = [['mpirun',
+               '-n', str(node_count),
+               '--bind-to', 'none',
+               self._executable_path,
+               'run', dataset_name, job_name, pipeline_name]]
+
+        def add_opt(name, opt):
+            if opt:
+                cmd[0] += ['--' + name, str(opt)]
+        if force:
+            cmd[0].append('-f')
+        add_opt('pus_per_node', pus_per_node)
+        add_opt('work_item_size', work_item_size)
+        add_opt('tasks_in_queue_per_pu', tasks_in_queue_per_pu)
+        add_opt('load_workers_per_node', load_workers_per_node)
+        add_opt('save_workers_per_node', save_workers_per_node)
+
+        start = time.time()
+        current_env = os.environ.copy()
+        p = subprocess.Popen(
+            cmd[0], env=current_env,  stderr=subprocess.STDOUT)
+        pid, rc, ru = os.wait4(p.pid, 0)
+        elapsed = time.time() - start
+        success = (rc == 0)
+        return success, elapsed

@@ -26,11 +26,12 @@ bool add_pipeline(std::string name,
   LOG_IF(FATAL, pipeline_fns.count(name) > 0)
       << "Pipeline with name " << name << " has already been registered!";
   pipeline_fns.insert({name, fn});
-  printf("insert pipeline %s\n", name.c_str());
   return true;
 }
 
 std::function<PipelineDescription(void)> get_pipeline(const std::string& name) {
+  LOG_IF(FATAL, pipeline_fns.count(name) == 0) << "Pipeline with name " << name
+                                               << " has not been registered!";
   return pipeline_fns.at(name);
 }
 }
