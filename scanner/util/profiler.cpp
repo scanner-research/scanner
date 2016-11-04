@@ -33,6 +33,10 @@ const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
   return records_;
 }
 
+const std::map<std::string, int64_t>& Profiler::get_counters() const {
+  return counters_;
+}
+
 void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
                             std::string type_name, std::string tag,
                             int64_t worker_num, const Profiler& profiler) {
@@ -84,6 +88,14 @@ void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
     write(file, key_index);
     write(file, start);
     write(file, end);
+  }
+  // Write out counters
+  const std::map<std::string, int64_t>& counters = profiler.get_counters();
+  int64_t num_counters = static_cast<int64_t>(counters.size());
+  write(file, num_counters);
+  for (auto& kv : counters) {
+    write(file, kv.first);
+    write(file, kv.second);
   }
 }
 }

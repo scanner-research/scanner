@@ -342,6 +342,7 @@ void* load_video_thread(void* arg) {
       read(video_file, buffer, buffer_size, pos);
 
       args.profiler.add_interval("io", io_start, now());
+      args.profiler.increment("io_read", static_cast<i64>(buffer_size));
 
       // Encoded buffer
       eval_work_entry.buffers[0].push_back(buffer);
@@ -704,15 +705,18 @@ void* save_thread(void* arg) {
       }
 
       // Write out all output sizes first so we can easily index into the file
+      i64 size_written = 0;
       for (size_t i = 0; i < num_frames; ++i) {
         i64 buffer_size = work_entry.buffer_sizes[out_idx][i];
         write(output_file, buffer_size);
+        size_written += sizeof(i64);
       }
       // Write actual output data
       for (size_t i = 0; i < num_frames; ++i) {
         i64 buffer_size = work_entry.buffer_sizes[out_idx][i];
         u8* buffer = work_entry.buffers[out_idx][i];
         write(output_file, buffer, buffer_size);
+        size_written += buffer_size;
       }
 
       output_file->save();
@@ -728,6 +732,7 @@ void* save_thread(void* arg) {
       delete output_file;
 
       args.profiler.add_interval("io", io_start, now());
+      args.profiler.increment("io_write", size_written);
     }
 
     LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id << "): finished item "

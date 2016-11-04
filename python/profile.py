@@ -83,13 +83,26 @@ def parse_profiler_output(bytes_buffer, offset):
         t, offset = read_advance('q', bytes_buffer, offset)
         end = t[0]
         intervals.append((key_dictionary[key_index], start, end))
+    # Counters
+    t, offset = read_advance('q', bytes_buffer, offset)
+    num_counters = t[0]
+    counters = {}
+    for i in range(num_counters):
+        # Counter name
+        counter_name, offset = unpack_string(bytes_buffer, offset)
+        # Counter value
+        t, offset = read_advance('q', bytes_buffer, offset)
+        counter_value = t[0]
+        counters[counter_name] = counter_value
 
+    print(counters)
     return {
         'node': node,
         'worker_type': worker_type,
         'worker_tag': worker_tag,
         'worker_num': worker_num,
-        'intervals': intervals
+        'intervals': intervals,
+        'counters': counters
     }, offset
 
 
@@ -149,45 +162,24 @@ def parse_profiler_files(job_name):
     return profilers
 
 
-def run_trial(job_name,
-              dataset_name,
-              net_descriptor_file,
-              node_count,
-              gpus_per_node,
-              batch_size,
-              batches_per_work_item,
-              tasks_in_queue_per_gpu,
-              load_workers_per_node):
+def run_trial(dataset_name, job_name, pipeline_name, opts={}):
     print('Running trial: {:d} nodes, {:d} gpus, {:d} batch size'.format(
         node_count,
         gpus_per_node,
         batch_size
     ))
-    current_env = os.environ.copy()
-    start = time.time()
-    p = subprocess.Popen([
-        'mpirun',
-        '-n', str(node_count),
-        '--bind-to', 'none',
-        LIGHTSCAN_PROGRAM_PATH,
-        '--gpus_per_node', str(gpus_per_node),
-        '--batch_size', str(batch_size),
-        '--batches_per_work_item', str(batches_per_work_item),
-        '--tasks_in_queue_per_gpu', str(tasks_in_queue_per_gpu),
-        '--load_workers_per_node', str(load_workers_per_node),
-        'run', job_name, dataset_name, net_descriptor_file,
-    ], env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
-    pid, rc, ru = os.wait4(p.pid, 0)
-    elapsed = time.time() - start
+
+    db = scanner.Scanner()
+    result, t = db.run(dataset_name, job_name, pipeline_name, opts)
     profiler_output = {}
-    if rc != 0:
-        print('Trial FAILED after {:.3f}s'.format(elapsed))
-        # elapsed = -1
-    else:
+    if result:
         print('Trial succeeded, took {:.3f}s'.format(elapsed))
         test_interval, profiler_output = parse_profiler_file(job_name)
         elapsed = (test_interval[1] - test_interval[0])
         elapsed /= float(1000000000)  # ns to s
+    else:
+        print('Trial FAILED after {:.3f}s'.format(elapsed))
+        # elapsed = -1
     return elapsed, profiler_output
 
 
@@ -358,25 +350,51 @@ def write_trace_file(profilers, job):
         f.write(json.dumps(traces))
 
 
-def load_workers_trials():
-    trial_settings = [{'video_file': 'kcam_videos_small.txt',
+def effective_io_rate_benchmark():
+    dataset_name = 'benchmark_kcam'
+    job_name = 'eir_test'
+    pipeline_name = 'effective_io_rate'
+    trial_settings = [{'force': True,
                        'node_count': 1,
-                       'gpus_per_node': gpus,
-                       'batch_size': 64,
-                       'batches_per_work_item': 4,
-                       'tasks_in_queue_per_gpu': 4,
-                       'load_workers_per_node': workers}
-                      for gpus in [1, 2, 4, 8]
+                       'pus_per_node': 1,
+                       'work_item_size': wis,
+                       'load_workers_per_node': workers,
+                       'save_workers_per_node': 1}
+                      for wis in [64, 128, 256, 512, 1024]
                       for workers in [1, 2, 4, 8, 16]]
     times = []
     for settings in trial_settings:
-        t = run_trial(**settings)
+        t = run_trial(dataset_name, job_name, pipeline_name, settings)
         times.append(t)
 
     print_trial_times(
-        'Load workers trials',
+        'Effective IO Rate Trials',
         trial_settings,
         times)
+
+
+def effective_decode_rate_benchmark():
+    dataset_name = 'effective_io_rate'
+    job_name = 'eir_test'
+    pipeline_name = 'effective_io_rate'
+    trial_settings = [{'force': True,
+                       'node_count': 1,
+                       'pus_per_node': 1,
+                       'work_item_size': wis,
+                       'load_workers_per_node': workers,
+                       'save_workers_per_node': 1}
+                      for wis in [64, 128, 256, 512, 1024]
+                      for workers in [1, 2, 4, 8, 16]]
+    times = []
+    for settings in trial_settings:
+        t = run_trial(dataset_name, job_name, pipeline_name, settings)
+        times.append(t)
+
+    print_trial_times(
+        'Effective IO Rate Trials',
+        trial_settings,
+        times)
+
 
 
 def opencv_reference_trials():

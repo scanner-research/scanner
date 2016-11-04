@@ -34,6 +34,12 @@ inline void Profiler::add_interval(
   unlock();
 }
 
+inline void Profiler::increment(const std::string& key, int64_t value) {
+  spin_lock();
+  counters_[key] += value;
+  unlock();
+}
+
 inline void Profiler::spin_lock() {
   while (lock_.test_and_set(std::memory_order_acquire));
 }
