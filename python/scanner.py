@@ -235,7 +235,6 @@ class JobResult(object):
                 intervals = zip(intervals[:-1], intervals[1:])
                 assert(intervals is not None)
 
-                print(intervals)
                 for i, intvl in enumerate(intervals):
                     start = intvl[0]
                     end = intvl[1]
@@ -420,8 +419,12 @@ class Scanner(object):
         start = time.time()
         current_env = os.environ.copy()
         p = subprocess.Popen(
-            cmd[0], env=current_env,  stderr=subprocess.STDOUT)
+            cmd[0], env=current_env,
+            stderr=subprocess.STDOUT)
         pid, rc, ru = os.wait4(p.pid, 0)
         elapsed = time.time() - start
         success = (rc == 0)
+        if not success:
+            so, se = p.communicate()
+            print(so)
         return success, elapsed

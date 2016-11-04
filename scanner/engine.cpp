@@ -1313,13 +1313,13 @@ void run_job(storehouse::StorageConfig* config,
     }
   }
 
+  // Write out total time interval
+  timepoint_t end_time = now();
+
   // Execution done, write out profiler intervals for each worker
   std::string profiler_file_name = job_profiler_path(job_name, rank);
   std::unique_ptr<WriteFile> profiler_output;
   make_unique_write_file(storage, profiler_file_name, profiler_output);
-
-  // Write out total time interval
-  timepoint_t end_time = now();
 
   i64 start_time_ns =
       std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)

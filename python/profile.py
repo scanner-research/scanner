@@ -34,8 +34,8 @@ TASKS_IN_QUEUE_PER_GPU = 4
 LOAD_WORKERS_PER_NODE = 2
 
 def clear_filesystem_cache():
-    with open('/proc/sys/vm/drop_caches', 'w') as f:
-        f.write('3\n')
+    os.system('sudo /sbin/sysctl vm.drop_caches=3')
+
 
 def read_advance(fmt, buf, offset):
     new_offset = offset + struct.calcsize(fmt)
@@ -99,7 +99,6 @@ def parse_profiler_output(bytes_buffer, offset):
         counter_value = t[0]
         counters[counter_name] = counter_value
 
-    print(counters)
     return {
         'node': node,
         'worker_type': worker_type,
@@ -160,17 +159,17 @@ def parse_profiler_files(job_name):
     profilers = {}
     for n in files:
         path = job_path + 'profile_{}.bin'.format(n)
-        _, profs = parse_profiler_file(path)
-        profilers[n] = profs
+        time, profs = parse_profiler_file(path)
+        profilers[n] = (time, profs)
 
     return profilers
 
 
 def run_trial(dataset_name, job_name, pipeline_name, opts={}):
-    print('Running trial: {:d} nodes, {:d} gpus, {:d} batch size'.format(
-        node_count,
-        gpus_per_node,
-        batch_size
+    print('Running trial: dataset {:s}, job {:s}, pipeline {:s}'.format(
+        dataset_name,
+        job_name,
+        pipeline_name,
     ))
 
     # Clear cache
@@ -179,14 +178,15 @@ def run_trial(dataset_name, job_name, pipeline_name, opts={}):
     result, t = db.run(dataset_name, job_name, pipeline_name, opts)
     profiler_output = {}
     if result:
-        print('Trial succeeded, took {:.3f}s'.format(elapsed))
-        test_interval, profiler_output = parse_profiler_file(job_name)
-        elapsed = (test_interval[1] - test_interval[0])
-        elapsed /= float(1000000000)  # ns to s
+        print('Trial succeeded, took {:.3f}s'.format(t))
+        profiler_output = parse_profiler_files(job_name)
+        test_interval = profiler_output[0][0]
+        t = (test_interval[1] - test_interval[0])
+        t /= float(1e9)  # ns to s
     else:
-        print('Trial FAILED after {:.3f}s'.format(elapsed))
+        print('Trial FAILED after {:.3f}s'.format(t))
         # elapsed = -1
-    return elapsed, profiler_output
+    return t, profiler_output
 
 
 def run_opencv_trial(video_file,
@@ -358,6 +358,17 @@ def write_trace_file(profilers, job):
         f.write(json.dumps(traces))
 
 
+def get_trial_total_io_read(result):
+    total_time, profilers = result
+
+    total_io = 0
+    # Per node
+    for node, (_, profiler) in profilers.iteritems():
+        for prof in profiler['load']:
+            counters = prof['counters']
+            total_io += counters['io_read'] if 'io_read' in counters else 0
+    return total_io
+
 def effective_io_rate_benchmark():
     dataset_name = 'benchmark_kcam'
     job_name = 'eir_test'
@@ -368,23 +379,45 @@ def effective_io_rate_benchmark():
                        'work_item_size': wis,
                        'load_workers_per_node': workers,
                        'save_workers_per_node': 1}
-                      for wis in [64, 128, 256, 512, 1024]
+                      for wis in [64, 128, 256, 512, 1024, 2048, 4096]
                       for workers in [1, 2, 4, 8, 16]]
-    times = []
+    results = []
+    io = []
     for settings in trial_settings:
-        t = run_trial(dataset_name, job_name, pipeline_name, settings)
-        times.append(t)
-
-    print_trial_times(
-        'Effective IO Rate Trials',
-        trial_settings,
-        times)
+        result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        io.append(get_trial_total_io_read(result) / (1024 * 1024)) # to mb
+        results.append(result)
+    print('Effective IO Rate Trials')
+    pprint([(y['work_item_size'], y['load_workers_per_node'], x[0], i, i/x[0])
+            for x, i, y in zip(results, io, trial_settings)])
 
 
 def effective_decode_rate_benchmark():
-    dataset_name = 'effective_io_rate'
-    job_name = 'eir_test'
-    pipeline_name = 'effective_io_rate'
+    dataset_name = 'benchmark_kcam'
+    job_name = 'edr_test'
+    pipeline_name = 'effective_decode_rate'
+    trial_settings = [{'force': True,
+                       'node_count': 1,
+                       'pus_per_node': pus,
+                       'work_item_size': wis,
+                       'load_workers_per_node': 1,
+                       'save_workers_per_node': 1}
+                      for wis in [64, 128, 256, 512, 1024, 2048, 4096]
+                      for pus in [1, 2, 4, 8]]
+    results = []
+    for settings in trial_settings:
+        result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        results.append(result)
+
+    print('Effective Decode Rate Trials')
+    pprint([(y['work_item_size'], y['pus_per_node'], x[0])
+            for x, y in zip(results, trial_settings)])
+
+
+def effective_dnn_rate_benchmark():
+    dataset_name = 'effective_dnn_rate'
+    job_name = 'ednnr_test'
+    pipeline_name = 'effective_dnn_rate'
     trial_settings = [{'force': True,
                        'node_count': 1,
                        'pus_per_node': 1,
@@ -399,10 +432,9 @@ def effective_decode_rate_benchmark():
         times.append(t)
 
     print_trial_times(
-        'Effective IO Rate Trials',
+        'Effective DNN Rate Trials',
         trial_settings,
         times)
-
 
 
 def opencv_reference_trials():

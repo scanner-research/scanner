@@ -21,6 +21,11 @@ if (BUILD_VIDEO_EVALUATORS AND BUILD_UTIL_EVALUATORS)
     effective_io_rate_pipeline.cpp)
 endif()
 
+if (BUILD_VIDEO_EVALUATORS AND BUILD_UTIL_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    effective_decode_rate_pipeline.cpp)
+endif()
+
 if (BUILD_VIDEO_EVALUATORS AND BUILD_IMAGE_PROCESSING_EVALUATORS)
   list(APPEND SOURCE_FILES
     simple_pipeline.cpp)
