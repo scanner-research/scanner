@@ -49,6 +49,7 @@ endif()
 
 if (BUILD_UTIL_EVALUATORS)
   list(APPEND SOURCE_FILES
+    util/discard_evaluator.cpp
     util/swizzle_evaluator.cpp)
 endif()
 

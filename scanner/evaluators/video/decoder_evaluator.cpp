@@ -48,6 +48,8 @@ void DecoderEvaluator::evaluate(
     std::vector<std::vector<size_t>>& output_sizes) {
   auto start = now();
 
+  i64 total_frames_decoded = 0;
+  i64 total_frames_used = 0;
   size_t num_inputs = input_buffers.empty() ? 0 : input_buffers[0].size();
   for (size_t i = 0; i < num_inputs; ++i) {
     u8* decode_args_buffer = input_buffers[1][i];
@@ -139,10 +141,12 @@ void DecoderEvaluator::evaluate(
             output_buffers[0].push_back(decoded_buffer);
             output_sizes[0].push_back(frame_size_);
             valid_index++;
+            total_frames_used++;
           } else {
             more_frames = decoder_->discard_frame();
           }
           current_frame++;
+          total_frames_decoded++;
         }
       }
       // Set a discontinuity if we sent an empty packet to reset
@@ -154,6 +158,7 @@ void DecoderEvaluator::evaluate(
 
     if (decoder_->decoded_frames_buffered() > 0) {
       while (decoder_->discard_frame()) {
+        total_frames_decoded++;
       };
     }
 
@@ -164,6 +169,8 @@ void DecoderEvaluator::evaluate(
 
   if (profiler_) {
     profiler_->add_interval("decode", start, now());
+    profiler_->increment("effective_frames", total_frames_used);
+    profiler_->increment("decoded_frames", total_frames_decoded);
   }
 }
 
