@@ -96,12 +96,11 @@ void DefaultInputEvaluator::evaluate(
       std::vector<cv::Mat> input_mats_slice(input_mats.begin(),
                                             input_mats.begin() + batch_count);
 
+      u8* net_input = new u8[frame_size * batch_count];
+      output_blob.set_cpu_data((f32*)net_input);
       output_blob.Reshape(input_mats_slice.size(), output_blob.shape(1),
                           output_blob.shape(2), output_blob.shape(3));
       transformer->Transform(input_mats_slice, &output_blob);
-
-      u8* net_input = new u8[frame_size * batch_count];
-      std::memcpy(net_input, output_blob.cpu_data(), frame_size * batch_count);
 
       output_buffers[0].push_back(net_input);
       output_sizes[0].push_back(frame_size * batch_count);
