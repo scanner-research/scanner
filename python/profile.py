@@ -12,6 +12,7 @@ import re
 import scanner
 from collections import defaultdict
 from pprint import pprint
+from datetime import datetime
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -535,10 +536,32 @@ def caffe_benchmark_gpu_trials():
     print_caffe_trial_times('Caffe Throughput Benchmark', trial_settings, times)
 
 
+def convert_time(d):
+    def convert(t):
+        return '{:2f}'.format(t / 1.0e9)
+    return {k: convert_time(v) if isinstance(v, dict) else convert(v) \
+            for (k, v) in d.iteritems()}
+
+
+def print_statistics(profilers):
+    totals = {}
+    for profiler in profilers.values():
+        for kind in profiler:
+            if not kind in totals: totals[kind] = {}
+            for thread in profiler[kind]:
+                for (key, start, end) in thread['intervals']:
+                    if not key in totals[kind]: totals[kind][key] = 0
+                    totals[kind][key] += end-start
+
+    readable_totals = convert_time(totals)
+    pprint(readable_totals)
+
+
 def main(args):
    #caffe_benchmark_gpu_trials()
    job = sys.argv[1]
    profilers = parse_profiler_files(job)
+   print_statistics(profilers)
    write_trace_file(profilers, job)
 
 
