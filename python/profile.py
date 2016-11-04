@@ -32,6 +32,9 @@ BATCHES_PER_WORK_ITEM = 4
 TASKS_IN_QUEUE_PER_GPU = 4
 LOAD_WORKERS_PER_NODE = 2
 
+def clear_filesystem_cache():
+    with open('/proc/sys/vm/drop_caches', 'w') as f:
+        f.write('3\n')
 
 def read_advance(fmt, buf, offset):
     new_offset = offset + struct.calcsize(fmt)
@@ -169,6 +172,8 @@ def run_trial(dataset_name, job_name, pipeline_name, opts={}):
         batch_size
     ))
 
+    # Clear cache
+    clear_filesystem_cache()
     db = scanner.Scanner()
     result, t = db.run(dataset_name, job_name, pipeline_name, opts)
     profiler_output = {}
@@ -190,6 +195,7 @@ def run_opencv_trial(video_file,
         gpus_per_node,
         batch_size
     ))
+    clear_filesystem_cache()
     current_env = os.environ.copy()
     start = time.time()
     p = subprocess.Popen([
@@ -225,6 +231,7 @@ def run_caffe_trial(net,
                num_elements,
                batch_size
            ))
+    clear_filesystem_cache()
     current_env = os.environ.copy()
     if device_type == "CPU":
         current_env["OMP_NUM_THREADS"] = "68"
