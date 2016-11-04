@@ -326,7 +326,7 @@ def write_trace_file(profilers, job):
     traces = []
 
     next_tid = 0
-    for proc, worker_profiler_groups in profilers.iteritems():
+    for proc, (_, worker_profiler_groups) in profilers.iteritems():
         for worker_type, profs in [('load', worker_profiler_groups['load']),
                                    ('decode', worker_profiler_groups['decode']),
                                    ('eval', worker_profiler_groups['eval']),
@@ -652,7 +652,7 @@ def convert_time(d):
 
 def print_statistics(profilers):
     totals = {}
-    for profiler in profilers.values():
+    for _, profiler in profilers.values():
         for kind in profiler:
             if not kind in totals: totals[kind] = {}
             for thread in profiler[kind]:
@@ -672,7 +672,7 @@ def bench_main(args):
 
 def trace_main(args):
     job = args.job
-    _, profilers = parse_profiler_files(job)
+    profilers = parse_profiler_files(job)
     print_statistics(profilers)
     write_trace_file(profilers, job)
 
