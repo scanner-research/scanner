@@ -403,6 +403,7 @@ class Scanner(object):
         tasks_in_queue_per_pu = gopt('tasks_in_queue_per_pu', None)
         load_workers_per_node = gopt('tasks_in_queue_per_pu', None)
         save_workers_per_node = gopt('save_workers_per_node', None)
+        custom_env = gopt('env', None)
 
         cmd = [['mpirun',
                '-n', str(node_count),
@@ -420,9 +421,12 @@ class Scanner(object):
         add_opt('tasks_in_queue_per_pu', tasks_in_queue_per_pu)
         add_opt('load_workers_per_node', load_workers_per_node)
         add_opt('save_workers_per_node', save_workers_per_node)
+        current_env = os.environ.copy()
+        if custom_env:
+            for k, v in custom_env.iteritems():
+                current_env[k] = v
 
         start = time.time()
-        current_env = os.environ.copy()
         p = subprocess.Popen(
             cmd[0], env=current_env,
             stdout=subprocess.PIPE,
