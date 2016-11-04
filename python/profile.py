@@ -13,6 +13,9 @@ import scanner
 from collections import defaultdict
 from pprint import pprint
 from datetime import datetime
+import io
+import csv
+import argparse
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -358,6 +361,15 @@ def write_trace_file(profilers, job):
         f.write(json.dumps(traces))
 
 
+def dicts_to_csv(headers, dicts):
+    output = io.BytesIO()
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    for d in dicts:
+        writer.writerow(d)
+    return output.getvalue()
+
+
 def get_trial_total_io_read(result):
     total_time, profilers = result
 
@@ -379,7 +391,7 @@ def effective_io_rate_benchmark():
                        'work_item_size': wis,
                        'load_workers_per_node': workers,
                        'save_workers_per_node': 1}
-                      for wis in [64, 128, 256, 512, 1024, 2048, 4096]
+                      for wis in [64, 128, 256, 512, 1024, 2048, 4096, 8096]
                       for workers in [1, 2, 4, 8, 16]]
     results = []
     io = []
@@ -387,10 +399,23 @@ def effective_io_rate_benchmark():
         result = run_trial(dataset_name, job_name, pipeline_name, settings)
         io.append(get_trial_total_io_read(result) / (1024 * 1024)) # to mb
         results.append(result)
+    rows = [{
+        'work_item_size': y['work_item_size'],
+        'load_workers_per_node': y['load_workers_per_node'],
+        'time': x[0],
+        'MB': i,
+        'MB/s': i/x[0],
+        'Effective MB/s': io[-1]/x[0]
+    } for x, i, y in zip(results, io, trial_settings)]
+    output_csv = dicts_to_csv(['work_item_size',
+                               'load_workers_per_node',
+                               'time',
+                               'MB',
+                               'MB/s',
+                               'Effective MB/s'],
+                              rows)
     print('Effective IO Rate Trials')
-    pprint([(y['work_item_size'], y['load_workers_per_node'],
-             x[0], i, i/x[0], io[-1]/x[0])
-            for x, i, y in zip(results, io, trial_settings)])
+    print(output_csv)
 
 def get_trial_total_decoded_frames(result):
     total_time, profilers = result
@@ -400,9 +425,11 @@ def get_trial_total_decoded_frames(result):
     # Per node
     for node, (_, profiler) in profilers.iteritems():
         for prof in profiler['eval']:
-            counters = prof['counters']
-            total_decoded_frames += counters['decoded_frames'] if 'decoded_frames' in counters else 0
-            total_effective_frames += counters['effective_frames'] if 'effective_frames' in counters else 0
+            c = prof['counters']
+            total_decoded_frames += (
+                c['decoded_frames'] if 'decoded_frames' in c else 0)
+            total_effective_frames += (
+                c['effective_frames'] if 'effective_frames' in c else 0)
     return total_decoded_frames, total_effective_frames
 
 def effective_decode_rate_benchmark():
@@ -424,33 +451,65 @@ def effective_decode_rate_benchmark():
         decoded_frames.append(get_trial_total_decoded_frames(result))
         results.append(result)
 
+    rows = [{
+        'work_item_size': y['work_item_size'],
+        'pus_per_node': y['pus_per_node'],
+        'time': x[0],
+        'decoded_frames': d[0],
+        'effective_frames': d[1],
+    } for x, d, y in zip(results, decoded_frames, trial_settings)]
+    output_csv = dicts_to_csv(['work_item_size',
+                               'pus_per_node',
+                               'time',
+                               'decoded_frames',
+                               'effective_frames'],
+                              rows)
     print('Effective Decode Rate Trials')
-    pprint([(y['work_item_size'], y['pus_per_node'],
-             x[0], d[0], d[1])
-            for x, d, y in zip(results, decoded_frames, trial_settings)])
+    print(output_csv)
 
 
-def effective_dnn_rate_benchmark():
-    dataset_name = 'effective_dnn_rate'
-    job_name = 'ednnr_test'
-    pipeline_name = 'effective_dnn_rate'
+def dnn_rate_benchmark():
+    dataset_name = 'benchmark_kcam_dnn'
+    job_name = 'dnnr_test'
+    pipeline_name = 'dnn_rate'
+
+    nets = [
+        ('features/squeezenet.toml', [64, 96, 128]),
+        ('features/alex_net.toml', [128, 256, 384]),
+        ('features/googlenet.toml', [64, 96, 128]),
+        ('features/resnet.toml', [16, 32, 64]),
+        ('features/fcn8s.toml', [4, 8, 16, 32]),
+    ]
     trial_settings = [{'force': True,
                        'node_count': 1,
-                       'pus_per_node': 1,
-                       'work_item_size': wis,
-                       'load_workers_per_node': workers,
-                       'save_workers_per_node': 1}
-                      for wis in [64, 128, 256, 512, 1024]
-                      for workers in [1, 2, 4, 8, 16]]
-    times = []
+                       'pus_per_node': 2,
+                       'work_item_size': batch_size * 2,
+                       'load_workers_per_node': 4,
+                       'save_workers_per_node': 4,
+                       'env': {
+                           'SC_NET': net,
+                           'SC_BATCH_SIZE': str(batch_size),
+                       }}
+                      for net, batch_sizes in nets
+                      for batch_size in batch_sizes]
+    results = []
+    decoded_frames = []
     for settings in trial_settings:
-        t = run_trial(dataset_name, job_name, pipeline_name, settings)
-        times.append(t)
+        result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        decoded_frames.append(get_trial_total_decoded_frames(result))
+        results.append(result)
 
-    print_trial_times(
-        'Effective DNN Rate Trials',
-        trial_settings,
-        times)
+    rows = [{
+        'net': y['env']['SC_NET'],
+        'batch_size': y['env']['SC_BATCH_SIZE'],
+        'time': x[0],
+        'frames': d[1],
+        'ms/frame': (x[0] * 1000) / d[1]
+    } for x, d, y in zip(results, decoded_frames, trial_settings)]
+    out_csv = dicts_to_csv(['net', 'batch_size', 'time', 'frames', 'ms/frame'],
+                           rows)
+    print('DNN Rate Trials')
+    print(out_csv)
 
 
 def opencv_reference_trials():
@@ -604,14 +663,32 @@ def print_statistics(profilers):
     readable_totals = convert_time(totals)
     pprint(readable_totals)
 
+def bench_main(args):
+    out_dir = args.output_directory
+    dnn_rate_benchmark()
+    return
+    effective_io_rate_benchmark()
+    effective_decode_rate_benchmark()
 
-def main(args):
-   #caffe_benchmark_gpu_trials()
-   job = sys.argv[1]
-   profilers = parse_profiler_files(job)
-   print_statistics(profilers)
-   write_trace_file(profilers, job)
+def trace_main(args):
+    job = args.job
+    _, profilers = parse_profiler_files(job)
+    print_statistics(profilers)
+    write_trace_file(profilers, job)
 
 
 if __name__ == '__main__':
-    main({})
+    p = argparse.ArgumentParser(description='Perform profiling tasks')
+    subp = p.add_subparsers(help='sub-command help')
+    # Bench
+    bench_p = subp.add_parser('bench', help='Run benchmarks')
+    bench_p.add_argument('output_directory', type=str,
+                         help='Where to output results')
+    bench_p.set_defaults(func=bench_main)
+    # Trace
+    trace_p = subp.add_parser('trace', help='Generate trace files')
+    trace_p.add_argument('job', type=str, help='Job to generate trace for')
+    trace_p.set_defaults(func=trace_main)
+
+    args = p.parse_args()
+    args.func(args)

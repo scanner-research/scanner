@@ -16,6 +16,7 @@
 #include "scanner/evaluators/util/discard_evaluator.h"
 
 #include "scanner/util/common.h"
+#include "scanner/util/memory.h"
 
 namespace scanner {
 
@@ -32,7 +33,7 @@ void DiscardEvaluator::evaluate(
     std::vector<std::vector<size_t>>& output_sizes) {
   i32 input_count = static_cast<i32>(input_buffers[0].size());
   for (i32 i = 0; i < input_count; ++i) {
-    output_buffers[0].push_back(new u8[1]);
+    output_buffers[0].push_back(new_buffer(device_type_, device_id_, 1));
     output_sizes[0].push_back(1);
   }
 }
@@ -54,6 +55,6 @@ std::vector<std::string> DiscardEvaluatorFactory::get_output_names() {
 
 Evaluator* DiscardEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new DiscardEvaluator(config, device_type_, 0);
+  return new DiscardEvaluator(config, device_type_, config.device_ids[0]);
 }
 }
