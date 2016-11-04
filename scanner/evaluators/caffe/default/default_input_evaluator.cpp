@@ -140,6 +140,8 @@ void DefaultInputEvaluator::evaluate(
         u8* buffer = input_buffers[0][frame + i];
         frame_input_g_[sid] = cv::cuda::GpuMat(
             net_input_height_, net_input_width_, CV_8UC3, buffer);
+        cv::cuda::cvtColor(frame_input_g_[sid], frame_input_g_[sid],
+                           CV_RGB2BGR);
         frame_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
         cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
                            meanshifted_input_g_[sid], cv::noArray(), -1,
