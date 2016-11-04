@@ -23,6 +23,12 @@
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
 
+#ifdef HAVE_CUDA
+#include <opencv2/core/cuda_stream_accessor.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include "scanner/util/cuda.h"
+#endif
+
 namespace scanner {
 
 class DefaultInputEvaluator : public Evaluator {
@@ -47,11 +53,22 @@ class DefaultInputEvaluator : public Evaluator {
   i32 net_input_width_;
   i32 net_input_height_;
 
-  cv::Mat resized_input;
-  std::vector<cv::Mat> input_mats;
+#ifdef HAVE_CUDA
+  i32 num_cuda_streams_;
+  cv::cuda::GpuMat mean_mat_g_;
+  std::vector<cv::cuda::Stream> streams_;
+  std::vector<cv::cuda::GpuMat> frame_input_g_;
+  std::vector<cv::cuda::GpuMat> float_input_g_;
+  std::vector<cv::cuda::GpuMat> meanshifted_input_g_;
+  std::vector<cv::cuda::GpuMat> normalized_input_g_;
+  std::vector<std::vector<cv::cuda::GpuMat>> input_planes_g_;
+  std::vector<cv::cuda::GpuMat> planar_input_g_;
+#endif
 
-  std::unique_ptr<caffe::DataTransformer<f32>> transformer;
-  caffe::Blob<f32> output_blob;
+  cv::Mat resized_input_c_;
+  std::vector<cv::Mat> input_mats_c_;
+  std::unique_ptr<caffe::DataTransformer<f32>> transformer_;
+  caffe::Blob<f32> output_blob_;
 };
 
 class DefaultInputEvaluatorFactory : public EvaluatorFactory {
