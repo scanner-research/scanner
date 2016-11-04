@@ -382,10 +382,15 @@ class Scanner(object):
             cmd.append('-f')
 
         p = subprocess.Popen(
-            cmd, env=current_env, stdout=DEVNULL, stderr=subprocess.STDOUT)
-        pid, rc, ru = os.wait4(p.pid, 0)
+            cmd, env=current_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT)
+        so, se = p.communicate()
+        rc = p.returncode
         elapsed = time.time() - start
         success = (rc == 0)
+        if not success:
+            print(so)
         return success, elapsed
 
     def run(self, dataset_name, job_name, pipeline_name, opts={}):
@@ -420,11 +425,12 @@ class Scanner(object):
         current_env = os.environ.copy()
         p = subprocess.Popen(
             cmd[0], env=current_env,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT)
-        pid, rc, ru = os.wait4(p.pid, 0)
+        so, se = p.communicate()
+        rc = p.returncode
         elapsed = time.time() - start
         success = (rc == 0)
         if not success:
-            so, se = p.communicate()
             print(so)
         return success, elapsed

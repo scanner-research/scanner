@@ -388,9 +388,22 @@ def effective_io_rate_benchmark():
         io.append(get_trial_total_io_read(result) / (1024 * 1024)) # to mb
         results.append(result)
     print('Effective IO Rate Trials')
-    pprint([(y['work_item_size'], y['load_workers_per_node'], x[0], i, i/x[0])
+    pprint([(y['work_item_size'], y['load_workers_per_node'],
+             x[0], i, i/x[0], io[-1]/x[0])
             for x, i, y in zip(results, io, trial_settings)])
 
+def get_trial_total_decoded_frames(result):
+    total_time, profilers = result
+
+    total_decoded_frames = 0
+    total_effective_frames = 0
+    # Per node
+    for node, (_, profiler) in profilers.iteritems():
+        for prof in profiler['eval']:
+            counters = prof['counters']
+            total_decoded_frames += counters['decoded_frames'] if 'decoded_frames' in counters else 0
+            total_effective_frames += counters['effective_frames'] if 'effective_frames' in counters else 0
+    return total_decoded_frames, total_effective_frames
 
 def effective_decode_rate_benchmark():
     dataset_name = 'benchmark_kcam'
@@ -405,13 +418,16 @@ def effective_decode_rate_benchmark():
                       for wis in [64, 128, 256, 512, 1024, 2048, 4096]
                       for pus in [1, 2, 4, 8]]
     results = []
+    decoded_frames = []
     for settings in trial_settings:
         result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        decoded_frames.append(get_trial_total_decoded_frames(result))
         results.append(result)
 
     print('Effective Decode Rate Trials')
-    pprint([(y['work_item_size'], y['pus_per_node'], x[0])
-            for x, y in zip(results, trial_settings)])
+    pprint([(y['work_item_size'], y['pus_per_node'],
+             x[0], d[0], d[1])
+            for x, d, y in zip(results, decoded_frames, trial_settings)])
 
 
 def effective_dnn_rate_benchmark():

@@ -2,14 +2,12 @@
 #include "scanner/evaluators/util/discard_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
+#include <cstdlib>
+
 namespace scanner {
 namespace {
 PipelineDescription get_pipeline_description() {
   PipelineDescription desc;
-  desc.sampling = Sampling::SequenceGather;
-  for (i32 i = 0; i < 5; ++i) {
-    desc.gather_sequences.push_back({0, {Interval{0, 1000}}});
-  }
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
