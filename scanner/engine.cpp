@@ -574,11 +574,21 @@ void* evaluate_thread(void* arg) {
           batch_size = output_sizes[0].size();
         }
 
+        // Allow passing input buffers through to an evaluator output
+        // by tracking the pointers and comparing the output pointers
+        // for equality
+        std::set<u8*> all_output_buffers_set;
+        for (std::vector<u8*>& buffers : output_buffers) {
+          all_output_buffers_set.insert(buffers.begin(), buffers.end());
+        }
+
         // Delete input buffers after they are used
         for (size_t i = 0; i < num_inputs; ++i) {
           std::vector<u8*>& buffers = input_buffers[i];
           for (u8* buff : buffers) {
-            delete_buffer(input_buffer_type, input_device_id, buff);
+            if (all_output_buffers_set.count(buff) == 0) {
+              delete_buffer(input_buffer_type, input_device_id, buff);
+            }
           }
         }
       }

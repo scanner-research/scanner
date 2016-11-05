@@ -116,25 +116,9 @@ void CaffeEvaluator::evaluate(
     i32 output_offset = 0;
     if (forward_input_) {
       output_offset++;
-
       for (i32 b = 0; b < batch_count; ++b) {
-        size_t size = input_sizes[1][frame + b];
-        u8* buffer = nullptr;
-        if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-          cudaMalloc((void**)&buffer, size);
-          cudaMemcpy(buffer, input_buffers[1][frame + b], size,
-                     cudaMemcpyDefault);
-#else
-          LOG(FATAL) << "Not built with CUDA support.";
-#endif
-        } else {
-          buffer = new u8[size];
-          memcpy(buffer, input_buffers[1][frame + b], size);
-        }
-        assert(buffer != nullptr);
-        output_buffers[0].push_back(buffer);
-        output_sizes[0].push_back(size);
+        output_buffers[0].push_back(input_buffers[1][frame + b]);
+        output_sizes[0].push_back(input_sizes[1][frame + b]);
       }
     }
 

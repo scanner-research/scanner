@@ -229,12 +229,8 @@ void DefaultInputEvaluator::evaluate(
   }
 
   for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    size_t size = input_sizes[0][i];
-    u8* buffer = new_buffer(device_type_, device_id_, size);
-    memcpy_buffer(buffer, device_type_, device_id_, input_buffers[0][i],
-                  device_type_, device_id_, size);
-    output_buffers[1].push_back(buffer);
-    output_sizes[1].push_back(size);
+    output_buffers[1].push_back(input_buffers[0][i]);
+    output_sizes[1].push_back(input_sizes[0][i]);
   }
 
   if (profiler_) {

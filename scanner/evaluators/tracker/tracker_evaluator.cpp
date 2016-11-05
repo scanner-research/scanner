@@ -19,8 +19,8 @@
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
 
-#include "struck/Tracker.h"
 #include "struck/Config.h"
+#include "struck/Tracker.h"
 
 #ifdef HAVE_CUDA
 #include "scanner/util/cuda.h"
@@ -31,14 +31,12 @@
 namespace scanner {
 
 TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
-                                   DeviceType device_type,
-                                   i32 device_id,
+                                   DeviceType device_type, i32 device_id,
                                    i32 warmup_count)
     : config_(config),
       device_type_(device_type),
       device_id_(device_id),
-      warmup_count_(warmup_count)
-{
+      warmup_count_(warmup_count) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU tracker support not implemented yet";
   }
@@ -55,10 +53,10 @@ void TrackerEvaluator::reset() {
 }
 
 void TrackerEvaluator::evaluate(
-    const std::vector<std::vector<u8 *>> &input_buffers,
-    const std::vector<std::vector<size_t>> &input_sizes,
-    std::vector<std::vector<u8 *>> &output_buffers,
-    std::vector<std::vector<size_t>> &output_sizes) {
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   assert(input_buffers.size() >= 2);
 
   i32 input_count = input_buffers[0].size();
@@ -71,7 +69,7 @@ void TrackerEvaluator::evaluate(
     u8* bbox_buffer = input_buffers[box_idx][b];
     size_t num_bboxes = *((size_t*)bbox_buffer);
     bbox_buffer += sizeof(size_t);
-    i32 bbox_size = *((i32 *)bbox_buffer);
+    i32 bbox_size = *((i32*)bbox_buffer);
     bbox_buffer += sizeof(i32);
 
     // Find all the boxes which overlap the existing tracked boxes and update
@@ -108,13 +106,13 @@ void TrackerEvaluator::evaluate(
     // Perform tracking for all existing tracks that we have
     std::vector<BoundingBox> generated_bboxes;
     {
-      u8 *buffer = input_buffers[frame_idx][b];
+      u8* buffer = input_buffers[frame_idx][b];
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
         auto& track = tracks_[i];
         auto& tracker = track.tracker;
         tracker->Track(frame);
-        const struck::FloatRect &tracked_bbox = tracker->GetBB();
+        const struck::FloatRect& tracked_bbox = tracker->GetBB();
         f64 score = tracker->GetScore();
 
         if (score < TRACK_SCORE_THRESHOLD) {
@@ -140,11 +138,11 @@ void TrackerEvaluator::evaluate(
     for (BoundingBox& box : new_detected_bboxes) {
       tracks_.resize(tracks_.size() + 1);
       Track& track = tracks_.back();
-      //i32 tracker_id = next_tracker_id_++;
+      // i32 tracker_id = next_tracker_id_++;
       i32 tracker_id = unif(gen);
       track.id = tracker_id;
       track.config.reset(new struck::Config{});
-      struck::Config &config = *track.config.get();
+      struck::Config& config = *track.config.get();
       config.frameWidth = metadata_.width();
       config.frameHeight = metadata_.height();
       struck::Config::FeatureKernelPair fkp;
@@ -153,9 +151,9 @@ void TrackerEvaluator::evaluate(
       config.features.push_back(fkp);
       track.tracker.reset(new struck::Tracker(config));
 
-      u8 *buffer = input_buffers[frame_idx][b];
+      u8* buffer = input_buffers[frame_idx][b];
       assert(input_sizes[frame_idx][b] ==
-            metadata_.height() * metadata_.width() * 3);
+             metadata_.height() * metadata_.width() * 3);
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
                           box.y2() - box.y1());
@@ -168,7 +166,7 @@ void TrackerEvaluator::evaluate(
 
     {
       size_t size;
-      u8 *buffer;
+      u8* buffer;
 
       serialize_bbox_vector(detected_bboxes, buffer, size);
       output_buffers[1].push_back(buffer);
@@ -180,20 +178,9 @@ void TrackerEvaluator::evaluate(
     }
   }
 
-  u8 *buffer = nullptr;
   for (i32 b = 0; b < input_count; ++b) {
+    u8* buffer = input_buffers[frame_idx][b];
     size_t size = input_sizes[frame_idx][b];
-    if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      cudaMalloc((void **)&buffer, size);
-      cudaMemcpy(buffer, input_buffers[frame_idx][b], size, cudaMemcpyDefault);
-#else
-      LOG(FATAL) << "Not built with CUDA support.";
-#endif
-    } else {
-      buffer = new u8[size];
-      memcpy(buffer, input_buffers[frame_idx][b], size);
-    }
     output_buffers[0].push_back(buffer);
     output_sizes[0].push_back(size);
   }
@@ -208,14 +195,15 @@ float TrackerEvaluator::iou(const BoundingBox& bl, const BoundingBox& br) {
   float bl_width = bl.x2() - bl.x1();
   float bl_height = bl.y2() - bl.y1();
   float br_width = br.x2() - br.x1();
-  float br_height= br.y2() - br.y1();
-  if (x1 >= x2 || y1 >= y2) { return 0.0; }
+  float br_height = br.y2() - br.y1();
+  if (x1 >= x2 || y1 >= y2) {
+    return 0.0;
+  }
   float intersection = (y2 - y1) * (x2 - x1);
   float _union = (bl_width * bl_height) + (br_width * br_height) - intersection;
   float iou = intersection / _union;
   return std::isnan(iou) ? 0.0 : iou;
 }
-
 
 TrackerEvaluatorFactory::TrackerEvaluatorFactory(DeviceType device_type,
                                                  i32 warmup_count)
@@ -237,8 +225,8 @@ std::vector<std::string> TrackerEvaluatorFactory::get_output_names() {
   return {"frame", "before_bboxes", "after_bboxes"};
 }
 
-Evaluator *
-TrackerEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+Evaluator* TrackerEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
   return new TrackerEvaluator(config, device_type_, 0, warmup_count_);
 }
 }
