@@ -19,15 +19,18 @@
 
 #include <opencv2/opencv.hpp>
 
-namespace cvc = cv::cuda;
-
 namespace scanner {
 cv::Mat bytesToImage(u8* buf, const VideoMetadata& metadata);
-cvc::GpuMat bytesToImage_gpu(u8* buf, const VideoMetadata& metadata);
 }
 
 #ifdef HAVE_CUDA
 #include <opencv2/core/cuda.hpp>
+
+namespace cvc = cv::cuda;
+
+namespace scanner {
+cvc::GpuMat bytesToImage_gpu(u8* buf, const VideoMetadata& metadata);
+}
 
 void convertNV12toRGBA(const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame,
                        int width, int height,
