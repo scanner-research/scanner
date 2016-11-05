@@ -16,6 +16,10 @@
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/util/memory.h"
 
+#ifdef HAVE_CUDA
+#include <opencv2/cudaimgproc.hpp>
+#endif
+
 namespace scanner {
 
 DefaultInputEvaluator::DefaultInputEvaluator(DeviceType device_type,
@@ -49,8 +53,7 @@ DefaultInputEvaluator::DefaultInputEvaluator(DeviceType device_type,
     for (i32 i = 0; i < mean_colors.size(); i++) {
       param.add_mean_value(mean_colors[i]);
     }
-    transformer_ =
-        std::make_unique<caffe::DataTransformer<f32>>(param, caffe::TEST);
+    transformer_.reset(new caffe::DataTransformer<f32>(param, caffe::TEST));
   }
 }
 
@@ -73,6 +76,7 @@ void DefaultInputEvaluator::configure(const VideoMetadata& metadata) {
 
     mean_mat_g_ = cv::cuda::GpuMat(
         net_input_height_, net_input_width_, CV_32FC3,
+
         cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
                    descriptor_.mean_colors[2]));
 
