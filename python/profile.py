@@ -17,6 +17,11 @@ import io
 import csv
 import argparse
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 LIGHTSCAN_PROGRAM_PATH = os.path.join(
@@ -442,7 +447,7 @@ def effective_decode_rate_benchmark():
                        'work_item_size': wis,
                        'load_workers_per_node': 1,
                        'save_workers_per_node': 1}
-                      for wis in [64, 128, 256, 512, 1024, 2048, 4096]
+                      for wis in [128, 256, 512, 1024, 2048, 4096]
                       for pus in [1, 2, 4, 8]]
     results = []
     decoded_frames = []
@@ -663,12 +668,98 @@ def print_statistics(profilers):
     readable_totals = convert_time(totals)
     pprint(readable_totals)
 
+
+def graph_io_rate_benchmark(path):
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        rows = [row for row in reader]
+
+    mb = 0
+    wis_per_node = defaultdict(list)
+    for row in rows:
+        wis = int(row['work_item_size'])
+        lwpn = row['load_workers_per_node']
+        mbs = row['MB/s']
+        embs = row['Effective MB/s']
+        mb = row['MB']
+        wis_per_node[wis].append([lwpn, mbs, embs])
+
+    wis = [64, 128, 256, 512, 1024, 2048, 4096, 8096]
+    colors = ['g', 'b', 'k', 'w', 'm', 'c', 'r', 'y']
+    plt.clf()
+    ax = plt.subplot(1, 1, 1)
+    for w, c in zip(wis, colors):
+        d = wis_per_node[w]
+        print(d)
+        ax.plot(map(lambda x: x[0], d),
+                map(lambda x: x[1], d),
+                color=c,
+                linestyle='--')
+        ax.plot(map(lambda x: x[0], d),
+                map(lambda x: x[2], d),
+                color=c,
+                linestyle='-',
+                label=str(w) + ' wis')
+
+    ax.set_xlabel('Load threads')
+    ax.set_ylabel('MB/s')
+    ax.legend()
+
+    #ax.set_title('Loading ' + mb + ' MB on bodega SSD')
+    #plt.savefig('io_rate_bodega.png', dpi=150)
+    ax.set_title('Loading ' + mb + ' MB on intel')
+    plt.savefig('io_rate_intel.png', dpi=150)
+
+
+def graph_decode_rate_benchmark(path):
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        rows = [row for row in reader]
+
+    wis_per_node = defaultdict(list)
+    for row in rows:
+        print(row)
+        wis = int(row['work_item_size'])
+        pus = int(row['pus_per_node'])
+        t = float(row['time'])
+        df = int(row['decoded_frames'])
+        ef = int(row['effective_frames'])
+        wis_per_node[wis].append([pus, t, df, ef])
+
+    wis = [64, 128, 256, 512, 1024, 2048]
+    colors = ['g', 'b', 'k', 'y', 'm', 'c', 'r', 'w']
+    plt.clf()
+    ax = plt.subplot(1, 1, 1)
+    for w, c in zip(wis, colors):
+        d = wis_per_node[w]
+        ax.plot(map(lambda x: x[0], d),
+                map(lambda x: x[2]/x[1], d),
+                color=c,
+                linestyle='--')
+        ax.plot(map(lambda x: x[0], d),
+                map(lambda x: x[3]/x[1], d),
+                color=c,
+                linestyle='-',
+                label=str(w) + ' wis')
+
+    ax.set_xlabel('PUs')
+    ax.set_ylabel('Decode FPS')
+    ax.legend()
+
+    ax.set_title('Decoding frames on bodega')
+    plt.savefig('decode_rate_bodega.png', dpi=150)
+
+
 def bench_main(args):
     out_dir = args.output_directory
-    dnn_rate_benchmark()
-    return
     effective_io_rate_benchmark()
     effective_decode_rate_benchmark()
+    dnn_rate_benchmark()
+
+
+def graphs_main(args):
+    graph_decode_rate_benchmark('decode_test.csv')
+
 
 def trace_main(args):
     job = args.job
@@ -685,6 +776,9 @@ if __name__ == '__main__':
     bench_p.add_argument('output_directory', type=str,
                          help='Where to output results')
     bench_p.set_defaults(func=bench_main)
+    # Graphs
+    graphs_p = subp.add_parser('graphs', help='Generate graphs from bench')
+    graphs_p.set_defaults(func=graphs_main)
     # Trace
     trace_p = subp.add_parser('trace', help='Generate trace files')
     trace_p.add_argument('job', type=str, help='Job to generate trace for')
