@@ -394,7 +394,12 @@ class Scanner(object):
             print(so)
         return success, elapsed
 
-    def run(self, dataset_name, job_name, pipeline_name, opts={}):
+    @staticmethod
+    def base_job_name():
+        return 'base'
+
+    def run(self, dataset_name, in_job_name, pipeline_name, out_job_name,
+            opts={}):
         def gopt(k, default):
             return opts[k] if k in opts else default
         force = gopt('force', False)
@@ -407,10 +412,10 @@ class Scanner(object):
         custom_env = gopt('env', None)
 
         cmd = [['mpirun',
-               '-n', str(node_count),
-               '--bind-to', 'none',
-               self._executable_path,
-               'run', dataset_name, job_name, pipeline_name]]
+                '-n', str(node_count),
+                '--bind-to', 'none',
+                self._executable_path,
+                'run', dataset_name, in_job_name, pipeline_name, out_job_name]]
 
         def add_opt(name, opt):
             if opt:

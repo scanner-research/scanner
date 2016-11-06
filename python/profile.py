@@ -173,17 +173,20 @@ def parse_profiler_files(job_name):
     return profilers
 
 
-def run_trial(dataset_name, job_name, pipeline_name, opts={}):
-    print('Running trial: dataset {:s}, job {:s}, pipeline {:s}'.format(
-        dataset_name,
-        job_name,
-        pipeline_name,
-    ))
+def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
+    print('Running trial: dataset {:s}, in_job {:s}, pipeline {:s}, '
+          'out_job {:s}'.format(
+              dataset_name,
+              in_job_name,
+              pipeline_name,
+              out_job_name,
+          ))
 
     # Clear cache
     clear_filesystem_cache()
     db = scanner.Scanner()
-    result, t = db.run(dataset_name, job_name, pipeline_name, opts)
+    result, t = db.run(dataset_name, in_job_name, pipeline_name, out_job_name,
+                       opts)
     profiler_output = {}
     if result:
         print('Trial succeeded, took {:.3f}s'.format(t))
@@ -388,8 +391,9 @@ def get_trial_total_io_read(result):
 
 def effective_io_rate_benchmark():
     dataset_name = 'benchmark_kcam'
-    job_name = 'eir_test'
+    in_job_name = scanner.Scanner.base_job_name()
     pipeline_name = 'effective_io_rate'
+    out_job_name = 'eir_test'
     trial_settings = [{'force': True,
                        'node_count': 1,
                        'pus_per_node': 1,
@@ -401,7 +405,8 @@ def effective_io_rate_benchmark():
     results = []
     io = []
     for settings in trial_settings:
-        result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        result = run_trial(dataset_name, in_job_name, pipeline_name,
+                           out_job_name, settings)
         io.append(get_trial_total_io_read(result) / (1024 * 1024)) # to mb
         results.append(result)
     rows = [{
@@ -439,8 +444,9 @@ def get_trial_total_decoded_frames(result):
 
 def effective_decode_rate_benchmark():
     dataset_name = 'benchmark_kcam'
-    job_name = 'edr_test'
+    in_job_name = scanner.Scanner.base_job_name()
     pipeline_name = 'effective_decode_rate'
+    out_job_name = 'edr_test'
     trial_settings = [{'force': True,
                        'node_count': 1,
                        'pus_per_node': pus,
@@ -452,7 +458,8 @@ def effective_decode_rate_benchmark():
     results = []
     decoded_frames = []
     for settings in trial_settings:
-        result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        result = run_trial(dataset_name, in_job_name, pipeline_name,
+                           out_job_name, settings)
         decoded_frames.append(get_trial_total_decoded_frames(result))
         results.append(result)
 
@@ -475,8 +482,9 @@ def effective_decode_rate_benchmark():
 
 def dnn_rate_benchmark():
     dataset_name = 'benchmark_kcam_dnn'
-    job_name = 'dnnr_test'
+    in_job_name = scanner.Scanner.base_job_name()
     pipeline_name = 'dnn_rate'
+    out_job_name = 'dnnr_test'
 
     nets = [
         ('features/squeezenet.toml', [64, 96, 128]),
@@ -500,7 +508,8 @@ def dnn_rate_benchmark():
     results = []
     decoded_frames = []
     for settings in trial_settings:
-        result = run_trial(dataset_name, job_name, pipeline_name, settings)
+        result = run_trial(dataset_name, in_job_name, pipeline_name,
+                           out_job_name, settings)
         decoded_frames.append(get_trial_total_decoded_frames(result))
         results.append(result)
 
