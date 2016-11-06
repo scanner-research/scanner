@@ -18,18 +18,26 @@
 namespace scanner {
 namespace {
 
-std::map<std::string, std::function<PipelineDescription(void)>> pipeline_fns;
+std::map<std::string, PipelineGeneratorFn> pipeline_fns;
 }
 
-bool add_pipeline(std::string name,
-                  std::function<PipelineDescription(void)> fn) {
+DatasetItemMetadata::DatasetItemMetadata(i32 frames, i32 width, i32 height)
+    : frames_(frames), width_(width), height_(height) {}
+
+i32 DatasetItemMetadata::frames() const { return frames_; }
+
+i32 DatasetItemMetadata::width() const { return width_; }
+
+i32 DatasetItemMetadata::height() const { return height_; }
+
+bool add_pipeline(std::string name, PipelineGeneratorFn fn) {
   LOG_IF(FATAL, pipeline_fns.count(name) > 0)
       << "Pipeline with name " << name << " has already been registered!";
   pipeline_fns.insert({name, fn});
   return true;
 }
 
-std::function<PipelineDescription(void)> get_pipeline(const std::string& name) {
+PipelineGeneratorFn get_pipeline(const std::string& name) {
   if (pipeline_fns.count(name) == 0) {
     std::string current_names;
     for (auto& entry : pipeline_fns) {

@@ -15,7 +15,7 @@
 
 #include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/evaluators/serialize.h"
-#include "scanner/evaluators/types.pb.h"
+#include "scanner/metadata.pb.h"
 
 #include "scanner/util/memory.h"
 
@@ -27,6 +27,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
     : device_type_(device_type),
       device_id_(config.device_ids[0]),
       decoder_type_(decoder_type),
+      needs_warmup_(false),
       discontinuity_(false) {
   decoder_.reset(VideoDecoder::make_from_config(device_type_, device_id_,
                                                 decoder_type_, device_type_));
@@ -39,7 +40,10 @@ void DecoderEvaluator::configure(const VideoMetadata& metadata) {
   decoder_->configure(metadata);
 }
 
-void DecoderEvaluator::reset() { discontinuity_ = true; }
+void DecoderEvaluator::reset() {
+  needs_warmup_ = true;
+  discontinuity_ = true;
+}
 
 void DecoderEvaluator::evaluate(
     const std::vector<std::vector<u8*>>& input_buffers,
@@ -85,7 +89,11 @@ void DecoderEvaluator::evaluate(
     std::vector<i32> valid_frames;
     if (args.sampling() == DecodeArgs::All) {
       const DecodeArgs::Interval& interval = args.interval();
-      for (i32 s = interval.start(); s < interval.end(); ++s) {
+      i32 s = interval.start();
+      if (!needs_warmup_) {
+        s += args.warmup_count();
+      }
+      for (; s < interval.end(); ++s) {
         valid_frames.push_back(s);
       }
     } else if (args.sampling() == DecodeArgs::Strided) {
@@ -93,19 +101,30 @@ void DecoderEvaluator::evaluate(
       i32 s = interval.start();
       i32 e = interval.end();
       i32 stride = args.stride();
+      if (!needs_warmup_) {
+        s += args.warmup_count() * stride;
+      }
       for (; s < e; s += stride) {
         valid_frames.push_back(s);
       }
     } else if (args.sampling() == DecodeArgs::Gather) {
-      for (i32 p : args.gather_points()) {
-        valid_frames.push_back(p);
+      i32 s = 0;
+      if (!needs_warmup_) {
+        s += args.warmup_count();
+      }
+      for (; s < args.gather_points_size(); ++s) {
+        valid_frames.push_back(args.gather_points(s));
       }
       discontinuity_ = true;
     } else if (args.sampling() == DecodeArgs::SequenceGather) {
-      for (const DecodeArgs::Interval& interval : args.gather_sequences()) {
-        for (i32 s = interval.start(); s < interval.end(); ++s) {
-          valid_frames.push_back(s);
-        }
+      assert(args.gather_sequences_size() == 1);
+      const DecodeArgs::Interval& interval = args.gather_sequences(0);
+      i32 s = interval.start();
+      if (!needs_warmup_) {
+        s += args.warmup_count();
+      }
+      for (; s < interval.end(); ++s) {
+        valid_frames.push_back(s);
       }
       discontinuity_ = true;
     } else {
@@ -165,6 +184,9 @@ void DecoderEvaluator::evaluate(
     if (device_type_ == DeviceType::GPU) {
       delete[] encoded_buffer;
     }
+
+    // All warmed up
+    needs_warmup_ = false;
   }
 
   if (profiler_) {

@@ -17,7 +17,6 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
-#include "scanner/evaluators/caffe/caffe_input_transformer_factory.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 
 #include <memory>
@@ -27,16 +26,16 @@ namespace scanner {
 
 class CaffeEvaluator : public Evaluator {
  public:
-   CaffeEvaluator(const EvaluatorConfig &config, DeviceType device_type,
-                  i32 device_id, const NetDescriptor &descriptor,
-                  i32 batch_size, bool forward_input = false);
+  CaffeEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                 i32 device_id, const NetDescriptor& descriptor, i32 batch_size,
+                 bool forward_input = false);
 
-   void configure(const VideoMetadata& descriptor) override;
+  void configure(const VideoMetadata& descriptor) override;
 
-   void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
-                 const std::vector<std::vector<size_t>> &input_sizes,
-                 std::vector<std::vector<u8 *>> &output_buffers,
-                 std::vector<std::vector<size_t>> &output_sizes) override;
+  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+                const std::vector<std::vector<size_t>>& input_sizes,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
  protected:
   void set_device();
@@ -55,8 +54,7 @@ class CaffeEvaluator : public Evaluator {
 class CaffeEvaluatorFactory : public EvaluatorFactory {
  public:
   CaffeEvaluatorFactory(DeviceType device_type,
-                        const NetDescriptor& net_descriptor,
-                        i32 batch_size,
+                        const NetDescriptor& net_descriptor, i32 batch_size,
                         bool forward_input = false);
 
   EvaluatorCapabilities get_capabilities() override;

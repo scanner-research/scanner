@@ -15,16 +15,12 @@
 
 #pragma once
 
-#include "scanner/metadata.pb.h"
-#include "storehouse/storage_backend.h"
-
-#include <map>
-#include <set>
-#include <string>
-#include <vector>
+#include <cstdint>
 
 namespace scanner {
 
+///////////////////////////////////////////////////////////////////////////////
+/// Common data types
 using u8 = uint8_t;
 using u32 = uint32_t;
 using u64 = uint64_t;
@@ -33,6 +29,23 @@ using i32 = int32_t;
 using i64 = int64_t;
 using f32 = float;
 using f64 = double;
+
+enum class DeviceType {
+  GPU,
+  CPU,
+};
+
+enum class Sampling {
+  All,
+  Strided,
+  Gather,
+  SequenceGather,
+};
+
+struct Interval {
+  i32 start;
+  i32 end;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
@@ -43,136 +56,4 @@ extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 LOAD_WORKERS_PER_NODE;  // # of worker threads loading data
 extern i32 SAVE_WORKERS_PER_NODE;  // # of worker threads loading data
 extern i32 NUM_CUDA_STREAMS;       // # of cuda streams for image processing
-
-///////////////////////////////////////////////////////////////////////////////
-/// Path functions
-inline std::string database_metadata_path() { return "db_metadata.bin"; }
-
-inline std::string dataset_descriptor_path(const std::string& dataset_name) {
-  return dataset_name + "_dataset_descriptor.bin";
-}
-
-inline std::string dataset_item_data_path(const std::string& dataset_name,
-                                          const std::string& item_name) {
-  return dataset_name + "_dataset/" + item_name + "_data.bin";
-}
-
-inline std::string dataset_item_video_path(const std::string& dataset_name,
-                                           const std::string& item_name) {
-  return dataset_name + "_dataset/" + item_name + ".mp4";
-}
-
-inline std::string dataset_item_video_timestamps_path(
-    const std::string& dataset_name, const std::string& item_name) {
-  return dataset_name + "_dataset/" + item_name + "_web_timestamps.bin";
-}
-
-inline std::string dataset_item_metadata_path(const std::string& dataset_name,
-                                              const std::string& item_name) {
-  return dataset_name + "_dataset/" + item_name + "_metadata.bin";
-}
-
-inline std::string job_item_output_path(const std::string& job_name,
-                                        const std::string& video_name,
-                                        const std::string& column_name,
-                                        i32 work_item_index) {
-  return job_name + "_job/" + video_name + "_" + column_name + "_" +
-         std::to_string(work_item_index) + ".bin";
-}
-
-inline std::string job_descriptor_path(const std::string& job_name) {
-  return job_name + "_job_descriptor.bin";
-}
-
-inline std::string job_profiler_path(const std::string& job_name, i32 node) {
-  return job_name + "_job/profile_" + std::to_string(node) + ".bin";
-}
-
-inline i32 frames_per_work_item() { return WORK_ITEM_SIZE; }
-
-///////////////////////////////////////////////////////////////////////////////
-/// Common persistent data structs and their serialization helpers
-struct DatabaseMetadata {
- public:
-  DatabaseMetadata();
-  DatabaseMetadata(const DatabaseDescriptor& descriptor);
-
-  const DatabaseDescriptor& get_descriptor() const;
-
-  bool has_dataset(const std::string& dataset) const;
-  bool has_dataset(i32 dataset_id) const;
-  i32 get_dataset_id(const std::string& dataset) const;
-  const std::string& get_dataset_name(i32 dataset_id) const;
-  i32 add_dataset(const std::string& dataset);
-  void remove_dataset(i32 dataset_id);
-
-  bool has_job(const std::string& job) const;
-  bool has_job(i32 job_id) const;
-  i32 get_job_id(const std::string& job_name) const;
-  const std::string& get_job_name(i32 job_id) const;
-  i32 add_job(i32 dataset_id, const std::string& job_name);
-  void remove_job(i32 job_id);
-
-  // private:
-  i32 next_dataset_id;
-  i32 next_job_id;
-  std::map<i32, std::string> dataset_names;
-  std::map<i32, std::set<i32>> dataset_job_ids;
-  std::map<i32, std::string> job_names;
-
- private:
-  mutable DatabaseDescriptor descriptor;
-};
-
-enum class DeviceType {
-  GPU,
-  CPU,
-};
-
-struct VideoMetadata {
- public:
-  VideoMetadata();
-  VideoMetadata(const VideoDescriptor& descriptor);
-
-  const VideoDescriptor& get_descriptor() const;
-
-  i32 frames() const;
-  i32 width() const;
-  i32 height() const;
-  std::vector<i64> keyframe_positions() const;
-  std::vector<i64> keyframe_byte_offsets() const;
-
- private:
-  mutable VideoDescriptor descriptor;
-};
-
-void serialize_database_metadata(storehouse::WriteFile* file,
-                                 const DatabaseMetadata& metadata);
-
-DatabaseMetadata deserialize_database_metadata(storehouse::RandomReadFile* file,
-                                               u64& file_pos);
-
-void serialize_dataset_descriptor(storehouse::WriteFile* file,
-                                  const DatasetDescriptor& descriptor);
-
-DatasetDescriptor deserialize_dataset_descriptor(
-    storehouse::RandomReadFile* file, u64& file_pos);
-
-void serialize_video_metadata(storehouse::WriteFile* file,
-                              const VideoMetadata& metadata);
-
-VideoMetadata deserialize_video_metadata(storehouse::RandomReadFile* file,
-                                         u64& file_pos);
-
-void serialize_web_timestamps(storehouse::WriteFile* file,
-                              const WebTimestamps& metadata);
-
-WebTimestamps deserialize_web_timestamps(storehouse::RandomReadFile* file,
-                                         u64& file_pos);
-
-void serialize_job_descriptor(storehouse::WriteFile* file,
-                              const JobDescriptor& descriptor);
-
-JobDescriptor deserialize_job_descriptor(storehouse::RandomReadFile* file,
-                                         u64& file_pos);
 }

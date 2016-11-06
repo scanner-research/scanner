@@ -20,7 +20,6 @@ if (BUILD_CAFFE_EVALUATORS)
   if (BUILD_CAFFE_INPUT_EVALUATORS)
     list(APPEND SOURCE_FILES
       caffe/default/default_input_evaluator.cpp
-      caffe/vgg/vgg_cpu_input_transformer.cpp
       caffe/yolo/yolo_input_evaluator.cpp
       caffe/squeezenet/squeezenet_input_evaluator.cpp
       caffe/facenet/facenet_parser_evaluator.cpp

@@ -45,6 +45,7 @@ class DecoderEvaluator : public Evaluator {
   VideoMetadata metadata_;
   size_t frame_size_;
   std::unique_ptr<VideoDecoder> decoder_;
+  bool needs_warmup_;
   bool discontinuity_;
 };
 

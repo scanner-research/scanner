@@ -9,6 +9,11 @@ if (BUILD_VIDEO_EVALUATORS AND
     kcam_pipeline.cpp)
 endif()
 
+if (BUILD_UTIL_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    kcam_box_reader.cpp)
+endif()
+
 if (BUILD_VIDEO_EVALUATORS AND
     BUILD_CAFFE_EVALUATORS AND
     BUILD_CAFFE_INPUT_EVALUATORS)

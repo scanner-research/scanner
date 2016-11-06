@@ -16,6 +16,7 @@
 #include "scanner/ingest.h"
 
 #include "scanner/util/common.h"
+#include "scanner/util/db.h"
 #include "scanner/util/h264.h"
 #include "scanner/util/util.h"
 
@@ -767,7 +768,7 @@ i32 read_last_processed_video(storehouse::StorageBackend* storage,
   StoreResult result;
 
   const std::string last_written_path =
-      dataset_name + "_dataset/last_written.bin";
+      dataset_directory(dataset_name) + "/last_written.bin";
 
   // File will not exist when first running ingest so check first
   // and return default value if not there
@@ -804,7 +805,7 @@ void write_last_processed_video(storehouse::StorageBackend* storage,
                                 const std::string& dataset_name,
                                 i32 file_index) {
   const std::string last_written_path =
-      dataset_name + "_dataset/last_written.bin";
+      dataset_directory(dataset_name) + "/last_written.bin";
   std::unique_ptr<WriteFile> file;
   make_unique_write_file(storage, last_written_path, file);
 
@@ -928,6 +929,7 @@ void ingest(storehouse::StorageConfig* storage_config,
   }
 
   descriptor.set_id(dataset_id);
+  descriptor.set_name(dataset_name);
   descriptor.set_total_frames(total_frames);
 
   descriptor.set_min_frames(min_frames);

@@ -28,21 +28,9 @@ struct PointSamples {
   std::vector<i32> frames;
 };
 
-struct Interval {
-  i32 start;
-  i32 end;
-};
-
 struct SequenceSamples {
   i32 video_index;
   std::vector<Interval> intervals;
-};
-
-enum class Sampling {
-  All,
-  Strided,
-  Gather,
-  SequenceGather,
 };
 
 /**
@@ -58,7 +46,8 @@ enum class Sampling {
  * of consecutive frames (Sampling::SequenceGather).
  */
 struct PipelineDescription {
-  std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
+  // Columns to grab from the input job
+  std::vector<std::string> input_columns;
 
   Sampling sampling = Sampling::All;
   // For strided sampling
@@ -67,12 +56,31 @@ struct PipelineDescription {
   std::vector<PointSamples> gather_points;
   // For sequence gather sampling
   std::vector<SequenceSamples> gather_sequences;
+
+  // The chain of evaluators which will be executed over the input
+  std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
 };
 
-bool add_pipeline(std::string name,
-                  std::function<PipelineDescription(void)> fn);
+struct DatasetItemMetadata {
+ public:
+  DatasetItemMetadata(i32 frames, i32 width, i32 height);
 
-std::function<PipelineDescription(void)> get_pipeline(const std::string& name);
+  i32 frames() const;
+  i32 width() const;
+  i32 height() const;
+
+ private:
+  i32 frames_;
+  i32 width_;
+  i32 height_;
+};
+
+using PipelineGeneratorFn = std::function<PipelineDescription(
+    const DatasetMetadata&, const std::vector<DatasetItemMetadata>&)>;
+
+bool add_pipeline(std::string name, PipelineGeneratorFn fn);
+
+PipelineGeneratorFn get_pipeline(const std::string& name);
 
 #define REGISTER_PIPELINE(name, fn) \
   static bool dummy_##name = add_pipeline(#name, fn);

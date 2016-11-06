@@ -27,7 +27,45 @@
 namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Work structs - structs used to exchange data between workers during
+///   execution of the run command.
+struct WorkItem {
+  i32 video_index;
+  i64 item_id;
+  i64 next_item_id;
+  i32 rows_from_start;
+};
+
+struct LoadWorkEntry {
+  i32 work_item_index;
+  // union {
+  // For no sampling
+  Interval interval;
+  // For stride
+  struct {
+    Interval interval;
+    i32 stride;
+  } strided;
+  // For gather
+  std::vector<i32> gather_points;
+  // For sequence gather
+  std::vector<Interval> gather_sequences;
+  //};
+};
+
+struct EvalWorkEntry {
+  i32 work_item_index;
+  std::vector<std::string> column_names;
+  std::vector<std::vector<size_t>> buffer_sizes;
+  std::vector<std::vector<u8*>> buffers;
+  DeviceType buffer_type;
+  i32 buffer_device_id;
+  bool video_decode_item;
+};
+
+///////////////////////////////////////////////////////////////////////////////
 void run_job(storehouse::StorageConfig* storage_config,
-             PipelineDescription& pipeline_description,
-             const std::string& job_name, const std::string& dataset_name);
+             const std::string& dataset_name, const std::string& in_job_name,
+             PipelineGeneratorFn pipeline_gen_fn,
+             const std::string& out_job_name);
 }

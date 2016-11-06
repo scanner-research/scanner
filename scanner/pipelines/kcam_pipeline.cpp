@@ -10,13 +10,11 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description() {
+PipelineDescription get_pipeline_description(
+    const DatasetMetadata& dataset_desc,
+    const std::vector<DatasetItemMetadata>& item_descriptors) {
   PipelineDescription desc;
-  desc.sampling = Sampling::SequenceGather;
-  SequenceSamples samples;
-  samples.video_index = 0;
-  samples.intervals.push_back(Interval{100, 300});
-  desc.gather_sequences.push_back(samples);
+  desc.input_columns = {"frame"};
 
   std::string net_descriptor_file = "features/caffe_facenet.toml";
   NetDescriptor descriptor;

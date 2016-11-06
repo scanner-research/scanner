@@ -6,7 +6,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description() {
+PipelineDescription get_pipeline_description(
+    const DatasetMetadata& dataset_meta,
+    const std::vector<DatasetItemMetadata>& item_metas) {
   PipelineDescription desc;
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =

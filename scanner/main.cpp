@@ -17,10 +17,10 @@
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/ingest.h"
 
-#include "scanner/util/util.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
+#include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
 #include "storehouse/storage_config.h"
@@ -49,9 +49,6 @@
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
-#include <libgen.h>
-#include <mpi.h>
-
 #include <string>
 
 // For setting up libav*
@@ -85,7 +82,7 @@ using storehouse::RandomReadFile;
 const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 
 void startup(int argc, char** argv) {
-  MPI_CHECK(MPI_Init(&argc, &argv));
+  MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 0;
 #ifdef HAVE_CUDA
@@ -93,18 +90,7 @@ void startup(int argc, char** argv) {
 #endif
 }
 
-void shutdown() {
-  MPI_Status status;
-  int flag;
-  MPI_CHECK(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status));
-  if (flag) {
-    int count;
-    MPI_CHECK(MPI_Get_count(&status, MPI_INT, &count));
-    LOG(FATAL) << count << " " << status.MPI_SOURCE << " "
-               << status.MPI_TAG << " " << status.MPI_ERROR;
-  }
-  MPI_CHECK(MPI_Finalize());
-}
+void shutdown() { MPI_Finalize(); }
 
 class Config {
  public:
@@ -144,15 +130,16 @@ int main(int argc, char** argv) {
   std::string video_paths_file;  // paths of video files to turn into dataset
   bool compute_web_metadata = false;  // whether to compute metadata on ingest
   // For run sub-command
-  std::string job_name;       // name of job to refer to after run
+  std::string in_job_name;    // name of job to read columns from
   std::string pipeline_name;  // name of pipeline to run
+  std::string out_job_name;   // name of job to refer to after run
   // For rm sub-command
   std::string resource_type;  // dataset or job
   std::string resource_name;  // name of resource to rm
   {
     po::variables_map vm;
 
-    po::options_description main_desc("global options");
+    po::options_description main_desc("Allowed options");
     main_desc.add_options()("help", "Produce help message")(
         "command", po::value<std::string>()->required(), "Command to execute")(
 
@@ -208,8 +195,7 @@ int main(int argc, char** argv) {
       }
     }
 
-    bool show_help = vm.count("help");
-    if (show_help && !vm.count("command")) {
+    if (vm.count("help")) {
       std::cout << main_desc << std::endl;
       return 1;
     }
@@ -251,7 +237,7 @@ int main(int argc, char** argv) {
 
     if (cmd == "ingest") {
       po::options_description ingest_desc("ingest options");
-      ingest_desc.add_options()(
+      ingest_desc.add_options()("help", "Produce help message")(
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
           "video_paths_file", po::value<std::string>()->required(),
@@ -274,9 +260,8 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (show_help) {
+        if (vm.count("help")) {
           std::cout << ingest_desc << std::endl;
-          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
@@ -290,20 +275,28 @@ int main(int argc, char** argv) {
 
     } else if (cmd == "run") {
       po::options_description run_desc("run options");
-      run_desc.add_options()(
+      run_desc.add_options()("help", "Produce help message")(
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
-          "job_name", po::value<std::string>()->required(),
-          "Unique name to refer to the output of the job after completion")(
+
+          "in_job_name", po::value<std::string>()->required(),
+          "Name of the input job to read columns from. Use 'base' to read "
+          "from just the ingested dataset.")(
+
           "pipeline_name", po::value<std::string>()->required(),
           "Name of the pipeline to run on the given dataset")(
+
+          "out_job_name", po::value<std::string>()->required(),
+          "Unique name to refer to the pipeline outputs after completion")(
+
           "force,f", po::bool_switch()->default_value(false),
-          "Overwrite the job if it already exists.");
+          "Overwrite the job if it already exists");
 
       po::positional_options_description run_pos;
       run_pos.add("dataset_name", 1);
-      run_pos.add("job_name", 1);
+      run_pos.add("in_job_name", 1);
       run_pos.add("pipeline_name", 1);
+      run_pos.add("out_job_name", 1);
 
       try {
         po::store(po::command_line_parser(opts)
@@ -313,25 +306,25 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (show_help) {
+        if (vm.count("help")) {
           std::cout << run_desc << std::endl;
-          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
         }
       }
 
-      job_name = vm["job_name"].as<std::string>();
       dataset_name = vm["dataset_name"].as<std::string>();
+      in_job_name = vm["in_job_name"].as<std::string>();
       pipeline_name = vm["pipeline_name"].as<std::string>();
+      out_job_name = vm["out_job_name"].as<std::string>();
       force = vm["force"].as<bool>();
 
     } else if (cmd == "rm") {
       po::options_description rm_desc("rm options");
-      rm_desc.add_options()("resource_type",
-                            po::value<std::string>()->required(),
-                            "Type of resource to remove: dataset or job")(
+      rm_desc.add_options()("help", "Produce help message")(
+          "resource_type", po::value<std::string>()->required(),
+          "Type of resource to remove: dataset or job")(
           "resource_name", po::value<std::string>()->required(),
           "Unique name of the resource to remove");
 
@@ -347,9 +340,8 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (show_help) {
+        if (vm.count("help")) {
           std::cout << rm_desc << std::endl;
-          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
@@ -362,7 +354,7 @@ int main(int argc, char** argv) {
     } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
       po::options_description serve_desc("serve options");
-      serve_desc.add_options();
+      serve_desc.add_options()("help", "Produce help message");
 
       po::positional_options_description serve_pos;
 
@@ -374,9 +366,8 @@ int main(int argc, char** argv) {
                   vm);
         po::notify(vm);
       } catch (const po::required_option& e) {
-        if (show_help) {
+        if (vm.count("help")) {
           std::cout << serve_desc << std::endl;
-          std::cout << main_desc << std::endl;
           return 1;
         } else {
           throw e;
@@ -398,10 +389,10 @@ int main(int argc, char** argv) {
   startup(argc, argv);
 
   int rank;
-  MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   int num_nodes;
-  MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &num_nodes));
+  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
   // For now, we use a disk based persistent storage with a hardcoded
   // path for storing video and output data persistently
@@ -452,17 +443,19 @@ int main(int argc, char** argv) {
     if (!meta.has_dataset(dataset_name)) {
       LOG(FATAL) << "Dataset with that name does not exist.";
     }
-
     i32 dataset_id = meta.get_dataset_id(dataset_name);
-    if (!force && meta.has_job(job_name)) {
-      LOG(FATAL) << "Job with that name already exists for that dataset";
+
+    if (in_job_name != base_dataset_job_name() && !meta.has_job(in_job_name)) {
+      LOG(FATAL) << "Requested in job " << in_job_name << " does not exist.";
     }
 
-    std::function<PipelineDescription(void)> pipe_gen =
-        get_pipeline(pipeline_name);
+    if (!force && meta.has_job(out_job_name)) {
+      LOG(FATAL) << "Out job with name " << out_job_name << " already exists "
+                 << "for dataset " << dataset_name;
+    }
 
-    PipelineDescription desc = pipe_gen();
-    run_job(config, desc, job_name, dataset_name);
+    PipelineGeneratorFn pipe_gen = get_pipeline(pipeline_name);
+    run_job(config, dataset_name, in_job_name, pipe_gen, out_job_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadata

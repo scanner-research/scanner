@@ -17,6 +17,8 @@
 
 #include "scanner/util/common.h"
 
+#include <cstddef>
+
 namespace scanner {
 
 u8* new_buffer(DeviceType type, int device_id, size_t size);

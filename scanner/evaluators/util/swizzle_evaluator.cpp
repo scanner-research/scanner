@@ -40,12 +40,11 @@ void SwizzleEvaluator::configure(const VideoMetadata& metadata) {
 }
 
 void SwizzleEvaluator::evaluate(
-    const std::vector<std::vector<u8 *>> &input_buffers,
-    const std::vector<std::vector<size_t>> &input_sizes,
-    std::vector<std::vector<u8 *>> &output_buffers,
-    std::vector<std::vector<size_t>> &output_sizes) {
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   i32 input_count = static_cast<i32>(input_buffers[0].size());
-
   size_t num_outputs = output_to_input_idx_.size();
   for (size_t i = 0; i < num_outputs; ++i) {
     i32 input_idx = output_to_input_idx_[i];
@@ -54,28 +53,15 @@ void SwizzleEvaluator::evaluate(
       size_t size = input_sizes[input_idx][b];
       u8* input_buffer = input_buffers[input_idx][b];
 
-      u8* output_buffer = nullptr;
-      if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-        cudaMalloc((void**)&output_buffer, size);
-        cudaMemcpy(output_buffer, input_buffer, size, cudaMemcpyDefault);
-#else
-        LOG(FATAL) << "Not built with CUDA support.";
-#endif
-      } else {
-        output_buffer = new u8[size];
-        memcpy(output_buffer, input_buffer, size);
-      }
-      assert(output_buffer != nullptr);
-      output_buffers[i].push_back(output_buffer);
+      output_buffers[i].push_back(input_buffer);
       output_sizes[i].push_back(size);
     }
   }
 }
 
 SwizzleEvaluatorFactory::SwizzleEvaluatorFactory(
-    DeviceType device_type, const std::vector<i32> &output_to_input_idx,
-    const std::vector<std::string> &output_names)
+    DeviceType device_type, const std::vector<i32>& output_to_input_idx,
+    const std::vector<std::string>& output_names)
     : device_type_(device_type),
       output_to_input_idx_(output_to_input_idx),
       output_names_(output_names) {
@@ -94,8 +80,8 @@ std::vector<std::string> SwizzleEvaluatorFactory::get_output_names() {
   return output_names_;
 }
 
-Evaluator *SwizzleEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig &config) {
+Evaluator* SwizzleEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
   return new SwizzleEvaluator(config, device_type_, 0, output_to_input_idx_);
 }
 }

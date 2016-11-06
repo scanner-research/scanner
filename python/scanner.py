@@ -154,7 +154,8 @@ class JobResult(object):
         for vi, video_name in enumerate(self._dataset.video_names):
             video = self._load_video_descriptor(video_name)
 
-            intervals = [i for i in range(0, video.frames - 1, item_size * stride)]
+            intervals = [i for i in range(0, video.frames - 1,
+                                          item_size * stride)]
             intervals.append(video.frames)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)

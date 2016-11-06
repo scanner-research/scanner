@@ -8,7 +8,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description() {
+PipelineDescription get_pipeline_description(
+    const DatasetMetadata& dataset_meta,
+    const std::vector<DatasetItemMetadata>& item_metas) {
   const char* NET = std::getenv("SC_NET");
   const char* BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
 
