@@ -253,12 +253,12 @@ void NVIDIAVideoDecoder::wait_until_frames_copied() {
 int NVIDIAVideoDecoder::cuvid_handle_video_sequence(void* opaque,
                                                     CUVIDEOFORMAT* format) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
+  return 1;
 }
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
                                                     CUVIDPICPARAMS* picparams) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
-  printf("decode\n");
 
   int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
   if (decoder.mapped_frames_[mapped_frame_index] != 0) {
@@ -272,14 +272,16 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
     decoder.mapped_frames_[mapped_frame_index] = 0;
   }
 
-  CUD_CHECK(cuvidDecodePicture(decoder.decoder_, picparams));
+  CUresult result = cuvidDecodePicture(decoder.decoder_, picparams);
+  CUD_CHECK(result);
+  return result == CUDA_SUCCESS;
 }
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_display(
     void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
-  printf("display\n");
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
   decoder.frame_queue_.push(*dispinfo);
   decoder.prev_frame_++;
+  return true;
 }
 }
