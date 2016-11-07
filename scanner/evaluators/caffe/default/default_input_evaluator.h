@@ -62,6 +62,7 @@ class DefaultInputEvaluator : public Evaluator {
   std::vector<cv::cuda::GpuMat> meanshifted_input_g_;
   std::vector<cv::cuda::GpuMat> normalized_input_g_;
   std::vector<std::vector<cv::cuda::GpuMat>> input_planes_g_;
+  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_g_;
   std::vector<cv::cuda::GpuMat> planar_input_g_;
 #endif
 

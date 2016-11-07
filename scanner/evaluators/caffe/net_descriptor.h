@@ -45,6 +45,8 @@ struct NetDescriptor {
   std::vector<float> mean_image;
   int mean_width;
   int mean_height;
+
+  bool normalize;
 };
 
 NetDescriptor descriptor_from_net_file(std::ifstream& net_file);

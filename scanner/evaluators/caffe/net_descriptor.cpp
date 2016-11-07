@@ -103,6 +103,14 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     descriptor.input_height = -1;
   }
 
+  auto normalize = net->find("normalize");
+
+  if (normalize) {
+    descriptor.normalize = normalize->as<bool>();
+  } else {
+    descriptor.normalize = false;
+  }
+
   auto mean_image = root.find("mean-image");
   if (!mean_image) {
     std::cout << "Missing 'mean-image': mean image descripton map" << std::endl;

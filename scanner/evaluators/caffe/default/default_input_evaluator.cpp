@@ -49,7 +49,9 @@ DefaultInputEvaluator::DefaultInputEvaluator(DeviceType device_type,
     std::vector<float>& mean_colors = descriptor_.mean_colors;
     caffe::TransformationParameter param;
     param.set_force_color(true);
-    param.set_scale(1.0 / 255.0);
+    if (descriptor_.normalize) {
+      param.set_scale(1.0 / 255.0);
+    }
     for (i32 i = 0; i < mean_colors.size(); i++) {
       param.add_mean_value(mean_colors[i]);
     }
@@ -66,7 +68,6 @@ void DefaultInputEvaluator::configure(const VideoMetadata& metadata) {
     net_input_width_ = width;
     net_input_height_ = height;
   }
-
   output_blob_.Reshape(batch_size_, 3, net_input_height_, net_input_width_);
 
   if (device_type_ == DeviceType::GPU) {
@@ -94,12 +95,16 @@ void DefaultInputEvaluator::configure(const VideoMetadata& metadata) {
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
       normalized_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      std::vector<cv::cuda::GpuMat> planes;
+      std::vector<cv::cuda::GpuMat> planes1;
+      std::vector<cv::cuda::GpuMat> planes2;
       for (i32 i = 0; i < 3; ++i) {
-        planes.push_back(
+        planes1.push_back(
+            cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
+        planes2.push_back(
             cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
       }
-      input_planes_g_.push_back(planes);
+      input_planes_g_.push_back(planes1);
+      flipped_planes_g_.push_back(planes2);
       planar_input_g_.push_back(
           cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
     }
@@ -144,20 +149,27 @@ void DefaultInputEvaluator::evaluate(
         u8* buffer = input_buffers[0][frame + i];
         frame_input_g_[sid] = cv::cuda::GpuMat(
             net_input_height_, net_input_width_, CV_8UC3, buffer);
-        cv::cuda::cvtColor(frame_input_g_[sid], frame_input_g_[sid],
-                           CV_RGB2BGR);
+        // cv::cuda::cvtColor(frame_input_g_[sid], frame_input_g_[sid],
+        //                    CV_RGB2BGR, 0,
+        //                    cv_stream);
         frame_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
         cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
                            meanshifted_input_g_[sid], cv::noArray(), -1,
                            cv_stream);
         cv::cuda::divide(meanshifted_input_g_[sid], 255.0,
-                         normalized_input_g_[sid]);
+                         normalized_input_g_[sid], 1, -1, cv_stream);
         // Changed from interleaved RGB to planar RGB
         cv::cuda::split(normalized_input_g_[sid], input_planes_g_[sid],
                         cv_stream);
-        auto& plane1 = input_planes_g_[sid][0];
-        auto& plane2 = input_planes_g_[sid][1];
-        auto& plane3 = input_planes_g_[sid][2];
+        cv::cuda::transpose(input_planes_g_[sid][0], flipped_planes_g_[sid][0],
+                            cv_stream);
+        cv::cuda::transpose(input_planes_g_[sid][1], flipped_planes_g_[sid][1],
+                            cv_stream);
+        cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
+                            cv_stream);
+        auto& plane1 = flipped_planes_g_[sid][0];
+        auto& plane2 = flipped_planes_g_[sid][1];
+        auto& plane3 = flipped_planes_g_[sid][2];
         auto& planar_input = planar_input_g_[sid];
         plane1.copyTo(planar_input(cv::Rect(
             0, net_input_width_ * 0, net_input_height_, net_input_width_)));

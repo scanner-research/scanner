@@ -1,11 +1,9 @@
 [net]
-    model = "features/squeezenet/deploy.prototxt"
-    weights = "features/squeezenet/squeezenet_v1.0.caffemodel"
+    model = "features/faster_rcnn/faster_rcnn_test.pt"
+    weights = "features/faster_rcnn/VGG16_faster_rcnn_final.caffemodel"
     input_layer = "data"
-    output_layers = ["pool10"]
-    input_width = 227
-    input_height = 227
-    normalize = true
+    output_layers = ["cls_prob", "rois", "fc7"]
+    normalize = false
 
     [net.input]
         dimensions = [
@@ -22,6 +20,6 @@
 
 [mean-image]
     [mean-image.colors]
-        blue = 104.0
-        green = 117.0
-        red = 123.0
+        blue = 102.9801
+        green = 115.9464
+        red = 122.7717
