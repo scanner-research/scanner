@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import subprocess
+import re
 
 is_py3 = sys.version_info.major == 3
 maxint = sys.maxsize if is_py3 else sys.maxint
@@ -19,6 +20,113 @@ def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in xrange(0, len(l), n):
         yield l[i:i + n]
+
+
+def read_advance(fmt, buf, offset):
+    new_offset = offset + struct.calcsize(fmt)
+    return struct.unpack_from(fmt, buf, offset), new_offset
+
+
+def unpack_string(buf, offset):
+    s = ''
+    while True:
+        t, offset = read_advance('B', buf, offset)
+        c = t[0]
+        if c == 0:
+            break
+        s += str(chr(c))
+    return s, offset
+
+
+def parse_profiler_output(bytes_buffer, offset):
+    # Node
+    t, offset = read_advance('q', bytes_buffer, offset)
+    node = t[0]
+    # Worker type name
+    worker_type, offset = unpack_string(bytes_buffer, offset)
+    # Worker tag
+    worker_tag, offset = unpack_string(bytes_buffer, offset)
+    # Worker number
+    t, offset = read_advance('q', bytes_buffer, offset)
+    worker_num = t[0]
+    # Number of keys
+    t, offset = read_advance('q', bytes_buffer, offset)
+    num_keys = t[0]
+    # Key dictionary encoding
+    key_dictionary = {}
+    for i in range(num_keys):
+        key_name, offset = unpack_string(bytes_buffer, offset)
+        t, offset = read_advance('B', bytes_buffer, offset)
+        key_index = t[0]
+        key_dictionary[key_index] = key_name
+    # Intervals
+    t, offset = read_advance('q', bytes_buffer, offset)
+    num_intervals = t[0]
+    intervals = []
+    for i in range(num_intervals):
+        # Key index
+        t, offset = read_advance('B', bytes_buffer, offset)
+        key_index = t[0]
+        t, offset = read_advance('q', bytes_buffer, offset)
+        start = t[0]
+        t, offset = read_advance('q', bytes_buffer, offset)
+        end = t[0]
+        intervals.append((key_dictionary[key_index], start, end))
+    # Counters
+    t, offset = read_advance('q', bytes_buffer, offset)
+    num_counters = t[0]
+    counters = {}
+    for i in range(num_counters):
+        # Counter name
+        counter_name, offset = unpack_string(bytes_buffer, offset)
+        # Counter value
+        t, offset = read_advance('q', bytes_buffer, offset)
+        counter_value = t[0]
+        counters[counter_name] = counter_value
+
+    return {
+        'node': node,
+        'worker_type': worker_type,
+        'worker_tag': worker_tag,
+        'worker_num': worker_num,
+        'intervals': intervals,
+        'counters': counters
+    }, offset
+
+
+def parse_profiler_file(profiler_path):
+    with open(profiler_path, 'rb') as f:
+        bytes_buffer = f.read()
+    offset = 0
+    # Read start and end time intervals
+    t, offset = read_advance('q', bytes_buffer, offset)
+    start_time = t[0]
+    t, offset = read_advance('q', bytes_buffer, offset)
+    end_time = t[0]
+    # Profilers
+    profilers = defaultdict(list)
+    # Load worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_load_workers = t[0]
+    for i in range(num_load_workers):
+        prof, offset = parse_profiler_output(bytes_buffer, offset)
+        profilers[prof['worker_type']].append(prof)
+    # Eval worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_eval_workers = t[0]
+    t, offset = read_advance('B', bytes_buffer, offset)
+    groups_per_chain = t[0]
+    for pu in range(num_eval_workers):
+        for fg in range(groups_per_chain):
+            prof, offset = parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
+    # Save worker profilers
+    t, offset = read_advance('B', bytes_buffer, offset)
+    num_save_workers = t[0]
+    for i in range(num_save_workers):
+        prof, offset = parse_profiler_output(bytes_buffer, offset)
+        profilers[prof['worker_type']].append(prof)
+    return (start_time, end_time), profilers
 
 
 class ScannerConfig(object):
@@ -54,6 +162,10 @@ class Sampling(Enum):
     SequenceGather = 3
 
 
+class JobLoadException(Exception):
+    pass
+
+
 class JobResult(object):
     """ TODO(apoms): document me """
 
@@ -67,26 +179,30 @@ class JobResult(object):
         self._db_path = self._scanner.config.db_path
 
         self._dataset = self._scanner._meta.DatasetDescriptor()
-        with open('{}/{}_dataset_descriptor.bin'.format(self._db_path,
+        with open('{}/datasets/{}/descriptor.bin'.format(self._db_path,
                                                         dataset_name),
                   'rb') as f:
             self._dataset.ParseFromString(f.read())
 
         self._job = self._scanner._meta.JobDescriptor()
-        with open('{}/{}_job_descriptor.bin'.format(self._db_path, job_name),
+        with open('{}/datasets/{}/jobs/{}/descriptor.bin'
+                  .format(self._db_path, dataset_name, job_name),
                   'rb') as f:
             self._job.ParseFromString(f.read())
 
     def _load_output_file(self, video, video_name, work_item_index, rows,
                           istart, iend):
-        path = '{}/{}_job/{}_{}_{}.bin'.format(
-            self._db_path, self._job_name, video_name, self._column,
-            work_item_index)
+        path = '{}/datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
+            self._db_path, self._dataset_name, self._job_name, video_name,
+            self._column, work_item_index)
         try:
             with open(path, 'rb') as f:
                 lens = []
                 start_pos = maxint
                 pos = 0
+                num_rows = struct.unpack("l", f.read(8))
+                assert num_rows > max(rows)
+
                 for fi in rows:
                     byts = f.read(8)
                     (buf_len,) = struct.unpack("l", byts)
@@ -98,7 +214,7 @@ class JobResult(object):
                         lens.append(buf_len)
 
                 bufs = []
-                f.seek(len(rows) * 8 + start_pos)
+                f.seek(8 + len(rows) * 8 + start_pos)
                 for buf_len in lens:
                     buf = f.read(buf_len)
                     item = self._load_fn(buf, video)
@@ -106,12 +222,12 @@ class JobResult(object):
 
                 return bufs
         except IOError as err:
-            logging.critical(err)
-            exit()
+            raise JobLoadException('Column {} does not exist for job {}'.format(
+                self._column, self._job_name))
 
     def _load_video_descriptor(self, video_name):
         video = self._scanner._meta.VideoDescriptor()
-        with open('{}/{}_dataset/{}_metadata.bin'
+        with open('{}/datasets/{}/data/{}_metadata.bin'
                   .format(self._db_path, self._dataset_name, video_name),
                   'rb') as f:
             video.ParseFromString(f.read())
@@ -123,7 +239,7 @@ class JobResult(object):
         for vi, video_name in enumerate(self._dataset.video_names):
             video = self._load_video_descriptor(video_name)
 
-            intervals = [i for i in range(video.frames - 1, item_size)]
+            intervals = [i for i in range(0, video.frames - 1, item_size)]
             intervals.append(video.frames)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)
@@ -133,6 +249,7 @@ class JobResult(object):
                       'buffers': []}
             (istart, iend) = interval if interval is not None else (0,
                                                                     maxint)
+
             for i, ivl in enumerate(intervals):
                 start = ivl[0]
                 end = ivl[1]
@@ -318,8 +435,9 @@ class Scanner(object):
             interval.start = start
             interval.end = end
 
-            path = '{}/{}_job/{}_{}_{}-{}.bin'.format(
-                self.config.db_path, job_name, str(i), column, start, end)
+            path = '{}/datasets/{}/jobs/{}/{}_{}_{}-{}.bin'.format(
+                self.config.db_path, dataset_name, job_name, str(i), column,
+                start, end)
 
             with open(path, 'wb') as f:
                 all_bytes = ""
@@ -329,11 +447,13 @@ class Scanner(object):
                     f.write(struct.pack("=Q", len(byts)))
                 f.write(all_bytes)
 
-        with open('{}/{}_job_descriptor.bin'.format(self.config.db_path, job_name), 'wb') as f:
+        with open('{}/datasets/{}/jobs/{}/descriptor.bin'
+                  .format(self.config.db_path, dataset_name, job_name), 'wb') as f:
             f.write(job.SerializeToString())
 
     def get_output_size(self, job_name):
-        with open('{}/{}_job_descriptor.bin'.format(self.config.db_path, job_name), 'r') as f:
+        with open('{}/datasets/{}/jobs/{}/descriptor.bin'
+                  .format(self.config.db_path, job_name), 'r') as f:
             job = json.loads(f.read())
 
         return job['videos'][0]['intervals'][-1][1]
@@ -444,3 +564,24 @@ class Scanner(object):
         if not success:
             print(so)
         return success, elapsed
+
+
+    def parse_profiler_files(self, dataset_name, job_name):
+        db_path = self.config.db_path
+        job_path = '{}/datasets/{}/jobs/{}/'.format(
+            db_path, dataset_name, job_name)
+        r = re.compile('^profile_(\d+).bin$')
+        files = []
+        for f in os.listdir(job_path):
+            matches = r.match(f)
+            if matches is not None:
+                files.append(int(matches.group(1)))
+
+        files.sort()
+        profilers = {}
+        for n in files:
+            path = job_path + 'profile_{}.bin'.format(n)
+            time, profs = parse_profiler_file(path)
+            profilers[n] = (time, profs)
+
+        return profilers

@@ -4,14 +4,16 @@ import scipy.spatial.distance as dist
 from sklearn.neighbors import NearestNeighbors
 from decode import load_squeezenet_features, db
 from timeit import default_timer
+from scanner import JobLoadException
 import os
 import toml
 
 os.environ['GLOG_minloglevel'] = '4'  # Silencio, Caffe!
 import caffe
 
-USE_GPU = False
+USE_GPU = True
 NET = 'squeezenet'
+FEATURE_LOADER = load_squeezenet_features
 NUM_FEATURES = 1000
 K = 5
 
@@ -34,13 +36,19 @@ class FeatureSearch:
         norms = np.ndarray(shape=(0, NUM_FEATURES))
         write('Loading features... ')
         start = default_timer()
-        for (video, buffers) in \
-            load_squeezenet_features(dataset_name, job_name).as_frame_list():
-            self.index.append((video, count))
-            buffers = [b for (_, b) in buffers]
-            bufs = np.array(buffers)
-            count += len(bufs)
-            norms = np.vstack((norms, bufs))
+        try:
+            for (video, buffers) in \
+                FEATURE_LOADER(dataset_name, job_name).as_frame_list():
+                self.index.append((video, count))
+                buffers = [b for (_, b) in buffers]
+                bufs = np.array(buffers)
+                if len(bufs) == 0: continue
+                count += len(bufs)
+                norms = np.vstack((norms, bufs))
+        except JobLoadException as err:
+            print('Error: either you need to run the knn pipeline with the {} \
+net first or you didn\'t update the FEATURE_LOADER.'.format(NET))
+            exit()
         write_timer(start)
         write('Preparing KNN... ')
         start = default_timer()
@@ -106,7 +114,7 @@ def main():
         print('Usage: knn.py <job_name> <dataset_name>')
         exit()
 
-    [job_name, dataset_name] = sys.argv[1:]
+    [dataset_name, job_name] = sys.argv[1:]
     searcher = FeatureSearch(dataset_name, job_name)
     get_exemplar_features = init_net()
 

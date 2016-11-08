@@ -8,7 +8,6 @@ import subprocess
 import sys
 import struct
 import json
-import re
 import scanner
 from collections import defaultdict
 from pprint import pprint
@@ -16,6 +15,7 @@ from datetime import datetime
 import io
 import csv
 import argparse
+from collections import defaultdict as dd
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -44,135 +44,6 @@ LOAD_WORKERS_PER_NODE = 2
 def clear_filesystem_cache():
     os.system('sudo /sbin/sysctl vm.drop_caches=3')
 
-
-def read_advance(fmt, buf, offset):
-    new_offset = offset + struct.calcsize(fmt)
-    return struct.unpack_from(fmt, buf, offset), new_offset
-
-
-def unpack_string(buf, offset):
-    s = ''
-    while True:
-        t, offset = read_advance('B', buf, offset)
-        c = t[0]
-        if c == 0:
-            break
-        s += str(chr(c))
-    return s, offset
-
-
-def parse_profiler_output(bytes_buffer, offset):
-    # Node
-    t, offset = read_advance('q', bytes_buffer, offset)
-    node = t[0]
-    # Worker type name
-    worker_type, offset = unpack_string(bytes_buffer, offset)
-    # Worker tag
-    worker_tag, offset = unpack_string(bytes_buffer, offset)
-    # Worker number
-    t, offset = read_advance('q', bytes_buffer, offset)
-    worker_num = t[0]
-    # Number of keys
-    t, offset = read_advance('q', bytes_buffer, offset)
-    num_keys = t[0]
-    # Key dictionary encoding
-    key_dictionary = {}
-    for i in range(num_keys):
-        key_name, offset = unpack_string(bytes_buffer, offset)
-        t, offset = read_advance('B', bytes_buffer, offset)
-        key_index = t[0]
-        key_dictionary[key_index] = key_name
-    # Intervals
-    t, offset = read_advance('q', bytes_buffer, offset)
-    num_intervals = t[0]
-    intervals = []
-    for i in range(num_intervals):
-        # Key index
-        t, offset = read_advance('B', bytes_buffer, offset)
-        key_index = t[0]
-        t, offset = read_advance('q', bytes_buffer, offset)
-        start = t[0]
-        t, offset = read_advance('q', bytes_buffer, offset)
-        end = t[0]
-        intervals.append((key_dictionary[key_index], start, end))
-    # Counters
-    t, offset = read_advance('q', bytes_buffer, offset)
-    num_counters = t[0]
-    counters = {}
-    for i in range(num_counters):
-        # Counter name
-        counter_name, offset = unpack_string(bytes_buffer, offset)
-        # Counter value
-        t, offset = read_advance('q', bytes_buffer, offset)
-        counter_value = t[0]
-        counters[counter_name] = counter_value
-
-    return {
-        'node': node,
-        'worker_type': worker_type,
-        'worker_tag': worker_tag,
-        'worker_num': worker_num,
-        'intervals': intervals,
-        'counters': counters
-    }, offset
-
-
-def parse_profiler_file(profiler_path):
-    with open(profiler_path, 'rb') as f:
-        bytes_buffer = f.read()
-    offset = 0
-    # Read start and end time intervals
-    t, offset = read_advance('q', bytes_buffer, offset)
-    start_time = t[0]
-    t, offset = read_advance('q', bytes_buffer, offset)
-    end_time = t[0]
-    # Profilers
-    profilers = defaultdict(list)
-    # Load worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_load_workers = t[0]
-    for i in range(num_load_workers):
-        prof, offset = parse_profiler_output(bytes_buffer, offset)
-        profilers[prof['worker_type']].append(prof)
-    # Eval worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_eval_workers = t[0]
-    t, offset = read_advance('B', bytes_buffer, offset)
-    groups_per_chain = t[0]
-    for pu in range(num_eval_workers):
-        for fg in range(groups_per_chain):
-            prof, offset = parse_profiler_output(bytes_buffer, offset)
-            profilers[prof['worker_type']].append(prof)
-    # Save worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_save_workers = t[0]
-    for i in range(num_save_workers):
-        prof, offset = parse_profiler_output(bytes_buffer, offset)
-        profilers[prof['worker_type']].append(prof)
-    return (start_time, end_time), profilers
-
-
-def parse_profiler_files(job_name):
-    scanner_config = scanner.ScannerConfig()
-    db_path = scanner_config.db_path
-    job_path = '{}/{}_job/'.format(db_path, job_name)
-    r = re.compile('^profile_(\d+).bin$')
-    files = []
-    for f in os.listdir(job_path):
-        matches = r.match(f)
-        if matches is not None:
-            files.append(int(matches.group(1)))
-
-    files.sort()
-    profilers = {}
-    for n in files:
-        path = job_path + 'profile_{}.bin'.format(n)
-        time, profs = parse_profiler_file(path)
-        profilers[n] = (time, profs)
-
-    return profilers
-
-
 def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
     print('Running trial: dataset {:s}, in_job {:s}, pipeline {:s}, '
           'out_job {:s}'.format(
@@ -190,7 +61,7 @@ def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
     profiler_output = {}
     if result:
         print('Trial succeeded, took {:.3f}s'.format(t))
-        profiler_output = parse_profiler_files(job_name)
+        profiler_output = db.parse_profiler_files(dataset_name, job_name)
         test_interval = profiler_output[0][0]
         t = (test_interval[1] - test_interval[0])
         t /= float(1e9)  # ns to s
@@ -771,8 +642,10 @@ def graphs_main(args):
 
 
 def trace_main(args):
+    dataset = args.dataset
     job = args.job
-    profilers = parse_profiler_files(job)
+    db = scanner.Scanner()
+    profilers = db.parse_profiler_files(dataset, job)
     print_statistics(profilers)
     write_trace_file(profilers, job)
 
@@ -790,6 +663,7 @@ if __name__ == '__main__':
     graphs_p.set_defaults(func=graphs_main)
     # Trace
     trace_p = subp.add_parser('trace', help='Generate trace files')
+    trace_p.add_argument('dataset', type=str, help='Dataset to generate trace for')
     trace_p.add_argument('job', type=str, help='Job to generate trace for')
     trace_p.set_defaults(func=trace_main)
 
