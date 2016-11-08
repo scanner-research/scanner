@@ -70,7 +70,7 @@ if (NOT STOREHOUSE_FOUND)
   endif()
 
   ExternalProject_Add(Storehouse
-    GIT_REPOSITORY "https://github.com/scanner-research/storehouse"
+    GIT_REPOSITORY "https://github.com/apoms/storehouse"
     GIT_TAG "3f96720f59eb2e6b12d08f36e88c570facae4bfc"
 
     UPDATE_COMMAND ""
@@ -115,7 +115,7 @@ if (NOT STRUCK_FOUND)
   find_package(OpenCV)
   # struck
   ExternalProject_Add(Struck
-    GIT_REPOSITORY "https://github.com/scanner-research/struck"
+    GIT_REPOSITORY "https://github.com/apoms/struck"
     GIT_TAG "3ad24858e2ab08b7188e1401b66e5925c4b7ad4f"
 
     UPDATE_COMMAND ""
