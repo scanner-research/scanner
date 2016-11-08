@@ -8,7 +8,7 @@ services:
 env:
   global:
     - DOCKER_TAG=ubuntu16.04-cuda8.0-cv3.1.0
-    - DOCKER_REPO=wcrichto/scanner
+    - DOCKER_REPO=scannerresearch/scanner
     - DOCKER_EMAIL=wcrichto@cs.stanford.edu
     - DOCKER_USER=wcrichto
     - secure: "hgUCEu1dr/bQOXLHDhxM/DFw48vC2ztLmmQuAj5V+kvYh5Hi+qB7fgEwPq3JKavK5RYiqL4XIkqAihEuZA/tKgi5oQoAZkvW7RqB6nl6KIJ3jlsOiDGBmapMp0NuCDsouUksF5bDrV0NlRESSbtIYJMUpLB2/m7EMy2+qHFllWZ/JHdoStA51UFbPLQ2OzGDQfCUJX09XCMcA75mhikVKe1CTH//w++fdfDJb8pTMNeIeYMhJZ/nUH3yEgqp0FTg4UH+8ggxS+0xCXu/Ap1pu9fUG6WkjRZwpU6V8ivrkpxGBuhow8jlt7BL+byRsbNp3qNgoA9HKUjw8hgU/WAPnDNg1aAZGzCS+Sr6m8q7uZInTKpO5hpGik2o4CFyPQhGTtxrVhFODHn+tLAB3nzRaFfthxSDZEW6iHmlgQ2B/IJTzpUkh7a3opFPxQOdLDnAquupqoJ59st2uceWkppupUNztEVmt4ZjJlmc/5/o5yp3KQW64ofWm9p8cSVF9YzfCQ9YGFDZVQYrb+ChpCaj1aIYV59dDoqjgeiL7r7B7Owy6WnxOv0rICApwdID6cMNBS7XWweEzOAFUtHAd6upYlMVlawztfHhAXIhj5jnUZ3P9s6c84I1DJQQIe2krpsTDhAfC+JIK5Geyr9wKmaq3Ly0jzU5Wp5VQrFlGh1Kexc="
