@@ -1,4 +1,4 @@
-REPO_PATH=git@github.com:apoms/scanner.git
+REPO_PATH=git@github.com:scanner-research/scanner.git
 HTML_PATH=build/doc/html
 COMMIT_USER="Documentation Builder"
 COMMIT_EMAIL="wcrichto@cs.stanford.edu"

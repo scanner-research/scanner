@@ -1,4 +1,4 @@
-FROM wcrichto/scanner-base:ubuntu16.04-cuda8.0-cv3.1.0
+FROM scannerresearch/scanner-base:ubuntu16.04-cuda8.0-cv3.1.0
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 
 ADD . /opt/scanner
