@@ -1,5 +1,4 @@
 #include "scanner/util/bbox.h"
-#include "scanner/util/common.h"
 
 #include <queue>
 
