@@ -1,7 +1,6 @@
 #include "scanner/engine.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
-#include "scanner/evaluators/caffe/faster_rcnn/faster_rcnn_parser_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
@@ -15,7 +14,7 @@ PipelineDescription get_pipeline_description(
   desc.sampling = Sampling::Strided;
   desc.stride = 10;
 
-  std::string net_descriptor_file = "features/faster_rcnn.toml";
+  std::string net_descriptor_file = "features/squeezenet.toml";
   NetDescriptor descriptor;
   {
     std::ifstream net_file{net_descriptor_file};
@@ -32,7 +31,6 @@ PipelineDescription get_pipeline_description(
       DeviceType::CPU, descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(DeviceType::GPU, descriptor,
                                                    batch_size, false));
-  factories.emplace_back(new FasterRCNNParserEvaluatorFactory);
 
   return desc;
 }

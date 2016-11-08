@@ -1,7 +1,7 @@
 # Scanner #
-[![Build Status](https://travis-ci.com/scanner-research/scanner.svg?token=3riCqXaXCxyYqpsVk2yv&branch=master)](https://travis-ci.com/scanner-research/scanner)
+[![Build Status](https://travis-ci.com/scanner-research/scanner.svg?token=3riCqXaXCxyYqpsVk2yv&branch=master)](https://travis-ci.com/apoms/scanner)
 
-_For build instructions, tutorials, documentation, and contributing guidelines, visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki)._
+_For build instructions, tutorials, documentation, and contributing guidelines, visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
 Scanner is a system for low-level, high-performance batch processing of images and videos, or visual data. It lets you write functions that get efficiently mapped across batches of frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about it like Hadoop for pixels. For example, you could use Scanner to make an application to:
 
@@ -65,4 +65,4 @@ ffmpeg -i example.mp4 -vf "select=eq(n\,FRAMENUMBER)" -vframes 1 result.png
 
 From outside the the container, run `nvidia-docker cp scanner:/opt/scanner/result.png .` to get the query result. That's it!
 
-To learn more about Scanner, please visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki).
+To learn more about Scanner, please visit the [Scanner wiki](https://github.com/apoms/scanner/wiki).
