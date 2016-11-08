@@ -16,6 +16,7 @@
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
 #include "scanner/evaluators/serialize.h"
 
+#include "scanner/util/bbox.h"
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
 
@@ -23,13 +24,12 @@
 #include "scanner/util/cuda.h"
 #endif
 
-#include <queue>
 #include <cassert>
 #include <cmath>
 
 namespace scanner {
 
-FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig &config,
+FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
                                                DeviceType device_type,
                                                i32 device_id, double threshold,
                                                NMSType nms_type,
@@ -58,7 +58,7 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig &config,
     for (i32 i = 0; i < 4; ++i) {
       assert(template_file.good());
       f64 d;
-      template_file.read(reinterpret_cast<char *>(&d), sizeof(f64));
+      template_file.read(reinterpret_cast<char*>(&d), sizeof(f64));
       templates_[t][i] = d;
     }
   }
@@ -73,7 +73,7 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig &config,
   };
 }
 
-void FacenetParserEvaluator::configure(const VideoMetadata &metadata) {
+void FacenetParserEvaluator::configure(const VideoMetadata& metadata) {
   metadata_ = metadata;
 
   net_input_width_ = metadata_.width();
@@ -92,10 +92,10 @@ void FacenetParserEvaluator::configure(const VideoMetadata &metadata) {
 }
 
 void FacenetParserEvaluator::evaluate(
-    const std::vector<std::vector<u8 *>> &input_buffers,
-    const std::vector<std::vector<size_t>> &input_sizes,
-    std::vector<std::vector<u8 *>> &output_buffers,
-    std::vector<std::vector<size_t>> &output_sizes) {
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   i32 input_count = (i32)input_buffers[0].size();
 
   i32 feature_idx;
@@ -119,9 +119,9 @@ void FacenetParserEvaluator::evaluate(
     std::vector<BoundingBox> bboxes;
     // Track confidence per pixel for each category so we can calculate
     // uncertainty across the frame
-    f32 *template_confidences =
-        reinterpret_cast<f32 *>(input_buffers[feature_idx][b]);
-    f32 *template_adjustments =
+    f32* template_confidences =
+        reinterpret_cast<f32*>(input_buffers[feature_idx][b]);
+    f32* template_adjustments =
         template_confidences + feature_vector_lengths_[0];
 
     for (i32 t = 0; t < num_templates_; ++t) {
@@ -175,8 +175,8 @@ void FacenetParserEvaluator::evaluate(
           bbox.set_y2(y + height / 2);
           bbox.set_score(confidence);
 
-          if (bbox.x1() < 0 || bbox.y1() < 0 ||
-              bbox.x2() > metadata_.width() || bbox.y2() > metadata_.height())
+          if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() > metadata_.width() ||
+              bbox.y2() > metadata_.height())
             continue;
 
           bboxes.push_back(bbox);
@@ -186,15 +186,16 @@ void FacenetParserEvaluator::evaluate(
 
     std::vector<BoundingBox> best_bboxes;
     switch (nms_type_) {
-    case NMSType::Best:
-      best_bboxes = best_nms(bboxes, 0.3);
-      break;
-    case NMSType::Average:
-      best_bboxes = average_nms(bboxes, 0.3);
-      break;
-    case NMSType::None:
-      best_bboxes = bboxes;;
-      break;
+      case NMSType::Best:
+        best_bboxes = best_nms(bboxes, 0.3);
+        break;
+      case NMSType::Average:
+        best_bboxes = average_nms(bboxes, 0.3);
+        break;
+      case NMSType::None:
+        best_bboxes = bboxes;
+        ;
+        break;
     }
 
     // Assume size of a bounding box is the same size as all bounding boxes
@@ -206,13 +207,14 @@ void FacenetParserEvaluator::evaluate(
   }
 
   if (forward_input_) {
-    u8 *buffer = nullptr;
+    u8* buffer = nullptr;
     for (i32 b = 0; b < input_count; ++b) {
       size_t size = input_sizes[frame_idx][b];
       if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
         cudaMalloc((void**)&buffer, size);
-        cudaMemcpy(buffer, input_buffers[frame_idx][b], size, cudaMemcpyDefault);
+        cudaMemcpy(buffer, input_buffers[frame_idx][b], size,
+                   cudaMemcpyDefault);
 #else
         LOG(FATAL) << "Not built with CUDA support.";
 #endif
@@ -226,130 +228,12 @@ void FacenetParserEvaluator::evaluate(
   }
 }
 
-std::vector<BoundingBox> FacenetParserEvaluator::best_nms(
-    const std::vector<BoundingBox>& boxes, f32 overlap) {
-  std::vector<bool> valid(boxes.size(), true);
-  auto cmp = [](std::pair<f32, i32> left, std::pair<f32, i32> right) {
-    return left.first < right.first;
-  };
-  std::priority_queue<std::pair<f32, i32>, std::vector<std::pair<f32, i32>>,
-                      decltype(cmp)>
-      q(cmp);
-  for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-    q.emplace(boxes[i].score(), i);
-  }
-  std::vector<i32> best;
-  while (!q.empty()) {
-    std::pair<f32, i32> entry = q.top();
-    q.pop();
-    i32 c_idx = entry.second;
-    if (!valid[c_idx]) continue;
-
-    best.push_back(c_idx);
-
-    for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-      if (!valid[i]) continue;
-
-      f32 x1 = std::max(boxes[c_idx].x1(), boxes[i].x1());
-      f32 y1 = std::max(boxes[c_idx].y1(), boxes[i].y1());
-      f32 x2 = std::min(boxes[c_idx].x2(), boxes[i].x2());
-      f32 y2 = std::min(boxes[c_idx].y2(), boxes[i].y2());
-
-      f32 o_w = std::max(0.0f, x2 - x1 + 1);
-      f32 o_h = std::max(0.0f, y2 - y1 + 1);
-
-      f32 box_overlap = o_w * o_h / ((boxes[i].x2() - boxes[i].x1() + 1) *
-                                     (boxes[i].y2() - boxes[i].y1() + 1));
-
-      valid[i] = box_overlap < overlap;
-    }
-  }
-
-  std::vector<BoundingBox> out_boxes;
-  for (i32 i : best) {
-    out_boxes.push_back(boxes[i]);
-  }
-  return out_boxes;
-}
-
-std::vector<BoundingBox> FacenetParserEvaluator::average_nms(
-    const std::vector<BoundingBox>& boxes, f32 overlap) {
-  std::vector<BoundingBox> best_boxes;
-  std::vector<bool> valid(boxes.size(), true);
-  auto cmp = [](std::pair<f32, i32> left, std::pair<f32, i32> right) {
-    return left.first < right.first;
-  };
-  std::priority_queue<std::pair<f32, i32>, std::vector<std::pair<f32, i32>>,
-                      decltype(cmp)>
-      q(cmp);
-  for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-    q.emplace(boxes[i].score(), i);
-  }
-  std::vector<i32> best;
-  while (!q.empty()) {
-    std::pair<f32, i32> entry = q.top();
-    q.pop();
-    i32 c_idx = entry.second;
-    if (!valid[c_idx]) continue;
-
-    best.push_back(c_idx);
-
-    const BoundingBox& current_box = boxes[c_idx];
-    f64 total_weight = current_box.score();
-    f64 best_x1 = current_box.x1() * current_box.score();
-    f64 best_y1 = current_box.y1() * current_box.score();
-    f64 best_x2 = current_box.x2() * current_box.score();
-    f64 best_y2 = current_box.y2() * current_box.score();
-    for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-      if (!valid[i]) continue;
-
-      const BoundingBox& candidate = boxes[i];
-
-      f32 x1 = std::max(current_box.x1(), candidate.x1());
-      f32 y1 = std::max(current_box.y1(), candidate.y1());
-      f32 x2 = std::min(current_box.x2(), candidate.x2());
-      f32 y2 = std::min(current_box.y2(), candidate.y2());
-
-      f32 o_w = std::max(0.0f, x2 - x1 + 1);
-      f32 o_h = std::max(0.0f, y2 - y1 + 1);
-
-      f32 box_overlap = o_w * o_h / ((candidate.x2() - candidate.x1() + 1) *
-                                     (candidate.y2() - candidate.y1() + 1));
-
-      valid[i] = box_overlap < overlap;
-
-      // Add to average for this box
-      if (!valid[i]) {
-        total_weight += candidate.score();
-        best_x1 += candidate.x1() * candidate.score();
-        best_y1 += candidate.y1() * candidate.score();
-        best_x2 += candidate.x2() * candidate.score();
-        best_y2 += candidate.y2() * candidate.score();
-      }
-    }
-    best_x1 /= total_weight;
-    best_y1 /= total_weight;
-    best_x2 /= total_weight;
-    best_y2 /= total_weight;
-
-    BoundingBox best_box;
-    best_box.set_x1(best_x1);
-    best_box.set_y1(best_y1);
-    best_box.set_x2(best_x2);
-    best_box.set_y2(best_y2);
-    best_box.set_score(current_box.score());
-
-    best_boxes.push_back(best_box);
-  }
-
-  return best_boxes;
-}
-
 FacenetParserEvaluatorFactory::FacenetParserEvaluatorFactory(
     DeviceType device_type, double threshold,
-    FacenetParserEvaluator::NMSType nms_type,
-    bool forward_input)
-    : device_type_(device_type), threshold_(threshold), nms_type_(nms_type),
+    FacenetParserEvaluator::NMSType nms_type, bool forward_input)
+    : device_type_(device_type),
+      threshold_(threshold),
+      nms_type_(nms_type),
       forward_input_(forward_input) {}
 
 EvaluatorCapabilities FacenetParserEvaluatorFactory::get_capabilities() {
@@ -374,8 +258,8 @@ std::vector<std::string> FacenetParserEvaluatorFactory::get_output_names() {
   return output_names;
 }
 
-Evaluator *FacenetParserEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig &config) {
+Evaluator* FacenetParserEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
   return new FacenetParserEvaluator(config, device_type_, 0, threshold_,
                                     nms_type_, forward_input_);
 }

@@ -18,7 +18,8 @@ set(SOURCE_FILES
   memory.cpp
   profiler.cpp
   util.cpp
-  opencv.cpp)
+  opencv.cpp
+  bbox.cpp)
 
 add_library(util OBJECT
   ${SOURCE_FILES})

@@ -23,7 +23,8 @@ if (BUILD_CAFFE_EVALUATORS)
       caffe/yolo/yolo_input_evaluator.cpp
       caffe/squeezenet/squeezenet_input_evaluator.cpp
       caffe/facenet/facenet_parser_evaluator.cpp
-      caffe/facenet/facenet_input_evaluator.cpp)
+      caffe/facenet/facenet_input_evaluator.cpp
+      caffe/faster_rcnn/faster_rcnn_parser_evaluator.cpp)
   endif()
 endif()
 

@@ -17,7 +17,6 @@
 
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
-#include "scanner/evaluators/types.pb.h"
 
 #include <memory>
 #include <vector>
@@ -26,30 +25,20 @@ namespace scanner {
 
 class FacenetParserEvaluator : public Evaluator {
  public:
-  enum struct NMSType {
-    Best,
-    Average,
-    None
-  };
+  enum struct NMSType { Best, Average, None };
 
-  FacenetParserEvaluator(const EvaluatorConfig &config, DeviceType device_type,
-                         i32 device_id, double threshold,
-                         NMSType nms_type, bool forward_input = false);
+  FacenetParserEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                         i32 device_id, double threshold, NMSType nms_type,
+                         bool forward_input = false);
 
-  void configure(const VideoMetadata &metadata) override;
+  void configure(const VideoMetadata& metadata) override;
 
-  void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
-                const std::vector<std::vector<size_t>> &input_sizes,
-                std::vector<std::vector<u8 *>> &output_buffers,
-                std::vector<std::vector<size_t>> &output_sizes) override;
+  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+                const std::vector<std::vector<size_t>>& input_sizes,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
-protected:
-  std::vector<BoundingBox> best_nms(const std::vector<BoundingBox> &boxes,
-                                    f32 overlap);
-
-  std::vector<BoundingBox> average_nms(const std::vector<BoundingBox> &boxes,
-                                       f32 overlap);
-
+ protected:
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
@@ -73,7 +62,7 @@ protected:
 };
 
 class FacenetParserEvaluatorFactory : public EvaluatorFactory {
-public:
+ public:
   FacenetParserEvaluatorFactory(DeviceType device_type, double threshold,
                                 FacenetParserEvaluator::NMSType nms_type,
                                 bool forward_input = false);
