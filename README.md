@@ -54,7 +54,7 @@ echo "example.mp4" > videos.txt
 
 # Extract features from the video
 ./build/scanner_server ingest example_dataset videos.txt
-./build/scanner_server run example_job base knn example_dataset
+./build/scanner_server run example_dataset base knn example_job
 
 # Compute k-nearest neighbors on an exemplar
 wget -O query.jpg https://upload.wikimedia.org/wikipedia/en/9/9b/Rickastleyposter.jpg
@@ -63,6 +63,6 @@ python python/knn.py example_dataset example_job
 ffmpeg -i example.mp4 -vf "select=eq(n\,FRAMENUMBER)" -vframes 1 result.png
 ```
 
-From outside the the container, run `nvidia-docker cp scanner:/opt/scanner/result.png .` to view the query result. That's it!
+From outside the the container, run `nvidia-docker cp scanner:/opt/scanner/result.png .` to get the query result. That's it!
 
 To learn more about Scanner, please visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki).

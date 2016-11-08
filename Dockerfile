@@ -9,7 +9,7 @@ RUN cd thirdparty && mkdir build && cd build && \
 RUN mkdir build && cd build && \
     cmake -D PIPELINE_FILE=../scanner/pipelines/knn_pipeline.cpp  \
           -D BUILD_CAFFE_EVALUATORS=ON \
-          -D BUILD_CAFFE_INPUT_TRANSFORMERS=ON \
+          -D BUILD_CAFFE_INPUT_EVALUATORS=ON \
           -D BUILD_UTIL_EVALUATORS=ON \
           .. && \
     make
