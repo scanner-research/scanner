@@ -5,6 +5,8 @@ import scanner
 
 db = scanner.Scanner()
 
+import scannerpy.evaluators.types_pb2 as evaluators
+
 @db.loader('histogram')
 def load_histograms(buf, metadata):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.float32)), 3)
@@ -32,6 +34,36 @@ def load_yolo_features(buf, metadata):
 @db.loader('pool10')
 def load_squeezenet_features(buf, metadata):
     return np.frombuffer(buf, dtype=np.dtype(np.float32))
+
+@db.loader('fc6')
+def load_mscnn_features(buf, metadata):
+    return np.frombuffer(buf, dtype=np.dtype(np.float32))
+
+@db.loader('fc7')
+def load_faster_rcnn_features(buf, metadata):
+    buf = np.frombuffer(buf, dtype=np.dtype(np.float32))
+    return np.split(buf, len(buf) / 4096) if len(buf) != 0 else np.array([])
+
+@db.loader('bboxes')
+def load_bboxes(buf, metadata):
+    (num_bboxes,) = struct.unpack("=Q", buf[:8])
+    buf = buf[8:]
+    (bbox_size,) = struct.unpack("=i", buf[:4])
+    buf = buf[4:]
+    bboxes = []
+    for i in range(num_bboxes):
+        box = evaluators.BoundingBox()
+        box.ParseFromString(buf[:bbox_size])
+        buf = buf[bbox_size:]
+        bbox = [box.x1, box.y1, box.x2, box.y2, box.score]
+        bboxes.append(bbox)
+    return bboxes
+
+
+# @db.loader('pool5/7x7_s1')
+# def load_googlenet_features(buf, metadata):
+#     return np.frombuffer(buf, dtype=np.dtype(np.float32))
+
 
 cv_version = 3 # int(cv2.__version__.split('.')[0])
 

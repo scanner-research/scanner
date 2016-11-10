@@ -22,14 +22,14 @@
 
 namespace scanner {
 
-DefaultInputEvaluator::DefaultInputEvaluator(DeviceType device_type,
-                                             i32 device_id,
-                                             const NetDescriptor& descriptor,
-                                             i32 batch_size)
+DefaultInputEvaluator::DefaultInputEvaluator(
+    DeviceType device_type, i32 device_id, const NetDescriptor& descriptor,
+    i32 batch_size, std::vector<InputLayerBuilder> input_layer_builders)
     : device_type_(device_type),
       device_id_(device_id),
       descriptor_(descriptor),
-      batch_size_(batch_size)
+      batch_size_(batch_size),
+      input_layer_builders_(input_layer_builders)
 #ifdef HAVE_CUDA
       ,
       num_cuda_streams_(32),
@@ -130,6 +130,11 @@ void DefaultInputEvaluator::evaluate(
   size_t frame_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
   i32 input_count = input_buffers[0].size();
 
+  for (i32 i = 0; i < input_buffers[0].size(); ++i) {
+    output_buffers[0].push_back(input_buffers[0][i]);
+    output_sizes[0].push_back(input_sizes[0][i]);
+  }
+
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     streams_.resize(0);
@@ -189,16 +194,16 @@ void DefaultInputEvaluator::evaluate(
         s.waitForCompletion();
       }
 
-      output_buffers[0].push_back((u8*)net_input);
-      output_sizes[0].push_back(net_input_size);
+      output_buffers[1].push_back((u8*)net_input);
+      output_sizes[1].push_back(net_input_size);
     }
 
-    i32 num_batches = output_buffers[0].size();
+    i32 num_batches = output_buffers[1].size();
     for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
       void* buf;
       cudaMalloc(&buf, 1);
-      output_buffers[0].push_back((u8*)buf);
-      output_sizes[0].push_back(1);
+      output_buffers[1].push_back((u8*)buf);
+      output_sizes[1].push_back(1);
     }
 #else
     LOG(FATAL) << "Not built with CUDA support.";
@@ -229,20 +234,25 @@ void DefaultInputEvaluator::evaluate(
                            output_blob_.shape(2), output_blob_.shape(3));
       transformer_->Transform(input_mats_slice, &output_blob_);
 
-      output_buffers[0].push_back(net_input);
-      output_sizes[0].push_back(frame_size * batch_count);
+      output_buffers[1].push_back(net_input);
+      output_sizes[1].push_back(frame_size * batch_count);
     }
 
-    i32 num_batches = output_buffers[0].size();
+    i32 num_batches = output_buffers[1].size();
     for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
-      output_buffers[0].push_back(new u8[1]);
-      output_sizes[0].push_back(1);
+      output_buffers[1].push_back(new u8[1]);
+      output_sizes[1].push_back(1);
     }
   }
 
-  for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    output_buffers[1].push_back(input_buffers[0][i]);
-    output_sizes[1].push_back(input_sizes[0][i]);
+  for (i32 l = 0; l < input_layer_builders_.size(); ++l) {
+    for (i32 i = 0; i < input_buffers[0].size(); ++i) {
+      u8* buffer;
+      size_t size;
+      input_layer_builders_[l](buffer, size, metadata_);
+      output_buffers[l + 2].push_back(buffer);
+      output_sizes[l + 2].push_back(size);
+    }
   }
 
   if (profiler_) {
@@ -251,10 +261,12 @@ void DefaultInputEvaluator::evaluate(
 }
 
 DefaultInputEvaluatorFactory::DefaultInputEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size)
+    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size,
+    std::vector<InputLayerBuilder> input_layer_builders)
     : device_type_(device_type),
       net_descriptor_(descriptor),
-      batch_size_(batch_size) {}
+      batch_size_(batch_size),
+      input_layer_builders_(input_layer_builders) {}
 
 EvaluatorCapabilities DefaultInputEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -269,12 +281,20 @@ EvaluatorCapabilities DefaultInputEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> DefaultInputEvaluatorFactory::get_output_names() {
-  return {"net_input", "frame"};
+  std::vector<std::string> output_names = {"frame"};
+  for (std::string& name : net_descriptor_.input_layer_names) {
+    output_names.emplace_back(name);
+  }
+  assert(net_descriptor_.input_layer_names.size() > 0);
+  assert(input_layer_builders_.size() ==
+         net_descriptor_.input_layer_names.size() - 1);
+  return output_names;
 }
 
 Evaluator* DefaultInputEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new DefaultInputEvaluator(device_type_, config.device_ids[0],
-                                   net_descriptor_, batch_size_);
+                                   net_descriptor_, batch_size_,
+                                   input_layer_builders_);
 }
 }

@@ -54,8 +54,9 @@ void CaffeEvaluator::configure(const VideoMetadata& metadata) {
 
   set_device();
 
+  assert(descriptor_.input_layer_names.size() > 0);
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
-      net_->blob_by_name(descriptor_.input_layer_name)};
+      net_->blob_by_name(descriptor_.input_layer_names[0])};
   if (input_blob->shape(0) != batch_size_) {
     input_blob->Reshape(
         {batch_size_, 3, input_blob->shape(2), input_blob->shape(3)});
@@ -79,34 +80,39 @@ void CaffeEvaluator::evaluate(
     std::vector<std::vector<size_t>>& output_sizes) {
   set_device();
 
-  const boost::shared_ptr<caffe::Blob<float>> input_blob{
-      net_->blob_by_name(descriptor_.input_layer_name)};
+  std::vector<boost::shared_ptr<caffe::Blob<float>>> input_blobs;
+  for (std::string& name : descriptor_.input_layer_names) {
+    input_blobs.emplace_back(net_->blob_by_name(name));
+  }
+  assert(input_blobs.size() > 0);
 
   i32 input_count = (i32)input_buffers[0].size();
 
   i32 batch_id = 0;
   for (i32 frame = 0; frame < input_count; frame += batch_size_) {
     i32 batch_count = std::min(input_count - frame, batch_size_);
-    if (input_blob->shape(0) != batch_count) {
-      input_blob->Reshape(
-          {batch_count, 3, input_blob->shape(2), input_blob->shape(3)});
+    if (input_blobs[0]->shape(0) != batch_count) {
+      input_blobs[0]->Reshape(
+          {batch_count, 3, input_blobs[0]->shape(2), input_blobs[0]->shape(3)});
     }
 
-    f32* net_input_buffer = nullptr;
+    for (i32 i = 0; i < input_blobs.size(); ++i) {
+      f32* net_input_buffer = nullptr;
 
-    if (device_type_ == DeviceType::GPU) {
-      net_input_buffer = input_blob->mutable_gpu_data();
-    } else {
-      net_input_buffer = input_blob->mutable_cpu_data();
+      if (device_type_ == DeviceType::GPU) {
+        net_input_buffer = input_blobs[i]->mutable_gpu_data();
+      } else {
+        net_input_buffer = input_blobs[i]->mutable_cpu_data();
+      }
+
+      memcpy_buffer((u8*)net_input_buffer, device_type_, device_id_,
+                    input_buffers[i + 1][batch_id], device_type_, device_id_,
+                    input_sizes[i + 1][batch_id]);
     }
-
-    memcpy_buffer((u8*)net_input_buffer, device_type_, device_id_,
-                  input_buffers[0][batch_id], device_type_, device_id_,
-                  input_sizes[0][batch_id]);
 
     // Compute features
     auto net_start = now();
-    net_->Forward();
+    net_->ForwardPrefilled();
     if (profiler_) {
       profiler_->add_interval("caffe:net", net_start, now());
     }
@@ -126,7 +132,7 @@ void CaffeEvaluator::evaluate(
       const std::string& output_layer_name = descriptor_.output_layer_names[i];
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
-      size_t output_length = output_blob->count(1);
+      size_t output_length = output_blob->count() / batch_count;
       size_t output_size = output_length * sizeof(float);
       for (i32 b = 0; b < batch_count; ++b) {
         u8* buffer = nullptr;

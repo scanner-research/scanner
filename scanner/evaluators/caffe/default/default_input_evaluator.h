@@ -31,10 +31,14 @@
 
 namespace scanner {
 
+typedef std::function<void(u8*&, size_t&, const VideoMetadata&)>
+    InputLayerBuilder;
+
 class DefaultInputEvaluator : public Evaluator {
  public:
   DefaultInputEvaluator(DeviceType device_type, i32 device_id,
-                        const NetDescriptor& descriptor, i32 batch_size);
+                        const NetDescriptor& descriptor, i32 batch_size,
+                        std::vector<InputLayerBuilder> input_layer_builders);
 
   void configure(const VideoMetadata& metadata) override;
 
@@ -43,15 +47,15 @@ class DefaultInputEvaluator : public Evaluator {
                 std::vector<std::vector<u8*>>& output_buffers,
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
+  i32 net_input_width_;
+  i32 net_input_height_;
+
  private:
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
   VideoMetadata metadata_;
   i32 batch_size_;
-
-  i32 net_input_width_;
-  i32 net_input_height_;
 
 #ifdef HAVE_CUDA
   i32 num_cuda_streams_;
@@ -70,12 +74,14 @@ class DefaultInputEvaluator : public Evaluator {
   std::vector<cv::Mat> input_mats_c_;
   std::unique_ptr<caffe::DataTransformer<f32>> transformer_;
   caffe::Blob<f32> output_blob_;
+  std::vector<InputLayerBuilder> input_layer_builders_;
 };
 
 class DefaultInputEvaluatorFactory : public EvaluatorFactory {
  public:
-  DefaultInputEvaluatorFactory(DeviceType device_type,
-                               const NetDescriptor& descriptor, i32 batch_size);
+  DefaultInputEvaluatorFactory(
+      DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size,
+      std::vector<InputLayerBuilder> input_layer_builders = {});
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -87,5 +93,6 @@ class DefaultInputEvaluatorFactory : public EvaluatorFactory {
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   i32 batch_size_;
+  std::vector<InputLayerBuilder> input_layer_builders_;
 };
 }

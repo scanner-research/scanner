@@ -2,7 +2,7 @@
     model = "features/vgg19/VGG_ILSVRC_19_layers_deploy.prototxt"
     weights = "features/vgg19/VGG_ILSVRC_19_layers.caffemodel"
     source = "https://gist.github.com/ksimonyan/3785162f95cd2d5fee77"
-    input_layer = "data"
+    input_layers = ["data"]
     output_layers = ["fc8"]
 
     [net.input]

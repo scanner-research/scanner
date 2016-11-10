@@ -1,7 +1,7 @@
 [net]
     model = "features/caffe_facenet/facenet_deploy.prototxt"
     weights = "features/caffe_facenet/facenet_deploy.caffemodel"
-    input_layer = "data"
+    input_layers = ["data"]
     output_layers = ["score_final"]
 
     [net.input]

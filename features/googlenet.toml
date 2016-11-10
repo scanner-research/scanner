@@ -2,7 +2,7 @@
     model = "features/googlenet/deploy.prototxt"
     weights = "features/googlenet/bvlc_googlenet.caffemodel"
     source = "https://github.com/BVLC/caffe/tree/master/models/bvlc_googlenet"
-    input_layer = "data"
+    input_layers = ["data"]
     output_layers = ["pool5/7x7_s1"]
     input_width = 224
     input_height = 224

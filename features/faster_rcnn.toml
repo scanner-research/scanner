@@ -1,7 +1,7 @@
 [net]
     model = "features/faster_rcnn/faster_rcnn_test.pt"
     weights = "features/faster_rcnn/VGG16_faster_rcnn_final.caffemodel"
-    input_layer = "data"
+    input_layers = ["data", "im_info"]
     output_layers = ["cls_prob", "rois", "fc7"]
     normalize = false
 

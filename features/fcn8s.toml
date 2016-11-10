@@ -2,7 +2,7 @@
     model = "features/fcn8s/deploy.prototxt"
     weights = "features/fcn8s/fcn8s-heavy-pascal.caffemodel"
     source = "https://github.com/shelhamer/fcn.berkeleyvision.org/tree/master/voc-fcn8s"
-    input_layer = "data"
+    input_layers = ["data"]
     output_layers = ["score"]
 
     [net.input]

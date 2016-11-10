@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import scipy.spatial.distance as dist
 from sklearn.neighbors import NearestNeighbors
-from decode import load_squeezenet_features, db
+from decode import load_faster_rcnn_features, load_squeezenet_features, db
 from timeit import default_timer
 from scanner import JobLoadException
 import os
@@ -16,7 +16,6 @@ NET = 'squeezenet'
 FEATURE_LOADER = load_squeezenet_features
 NUM_FEATURES = 1000
 K = 5
-
 
 def write(s):
     sys.stdout.write(s)
@@ -37,18 +36,23 @@ class FeatureSearch:
         write('Loading features... ')
         start = default_timer()
         try:
-            for (video, buffers) in \
-                FEATURE_LOADER(dataset_name, job_name).as_frame_list():
-                self.index.append((video, count))
-                buffers = [b for (_, b) in buffers]
-                bufs = np.array(buffers)
-                if len(bufs) == 0: continue
-                count += len(bufs)
-                norms = np.vstack((norms, bufs))
+            results = FEATURE_LOADER(dataset_name, job_name)
         except JobLoadException as err:
             print('Error: either you need to run the knn pipeline with the {} \
 net first or you didn\'t update the FEATURE_LOADER.'.format(NET))
             exit()
+        for (video, buffers) in results.as_frame_list():
+            if NET == 'faster_rcnn':
+                for (frame, feats) in buffers:
+                    self.index.append(((video, frame), count))
+                    if len(feats) == 0: continue
+                    norms = np.vstack((norms, np.array(feats)))
+                    count += len(feats)
+            else:
+                for (frame, feats) in buffers:
+                    self.index.append(((video, frame), count))
+                    norms = np.vstack((norms, feats))
+                    count += 1
         write_timer(start)
         write('Preparing KNN... ')
         start = default_timer()
@@ -66,7 +70,7 @@ net first or you didn\'t update the FEATURE_LOADER.'.format(NET))
         for icnt in indices[0]:
             for (j, (vid, jcnt)) in enumerate(self.index):
                 if j == len(self.index) - 1 or icnt < self.index[j+1][1]:
-                    results.append((vid, icnt - jcnt))
+                    results.append(vid)
                     break
         assert len(results) == K
         return results
@@ -83,7 +87,7 @@ def init_net():
     with open(net_config_path, 'r') as f:
         net_config = toml.loads(f.read())
 
-    feature_layer = net_config['net']['output_layers'][0]
+    feature_layer = net_config['net']['output_layers'][-1]
 
     net = caffe.Net(
         '{}/{}'.format(scanner_path, net_config['net']['model']),
@@ -92,19 +96,30 @@ def init_net():
 
     write_timer(start)
 
-    transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
-    transformer.set_transpose('data', (2, 0, 1))
-    transformer.set_channel_swap('data', (2, 1, 0))
-
     def process(img_path):
         write('Computing exemplar features... ')
         start = default_timer()
         img = caffe.io.load_image(img_path)
-        preprocessed = transformer.preprocess('data', img)
-        net.forward_all(data=np.asarray([preprocessed]))
+        net.blobs['data'].reshape(*(1, 3, img.shape[0], img.shape[1]))
+        transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
+        transformer.set_transpose('data', (2, 0, 1))
+        transformer.set_channel_swap('data', (2, 1, 0))
+        if NET == 'faster_rcnn':
+            transformer.set_raw_scale('data', 255)
+
+        data = np.asarray([transformer.preprocess('data', img)])
+        if NET == 'faster_rcnn':
+            net.blobs['data'].data[...] = data
+            rois = np.array([[0, 0, img.shape[1], img.shape[0]]])
+            net.blobs['rois'].reshape(*(rois.shape))
+            net.blobs['rois'].data[...] = rois
+            net.forward()
+        else:
+            net.forward_all(data=data)
+
         write_timer(start)
 
-        return net.blobs[feature_layer].data[0].reshape((NUM_FEATURES))
+        return net.blobs[feature_layer].data.reshape((NUM_FEATURES))
 
     return process
 

@@ -55,9 +55,10 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     std::cout << "Missing 'net.weights': path to model weights" << std::endl;
     exit(EXIT_FAILURE);
   }
-  auto input_layer = net->find("input_layer");
-  if (!input_layer) {
-    std::cout << "Missing 'net.input_layer': name of input layer" << std::endl;
+  auto input_layers = net->find("input_layers");
+  if (!input_layers) {
+    std::cout << "Missing 'net.input_layers': name of input layers "
+              << std::endl;
     exit(EXIT_FAILURE);
   }
   auto output_layers = net->find("output_layers");
@@ -87,7 +88,9 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
 
   descriptor.model_path = model_path->as<std::string>();
   descriptor.model_weights_path = weights_path->as<std::string>();
-  descriptor.input_layer_name = input_layer->as<std::string>();
+  for (const toml::Value& v : input_layers->as<toml::Array>()) {
+    descriptor.input_layer_names.push_back(v.as<std::string>());
+  }
   for (const toml::Value& v : output_layers->as<toml::Array>()) {
     descriptor.output_layer_names.push_back(v.as<std::string>());
   }

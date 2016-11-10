@@ -18,7 +18,8 @@ if (BUILD_VIDEO_EVALUATORS AND
     BUILD_CAFFE_EVALUATORS AND
     BUILD_CAFFE_INPUT_EVALUATORS)
   list(APPEND SOURCE_FILES
-    knn_pipeline.cpp)
+    knn_pipeline.cpp
+    knn_patches_pipeline.cpp)
 endif()
 
 if (BUILD_VIDEO_EVALUATORS AND BUILD_UTIL_EVALUATORS)

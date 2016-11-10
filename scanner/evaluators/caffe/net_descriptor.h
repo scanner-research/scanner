@@ -34,7 +34,7 @@ struct NetDescriptor {
   std::string model_path;
   std::string model_weights_path;
 
-  std::string input_layer_name;
+  std::vector<std::string> input_layer_names;
   std::vector<std::string> output_layer_names;
 
   int input_width;

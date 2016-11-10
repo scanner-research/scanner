@@ -1,7 +1,7 @@
 [net]
     model = "features/squeezenet/deploy.prototxt"
     weights = "features/squeezenet/squeezenet_v1.0.caffemodel"
-    input_layer = "data"
+    input_layers = ["data"]
     output_layers = ["pool10"]
     input_width = 227
     input_height = 227
