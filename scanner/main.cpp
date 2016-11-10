@@ -97,16 +97,17 @@ class Config {
   Config(po::variables_map vm, toml::ParseResult pr, bool has_toml)
       : vm(vm), pr(pr), has_toml(has_toml) {}
 
-  bool has(std::string key) {
-    return vm.count(key) || (has_toml && pr.value.find(key) != nullptr);
+  bool has(std::string prefix, std::string key) {
+    return vm.count(key) ||
+           (has_toml && pr.value.find(prefix + "." + key) != nullptr);
   }
 
   template <typename T>
-  T get(std::string key) {
+  T get(std::string prefix, std::string key) {
     if (vm.count(key)) {
       return vm[key].as<T>();
     } else if (has_toml) {
-      return pr.value.find(key)->as<T>();
+      return pr.value.find(prefix + "." + key)->as<T>();
     } else {
       LOG(FATAL) << "Config key `" << key << "` not found";
     }
@@ -121,7 +122,6 @@ class Config {
 int main(int argc, char** argv) {
   // Variables for holding parsed command line arguments
 
-  std::string db_path;
   std::string cmd;  // sub-command to execute
   // Common among sub-commands
   std::string dataset_name;  // name of dataset to create/operate on
@@ -136,6 +136,7 @@ int main(int argc, char** argv) {
   // For rm sub-command
   std::string resource_type;  // dataset or job
   std::string resource_name;  // name of resource to rm
+  storehouse::StorageConfig* storage_config;
   {
     po::variables_map vm;
 
@@ -161,10 +162,7 @@ int main(int argc, char** argv) {
         "Number of worker threads processing load jobs per node")(
 
         "save_workers_per_node", po::value<int>(),
-        "Number of worker threads processing save jobs per node")(
-
-        "db_path", po::value<std::string>(),
-        "Absolute path to scanner database directory");
+        "Number of worker threads processing save jobs per node");
 
     po::positional_options_description main_pos;
     main_pos.add("command", 1);
@@ -216,24 +214,48 @@ int main(int argc, char** argv) {
       config = new Config(vm, pr, false);
     }
 
-    if (config->has("pus_per_node")) {
-      PUS_PER_NODE = config->get<int>("pus_per_node");
+    if (config->has("job", "pus_per_node")) {
+      PUS_PER_NODE = config->get<int>("job", "pus_per_node");
     }
-    if (config->has("work_item_size")) {
-      WORK_ITEM_SIZE = config->get<int>("work_item_size");
+    if (config->has("job", "work_item_size")) {
+      WORK_ITEM_SIZE = config->get<int>("job", "work_item_size");
     }
-    if (config->has("tasks_in_queue_per_pu")) {
-      TASKS_IN_QUEUE_PER_PU = config->get<int>("tasks_in_queue_per_pu");
+    if (config->has("job", "tasks_in_queue_per_pu")) {
+      TASKS_IN_QUEUE_PER_PU = config->get<int>("job", "tasks_in_queue_per_pu");
     }
-    if (config->has("load_workers_per_node")) {
-      LOAD_WORKERS_PER_NODE = config->get<int>("load_workers_per_node");
+    if (config->has("job", "load_workers_per_node")) {
+      LOAD_WORKERS_PER_NODE = config->get<int>("job", "load_workers_per_node");
     }
-    if (config->has("save_workers_per_node")) {
-      SAVE_WORKERS_PER_NODE = config->get<int>("save_workers_per_node");
+    if (config->has("job", "save_workers_per_node")) {
+      SAVE_WORKERS_PER_NODE = config->get<int>("job", "save_workers_per_node");
     }
 
-    db_path = config->get<std::string>("db_path");
-    cmd = config->get<std::string>("command");
+    std::string storage_type = config->get<std::string>("storage", "type");
+    if (storage_type == "posix") {
+      LOG_IF(FATAL, !config->has("storage", "db_path"))
+          << "Scanner config must contain storage.db_path";
+      std::string db_path = config->get<std::string>("storage", "db_path");
+      storage_config = storehouse::StorageConfig::make_posix_config(db_path);
+    } else if (storage_type == "gcs") {
+      LOG_IF(FATAL, !config->has("storage", "cert_path"))
+          << "Scanner config must contain storage.cert_path";
+      std::string cert_path = config->get<std::string>("storage", "cert_path");
+      LOG_IF(FATAL, !config->has("storage", "key_path"))
+          << "Scanner config must contain storage.key_path";
+      std::string key_path = config->get<std::string>("storage", "key_path");
+      LOG_IF(FATAL, !config->has("storage", "bucket"))
+          << "Scanner config must contain storage.bucket";
+      std::string bucket = config->get<std::string>("storage", "bucket");
+      std::ifstream ifs(key_path);
+      std::string key_content((std::istreambuf_iterator<char>(ifs)),
+                              (std::istreambuf_iterator<char>()));
+      storage_config = storehouse::StorageConfig::make_gcs_config(
+          cert_path, key_content, bucket);
+    } else {
+      LOG(FATAL) << "Unsupported storage type " << storage_type;
+    }
+
+    cmd = config->get<std::string>("", "command");
 
     if (cmd == "ingest") {
       po::options_description ingest_desc("ingest options");
@@ -394,13 +416,8 @@ int main(int argc, char** argv) {
   int num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
-  // For now, we use a disk based persistent storage with a hardcoded
-  // path for storing video and output data persistently
-  storehouse::StorageConfig* config =
-      storehouse::StorageConfig::make_posix_config(db_path);
-
   storehouse::StorageBackend* storage =
-      storehouse::StorageBackend::make_from_config(config);
+      storehouse::StorageBackend::make_from_config(storage_config);
 
   // Setup db metadata if it does not exist yet
   DatabaseMetadata meta{};
@@ -412,11 +429,14 @@ int main(int argc, char** argv) {
     if (result == storehouse::StoreResult::FileDoesNotExist) {
       // Need to initialize db metadata
       std::unique_ptr<storehouse::WriteFile> meta_out_file;
-      make_unique_write_file(storage, db_meta_path, meta_out_file);
+      storehouse::exit_on_error(
+          make_unique_write_file(storage, db_meta_path, meta_out_file));
       serialize_database_metadata(meta_out_file.get(), meta);
+      storehouse::exit_on_error(meta_out_file->save());
     } else {
       std::unique_ptr<RandomReadFile> meta_in_file;
-      make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+      storehouse::exit_on_error(
+          make_unique_random_read_file(storage, db_meta_path, meta_in_file));
       u64 pos = 0;
       meta = deserialize_database_metadata(meta_in_file.get(), pos);
     }
@@ -432,7 +452,8 @@ int main(int argc, char** argv) {
       LOG(FATAL) << "Dataset with that name already exists.";
     }
 
-    ingest(config, dataset_name, video_paths_file, compute_web_metadata);
+    ingest(storage_config, dataset_name, video_paths_file,
+           compute_web_metadata);
   } else if (cmd == "run") {
     // The run command takes 1) a name for the job, 2) an existing dataset name,
     // 3) a toml file describing the target network to evaluate and evaluates
@@ -455,7 +476,7 @@ int main(int argc, char** argv) {
     }
 
     PipelineGeneratorFn pipe_gen = get_pipeline(pipeline_name);
-    run_job(config, dataset_name, in_job_name, pipe_gen, out_job_name);
+    run_job(storage_config, dataset_name, in_job_name, pipe_gen, out_job_name);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadata
@@ -477,6 +498,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<storehouse::WriteFile> meta_out_file;
     make_unique_write_file(storage, db_meta_path, meta_out_file);
     serialize_database_metadata(meta_out_file.get(), meta);
+    storehouse::exit_on_error(meta_out_file->save());
   } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
     std::string ip = "0.0.0.0";
@@ -500,8 +522,9 @@ int main(int argc, char** argv) {
     options.idleTimeout = std::chrono::milliseconds(60000);
     options.shutdownOn = {SIGINT, SIGTERM};
     options.enableContentCompression = false;
-    options.handlerFactories =
-        pg::RequestHandlerChain().addThen<VideoHandlerFactory>(config).build();
+    options.handlerFactories = pg::RequestHandlerChain()
+                                   .addThen<VideoHandlerFactory>(storage_config)
+                                   .build();
 
     pg::HTTPServer server(std::move(options));
     server.bind(IPs);
@@ -515,7 +538,7 @@ int main(int argc, char** argv) {
 
   // Cleanup
   delete storage;
-  delete config;
+  delete storage_config;
   shutdown();
 
   return EXIT_SUCCESS;

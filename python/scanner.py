@@ -136,14 +136,18 @@ class ScannerConfig(object):
         if config_path is None:
             config_path = self.default_config_path()
         config = self.load_config(config_path)
+        if config['storage']['type'] != 'posix':
+            logging.critical('Scanner Python bindings only support posix file storage')
+            exit()
         try:
-            self.db_path = config['db_path']
+            self.db_path = config['storage']['db_path']
             self.scanner_path = config['scanner_path']
         except KeyError as key:
             logging.critical('Scanner config missing key: {}'.format(key))
             exit()
 
-    def default_config_path(self):
+    @staticmethod
+    def default_config_path():
         return '{}/.scanner.toml'.format(os.path.expanduser('~'))
 
     def load_config(self, path):

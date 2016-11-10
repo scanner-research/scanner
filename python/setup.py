@@ -1,6 +1,6 @@
 import sys
-import util
 import toml
+from scanner import ScannerConfig
 
 def main():
     questions = {
@@ -14,7 +14,8 @@ def main():
         val = sys.stdin.readline().strip()
         results[key] = val
 
-    with open(util.scanner_config_path(), 'w') as f:
+    path = ScannerConfig.default_config_path()
+    with open(path, 'w') as f:
         f.write(toml.dumps(results))
 
 if __name__ == '__main__':

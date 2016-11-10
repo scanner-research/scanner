@@ -356,19 +356,12 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   std::vector<u8> video_bytes;
   {
     // Read input from local path
-    std::ifstream file{video_path};
+    std::unique_ptr<RandomReadFile> in_file;
+    storehouse::exit_on_error(
+        make_unique_random_read_file(storage, video_path, in_file));
 
-    const size_t READ_SIZE = 1024 * 1024;
-    while (file) {
-      size_t prev_size = video_bytes.size();
-      video_bytes.resize(prev_size + READ_SIZE);
-      file.read(reinterpret_cast<char*>(video_bytes.data() + prev_size),
-                READ_SIZE);
-      size_t size_read = file.gcount();
-      if (size_read != READ_SIZE) {
-        video_bytes.resize(prev_size + size_read);
-      }
-    }
+    u64 pos;
+    video_bytes = read_entire_file(in_file.get(), pos);
   }
 
   // Setup custom buffer for libavcodec so that we can read from memory instead
@@ -976,6 +969,7 @@ void ingest(storehouse::StorageConfig* storage_config,
     make_unique_write_file(storage, dataset_file_path, output_file);
 
     serialize_dataset_descriptor(output_file.get(), descriptor);
+    storehouse::exit_on_error(output_file->save());
   }
   // Reset last processed so that we start from scratch next time
   // TODO(apoms): alternatively we could delete the file but apparently
@@ -989,6 +983,7 @@ void ingest(storehouse::StorageConfig* storage_config,
     std::unique_ptr<WriteFile> meta_out_file;
     make_unique_write_file(storage, db_meta_path, meta_out_file);
     serialize_database_metadata(meta_out_file.get(), meta);
+    storehouse::exit_on_error(meta_out_file->save());
   }
 
   LOG(INFO) << "Finished creating dataset " << dataset_name << "." << std::endl;

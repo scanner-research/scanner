@@ -15,6 +15,11 @@ RUN mkdir build && cd build && \
     make
 RUN ./features/squeezenet.sh
 RUN echo '\n\
-db_path = "/opt/scanner_db" \n\
 scanner_path = "/opt/scanner" \n\
-work_item_size = 96' > /root/.scanner.toml
+\n\
+[storage] \n\
+    type = "posix" \n\
+    db_path = "/opt/scanner_db" \n\
+\n\
+[job]\n\
+    work_item_size = 96' > /root/.scanner.toml
