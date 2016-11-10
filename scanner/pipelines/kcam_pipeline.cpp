@@ -28,7 +28,7 @@ PipelineDescription get_pipeline_description(
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+      new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
   factories.emplace_back(new FacenetInputEvaluatorFactory(
       DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(

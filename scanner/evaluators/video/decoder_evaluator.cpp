@@ -91,7 +91,9 @@ void DecoderEvaluator::evaluate(
       const DecodeArgs::Interval& interval = args.interval();
       i32 s = interval.start();
       if (!needs_warmup_) {
-        s += args.warmup_count();
+        s += std::min(
+            args.warmup_count(),
+            static_cast<i32>(args.rows_from_start() + total_frames_used));
       }
       for (; s < interval.end(); ++s) {
         valid_frames.push_back(s);
@@ -102,7 +104,9 @@ void DecoderEvaluator::evaluate(
       i32 e = interval.end();
       i32 stride = args.stride();
       if (!needs_warmup_) {
-        s += args.warmup_count() * stride;
+        s += std::min(
+            args.warmup_count() * stride,
+            static_cast<i32>(args.rows_from_start() + total_frames_used));
       }
       for (; s < e; s += stride) {
         valid_frames.push_back(s);
@@ -110,7 +114,9 @@ void DecoderEvaluator::evaluate(
     } else if (args.sampling() == DecodeArgs::Gather) {
       i32 s = 0;
       if (!needs_warmup_) {
-        s += args.warmup_count();
+        s += std::min(
+            args.warmup_count(),
+            static_cast<i32>(args.rows_from_start() + total_frames_used));
       }
       for (; s < args.gather_points_size(); ++s) {
         valid_frames.push_back(args.gather_points(s));
@@ -121,7 +127,9 @@ void DecoderEvaluator::evaluate(
       const DecodeArgs::Interval& interval = args.gather_sequences(0);
       i32 s = interval.start();
       if (!needs_warmup_) {
-        s += args.warmup_count();
+        s += std::min(
+            args.warmup_count(),
+            static_cast<i32>(args.rows_from_start() + total_frames_used));
       }
       for (; s < interval.end(); ++s) {
         valid_frames.push_back(s);

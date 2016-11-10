@@ -253,6 +253,7 @@ void* load_video_thread(void* arg) {
             args.sampling, work_item.video_index, load_work_entry);
         std::vector<Interval>& intervals = locations.video_intervals;
         std::vector<DecodeArgs>& dargs = locations.video_args;
+        assert(intervals.size() == dargs.size());
         size_t num_intervals = intervals.size();
         for (size_t i = 0; i < num_intervals; ++i) {
           i32 start_frame = intervals[i].start;
@@ -289,6 +290,7 @@ void* load_video_thread(void* arg) {
           DecodeArgs& decode_args = dargs[i];
 
           decode_args.set_warmup_count(args.warmup_count);
+          decode_args.set_rows_from_start(work_item.rows_from_start);
           decode_args.set_start_keyframe(
               keyframe_positions[start_keyframe_index]);
           decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index]);
@@ -361,8 +363,6 @@ void* load_video_thread(void* arg) {
             eval_work_entry.buffers[out_col].push_back(buffer);
           }
         }
-        printf("work entry col %d, size %lu\n", out_col,
-               eval_work_entry.buffers[out_col].size());
       }
     }
     // assert(eval_work_entry.buffers[0].size() ==

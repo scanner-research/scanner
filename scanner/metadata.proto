@@ -145,6 +145,7 @@ message DecodeArgs {
   required int32 start_keyframe = 1;
   required int32 end_keyframe = 2;
   required int32 warmup_count = 3;
+  required int32 rows_from_start = 9;
   required Sampling sampling = 4;
 
   optional Interval interval = 5;

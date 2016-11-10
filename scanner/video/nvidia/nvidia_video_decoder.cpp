@@ -14,8 +14,8 @@
  */
 
 #include "scanner/video/nvidia/nvidia_video_decoder.h"
-#include "scanner/util/queue.h"
 #include "scanner/util/cuda.h"
+#include "scanner/util/queue.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -28,10 +28,16 @@ namespace scanner {
 
 NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
                                        CUcontext cuda_context)
-    : device_id_(device_id), output_type_(output_type),
-      cuda_context_(cuda_context), max_output_frames_(32),
-      max_mapped_frames_(8), streams_(max_mapped_frames_), parser_(nullptr),
-      decoder_(nullptr), mapped_frames_(max_mapped_frames_, 0), prev_frame_(0) {
+    : device_id_(device_id),
+      output_type_(output_type),
+      cuda_context_(cuda_context),
+      max_output_frames_(32),
+      max_mapped_frames_(8),
+      streams_(max_mapped_frames_),
+      parser_(nullptr),
+      decoder_(nullptr),
+      mapped_frames_(max_mapped_frames_, 0),
+      prev_frame_(0) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -73,7 +79,7 @@ void NVIDIAVideoDecoder::configure(const VideoMetadata& metadata) {
   CUcontext dummy;
 
   CUVIDPARSERPARAMS cuparseinfo = {};
-  //cuparseinfo.CodecType = metadata.codec_type;
+  // cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.CodecType = cudaVideoCodec_H264;
   cuparseinfo.ulMaxNumDecodeSurfaces = max_output_frames_;
   cuparseinfo.ulMaxDisplayDelay = 4;
@@ -88,9 +94,9 @@ void NVIDIAVideoDecoder::configure(const VideoMetadata& metadata) {
   CUD_CHECK(cuvidCreateVideoParser(&parser_, &cuparseinfo));
 
   CUVIDDECODECREATEINFO cuinfo = {};
-  //cuinfo.CodecType = metadata.codec_type;
+  // cuinfo.CodecType = metadata.codec_type;
   cuinfo.CodecType = cudaVideoCodec_H264;
-  //cuinfo.ChromaFormat = metadata.chroma_format;
+  // cuinfo.ChromaFormat = metadata.chroma_format;
   cuinfo.ChromaFormat = cudaVideoChromaFormat_420;
   cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
 
@@ -219,16 +225,15 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
     //              on that here to copy the data properly
     for (int i = 0; i < 2; i++) {
-      cudaMemcpyKind copy_kind =
-          output_type_ == DeviceType::GPU ?
-          cudaMemcpyDeviceToDevice :
-          cudaMemcpyDeviceToHost;
+      cudaMemcpyKind copy_kind = output_type_ == DeviceType::GPU
+                                     ? cudaMemcpyDeviceToDevice
+                                     : cudaMemcpyDeviceToHost;
       CU_CHECK(cudaMemcpy2DAsync(
           decoded_buffer + i * metadata_.width() * metadata_.height(),
           metadata_.width(),  // dst pitch
           (const void*)(mapped_frame + i * pitch * metadata_.height()),  // src
-          pitch,                                             // src pitch
-          metadata_.width(),                                   // width
+          pitch,                                                 // src pitch
+          metadata_.width(),                                     // width
           i == 0 ? metadata_.height() : metadata_.height() / 2,  // height
           copy_kind, streams_[mapped_frame_index]));
     }
