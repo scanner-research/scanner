@@ -208,7 +208,7 @@ class JobResult(object):
                 bufs.append(item)
 
             return bufs
-        except IOError as err:
+        except UserWarning:
             raise JobLoadException('Column {} does not exist for job {}'.format(
                 self._column, self._job_name))
 

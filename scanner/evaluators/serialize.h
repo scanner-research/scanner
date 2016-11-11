@@ -23,24 +23,22 @@ namespace scanner {
 
 inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
                                   u8*& buffer, size_t& size) {
-  size = sizeof(size_t) + sizeof(i32);
-  i32 bbox_size = 0;
-  for (size_t i = 0; i < bboxes.size(); ++i) {
-    const BoundingBox& box = bboxes[i];
-    bbox_size = std::max(bbox_size, box.ByteSize());
+  size = sizeof(size_t);
+  for (auto& box : bboxes) {
+    size += box.ByteSize() + sizeof(i32);
   }
-  size += bbox_size * bboxes.size();
   buffer = new u8[size];
 
   u8* buf = buffer;
   *((size_t*)buf) = bboxes.size();
   buf += sizeof(size_t);
-  *((i32*)buf) = bbox_size;
-  buf += sizeof(i32);
   for (size_t i = 0; i < bboxes.size(); ++i) {
     const BoundingBox& box = bboxes[i];
-    assert(box.ByteSize() <= bbox_size);
-    box.SerializeToArray(buf + i * bbox_size, bbox_size);
+    i32 bbox_size = box.ByteSize();
+    *((i32*)buf) = bbox_size;
+    buf += sizeof(i32);
+    box.SerializeToArray(buf, bbox_size);
+    buf += bbox_size;
   }
 }
 
