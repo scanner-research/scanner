@@ -365,7 +365,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     storehouse::exit_on_error(
         make_unique_random_read_file(storage, video_path, in_file));
 
-    u64 pos;
+    u64 pos = 0;
     video_bytes = read_entire_file(in_file.get(), pos);
   }
 
@@ -776,7 +776,7 @@ void ingest_videos(storehouse::StorageBackend* storage,
   //   will be miscalculated. These values should be included in the snapshot.
   // i32 last_processed_index = read_last_processed_video(storage,
   // dataset_name);
-  i32 last_processed_index = 0;
+  i32 last_processed_index = -1;
 
   // Keep track of videos which we can't parse
   i64 total_frames{};

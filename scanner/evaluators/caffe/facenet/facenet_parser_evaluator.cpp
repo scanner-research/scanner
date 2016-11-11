@@ -166,7 +166,9 @@ void FacenetParserEvaluator::evaluate(
           width = (width / net_input_width_) * metadata_.width();
           height = (height / net_input_height_) * metadata_.height();
 
-          if (width < 0 || height < 0) continue;
+          if (width < 0 || height < 0 || std::isnan(width) ||
+              std::isnan(height) || std::isnan(x) || std::isnan(y))
+            continue;
 
           BoundingBox bbox;
           bbox.set_x1(x - width / 2);
@@ -194,7 +196,6 @@ void FacenetParserEvaluator::evaluate(
         break;
       case NMSType::None:
         best_bboxes = bboxes;
-        ;
         break;
     }
 
