@@ -12,9 +12,16 @@ os.environ['GLOG_minloglevel'] = '4'  # Silencio, Caffe!
 import caffe
 
 USE_GPU = True
-NET = 'squeezenet'
-FEATURE_LOADER = load_squeezenet_features
-NUM_FEATURES = 1000
+NET = 'faster_rcnn'
+if NET == 'squeezenet':
+    FEATURE_LOADER = load_squeezenet_features
+    NUM_FEATURES = 1000
+elif NET == 'faster_rcnn':
+    FEATURE_LOADER = load_faster_rcnn_features
+    NUM_FEATURES = 4096
+else:
+    logging.critical('Unsupported KNN net {}'.format(NET))
+    exit()
 K = 5
 
 def write(s):
@@ -43,11 +50,17 @@ net first or you didn\'t update the FEATURE_LOADER.'.format(NET))
             exit()
         for (video, buffers) in results.as_frame_list():
             if NET == 'faster_rcnn':
+                cur = count
                 for (frame, feats) in buffers:
                     self.index.append(((video, frame), count))
-                    if len(feats) == 0: continue
-                    norms = np.vstack((norms, np.array(feats)))
                     count += len(feats)
+
+                norms.resize((count, NUM_FEATURES))
+                for (_, feats) in buffers:
+                    n = len(feats)
+                    if n == 0: continue
+                    norms[cur:cur+n,:] = np.array(feats)
+                    cur += n
             else:
                 for (frame, feats) in buffers:
                     self.index.append(((video, frame), count))
