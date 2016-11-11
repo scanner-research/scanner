@@ -548,4 +548,8 @@ void serialize_job_descriptor(WriteFile* file,
 JobDescriptor deserialize_job_descriptor(RandomReadFile* file, uint64_t& pos) {
   return deserialize<JobDescriptor>(file, pos);
 }
+
+std::string PREFIX = "";
+
+void set_database_path(std::string path) { PREFIX = path + "/"; }
 }

@@ -171,10 +171,17 @@ JobDescriptor deserialize_job_descriptor(storehouse::RandomReadFile* file,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Path functions
-inline std::string database_metadata_path() { return "db_metadata.bin"; }
+
+extern std::string PREFIX;
+
+void set_database_path(std::string path);
+
+inline std::string database_metadata_path() {
+  return PREFIX + "db_metadata.bin";
+}
 
 inline std::string dataset_directory(const std::string& dataset_name) {
-  return "datasets/" + dataset_name;
+  return PREFIX + "datasets/" + dataset_name;
 }
 
 inline std::string dataset_descriptor_path(const std::string& dataset_name) {

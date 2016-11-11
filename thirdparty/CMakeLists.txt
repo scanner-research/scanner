@@ -71,7 +71,7 @@ if (NOT STOREHOUSE_FOUND)
 
   ExternalProject_Add(Storehouse
     GIT_REPOSITORY "https://github.com/scanner-research/storehouse"
-    GIT_TAG "2c870760c4a9a6e654a247c870dadd1bae9fab37"
+    GIT_TAG "0a57b61a9fc63a8bafec37e9351dae0639cb614f"
 
     UPDATE_COMMAND ""
 

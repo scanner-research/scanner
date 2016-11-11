@@ -230,12 +230,14 @@ int main(int argc, char** argv) {
       SAVE_WORKERS_PER_NODE = config->get<int>("job", "save_workers_per_node");
     }
 
+    LOG_IF(FATAL, !config->has("storage", "db_path"))
+        << "Scanner config must contain storage.db_path";
+    std::string db_path = config->get<std::string>("storage", "db_path");
+    set_database_path(db_path);
+
     std::string storage_type = config->get<std::string>("storage", "type");
     if (storage_type == "posix") {
-      LOG_IF(FATAL, !config->has("storage", "db_path"))
-          << "Scanner config must contain storage.db_path";
-      std::string db_path = config->get<std::string>("storage", "db_path");
-      storage_config = storehouse::StorageConfig::make_posix_config(db_path);
+      storage_config = storehouse::StorageConfig::make_posix_config();
     } else if (storage_type == "gcs") {
       LOG_IF(FATAL, !config->has("storage", "cert_path"))
           << "Scanner config must contain storage.cert_path";
