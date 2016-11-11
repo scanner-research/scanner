@@ -46,11 +46,15 @@ PipelineDescription get_pipeline_description(
     *(blob + 1) = metadata.width();
     *(blob + 2) = 1.0;
     if (device_type == DeviceType::GPU) {
+#ifdef HAVE_CUDA
       u8* gpu_buffer;
       cudaMalloc(&gpu_buffer, size);
       cudaMemcpy(gpu_buffer, buffer, size, cudaMemcpyHostToDevice);
       delete buffer;
       buffer = gpu_buffer;
+#else
+      LOG(FATAL) << "Cuda not built.";
+#endif
     }
   };
 
