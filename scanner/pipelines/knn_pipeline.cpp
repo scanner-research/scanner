@@ -22,15 +22,26 @@ PipelineDescription get_pipeline_description(
   }
   i32 batch_size = 96;
 
+  DeviceType device_type;
+  VideoDecoderType decoder_type;
+
+#ifdef HAVE_CUDA
+  device_type = DeviceType::GPU;
+  decoder_type = VideoDecoderType::NVIDIA;
+#else
+  device_type = DeviceType::CPU;
+  decoder_type = VideoDecoderType::SOFTWARE;
+#endif
+
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
-  factories.emplace_back(new DefaultInputEvaluatorFactory(
-      DeviceType::CPU, descriptor, batch_size));
-  factories.emplace_back(new CaffeEvaluatorFactory(DeviceType::GPU, descriptor,
-                                                   batch_size, false));
+      new DecoderEvaluatorFactory(device_type, decoder_type));
+  factories.emplace_back(
+      new DefaultInputEvaluatorFactory(device_type, descriptor, batch_size));
+  factories.emplace_back(
+      new CaffeEvaluatorFactory(device_type, descriptor, batch_size, false));
 
   return desc;
 }
