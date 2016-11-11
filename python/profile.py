@@ -61,7 +61,7 @@ def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
     profiler_output = {}
     if result:
         print('Trial succeeded, took {:.3f}s'.format(t))
-        profiler_output = db.parse_profiler_files(dataset_name, job_name)
+        profiler_output = db.parse_profiler_files(dataset_name, out_job_name)
         test_interval = profiler_output[0][0]
         t = (test_interval[1] - test_interval[0])
         t /= float(1e9)  # ns to s
@@ -261,7 +261,7 @@ def get_trial_total_io_read(result):
     return total_io
 
 def effective_io_rate_benchmark():
-    dataset_name = 'benchmark_kcam'
+    dataset_name = 'kcam_benchmark'
     in_job_name = scanner.Scanner.base_job_name()
     pipeline_name = 'effective_io_rate'
     out_job_name = 'eir_test'
@@ -633,8 +633,8 @@ def graph_decode_rate_benchmark(path):
 def bench_main(args):
     out_dir = args.output_directory
     effective_io_rate_benchmark()
-    effective_decode_rate_benchmark()
-    dnn_rate_benchmark()
+    # effective_decode_rate_benchmark()
+    # dnn_rate_benchmark()
 
 
 def graphs_main(args):

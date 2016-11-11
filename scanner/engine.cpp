@@ -1378,6 +1378,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
     job_descriptor.set_id(job_id);
     job_descriptor.set_name(out_job_name);
+    job_descriptor.set_num_nodes(num_nodes);
 
     // Write out metadata to describe where the output results are for each
     // video

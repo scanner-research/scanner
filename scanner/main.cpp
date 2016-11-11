@@ -247,6 +247,8 @@ int main(int argc, char** argv) {
           << "Scanner config must contain storage.bucket";
       std::string bucket = config->get<std::string>("storage", "bucket");
       std::ifstream ifs(key_path);
+      LOG_IF(FATAL, !ifs.is_open()) << "GCS key " << key_path
+                                    << " does not exist.";
       std::string key_content((std::istreambuf_iterator<char>(ifs)),
                               (std::istreambuf_iterator<char>()));
       storage_config = storehouse::StorageConfig::make_gcs_config(

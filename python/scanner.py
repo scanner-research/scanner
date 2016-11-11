@@ -94,41 +94,6 @@ def parse_profiler_output(bytes_buffer, offset):
     }, offset
 
 
-def parse_profiler_file(profiler_path):
-    with open(profiler_path, 'rb') as f:
-        bytes_buffer = f.read()
-    offset = 0
-    # Read start and end time intervals
-    t, offset = read_advance('q', bytes_buffer, offset)
-    start_time = t[0]
-    t, offset = read_advance('q', bytes_buffer, offset)
-    end_time = t[0]
-    # Profilers
-    profilers = defaultdict(list)
-    # Load worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_load_workers = t[0]
-    for i in range(num_load_workers):
-        prof, offset = parse_profiler_output(bytes_buffer, offset)
-        profilers[prof['worker_type']].append(prof)
-    # Eval worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_eval_workers = t[0]
-    t, offset = read_advance('B', bytes_buffer, offset)
-    groups_per_chain = t[0]
-    for pu in range(num_eval_workers):
-        for fg in range(groups_per_chain):
-            prof, offset = parse_profiler_output(bytes_buffer, offset)
-            profilers[prof['worker_type']].append(prof)
-    # Save worker profilers
-    t, offset = read_advance('B', bytes_buffer, offset)
-    num_save_workers = t[0]
-    for i in range(num_save_workers):
-        prof, offset = parse_profiler_output(bytes_buffer, offset)
-        profilers[prof['worker_type']].append(prof)
-    return (start_time, end_time), profilers
-
-
 class ScannerConfig(object):
     """ TODO(wcrichto): document me """
 
@@ -136,15 +101,32 @@ class ScannerConfig(object):
         if config_path is None:
             config_path = self.default_config_path()
         config = self.load_config(config_path)
-        if config['storage']['type'] != 'posix':
-            logging.critical('Scanner Python bindings only support posix file storage')
-            exit()
         try:
-            self.db_path = config['storage']['db_path']
             self.scanner_path = config['scanner_path']
+            sys.path.append('{}/build'.format(self.scanner_path))
+            sys.path.append('{}/thirdparty/build/bin/storehouse/lib'
+                            .format(self.scanner_path))
+
+            from storehousepy import StorageConfig, StorageBackend
+            storage = config['storage']
+            storage_type = storage['type']
+            if storage_type == 'posix':
+                storage_config = StorageConfig.make_posix_config(
+                    storage['db_path'].encode('latin-1'))
+            elif storage_type == 'gcs':
+                with open(storage['key_path']) as f:
+                    key = f.read()
+                storage_config = StorageConfig.make_gcs_config(
+                    storage['cert_path'].encode('latin-1'),
+                    key,
+                    storage['bucket'].encode('latin-1'))
+            else:
+                logging.critical('Unsupported storage type {}'.format(storage_type))
+                exit()
         except KeyError as key:
             logging.critical('Scanner config missing key: {}'.format(key))
             exit()
+        self.storage = StorageBackend.make_from_config(storage_config)
 
     @staticmethod
     def default_config_path():
@@ -179,62 +161,61 @@ class JobResult(object):
         self._job_name = job_name
         self._column = column
         self._load_fn = load_fn
-
-        self._db_path = self._scanner.config.db_path
+        self._storage = self._scanner.config.storage
 
         self._dataset = self._scanner._meta.DatasetDescriptor()
-        with open('{}/datasets/{}/descriptor.bin'.format(self._db_path,
-                                                        dataset_name),
-                  'rb') as f:
-            self._dataset.ParseFromString(f.read())
+        self._dataset.ParseFromString(
+            self._storage.read('datasets/{}/descriptor.bin'.format(dataset_name)))
 
         self._job = self._scanner._meta.JobDescriptor()
-        with open('{}/datasets/{}/jobs/{}/descriptor.bin'
-                  .format(self._db_path, dataset_name, job_name),
-                  'rb') as f:
-            self._job.ParseFromString(f.read())
+        self._job.ParseFromString(
+            self._storage.read(
+                'datasets/{}/jobs/{}/descriptor.bin'
+                .format(dataset_name, job_name)))
 
     def _load_output_file(self, video, video_name, work_item_index, rows,
                           istart, iend):
-        path = '{}/datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
-            self._db_path, self._dataset_name, self._job_name, video_name,
-            self._column, work_item_index)
         try:
-            with open(path, 'rb') as f:
-                lens = []
-                start_pos = maxint
-                pos = 0
-                num_rows = struct.unpack("l", f.read(8))
-                assert num_rows > max(rows)
+            contents = self._storage.read(
+                'datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
+                    self._dataset_name, self._job_name, video_name, self._column,
+                    work_item_index))
+            lens = []
+            start_pos = maxint
+            pos = 0
+            num_rows = struct.unpack("l", contents[:8])
+            assert num_rows > max(rows)
 
-                for fi in rows:
-                    byts = f.read(8)
-                    (buf_len,) = struct.unpack("l", byts)
-                    old_pos = pos
-                    pos += buf_len
-                    if (fi >= istart and fi <= iend):
-                        if start_pos == maxint:
-                            start_pos = old_pos
-                        lens.append(buf_len)
+            i = 8
+            for fi in rows:
+                (buf_len,) = struct.unpack("l", contents[i:i+8])
+                i += 8
+                old_pos = pos
+                pos += buf_len
+                if (fi >= istart and fi <= iend):
+                    if start_pos == maxint:
+                        start_pos = old_pos
+                    lens.append(buf_len)
 
-                bufs = []
-                f.seek(8 + len(rows) * 8 + start_pos)
-                for buf_len in lens:
-                    buf = f.read(buf_len)
-                    item = self._load_fn(buf, video)
-                    bufs.append(item)
+            bufs = []
+            i = 8 + len(rows) * 8 + start_pos
+            for buf_len in lens:
+                buf = contents[i:i+buf_len]
+                i += buf_len
+                item = self._load_fn(buf, video)
+                bufs.append(item)
 
-                return bufs
+            return bufs
         except IOError as err:
             raise JobLoadException('Column {} does not exist for job {}'.format(
                 self._column, self._job_name))
 
     def _load_video_descriptor(self, video_name):
         video = self._scanner._meta.VideoDescriptor()
-        with open('{}/datasets/{}/data/{}_metadata.bin'
-                  .format(self._db_path, self._dataset_name, video_name),
-                  'rb') as f:
-            video.ParseFromString(f.read())
+        video.ParseFromString(
+            self._storage.read(
+                'datasets/{}/data/{}_metadata.bin'.format(
+                    self._dataset_name, video_name)))
         return video
 
     def _load_all_sampling(self, interval=None):
@@ -414,15 +395,26 @@ class Scanner(object):
     def __init__(self, config_path=None):
         self.config = ScannerConfig(config_path)
         sys.path.append('{}/build'.format(self.config.scanner_path))
+        sys.path.append('{}/thirdparty/build/bin/storehouse/lib'
+                        .format(self.config.scanner_path))
         from scannerpy import metadata_pb2
         self._meta = metadata_pb2
         self._executable_path = (
             '{}/build/scanner_server'.format(self.config.scanner_path))
+        self._storage = self.config.storage
+
+    def _load_descriptor(self, descriptor, path):
+        d = descriptor()
+        d.ParseFromString(self._storage.read(path))
+        return d
 
     def get_job_result(self, dataset_name, job_name, column, fn):
         return JobResult(self, dataset_name, job_name, column, fn)
 
     def write_output_buffers(dataset_name, job_name, ident, column, fn, video_data):
+        logging.critical('write_output_buffers is out of date. Needs fixing')
+        exit()
+
         job = self._meta.JobDescriptor()
         job.id = ident
 
@@ -455,13 +447,6 @@ class Scanner(object):
                   .format(self.config.db_path, dataset_name, job_name), 'wb') as f:
             f.write(job.SerializeToString())
 
-    def get_output_size(self, job_name):
-        with open('{}/datasets/{}/jobs/{}/descriptor.bin'
-                  .format(self.config.db_path, job_name), 'r') as f:
-            job = json.loads(f.read())
-
-        return job['videos'][0]['intervals'][-1][1]
-
     def loader(self, column):
         def decorator(f):
             def loader(dataset_name, job_name):
@@ -470,16 +455,12 @@ class Scanner(object):
         return decorator
 
     def load_db_metadata(self):
-        path = '{}/db_metadata.bin'.format(self.config.db_path)
-        meta = self._meta.DatabaseDescriptor()
-        with open(path, 'rb') as f:
-            meta.ParseFromString(f.read())
-        return meta
+        return self._load_descriptor(
+            self._meta.DatabaseDescriptor,
+            'db_metadata.bin')
 
     def write_db_metadata(self, meta):
-        path = '{}/db_metadata.bin'.format(self.config.db_path)
-        with open(path, 'wb') as f:
-            f.write(meta.SerializeToString())
+        self._storage.write('db_metadata.bin', meta.SerializeToString())
 
     def ingest(self, dataset_name, video_paths, opts={}):
         def gopt(k, default):
@@ -569,23 +550,50 @@ class Scanner(object):
             print(so)
         return success, elapsed
 
+    def parse_profiler_file(self, profiler_path):
+        bytes_buffer = self._storage.read(profiler_path)
+        offset = 0
+        # Read start and end time intervals
+        t, offset = read_advance('q', bytes_buffer, offset)
+        start_time = t[0]
+        t, offset = read_advance('q', bytes_buffer, offset)
+        end_time = t[0]
+        # Profilers
+        profilers = defaultdict(list)
+        # Load worker profilers
+        t, offset = read_advance('B', bytes_buffer, offset)
+        num_load_workers = t[0]
+        for i in range(num_load_workers):
+            prof, offset = parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
+        # Eval worker profilers
+        t, offset = read_advance('B', bytes_buffer, offset)
+        num_eval_workers = t[0]
+        t, offset = read_advance('B', bytes_buffer, offset)
+        groups_per_chain = t[0]
+        for pu in range(num_eval_workers):
+            for fg in range(groups_per_chain):
+                prof, offset = parse_profiler_output(bytes_buffer, offset)
+                profilers[prof['worker_type']].append(prof)
+        # Save worker profilers
+        t, offset = read_advance('B', bytes_buffer, offset)
+        num_save_workers = t[0]
+        for i in range(num_save_workers):
+            prof, offset = parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
+        return (start_time, end_time), profilers
 
     def parse_profiler_files(self, dataset_name, job_name):
-        db_path = self.config.db_path
-        job_path = '{}/datasets/{}/jobs/{}/'.format(
-            db_path, dataset_name, job_name)
-        r = re.compile('^profile_(\d+).bin$')
-        files = []
-        for f in os.listdir(job_path):
-            matches = r.match(f)
-            if matches is not None:
-                files.append(int(matches.group(1)))
+        job_path = 'datasets/{}/jobs/{}'.format(dataset_name, job_name)
 
-        files.sort()
+        job = self._meta.JobDescriptor()
+        job.ParseFromString(
+            self._storage.read('{}/descriptor.bin'.format(job_path)))
+
         profilers = {}
-        for n in files:
-            path = job_path + 'profile_{}.bin'.format(n)
-            time, profs = parse_profiler_file(path)
+        for n in range(job.num_nodes):
+            path = '{}/profile_{}.bin'.format(job_path, n)
+            time, profs = self.parse_profiler_file(path)
             profilers[n] = (time, profs)
 
         return profilers

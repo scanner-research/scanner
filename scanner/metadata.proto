@@ -111,17 +111,18 @@ message JobDescriptor {
   }
 
   required int32 id = 1;
-  required string name = 8;
+  required string name = 9;
   repeated Column columns = 2;
   required Sampling sampling = 3;
   required int32 work_item_size = 4;
+  required int32 num_nodes = 5;
 
   // For strided sampling
-  optional int32 stride = 5;
+  optional int32 stride = 6;
   // For gather sampling
-  repeated PointSamples gather_points = 6;
+  repeated PointSamples gather_points = 7;
   // For sequence gather sampling
-  repeated SequenceSamples gather_sequences = 7;
+  repeated SequenceSamples gather_sequences = 8;
 }
 
 message DecodeArgs {
