@@ -38,7 +38,8 @@ PipelineDescription get_pipeline_description(
 #endif
 
   auto im_info_builder = [=](u8*& buffer, size_t& size,
-                             const VideoMetadata& metadata) {
+                             const InputFormat& metadata) {
+
     size = 3 * sizeof(f32);
     buffer = new u8[size];
     f32* blob = (f32*)buffer;

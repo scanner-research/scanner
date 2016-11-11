@@ -288,6 +288,40 @@ std::vector<i64> VideoMetadata::keyframe_byte_offsets() const {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// ImageFormatGroupMetadata
+ImageFormatGroupMetadata::ImageFormatGroupMetadata() {}
+
+ImageFormatGroupMetadata::ImageFormatGroupMetadata(
+    const ImageFormatGroupDescriptor& descriptor)
+    : descriptor(descriptor) {}
+
+const ImageFormatGroupDescriptor& ImageFormatGroupMetadata::get_descriptor()
+    const {
+  return descriptor;
+}
+
+i32 ImageFormatGroupMetadata::num_images() const {
+  return descriptor.num_images();
+}
+
+i32 ImageFormatGroupMetadata::width() const { return descriptor.width(); }
+
+i32 ImageFormatGroupMetadata::height() const { return descriptor.height(); }
+
+ImageEncodingType ImageFormatGroupMetadata::encoding_type() const {
+  return descriptor.encoding_type();
+}
+
+ImageColorSpace ImageFormatGroupMetadata::color_space() const {
+  return descriptor.color_space();
+}
+
+std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
+  return std::vector<i64>(descriptor.compressed_sizes().begin(),
+                          descriptor.compressed_sizes().end());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// JobMetadata
 JobMetadata::JobMetadata() {}
 JobMetadata::JobMetadata(const DatasetDescriptor& dataset,
@@ -295,6 +329,12 @@ JobMetadata::JobMetadata(const DatasetDescriptor& dataset,
                          const JobDescriptor& job)
     : dataset_descriptor(dataset),
       video_descriptors(videos),
+      job_descriptor(job) {}
+JobMetadata::JobMetadata(const DatasetDescriptor& dataset,
+                         const std::vector<ImageFormatGroupDescriptor>& images,
+                         const JobDescriptor& job)
+    : dataset_descriptor(dataset),
+      format_descriptors(images),
       job_descriptor(job) {}
 
 const DatasetDescriptor& JobMetadata::get_dataset_descriptor() const {
@@ -343,16 +383,18 @@ i32 JobMetadata::work_item_size() const {
 i32 JobMetadata::total_rows() const {
   Sampling sampling = this->sampling();
   i32 rows = 0;
+
+  std::vector<i32> total_frames_per_item = rows_per_item();
   switch (sampling) {
     case Sampling::All: {
-      for (const VideoDescriptor& desc : video_descriptors) {
-        rows += desc.frames();
+      for (i32 f : total_frames_per_item) {
+        rows += f;
       }
       break;
     }
     case Sampling::Strided: {
-      for (const VideoDescriptor& desc : video_descriptors) {
-        rows += desc.frames() / job_descriptor.stride();
+      for (i32 f : total_frames_per_item) {
+        rows += f / job_descriptor.stride();
       }
       break;
     }
@@ -374,17 +416,18 @@ i32 JobMetadata::total_rows() const {
   return rows;
 }
 
-std::vector<JobMetadata::VideoSample> JobMetadata::sampled_frames() const {
+std::vector<JobMetadata::GroupSample> JobMetadata::sampled_frames() const {
   Sampling sampling = this->sampling();
-  std::vector<VideoSample> video_samples;
+  std::vector<GroupSample> group_samples;
+
+  std::vector<i32> total_frames_per_item = rows_per_item();
   switch (sampling) {
     case Sampling::All: {
-      for (size_t i = 0; i < video_descriptors.size(); ++i) {
-        const VideoDescriptor& desc = video_descriptors[i];
-        video_samples.emplace_back();
-        VideoSample& s = video_samples.back();
-        s.video_index = static_cast<i32>(i);
-        i32 tot_frames = desc.frames();
+      for (size_t i = 0; i < total_frames_per_item.size(); ++i) {
+        group_samples.emplace_back();
+        GroupSample& s = group_samples.back();
+        s.group_index = static_cast<i32>(i);
+        i32 tot_frames = total_frames_per_item[i];
         for (i32 f = 0; f < tot_frames; ++f) {
           s.frames.push_back(f);
         }
@@ -393,12 +436,11 @@ std::vector<JobMetadata::VideoSample> JobMetadata::sampled_frames() const {
     }
     case Sampling::Strided: {
       i32 stride = job_descriptor.stride();
-      for (size_t i = 0; i < video_descriptors.size(); ++i) {
-        const VideoDescriptor& desc = video_descriptors[i];
-        video_samples.emplace_back();
-        VideoSample& s = video_samples.back();
-        s.video_index = static_cast<i32>(i);
-        i32 tot_frames = desc.frames();
+      for (size_t i = 0; i < total_frames_per_item.size(); ++i) {
+        group_samples.emplace_back();
+        GroupSample& s = group_samples.back();
+        s.group_index = static_cast<i32>(i);
+        i32 tot_frames = total_frames_per_item[i];
         for (i32 f = 0; f < tot_frames; f += stride) {
           s.frames.push_back(f);
         }
@@ -407,9 +449,9 @@ std::vector<JobMetadata::VideoSample> JobMetadata::sampled_frames() const {
     }
     case Sampling::Gather: {
       for (const auto& samples : job_descriptor.gather_points()) {
-        video_samples.emplace_back();
-        VideoSample& s = video_samples.back();
-        s.video_index = samples.video_index();
+        group_samples.emplace_back();
+        GroupSample& s = group_samples.back();
+        s.group_index = samples.video_index();
         for (i32 f : samples.frames()) {
           s.frames.push_back(f);
         }
@@ -418,9 +460,9 @@ std::vector<JobMetadata::VideoSample> JobMetadata::sampled_frames() const {
     }
     case Sampling::SequenceGather: {
       for (const auto& samples : job_descriptor.gather_sequences()) {
-        video_samples.emplace_back();
-        VideoSample& s = video_samples.back();
-        s.video_index = samples.video_index();
+        group_samples.emplace_back();
+        GroupSample& s = group_samples.back();
+        s.group_index = samples.video_index();
         for (const JobDescriptor::Interval& interval : samples.intervals()) {
           for (i32 f = interval.start(); f < interval.end(); ++f) {
             s.frames.push_back(f);
@@ -430,20 +472,21 @@ std::vector<JobMetadata::VideoSample> JobMetadata::sampled_frames() const {
       break;
     }
   }
-  return video_samples;
+  return group_samples;
 }
 
 JobMetadata::RowLocations JobMetadata::row_work_item_locations(
-    Sampling sampling, i32 video_index, const LoadWorkEntry& entry) const {
+    Sampling sampling, i32 group_index, const LoadWorkEntry& entry) const {
   RowLocations locations;
   std::vector<i32>& items = locations.work_items;
   std::vector<Interval>& intervals = locations.work_item_intervals;
+
+  std::vector<i32> total_frames_per_item = rows_per_item();
   switch (sampling) {
     case Sampling::All: {
       i32 start = entry.interval.start;
       i32 end = entry.interval.end;
-      const VideoDescriptor& desc = video_descriptors[video_index];
-      i32 tot_frames = desc.frames();
+      i32 tot_frames = total_frames_per_item[group_index];
       i32 work_item_size = this->work_item_size();
       i32 first_work_item = start / work_item_size;
       i32 first_start_row = start % work_item_size;
@@ -477,8 +520,10 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
   Sampling job_sampling = this->sampling();
   assert(job_sampling == Sampling::All);
   FrameLocations locations;
-  std::vector<Interval>& intervals = locations.video_intervals;
+  std::vector<Interval>& intervals = locations.intervals;
   std::vector<DecodeArgs>& dargs = locations.video_args;
+
+  std::vector<i32> total_frames_per_item = rows_per_item();
   if (sampling == Sampling::All) {
     intervals.push_back(Interval{entry.interval.start, entry.interval.end});
 
@@ -536,6 +581,20 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
   return locations;
 }
 
+std::vector<i32> JobMetadata::rows_per_item() const {
+  std::vector<i32> total_frames_per_item;
+  if (dataset_descriptor.type() == DatasetType_Video) {
+    for (const VideoDescriptor& meta : video_descriptors) {
+      total_frames_per_item.push_back(meta.frames());
+    }
+  } else if (dataset_descriptor.type() == DatasetType_Image) {
+    for (const ImageFormatGroupDescriptor& meta : format_descriptors) {
+      total_frames_per_item.push_back(meta.num_images());
+    }
+  }
+  return total_frames_per_item;
+}
+
 namespace {
 
 template <typename T>
@@ -581,6 +640,17 @@ void serialize_video_metadata(WriteFile* file, const VideoMetadata& metadata) {
 
 VideoMetadata deserialize_video_metadata(RandomReadFile* file, uint64_t& pos) {
   return VideoMetadata{deserialize<VideoDescriptor>(file, pos)};
+}
+
+void serialize_image_format_group_metadata(
+    WriteFile* file, const ImageFormatGroupMetadata& metadata) {
+  serialize(file, metadata.get_descriptor());
+}
+
+ImageFormatGroupMetadata deserialize_image_format_group_metadata(
+    RandomReadFile* file, uint64_t& pos) {
+  return ImageFormatGroupMetadata{
+      deserialize<ImageFormatGroupDescriptor>(file, pos)};
 }
 
 void serialize_web_timestamps(WriteFile* file, const WebTimestamps& ts) {

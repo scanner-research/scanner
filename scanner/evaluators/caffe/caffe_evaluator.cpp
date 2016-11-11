@@ -49,7 +49,7 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
   net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
 }
 
-void CaffeEvaluator::configure(const VideoMetadata& metadata) {
+void CaffeEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 
   set_device();

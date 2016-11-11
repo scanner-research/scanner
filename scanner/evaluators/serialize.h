@@ -56,4 +56,18 @@ inline DecodeArgs deserialize_decode_args(const u8* buffer, size_t size) {
   args.ParseFromArray(buffer, size);
   return args;
 }
+
+inline void serialize_image_decode_args(const ImageDecodeArgs& args,
+                                        u8*& buffer, size_t& size) {
+  size = args.ByteSize();
+  buffer = new u8[size];
+  args.SerializeToArray(buffer, size);
+}
+
+inline ImageDecodeArgs deserialize_image_decode_args(const u8* buffer,
+                                                     size_t size) {
+  ImageDecodeArgs args;
+  args.ParseFromArray(buffer, size);
+  return args;
+}
 }

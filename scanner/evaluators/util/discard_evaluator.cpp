@@ -24,7 +24,7 @@ DiscardEvaluator::DiscardEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type, i32 device_id)
     : config_(config), device_type_(device_type), device_id_(device_id) {}
 
-void DiscardEvaluator::configure(const VideoMetadata& metadata) {}
+void DiscardEvaluator::configure(const InputFormat& metadata) {}
 
 void DiscardEvaluator::evaluate(
     const std::vector<std::vector<u8*>>& input_buffers,

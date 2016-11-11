@@ -6,7 +6,7 @@ namespace scanner {
 
 EncoderEvaluator::EncoderEvaluator(EvaluatorConfig config) {}
 
-void EncoderEvaluator::configure(const VideoMetadata& metadata) {
+void EncoderEvaluator::configure(const InputFormat& metadata) {
   this->metadata = metadata;
 }
 

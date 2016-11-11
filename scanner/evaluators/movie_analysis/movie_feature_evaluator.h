@@ -26,7 +26,7 @@ class MovieFeatureEvaluator {
 
   virtual ~MovieFeatureEvaluator() {}
 
-  void configure(const VideoMetadata& metadata) { this->metadata_ = metadata; }
+  void configure(const InputFormat& metadata) { this->metadata_ = metadata; }
 
   void set_profiler(Profiler* profiler) { this->profiler_ = profiler; }
 
@@ -53,7 +53,7 @@ class MovieFeatureEvaluator {
                         std::vector<size_t>& output_sizes) = 0;
 
  protected:
-  VideoMetadata metadata_;
+  InputFormat metadata_;
   Mat initial_frame_;
   Profiler* profiler_;
   DeviceType device_type_;

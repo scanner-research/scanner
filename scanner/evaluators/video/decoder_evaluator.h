@@ -29,7 +29,7 @@ class DecoderEvaluator : public Evaluator {
   DecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    VideoDecoderType decoder_type);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   void reset() override;
 
@@ -42,7 +42,7 @@ class DecoderEvaluator : public Evaluator {
   DeviceType device_type_;
   i32 device_id_;
   VideoDecoderType decoder_type_;
-  VideoMetadata metadata_;
+  InputFormat metadata_;
   size_t frame_size_;
   std::unique_ptr<VideoDecoder> decoder_;
   bool needs_warmup_;

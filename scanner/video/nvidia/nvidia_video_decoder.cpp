@@ -73,7 +73,7 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
   CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
-void NVIDIAVideoDecoder::configure(const VideoMetadata& metadata) {
+void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 
   CUcontext dummy;

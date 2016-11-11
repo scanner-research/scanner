@@ -35,7 +35,7 @@ SwizzleEvaluator::SwizzleEvaluator(const EvaluatorConfig& config,
       device_id_(device_id),
       output_to_input_idx_(output_to_input_idx) {}
 
-void SwizzleEvaluator::configure(const VideoMetadata& metadata) {
+void SwizzleEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 

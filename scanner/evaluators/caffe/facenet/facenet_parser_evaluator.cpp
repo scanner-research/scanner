@@ -73,7 +73,7 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
   };
 }
 
-void FacenetParserEvaluator::configure(const VideoMetadata& metadata) {
+void FacenetParserEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 
   net_input_width_ = metadata_.width();

@@ -51,7 +51,7 @@ YoloInputEvaluator::YoloInputEvaluator(DeviceType device_type, i32 device_id,
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void YoloInputEvaluator::configure(const VideoMetadata& metadata) {
+void YoloInputEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 

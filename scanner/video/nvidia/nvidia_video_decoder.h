@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/eval/evaluator.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 #include "scanner/video/video_decoder.h"
@@ -28,13 +29,13 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// NVIDIAVideoDecoder
 class NVIDIAVideoDecoder : public VideoDecoder {
-public:
+ public:
   NVIDIAVideoDecoder(int device_id, DeviceType output_type,
                      CUcontext cuda_context);
 
   ~NVIDIAVideoDecoder();
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   bool feed(const u8* encoded_buffer, size_t encoded_size,
             bool discontinuity = false) override;
@@ -63,7 +64,7 @@ public:
   const int max_mapped_frames_;
   std::vector<cudaStream_t> streams_;
 
-  VideoMetadata metadata_;
+  InputFormat metadata_;
   std::vector<char> metadata_packets_;
   CUvideoparser parser_;
   CUvideodecoder decoder_;

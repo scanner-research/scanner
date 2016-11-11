@@ -22,17 +22,17 @@
 #include "struck/Tracker.h"
 
 #include <memory>
-#include <vector>
 #include <random>
+#include <vector>
 
 namespace scanner {
 
 class TrackerEvaluator : public Evaluator {
-public:
-  TrackerEvaluator(const EvaluatorConfig &config, DeviceType device_type,
+ public:
+  TrackerEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    i32 device_id, i32 warmup_count);
 
-  void configure(const VideoMetadata &metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   void reset() override;
 
@@ -41,7 +41,7 @@ public:
                 std::vector<std::vector<u8*>>& output_buffers,
                 std::vector<std::vector<size_t>>& output_sizes) override;
 
-protected:
+ protected:
   float iou(const BoundingBox& bl, const BoundingBox& br);
 
   const f32 IOU_THRESHOLD = 0.7;
@@ -52,7 +52,7 @@ protected:
   i32 device_id_;
   i32 warmup_count_;
 
-  VideoMetadata metadata_;
+  InputFormat metadata_;
 
   i32 next_tracker_id_;
   std::mt19937 gen{std::random_device{}()};

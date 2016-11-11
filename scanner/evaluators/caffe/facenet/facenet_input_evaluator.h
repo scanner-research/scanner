@@ -23,9 +23,9 @@
 //#define HAVE_CUDA
 
 #ifdef HAVE_CUDA
-#include "scanner/util/cuda.h"
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include <opencv2/cudaarithm.hpp>
+#include "scanner/util/cuda.h"
 #endif
 
 namespace scanner {
@@ -35,18 +35,18 @@ class FacenetInputEvaluator : public Evaluator {
   FacenetInputEvaluator(DeviceType device_type, i32 device_id,
                         const NetDescriptor& descriptor, i32 batch_size);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
-  void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
-                const std::vector<std::vector<size_t>> &input_sizes,
-                std::vector<std::vector<u8 *>> &output_buffers,
-                std::vector<std::vector<size_t>> &output_sizes) override;
+  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+                const std::vector<std::vector<size_t>>& input_sizes,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
  private:
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
-  VideoMetadata metadata_;
+  InputFormat metadata_;
 
   i32 batch_size_;
   i32 net_input_width_;
@@ -74,8 +74,7 @@ class FacenetInputEvaluator : public Evaluator {
 class FacenetInputEvaluatorFactory : public EvaluatorFactory {
  public:
   FacenetInputEvaluatorFactory(DeviceType device_type,
-                               const NetDescriptor& descriptor,
-                               i32 batch_size);
+                               const NetDescriptor& descriptor, i32 batch_size);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -83,7 +82,7 @@ class FacenetInputEvaluatorFactory : public EvaluatorFactory {
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
-private:
+ private:
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   i32 batch_size_;

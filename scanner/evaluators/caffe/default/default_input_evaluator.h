@@ -32,7 +32,7 @@
 namespace scanner {
 
 using InputLayerBuilder =
-    std::function<void(u8*&, size_t&, const VideoMetadata&)>;
+    std::function<void(u8*&, size_t&, const InputFormat&)>;
 
 class DefaultInputEvaluator : public Evaluator {
  public:
@@ -40,7 +40,7 @@ class DefaultInputEvaluator : public Evaluator {
                         const NetDescriptor& descriptor, i32 batch_size,
                         std::vector<InputLayerBuilder> input_layer_builders);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -54,7 +54,7 @@ class DefaultInputEvaluator : public Evaluator {
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
-  VideoMetadata metadata_;
+  InputFormat metadata_;
   i32 batch_size_;
 
 #ifdef HAVE_CUDA

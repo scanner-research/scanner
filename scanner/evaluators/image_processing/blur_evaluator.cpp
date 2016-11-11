@@ -25,20 +25,19 @@ BlurEvaluator::BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma)
       filter_right_(kernel_size / 2),
       sigma_(sigma) {}
 
-void BlurEvaluator::configure(const VideoMetadata& metadata) {
+void BlurEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 
 void BlurEvaluator::evaluate(
-    const std::vector<std::vector<u8 *>> &input_buffers,
-    const std::vector<std::vector<size_t>> &input_sizes,
-    std::vector<std::vector<u8 *>> &output_buffers,
-    std::vector<std::vector<size_t>> &output_sizes) {
-
+    const std::vector<std::vector<u8*>>& input_buffers,
+    const std::vector<std::vector<size_t>>& input_sizes,
+    std::vector<std::vector<u8*>>& output_buffers,
+    std::vector<std::vector<size_t>>& output_sizes) {
   i32 input_count = (i32)input_buffers[0].size();
   // HACK(apoms): we can only do this because we know the decoder stores all
   //   frames contiguously in memory right now
-  u8 *input_buffer = input_buffers[0][0];
+  u8* input_buffer = input_buffers[0][0];
 
   i32 width = metadata_.width();
   i32 height = metadata_.height();

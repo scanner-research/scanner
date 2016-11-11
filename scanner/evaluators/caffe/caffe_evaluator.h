@@ -30,7 +30,7 @@ class CaffeEvaluator : public Evaluator {
                  i32 device_id, const NetDescriptor& descriptor, i32 batch_size,
                  bool forward_input = false);
 
-  void configure(const VideoMetadata& descriptor) override;
+  void configure(const InputFormat& descriptor) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -48,7 +48,7 @@ class CaffeEvaluator : public Evaluator {
   bool forward_input_;
   std::unique_ptr<caffe::Net<float>> net_;
 
-  VideoMetadata metadata_;
+  InputFormat metadata_;
 };
 
 class CaffeEvaluatorFactory : public EvaluatorFactory {

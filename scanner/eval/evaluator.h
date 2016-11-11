@@ -23,6 +23,18 @@
 
 namespace scanner {
 
+struct InputFormat {
+ public:
+  InputFormat() : width_(0), height_(0) {}
+  InputFormat(i32 width, i32 height) : width_(width), height_(height) {}
+
+  i32 width() const { return width_; }
+  i32 height() const { return height_; }
+
+ private:
+  i32 width_;
+  i32 height_;
+};
 /**
  * @brief Interface for a unit of computation in a pipeline.
  *
@@ -44,9 +56,7 @@ class Evaluator {
    * This provides the evaluator with information about its input like
    * dimensions.
    */
-  virtual void configure(const VideoMetadata& metadata) {
-    metadata_ = metadata;
-  };
+  virtual void configure(const InputFormat& metadata) { metadata_ = metadata; };
 
   /**
    * @brief Resets evaluators when about to receive non-consecutive inputs.
@@ -100,6 +110,6 @@ class Evaluator {
   Profiler* profiler_ = nullptr;
 
   /** configure() by default will save the metadata for use in evaluate(). */
-  VideoMetadata metadata_;
+  InputFormat metadata_;
 };
 }

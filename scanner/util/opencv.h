@@ -21,7 +21,10 @@
 #include <opencv2/opencv.hpp>
 
 namespace scanner {
-cv::Mat bytesToImage(u8* buf, const VideoMetadata& metadata);
+
+class InputFormat;
+
+cv::Mat bytesToImage(u8* buf, const InputFormat& metadata);
 }
 
 #ifdef HAVE_CUDA
@@ -30,7 +33,10 @@ cv::Mat bytesToImage(u8* buf, const VideoMetadata& metadata);
 namespace cvc = cv::cuda;
 
 namespace scanner {
-cvc::GpuMat bytesToImage_gpu(u8* buf, const VideoMetadata& metadata);
+
+class InputFormat;
+
+cvc::GpuMat bytesToImage_gpu(u8* buf, const InputFormat& metadata);
 }
 
 void convertNV12toRGBA(const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame,

@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/eval/evaluator.h"
 #include "scanner/video/video_decoder.h"
 
 extern "C" {
@@ -41,7 +42,7 @@ class SoftwareVideoDecoder : public VideoDecoder {
 
   ~SoftwareVideoDecoder();
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   bool feed(const u8* encoded_buffer, size_t encoded_size,
             bool discontinuity = false) override;
@@ -61,7 +62,7 @@ class SoftwareVideoDecoder : public VideoDecoder {
   AVCodec* codec_;
   AVCodecContext* cc_;
 
-  VideoMetadata metadata_;
+  InputFormat metadata_;
   std::vector<u8> conversion_buffer_;
   bool reset_context_;
   SwsContext* sws_context_;

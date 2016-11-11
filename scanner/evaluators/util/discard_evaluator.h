@@ -27,7 +27,7 @@ class DiscardEvaluator : public Evaluator {
   DiscardEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    i32 device_id);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,

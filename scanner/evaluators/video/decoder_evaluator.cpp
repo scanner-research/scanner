@@ -34,7 +34,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
   assert(decoder_.get());
 }
 
-void DecoderEvaluator::configure(const VideoMetadata& metadata) {
+void DecoderEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
   frame_size_ = metadata_.width() * metadata_.height() * 3;
   decoder_->configure(metadata);

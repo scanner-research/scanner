@@ -34,7 +34,7 @@ MovieEvaluator::MovieEvaluator(EvaluatorConfig config, DeviceType device_type,
   }
 }
 
-void MovieEvaluator::configure(const VideoMetadata& metadata) {
+void MovieEvaluator::configure(const InputFormat& metadata) {
   this->metadata = metadata;
   for (auto& entry : evaluators) {
     entry.second->configure(metadata);

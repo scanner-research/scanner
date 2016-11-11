@@ -910,6 +910,7 @@ void ingest_images(storehouse::StorageBackend* storage,
   descriptor.set_type(DatasetType_Image);
 
   DatasetDescriptor::ImageMetadata& metadata = *descriptor.mutable_image_data();
+  std::vector<ImageFormatGroupDescriptor> format_descriptors;
   std::vector<std::unique_ptr<WriteFile>> output_files;
   std::vector<size_t> image_idx_to_format_group;
   std::vector<size_t> bad_image_indices;
@@ -1055,6 +1056,8 @@ void ingest_images(storehouse::StorageBackend* storage,
     }
     if (format_idx == -1) {
       // Create new format group
+      format_descriptors.emplace_back();
+      ImageFormatGroupDescriptor& desc = format_descriptors.back();
       DatasetDescriptor::ImageMetadata::FormatGroup& group =
           *metadata.add_format_groups();
       group.set_encoding_type(image_type);
@@ -1062,6 +1065,13 @@ void ingest_images(storehouse::StorageBackend* storage,
       group.set_width(image_width);
       group.set_height(image_height);
       group.set_num_images(1);
+
+      desc.set_encoding_type(image_type);
+      desc.set_color_space(color_space);
+      desc.set_width(image_width);
+      desc.set_height(image_height);
+      desc.set_num_images(1);
+
       format_idx = metadata.format_groups_size() - 1;
       // Create output file for writing to format group
       WriteFile* file;
@@ -1071,17 +1081,21 @@ void ingest_images(storehouse::StorageBackend* storage,
       output_files.emplace_back(file);
     } else {
       // Add to existing format group
+      ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
       DatasetDescriptor::ImageMetadata::FormatGroup& group =
           *metadata.mutable_format_groups(format_idx);
       group.set_num_images(group.num_images() + 1);
+      desc.set_num_images(desc.num_images() + 1);
     }
     image_idx_to_format_group.push_back(format_idx);
 
     // Write out compressed image data
     std::unique_ptr<WriteFile>& output_file = output_files[format_idx];
     i64 image_size = image_bytes.size();
-    output_file->append(sizeof(i64), reinterpret_cast<u8*>(&image_size));
     output_file->append(image_bytes);
+
+    ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
+    desc.add_compressed_sizes(image_size);
 
     total_images++;
 
@@ -1148,8 +1162,22 @@ void ingest_images(storehouse::StorageBackend* storage,
     metadata.add_valid_image_paths(path);
   }
 
-  for (std::unique_ptr<WriteFile>& file : output_files) {
+  for (size_t i = 0; i < format_descriptors.size(); ++i) {
+    // Flush image binary files
+    std::unique_ptr<WriteFile>& file = output_files[i];
     file->save();
+
+    // Write out format descriptors for each group
+    ImageFormatGroupDescriptor& desc = format_descriptors[i];
+    std::string metadata_path =
+        dataset_item_metadata_path(dataset_name, std::to_string(i));
+    std::unique_ptr<WriteFile> metadata_file;
+    exit_on_error(
+        make_unique_write_file(storage, metadata_path, metadata_file));
+
+    ImageFormatGroupMetadata m{desc};
+    serialize_image_format_group_metadata(metadata_file.get(), m);
+    metadata_file->save();
   }
 }
 

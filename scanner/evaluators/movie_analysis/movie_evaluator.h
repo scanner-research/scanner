@@ -13,7 +13,7 @@ class MovieEvaluator : public Evaluator {
   MovieEvaluator(EvaluatorConfig config, DeviceType device_type,
                  std::vector<std::string> outputs);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -23,7 +23,7 @@ class MovieEvaluator : public Evaluator {
   void reset() override;
 
  private:
-  VideoMetadata metadata;
+  InputFormat metadata;
   std::map<std::string, std::unique_ptr<MovieFeatureEvaluator>> evaluators;
   DeviceType device_type_;
   std::vector<std::string> outputs_;

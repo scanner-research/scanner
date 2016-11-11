@@ -59,7 +59,7 @@ DefaultInputEvaluator::DefaultInputEvaluator(
   }
 }
 
-void DefaultInputEvaluator::configure(const VideoMetadata& metadata) {
+void DefaultInputEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 
   i32 width = metadata.width();

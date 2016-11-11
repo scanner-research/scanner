@@ -23,6 +23,8 @@
 
 namespace scanner {
 
+class InputFormat;
+
 enum class VideoDecoderType {
   NVIDIA,
   INTEL,
@@ -43,7 +45,7 @@ class VideoDecoder {
 
   virtual ~VideoDecoder(){};
 
-  virtual void configure(const VideoMetadata& metadata) = 0;
+  virtual void configure(const InputFormat& metadata) = 0;
 
   virtual bool feed(const u8* encoded_buffer, size_t encoded_size,
                     bool discontinuity = false) = 0;

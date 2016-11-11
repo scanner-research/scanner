@@ -131,6 +131,7 @@ message ImageFormatGroupDescriptor {
   required int32 width = 3;
   required int32 height = 4;
   required int32 num_images = 5;
+  repeated int64 compressed_sizes = 6 [packed=true];
 }
 
 message WebTimestamps {
@@ -202,6 +203,36 @@ message DecodeArgs {
 
   required int32 start_keyframe = 1;
   required int32 end_keyframe = 2;
+  required int32 warmup_count = 3;
+  required int32 rows_from_start = 9;
+  required Sampling sampling = 4;
+
+  optional Interval interval = 5;
+  optional int32 stride = 6;
+  repeated int32 gather_points = 7;
+  repeated Interval gather_sequences = 8;
+}
+
+message ImageDecodeArgs {
+  enum Sampling {
+    All = 1;
+    Strided = 2;
+    Gather = 3;
+    SequenceGather = 4;
+  }
+
+  message Interval {
+    required int32 start = 1;
+    required int32 end = 2;
+  }
+
+  message SequenceSamples {
+    required int32 video_index = 1;
+    repeated Interval intervals = 2;
+  }
+
+  required ImageEncodingType encoding_type = 1;
+  required ImageColorSpace color_space = 2;
   required int32 warmup_count = 3;
   required int32 rows_from_start = 9;
   required Sampling sampling = 4;

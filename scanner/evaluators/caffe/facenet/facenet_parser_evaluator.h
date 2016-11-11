@@ -31,7 +31,7 @@ class FacenetParserEvaluator : public Evaluator {
                          i32 device_id, double threshold, NMSType nms_type,
                          bool forward_input = false);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
   void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
                 const std::vector<std::vector<size_t>>& input_sizes,
@@ -58,7 +58,7 @@ class FacenetParserEvaluator : public Evaluator {
 
   double threshold_;
 
-  VideoMetadata metadata_;
+  InputFormat metadata_;
 };
 
 class FacenetParserEvaluatorFactory : public EvaluatorFactory {

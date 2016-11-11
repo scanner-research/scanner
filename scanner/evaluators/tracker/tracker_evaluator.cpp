@@ -42,7 +42,7 @@ TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
   }
 }
 
-void TrackerEvaluator::configure(const VideoMetadata& metadata) {
+void TrackerEvaluator::configure(const InputFormat& metadata) {
   LOG(INFO) << "Tracker configure";
   metadata_ = metadata;
 }

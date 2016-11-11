@@ -36,7 +36,7 @@ FacenetInputEvaluator::FacenetInputEvaluator(DeviceType device_type,
 {
 }
 
-void FacenetInputEvaluator::configure(const VideoMetadata& metadata) {
+void FacenetInputEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 
   net_input_width_ = metadata.width();

@@ -25,20 +25,20 @@ namespace scanner {
 class YoloInputEvaluator : public Evaluator {
  public:
   YoloInputEvaluator(DeviceType device_type, i32 device_id,
-                        const NetDescriptor& descriptor, i32 batch_size);
+                     const NetDescriptor& descriptor, i32 batch_size);
 
-  void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
-  void evaluate(const std::vector<std::vector<u8 *>> &input_buffers,
-                const std::vector<std::vector<size_t>> &input_sizes,
-                std::vector<std::vector<u8 *>> &output_buffers,
-                std::vector<std::vector<size_t>> &output_sizes) override;
+  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+                const std::vector<std::vector<size_t>>& input_sizes,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
  private:
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
-  VideoMetadata metadata_;
+  InputFormat metadata_;
   i32 batch_size_;
 
   static const i32 NET_INPUT_WIDTH = 448;
@@ -57,8 +57,7 @@ class YoloInputEvaluator : public Evaluator {
 class YoloInputEvaluatorFactory : public EvaluatorFactory {
  public:
   YoloInputEvaluatorFactory(DeviceType device_type,
-                            const NetDescriptor& descriptor,
-                            i32 batch_size);
+                            const NetDescriptor& descriptor, i32 batch_size);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -66,7 +65,7 @@ class YoloInputEvaluatorFactory : public EvaluatorFactory {
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
-private:
+ private:
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   i32 batch_size_;

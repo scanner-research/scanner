@@ -92,6 +92,24 @@ struct VideoMetadata {
   mutable VideoDescriptor descriptor;
 };
 
+struct ImageFormatGroupMetadata {
+ public:
+  ImageFormatGroupMetadata();
+  ImageFormatGroupMetadata(const ImageFormatGroupDescriptor& descriptor);
+
+  const ImageFormatGroupDescriptor& get_descriptor() const;
+
+  i32 num_images() const;
+  i32 width() const;
+  i32 height() const;
+  ImageEncodingType encoding_type() const;
+  ImageColorSpace color_space() const;
+  std::vector<i64> compressed_sizes() const;
+
+ private:
+  mutable ImageFormatGroupDescriptor descriptor;
+};
+
 class LoadWorkEntry;
 
 struct JobMetadata {
@@ -99,6 +117,9 @@ struct JobMetadata {
   JobMetadata();
   JobMetadata(const DatasetDescriptor& dataset,
               const std::vector<VideoDescriptor>& videos,
+              const JobDescriptor& job);
+  JobMetadata(const DatasetDescriptor& dataset,
+              const std::vector<ImageFormatGroupDescriptor>& images,
               const JobDescriptor& job);
 
   const DatasetDescriptor& get_dataset_descriptor() const;
@@ -111,11 +132,11 @@ struct JobMetadata {
   i32 work_item_size() const;
   i32 total_rows() const;
 
-  struct VideoSample {
-    i32 video_index;
+  struct GroupSample {
+    i32 group_index;
     std::vector<i32> frames;
   };
-  std::vector<VideoSample> sampled_frames() const;
+  std::vector<GroupSample> sampled_frames() const;
 
   struct RowLocations {
     // For regular columns
@@ -123,20 +144,25 @@ struct JobMetadata {
     std::vector<Interval> work_item_intervals;
   };
   // Gets the list of work items for a sequence of rows in the job
-  RowLocations row_work_item_locations(Sampling sampling, i32 video_index,
+  RowLocations row_work_item_locations(Sampling sampling, i32 group_index,
                                        const LoadWorkEntry& entry) const;
 
   struct FrameLocations {
     // For frame column
-    std::vector<Interval> video_intervals;
+    std::vector<Interval> intervals;
     std::vector<DecodeArgs> video_args;
+    std::vector<ImageDecodeArgs> image_args;
   };
-  FrameLocations frame_locations(Sampling sampling, i32 video_index,
+  FrameLocations frame_locations(Sampling sampling, i32 group_index,
                                  const LoadWorkEntry& entry) const;
+
+ protected:
+  std::vector<i32> rows_per_item() const;
 
  private:
   mutable DatasetDescriptor dataset_descriptor;
   mutable std::vector<VideoDescriptor> video_descriptors;
+  mutable std::vector<ImageFormatGroupDescriptor> format_descriptors;
   mutable JobDescriptor job_descriptor;
 };
 
@@ -157,6 +183,12 @@ void serialize_video_metadata(storehouse::WriteFile* file,
 
 VideoMetadata deserialize_video_metadata(storehouse::RandomReadFile* file,
                                          u64& file_pos);
+
+void serialize_image_format_group_metadata(
+    storehouse::WriteFile* file, const ImageFormatGroupMetadata& metadata);
+
+ImageFormatGroupMetadata deserialize_image_format_group_metadata(
+    storehouse::RandomReadFile* file, u64& file_pos);
 
 void serialize_web_timestamps(storehouse::WriteFile* file,
                               const WebTimestamps& metadata);

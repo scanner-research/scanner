@@ -51,7 +51,7 @@ SqueezeNetInputEvaluator::SqueezeNetInputEvaluator(
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void SqueezeNetInputEvaluator::configure(const VideoMetadata& metadata) {
+void SqueezeNetInputEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 

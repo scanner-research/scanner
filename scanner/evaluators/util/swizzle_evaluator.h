@@ -24,24 +24,24 @@
 namespace scanner {
 
 class SwizzleEvaluator : public Evaluator {
-public:
- SwizzleEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                  i32 device_id, const std::vector<i32>& output_to_input_idx);
+ public:
+  SwizzleEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                   i32 device_id, const std::vector<i32>& output_to_input_idx);
 
- void configure(const VideoMetadata& metadata) override;
+  void configure(const InputFormat& metadata) override;
 
- void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-               const std::vector<std::vector<size_t>>& input_sizes,
-               std::vector<std::vector<u8*>>& output_buffers,
-               std::vector<std::vector<size_t>>& output_sizes) override;
+  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
+                const std::vector<std::vector<size_t>>& input_sizes,
+                std::vector<std::vector<u8*>>& output_buffers,
+                std::vector<std::vector<size_t>>& output_sizes) override;
 
-protected:
+ protected:
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
   std::vector<i32> output_to_input_idx_;
 
-  VideoMetadata metadata_;
+  InputFormat metadata_;
 };
 
 class SwizzleEvaluatorFactory : public EvaluatorFactory {

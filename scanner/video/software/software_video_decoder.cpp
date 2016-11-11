@@ -82,7 +82,7 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   }
 }
 
-void SoftwareVideoDecoder::configure(const VideoMetadata& metadata) {
+void SoftwareVideoDecoder::configure(const InputFormat& metadata) {
   metadata_ = metadata;
   reset_context_ = true;
 
