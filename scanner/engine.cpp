@@ -166,6 +166,7 @@ void* load_thread(void* arg) {
   std::vector<i64> keyframe_positions;
   std::vector<i64> keyframe_byte_offsets;
 
+  std::vector<i64> image_compressed_sizes;
   std::vector<i64> image_compressed_offsets;
   while (true) {
     auto idle_start = now();
@@ -325,6 +326,7 @@ void* load_thread(void* arg) {
               delete image_file;
               image_file = nullptr;
             }
+            image_compressed_sizes.clear();
             image_compressed_offsets.clear();
 
             // Open the video file for reading
@@ -341,6 +343,7 @@ void* load_thread(void* arg) {
 
             i64 s = 0;
             for (i64 size : metadata.compressed_sizes()) {
+              image_compressed_sizes.push_back(size);
               image_compressed_offsets.push_back(s);
               s += size;
             }
@@ -389,6 +392,9 @@ void* load_thread(void* arg) {
             decode_args.set_rows_from_start(work_item.rows_from_start);
             decode_args.set_encoding_type(metadata.encoding_type());
             decode_args.set_color_space(metadata.color_space());
+            for (i32 f = start_frame; f < end_frame; ++f) {
+              decode_args.add_compressed_sizes(image_compressed_sizes[f]);
+            }
 
             u8* decode_args_buffer = nullptr;
             size_t size;
@@ -1006,8 +1012,11 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   // enough work items through the pipeline after a reset, even if it is more
   // than a specific evaluator needed for warmup
   i32 warmup_size = 0;
-  for (EvaluatorCapabilities& caps : evaluator_caps) {
-    warmup_size = std::max(warmup_size, caps.warmup_size);
+  // Only calculate the warmup for video datasets
+  if (dataset_meta.type() == DatasetType_Video) {
+    for (EvaluatorCapabilities& caps : evaluator_caps) {
+      warmup_size = std::max(warmup_size, caps.warmup_size);
+    }
   }
   u32 total_frames = 0;
   std::vector<std::string> final_column_names =

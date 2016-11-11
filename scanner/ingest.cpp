@@ -24,7 +24,6 @@
 
 // For image ingest
 #include "jpegwrapper/JPEGReader.h"
-#include "jpegwrapper/JPEGWriter.h"
 #include "lodepng/lodepng.h"
 
 #include <glog/logging.h>

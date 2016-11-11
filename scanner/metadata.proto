@@ -241,4 +241,6 @@ message ImageDecodeArgs {
   optional int32 stride = 6;
   repeated int32 gather_points = 7;
   repeated Interval gather_sequences = 8;
+
+  repeated int64 compressed_sizes = 10;
 }
