@@ -325,6 +325,7 @@ void* load_thread(void* arg) {
               delete image_file;
               image_file = nullptr;
             }
+            image_compressed_offsets.clear();
 
             // Open the video file for reading
             StoreResult result;
@@ -1013,6 +1014,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       evaluator_factories.back()->get_output_names();
   JobDescriptor job_descriptor;
   job_descriptor.set_work_item_size(work_item_size);
+  job_descriptor.set_num_nodes(num_nodes);
   JobDescriptor::Sampling desc_sampling;
   switch (sampling) {
     case Sampling::All:
@@ -1052,7 +1054,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     for (size_t i = 0; i < paths.size(); ++i) {
       i32 group_frames = total_frames_per_item[i];
       i32 allocated_frames = 0;
-      while (allocated_frames < total_frames) {
+      while (allocated_frames < group_frames) {
         i32 frames_to_allocate =
             std::min(work_item_size, group_frames - allocated_frames);
 
@@ -1501,7 +1503,6 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
     job_descriptor.set_id(job_id);
     job_descriptor.set_name(out_job_name);
-    job_descriptor.set_num_nodes(num_nodes);
 
     // Write out metadata to describe where the output results are for each
     // video

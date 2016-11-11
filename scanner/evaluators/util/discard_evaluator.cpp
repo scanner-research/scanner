@@ -24,7 +24,9 @@ DiscardEvaluator::DiscardEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type, i32 device_id)
     : config_(config), device_type_(device_type), device_id_(device_id) {}
 
-void DiscardEvaluator::configure(const InputFormat& metadata) {}
+void DiscardEvaluator::configure(const InputFormat& metadata) {
+  printf("configure %d, %d\n", metadata.width(), metadata.height());
+}
 
 void DiscardEvaluator::evaluate(
     const std::vector<std::vector<u8*>>& input_buffers,
@@ -33,6 +35,7 @@ void DiscardEvaluator::evaluate(
     std::vector<std::vector<size_t>>& output_sizes) {
   i32 input_count = static_cast<i32>(input_buffers[0].size());
   for (i32 i = 0; i < input_count; ++i) {
+    printf("input size %lu\n", input_sizes[0][i]);
     output_buffers[0].push_back(new_buffer(device_type_, device_id_, 1));
     output_sizes[0].push_back(1);
   }

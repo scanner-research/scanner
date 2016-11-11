@@ -951,10 +951,12 @@ void ingest_images(storehouse::StorageBackend* storage,
       std::unique_ptr<RandomReadFile> in_file;
       storehouse::exit_on_error(
           make_unique_random_read_file(storage, path, in_file));
-      u64 pos;
+      u64 pos = 0;
       image_bytes = read_entire_file(in_file.get(), pos);
     }
 
+    printf("path %s\n", path.c_str());
+    printf("image size %lu\n", image_bytes.size() / (1024));
     i32 image_width;
     i32 image_height;
     ImageColorSpace color_space;
@@ -1077,7 +1079,7 @@ void ingest_images(storehouse::StorageBackend* storage,
       WriteFile* file;
       std::string item_path =
           dataset_item_data_path(dataset_name, std::to_string(format_idx));
-      storehouse::exit_on_error(storage->make_write_file(path, file));
+      storehouse::exit_on_error(storage->make_write_file(item_path, file));
       output_files.emplace_back(file);
     } else {
       // Add to existing format group

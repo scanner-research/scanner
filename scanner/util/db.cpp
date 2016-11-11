@@ -522,6 +522,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
   FrameLocations locations;
   std::vector<Interval>& intervals = locations.intervals;
   std::vector<DecodeArgs>& dargs = locations.video_args;
+  std::vector<ImageDecodeArgs>& image_dargs = locations.image_args;
 
   std::vector<i32> total_frames_per_item = rows_per_item();
   if (sampling == Sampling::All) {
@@ -534,6 +535,13 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
     decode_args.mutable_interval()->set_end(entry.interval.end);
 
     dargs.push_back(decode_args);
+
+    ImageDecodeArgs image_args;
+    image_args.set_sampling(ImageDecodeArgs::All);
+    image_args.mutable_interval()->set_start(entry.interval.start);
+    image_args.mutable_interval()->set_end(entry.interval.end);
+
+    image_dargs.push_back(image_args);
 
   } else if (sampling == Sampling::Strided) {
     // TODO(apoms): loading a consecutive portion of the video stream might
@@ -549,6 +557,13 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
     decode_args.set_stride(entry.strided.stride);
 
     dargs.push_back(decode_args);
+
+    ImageDecodeArgs image_args;
+    image_args.set_sampling(ImageDecodeArgs::All);
+    image_args.mutable_interval()->set_start(entry.interval.start);
+    image_args.mutable_interval()->set_end(entry.interval.end);
+
+    image_dargs.push_back(image_args);
 
   } else if (sampling == Sampling::Gather) {
     // TODO(apoms): This implementation is not efficient for gathers which
