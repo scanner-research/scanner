@@ -110,9 +110,9 @@ class ScannerConfig(object):
             from storehousepy import StorageConfig, StorageBackend
             storage = config['storage']
             storage_type = storage['type']
+            self.db_path = storage['db_path']
             if storage_type == 'posix':
-                storage_config = StorageConfig.make_posix_config(
-                    storage['db_path'].encode('latin-1'))
+                storage_config = StorageConfig.make_posix_config()
             elif storage_type == 'gcs':
                 with open(storage['key_path']) as f:
                     key = f.read()
@@ -162,24 +162,26 @@ class JobResult(object):
         self._column = column
         self._load_fn = load_fn
         self._storage = self._scanner.config.storage
+        self._db_path = self._scanner.config.db_path
 
         self._dataset = self._scanner._meta.DatasetDescriptor()
         self._dataset.ParseFromString(
-            self._storage.read('datasets/{}/descriptor.bin'.format(dataset_name)))
+            self._storage.read('{}/datasets/{}/descriptor.bin'
+                               .format(self._db_path, dataset_name)))
 
         self._job = self._scanner._meta.JobDescriptor()
         self._job.ParseFromString(
             self._storage.read(
-                'datasets/{}/jobs/{}/descriptor.bin'
-                .format(dataset_name, job_name)))
+                '{}/datasets/{}/jobs/{}/descriptor.bin'
+                .format(self._db_path, dataset_name, job_name)))
 
     def _load_output_file(self, video, video_name, work_item_index, rows,
                           istart, iend):
         try:
             contents = self._storage.read(
-                'datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
-                    self._dataset_name, self._job_name, video_name, self._column,
-                    work_item_index))
+                '{}/datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
+                    self._db_path, self._dataset_name, self._job_name,
+                    video_name, self._column, work_item_index))
             lens = []
             start_pos = maxint
             pos = 0
@@ -214,8 +216,8 @@ class JobResult(object):
         video = self._scanner._meta.VideoDescriptor()
         video.ParseFromString(
             self._storage.read(
-                'datasets/{}/data/{}_metadata.bin'.format(
-                    self._dataset_name, video_name)))
+                '{}/datasets/{}/data/{}_metadata.bin'.format(
+                    self._db_path, self._dataset_name, video_name)))
         return video
 
     def _load_all_sampling(self, interval=None):
@@ -402,6 +404,7 @@ class Scanner(object):
         self._executable_path = (
             '{}/build/scanner_server'.format(self.config.scanner_path))
         self._storage = self.config.storage
+        self._db_path = self.config.db_path
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
@@ -457,10 +460,11 @@ class Scanner(object):
     def load_db_metadata(self):
         return self._load_descriptor(
             self._meta.DatabaseDescriptor,
-            'db_metadata.bin')
+            '{}/db_metadata.bin'.format(self._db_path))
 
     def write_db_metadata(self, meta):
-        self._storage.write('db_metadata.bin', meta.SerializeToString())
+        self._storage.write('{}/db_metadata.bin'.format(self._db_path),
+                            meta.SerializeToString())
 
     def ingest(self, dataset_name, video_paths, opts={}):
         def gopt(k, default):
@@ -584,7 +588,8 @@ class Scanner(object):
         return (start_time, end_time), profilers
 
     def parse_profiler_files(self, dataset_name, job_name):
-        job_path = 'datasets/{}/jobs/{}'.format(dataset_name, job_name)
+        job_path = '{}/datasets/{}/jobs/{}'.format(
+            self._db_path, dataset_name, job_name)
 
         job = self._meta.JobDescriptor()
         job.ParseFromString(
