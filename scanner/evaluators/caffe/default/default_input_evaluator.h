@@ -31,8 +31,8 @@
 
 namespace scanner {
 
-typedef std::function<void(u8*&, size_t&, const VideoMetadata&)>
-    InputLayerBuilder;
+using InputLayerBuilder =
+    std::function<void(u8*&, size_t&, const VideoMetadata&)>;
 
 class DefaultInputEvaluator : public Evaluator {
  public:

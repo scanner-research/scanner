@@ -15,13 +15,15 @@
 
 #pragma once
 
+#include "scanner/metadata.pb.h"
+
 #include "storehouse/storage_config.h"
 
 #include <string>
 
 namespace scanner {
 
-void ingest(storehouse::StorageConfig* storage_config,
-            const std::string& dataset_name,
-            const std::string& video_paths_file, bool compute_web_metadata);
+void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
+            const std::string& dataset_name, const std::string& paths_file,
+            bool compute_web_metadata);
 }

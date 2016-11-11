@@ -193,20 +193,71 @@ i32 DatasetMetadata::id() const { return descriptor.id(); }
 
 std::string DatasetMetadata::name() const { return descriptor.name(); }
 
-i32 DatasetMetadata::total_frames() const { return descriptor.total_frames(); }
+DatasetType DatasetMetadata::type() const { return descriptor.type(); }
 
-i32 DatasetMetadata::max_width() const { return descriptor.max_width(); }
-
-i32 DatasetMetadata::max_height() const { return descriptor.max_height(); }
-
-std::vector<std::string> DatasetMetadata::original_video_paths() const {
-  return std::vector<std::string>(descriptor.original_video_paths().begin(),
-                                  descriptor.original_video_paths().end());
+i32 DatasetMetadata::total_frames() const {
+  if (this->type() == DatasetType_Video) {
+    return descriptor.video_data().total_frames();
+  } else if (this->type() == DatasetType_Image) {
+    return descriptor.image_data().total_images();
+  } else {
+    assert(false);
+    return {};
+  }
 }
 
-std::vector<std::string> DatasetMetadata::video_names() const {
-  return std::vector<std::string>(descriptor.video_names().begin(),
-                                  descriptor.video_names().end());
+i32 DatasetMetadata::max_width() const {
+  if (this->type() == DatasetType_Video) {
+    return descriptor.video_data().max_width();
+  } else if (this->type() == DatasetType_Image) {
+    return descriptor.image_data().max_width();
+  } else {
+    assert(false);
+    return {};
+  }
+}
+
+i32 DatasetMetadata::max_height() const {
+  if (this->type() == DatasetType_Video) {
+    return descriptor.video_data().max_height();
+  } else if (this->type() == DatasetType_Image) {
+    return descriptor.image_data().max_height();
+  } else {
+    assert(false);
+    return {};
+  }
+}
+
+std::vector<std::string> DatasetMetadata::original_paths() const {
+  if (this->type() == DatasetType_Video) {
+    return std::vector<std::string>(
+        descriptor.video_data().original_video_paths().begin(),
+        descriptor.video_data().original_video_paths().end());
+  } else if (this->type() == DatasetType_Image) {
+    return std::vector<std::string>(
+        descriptor.image_data().original_image_paths().begin(),
+        descriptor.image_data().original_image_paths().end());
+  } else {
+    assert(false);
+    return {};
+  }
+}
+
+std::vector<std::string> DatasetMetadata::item_names() const {
+  if (this->type() == DatasetType_Video) {
+    return std::vector<std::string>(
+        descriptor.video_data().video_names().begin(),
+        descriptor.video_data().video_names().end());
+  } else if (this->type() == DatasetType_Image) {
+    std::vector<std::string> item_names;
+    for (i32 i = 0; i < descriptor.image_data().format_groups_size(); ++i) {
+      item_names.push_back(std::to_string(i));
+    }
+    return item_names;
+  } else {
+    assert(false);
+    return {};
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

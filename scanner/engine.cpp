@@ -795,8 +795,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   timepoint_t base_time = now();
 
   // Get video metadata for all videos for distributing with work items
-  std::vector<std::string> video_paths(descriptor.video_names().begin(),
-                                       descriptor.video_names().end());
+  std::vector<std::string> video_paths{dataset_meta.item_names()};
 
   std::vector<VideoMetadata> video_metadata;
   std::vector<DatasetItemMetadata> item_descriptors;
@@ -1148,8 +1147,8 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         EvaluatorConfig eval_config;
         eval_config.max_input_count =
             std::max(frames_per_work_item(), warmup_size);
-        eval_config.max_frame_width = descriptor.max_width();
-        eval_config.max_frame_height = descriptor.max_height();
+        eval_config.max_frame_width = dataset_meta.max_width();
+        eval_config.max_frame_height = dataset_meta.max_height();
         eval_config.device_ids = {pu};
         eval_configs.push_back(eval_config);
       }

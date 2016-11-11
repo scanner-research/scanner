@@ -17,6 +17,61 @@
 
 namespace scanner {
 
+bool string_to_dataset_type(const std::string& s, DatasetType& type) {
+  bool success = true;
+  if (s == "video") {
+    type = DatasetType_Video;
+  } else if (s == "image") {
+    type = DatasetType_Image;
+  } else {
+    success = false;
+  }
+  return success;
+}
+
+std::string dataset_type_to_string(DatasetType d) {
+  std::string s;
+  switch (d) {
+    case DatasetType_Video:
+      s = "video";
+      break;
+    case DatasetType_Image:
+      s = "image";
+      break;
+    default:
+      assert(false);
+  }
+  return s;
+}
+
+bool string_to_image_encoding_type(const std::string& s,
+                                   ImageEncodingType& type) {
+  bool success = true;
+  if (s == "png" || s == "PNG") {
+    type = ImageEncodingType::PNG;
+  } else if (s == "jpeg" || s == "JPEG" || s == "jpg" || s == "JPG") {
+    type = ImageEncodingType::JPEG;
+  } else {
+    success = false;
+  }
+  return success;
+}
+
+std::string image_encoding_type_to_string(ImageEncodingType t) {
+  std::string s;
+  switch (t) {
+    case ImageEncodingType::JPEG:
+      s = "jpeg";
+      break;
+    case ImageEncodingType::PNG:
+      s = "png";
+      break;
+    default:
+      assert(false);
+  }
+  return s;
+}
+
 int PUS_PER_NODE = 1;           // Number of available PUs per node
 int GPUS_PER_NODE = 2;          // Number of available GPUs per node
 int WORK_ITEM_SIZE = 8;         // Base size of a work item

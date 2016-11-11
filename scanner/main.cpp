@@ -127,7 +127,8 @@ int main(int argc, char** argv) {
   std::string dataset_name;  // name of dataset to create/operate on
   bool force;
   // For ingest sub-command
-  std::string video_paths_file;  // paths of video files to turn into dataset
+  std::string dataset_type;           // type of datset to ingest
+  std::string paths_file;             // paths of files to turn into dataset
   bool compute_web_metadata = false;  // whether to compute metadata on ingest
   // For run sub-command
   std::string in_job_name;    // name of job to read columns from
@@ -264,18 +265,25 @@ int main(int argc, char** argv) {
     if (cmd == "ingest") {
       po::options_description ingest_desc("ingest options");
       ingest_desc.add_options()("help", "Produce help message")(
+          "dataset_type", po::value<std::string>()->required(),
+          "Type of dataset to ingest. One of 'video' or 'image'.")(
+
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
-          "video_paths_file", po::value<std::string>()->required(),
-          "File which contains paths to video files to process")(
+
+          "paths_file", po::value<std::string>()->required(),
+          "File which contains paths to files to ingest")(
+
           "compute_web_metadata", po::bool_switch()->default_value(false),
           "If true, generate metadata for Scanner server")(
+
           "force,f", po::bool_switch()->default_value(false),
           "Overwrite the job if it already exists.");
 
       po::positional_options_description ingest_pos;
+      ingest_pos.add("dataset_type", 1);
       ingest_pos.add("dataset_name", 1);
-      ingest_pos.add("video_paths_file", 1);
+      ingest_pos.add("paths_file", 1);
 
       try {
         vm.clear();
@@ -294,8 +302,9 @@ int main(int argc, char** argv) {
         }
       }
 
+      dataset_type = vm["dataset_type"].as<std::string>();
       dataset_name = vm["dataset_name"].as<std::string>();
-      video_paths_file = vm["video_paths_file"].as<std::string>();
+      paths_file = vm["paths_file"].as<std::string>();
       compute_web_metadata = vm["compute_web_metadata"].as<bool>();
       force = vm["force"].as<bool>();
 
@@ -456,7 +465,13 @@ int main(int argc, char** argv) {
       LOG(FATAL) << "Dataset with that name already exists.";
     }
 
-    ingest(storage_config, dataset_name, video_paths_file,
+    DatasetType type;
+    if (!string_to_dataset_type(dataset_type, type)) {
+      LOG(FATAL) << dataset_type << " is not a valid type of dataset. "
+                 << "Available dataset types are: video, image";
+    }
+
+    ingest(storage_config, type, dataset_name, paths_file,
            compute_web_metadata);
   } else if (cmd == "run") {
     // The run command takes 1) a name for the job, 2) an existing dataset name,

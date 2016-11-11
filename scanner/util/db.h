@@ -64,11 +64,12 @@ struct DatasetMetadata {
 
   i32 id() const;
   std::string name() const;
+  DatasetType type() const;
   i32 total_frames() const;
   i32 max_width() const;
   i32 max_height() const;
-  std::vector<std::string> original_video_paths() const;
-  std::vector<std::string> video_names() const;
+  std::vector<std::string> original_paths() const;
+  std::vector<std::string> item_names() const;
 
  private:
   mutable DatasetDescriptor descriptor;

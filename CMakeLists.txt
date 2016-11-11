@@ -182,7 +182,8 @@ find_package(GoogleTest REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(JsonCpp REQUIRED)
 find_package(JPEGWrapper REQUIRED CONFIG
-    PATHS "thirdparty/build/bin/jpegwrapper")
+  PATHS "thirdparty/build/bin/jpegwrapper")
+find_package(LodePNG REQUIRED)
 
 set(GTEST_INCLUDE_DIRS
   "${GLOBAL_OUTPUT_PATH}/googletest/include")
@@ -225,6 +226,7 @@ include_directories(
   "${JSONCPP_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${JPEGWRAPPER_INCLUDE_DIRS}"
+  "${LODEPNG_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
@@ -287,6 +289,7 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:pipelines>
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}
+  ${LODEPNG_SOURCES}
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 

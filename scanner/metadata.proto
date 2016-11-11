@@ -3,9 +3,6 @@ syntax = "proto2";
 package scanner;
 
 message DatabaseDescriptor {
-  optional int32 next_dataset_id = 1;
-  optional int32 next_job_id = 2;
-
   message Dataset {
     required int32 id = 1;
     required string name = 2;
@@ -21,41 +18,89 @@ message DatabaseDescriptor {
     required int32 dataset_id = 2;
   }
 
+  optional int32 next_dataset_id = 1;
+  optional int32 next_job_id = 2;
   repeated Dataset datasets = 3;
   repeated Job jobs = 4;
   repeated JobToDataset job_to_datasets = 5;
 }
 
+enum ImageEncodingType {
+  JPEG = 0;
+  PNG = 1;
+}
+
+enum ImageColorSpace {
+  Gray = 0;
+  RGB = 1;
+  RGBA = 2;
+}
+
+enum DatasetType {
+  DatasetType_Video = 0;
+  DatasetType_Image = 1;
+}
+
 message DatasetDescriptor {
-  required int32 id = 3;
-  required string name = 14;
-  optional int64 total_frames = 4;
+  message VideoMetadata {
+    optional int64 total_frames = 4;
 
-  /// Across video
-  // Number of frames
-  optional int32 min_frames = 5;
-  optional int32 average_frames = 6;
-  optional int32 max_frames = 7;
+    /// Across video
+    // Number of frames
+    optional int32 min_frames = 5;
+    optional int32 average_frames = 6;
+    optional int32 max_frames = 7;
 
-  // Frame width
-  optional int32 min_width = 8;
-  optional int32 average_width = 9;
-  optional int32 max_width = 10;
+    // Frame width
+    optional int32 min_width = 8;
+    optional int32 average_width = 9;
+    optional int32 max_width = 10;
 
-  // Frame height
-  optional int64 min_height = 11;
-  optional int64 average_height = 12;
-  optional int64 max_height = 13;
+    // Frame height
+    optional int64 min_height = 11;
+    optional int64 average_height = 12;
+    optional int64 max_height = 13;
 
-  repeated string original_video_paths = 1;
-  repeated string video_names = 2;
+    repeated string original_video_paths = 1;
+    repeated string video_names = 2;
+  }
+
+  message ImageMetadata {
+    message FormatGroup {
+      required ImageEncodingType encoding_type = 1;
+      required ImageColorSpace color_space = 2;
+      required int32 width = 3;
+      required int32 height = 4;
+      required int32 num_images = 5;
+    }
+
+    required int64 total_images = 5;
+
+    /// Across video
+    // Frame width
+    optional int32 min_width = 8;
+    optional int32 average_width = 9;
+    optional int32 max_width = 10;
+
+    // Frame height
+    optional int64 min_height = 11;
+    optional int64 average_height = 12;
+    optional int64 max_height = 13;
+
+    repeated string original_image_paths = 1;
+    repeated int64 original_index_to_format_group = 2;
+    repeated string valid_image_paths = 3;
+    repeated FormatGroup format_groups = 4;
+  }
+
+  required int32 id = 1;
+  required string name = 2;
+  required DatasetType type = 3;
+  optional VideoMetadata video_data = 4;
+  optional ImageMetadata image_data = 5;
 }
 
 message VideoDescriptor {
-  required int32 frames = 1;
-  required int32 width = 2;
-  required int32 height = 3;
-
   enum VideoCodecType {
     H264 = 0;
   }
@@ -67,6 +112,10 @@ message VideoDescriptor {
     YUV_444 = 3;
   }
 
+  required int32 frames = 1;
+  required int32 width = 2;
+  required int32 height = 3;
+
   optional VideoCodecType codec_type = 4;
   optional VideoChromaFormat chroma_format = 5;
 
@@ -74,6 +123,14 @@ message VideoDescriptor {
   repeated int64 keyframe_timestamps = 8 [packed=true];
   repeated int64 keyframe_byte_offsets = 9 [packed=true];
   optional bytes metadata_packets = 6;
+}
+
+message ImageFormatGroupDescriptor {
+  required ImageEncodingType encoding_type = 1;
+  required ImageColorSpace color_space = 2;
+  required int32 width = 3;
+  required int32 height = 4;
+  required int32 num_images = 5;
 }
 
 message WebTimestamps {
@@ -97,7 +154,7 @@ message JobDescriptor {
   }
 
   message PointSamples {
-    required int32 video_index = 1;
+    optional int32 video_index = 1;
     repeated int32 frames = 2;
   }
 
@@ -106,7 +163,7 @@ message JobDescriptor {
     required int32 end = 2;
   }
   message SequenceSamples {
-    required int32 video_index = 1;
+    optional int32 video_index = 1;
     repeated Interval intervals = 2;
   }
 

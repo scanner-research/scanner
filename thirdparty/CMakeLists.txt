@@ -29,6 +29,7 @@ find_package(Storehouse CONFIG)
 find_package(GoogleTest)
 find_package(Struck CONFIG)
 find_package(JPEGWrapper CONFIG)
+find_package(LodePNG CONFIG)
 
 if (NOT TINYTOML_FOUND)
   ExternalProject_Add(TinyToml
@@ -42,8 +43,7 @@ if (NOT TINYTOML_FOUND)
     BUILD_COMMAND ""
 
     INSTALL_COMMAND
-    mkdir -p ${GLOBAL_OUTPUT_PATH}/tinytoml && cp -r ${THIRDPARTY_SOURCE_DIR}/tinytoml/include ${GLOBAL_OUTPUT_PATH}/tinytoml
-    )
+    mkdir -p ${GLOBAL_OUTPUT_PATH}/tinytoml && cp -r ${THIRDPARTY_SOURCE_DIR}/tinytoml/include ${GLOBAL_OUTPUT_PATH}/tinytoml)
 endif()
 
 if (NOT JSONCPP_FOUND)
@@ -152,4 +152,21 @@ if (NOT JPEGWRAPPER_FOUND)
     CMAKE_CACHE_ARGS ""
 
     INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/jpegwrapper")
+endif()
+
+if (NOT LODEPNG_FOUND)
+  ExternalProject_Add(LodePNG
+    GIT_REPOSITORY "https://github.com/lvandeve/lodepng.git"
+    GIT_TAG "ac8f8863c609f34b69d629ed72d6a234afeb11d5"
+
+    UPDATE_COMMAND ""
+
+    SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/lodepng"
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+
+    INSTALL_COMMAND
+    mkdir -p ${GLOBAL_OUTPUT_PATH}/lodepng && cp -r ${THIRDPARTY_SOURCE_DIR}/lodepng ${GLOBAL_OUTPUT_PATH}/lodepng
+
+    INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/lodepng")
 endif()

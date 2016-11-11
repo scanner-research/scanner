@@ -15,7 +15,10 @@
 
 #pragma once
 
+#include "scanner/metadata.pb.h"
+
 #include <cstdint>
+#include <string>
 
 namespace scanner {
 
@@ -46,6 +49,12 @@ struct Interval {
   i32 start;
   i32 end;
 };
+
+bool string_to_dataset_type(const std::string& s, DatasetType& t);
+std::string dataset_type_to_string(DatasetType d);
+
+bool string_to_image_encoding_type(const std::string& s, ImageEncodingType& t);
+std::string image_encoding_type_to_string(ImageEncodingType d);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
