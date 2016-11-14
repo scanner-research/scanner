@@ -21,25 +21,31 @@
 
 namespace scanner {
 
-inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
-                                  u8*& buffer, size_t& size) {
+template <typename T>
+void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
+                            size_t& size) {
   size = sizeof(size_t);
-  for (auto& box : bboxes) {
-    size += box.ByteSize() + sizeof(i32);
+  for (auto& e : elements) {
+    size += e.ByteSize() + sizeof(i32);
   }
   buffer = new u8[size];
 
   u8* buf = buffer;
-  *((size_t*)buf) = bboxes.size();
+  *((size_t*)buf) = elements.size();
   buf += sizeof(size_t);
-  for (size_t i = 0; i < bboxes.size(); ++i) {
-    const BoundingBox& box = bboxes[i];
-    i32 bbox_size = box.ByteSize();
-    *((i32*)buf) = bbox_size;
+  for (size_t i = 0; i < elements.size(); ++i) {
+    const T& e = elements[i];
+    i32 element_size = e.ByteSize();
+    *((i32*)buf) = element_size;
     buf += sizeof(i32);
-    box.SerializeToArray(buf, bbox_size);
-    buf += bbox_size;
+    e.SerializeToArray(buf, element_size);
+    buf += element_size;
   }
+}
+
+inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
+                                  u8*& buffer, size_t& size) {
+  serialize_proto_vector(bboxes, buffer, size);
 }
 
 inline void serialize_decode_args(const DecodeArgs& args, u8*& buffer,
