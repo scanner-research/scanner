@@ -11,3 +11,8 @@ message BoundingBox {
   optional int32 track_id = 6 [default = 0];
   optional double track_score = 7 [default = 0];
 }
+
+message Point {
+  required float x = 1;
+  required float y = 2;
+}

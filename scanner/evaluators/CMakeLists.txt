@@ -29,7 +29,11 @@ if (BUILD_CAFFE_EVALUATORS)
       caffe/squeezenet/squeezenet_input_evaluator.cpp
       caffe/facenet/facenet_parser_evaluator.cpp
       caffe/facenet/facenet_input_evaluator.cpp
-      caffe/faster_rcnn/faster_rcnn_parser_evaluator.cpp)
+      caffe/faster_rcnn/faster_rcnn_parser_evaluator.cpp
+      caffe/cpm/cpm_person_input_evaluator.cpp
+      caffe/cpm/cpm_person_parser_evaluator.cpp)
+      # caffe/cpm/cpm_input_evaluator.cpp
+      # caffe/cpm/cpm_parser_evaluator.cpp)
   endif()
 endif()
 
