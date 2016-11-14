@@ -171,10 +171,6 @@ class JobResult(object):
             self._storage.read('{}/datasets/{}/descriptor.bin'
                                .format(self._db_path, dataset_name)))
 
-        if self._dataset.type == self._scanner._meta.DatasetType_Image:
-            logging.critical('TODO(wcrichto): handle image datasets')
-            exit()
-
         self._job = self._scanner._meta.JobDescriptor()
         self._job.ParseFromString(
             self._storage.read(
