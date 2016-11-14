@@ -147,10 +147,12 @@ class Sampling(Enum):
     Gather = 2
     SequenceGather = 3
 
+class DatasetType(Enum):
+    DatasetType_Video = 0
+    DatasetType_Image = 1
 
 class JobLoadException(Exception):
     pass
-
 
 class JobResult(object):
     """ TODO(apoms): document me """
@@ -174,6 +176,40 @@ class JobResult(object):
             self._storage.read(
                 '{}/datasets/{}/jobs/{}/descriptor.bin'
                 .format(self._db_path, dataset_name, job_name)))
+
+    def _dataset_type(self):
+        meta = self._scanner._meta
+        typ = getattr(self._dataset, 'type')
+        if typ == meta.DatasetType_Video:
+            return DatasetType.DatasetType_Video
+        elif typ == meta.DatasetType_Image:
+            return DatasetType.DatasetType_Image
+
+    def _dataset_item_names(self):
+        item_names = []
+        typ = self._dataset_type()
+        if typ == DatasetType.DatasetType_Video:
+            item_names = [n for n in self._dataset.video_data.video_names]
+        elif typ == DatasetType.DatasetType_Image:
+            item_names = [str(n) for n in range(
+                len(self._dataset.image_data.video_names))]
+        return item_names
+
+    def _load_item_descriptor(self, name):
+        typ = self._dataset_type()
+        if typ == DatasetType.DatasetType_Video:
+            video = self._scanner._meta.VideoDescriptor()
+            video.ParseFromString(
+                self._storage.read(
+                    '{}/datasets/{}/data/{}_metadata.bin'.format(
+                        self._db_path, self._dataset_name, name)))
+            return video
+        elif typ == DatasetType.DatasetType_Image:
+            format_group = self._scanner._meta.ImageFormatGroupDescriptor()
+            format_group.ParseFromString(
+                self._storage.read(
+                    '{}/datasets/{}/data/{}_metadata.bin'.format(
+                        self._db_path, self._dataset_name, name)))
 
     def _load_output_file(self, video, video_name, work_item_index, rows,
                           istart, iend):
@@ -212,19 +248,11 @@ class JobResult(object):
             raise JobLoadException('Column {} does not exist for job {}'.format(
                 self._column, self._job_name))
 
-    def _load_video_descriptor(self, video_name):
-        video = self._scanner._meta.VideoDescriptor()
-        video.ParseFromString(
-            self._storage.read(
-                '{}/datasets/{}/data/{}_metadata.bin'.format(
-                    self._db_path, self._dataset_name, video_name)))
-        return video
-
     def _load_all_sampling(self, interval=None):
         item_size = self._job.work_item_size
         work_item_index = 0
-        for vi, video_name in enumerate(self._dataset.video_names):
-            video = self._load_video_descriptor(video_name)
+        for vi, video_name in enumerate(self._dataset_item_names()):
+            video = self._load_item_descriptor(video_name)
 
             intervals = [i for i in range(0, video.frames - 1, item_size)]
             intervals.append(video.frames)
@@ -255,8 +283,8 @@ class JobResult(object):
         item_size = self._job.work_item_size
         stride = self._job.stride
         work_item_index = 0
-        for vi, video_name in enumerate(self._dataset.video_names):
-            video = self._load_video_descriptor(video_name)
+        for vi, video_name in enumerate(self._dataset_item_names()):
+            video = self._load_item_descriptor(video_name)
 
             intervals = [i for i in range(0, video.frames - 1,
                                           item_size * stride)]
@@ -290,8 +318,8 @@ class JobResult(object):
         work_item_index = 0
         for samples in self._job.gather_points:
             video_index = samples.video_index
-            video_name = self._dataset.video_names[video_index]
-            video = self._load_video_descriptor(video_name)
+            video_name = self._dataset_item_names()[video_index]
+            video = self._load_item_descriptor(video_name)
 
             work_items = chunks(samples.frames, item_size)
             assert(work_items is not None)
@@ -321,8 +349,8 @@ class JobResult(object):
         work_item_index = 0
         for samples in self._job.gather_sequences:
             video_index = samples.video_index
-            video_name = self._dataset.video_names[video_index]
-            video = self._load_video_descriptor(video_name)
+            video_name = self._dataset_item_names()[video_index]
+            video = self._load_item_descriptor(video_name)
 
             sequences = samples.intervals
 
