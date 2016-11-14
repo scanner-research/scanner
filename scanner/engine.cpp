@@ -1251,12 +1251,12 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     evaluator_offset += 1;
   }
   if (evaluator_caps.size() > 1) {
-    std::vector<EvaluatorFactory *> main_factories(
+    std::vector<EvaluatorFactory*> main_factories(
         evaluator_factories.begin() + evaluator_offset,
         evaluator_factories.end() - 1);
     factory_groups.push_back(main_factories);
     if (evaluator_caps.back().can_overlap) {
-      std::vector<EvaluatorFactory *> end_factories(
+      std::vector<EvaluatorFactory*> end_factories(
           evaluator_factories.end() - 1, evaluator_factories.end());
       factory_groups.push_back(end_factories);
     } else {
@@ -1269,9 +1269,9 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
 
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
-    std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[pu];
-    std::vector<Profiler> &eval_thread_profilers = eval_chain_profilers[pu];
-    std::vector<EvaluateThreadArgs> &eval_thread_args = eval_chain_args[pu];
+    std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
+    std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
+    std::vector<EvaluateThreadArgs>& eval_thread_args = eval_chain_args[pu];
     work_queues.resize(factory_groups_per_chain - 1);
     // Setup profilers and thread args
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
@@ -1289,7 +1289,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         eval_configs.push_back(eval_config);
       }
       // Input work queue
-      Queue<EvalWorkEntry> *input_work_queue;
+      Queue<EvalWorkEntry>* input_work_queue;
       bool first_evaluator_group = (fg == 0);
       if (first_evaluator_group) {
         input_work_queue = &initial_eval_work;
@@ -1298,23 +1298,23 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       }
       // Create new queue for output, reuse previous queue as input
       bool last_evaluator_group = (fg == factory_groups_per_chain - 1);
-      Queue<EvalWorkEntry> *output_work_queue;
+      Queue<EvalWorkEntry>* output_work_queue;
       if (last_evaluator_group) {
         output_work_queue = &save_work;
       } else {
         output_work_queue = &work_queues[fg];
       }
       // Create eval thread for passing data through neural net
-      eval_thread_args.emplace_back(
-          EvaluateThreadArgs{// Uniform arguments
-                             warmup_size, input_formats, work_items,
+      eval_thread_args.emplace_back(EvaluateThreadArgs{
+          // Uniform arguments
+          warmup_size, input_formats, work_items,
 
-                             // Per worker arguments
-                             pu, fg, last_evaluator_group, factory_groups[fg],
-                             eval_configs, eval_thread_profilers[fg],
+          // Per worker arguments
+          pu, fg, last_evaluator_group, factory_groups[fg], eval_configs,
+          eval_thread_profilers[fg],
 
-                             // Queues
-                             *input_work_queue, *output_work_queue});
+          // Queues
+          *input_work_queue, *output_work_queue});
     }
   }
   std::vector<std::vector<pthread_t>> eval_chain_threads(PUS_PER_NODE);

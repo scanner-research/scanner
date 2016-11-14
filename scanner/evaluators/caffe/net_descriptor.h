@@ -47,6 +47,8 @@ struct NetDescriptor {
   int mean_height;
 
   bool normalize;
+  bool preserve_aspect_ratio;
+  i32 pad_mod;
 };
 
 NetDescriptor descriptor_from_net_file(std::ifstream& net_file);

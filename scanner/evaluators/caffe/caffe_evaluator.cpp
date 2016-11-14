@@ -58,15 +58,32 @@ void CaffeEvaluator::configure(const InputFormat& metadata) {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net_->blob_by_name(descriptor_.input_layer_names[0])};
   if (input_blob->shape(0) != batch_size_) {
-    input_blob->Reshape(
-        {batch_size_, 3, input_blob->shape(2), input_blob->shape(3)});
+    input_blob->Reshape({batch_size_, input_blob->shape(1),
+                         input_blob->shape(2), input_blob->shape(3)});
   }
 
   i32 width = metadata.width();
   i32 height = metadata.height();
-  if (descriptor_.input_width != -1) {
+  if (descriptor_.preserve_aspect_ratio) {
+    if (descriptor_.input_width != -1) {
+      width = descriptor_.input_width;
+      f32 scale = static_cast<f32>(descriptor_.input_width) / width;
+      width = width * scale;
+      height = height * scale;
+    } else if (descriptor_.input_height != -1) {
+      f32 scale = static_cast<f32>(descriptor_.input_height) / height;
+      width = width * scale;
+      height = height * scale;
+    }
+  } else if (descriptor_.input_width != -1) {
     width = descriptor_.input_width;
     height = descriptor_.input_height;
+  }
+
+  if (descriptor_.pad_mod != -1) {
+    i32 pad = descriptor_.pad_mod;
+    width += (width % pad) ? pad - (width % pad) : 0;
+    height += (height % pad) ? pad - (height % pad) : 0;
   }
 
   input_blob->Reshape(
@@ -92,8 +109,9 @@ void CaffeEvaluator::evaluate(
   for (i32 frame = 0; frame < input_count; frame += batch_size_) {
     i32 batch_count = std::min(input_count - frame, batch_size_);
     if (input_blobs[0]->shape(0) != batch_count) {
-      input_blobs[0]->Reshape(
-          {batch_count, 3, input_blobs[0]->shape(2), input_blobs[0]->shape(3)});
+      input_blobs[0]->Reshape({batch_count, input_blobs[0]->shape(1),
+                               input_blobs[0]->shape(2),
+                               input_blobs[0]->shape(3)});
     }
 
     for (i32 i = 0; i < input_blobs.size(); ++i) {

@@ -97,13 +97,36 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
 
   auto input_width = net->find("input_width");
   auto input_height = net->find("input_height");
+  auto preserve_aspect_ratio = net->find("preserve_aspect_ratio");
+  bool preserve_aspect = false;
+  if (preserve_aspect_ratio) {
+    preserve_aspect = preserve_aspect_ratio->as<bool>();
+  }
+  descriptor.preserve_aspect_ratio = preserve_aspect;
 
-  if (input_width && input_height) {
+  descriptor.input_width = -1;
+  descriptor.input_height = -1;
+  if (preserve_aspect) {
+    if (input_height) {
+      descriptor.input_height = input_height->as<i32>();
+    } else if (input_width) {
+      descriptor.input_width = input_width->as<i32>();
+    } else {
+      std::cout << "'preserve_aspect_ratio': must specify only one of "
+                   "input_width or input_height"
+                << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  } else if (input_width && input_height) {
     descriptor.input_width = input_width->as<i32>();
     descriptor.input_height = input_height->as<i32>();
+  }
+
+  auto pad_mod = net->find("pad_mod");
+  if (pad_mod) {
+    descriptor.pad_mod = pad_mod->as<i32>();
   } else {
-    descriptor.input_width = -1;
-    descriptor.input_height = -1;
+    descriptor.pad_mod = -1;
   }
 
   auto normalize = net->find("normalize");
