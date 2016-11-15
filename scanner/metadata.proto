@@ -163,17 +163,20 @@ message JobDescriptor {
     required int32 start = 1;
     required int32 end = 2;
   }
+
   message SequenceSamples {
     optional int32 video_index = 1;
     repeated Interval intervals = 2;
   }
 
   required int32 id = 1;
-  required string name = 9;
+  required string name = 12;
   repeated Column columns = 2;
   required Sampling sampling = 3;
   required int32 work_item_size = 4;
   required int32 num_nodes = 5;
+  required string in_job_name = 10;
+  required bool derived = 11;
 
   // For strided sampling
   optional int32 stride = 6;
@@ -181,6 +184,8 @@ message JobDescriptor {
   repeated PointSamples gather_points = 7;
   // For sequence gather sampling
   repeated SequenceSamples gather_sequences = 8;
+  // For derived datasets
+  repeated PointSamples derived_frames = 9;
 }
 
 message DecodeArgs {

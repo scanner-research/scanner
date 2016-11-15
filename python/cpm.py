@@ -33,7 +33,7 @@ def load_cpm_person_heat_map(buf, metadata):
     buf = np.squeeze(buf.reshape((1, 1, 46, -1)))
     return buf
 
-@db.loader('centers_map')
+@db.loader('centers')
 def load_cpm_person_centers(buf, metadata):
     (num_points,) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
@@ -48,6 +48,19 @@ def load_cpm_person_centers(buf, metadata):
         points.append(p)
     return points
 
+@db.loader('cpm_input')
+def load_cpm_input(buf, metadata):
+    buf = np.frombuffer(buf, dtype=np.dtype(np.float32))
+    buf = np.squeeze(buf.reshape((4, 368, 368)))
+    return buf
+
+@db.loader('joint_maps')
+def load_cpm_joint_maps(buf, metadata):
+    buf = np.frombuffer(buf, dtype=np.dtype(np.float32))
+    print(buf.shape)
+    buf = buf.reshape((15, 46, 46))
+    print(buf)
+    return buf
 
 def main():
     if len(sys.argv) != 3:
@@ -58,16 +71,20 @@ def main():
     #result = load_cpm_person_heat_map(dataset_name, job_name)
     #result = load_frames(dataset_name, job_name)
     #result = load_cpm_person_net_input(dataset_name, job_name)
-    result = load_cpm_person_centers(dataset_name, job_name)
+    #result = load_cpm_person_centers(dataset_name, job_name)
+    #result = load_cpm_input(dataset_name, job_name)
+    result = load_cpm_joint_maps(dataset_name, job_name)
 
     i = 0
     for out in result.as_outputs():
         for b in out['buffers']:
-            print(len(b))
+            #print('frame {}, points: {}'.format(i, b))
             # scipy.misc.toimage(b).save(
-            # #scipy.misc.toimage(b, cmin=-0.5, cmax=0.5).save(
-            #     'imgs/centers{:04d}.jpg'.format(i))
-            print(i)
+            #scipy.misc.toimage(b[0:3, :, :], cmin=-0.5, cmax=0.5).save(
+            #scipy.misc.toimage(b[3, :, :], cmin=0.0, cmax=1.0).save(
+            #scipy.misc.toimage(b[3, :, :]).save(
+            scipy.misc.toimage(b[0, :, :]).save(
+                'imgs/centers{:04d}.jpg'.format(i))
             i += 1
 
 if __name__ == "__main__":

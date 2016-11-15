@@ -105,7 +105,7 @@ void CaffeEvaluator::evaluate(
 
   i32 input_count = (i32)input_buffers[0].size();
 
-  i32 batch_id = 0;
+  net_->ForwardPrefilled();
   for (i32 frame = 0; frame < input_count; frame += batch_size_) {
     i32 batch_count = std::min(input_count - frame, batch_size_);
     if (input_blobs[0]->shape(0) != batch_count) {
@@ -123,9 +123,13 @@ void CaffeEvaluator::evaluate(
         net_input_buffer = input_blobs[i]->mutable_cpu_data();
       }
 
-      memcpy_buffer((u8*)net_input_buffer, device_type_, device_id_,
-                    input_buffers[i + 1][batch_id], device_type_, device_id_,
-                    input_sizes[i + 1][batch_id]);
+      size_t offset = 0;
+      for (i32 j = 0; j < batch_count; ++j) {
+        memcpy_buffer((u8*)net_input_buffer + offset, device_type_, device_id_,
+                      input_buffers[i + 1][frame + j], device_type_, device_id_,
+                      input_sizes[i + 1][frame + j]);
+        offset += input_sizes[i + 1][frame + j];
+      }
     }
 
     // Compute features
@@ -141,8 +145,8 @@ void CaffeEvaluator::evaluate(
     if (forward_input_) {
       output_offset++;
       for (i32 b = 0; b < batch_count; ++b) {
-        output_buffers[0].push_back(input_buffers[1][frame + b]);
-        output_sizes[0].push_back(input_sizes[1][frame + b]);
+        output_buffers[0].push_back(input_buffers[0][frame + b]);
+        output_sizes[0].push_back(input_sizes[0][frame + b]);
       }
     }
 
@@ -172,8 +176,6 @@ void CaffeEvaluator::evaluate(
         output_sizes[output_offset + i].push_back(output_size);
       }
     }
-
-    ++batch_id;
   }
 }
 
@@ -219,6 +221,9 @@ std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
       net_descriptor_.output_layer_names;
   output_names.insert(output_names.end(), layer_names.begin(),
                       layer_names.end());
+  if (false) {
+    output_names.push_back("frame");
+  }
 
   return output_names;
 }

@@ -177,6 +177,15 @@ class JobResult(object):
                 '{}/datasets/{}/jobs/{}/descriptor.bin'
                 .format(self._db_path, dataset_name, job_name)))
 
+        self._in_job_name = self._job.in_job_name
+        self._derived = self._job.derived
+        if self._derived:
+            self._in_job = self._scanner._meta.JobDescriptor()
+            self._in_job.ParseFromString(
+                self._storage.read(
+                    '{}/datasets/{}/jobs/{}/descriptor.bin'
+                    .format(self._db_path, dataset_name, self._in_job_name)))
+
     def _dataset_type(self):
         meta = self._scanner._meta
         typ = getattr(self._dataset, 'type')
@@ -247,6 +256,37 @@ class JobResult(object):
         except UserWarning:
             raise JobLoadException('Column {} does not exist for job {}'.format(
                 self._column, self._job_name))
+
+    def _load_derived_sampling(self, interval=None):
+        item_size = self._job.work_item_size
+        work_item_index = 0
+        for samples in self._job.derived_frames:
+            video_index = samples.video_index
+            video_name = self._dataset_item_names()[video_index]
+            video = self._load_item_descriptor(video_name)
+
+            work_items = chunks(samples.frames, item_size)
+            assert(work_items is not None)
+
+            result = {'video': video_name,
+                      'frames': [],
+                      'buffers': []}
+            (istart, iend) = interval if interval is not None else (0,
+                                                                    maxint)
+            for i, item in enumerate(work_items):
+                start = item[0]
+                end = item[-1]
+                if start > iend or end < istart: continue
+                rows = item
+                result['buffers'] += self._load_output_file(video,
+                                                            video_name,
+                                                            work_item_index,
+                                                            rows,
+                                                            istart,
+                                                            iend)
+                result['frames'] += item
+                work_item_index += 1
+            yield result
 
     def _load_all_sampling(self, interval=None):
         item_size = self._job.work_item_size
@@ -396,6 +436,9 @@ class JobResult(object):
         return s
 
     def as_outputs(self, interval=None):
+        if self._derived:
+            return self._load_derived_sampling(interval)
+
         sampling = self.get_sampling_type()
         if sampling is Sampling.All:
             return self._load_all_sampling(interval)

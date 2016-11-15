@@ -1039,6 +1039,8 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   JobDescriptor job_descriptor;
   job_descriptor.set_work_item_size(work_item_size);
   job_descriptor.set_num_nodes(num_nodes);
+  job_descriptor.set_in_job_name(in_job_name);
+  job_descriptor.set_derived(derived_job);
   JobDescriptor::Sampling desc_sampling;
   switch (sampling) {
     case Sampling::All:
@@ -1063,6 +1065,19 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
   std::vector<JobMetadata::GroupSample> total_frames_samples =
       in_job_meta.sampled_frames();
+  if (derived_job) {
+    // HACK(apoms): allow easily calculating number of output items
+    //  for derived jobs without having to trace back through previous
+    //  job
+    for (size_t i = 0; i < total_frames_samples.size(); ++i) {
+      JobDescriptor::PointSamples* jd_frames =
+          job_descriptor.add_derived_frames();
+      jd_frames->set_video_index(total_frames_samples[i].group_index);
+      for (i32 f : total_frames_samples[i].frames) {
+        jd_frames->add_frames(f);
+      }
+    }
+  }
 
   std::vector<WorkItem> work_items;
   std::vector<LoadWorkEntry> load_work_items;

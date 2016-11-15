@@ -51,8 +51,8 @@ class DecoderEvaluator : public Evaluator {
 
 class DecoderEvaluatorFactory : public EvaluatorFactory {
  public:
-  DecoderEvaluatorFactory(DeviceType device_type,
-                          VideoDecoderType decoder_type);
+  DecoderEvaluatorFactory(DeviceType device_type, VideoDecoderType decoder_type,
+                          i32 extra_outputs = -1);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -63,5 +63,6 @@ class DecoderEvaluatorFactory : public EvaluatorFactory {
  private:
   DeviceType device_type_;
   VideoDecoderType decoder_type_;
+  i32 extra_outputs_;
 };
 }

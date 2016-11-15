@@ -17,9 +17,20 @@
 
 #include "scanner/evaluators/types.pb.h"
 
+#include <cstddef>
 #include <vector>
 
 namespace scanner {
+namespace {
+template <typename T>
+inline T deser(const u8*& buffer, size_t& size_left) {
+  assert(size_left >= sizeof(T));
+  T e = *((T*)buffer);
+  buffer += sizeof(T);
+  size_left -= sizeof(T);
+  return e;
+}
+}
 
 template <typename T>
 void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
@@ -41,6 +52,23 @@ void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
     e.SerializeToArray(buf, element_size);
     buf += element_size;
   }
+}
+
+template <typename T>
+std::vector<T> deserialize_proto_vector(const u8* buffer, size_t size) {
+  const u8* buf = buffer;
+  size_t num_elements = deser<size_t>(buf, size);
+  std::vector<T> elements;
+  for (size_t i = 0; i < num_elements; ++i) {
+    i32 element_size = deser<i32>(buf, size);
+    assert(size >= element_size);
+    T e;
+    e.ParseFromArray(buf, element_size);
+    size -= element_size;
+    buf += element_size;
+    elements.push_back(e);
+  }
+  return elements;
 }
 
 inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,

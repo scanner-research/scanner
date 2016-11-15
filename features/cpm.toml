@@ -1,0 +1,28 @@
+[net]
+    model = "features/cpm/pose_deploy_resize.prototxt"
+    weights = "features/cpm/pose_iter_320000.caffemodel"
+    input_layers = ["data"]
+    output_layers = ["Mconv7_stage6"]
+    input_height = 368
+    input_width = 368
+    normalize = false
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width"
+        ]
+        channel_ordering = [
+            "blue",
+            "green",
+            "red"
+            "weight"
+        ]
+
+[mean-image]
+    [mean-image.colors]
+        blue = 0.0
+        green = 0.0
+        red = 0.0

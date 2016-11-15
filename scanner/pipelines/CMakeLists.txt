@@ -14,7 +14,8 @@ if (BUILD_VIDEO_EVALUATORS AND
     BUILD_CAFFE_INPUT_EVALUATORS AND
     BUILD_UTIL_EVALUATORS)
   list(APPEND SOURCE_FILES
-    find_person_pipeline.cpp)
+    find_person_pipeline.cpp
+    find_pose_pipeline.cpp)
 endif()
 
 if (BUILD_UTIL_EVALUATORS)

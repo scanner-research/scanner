@@ -197,6 +197,17 @@ void DecoderEvaluator::evaluate(
     needs_warmup_ = false;
   }
 
+  // Forward all inputs
+  i32 output_idx = 1;
+  for (size_t col = 2; col < input_buffers.size(); ++col) {
+    size_t num_inputs = input_buffers[col].size();
+    for (size_t i = 0; i < num_inputs; ++i) {
+      output_buffers[output_idx].push_back(input_buffers[col][i]);
+      output_sizes[output_idx].push_back(input_sizes[col][i]);
+    }
+    output_idx++;
+  }
+
   if (profiler_) {
     profiler_->add_interval("decode", start, now());
     profiler_->increment("effective_frames", total_frames_used);
@@ -205,8 +216,11 @@ void DecoderEvaluator::evaluate(
 }
 
 DecoderEvaluatorFactory::DecoderEvaluatorFactory(DeviceType device_type,
-                                                 VideoDecoderType decoder_type)
-    : device_type_(device_type), decoder_type_(decoder_type) {}
+                                                 VideoDecoderType decoder_type,
+                                                 i32 extra_outputs)
+    : device_type_(device_type),
+      decoder_type_(decoder_type),
+      extra_outputs_(extra_outputs) {}
 
 EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -218,7 +232,13 @@ EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> DecoderEvaluatorFactory::get_output_names() {
-  return {"frame"};
+  std::vector<std::string> outputs = {"frame"};
+  if (extra_outputs_ > 0) {
+    for (i32 i = 0; i < extra_outputs_; ++i) {
+      outputs.push_back("extra" + std::to_string(i));
+    }
+  }
+  return outputs;
 }
 
 Evaluator* DecoderEvaluatorFactory::new_evaluator(

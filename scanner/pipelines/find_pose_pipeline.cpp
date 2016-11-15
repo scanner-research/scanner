@@ -14,16 +14,7 @@ PipelineDescription get_pipeline_description(
     const DatasetMetadata& dataset_desc,
     const std::vector<DatasetItemMetadata>& item_descriptors) {
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::SequenceGather;
-  desc.gather_sequences = {{0, {Interval{1000, 2000}}}};
-
-  NetDescriptor cpm_person_descriptor;
-  {
-    std::string net_descriptor_file = "features/cpm_person.toml";
-    std::ifstream net_file{net_descriptor_file};
-    cpm_person_descriptor = descriptor_from_net_file(net_file);
-  }
+  desc.input_columns = {"frame", "centers"};
 
   NetDescriptor cpm_descriptor;
   {
@@ -32,7 +23,7 @@ PipelineDescription get_pipeline_description(
     cpm_descriptor = descriptor_from_net_file(net_file);
   }
 
-  i32 batch_size = 8;
+  i32 batch_size = 4;
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
@@ -40,20 +31,20 @@ PipelineDescription get_pipeline_description(
   // factories.emplace_back(
   //     new DecoderEvaluatorFactory(DeviceType::GPU,
   //     VideoDecoderType::NVIDIA));
-  factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
-  factories.emplace_back(new CPMPersonInputEvaluatorFactory(
-      DeviceType::GPU, cpm_person_descriptor, batch_size));
+  factories.emplace_back(new DecoderEvaluatorFactory(
+      DeviceType::CPU, VideoDecoderType::SOFTWARE, 1));
+  factories.emplace_back(new CPMInputEvaluatorFactory(
+      DeviceType::GPU, cpm_descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(
-      DeviceType::GPU, cpm_person_descriptor, batch_size, true));
+      DeviceType::GPU, cpm_descriptor, batch_size, true));
+  // factories.emplace_back(new CPMParserEvaluatorFactory(DeviceType::CPU,
+  // true));
   factories.emplace_back(
-      new CPMPersonParserEvaluatorFactory(DeviceType::CPU, true));
-  factories.emplace_back(
-      new SwizzleEvaluatorFactory(DeviceType::CPU, {1}, {"centers"}));
+      new SwizzleEvaluatorFactory(DeviceType::CPU, {1}, {"joint_maps"}));
 
   return desc;
 }
 }
 
-REGISTER_PIPELINE(find_person, get_pipeline_description);
+REGISTER_PIPELINE(find_pose, get_pipeline_description);
 }
