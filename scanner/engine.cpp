@@ -579,8 +579,10 @@ void* evaluate_thread(void* arg) {
     work_item_output_buffers.resize(last_evaluator_num_columns);
 
     i32 current_input = 0;
-    i32 total_inputs =
-        work_entry.buffers.empty() ? 0 : work_entry.buffers[0].size();
+    i32 total_inputs = 0;
+    for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
+      total_inputs = std::max(total_inputs, (i32)work_entry.buffers[i].size());
+    }
     while (current_input < total_inputs) {
       i32 batch_size = std::min(total_inputs - current_input, WORK_ITEM_SIZE);
 
@@ -595,18 +597,23 @@ void* evaluate_thread(void* arg) {
       std::vector<std::string> output_names = work_entry.column_names;
       std::vector<std::vector<u8*>> output_buffers(work_entry.buffers.size());
       for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
+        i32 batch = std::min(batch_size, (i32)work_entry.buffers[i].size());
+        assert(batch > 0);
         output_buffers[i].insert(
             output_buffers[i].end(),
             work_entry.buffers[i].begin() + current_input,
-            work_entry.buffers[i].begin() + current_input + batch_size);
+            work_entry.buffers[i].begin() + current_input + batch);
       }
       std::vector<std::vector<size_t>> output_sizes(
           work_entry.buffer_sizes.size());
       for (size_t i = 0; i < work_entry.buffer_sizes.size(); ++i) {
+        i32 batch =
+            std::min(batch_size, (i32)work_entry.buffer_sizes[i].size());
+        assert(batch > 0);
         output_sizes[i].insert(
             output_sizes[i].end(),
             work_entry.buffer_sizes[i].begin() + current_input,
-            work_entry.buffer_sizes[i].begin() + current_input + batch_size);
+            work_entry.buffer_sizes[i].begin() + current_input + batch);
       }
       DeviceType output_buffer_type = work_entry.buffer_type;
       i32 output_device_id = work_entry.buffer_device_id;
@@ -654,15 +661,18 @@ void* evaluate_thread(void* arg) {
         output_sizes.resize(num_outputs);
         output_names = args.evaluator_factories[e]->get_output_names();
 
+        auto eval_start = now();
         evaluator->evaluate(input_buffers, input_sizes, output_buffers,
                             output_sizes);
+        args.profiler.add_interval("evaluate", eval_start, now());
+        auto post_eval_start = now();
         LOG_IF(FATAL, output_buffers.size() != output_sizes.size())
             << "Evaluator " << e << " produced " << output_buffers.size() << " "
             << "output buffers but " << output_sizes.size() << " output sizes. "
             << "These should be equal.";
         // Do not verify outputs == inputs if we are decoding encoded video as
         // there is an increase of 1 encoded chunk to multiple frames
-        if (!(e == 0 && work_entry.video_decode_item)) {
+        if (false && !(e == 0 && work_entry.video_decode_item)) {
           for (size_t i = 0; i < output_buffers.size(); ++i) {
             LOG_IF(FATAL, output_buffers[i].size() != batch_size)
                 << "Evaluator " << e << " produced " << output_buffers[i].size()
@@ -938,6 +948,11 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         storage, job_descriptor_path(dataset_name, in_job_name), file));
     u64 pos = 0;
     in_job_desc = deserialize_job_descriptor(file.get(), pos);
+
+    LOG_IF(FATAL, in_job_desc.work_item_size() != WORK_ITEM_SIZE)
+        << "Derived datasets must currently have the same work item size as "
+        << "the dataset they are deriving from.";
+
   } else {
     in_job_desc.set_sampling(JobDescriptor::All);
   }
@@ -975,11 +990,11 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
     for (size_t i = 0; i < pipeline_description.input_columns.size(); ++i) {
       std::string& requested_column = pipeline_description.input_columns[i];
-      if (in_job_name != base_dataset_job_name() &&
-          requested_column == base_column_name()) {
-        LOG(FATAL) << "Scanner does not currently support reading the "
-                   << base_column_name() << " column in derived datasets. ";
-      }
+      // if (in_job_name != base_dataset_job_name() &&
+      //     requested_column == base_column_name()) {
+      //   LOG(FATAL) << "Scanner does not currently support reading the "
+      //              << base_column_name() << " column in derived datasets. ";
+      // }
       if (available_columns.count(requested_column) == 0) {
         LOG(FATAL) << "Requested column " << requested_column << " "
                    << "not available in specified input job. Available column "
@@ -987,10 +1002,10 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       }
     }
   }
+  bool derived_job = in_job_name != base_dataset_job_name();
   // HACK(apoms): We only support sampling on the base job at the moment
   Sampling sampling = pipeline_description.sampling;
-  LOG_IF(FATAL,
-         in_job_name != base_dataset_job_name() && sampling != Sampling::All)
+  LOG_IF(FATAL, derived_job && sampling != Sampling::All)
       << "Sampling is only supported on the base job of a dataset.";
 
   std::vector<EvaluatorFactory*> evaluator_factories;
@@ -1046,29 +1061,23 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     column->set_name(final_column_names[j]);
   }
 
-  std::vector<i32> total_frames_per_item;
-  if (dataset_meta.type() == DatasetType_Video) {
-    for (const VideoMetadata& meta : video_metadata) {
-      total_frames_per_item.push_back(meta.frames());
-    }
-  } else if (dataset_meta.type() == DatasetType_Image) {
-    for (const ImageFormatGroupMetadata& meta : image_metadata) {
-      total_frames_per_item.push_back(meta.num_images());
-    }
-  }
+  std::vector<JobMetadata::GroupSample> total_frames_samples =
+      in_job_meta.sampled_frames();
 
   std::vector<WorkItem> work_items;
   std::vector<LoadWorkEntry> load_work_items;
   if (sampling == Sampling::All) {
-    for (size_t i = 0; i < paths.size(); ++i) {
-      i32 group_frames = total_frames_per_item[i];
+    for (size_t i = 0; i < total_frames_samples.size(); ++i) {
+      i32 group_index = total_frames_samples[i].group_index;
+      i32 group_frames =
+          static_cast<i32>(total_frames_samples[i].frames.size());
       i32 allocated_frames = 0;
       while (allocated_frames < group_frames) {
         i32 frames_to_allocate =
             std::min(work_item_size, group_frames - allocated_frames);
 
         WorkItem item;
-        item.video_index = i;
+        item.video_index = group_index;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
         item.rows_from_start = allocated_frames;
@@ -1087,15 +1096,17 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   } else if (sampling == Sampling::Strided) {
     i32 stride = pipeline_description.stride;
     job_descriptor.set_stride(stride);
-    for (size_t i = 0; i < paths.size(); ++i) {
-      i32 group_frames = total_frames_per_item[i];
+    for (size_t i = 0; i < total_frames_samples.size(); ++i) {
+      i32 group_index = total_frames_samples[i].group_index;
+      i32 group_frames =
+          static_cast<i32>(total_frames_samples[i].frames.size());
       i32 allocated_frames = 0;
       while (allocated_frames < group_frames) {
         i32 frames_to_allocate =
             std::min(work_item_size * stride, group_frames - allocated_frames);
 
         WorkItem item;
-        item.video_index = i;
+        item.video_index = group_index;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
         item.rows_from_start = allocated_frames / stride;

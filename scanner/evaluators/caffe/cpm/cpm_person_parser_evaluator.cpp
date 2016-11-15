@@ -98,7 +98,6 @@ void CPMPersonParserEvaluator::evaluate(
       pt.set_x(p.x);
       pt.set_y(p.y);
       centers.push_back(pt);
-      printf("center %d, %d\n", p.x, p.y);
     }
     // Assume size of a bounding box is the same size as all bounding boxes
     size_t size;

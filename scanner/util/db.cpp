@@ -518,79 +518,158 @@ JobMetadata::RowLocations JobMetadata::row_work_item_locations(
 JobMetadata::FrameLocations JobMetadata::frame_locations(
     Sampling sampling, i32 video_index, const LoadWorkEntry& entry) const {
   Sampling job_sampling = this->sampling();
-  assert(job_sampling == Sampling::All);
   FrameLocations locations;
   std::vector<Interval>& intervals = locations.intervals;
   std::vector<DecodeArgs>& dargs = locations.video_args;
   std::vector<ImageDecodeArgs>& image_dargs = locations.image_args;
 
   std::vector<i32> total_frames_per_item = rows_per_item();
-  if (sampling == Sampling::All) {
-    intervals.push_back(Interval{entry.interval.start, entry.interval.end});
+  if (job_sampling == Sampling::All) {
+    if (sampling == Sampling::All) {
+      intervals.push_back(Interval{entry.interval.start, entry.interval.end});
 
-    // Video decode arguments
-    DecodeArgs decode_args;
-    decode_args.set_sampling(DecodeArgs::All);
-    decode_args.mutable_interval()->set_start(entry.interval.start);
-    decode_args.mutable_interval()->set_end(entry.interval.end);
+      // Video decode arguments
+      DecodeArgs decode_args;
+      decode_args.set_sampling(DecodeArgs::All);
+      decode_args.mutable_interval()->set_start(entry.interval.start);
+      decode_args.mutable_interval()->set_end(entry.interval.end);
 
-    dargs.push_back(decode_args);
+      dargs.push_back(decode_args);
 
-    ImageDecodeArgs image_args;
-    image_args.set_sampling(ImageDecodeArgs::All);
-    image_args.mutable_interval()->set_start(entry.interval.start);
-    image_args.mutable_interval()->set_end(entry.interval.end);
+      ImageDecodeArgs image_args;
+      image_args.set_sampling(ImageDecodeArgs::All);
+      image_args.mutable_interval()->set_start(entry.interval.start);
+      image_args.mutable_interval()->set_end(entry.interval.end);
 
-    image_dargs.push_back(image_args);
+      image_dargs.push_back(image_args);
 
-  } else if (sampling == Sampling::Strided) {
-    // TODO(apoms): loading a consecutive portion of the video stream might
-    //   be inefficient if the stride is much larger than a single GOP.
-    intervals.push_back(
-        Interval{entry.strided.interval.start, entry.strided.interval.end});
-
-    // Video decode arguments
-    DecodeArgs decode_args;
-    decode_args.set_sampling(DecodeArgs::Strided);
-    decode_args.mutable_interval()->set_start(entry.strided.interval.start);
-    decode_args.mutable_interval()->set_end(entry.strided.interval.end);
-    decode_args.set_stride(entry.strided.stride);
-
-    dargs.push_back(decode_args);
-
-    ImageDecodeArgs image_args;
-    image_args.set_sampling(ImageDecodeArgs::All);
-    image_args.mutable_interval()->set_start(entry.interval.start);
-    image_args.mutable_interval()->set_end(entry.interval.end);
-
-    image_dargs.push_back(image_args);
-
-  } else if (sampling == Sampling::Gather) {
-    // TODO(apoms): This implementation is not efficient for gathers which
-    //   overlap in the same GOP.
-    for (size_t i = 0; i < entry.gather_points.size(); ++i) {
+    } else if (sampling == Sampling::Strided) {
+      // TODO(apoms): loading a consecutive portion of the video stream might
+      //   be inefficient if the stride is much larger than a single GOP.
       intervals.push_back(
-          Interval{entry.gather_points[i], entry.gather_points[i] + 1});
+          Interval{entry.strided.interval.start, entry.strided.interval.end});
 
       // Video decode arguments
       DecodeArgs decode_args;
-      decode_args.set_sampling(DecodeArgs::Gather);
-      decode_args.add_gather_points(entry.gather_points[i]);
+      decode_args.set_sampling(DecodeArgs::Strided);
+      decode_args.mutable_interval()->set_start(entry.strided.interval.start);
+      decode_args.mutable_interval()->set_end(entry.strided.interval.end);
+      decode_args.set_stride(entry.strided.stride);
 
       dargs.push_back(decode_args);
+
+      ImageDecodeArgs image_args;
+      image_args.set_sampling(ImageDecodeArgs::All);
+      image_args.mutable_interval()->set_start(entry.interval.start);
+      image_args.mutable_interval()->set_end(entry.interval.end);
+      image_args.set_stride(entry.strided.stride);
+
+      image_dargs.push_back(image_args);
+
+    } else if (sampling == Sampling::Gather) {
+      // TODO(apoms): This implementation is not efficient for gathers which
+      //   overlap in the same GOP.
+      for (size_t i = 0; i < entry.gather_points.size(); ++i) {
+        intervals.push_back(
+            Interval{entry.gather_points[i], entry.gather_points[i] + 1});
+
+        // Video decode arguments
+        DecodeArgs decode_args;
+        decode_args.set_sampling(DecodeArgs::Gather);
+        decode_args.add_gather_points(entry.gather_points[i]);
+
+        dargs.push_back(decode_args);
+      }
+    } else if (sampling == Sampling::SequenceGather) {
+      intervals = entry.gather_sequences;
+
+      for (size_t i = 0; i < entry.gather_sequences.size(); ++i) {
+        // Video decode arguments
+        DecodeArgs decode_args;
+        decode_args.set_sampling(DecodeArgs::SequenceGather);
+        DecodeArgs::Interval* intvl = decode_args.add_gather_sequences();
+        intvl->set_start(entry.gather_sequences[i].start);
+        intvl->set_end(entry.gather_sequences[i].end);
+
+        dargs.push_back(decode_args);
+      }
     }
-  } else if (sampling == Sampling::SequenceGather) {
-    intervals = entry.gather_sequences;
+  } else {
+    // Only support all sampling on derived datasets
+    assert(sampling == Sampling::All);
 
-    for (size_t i = 0; i < entry.gather_sequences.size(); ++i) {
+    std::vector<GroupSample> samples = this->sampled_frames();
+    GroupSample video_sample;
+    video_sample.group_index = -1;
+    for (GroupSample& s : samples) {
+      if (s.group_index == video_index) {
+        video_sample = s;
+        break;
+      }
+    }
+    assert(video_sample.group_index != -1);
+
+    i32 start = entry.interval.start;
+    i32 end = entry.interval.end;
+    if (job_sampling == Sampling::Strided) {
+      i32 stride = job_descriptor.stride();
+      i32 stride_start = video_sample.frames[start];
+      i32 stride_end = video_sample.frames[end - 1] + stride;
+      intervals.push_back(Interval{stride_start, stride_end});
+
       // Video decode arguments
       DecodeArgs decode_args;
-      decode_args.set_sampling(DecodeArgs::SequenceGather);
-      DecodeArgs::Interval* intvl = decode_args.add_gather_sequences();
-      intvl->set_start(entry.gather_sequences[i].start);
-      intvl->set_end(entry.gather_sequences[i].end);
+      decode_args.set_sampling(DecodeArgs::Strided);
+      decode_args.mutable_interval()->set_start(stride_start);
+      decode_args.mutable_interval()->set_end(stride_end);
+      decode_args.set_stride(stride);
 
       dargs.push_back(decode_args);
+
+      ImageDecodeArgs image_args;
+      image_args.set_sampling(ImageDecodeArgs::All);
+      image_args.mutable_interval()->set_start(stride_start);
+      image_args.mutable_interval()->set_end(stride_end);
+      decode_args.set_stride(stride);
+
+      image_dargs.push_back(image_args);
+
+    } else if (job_sampling == Sampling::Gather) {
+      for (i32 s = start; s < end; ++s) {
+        i32 frame = video_sample.frames[s];
+        intervals.push_back(Interval{frame, frame + 1});
+
+        // Video decode arguments
+        DecodeArgs decode_args;
+        decode_args.set_sampling(DecodeArgs::Gather);
+        decode_args.add_gather_points(frame);
+
+        dargs.push_back(decode_args);
+      }
+    } else if (job_sampling == Sampling::SequenceGather) {
+      i32 start_frame;
+      i32 end_frame;
+      while (start < end) {
+        // Find a contiguous sequence
+        start_frame = video_sample.frames[start];
+        end_frame = start_frame + 1;
+        start++;
+        while (start < end && end_frame == video_sample.frames[start]) {
+          end_frame++;
+          start++;
+        }
+
+        intervals.push_back(Interval{start_frame, end_frame});
+
+        // Video decode arguments
+        DecodeArgs decode_args;
+        decode_args.set_sampling(DecodeArgs::SequenceGather);
+        DecodeArgs::Interval* intvl = decode_args.add_gather_sequences();
+        intvl->set_start(start_frame);
+        intvl->set_end(end_frame);
+
+        dargs.push_back(decode_args);
+      }
     }
   }
   return locations;
