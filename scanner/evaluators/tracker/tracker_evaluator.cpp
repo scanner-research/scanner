@@ -52,21 +52,18 @@ void TrackerEvaluator::reset() {
   tracks_.clear();
 }
 
-void TrackerEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  assert(input_buffers.size() >= 2);
+void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
+                                BatchedColumns& output_columns) {
+  assert(input_columns.size() >= 2);
 
-  i32 input_count = input_buffers[0].size();
+  i32 input_count = input_columns[0].rows.size();
   LOG(INFO) << "Tracker evaluate on " << input_count << " inputs";
 
   i32 frame_idx = 0;
   i32 box_idx = 1;
 
   for (i32 b = 0; b < input_count; ++b) {
-    u8* bbox_buffer = input_buffers[box_idx][b];
+    u8* bbox_buffer = input_columns[box_idx].rows[b].buffer;
     size_t num_bboxes = *((size_t*)bbox_buffer);
     bbox_buffer += sizeof(size_t);
     i32 bbox_size = *((i32*)bbox_buffer);
@@ -106,7 +103,7 @@ void TrackerEvaluator::evaluate(
     // Perform tracking for all existing tracks that we have
     std::vector<BoundingBox> generated_bboxes;
     {
-      u8* buffer = input_buffers[frame_idx][b];
+      u8* buffer = input_columns[frame_idx].rows[b].buffer;
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
         auto& track = tracks_[i];
@@ -151,8 +148,8 @@ void TrackerEvaluator::evaluate(
       config.features.push_back(fkp);
       track.tracker.reset(new struck::Tracker(config));
 
-      u8* buffer = input_buffers[frame_idx][b];
-      assert(input_sizes[frame_idx][b] ==
+      u8* buffer = input_columns[frame_idx].rows[b].buffer;
+      assert(input_columns[frame_idx].rows[b].size ==
              metadata_.height() * metadata_.width() * 3);
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
       struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
@@ -169,20 +166,15 @@ void TrackerEvaluator::evaluate(
       u8* buffer;
 
       serialize_bbox_vector(detected_bboxes, buffer, size);
-      output_buffers[1].push_back(buffer);
-      output_sizes[1].push_back(size);
+      output_columns[1].rows.push_back(Row{buffer, size});
 
       serialize_bbox_vector(generated_bboxes, buffer, size);
-      output_buffers[2].push_back(buffer);
-      output_sizes[2].push_back(size);
+      output_columns[2].rows.push_back(Row{buffer, size});
     }
   }
 
   for (i32 b = 0; b < input_count; ++b) {
-    u8* buffer = input_buffers[frame_idx][b];
-    size_t size = input_sizes[frame_idx][b];
-    output_buffers[0].push_back(buffer);
-    output_sizes[0].push_back(size);
+    output_columns[0].rows.push_back(input_columns[frame_idx].rows[b]);
   }
 }
 

@@ -7,10 +7,8 @@ namespace scanner {
 
 class FasterRCNNParserEvaluator : public Evaluator {
  public:
-  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-                const std::vector<std::vector<size_t>>& input_sizes,
-                std::vector<std::vector<u8*>>& output_buffers,
-                std::vector<std::vector<size_t>>& output_sizes) override;
+  void evaluate(const BatchedColumns& input_columns,
+                BatchedColumns& output_columns) override;
 };
 
 class FasterRCNNParserEvaluatorFactory : public EvaluatorFactory {

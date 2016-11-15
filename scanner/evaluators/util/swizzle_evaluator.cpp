@@ -39,22 +39,15 @@ void SwizzleEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 
-void SwizzleEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  i32 input_count = static_cast<i32>(input_buffers[0].size());
+void SwizzleEvaluator::evaluate(const BatchedColumns& input_columns,
+                                BatchedColumns& output_columns) {
+  // i32 input_count = static_cast<i32>(input_buffers[0].size());
   size_t num_outputs = output_to_input_idx_.size();
   for (size_t i = 0; i < num_outputs; ++i) {
     i32 input_idx = output_to_input_idx_[i];
-    assert(input_idx < input_buffers.size());
-    for (i32 b = 0; b < input_count; ++b) {
-      size_t size = input_sizes[input_idx][b];
-      u8* input_buffer = input_buffers[input_idx][b];
-
-      output_buffers[i].push_back(input_buffer);
-      output_sizes[i].push_back(size);
+    assert(input_idx < input_columns.size());
+    for (i32 b = 0; b < (i32)input_columns[input_idx].rows.size(); ++b) {
+      output_columns[i].rows.push_back(input_columns[input_idx].rows[b]);
     }
   }
 }

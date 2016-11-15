@@ -55,15 +55,12 @@ void SqueezeNetInputEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 
-void SqueezeNetInputEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void SqueezeNetInputEvaluator::evaluate(const BatchedColumns& input_columns,
+                                        BatchedColumns& output_columns) {
   auto eval_start = now();
 
   size_t frame_size = NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3 * sizeof(float);
-  i32 input_count = input_buffers[0].size();
+  i32 input_count = input_columns[0].rows.size();
 
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "SqueezeNet input transformer doesn't support GPU mode.";
@@ -77,7 +74,7 @@ void SqueezeNetInputEvaluator::evaluate(
 
       std::vector<cv::Mat> input_mats;
       for (i32 i = 0; i < batch_count; ++i) {
-        u8* buffer = input_buffers[0][frame + i];
+        u8* buffer = input_columns[0].rows[frame + i].buffer;
         cv::Mat input_mat(frame_height, frame_width, CV_8UC3, buffer);
 
         cv::Mat resized, bgr;
@@ -99,24 +96,23 @@ void SqueezeNetInputEvaluator::evaluate(
 
       std::memcpy(net_input, blob.cpu_data(), frame_size * batch_count);
 
-      output_buffers[0].push_back((u8*)net_input);
-      output_sizes[0].push_back(frame_size * batch_count);
+      output_columns[0].rows.push_back(
+          Row{(u8*)net_input, frame_size * batch_count});
     }
 
-    i32 num_batches = output_buffers[0].size();
-    for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
-      output_buffers[0].push_back(new u8[1]);
-      output_sizes[0].push_back(1);
+    i32 num_batches = output_columns[0].rows.size();
+    for (i32 i = 0; i < input_columns[0].rows.size() - num_batches; ++i) {
+      INSERT_ROW(output_columns[0], new u8[1], 1);
     }
   }
 
-  for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    size_t size = input_sizes[0][i];
+  for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
+    size_t size = ROW_SIZE(input_columns[0], i);
     u8* buffer = new_buffer(device_type_, device_id_, size);
-    memcpy_buffer(buffer, device_type_, device_id_, input_buffers[0][i],
-                  device_type_, device_id_, size);
-    output_buffers[1].push_back(buffer);
-    output_sizes[1].push_back(size);
+    memcpy_buffer(buffer, device_type_, device_id_,
+                  ROW_BUFFER(input_columns[0], i), device_type_, device_id_,
+                  size);
+    INSERT_ROW(output_columns[1], buffer, size);
   }
 
   if (profiler_) {

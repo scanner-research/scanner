@@ -9,23 +9,21 @@ namespace scanner {
 #define BOX_SIZE 5
 #define FEATURES 4096
 
-void FasterRCNNParserEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  assert(input_buffers.size() == 3);
+void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
+                                         BatchedColumns& output_columns) {
+  assert(input_columns.size() == 3);
 
-  i32 input_count = input_buffers[0].size();
-  const std::vector<u8*> cls_prob = input_buffers[0], rois = input_buffers[1],
-                         fc7 = input_buffers[2];
+  i32 input_count = input_columns[0].rows.size();
+  const std::vector<Row>&cls_prob = input_columns[0].rows,
+        &rois = input_columns[1].rows, &fc7 = input_columns[2].rows;
 
   for (i32 i = 0; i < input_count; ++i) {
-    i32 proposal_count = input_sizes[1][i] / (BOX_SIZE * sizeof(f32));
+    i32 proposal_count =
+        input_columns[1].rows[i].size / (BOX_SIZE * sizeof(f32));
 
     std::vector<BoundingBox> bboxes;
     for (i32 j = 0; j < proposal_count; ++j) {
-      f32* roi = (f32*)(rois[i] + (j * BOX_SIZE * sizeof(f32)));
+      f32* roi = (f32*)(rois[i].buffer + (j * BOX_SIZE * sizeof(f32)));
       f32 x1 = roi[1], y1 = roi[2], x2 = roi[3], y2 = roi[4];
 
       BoundingBox bbox;
@@ -37,7 +35,7 @@ void FasterRCNNParserEvaluator::evaluate(
       f32 max_score;
       // Start at cls = 1 to skip background
       for (i32 cls = 1; cls < CLASSES; ++cls) {
-        f32* scores = (f32*)(cls_prob[i] + (j * CLASSES * sizeof(f32)));
+        f32* scores = (f32*)(cls_prob[i].buffer + (j * CLASSES * sizeof(f32)));
         f32 score = scores[cls];
         if (score > SCORE_THRESHOLD) {
           bbox.set_score(score);
@@ -55,20 +53,18 @@ void FasterRCNNParserEvaluator::evaluate(
       size_t size;
       u8* buffer;
       serialize_bbox_vector(best_bboxes, buffer, size);
-      output_buffers[0].push_back(buffer);
-      output_sizes[0].push_back(size);
+      output_columns[0].rows.push_back(Row{buffer, size});
     }
     {
       size_t size = best_bboxes.size() * FEATURES * sizeof(f32);
       u8* buffer = new u8[size];
       for (i32 k = 0; k < best_bboxes.size(); ++k) {
         i32 j = best_bboxes[k].track_id();
-        f32* fvec = (f32*)(fc7[i] + (j * FEATURES * sizeof(f32)));
+        f32* fvec = (f32*)(fc7[i].buffer + (j * FEATURES * sizeof(f32)));
         std::memcpy(buffer + (k * FEATURES * sizeof(f32)), fvec,
                     FEATURES * sizeof(f32));
       }
-      output_buffers[1].push_back(buffer);
-      output_sizes[1].push_back(size);
+      output_columns[1].rows.push_back(Row{buffer, size});
     }
   }
 }

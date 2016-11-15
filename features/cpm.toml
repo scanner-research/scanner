@@ -17,7 +17,7 @@
         channel_ordering = [
             "blue",
             "green",
-            "red"
+            "red",
             "weight"
         ]
 

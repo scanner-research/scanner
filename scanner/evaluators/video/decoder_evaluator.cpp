@@ -45,22 +45,19 @@ void DecoderEvaluator::reset() {
   discontinuity_ = true;
 }
 
-void DecoderEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
+                                BatchedColumns& output_columns) {
   auto start = now();
 
   i64 total_frames_decoded = 0;
   i64 total_frames_used = 0;
-  size_t num_inputs = input_buffers.empty() ? 0 : input_buffers[0].size();
+  size_t num_inputs = input_columns.empty() ? 0 : input_columns[0].rows.size();
   for (size_t i = 0; i < num_inputs; ++i) {
-    u8* decode_args_buffer = input_buffers[1][i];
-    size_t decode_args_buffer_size = input_sizes[1][i];
+    u8* decode_args_buffer = input_columns[1].rows[i].buffer;
+    size_t decode_args_buffer_size = input_columns[1].rows[i].size;
 
-    const u8* in_encoded_buffer = input_buffers[0][i];
-    size_t in_encoded_buffer_size = input_sizes[0][i];
+    const u8* in_encoded_buffer = input_columns[0].rows[i].buffer;
+    size_t in_encoded_buffer_size = input_columns[0].rows[i].size;
 
     DecodeArgs args;
     const u8* encoded_buffer;
@@ -165,8 +162,7 @@ void DecoderEvaluator::evaluate(
             u8* decoded_buffer =
                 new_buffer(device_type_, device_id_, frame_size_);
             more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
-            output_buffers[0].push_back(decoded_buffer);
-            output_sizes[0].push_back(frame_size_);
+            output_columns[0].rows.push_back(Row{decoded_buffer, frame_size_});
             valid_index++;
             total_frames_used++;
           } else {
@@ -199,11 +195,10 @@ void DecoderEvaluator::evaluate(
 
   // Forward all inputs
   i32 output_idx = 1;
-  for (size_t col = 2; col < input_buffers.size(); ++col) {
-    size_t num_inputs = input_buffers[col].size();
+  for (size_t col = 2; col < input_columns.size(); ++col) {
+    size_t num_inputs = input_columns[col].rows.size();
     for (size_t i = 0; i < num_inputs; ++i) {
-      output_buffers[output_idx].push_back(input_buffers[col][i]);
-      output_sizes[output_idx].push_back(input_sizes[col][i]);
+      output_columns[output_idx].rows.push_back(input_columns[col].rows[i]);
     }
     output_idx++;
   }

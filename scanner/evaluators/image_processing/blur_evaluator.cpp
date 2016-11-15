@@ -29,21 +29,16 @@ void BlurEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 
-void BlurEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  i32 input_count = (i32)input_buffers[0].size();
-  // HACK(apoms): we can only do this because we know the decoder stores all
-  //   frames contiguously in memory right now
-  u8* input_buffer = input_buffers[0][0];
+void BlurEvaluator::evaluate(const BatchedColumns& input_columns,
+                             BatchedColumns& output_columns) {
+  i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 width = metadata_.width();
   i32 height = metadata_.height();
   size_t frame_size = width * height * 3 * sizeof(u8);
 
   for (i32 i = 0; i < input_count; ++i) {
+    u8* input_buffer = input_columns[0].rows[i].buffer;
     u8* output_buffer = new u8[frame_size];
 
     u8* frame_buffer = (input_buffer + frame_size * i);
@@ -63,8 +58,7 @@ void BlurEvaluator::evaluate(
         }
       }
     }
-    output_sizes[0].push_back(frame_size);
-    output_buffers[0].push_back(output_buffer);
+    output_columns[0].rows.push_back(Row{output_buffer, frame_size});
   }
 }
 

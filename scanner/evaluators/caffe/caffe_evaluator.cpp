@@ -90,11 +90,8 @@ void CaffeEvaluator::configure(const InputFormat& metadata) {
       {input_blob->shape(0), input_blob->shape(1), height, width});
 }
 
-void CaffeEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
+                              BatchedColumns& output_columns) {
   set_device();
 
   std::vector<boost::shared_ptr<caffe::Blob<float>>> input_blobs;
@@ -103,9 +100,15 @@ void CaffeEvaluator::evaluate(
   }
   assert(input_blobs.size() > 0);
 
-  i32 input_count = (i32)input_buffers[0].size();
+  i32 input_count = (i32)input_columns[1].rows.size();
 
-  net_->ForwardPrefilled();
+  i32 output_offset = (forward_input_ ? 1 : 0);
+  if (forward_input_) {
+    for (i32 b = 0; b < (i32)input_columns[0].rows.size(); ++b) {
+      output_columns[0].rows.push_back(input_columns[0].rows[b]);
+    }
+  }
+
   for (i32 frame = 0; frame < input_count; frame += batch_size_) {
     i32 batch_count = std::min(input_count - frame, batch_size_);
     if (input_blobs[0]->shape(0) != batch_count) {
@@ -126,9 +129,9 @@ void CaffeEvaluator::evaluate(
       size_t offset = 0;
       for (i32 j = 0; j < batch_count; ++j) {
         memcpy_buffer((u8*)net_input_buffer + offset, device_type_, device_id_,
-                      input_buffers[i + 1][frame + j], device_type_, device_id_,
-                      input_sizes[i + 1][frame + j]);
-        offset += input_sizes[i + 1][frame + j];
+                      input_columns[i + 1].rows[frame + j].buffer, device_type_,
+                      device_id_, input_columns[i + 1].rows[frame + j].size);
+        offset += input_columns[i + 1].rows[frame + j].size;
       }
     }
 
@@ -141,15 +144,6 @@ void CaffeEvaluator::evaluate(
 
     // Save batch of frames
     size_t num_outputs = descriptor_.output_layer_names.size();
-    i32 output_offset = 0;
-    if (forward_input_) {
-      output_offset++;
-      for (i32 b = 0; b < batch_count; ++b) {
-        output_buffers[0].push_back(input_buffers[0][frame + b]);
-        output_sizes[0].push_back(input_sizes[0][frame + b]);
-      }
-    }
-
     for (size_t i = 0; i < num_outputs; ++i) {
       const std::string& output_layer_name = descriptor_.output_layer_names[i];
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
@@ -172,8 +166,8 @@ void CaffeEvaluator::evaluate(
                  output_size);
         }
         assert(buffer != nullptr);
-        output_buffers[output_offset + i].push_back(buffer);
-        output_sizes[output_offset + i].push_back(output_size);
+        output_columns[output_offset + i].rows.push_back(
+            Row{buffer, output_size});
       }
     }
   }

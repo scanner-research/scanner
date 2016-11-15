@@ -32,22 +32,19 @@ void ImageDecoderEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
 }
 
-void ImageDecoderEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
+                                     BatchedColumns& output_columns) {
   auto start = now();
 
   i64 total_frames_decoded = 0;
   i64 total_frames_used = 0;
-  size_t num_inputs = input_buffers.empty() ? 0 : input_buffers[0].size();
+  size_t num_inputs = input_columns.empty() ? 0 : input_columns[0].rows.size();
   for (size_t i = 0; i < num_inputs; ++i) {
-    u8* decode_args_buffer = input_buffers[1][i];
-    size_t decode_args_buffer_size = input_sizes[1][i];
+    u8* decode_args_buffer = input_columns[1].rows[i].buffer;
+    size_t decode_args_buffer_size = input_columns[1].rows[i].size;
 
-    const u8* in_encoded_buffer = input_buffers[0][i];
-    size_t in_encoded_buffer_size = input_sizes[0][i];
+    const u8* in_encoded_buffer = input_columns[0].rows[i].buffer;
+    size_t in_encoded_buffer_size = input_columns[0].rows[i].size;
 
     ImageDecodeArgs args;
     const u8* encoded_buffer;
@@ -160,8 +157,7 @@ void ImageDecoderEvaluator::evaluate(
           }
           reader.load(rows.begin());
 
-          output_buffers[0].push_back(output);
-          output_sizes[0].push_back(frame_size);
+          output_columns[0].rows.push_back(Row{output, frame_size});
           break;
         }
         case ImageEncodingType::PNG: {
@@ -180,8 +176,7 @@ void ImageDecoderEvaluator::evaluate(
                        << lodepng_error_text(error) << ". Exiting.";
           }
 
-          output_buffers[0].push_back(output);
-          output_sizes[0].push_back(frame_size);
+          output_columns[0].rows.push_back(Row{output, frame_size});
           break;
         }
         default:

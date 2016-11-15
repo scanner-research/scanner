@@ -56,8 +56,7 @@ struct LoadWorkEntry {
 struct EvalWorkEntry {
   i32 work_item_index;
   std::vector<std::string> column_names;
-  std::vector<std::vector<size_t>> buffer_sizes;
-  std::vector<std::vector<u8*>> buffers;
+  BatchedColumns columns;
   DeviceType buffer_type;
   i32 buffer_device_id;
   bool video_decode_item;

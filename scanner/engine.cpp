@@ -203,8 +203,7 @@ void* load_thread(void* arg) {
       }
     }
     i32 num_columns = static_cast<i32>(eval_work_entry.column_names.size());
-    eval_work_entry.buffer_sizes.resize(num_columns);
-    eval_work_entry.buffers.resize(num_columns);
+    eval_work_entry.columns.resize(num_columns);
     eval_work_entry.buffer_type = DeviceType::CPU;
     eval_work_entry.buffer_device_id = 0;
 
@@ -294,8 +293,7 @@ void* load_thread(void* arg) {
             args.profiler.increment("io_read", static_cast<i64>(buffer_size));
 
             // Encoded buffer
-            eval_work_entry.buffers[out_col].push_back(buffer);
-            eval_work_entry.buffer_sizes[out_col].push_back(buffer_size);
+            INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
 
             // Decode args
             DecodeArgs& decode_args = dargs[i];
@@ -311,8 +309,10 @@ void* load_thread(void* arg) {
             size_t size;
             serialize_decode_args(decode_args, decode_args_buffer, size);
 
-            eval_work_entry.buffers[out_col + 1].push_back(decode_args_buffer);
-            eval_work_entry.buffer_sizes[out_col + 1].push_back(size);
+            INSERT_ROW(eval_work_entry.columns[out_col + 1], decode_args_buffer,
+                       size);
+            printf("row size %lu\n",
+                   eval_work_entry.columns[out_col].rows.size());
           }
           // Jump over the next output column because we wrote two columns for
           // this iteration (frame and frame_args)
@@ -382,8 +382,7 @@ void* load_thread(void* arg) {
             args.profiler.increment("io_read", static_cast<i64>(buffer_size));
 
             // Encoded buffer
-            eval_work_entry.buffers[out_col].push_back(buffer);
-            eval_work_entry.buffer_sizes[out_col].push_back(buffer_size);
+            INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
 
             // Decode args
             ImageDecodeArgs& decode_args = dargs[i];
@@ -400,8 +399,10 @@ void* load_thread(void* arg) {
             size_t size;
             serialize_image_decode_args(decode_args, decode_args_buffer, size);
 
-            eval_work_entry.buffers[out_col + 1].push_back(decode_args_buffer);
-            eval_work_entry.buffer_sizes[out_col + 1].push_back(size);
+            INSERT_ROW(eval_work_entry.columns[out_col + 1], decode_args_buffer,
+                       size);
+            printf("row size %lu\n",
+                   eval_work_entry.columns[out_col].rows.size());
           }
           // Jump over the next output column because we wrote two columns for
           // this iteration (frame and frame_args)
@@ -463,8 +464,7 @@ void* load_thread(void* arg) {
             u8* buffer = new u8[buffer_size];
             memcpy(buffer, row_data.data() + offset, buffer_size);
             offset += buffer_size;
-            eval_work_entry.buffer_sizes[out_col].push_back(buffer_size);
-            eval_work_entry.buffers[out_col].push_back(buffer);
+            INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
           }
         }
       }
@@ -571,49 +571,36 @@ void* evaluate_thread(void* arg) {
     output_work_entry.buffer_device_id = 0;
     output_work_entry.video_decode_item = false;
 
-    std::vector<std::vector<size_t>>& work_item_output_sizes =
-        output_work_entry.buffer_sizes;
-    std::vector<std::vector<u8*>>& work_item_output_buffers =
-        output_work_entry.buffers;
-    work_item_output_sizes.resize(last_evaluator_num_columns);
-    work_item_output_buffers.resize(last_evaluator_num_columns);
+    BatchedColumns& work_item_output_columns = output_work_entry.columns;
+    work_item_output_columns.resize(last_evaluator_num_columns);
 
     i32 current_input = 0;
     i32 total_inputs = 0;
-    for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
-      total_inputs = std::max(total_inputs, (i32)work_entry.buffers[i].size());
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      total_inputs =
+          std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
     }
     while (current_input < total_inputs) {
       i32 batch_size = std::min(total_inputs - current_input, WORK_ITEM_SIZE);
 
       std::vector<std::string> input_names;
-      std::vector<std::vector<u8*>> input_buffers;
-      std::vector<std::vector<size_t>> input_sizes;
+      BatchedColumns input_columns;
       DeviceType input_buffer_type;
       i32 input_device_id;
       // Initialize the output buffers with the frame input because we
       // perform a swap from output to input on each iterator to pass outputs
       // from the previous evaluator into the input of the next one
       std::vector<std::string> output_names = work_entry.column_names;
-      std::vector<std::vector<u8*>> output_buffers(work_entry.buffers.size());
-      for (size_t i = 0; i < work_entry.buffers.size(); ++i) {
-        i32 batch = std::min(batch_size, (i32)work_entry.buffers[i].size());
-        assert(batch > 0);
-        output_buffers[i].insert(
-            output_buffers[i].end(),
-            work_entry.buffers[i].begin() + current_input,
-            work_entry.buffers[i].begin() + current_input + batch);
-      }
-      std::vector<std::vector<size_t>> output_sizes(
-          work_entry.buffer_sizes.size());
-      for (size_t i = 0; i < work_entry.buffer_sizes.size(); ++i) {
+      BatchedColumns output_columns;
+      output_columns.resize(work_entry.columns.size());
+      for (size_t i = 0; i < work_entry.columns.size(); ++i) {
         i32 batch =
-            std::min(batch_size, (i32)work_entry.buffer_sizes[i].size());
+            std::min(batch_size, (i32)work_entry.columns[i].rows.size());
         assert(batch > 0);
-        output_sizes[i].insert(
-            output_sizes[i].end(),
-            work_entry.buffer_sizes[i].begin() + current_input,
-            work_entry.buffer_sizes[i].begin() + current_input + batch);
+        output_columns[i].rows.insert(
+            output_columns[i].rows.end(),
+            work_entry.columns[i].rows.begin() + current_input,
+            work_entry.columns[i].rows.begin() + current_input + batch);
       }
       DeviceType output_buffer_type = work_entry.buffer_type;
       i32 output_device_id = work_entry.buffer_device_id;
@@ -625,27 +612,27 @@ void* evaluate_thread(void* arg) {
         i32 num_outputs = num_evaluator_outputs[e];
 
         input_names.swap(output_names);
-        input_buffers.swap(output_buffers);
-        input_sizes.swap(output_sizes);
+        input_columns.swap(output_columns);
         input_buffer_type = output_buffer_type;
         input_device_id = output_device_id;
 
-        i32 num_inputs = input_buffers.size();
+        i32 num_inputs = input_columns.size();
         // If current evaluator type and input buffer type differ, then move
         // the data in the input buffer into a new buffer which has the same
         // type as the evaluator input
         if (input_buffer_type != caps.device_type ||
             input_device_id != device_id) {
           for (i32 i = 0; i < num_inputs; ++i) {
-            std::vector<u8*>& buffers = input_buffers[i];
-            std::vector<size_t>& sizes = input_sizes[i];
-            for (i32 b = 0; b < (i32)buffers.size(); ++b) {
-              size_t size = sizes[b];
+            Column& column = input_columns[i];
+            for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
+              size_t size = column.rows[b].size;
               u8* buffer = new_buffer(caps.device_type, device_id, size);
-              memcpy_buffer(buffer, caps.device_type, device_id, buffers[b],
-                            input_buffer_type, input_device_id, size);
-              delete_buffer(input_buffer_type, input_device_id, buffers[b]);
-              buffers[b] = buffer;
+              memcpy_buffer(buffer, caps.device_type, device_id,
+                            column.rows[b].buffer, input_buffer_type,
+                            input_device_id, size);
+              delete_buffer(input_buffer_type, input_device_id,
+                            column.rows[b].buffer);
+              column.rows[b].buffer = buffer;
             }
           }
           input_buffer_type = caps.device_type;
@@ -653,56 +640,51 @@ void* evaluate_thread(void* arg) {
         }
 
         // Setup output buffers to receive evaluator output
-        output_buffers.clear();
-        output_sizes.clear();
+        output_columns.clear();
         output_buffer_type = caps.device_type;
         output_device_id = device_id;
-        output_buffers.resize(num_outputs);
-        output_sizes.resize(num_outputs);
+        output_columns.resize(num_outputs);
         output_names = args.evaluator_factories[e]->get_output_names();
 
         auto eval_start = now();
-        evaluator->evaluate(input_buffers, input_sizes, output_buffers,
-                            output_sizes);
+        evaluator->evaluate(input_columns, output_columns);
         args.profiler.add_interval("evaluate", eval_start, now());
         auto post_eval_start = now();
-        LOG_IF(FATAL, output_buffers.size() != output_sizes.size())
-            << "Evaluator " << e << " produced " << output_buffers.size() << " "
-            << "output buffers but " << output_sizes.size() << " output sizes. "
-            << "These should be equal.";
+        printf("inputs size %lu, outputs size %lu\n",
+               input_columns[0].rows.size(), output_columns[0].rows.size());
         // Do not verify outputs == inputs if we are decoding encoded video as
         // there is an increase of 1 encoded chunk to multiple frames
         if (false && !(e == 0 && work_entry.video_decode_item)) {
-          for (size_t i = 0; i < output_buffers.size(); ++i) {
-            LOG_IF(FATAL, output_buffers[i].size() != batch_size)
-                << "Evaluator " << e << " produced " << output_buffers[i].size()
-                << " output buffers for column " << output_names[i]
-                << ". Expected " << batch_size << " outputs.";
-            LOG_IF(FATAL, output_sizes[i].size() != batch_size)
-                << "Evaluator " << e << " produced " << output_sizes[i].size()
-                << "output sizes for column " << output_names[i]
-                << ". Expected " << batch_size << " outputs.";
+          for (size_t i = 0; i < output_columns.size(); ++i) {
+            LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
+                << "Evaluator " << e << " produced "
+                << output_columns[i].rows.size() << " output rows for column "
+                << output_names[i] << ". Expected " << batch_size
+                << " outputs.";
           }
         }
         // HACK(apoms): Handle the case where the video decode evaluator gets a
         //   single input but produces multiple outputs. Should be removed if we
         //   add flatmap esque increases in output element count
         if (e == 0 && work_entry.video_decode_item) {
-          batch_size = output_sizes[0].size();
+          batch_size = output_columns[0].rows.size();
         }
 
         // Allow passing input buffers through to an evaluator output
         // by tracking the pointers and comparing the output pointers
         // for equality
         std::set<u8*> all_output_buffers_set;
-        for (std::vector<u8*>& buffers : output_buffers) {
-          all_output_buffers_set.insert(buffers.begin(), buffers.end());
+        for (Column& column : output_columns) {
+          for (Row& row : column.rows) {
+            all_output_buffers_set.insert(row.buffer);
+          }
         }
 
         // Delete input buffers after they are used
         for (size_t i = 0; i < num_inputs; ++i) {
-          std::vector<u8*>& buffers = input_buffers[i];
-          for (u8* buff : buffers) {
+          Column& column = input_columns[i];
+          for (Row& row : column.rows) {
+            u8* buff = row.buffer;
             if (all_output_buffers_set.count(buff) == 0) {
               delete_buffer(input_buffer_type, input_device_id, buff);
             }
@@ -721,34 +703,33 @@ void* evaluate_thread(void* arg) {
         warmup_frames = 0;
       }
       for (i32 i = 0; i < last_evaluator_num_columns; ++i) {
-        assert(output_sizes[i].size() == output_buffers[i].size());
-
         // Delete warmup frame outputs
         for (i32 w = 0; w < warmup_frames; ++w) {
           delete_buffer(last_evaluator_device_type, last_evaluator_device_id,
-                        output_buffers[i][w]);
+                        output_columns[i].rows[w].buffer);
         }
 
         // Make sure all outputs are in CPU memory so downstream code does not
         // need to condition on buffer type
+        i32 num_output_rows = static_cast<i32>(output_columns[i].rows.size());
+        printf("col %d, num outputs %d\n", i, num_output_rows);
         if (output_buffer_type != DeviceType::CPU) {
-          for (i32 f = warmup_frames; f < (i32)batch_size; ++f) {
-            size_t size = output_sizes[i][f];
-            u8* src_buffer = output_buffers[i][f];
+          for (i32 f = warmup_frames; f < (i32)num_output_rows; ++f) {
+            Row& row = output_columns[i].rows[f];
+            size_t size = row.size;
+            u8* src_buffer = row.buffer;
             u8* dest_buffer = new_buffer(DeviceType::CPU, 0, size);
             memcpy_buffer(dest_buffer, DeviceType::CPU, 0, src_buffer,
                           output_buffer_type, output_device_id, size);
             delete_buffer(output_buffer_type, output_device_id, src_buffer);
-            output_buffers[i][f] = dest_buffer;
+            output_columns[i].rows[f].buffer = dest_buffer;
           }
         }
         // Keep non-warmup frame outputs
-        work_item_output_sizes[i].insert(
-            work_item_output_sizes[i].end(),
-            output_sizes[i].begin() + warmup_frames, output_sizes[i].end());
-        work_item_output_buffers[i].insert(
-            work_item_output_buffers[i].end(),
-            output_buffers[i].begin() + warmup_frames, output_buffers[i].end());
+        work_item_output_columns[i].rows.insert(
+            work_item_output_columns[i].rows.end(),
+            output_columns[i].rows.begin() + warmup_frames,
+            output_columns[i].rows.end());
       }
       current_input += batch_size;
     }
@@ -808,7 +789,7 @@ void* save_thread(void* arg) {
 
     // Write out each output layer to an individual data file
     u64 num_rows = static_cast<u64>(
-        work_entry.buffers.empty() ? 0 : work_entry.buffers[0].size());
+        work_entry.columns.empty() ? 0 : work_entry.columns[0].rows.size());
     for (size_t out_idx = 0; out_idx < args.output_names.size(); ++out_idx) {
       const std::string output_path = job_item_output_path(
           args.dataset_name, args.job_name, video_path,
@@ -823,11 +804,8 @@ void* save_thread(void* arg) {
         exit_on_error(result);
       }
 
-      if (work_entry.buffer_sizes[out_idx].size() != num_rows) {
-        LOG(FATAL) << "Output layer's size vector has wrong length";
-      }
-      if (work_entry.buffers[out_idx].size() != num_rows) {
-        LOG(FATAL) << "Output layer's buffer vector has wrong length";
+      if (work_entry.columns[out_idx].rows.size() != num_rows) {
+        LOG(FATAL) << "Output layer's row vector has wrong length";
       }
 
       // Write number of rows in the file
@@ -835,14 +813,14 @@ void* save_thread(void* arg) {
       // Write out all output sizes first so we can easily index into the file
       i64 size_written = 0;
       for (size_t i = 0; i < num_rows; ++i) {
-        i64 buffer_size = work_entry.buffer_sizes[out_idx][i];
+        i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
         write(output_file, buffer_size);
         size_written += sizeof(i64);
       }
       // Write actual output data
       for (size_t i = 0; i < num_rows; ++i) {
-        i64 buffer_size = work_entry.buffer_sizes[out_idx][i];
-        u8* buffer = work_entry.buffers[out_idx][i];
+        i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
+        u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
         write(output_file, buffer, buffer_size);
         size_written += buffer_size;
       }
@@ -854,7 +832,7 @@ void* save_thread(void* arg) {
       for (size_t i = 0; i < num_rows; ++i) {
         delete_buffer(DeviceType::CPU,  // work_entry.buffer_type,
                       work_entry.buffer_device_id,
-                      work_entry.buffers[out_idx][i]);
+                      work_entry.columns[out_idx].rows[i].buffer);
       }
 
       delete output_file;

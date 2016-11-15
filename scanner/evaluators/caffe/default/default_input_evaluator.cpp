@@ -120,19 +120,15 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
   }
 }
 
-void DefaultInputEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
+                                     BatchedColumns& output_columns) {
   auto eval_start = now();
 
   size_t frame_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
-  i32 input_count = input_buffers[0].size();
+  i32 input_count = input_columns[0].rows.size();
 
-  for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    output_buffers[0].push_back(input_buffers[0][i]);
-    output_sizes[0].push_back(input_sizes[0][i]);
+  for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
+    output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
 
   if (device_type_ == DeviceType::GPU) {
@@ -140,118 +136,90 @@ void DefaultInputEvaluator::evaluate(
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
 
-    for (i32 frame = 0; frame < input_count; frame += batch_size_) {
-      i32 batch_count = std::min(input_count - frame, batch_size_);
-
+    for (i32 frame = 0; frame < input_count; frame++) {
       f32* net_input = nullptr;
-      i32 net_input_size = frame_size * batch_count;
+      i32 net_input_size = frame_size;
       cudaMalloc((void**)&net_input, net_input_size);
 
-      for (i32 i = 0; i < batch_count; ++i) {
-        int sid = i % num_cuda_streams_;
-        cv::cuda::Stream& cv_stream = streams_[sid];
+      int sid = frame % num_cuda_streams_;
+      cv::cuda::Stream& cv_stream = streams_[sid];
 
-        u8* buffer = input_buffers[0][frame + i];
-        frame_input_g_[sid] = cv::cuda::GpuMat(
-            net_input_height_, net_input_width_, CV_8UC3, buffer);
-        // cv::cuda::cvtColor(frame_input_g_[sid], frame_input_g_[sid],
-        //                    CV_RGB2BGR, 0,
-        //                    cv_stream);
-        frame_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
-        cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
-                           meanshifted_input_g_[sid], cv::noArray(), -1,
-                           cv_stream);
-        cv::cuda::divide(meanshifted_input_g_[sid], 255.0,
-                         normalized_input_g_[sid], 1, -1, cv_stream);
-        // Changed from interleaved RGB to planar RGB
-        cv::cuda::split(normalized_input_g_[sid], input_planes_g_[sid],
-                        cv_stream);
-        cv::cuda::transpose(input_planes_g_[sid][0], flipped_planes_g_[sid][0],
-                            cv_stream);
-        cv::cuda::transpose(input_planes_g_[sid][1], flipped_planes_g_[sid][1],
-                            cv_stream);
-        cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
-                            cv_stream);
-        auto& plane1 = flipped_planes_g_[sid][0];
-        auto& plane2 = flipped_planes_g_[sid][1];
-        auto& plane3 = flipped_planes_g_[sid][2];
-        auto& planar_input = planar_input_g_[sid];
-        plane1.copyTo(planar_input(cv::Rect(
-            0, net_input_width_ * 0, net_input_height_, net_input_width_)));
-        plane2.copyTo(planar_input(cv::Rect(
-            0, net_input_width_ * 1, net_input_height_, net_input_width_)));
-        plane3.copyTo(planar_input(cv::Rect(
-            0, net_input_width_ * 2, net_input_height_, net_input_width_)));
-        assert(planar_input.cols == net_input_height_);
-        cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
-        CU_CHECK(cudaMemcpy2DAsync(
-            net_input + i * (net_input_width_ * net_input_height_ * 3),
-            net_input_height_ * sizeof(float), planar_input.data,
-            planar_input.step, net_input_height_ * sizeof(float),
-            net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
-      }
-      for (cv::cuda::Stream& s : streams_) {
-        s.waitForCompletion();
-      }
-
-      output_buffers[1].push_back((u8*)net_input);
-      output_sizes[1].push_back(net_input_size);
+      u8* buffer = input_columns[0].rows[frame].buffer;
+      frame_input_g_[sid] = cv::cuda::GpuMat(net_input_height_,
+                                             net_input_width_, CV_8UC3, buffer);
+      // cv::cuda::cvtColor(frame_input_g_[sid], frame_input_g_[sid],
+      //                    CV_RGB2BGR, 0,
+      //                    cv_stream);
+      frame_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
+      cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
+                         meanshifted_input_g_[sid], cv::noArray(), -1,
+                         cv_stream);
+      cv::cuda::divide(meanshifted_input_g_[sid], 255.0,
+                       normalized_input_g_[sid], 1, -1, cv_stream);
+      // Changed from interleaved RGB to planar RGB
+      cv::cuda::split(normalized_input_g_[sid], input_planes_g_[sid],
+                      cv_stream);
+      cv::cuda::transpose(input_planes_g_[sid][0], flipped_planes_g_[sid][0],
+                          cv_stream);
+      cv::cuda::transpose(input_planes_g_[sid][1], flipped_planes_g_[sid][1],
+                          cv_stream);
+      cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
+                          cv_stream);
+      auto& plane1 = flipped_planes_g_[sid][0];
+      auto& plane2 = flipped_planes_g_[sid][1];
+      auto& plane3 = flipped_planes_g_[sid][2];
+      auto& planar_input = planar_input_g_[sid];
+      plane1.copyTo(planar_input(cv::Rect(
+          0, net_input_width_ * 0, net_input_height_, net_input_width_)));
+      plane2.copyTo(planar_input(cv::Rect(
+          0, net_input_width_ * 1, net_input_height_, net_input_width_)));
+      plane3.copyTo(planar_input(cv::Rect(
+          0, net_input_width_ * 2, net_input_height_, net_input_width_)));
+      assert(planar_input.cols == net_input_height_);
+      cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
+      CU_CHECK(cudaMemcpy2DAsync(
+          net_input, net_input_height_ * sizeof(float), planar_input.data,
+          planar_input.step, net_input_height_ * sizeof(float),
+          net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
+      output_columns[1].rows.push_back(Row{(u8*)net_input, net_input_size});
     }
-
-    i32 num_batches = output_buffers[1].size();
-    for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
-      void* buf;
-      cudaMalloc(&buf, 1);
-      output_buffers[1].push_back((u8*)buf);
-      output_sizes[1].push_back(1);
+    for (cv::cuda::Stream& s : streams_) {
+      s.waitForCompletion();
     }
 #else
     LOG(FATAL) << "Not built with CUDA support.";
 #endif  // HAVE_CUDA
   } else {
-    for (i32 frame = 0; frame < input_count; frame += batch_size_) {
-      i32 batch_count = std::min(input_count - frame, batch_size_);
+    i32 frame_width = metadata_.width();
+    i32 frame_height = metadata_.height();
 
-      i32 frame_width = metadata_.width();
-      i32 frame_height = metadata_.height();
+    for (i32 frame = 0; frame < input_count; frame++) {
+      u8* buffer = input_columns[0].rows[frame].buffer;
+      cv::Mat input_mat(frame_height, frame_width, CV_8UC3, buffer);
 
-      for (i32 i = 0; i < batch_count; ++i) {
-        u8* buffer = input_buffers[0][frame + i];
-        cv::Mat input_mat(frame_height, frame_width, CV_8UC3, buffer);
+      cv::resize(input_mat, resized_input_c_,
+                 cv::Size(net_input_width_, net_input_height_), 0, 0,
+                 cv::INTER_LINEAR);
+      cv::cvtColor(resized_input_c_, input_mats_c_[0], CV_RGB2BGR);
 
-        cv::resize(input_mat, resized_input_c_,
-                   cv::Size(net_input_width_, net_input_height_), 0, 0,
-                   cv::INTER_LINEAR);
-        cv::cvtColor(resized_input_c_, input_mats_c_[i], CV_RGB2BGR);
-      }
+      std::vector<cv::Mat> input_mats = {input_mats_c_[0]};
 
-      std::vector<cv::Mat> input_mats_slice(
-          input_mats_c_.begin(), input_mats_c_.begin() + batch_count);
-
-      u8* net_input = new u8[frame_size * batch_count];
+      u8* net_input = new u8[frame_size];
       output_blob_.set_cpu_data((f32*)net_input);
-      output_blob_.Reshape(input_mats_slice.size(), output_blob_.shape(1),
-                           output_blob_.shape(2), output_blob_.shape(3));
-      transformer_->Transform(input_mats_slice, &output_blob_);
+      output_blob_.Reshape(1, output_blob_.shape(1), output_blob_.shape(2),
+                           output_blob_.shape(3));
+      transformer_->Transform(input_mats, &output_blob_);
 
-      output_buffers[1].push_back(net_input);
-      output_sizes[1].push_back(frame_size * batch_count);
-    }
-
-    i32 num_batches = output_buffers[1].size();
-    for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
-      output_buffers[1].push_back(new u8[1]);
-      output_sizes[1].push_back(1);
+      output_columns[1].rows.push_back(Row{net_input, frame_size});
     }
   }
 
   for (i32 l = 0; l < input_layer_builders_.size(); ++l) {
-    for (i32 i = 0; i < input_buffers[0].size(); ++i) {
+    for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
       u8* buffer;
       size_t size;
       input_layer_builders_[l](buffer, size, metadata_);
-      output_buffers[l + 2].push_back(buffer);
-      output_sizes[l + 2].push_back(size);
+      output_columns[l + 2].rows.push_back(Row{buffer, size});
     }
   }
 

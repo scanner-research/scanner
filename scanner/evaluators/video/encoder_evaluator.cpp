@@ -10,11 +10,8 @@ void EncoderEvaluator::configure(const InputFormat& metadata) {
   this->metadata = metadata;
 }
 
-void EncoderEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void EncoderEvaluator::evaluate(const BatchedColumns& input_columns,
+                                BatchedColumns& output_columns) {
   auto start = now();
   // OpenCV 2.4.x apparently can't encode H.264 videos
   std::string ext;
@@ -36,7 +33,8 @@ void EncoderEvaluator::evaluate(
                            24.0,  // TODO: get this from metadata
                            cv::Size(metadata.width(), metadata.height()));
 
-    for (auto& buf : input_buffers[0]) {
+    for (const Row& r : input_columns[0].rows) {
+      auto& buf = r.buffer;
       cv::Mat img = bytesToImage(buf, metadata);
       cv::cvtColor(img, img, CV_BGR2RGB);
       writer.write(img);
@@ -63,13 +61,11 @@ void EncoderEvaluator::evaluate(
     LOG(FATAL) << "Encoder failed to close file " << path;
   }
 
-  for (i32 i = 0; i < input_buffers[0].size() - 1; ++i) {
-    output_buffers[0].push_back(new u8[1]);
-    output_sizes[0].push_back(0);
+  for (i32 i = 0; i < input_columns[0].rows.size() - 1; ++i) {
+    output_columns[0].rows.push_back(Row{new u8[1], 1});
   }
 
-  output_buffers[0].push_back(buf);
-  output_sizes[0].push_back(fsize);
+  output_columns[0].rows.push_back(Row{buf, static_cast<size_t>(fsize)});
 
   if (profiler_) {
     profiler_->add_interval("encode", start, now());

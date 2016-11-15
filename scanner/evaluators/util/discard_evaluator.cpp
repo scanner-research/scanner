@@ -26,15 +26,12 @@ DiscardEvaluator::DiscardEvaluator(const EvaluatorConfig& config,
 
 void DiscardEvaluator::configure(const InputFormat& metadata) {}
 
-void DiscardEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  i32 input_count = static_cast<i32>(input_buffers[0].size());
+void DiscardEvaluator::evaluate(const BatchedColumns& input_columns,
+                                BatchedColumns& output_columns) {
+  i32 input_count = static_cast<i32>(input_columns[0].rows.size());
   for (i32 i = 0; i < input_count; ++i) {
-    output_buffers[0].push_back(new_buffer(device_type_, device_id_, 1));
-    output_sizes[0].push_back(1);
+    output_columns[0].rows.push_back(
+        Row{new_buffer(device_type_, device_id_, 1), 1});
   }
 }
 

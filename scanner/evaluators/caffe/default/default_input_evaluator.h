@@ -42,10 +42,8 @@ class DefaultInputEvaluator : public Evaluator {
 
   void configure(const InputFormat& metadata) override;
 
-  void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-                const std::vector<std::vector<size_t>>& input_sizes,
-                std::vector<std::vector<u8*>>& output_buffers,
-                std::vector<std::vector<size_t>>& output_sizes) override;
+  void evaluate(const BatchedColumns& input_columns,
+                BatchedColumns& output_columns) override;
 
   i32 net_input_width_;
   i32 net_input_height_;

@@ -35,6 +35,18 @@ struct InputFormat {
   i32 width_;
   i32 height_;
 };
+
+struct Row {
+  u8* buffer;
+  size_t size;
+};
+
+struct Column {
+  std::vector<Row> rows;
+};
+
+using BatchedColumns = std::vector<Column>;
+
 /**
  * @brief Interface for a unit of computation in a pipeline.
  *
@@ -73,29 +85,21 @@ class Evaluator {
    * @brief Runs the evaluator on input rows and produces equal number of
    *        output rows.
    *
-   * @param input_buffers
+   * @param input_columns
    *        vector of columns, where each column is a vector of inputs and each
    *        input is a byte array
-   * @param input_sizes
-   *        same structure as input_buffers, and each entry specifies the number
-   *        of bytes in the corresponding input byte array
-   * @param output_buffers
+   * @param output_columns
    *        evaluator output, each column must have same length as the number of
    *        input rows
-   * @param output_sizes
-   *        same structure as output_buffers, and each entry specifies the
-   *        number of bytes in the corresponding output byte array
    *
    * Evaluate gets run on batches of inputs. At the beginning of a pipeline this
    * is raw RGB images from the input images/videos, and after that the input
    * becomes whatever was returned by the previous evaluator.
    *
-   * Output buffers must have non-zero size.
+   * Number of output columns must be non-zero.
    */
-  virtual void evaluate(const std::vector<std::vector<u8*>>& input_buffers,
-                        const std::vector<std::vector<size_t>>& input_sizes,
-                        std::vector<std::vector<u8*>>& output_buffers,
-                        std::vector<std::vector<size_t>>& output_sizes) = 0;
+  virtual void evaluate(const BatchedColumns& input_columns,
+                        BatchedColumns& output_columns) = 0;
 
   /**
    * Do not call this function.
@@ -112,4 +116,11 @@ class Evaluator {
   /** configure() by default will save the metadata for use in evaluate(). */
   InputFormat metadata_;
 };
+
+#define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)
+
+#define ROW_SIZE(column__, row__) (column__.rows[row__].size)
+
+#define INSERT_ROW(column__, buffer__, size__) \
+  column__.rows.push_back(Row{buffer__, size__})
 }

@@ -120,22 +120,20 @@ void CPMInputEvaluator::configure(const InputFormat& metadata) {
   }
 }
 
-void CPMInputEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
+                                 BatchedColumns& output_columns) {
   auto eval_start = now();
 
   size_t frame_size = net_input_width_ * net_input_height_ * 3;
-  i32 input_count = input_buffers[0].size();
+  i32 input_count = input_columns[0].rows.size();
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     i32 sid = 0;
     for (i32 i = 0; i < input_count; ++i) {
-      u8* buffer = input_buffers[0][i];
-      assert(input_sizes[0][i] == metadata_.height() * metadata_.width() * 3);
+      u8* buffer = input_columns[0].rows[i].buffer;
+      assert(input_columns[0].rows[i].size ==
+             metadata_.height() * metadata_.width() * 3);
 
       cv::cuda::Stream& cv_stream = streams_[sid];
       cudaStream_t cuda_s = cv::cuda::StreamAccessor::getStream(cv_stream);
@@ -153,8 +151,8 @@ void CPMInputEvaluator::evaluate(
 
       std::vector<scanner::Point> center_points;
       {
-        u8* center_points_buffer = input_buffers[1][i];
-        size_t center_points_size = input_sizes[1][i];
+        u8* center_points_buffer = input_columns[1].rows[i].buffer;
+        size_t center_points_size = input_columns[1].rows[i].size;
         u8* cpu_buffer = new u8[center_points_size];
         memcpy_buffer(cpu_buffer, DeviceType::CPU, 0, center_points_buffer,
                       device_type_, device_id_, center_points_size);
@@ -225,8 +223,7 @@ void CPMInputEvaluator::evaluate(
             planar_input.step, net_input_width_ * sizeof(float),
             net_input_height_ * 4, cudaMemcpyDeviceToDevice, cuda_s));
 
-        output_buffers[1].push_back((u8*)net_input);
-        output_sizes[1].push_back(net_input_size);
+        output_columns[1].rows.push_back(Row{(u8*)net_input, net_input_size});
       }
       sid += 1;
       sid %= num_cuda_streams_;
@@ -238,47 +235,48 @@ void CPMInputEvaluator::evaluate(
     LOG(FATAL) << "Not built with CUDA support.";
 #endif
   } else {
-    for (i32 frame = 0; frame < input_count; frame += batch_size_) {
-      i32 batch_count = std::min(input_count - frame, batch_size_);
-      f32* net_input = reinterpret_cast<f32*>(
-          new u8[frame_size * batch_count * sizeof(f32)]);
+    assert(false);
+    // for (i32 frame = 0; frame < input_count; frame += batch_size_) {
+    //   i32 batch_count = std::min(input_count - frame, batch_size_);
+    //   f32* net_input = reinterpret_cast<f32*>(
+    //       new u8[frame_size * batch_count * sizeof(f32)]);
 
-      for (i32 i = 0; i < batch_count; ++i) {
-        u8* buffer = input_buffers[0][frame + i];
+    //   for (i32 i = 0; i < batch_count; ++i) {
+    //     u8* buffer = input_buffers[0][frame + i];
 
-        cv::Mat input_mat =
-            cv::Mat(net_input_height_, net_input_width_, CV_8UC3, buffer);
+    //     cv::Mat input_mat =
+    //         cv::Mat(net_input_height_, net_input_width_, CV_8UC3, buffer);
 
-        // Changed from interleaved RGB to planar RGB
-        input_mat.convertTo(float_input_c_, CV_32FC3);
-        cv::subtract(float_input_c_, mean_mat_c_, normalized_input_c_);
-        cv::transpose(normalized_input_c_, flipped_input_c_);
-        cv::split(flipped_input_c_, input_planes_c_);
-        cv::vconcat(input_planes_c_, planar_input_c_);
-        assert(planar_input_c_.cols == net_input_height_);
-        for (i32 r = 0; r < planar_input_c_.rows; ++r) {
-          u8* mat_pos = planar_input_c_.data + r * planar_input_c_.step;
-          u8* input_pos = reinterpret_cast<u8*>(
-              net_input + i * (net_input_width_ * net_input_height_ * 3) +
-              r * net_input_height_);
-          std::memcpy(input_pos, mat_pos, planar_input_c_.cols * sizeof(float));
-        }
-      }
+    //     // Changed from interleaved RGB to planar RGB
+    //     input_mat.convertTo(float_input_c_, CV_32FC3);
+    //     cv::subtract(float_input_c_, mean_mat_c_, normalized_input_c_);
+    //     cv::transpose(normalized_input_c_, flipped_input_c_);
+    //     cv::split(flipped_input_c_, input_planes_c_);
+    //     cv::vconcat(input_planes_c_, planar_input_c_);
+    //     assert(planar_input_c_.cols == net_input_height_);
+    //     for (i32 r = 0; r < planar_input_c_.rows; ++r) {
+    //       u8* mat_pos = planar_input_c_.data + r * planar_input_c_.step;
+    //       u8* input_pos = reinterpret_cast<u8*>(
+    //           net_input + i * (net_input_width_ * net_input_height_ * 3) +
+    //           r * net_input_height_);
+    //       std::memcpy(input_pos, mat_pos, planar_input_c_.cols *
+    //       sizeof(float));
+    //     }
+    //   }
 
-      output_buffers[0].push_back((u8*)net_input);
-      output_sizes[0].push_back(frame_size * batch_count * sizeof(f32));
-    }
+    //   output_buffers[0].push_back((u8*)net_input);
+    //   output_sizes[0].push_back(frame_size * batch_count * sizeof(f32));
+    // }
 
-    i32 num_batches = output_buffers[0].size();
-    for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
-      output_buffers[0].push_back(new u8[1]);
-      output_sizes[0].push_back(1);
-    }
+    // i32 num_batches = output_buffers[0].size();
+    // for (i32 i = 0; i < input_buffers[0].size() - num_batches; ++i) {
+    //   output_buffers[0].push_back(new u8[1]);
+    //   output_sizes[0].push_back(1);
+    // }
   }
 
-  for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-    output_buffers[0].push_back(input_buffers[0][i]);
-    output_sizes[0].push_back(input_sizes[0][i]);
+  for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
+    output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
 
   if (profiler_) {

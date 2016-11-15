@@ -57,30 +57,27 @@ void CPMPersonParserEvaluator::configure(const InputFormat& metadata) {
   max_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC1);
 }
 
-void CPMPersonParserEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  i32 input_count = (i32)input_buffers[0].size();
+void CPMPersonParserEvaluator::evaluate(const BatchedColumns& input_columns,
+                                        BatchedColumns& output_columns) {
+  i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 frame_idx = 0;
   i32 feature_idx;
   if (forward_input_) {
-    assert(input_buffers.size() >= 2);
+    assert(input_columns.size() >= 2);
     feature_idx = 1;
   } else {
-    assert(input_buffers.size() >= 1);
+    assert(input_columns.size() >= 1);
     feature_idx = 0;
   }
 
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
   for (i32 b = 0; b < input_count; ++b) {
-    assert(input_sizes[feature_idx][b] ==
+    assert(input_columns[feature_idx].rows[b].size ==
            feature_width_ * feature_height_ * sizeof(f32));
     cv::Mat input(feature_height_, feature_width_, CV_32FC1,
-                  input_buffers[feature_idx][b]);
+                  input_columns[feature_idx].rows[b].buffer);
     cv::resize(input, resized_c_,
                cv::Size(net_input_width_, net_input_height_));
     cv::dilate(resized_c_, max_c_, dilate_kernel_);
@@ -103,14 +100,13 @@ void CPMPersonParserEvaluator::evaluate(
     size_t size;
     u8* buffer;
     serialize_proto_vector(centers, buffer, size);
-    output_buffers[feature_idx].push_back(buffer);
-    output_sizes[feature_idx].push_back(size);
+    output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
 
   if (forward_input_) {
     for (i32 b = 0; b < input_count; ++b) {
-      output_buffers[frame_idx].push_back(input_buffers[frame_idx][b]);
-      output_sizes[frame_idx].push_back(input_sizes[frame_idx][b]);
+      output_columns[frame_idx].rows.push_back(
+          input_columns[frame_idx].rows[b]);
     }
   }
 }

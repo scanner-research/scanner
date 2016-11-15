@@ -91,21 +91,18 @@ void FacenetParserEvaluator::configure(const InputFormat& metadata) {
   };
 }
 
-void FacenetParserEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
-  i32 input_count = (i32)input_buffers[0].size();
+void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
+                                      BatchedColumns& output_columns) {
+  i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 feature_idx;
   i32 frame_idx;
   if (forward_input_) {
-    assert(input_buffers.size() >= 2);
+    assert(input_columns.size() >= 2);
     feature_idx = 1;
     frame_idx = 0;
   } else {
-    assert(input_buffers.size() >= 1);
+    assert(input_columns.size() >= 1);
     feature_idx = 0;
     frame_idx = 0;
   }
@@ -113,14 +110,14 @@ void FacenetParserEvaluator::evaluate(
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
   for (i32 b = 0; b < input_count; ++b) {
-    assert(input_sizes[feature_idx][b] ==
+    assert(input_columns[feature_idx].rows[b].size ==
            (feature_vector_sizes_[0] + feature_vector_sizes_[1]));
 
     std::vector<BoundingBox> bboxes;
     // Track confidence per pixel for each category so we can calculate
     // uncertainty across the frame
     f32* template_confidences =
-        reinterpret_cast<f32*>(input_buffers[feature_idx][b]);
+        reinterpret_cast<f32*>(input_columns[feature_idx].rows[b].buffer);
     f32* template_adjustments =
         template_confidences + feature_vector_lengths_[0];
 
@@ -203,28 +200,26 @@ void FacenetParserEvaluator::evaluate(
     size_t size;
     u8* buffer;
     serialize_bbox_vector(best_bboxes, buffer, size);
-    output_buffers[feature_idx].push_back(buffer);
-    output_sizes[feature_idx].push_back(size);
+    output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
 
   if (forward_input_) {
     u8* buffer = nullptr;
     for (i32 b = 0; b < input_count; ++b) {
-      size_t size = input_sizes[frame_idx][b];
+      size_t size = input_columns[frame_idx].rows[b].size;
       if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
         cudaMalloc((void**)&buffer, size);
-        cudaMemcpy(buffer, input_buffers[frame_idx][b], size,
+        cudaMemcpy(buffer, input_columns[frame_idx].rows[b].buffer, size,
                    cudaMemcpyDefault);
 #else
         LOG(FATAL) << "Not built with CUDA support.";
 #endif
       } else {
         buffer = new u8[size];
-        memcpy(buffer, input_buffers[frame_idx][b], size);
+        memcpy(buffer, input_columns[frame_idx].rows[b].buffer, size);
       }
-      output_buffers[frame_idx].push_back(buffer);
-      output_sizes[frame_idx].push_back(size);
+      output_columns[frame_idx].rows.push_back(Row{buffer, size});
     }
   }
 }
