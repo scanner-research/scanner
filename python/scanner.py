@@ -230,10 +230,10 @@ class JobResult(object):
             lens = []
             start_pos = maxint
             pos = 0
-            num_rows = struct.unpack("l", contents[:8])
-            assert num_rows > max(rows)
+            (num_rows,) = struct.unpack("l", contents[:8])
 
             i = 8
+            rows = rows if len(rows) > 0 else range(num_rows)
             for fi in rows:
                 (buf_len,) = struct.unpack("l", contents[i:i+8])
                 i += 8
@@ -245,7 +245,7 @@ class JobResult(object):
                     lens.append(buf_len)
 
             bufs = []
-            i = 8 + len(rows) * 8 + start_pos
+            i = 8 + num_rows * 8 + start_pos
             for buf_len in lens:
                 buf = contents[i:i+buf_len]
                 i += buf_len
@@ -277,7 +277,7 @@ class JobResult(object):
                 start = item[0]
                 end = item[-1]
                 if start > iend or end < istart: continue
-                rows = item
+                rows = []
                 result['buffers'] += self._load_output_file(video,
                                                             video_name,
                                                             work_item_index,
@@ -436,18 +436,20 @@ class JobResult(object):
         return s
 
     def as_outputs(self, interval=None):
-        if self._derived:
-            return self._load_derived_sampling(interval)
-
+        gen = None
         sampling = self.get_sampling_type()
-        if sampling is Sampling.All:
-            return self._load_all_sampling(interval)
+        if self._derived:
+            gen = self._load_derived_sampling(interval)
+        elif sampling is Sampling.All:
+            gen = self._load_all_sampling(interval)
         elif sampling is Sampling.Strided:
-            return self._load_stride_sampling(interval)
+            gen = self._load_stride_sampling(interval)
         elif sampling is Sampling.Gather:
-            return self._load_gather_sampling(interval)
+            gen = self._load_gather_sampling(interval)
         elif sampling is Sampling.SequenceGather:
-            return self._load_sequence_gather_sampling(interval)
+            gen = self._load_sequence_gather_sampling(interval)
+        for i in gen:
+            yield i
 
     def as_frame_list(self, interval=None):
         for d in self.as_outputs(interval):
