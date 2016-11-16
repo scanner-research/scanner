@@ -60,6 +60,7 @@ class DefaultInputEvaluator : public Evaluator {
   cv::cuda::GpuMat mean_mat_g_;
   std::vector<cv::cuda::Stream> streams_;
   std::vector<cv::cuda::GpuMat> frame_input_g_;
+  std::vector<cv::cuda::GpuMat> resized_input_g_;
   std::vector<cv::cuda::GpuMat> float_input_g_;
   std::vector<cv::cuda::GpuMat> meanshifted_input_g_;
   std::vector<cv::cuda::GpuMat> normalized_input_g_;

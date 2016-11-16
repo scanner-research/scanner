@@ -88,7 +88,9 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
     planar_input_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
+          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+      resized_input_g_.push_back(
+          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
       float_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
       meanshifted_input_g_.push_back(
@@ -145,12 +147,11 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       cv::cuda::Stream& cv_stream = streams_[sid];
 
       u8* buffer = input_columns[0].rows[frame].buffer;
-      frame_input_g_[sid] = cv::cuda::GpuMat(net_input_height_,
-                                             net_input_width_, CV_8UC3, buffer);
-      // cv::cuda::cvtColor(frame_input_g_[sid], frame_input_g_[sid],
-      //                    CV_RGB2BGR, 0,
-      //                    cv_stream);
-      frame_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
+      frame_input_g_[sid] = bytesToImage_gpu(buffer, metadata_);
+      cv::cuda::resize(frame_input_g_[sid], resized_input_g_[sid],
+                       cv::Size(net_input_width_, net_input_height_), 0, 0,
+                       cv::INTER_LINEAR, cv_stream);
+      resized_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
       cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
                          meanshifted_input_g_[sid], cv::noArray(), -1,
                          cv_stream);
