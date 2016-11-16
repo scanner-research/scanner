@@ -48,7 +48,6 @@ extern "C" {
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
-using storehouse::exit_on_error;
 
 namespace scanner {
 
@@ -361,8 +360,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   {
     // Read input from local path
     std::unique_ptr<RandomReadFile> in_file;
-    storehouse::exit_on_error(
-        make_unique_random_read_file(storage, video_path, in_file));
+    BACKOFF_FAIL(make_unique_random_read_file(storage, video_path, in_file));
 
     u64 pos = 0;
     video_bytes = read_entire_file(in_file.get(), pos);
@@ -590,19 +588,18 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     std::string metadata_path =
         dataset_item_metadata_path(dataset_name, item_name);
     std::unique_ptr<WriteFile> metadata_file;
-    exit_on_error(
-        make_unique_write_file(storage, metadata_path, metadata_file));
+    BACKOFF_FAIL(make_unique_write_file(storage, metadata_path, metadata_file));
 
     VideoMetadata m{video_descriptor};
     serialize_video_metadata(metadata_file.get(), m);
-    metadata_file->save();
+    BACKOFF_FAIL(metadata_file->save());
   }
 
   // Write out our demuxed video stream
   {
     std::string data_path = dataset_item_data_path(dataset_name, item_name);
     std::unique_ptr<WriteFile> output_file{};
-    exit_on_error(make_unique_write_file(storage, data_path, output_file));
+    BACKOFF_FAIL(make_unique_write_file(storage, data_path, output_file));
 
     const size_t WRITE_SIZE = 16 * 1024;
     u8 buffer[WRITE_SIZE];
@@ -619,7 +616,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
              result == StoreResult::EndOfFile);
       pos += size_to_write;
     }
-    output_file->save();
+    BACKOFF_FAIL(output_file->save());
   }
 
   if (compute_web_metadata) {
@@ -655,7 +652,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       std::string web_video_path =
           dataset_item_video_path(dataset_name, item_name);
       std::unique_ptr<WriteFile> output_file{};
-      exit_on_error(
+      BACKOFF_FAIL(
           make_unique_write_file(storage, web_video_path, output_file));
 
       const size_t READ_SIZE = 1024 * 1024;
@@ -672,7 +669,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
                result == StoreResult::EndOfFile);
       }
 
-      output_file->save();
+      BACKOFF_FAIL(output_file->save());
     }
 
     // Get timestamp info for web video
@@ -694,8 +691,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       std::string web_video_timestamp_path =
           dataset_item_video_timestamps_path(dataset_name, item_name);
       std::unique_ptr<WriteFile> output_file{};
-      exit_on_error(make_unique_write_file(storage, web_video_timestamp_path,
-                                           output_file));
+      BACKOFF_FAIL(make_unique_write_file(storage, web_video_timestamp_path,
+                                          output_file));
 
       serialize_web_timestamps(output_file.get(), timestamps_meta);
     }
@@ -727,7 +724,7 @@ i32 read_last_processed_video(storehouse::StorageBackend* storage,
   }
 
   std::unique_ptr<RandomReadFile> file;
-  result = make_unique_random_read_file(storage, last_written_path, file);
+  BACKOFF_FAIL(make_unique_random_read_file(storage, last_written_path, file));
 
   u64 pos = 0;
   size_t size_read;
@@ -754,13 +751,10 @@ void write_last_processed_video(storehouse::StorageBackend* storage,
   const std::string last_written_path =
       dataset_directory(dataset_name) + "/last_written.bin";
   std::unique_ptr<WriteFile> file;
-  make_unique_write_file(storage, last_written_path, file);
+  BACKOFF_FAIL(make_unique_write_file(storage, last_written_path, file));
 
-  StoreResult result;
-  EXP_BACKOFF(
-      file->append(sizeof(i32), reinterpret_cast<const u8*>(&file_index)),
-      result);
-  exit_on_error(result);
+  BACKOFF_FAIL(
+      file->append(sizeof(i32), reinterpret_cast<const u8*>(&file_index)));
 }
 
 void ingest_videos(storehouse::StorageBackend* storage,
@@ -948,8 +942,7 @@ void ingest_images(storehouse::StorageBackend* storage,
     std::vector<u8> image_bytes;
     {
       std::unique_ptr<RandomReadFile> in_file;
-      storehouse::exit_on_error(
-          make_unique_random_read_file(storage, path, in_file));
+      BACKOFF_FAIL(make_unique_random_read_file(storage, path, in_file));
       u64 pos = 0;
       image_bytes = read_entire_file(in_file.get(), pos);
     }
@@ -1078,7 +1071,7 @@ void ingest_images(storehouse::StorageBackend* storage,
       WriteFile* file;
       std::string item_path =
           dataset_item_data_path(dataset_name, std::to_string(format_idx));
-      storehouse::exit_on_error(storage->make_write_file(item_path, file));
+      BACKOFF_FAIL(storage->make_write_file(item_path, file));
       output_files.emplace_back(file);
     } else {
       // Add to existing format group
@@ -1093,7 +1086,7 @@ void ingest_images(storehouse::StorageBackend* storage,
     // Write out compressed image data
     std::unique_ptr<WriteFile>& output_file = output_files[format_idx];
     i64 image_size = image_bytes.size();
-    output_file->append(image_bytes);
+    BACKOFF_FAIL(output_file->append(image_bytes));
 
     ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
     desc.add_compressed_sizes(image_size);
@@ -1166,19 +1159,18 @@ void ingest_images(storehouse::StorageBackend* storage,
   for (size_t i = 0; i < format_descriptors.size(); ++i) {
     // Flush image binary files
     std::unique_ptr<WriteFile>& file = output_files[i];
-    file->save();
+    BACKOFF_FAIL(file->save());
 
     // Write out format descriptors for each group
     ImageFormatGroupDescriptor& desc = format_descriptors[i];
     std::string metadata_path =
         dataset_item_metadata_path(dataset_name, std::to_string(i));
     std::unique_ptr<WriteFile> metadata_file;
-    exit_on_error(
-        make_unique_write_file(storage, metadata_path, metadata_file));
+    BACKOFF_FAIL(make_unique_write_file(storage, metadata_path, metadata_file));
 
     ImageFormatGroupMetadata m{desc};
     serialize_image_format_group_metadata(metadata_file.get(), m);
-    metadata_file->save();
+    BACKOFF_FAIL(metadata_file->save());
   }
 }
 
@@ -1228,7 +1220,8 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
     const std::string db_meta_path = database_metadata_path();
 
     std::unique_ptr<RandomReadFile> meta_in_file;
-    make_unique_random_read_file(storage.get(), db_meta_path, meta_in_file);
+    BACKOFF_FAIL(make_unique_random_read_file(storage.get(), db_meta_path,
+                                              meta_in_file));
     u64 pos = 0;
     meta = deserialize_database_metadata(meta_in_file.get(), pos);
 
@@ -1242,10 +1235,11 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
   {
     const std::string dataset_file_path = dataset_descriptor_path(dataset_name);
     std::unique_ptr<WriteFile> output_file;
-    make_unique_write_file(storage.get(), dataset_file_path, output_file);
+    BACKOFF_FAIL(
+        make_unique_write_file(storage.get(), dataset_file_path, output_file));
 
     serialize_dataset_descriptor(output_file.get(), descriptor);
-    storehouse::exit_on_error(output_file->save());
+    BACKOFF_FAIL(output_file->save());
   }
 
   // Add new dataset name to database metadata so we know it exists
@@ -1253,9 +1247,10 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
     const std::string db_meta_path = database_metadata_path();
 
     std::unique_ptr<WriteFile> meta_out_file;
-    make_unique_write_file(storage.get(), db_meta_path, meta_out_file);
+    BACKOFF_FAIL(
+        make_unique_write_file(storage.get(), db_meta_path, meta_out_file));
     serialize_database_metadata(meta_out_file.get(), meta);
-    storehouse::exit_on_error(meta_out_file->save());
+    BACKOFF_FAIL(meta_out_file->save());
   }
 
   LOG(INFO) << "Finished creating dataset " << dataset_name << "." << std::endl;

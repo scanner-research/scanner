@@ -442,13 +442,13 @@ int main(int argc, char** argv) {
     if (result == storehouse::StoreResult::FileDoesNotExist) {
       // Need to initialize db metadata
       std::unique_ptr<storehouse::WriteFile> meta_out_file;
-      storehouse::exit_on_error(
+      BACKOFF_FAIL(
           make_unique_write_file(storage, db_meta_path, meta_out_file));
       serialize_database_metadata(meta_out_file.get(), meta);
-      storehouse::exit_on_error(meta_out_file->save());
+      BACKOFF_FAIL(meta_out_file->save());
     } else {
       std::unique_ptr<RandomReadFile> meta_in_file;
-      storehouse::exit_on_error(
+      BACKOFF_FAIL(
           make_unique_random_read_file(storage, db_meta_path, meta_in_file));
       u64 pos = 0;
       meta = deserialize_database_metadata(meta_in_file.get(), pos);
@@ -517,7 +517,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<storehouse::WriteFile> meta_out_file;
     make_unique_write_file(storage, db_meta_path, meta_out_file);
     serialize_database_metadata(meta_out_file.get(), meta);
-    storehouse::exit_on_error(meta_out_file->save());
+    BACKOFF_FAIL(meta_out_file->save());
   } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
     std::string ip = "0.0.0.0";

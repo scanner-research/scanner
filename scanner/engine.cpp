@@ -53,7 +53,6 @@ extern "C" {
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
-using storehouse::exit_on_error;
 
 namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
@@ -231,16 +230,10 @@ void* load_thread(void* arg) {
             }
 
             // Open the video file for reading
-            StoreResult result;
-            EXP_BACKOFF(
-                storage->make_random_read_file(
-                    dataset_item_data_path(args.dataset.name(), video_path),
-                    video_file),
-                result);
-            exit_on_error(result);
-
-            EXP_BACKOFF(video_file->get_size(file_size), result);
-            exit_on_error(result);
+            BACKOFF_FAIL(storage->make_random_read_file(
+                dataset_item_data_path(args.dataset.name(), video_path),
+                video_file));
+            BACKOFF_FAIL(video_file->get_size(file_size));
 
             keyframe_positions = metadata.keyframe_positions();
             keyframe_byte_offsets = metadata.keyframe_byte_offsets();
@@ -330,16 +323,11 @@ void* load_thread(void* arg) {
             image_compressed_offsets.clear();
 
             // Open the video file for reading
-            StoreResult result;
-            EXP_BACKOFF(
-                storage->make_random_read_file(
-                    dataset_item_data_path(args.dataset.name(), video_path),
-                    image_file),
-                result);
-            exit_on_error(result);
+            BACKOFF_FAIL(storage->make_random_read_file(
+                dataset_item_data_path(args.dataset.name(), video_path),
+                image_file));
 
-            EXP_BACKOFF(image_file->get_size(file_size), result);
-            exit_on_error(result);
+            BACKOFF_FAIL(image_file->get_size(file_size));
 
             i64 s = 0;
             for (i64 size : metadata.compressed_sizes()) {
@@ -420,17 +408,14 @@ void* load_thread(void* arg) {
 
           std::unique_ptr<RandomReadFile> row_file;
           StoreResult result;
-          EXP_BACKOFF(make_unique_random_read_file(
-                          storage, job_item_output_path(
-                                       args.dataset.name(), args.in_job.name(),
-                                       video_path, column_name, wi),
-                          row_file),
-                      result);
-          exit_on_error(result);
+          BACKOFF_FAIL(make_unique_random_read_file(
+              storage,
+              job_item_output_path(args.dataset.name(), args.in_job.name(),
+                                   video_path, column_name, wi),
+              row_file));
 
           u64 row_file_size = 0;
-          EXP_BACKOFF(row_file->get_size(row_file_size), result);
-          exit_on_error(result);
+          BACKOFF_FAIL(row_file->get_size(row_file_size));
 
           // Read number of rows in file
           u64 pos = 0;
@@ -800,8 +785,7 @@ void* save_thread(void* arg) {
       WriteFile* output_file = nullptr;
       {
         StoreResult result;
-        EXP_BACKOFF(storage->make_write_file(output_path, output_file), result);
-        exit_on_error(result);
+        BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
       }
 
       if (work_entry.columns[out_idx].rows.size() != num_rows) {
@@ -825,7 +809,7 @@ void* save_thread(void* arg) {
         size_written += buffer_size;
       }
 
-      output_file->save();
+      BACKOFF_FAIL(output_file->save());
 
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
@@ -876,7 +860,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   DatasetDescriptor descriptor;
   {
     std::unique_ptr<RandomReadFile> file;
-    exit_on_error(make_unique_random_read_file(
+    BACKOFF_FAIL(make_unique_random_read_file(
         storage, dataset_descriptor_path(dataset_name), file));
     u64 pos = 0;
     descriptor = deserialize_dataset_descriptor(file.get(), pos);
@@ -896,7 +880,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   for (size_t i = 0; i < paths.size(); ++i) {
     const std::string& path = paths.at(i);
     std::unique_ptr<RandomReadFile> metadata_file;
-    exit_on_error(make_unique_random_read_file(
+    BACKOFF_FAIL(make_unique_random_read_file(
         storage, dataset_item_metadata_path(dataset_name, path),
         metadata_file));
     if (dataset_meta.type() == DatasetType_Video) {
@@ -922,7 +906,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   JobDescriptor in_job_desc;
   if (in_job_name != base_dataset_job_name()) {
     std::unique_ptr<RandomReadFile> file;
-    exit_on_error(make_unique_random_read_file(
+    BACKOFF_FAIL(make_unique_random_read_file(
         storage, job_descriptor_path(dataset_name, in_job_name), file));
     u64 pos = 0;
     in_job_desc = deserialize_job_descriptor(file.get(), pos);
@@ -1506,7 +1490,8 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       const std::string db_meta_path = database_metadata_path();
 
       std::unique_ptr<RandomReadFile> meta_in_file;
-      make_unique_random_read_file(storage, db_meta_path, meta_in_file);
+      BACKOFF_FAIL(
+          make_unique_random_read_file(storage, db_meta_path, meta_in_file));
       u64 pos = 0;
       DatabaseMetadata meta =
           deserialize_database_metadata(meta_in_file.get(), pos);
@@ -1515,7 +1500,8 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       job_id = meta.add_job(dataset_id, out_job_name);
 
       std::unique_ptr<WriteFile> meta_out_file;
-      make_unique_write_file(storage, db_meta_path, meta_out_file);
+      BACKOFF_FAIL(
+          make_unique_write_file(storage, db_meta_path, meta_out_file));
       serialize_database_metadata(meta_out_file.get(), meta);
     }
 
@@ -1528,11 +1514,11 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       const std::string job_file_path =
           job_descriptor_path(dataset_name, out_job_name);
       std::unique_ptr<WriteFile> output_file;
-      make_unique_write_file(storage, job_file_path, output_file);
+      BACKOFF_FAIL(make_unique_write_file(storage, job_file_path, output_file));
 
       serialize_job_descriptor(output_file.get(), job_descriptor);
 
-      output_file->save();
+      BACKOFF_FAIL(output_file->save());
     }
   }
 
@@ -1543,7 +1529,8 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::string profiler_file_name =
       job_profiler_path(dataset_name, out_job_name, rank);
   std::unique_ptr<WriteFile> profiler_output;
-  make_unique_write_file(storage, profiler_file_name, profiler_output);
+  BACKOFF_FAIL(
+      make_unique_write_file(storage, profiler_file_name, profiler_output));
 
   i64 start_time_ns =
       std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
@@ -1587,7 +1574,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
                            save_thread_profilers[i]);
   }
 
-  profiler_output->save();
+  BACKOFF_FAIL(profiler_output->save());
 
   delete storage;
 }
