@@ -1254,18 +1254,20 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     factory_groups.push_back(start_factories);
     evaluator_offset += 1;
   }
-  if (evaluator_caps.size() > 1) {
+  if (evaluator_offset < evaluator_caps.size() - 1) {
     std::vector<EvaluatorFactory*> main_factories(
         evaluator_factories.begin() + evaluator_offset,
         evaluator_factories.end() - 1);
     factory_groups.push_back(main_factories);
-    if (evaluator_caps.back().can_overlap) {
-      std::vector<EvaluatorFactory*> end_factories(
-          evaluator_factories.end() - 1, evaluator_factories.end());
-      factory_groups.push_back(end_factories);
-    } else {
-      factory_groups.back().push_back(evaluator_factories.back());
-    }
+    evaluator_offset = evaluator_caps.size() - 1;
+  }
+  if (evaluator_offset < evalutor_caps.size() &&
+      evaluator_caps.back().can_overlap) {
+    std::vector<EvaluatorFactory*> end_factories(evaluator_factories.end() - 1,
+                                                 evaluator_factories.end());
+    factory_groups.push_back(end_factories);
+  } else {
+    factory_groups.back().push_back(evaluator_factories.back());
   }
   i32 factory_groups_per_chain = static_cast<i32>(factory_groups.size());
 
