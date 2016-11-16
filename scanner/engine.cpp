@@ -1267,7 +1267,9 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
                                                  evaluator_factories.end());
     factory_groups.push_back(end_factories);
   } else {
-    factory_groups.back().push_back(evaluator_factories.back());
+    std::vector<EvaluatorFactory*> only_factory;
+    only_factory.push_back(evaluator_factories.back());
+    factory_groups.push_back(only_factory);
   }
   i32 factory_groups_per_chain = static_cast<i32>(factory_groups.size());
   assert(factory_groups_per_chain > 0);
