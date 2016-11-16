@@ -8,6 +8,7 @@ import os
 import toml
 import scanner
 import struct
+import math
 import cv2 as cv
 
 db = scanner.Scanner()
@@ -123,6 +124,16 @@ def main():
     video_names = person_centers_job._dataset.video_data.video_names
     video_paths = person_centers_job._dataset.video_data.original_video_paths
 
+    part_str = ['head', 'neck', 'Rsho', 'Relb', 'Rwri', 'Lsho', 'Lelb', 'Lwri',
+                'Rhip', 'Rkne', 'Rank', 'Lhip', 'Lkne', 'Lank', 'bkg']
+    limbs = np.array(
+        [1, 2, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11, 12, 13, 13, 14])
+    num_limbs = len(limbs)/2
+    limbs = limbs.reshape((num_limbs, 2)).astype(np.int)
+    stickwidth = 6
+    colors = [[0, 0, 255], [0, 170, 255], [0, 255, 170], [0, 255, 0],
+              [170, 255, 0], [255, 170, 0], [255, 0, 0], [255, 0, 170],
+              [170, 0, 255]]
     for vi in sampled_frames.keys():
         cap = cv.VideoCapture(video_paths[int(vi)])
         s_fi = sampled_frames[vi]
@@ -145,33 +156,30 @@ def main():
                     5, (0, 255, 255), -1)
             for person in poses:
                 # [head, rsho, rwri, lsho, lwri, rank, lank]
-                for part in [0,2,4,5,7,10,13]: 
+                for part in range(14):
                 #for part in [0]: 
                     cv.circle(
                         frame, (int(person[part, 1] * scale),
                                 int(person[part, 0] * scale)),
-                        5, (0, 0, 255), -1)
+                        3, (0, 0, 0), -1)
+                for l in range(limbs.shape[0]):
+                    cur_frame = frame.copy()
+                    X = person[limbs[l,:]-1, 0] * scale
+                    Y = person[limbs[l,:]-1, 1] * scale
+                    mX = np.mean(X)
+                    mY = np.mean(Y)
+                    length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+                    angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
+                    polygon = cv.ellipse2Poly((int(mY),int(mX)),
+                                              (int(length/2), stickwidth),
+                                              int(angle), 0, 360, 1)
+                    cv.fillConvexPoly(cur_frame, polygon, colors[l])
+                    frame = frame * 0.4 + cur_frame * 0.6 # for transparency
 
             scipy.misc.toimage(frame[:,:,::-1]).save(
                 'imgs/frames{:04d}.jpg'.format(fi))
             if not cap.isOpened():
                 break
-
-
-    # for out in frames_job.as_outputs():
-    #     vi = out['video']
-    #     s_fi = sampled_frames[vi]
-    #     print(out['frames'])
-    #     for b in out['buffers']:
-    #         #print('frame {}, points: {}'.format(i, b))
-    #         # scipy.misc.toimage(b).save(
-    #         #scipy.misc.toimage(b[0:3, :, :], cmin=-0.5, cmax=0.5).save(
-    #         #scipy.misc.toimage(b[3, :, :], cmin=0.0, cmax=1.0).save(
-    #         #scipy.misc.toimage(b[3, :, :]).save(
-
-    #         scipy.misc.toimage(b[0, :, :]).save(
-    #             'imgs/centers{:04d}.jpg'.format(i))
-    #         i += 1
 
 if __name__ == "__main__":
     main()
