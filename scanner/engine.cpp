@@ -1261,7 +1261,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     factory_groups.push_back(main_factories);
     evaluator_offset = evaluator_caps.size() - 1;
   }
-  if (evaluator_offset < evalutor_caps.size() &&
+  if (evaluator_offset < evaluator_caps.size() &&
       evaluator_caps.back().can_overlap) {
     std::vector<EvaluatorFactory*> end_factories(evaluator_factories.end() - 1,
                                                  evaluator_factories.end());
@@ -1270,6 +1270,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     factory_groups.back().push_back(evaluator_factories.back());
   }
   i32 factory_groups_per_chain = static_cast<i32>(factory_groups.size());
+  assert(factory_groups_per_chain > 0);
 
   std::vector<std::vector<Profiler>> eval_chain_profilers(PUS_PER_NODE);
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
