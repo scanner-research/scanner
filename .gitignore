@@ -4,5 +4,6 @@
 
 build
 **/*.pyc
+**/*.trace
 thirdparty
 !thirdparty/CMakeLists.txt

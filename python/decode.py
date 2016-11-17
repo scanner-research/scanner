@@ -9,7 +9,7 @@ import scannerpy.evaluators.types_pb2 as evaluators
 
 @db.loader('histogram')
 def load_histograms(buf, metadata):
-    return np.split(np.frombuffer(buf, dtype=np.dtype(np.float32)), 3)
+    return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
 
 @db.loader('faces')
 def load_faces(buf, metadata):
@@ -60,11 +60,6 @@ def load_bboxes(buf, metadata):
     return bboxes
 
 
-# @db.loader('pool5/7x7_s1')
-# def load_googlenet_features(buf, metadata):
-#     return np.frombuffer(buf, dtype=np.dtype(np.float32))
-
-
 cv_version = 3 # int(cv2.__version__.split('.')[0])
 
 def save_movie_info():
@@ -85,12 +80,13 @@ def save_debug_video():
         i += 1
 
 def main():
-    DATASET = sys.argv[2]
-    JOB = sys.argv[1]
-    for features in load_features(DATASET, JOB): pass
-        #np.save('{}_
-    #for flow in load_opticalflow(DATASET, JOB):
-    #    np.save('{}_{:06d}'.format(JOB, flow['index']), np.array(flow['buffers']))
+    DATASET = sys.argv[1]
+    JOB = sys.argv[2]
+    np.save('{}_histograms.npy'.format(JOB),
+            [frame
+             for (_, vid) in load_histograms(DATASET, JOB).as_frame_list()
+             for (_, frame) in vid
+            ])
 
 if __name__ == "__main__":
     main()

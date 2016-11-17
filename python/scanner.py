@@ -324,6 +324,8 @@ class JobResult(object):
         stride = self._job.stride
         work_item_index = 0
         for vi, video_name in enumerate(self._dataset_item_names()):
+            video = self._load_item_descriptor(video_name)
+
             intervals = [i for i in range(0, video.frames - 1,
                                           item_size * stride)]
             intervals.append(video.frames)

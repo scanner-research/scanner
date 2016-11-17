@@ -116,9 +116,10 @@ def init_net():
         net.blobs['data'].reshape(*(1, 3, img.shape[0], img.shape[1]))
         transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
         transformer.set_transpose('data', (2, 0, 1))
-        transformer.set_channel_swap('data', (2, 1, 0))
         if NET == 'faster_rcnn':
             transformer.set_raw_scale('data', 255)
+        else:
+            transformer.set_channel_swap('data', (2, 1, 0))
 
         data = np.asarray([transformer.preprocess('data', img)])
         if NET == 'faster_rcnn':

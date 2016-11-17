@@ -4,42 +4,102 @@ namespace scanner {
 
 const i32 BINS = 16;
 
-void HistogramEvaluator::evaluate(
-  std::vector<Mat>& inputs,
-  std::vector<u8*>& output_buffers,
-  std::vector<size_t>& output_sizes) {
-  i64 hist_size = BINS * 3 * sizeof(float);
-  for (auto& img_ : inputs) {
-    cv::Mat img(img_);
+HistogramEvaluator::HistogramEvaluator(DeviceType device_type)
+    : device_type_(device_type) {}
 
-    std::vector<cv::Mat> bgr_planes;
-    cv::split(img, bgr_planes);
+HistogramEvaluator::~HistogramEvaluator() {}
 
-    cv::Mat r_hist, g_hist, b_hist;
-    float range[] = {0, 256};
-    const float* histRange = {range};
+void HistogramEvaluator::configure(const InputFormat& metadata) {
+  metadata_ = metadata;
 
-    cv::calcHist(&bgr_planes[0], 1, 0, cv::Mat(), b_hist, 1, &BINS, &histRange);
-    cv::calcHist(&bgr_planes[1], 1, 0, cv::Mat(), g_hist, 1, &BINS, &histRange);
-    cv::calcHist(&bgr_planes[2], 1, 0, cv::Mat(), r_hist, 1, &BINS, &histRange);
-
-    std::vector<cv::Mat> hists = {r_hist, g_hist, b_hist};
-    cv::Mat hist;
-    cv::hconcat(hists, hist);
-
-    #ifdef HAVE_CUDA
-    u8* hist_buffer;
-    cudaMalloc((void**) &hist_buffer, hist_size);
-    cudaMemcpy(hist_buffer, img.data, hist_size, cudaMemcpyHostToDevice);
-    #else
-    u8* hist_buffer = new u8[hist_size];
-    assert(hist_size == hist.total() * hist.elemSize());
-    memcpy(hist_buffer, hist.data, hist_size);
-    #endif
-
-    output_sizes.push_back(hist_size);
-    output_buffers.push_back(hist_buffer);
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    hist_ = cvc::GpuMat(1, BINS, CV_32SC1);
+    for (i32 i = 0; i < 3; ++i) {
+      planes_.push_back(
+          cvc::GpuMat(metadata.height(), metadata.width(), CV_8UC1));
+    }
+    out_mat_ = cvc::GpuMat(1, BINS * 3, CV_32SC1);
+#endif
   }
 }
 
+void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
+                                  BatchedColumns& output_columns) {
+  assert(input_columns.size() == 1);
+  i64 hist_size = BINS * 3 * sizeof(float);
+  i32 input_count = (i32)input_columns[0].rows.size();
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    for (i32 i = 0; i < input_count; ++i) {
+      cvc::GpuMat img =
+          bytesToImage_gpu(input_columns[0].rows[i].buffer, metadata_);
+      cvc::split(img, planes_);
+
+      for (i32 i = 0; i < 3; ++i) {
+        cvc::histEven(planes_[i], hist_, BINS, 0, 256);
+        hist_.copyTo(out_mat_(cv::Rect(i * BINS, 0, BINS, 1)));
+      }
+
+      u8* output_buf;
+      cudaMalloc((void**)&output_buf, hist_size);
+      cudaMemcpy(output_buf, out_mat_.data, hist_size,
+                 cudaMemcpyDeviceToDevice);
+      output_columns[0].rows.push_back(Row{output_buf, hist_size});
+    }
+#else
+    LOG(FATAL) << "Cuda not installed.";
+#endif
+  } else {
+    for (i32 i = 0; i < input_count; ++i) {
+      cv::Mat img = bytesToImage(input_columns[0].rows[i].buffer, metadata_);
+
+      std::vector<cv::Mat> bgr_planes;
+      cv::split(img, bgr_planes);
+
+      cv::Mat r_hist, g_hist, b_hist;
+      float range[] = {0, 256};
+      const float* histRange = {range};
+
+      cv::calcHist(&bgr_planes[0], 1, 0, cv::Mat(), b_hist, 1, &BINS,
+                   &histRange);
+      cv::calcHist(&bgr_planes[1], 1, 0, cv::Mat(), g_hist, 1, &BINS,
+                   &histRange);
+      cv::calcHist(&bgr_planes[2], 1, 0, cv::Mat(), r_hist, 1, &BINS,
+                   &histRange);
+
+      std::vector<cv::Mat> hists = {r_hist, g_hist, b_hist};
+      cv::Mat hist;
+      cv::hconcat(hists, hist);
+
+      u8* hist_buffer = new u8[hist_size];
+      assert(hist_size == hist.total() * hist.elemSize());
+      memcpy(hist_buffer, hist.data, hist_size);
+
+      output_columns[0].rows.push_back(Row{hist_buffer, hist_size});
+    }
+  }
+}
+
+HistogramEvaluatorFactory::HistogramEvaluatorFactory(DeviceType device_type)
+    : device_type_(device_type) {}
+
+EvaluatorCapabilities HistogramEvaluatorFactory::get_capabilities() {
+  EvaluatorCapabilities caps;
+  caps.device_type = device_type_;
+  caps.max_devices = device_type_ == DeviceType::GPU
+                         ? 1
+                         : EvaluatorCapabilities::UnlimitedDevices;
+  caps.warmup_size = 0;
+  return caps;
+}
+
+std::vector<std::string> HistogramEvaluatorFactory::get_output_names() {
+  return {"histogram"};
+}
+
+Evaluator* HistogramEvaluatorFactory::new_evaluator(
+    const EvaluatorConfig& config) {
+  return new HistogramEvaluator(device_type_);
+}
 }

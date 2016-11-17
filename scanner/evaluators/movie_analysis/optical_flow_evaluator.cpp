@@ -218,16 +218,16 @@ void OpticalFlowEvaluator::reset() {
   }
 }
 
-void OpticalFlowEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
+                                    BatchedColumns& output_columns) {
+  i32 input_count = (i32)input_columns[0].rows.size();
+
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     std::vector<cvc::GpuMat> inputs;
-    for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-      inputs.emplace_back(bytesToImage_gpu(input_buffers[0][i], metadata_));
+    for (i32 i = 0; i < input_count; ++i) {
+      inputs.emplace_back(
+          bytesToImage_gpu(input_columns[0].rows[i].buffer, metadata_));
     }
 
     cv::Size img_size = inputs[0].size();
@@ -243,8 +243,7 @@ void OpticalFlowEvaluator::evaluate(
       u8* out_buf;
       cudaMalloc((void**)&out_buf, out_buf_size);
       cudaMemset(out_buf, 0, out_buf_size);
-      output_buffers[0].push_back(out_buf);
-      output_sizes[0].push_back(out_buf_size);
+      output_columns[0].rows.push_back(Row{out_buf, out_buf_size});
     }
 
     for (auto& input : inputs) {
@@ -280,8 +279,7 @@ void OpticalFlowEvaluator::evaluate(
       // cudaMemcpy(output_buf, heatmap_buf, out_buf_size,
       // cudaMemcpyHostToDevice);
 
-      output_sizes[0].push_back(out_buf_size);
-      output_buffers[0].push_back(output_buf);
+      output_columns[0].rows.push_back(Row{output_buf, out_buf_size});
     }
 
     inputs[inputs.size() - 1].copyTo(*initial);
@@ -290,8 +288,9 @@ void OpticalFlowEvaluator::evaluate(
 #endif  // HAVE_CUDA
   } else {
     std::vector<cvc::GpuMat> inputs;
-    for (i32 i = 0; i < input_buffers[0].size(); ++i) {
-      inputs.emplace_back(bytesToImage(input_buffers[0][i], metadata_));
+    for (i32 i = 0; i < input_count; ++i) {
+      inputs.emplace_back(
+          bytesToImage(input_columns[0].rows[i].buffer, metadata_));
     }
 
     cv::Size img_size = inputs[0].size();
@@ -310,8 +309,7 @@ void OpticalFlowEvaluator::evaluate(
     } else {
       u8* out_buf = new u8[out_buf_size];
       std::memset(out_buf, 0, out_buf_size);
-      output_buffers[0].push_back(out_buf);
-      output_sizes[0].push_back(out_buf_size);
+      output_columns[0].rows.push_back(Row{out_buf, out_buf_size});
     }
 
     for (auto& input : inputs) {
@@ -345,8 +343,7 @@ void OpticalFlowEvaluator::evaluate(
       std::memcpy(output_buf, output_flow.data, out_buf_size);
 #endif
 
-      output_sizes[0].push_back(out_buf_size);
-      output_buffers[0].push_back(output_buf);
+      output_columns[0].rows.push_back(Row{output_buf, out_buf_size});
     }
   }
 }

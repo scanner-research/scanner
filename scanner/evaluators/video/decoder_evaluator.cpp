@@ -47,6 +47,8 @@ void DecoderEvaluator::reset() {
 
 void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
                                 BatchedColumns& output_columns) {
+  assert(input_columns.size() == 2);
+
   auto start = now();
 
   i64 total_frames_decoded = 0;

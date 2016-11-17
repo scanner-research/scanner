@@ -1,5 +1,10 @@
 set(SOURCE_FILES)
 
+if (BUILD_VIDEO_EVALUATORS)
+  list(APPEND SOURCE_FILES
+   frame_extract_pipeline.cpp)
+endif()
+
 if (BUILD_VIDEO_EVALUATORS AND
     BUILD_CAFFE_EVALUATORS AND
     BUILD_CAFFE_INPUT_EVALUATORS AND
@@ -61,7 +66,8 @@ endif()
 
 if (BUILD_VIDEO_EVALUATORS AND BUILD_MOVIE_ANALYSIS_EVALUATORS)
   list(APPEND SOURCE_FILES
-    opticalflow_pipeline.cpp)
+    opticalflow_pipeline.cpp
+    histogram_pipeline.cpp)
 endif()
 
 add_library(pipelines OBJECT
