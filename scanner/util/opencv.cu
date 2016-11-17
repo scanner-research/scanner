@@ -21,6 +21,7 @@
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
+namespace scanner {
 // Taken from https://github.com/opencv/opencv/blob/master/modules/cudacodec/src/cuda/nv12_to_rgb.cu
 /*M///////////////////////////////////////////////////////////////////////////////////////
 //
@@ -214,7 +215,7 @@ __host__ __device__ __forceinline__ int divUp(int total, int grain) {
 }
 // End OpenCV code
 
-void convertNV12toRGBA(
+cudaError_t convertNV12toRGBA(
   const cv::cuda::GpuMat& in,
   cv::cuda::GpuMat& outFrame,
   int width,
@@ -229,9 +230,20 @@ void convertNV12toRGBA(
   NV12_to_RGB<<<grid, block, 0, s>>>(in.ptr<uchar>(), in.step,
                                      outFrame.ptr<uint>(), outFrame.step,
                                      width, height);
+  return cudaPeekAtLastError();
 }
 
-void convertRGBInterleavedToPlanar(
+cudaError_t convertNV12toRGBA(const u8 *in, u8 *out, int width, int height,
+                              cudaStream_t stream) {
+  dim3 block(32, 8);
+  dim3 grid(divUp(width, 2 * block.x), divUp(height, block.y));
+
+  NV12_to_RGB<<<grid, block, 0, stream>>>(
+      in, width, reinterpret_cast<uint *>(out), width, width, height);
+  return cudaPeekAtLastError();
+}
+
+cudaError_t convertRGBInterleavedToPlanar(
   const cv::cuda::GpuMat& in,
   cv::cuda::GpuMat& outFrame,
   int width,
@@ -247,4 +259,7 @@ void convertRGBInterleavedToPlanar(
     in.ptr<uchar>(), in.step,
     outFrame.ptr<uchar>(), outFrame.step,
     width, height);
+  return cudaPeekAtLastError();
+}
+
 }

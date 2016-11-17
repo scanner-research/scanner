@@ -28,6 +28,7 @@ cv::Mat bytesToImage(u8* buf, const InputFormat& metadata);
 }
 
 #ifdef HAVE_CUDA
+#include <cuda_runtime.h>
 #include <opencv2/core/cuda.hpp>
 
 namespace cvc = cv::cuda;
@@ -37,13 +38,13 @@ namespace scanner {
 class InputFormat;
 
 cvc::GpuMat bytesToImage_gpu(u8* buf, const InputFormat& metadata);
-}
 
-void convertNV12toRGBA(const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame,
-                       int width, int height,
-                       cv::cuda::Stream& stream = cv::cuda::Stream::Null());
-
-void convertRGBInterleavedToPlanar(
+cudaError_t convertNV12toRGBA(
     const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame, int width,
     int height, cv::cuda::Stream& stream = cv::cuda::Stream::Null());
+
+cudaError_t convertRGBInterleavedToPlanar(
+    const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame, int width,
+    int height, cv::cuda::Stream& stream = cv::cuda::Stream::Null());
+}
 #endif

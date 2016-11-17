@@ -15,6 +15,7 @@
 
 #include "scanner/video/nvidia/nvidia_video_decoder.h"
 #include "scanner/util/cuda.h"
+#include "scanner/util/image.h"
 #include "scanner/util/queue.h"
 
 #include "storehouse/storage_backend.h"
@@ -36,8 +37,11 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
       streams_(max_mapped_frames_),
       parser_(nullptr),
       decoder_(nullptr),
+      frame_in_use_(max_output_frames_, false),
       mapped_frames_(max_mapped_frames_, 0),
-      prev_frame_(0) {
+      last_displayed_frame_(-1),
+      undisplayed_frames_(0),
+      invalid_frames_(0) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -82,7 +86,7 @@ void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
   // cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.CodecType = cudaVideoCodec_H264;
   cuparseinfo.ulMaxNumDecodeSurfaces = max_output_frames_;
-  cuparseinfo.ulMaxDisplayDelay = 4;
+  cuparseinfo.ulMaxDisplayDelay = 1;
   cuparseinfo.pUserData = this;
   cuparseinfo.pfnSequenceCallback =
       NVIDIAVideoDecoder::cuvid_handle_video_sequence;
@@ -136,17 +140,21 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                               bool discontinuity) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
+  if (discontinuity) {
+    CUVIDSOURCEDATAPACKET cupkt = {};
+    cupkt.flags |= CUVID_PKT_DISCONTINUITY;
+    CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
+
+    last_displayed_frame_ = -1;
+    invalid_frames_ += undisplayed_frames_;
+    while (discard_frame()) {
+      // Empty queue because we have a new section of frames
+    }
+    // printf("discontinuity\n");
+  }
   CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = encoded_size;
   cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
-  if (discontinuity) {
-    cupkt.flags |= CUVID_PKT_DISCONTINUITY;
-    while (frame_queue_.size() > 0) {
-      // Empty queue because we have a new section of frames
-      CUVIDPARSERDISPINFO dispinfo;
-      frame_queue_.pop(dispinfo);
-    }
-  }
   if (encoded_size == 0) {
     cupkt.flags |= CUVID_PKT_ENDOFSTREAM;
   }
@@ -179,6 +187,7 @@ bool NVIDIAVideoDecoder::discard_frame() {
   if (frame_queue_.size() > 0) {
     CUVIDPARSERDISPINFO dispinfo;
     frame_queue_.pop(dispinfo);
+    frame_in_use_[dispinfo.picture_index] = false;
   }
 
   CUcontext dummy;
@@ -222,21 +231,15 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
       profiler_->add_interval("map_frame", start_map, now());
     }
     CUdeviceptr mapped_frame = mapped_frames_[mapped_frame_index];
-    // HACK(apoms): NVIDIA GPU decoder only outputs NV12 format so we rely
-    //              on that here to copy the data properly
-    for (int i = 0; i < 2; i++) {
-      cudaMemcpyKind copy_kind = output_type_ == DeviceType::GPU
-                                     ? cudaMemcpyDeviceToDevice
-                                     : cudaMemcpyDeviceToHost;
-      CU_CHECK(cudaMemcpy2DAsync(
-          decoded_buffer + i * metadata_.width() * metadata_.height(),
-          metadata_.width(),  // dst pitch
-          (const void*)(mapped_frame + i * pitch * metadata_.height()),  // src
-          pitch,                                                 // src pitch
-          metadata_.width(),                                     // width
-          i == 0 ? metadata_.height() : metadata_.height() / 2,  // height
-          copy_kind, streams_[mapped_frame_index]));
-    }
+    CU_CHECK(convertNV12toRGBA(
+        (const u8*)mapped_frame, pitch, decoded_buffer, metadata_.width() * 3,
+        metadata_.width(), metadata_.height(), streams_[mapped_frame_index]));
+    cudaDeviceSynchronize();
+
+    CUD_CHECK(
+        cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
+    mapped_frames_[mapped_frame_index] = 0;
+    frame_in_use_[dispinfo.picture_index] = false;
   }
 
   CUcontext dummy;
@@ -266,27 +269,31 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
 
   int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
-  if (decoder.mapped_frames_[mapped_frame_index] != 0) {
-    auto start_unmap = now();
-    CU_CHECK(cudaStreamSynchronize(decoder.streams_[mapped_frame_index]));
-    CUD_CHECK(cuvidUnmapVideoFrame(decoder.decoder_,
-                                   decoder.mapped_frames_[mapped_frame_index]));
-    if (decoder.profiler_) {
-      decoder.profiler_->add_interval("unmap_frame", start_unmap, now());
-    }
-    decoder.mapped_frames_[mapped_frame_index] = 0;
-  }
+  while (decoder.frame_in_use_[picparams->CurrPicIdx]) {
+  };
 
   CUresult result = cuvidDecodePicture(decoder.decoder_, picparams);
   CUD_CHECK(result);
+  decoder.undisplayed_frames_++;
+  // printf("deocde %d\n", picparams->CurrPicIdx);
   return result == CUDA_SUCCESS;
 }
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_display(
     void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
-  decoder.frame_queue_.push(*dispinfo);
-  decoder.prev_frame_++;
+  if (decoder.invalid_frames_ == 0) {
+    decoder.frame_queue_.push(*dispinfo);
+    decoder.last_displayed_frame_++;
+    // printf("valid frame %d, display %d\n", decoder.last_displayed_frame_,
+    //        dispinfo->picture_index);
+    decoder.frame_in_use_[dispinfo->picture_index] = true;
+  } else {
+    // printf("invalid frame %d, display %d\n", decoder.last_displayed_frame_,
+    //        dispinfo->picture_index);
+    decoder.invalid_frames_--;
+  }
+  decoder.undisplayed_frames_--;
   return true;
 }
 }

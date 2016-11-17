@@ -100,14 +100,11 @@ def main():
         vi = out['video']
         sampled_frames[vi] += out['frames']
         person_centers[vi] += out['buffers']
-        print(vi, len(sampled_frames[vi]))
-        print(vi, len(person_centers[vi]))
 
     i = 0
     person_poses = defaultdict(list)
     for out in joint_results_job.as_outputs():
         vi = out['video']
-        print(vi)
         for centers in person_centers[vi]:
             if len(centers) + i > len(out['buffers']):
                 break
@@ -117,7 +114,6 @@ def main():
                 poses.append(node_maps_to_pose(centers[p], node_maps))
                 i += 1
             person_poses[vi].append(poses)
-    print(len(person_poses[vi]))
 
     frames = defaultdict(list)
 
@@ -140,6 +136,7 @@ def main():
         s_poses = person_poses[vi]
         s_centers = person_centers[vi]
         curr_fi = 0
+        print('Generating ' + str(len(s_fi)) + ' frames for video ' + vi)
         for fi, poses, centers in zip(s_fi, s_poses, s_centers):
             if not cap.isOpened():
                 break
@@ -176,6 +173,8 @@ def main():
                     cv.fillConvexPoly(cur_frame, polygon, colors[l])
                     frame = frame * 0.4 + cur_frame * 0.6 # for transparency
 
+            if fi % 100 == 0:
+                print('At frame ' + str(fi) + '...')
             scipy.misc.toimage(frame[:,:,::-1]).save(
                 'imgs/frames{:04d}.jpg'.format(fi))
             if not cap.isOpened():

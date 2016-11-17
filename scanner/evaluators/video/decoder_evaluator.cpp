@@ -23,12 +23,14 @@ namespace scanner {
 
 DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type,
-                                   VideoDecoderType decoder_type)
+                                   VideoDecoderType decoder_type,
+                                   i32 extra_outputs)
     : device_type_(device_type),
       device_id_(config.device_ids[0]),
       decoder_type_(decoder_type),
       needs_warmup_(false),
-      discontinuity_(false) {
+      discontinuity_(false),
+      extra_outputs_(extra_outputs) {
   decoder_.reset(VideoDecoder::make_from_config(device_type_, device_id_,
                                                 decoder_type_, device_type_));
   assert(decoder_.get());
@@ -47,7 +49,7 @@ void DecoderEvaluator::reset() {
 
 void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
                                 BatchedColumns& output_columns) {
-  assert(input_columns.size() == 2);
+  assert(input_columns.size() == 2 + extra_outputs_);
 
   auto start = now();
 
@@ -230,16 +232,15 @@ EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
 
 std::vector<std::string> DecoderEvaluatorFactory::get_output_names() {
   std::vector<std::string> outputs = {"frame"};
-  if (extra_outputs_ > 0) {
-    for (i32 i = 0; i < extra_outputs_; ++i) {
-      outputs.push_back("extra" + std::to_string(i));
-    }
+  for (i32 i = 0; i < extra_outputs_; ++i) {
+    outputs.push_back("extra" + std::to_string(i));
   }
   return outputs;
 }
 
 Evaluator* DecoderEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new DecoderEvaluator(config, device_type_, decoder_type_);
+  return new DecoderEvaluator(config, device_type_, decoder_type_,
+                              extra_outputs_);
 }
 }
