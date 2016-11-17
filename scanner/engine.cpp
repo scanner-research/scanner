@@ -634,9 +634,6 @@ void* evaluate_thread(void* arg) {
         auto eval_start = now();
         evaluator->evaluate(input_columns, output_columns);
         args.profiler.add_interval("evaluate", eval_start, now());
-        auto post_eval_start = now();
-        printf("inputs size %lu, outputs size %lu\n",
-               input_columns[0].rows.size(), output_columns[0].rows.size());
         // Do not verify outputs == inputs if we are decoding encoded video as
         // there is an increase of 1 encoded chunk to multiple frames
         if (false && !(e == 0 && work_entry.video_decode_item)) {
@@ -1231,30 +1228,35 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   // same thread. Evaluators running in different threads should be using
   // different physical resources
   std::vector<std::vector<EvaluatorFactory*>> factory_groups;
-  i32 evaluator_offset = 0;
-  if (evaluator_caps.front().can_overlap) {
-    std::vector<EvaluatorFactory*> start_factories;
-    start_factories.push_back(evaluator_factories.front());
-    factory_groups.push_back(start_factories);
-    evaluator_offset += 1;
-  }
-  if (evaluator_offset < evaluator_caps.size() - 1) {
-    std::vector<EvaluatorFactory*> main_factories(
-        evaluator_factories.begin() + evaluator_offset,
-        evaluator_factories.end() - 1);
-    factory_groups.push_back(main_factories);
-    evaluator_offset = evaluator_caps.size() - 1;
-  }
-  if (evaluator_offset < evaluator_caps.size() &&
-      evaluator_caps.back().can_overlap) {
-    std::vector<EvaluatorFactory*> end_factories(evaluator_factories.end() - 1,
-                                                 evaluator_factories.end());
-    factory_groups.push_back(end_factories);
+  if (evaluator_caps.size() == 1) {
+    factory_groups.push_back({evaluator_factories.front()});
+  } else if (evaluator_caps.size() == 2 &&
+             (evaluator_caps.front().can_overlap ||
+              evaluator_caps.back().can_overlap)) {
+    factory_groups.push_back({evaluator_factories.front()});
+    factory_groups.push_back({evaluator_factories.back()});
   } else {
-    std::vector<EvaluatorFactory*> only_factory;
-    only_factory.push_back(evaluator_factories.back());
-    factory_groups.push_back(only_factory);
+    i32 evaluator_offset_start = 0;
+    i32 evaluator_offset_end = static_cast<i32>(evaluator_factories.size() - 1);
+    std::vector<EvaluatorFactory*> main_factories;
+    if (evaluator_caps.front().can_overlap) {
+      factory_groups.push_back({evaluator_factories.front()});
+      evaluator_offset_start++;
+    } else {
+      main_factories.push_back(evaluator_factories.front());
+    }
+    main_factories.insert(main_factories.end(),
+                          evaluator_factories.begin() + evaluator_offset_start,
+                          evaluator_factories.begin() + evaluator_offset_end);
+    if (evaluator_caps.back().can_overlap) {
+      factory_groups.push_back(main_factories);
+      factory_groups.push_back({evaluator_factories.back()});
+    } else {
+      main_factories.push_back(evaluator_factories.back());
+      factory_groups.push_back(main_factories);
+    }
   }
+
   i32 factory_groups_per_chain = static_cast<i32>(factory_groups.size());
   assert(factory_groups_per_chain > 0);
 
