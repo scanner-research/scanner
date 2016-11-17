@@ -24,6 +24,9 @@ PipelineDescription get_pipeline_description(
   }
 
   PipelineDescription desc;
+  desc.input_columns = {"frame"};
+  desc.sampling = Sampling::SequenceGather;
+  desc.gather_sequences = {{0, {Interval{1000, 5000}}}};
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
@@ -31,7 +34,7 @@ PipelineDescription get_pipeline_description(
   factories.emplace_back(
       new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new DefaultInputEvaluatorFactory(
-      DeviceType::CPU, descriptor, batch_size));
+      DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size, true));
   factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::GPU));

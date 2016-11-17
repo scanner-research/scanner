@@ -358,16 +358,16 @@ def dnn_rate_benchmark():
     out_job_name = 'dnnr_test'
 
     nets = [
-        ('features/squeezenet.toml', [64, 96, 128]),
-        ('features/alex_net.toml', [128, 256, 384]),
-        ('features/googlenet.toml', [64, 96, 128]),
-        ('features/resnet.toml', [16, 32, 64]),
-        ('features/fcn8s.toml', [4, 8, 16, 32]),
+        ('features/squeezenet.toml', [32, 64, 128]),
+        ('features/alexnet.toml', [128, 256, 512]),
+        ('features/googlenet.toml', [48, 96, 192]),
+        ('features/resnet.toml', [8, 16, 32]),
+        ('features/fcn8s.toml', [2, 4, 6]),
     ]
     trial_settings = [{'force': True,
                        'node_count': 1,
-                       'pus_per_node': 2,
-                       'work_item_size': batch_size * 2,
+                       'pus_per_node': 1,
+                       'work_item_size': max(batch_size * 2, 128),
                        'load_workers_per_node': 4,
                        'save_workers_per_node': 4,
                        'env': {
@@ -389,7 +389,7 @@ def dnn_rate_benchmark():
         'batch_size': y['env']['SC_BATCH_SIZE'],
         'time': x[0],
         'frames': d[1],
-        'ms/frame': (x[0] * 1000) / d[1]
+        'ms/frame': ((x[0] * 1000) / d[1]) if d[1] != 0 else 0
     } for x, d, y in zip(results, decoded_frames, trial_settings)]
     out_csv = dicts_to_csv(['net', 'batch_size', 'time', 'frames', 'ms/frame'],
                            rows)
@@ -632,9 +632,9 @@ def graph_decode_rate_benchmark(path):
 
 def bench_main(args):
     out_dir = args.output_directory
-    effective_io_rate_benchmark()
+    #effective_io_rate_benchmark()
     # effective_decode_rate_benchmark()
-    # dnn_rate_benchmark()
+    dnn_rate_benchmark()
 
 
 def graphs_main(args):

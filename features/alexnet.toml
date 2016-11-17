@@ -1,8 +1,10 @@
 [net]
-    model = "features/bvlc_reference_caffenet/deploy.prototxt"
-    weights = "features/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel"
+    model = "features/alexnet/deploy.prototxt"
+    weights = "features/alexnet/bvlc_reference_caffenet.caffemodel"
     input_layers = ["data"]
     output_layers = ["fc8"]
+    input_width = 227
+    input_height = 227
 
     [net.input]
         dimensions = [
@@ -20,4 +22,4 @@
 [mean-image]
     width = 256
     height = 256
-    path = "features/bvlc_reference_caffenet/imagenet_mean.binaryproto"
+    path = "features/alexnet/imagenet_mean.binaryproto"
