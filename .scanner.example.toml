@@ -1,0 +1,8 @@
+scanner_path = "/opt/scanner"
+
+[storage]
+    type = "posix"
+    db_path = "/opt/scanner-db"
+
+[job]
+    work_item_size = 96
