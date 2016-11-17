@@ -12,5 +12,4 @@ RUN mkdir build && cd build && \
           -D BUILD_UTIL_EVALUATORS=ON \
           .. && \
     make
-ADD
 RUN mv .scanner.example.toml /root/.scanner.toml
