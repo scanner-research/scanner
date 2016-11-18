@@ -31,6 +31,7 @@ namespace scanner {
 ///   execution of the run command.
 struct WorkItem {
   i32 video_index;
+  i64 item_index;
   i64 item_id;
   i64 next_item_id;
   i32 rows_from_start;

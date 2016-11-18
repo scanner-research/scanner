@@ -775,7 +775,7 @@ void* save_thread(void* arg) {
     for (size_t out_idx = 0; out_idx < args.output_names.size(); ++out_idx) {
       const std::string output_path = job_item_output_path(
           args.dataset_name, args.job_name, video_path,
-          args.output_names[out_idx], work_entry.work_item_index);
+          args.output_names[out_idx], work_item.item_index);
 
       auto io_start = now();
 
@@ -1042,6 +1042,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<LoadWorkEntry> load_work_items;
   if (sampling == Sampling::All) {
     for (size_t i = 0; i < total_frames_samples.size(); ++i) {
+      i32 next_item_index = 0;
       i32 group_index = total_frames_samples[i].group_index;
       i32 group_frames =
           static_cast<i32>(total_frames_samples[i].frames.size());
@@ -1052,6 +1053,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
         WorkItem item;
         item.video_index = group_index;
+        item.item_index = next_item_index++;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
         item.rows_from_start = allocated_frames;
@@ -1071,6 +1073,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     i32 stride = pipeline_description.stride;
     job_descriptor.set_stride(stride);
     for (size_t i = 0; i < total_frames_samples.size(); ++i) {
+      i32 next_item_index = 0;
       i32 group_index = total_frames_samples[i].group_index;
       i32 group_frames =
           static_cast<i32>(total_frames_samples[i].frames.size());
@@ -1081,6 +1084,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
         WorkItem item;
         item.video_index = group_index;
+        item.item_index = next_item_index++;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
         item.rows_from_start = allocated_frames / stride;
@@ -1109,6 +1113,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         }
       }
 
+      i32 next_item_index = 0;
       i32 frames_in_sample = static_cast<i32>(samples.frames.size());
       i32 allocated_frames = 0;
       while (allocated_frames < frames_in_sample) {
@@ -1117,6 +1122,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
         WorkItem item;
         item.video_index = samples.video_index;
+        item.item_index = next_item_index++;
         item.item_id = allocated_frames;
         item.next_item_id = allocated_frames + frames_to_allocate;
         item.rows_from_start = allocated_frames;
@@ -1149,6 +1155,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         }
       }
 
+      i32 next_item_index = 0;
       i32 total_frames_in_sequences = 0;
       i32 intervals_in_sample = static_cast<i32>(samples.intervals.size());
       for (size_t i = 0; i < intervals_in_sample; ++i) {
@@ -1161,6 +1168,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
           WorkItem item;
           item.video_index = samples.video_index;
+          item.item_index = next_item_index++;
           item.item_id = total_frames_in_sequences;
           item.next_item_id = total_frames_in_sequences + frames_to_allocate;
           item.rows_from_start = allocated_frames;

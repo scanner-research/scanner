@@ -259,8 +259,8 @@ class JobResult(object):
 
     def _load_derived_sampling(self, interval=None):
         item_size = self._job.work_item_size
-        work_item_index = 0
         for samples in self._job.derived_frames:
+            work_item_index = 0
             video_index = samples.video_index
             video_name = self._dataset_item_names()[video_index]
             video = self._load_item_descriptor(video_name)
@@ -290,8 +290,8 @@ class JobResult(object):
 
     def _load_all_sampling(self, interval=None):
         item_size = self._job.work_item_size
-        work_item_index = 0
         for vi, video_name in enumerate(self._dataset_item_names()):
+            work_item_index = 0
             video = self._load_item_descriptor(video_name)
 
             intervals = [i for i in range(0, video.frames - 1, item_size)]
@@ -322,8 +322,8 @@ class JobResult(object):
     def _load_stride_sampling(self, interval=None):
         item_size = self._job.work_item_size
         stride = self._job.stride
-        work_item_index = 0
         for vi, video_name in enumerate(self._dataset_item_names()):
+            work_item_index = 0
             video = self._load_item_descriptor(video_name)
 
             intervals = [i for i in range(0, video.frames - 1,
@@ -355,8 +355,8 @@ class JobResult(object):
 
     def _load_gather_sampling(self, interval=None):
         item_size = self._job.work_item_size
-        work_item_index = 0
         for samples in self._job.gather_points:
+            work_item_index = 0
             video_index = samples.video_index
             video_name = self._dataset_item_names()[video_index]
             video = self._load_item_descriptor(video_name)
@@ -386,8 +386,8 @@ class JobResult(object):
 
     def _load_sequence_gather_sampling(self, interval=None):
         item_size = self._job.work_item_size
-        work_item_index = 0
         for samples in self._job.gather_sequences:
+            work_item_index = 0
             video_index = samples.video_index
             video_name = self._dataset_item_names()[video_index]
             video = self._load_item_descriptor(video_name)
