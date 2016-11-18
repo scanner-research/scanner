@@ -82,6 +82,20 @@ void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
 
   CUcontext dummy;
 
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    if (mapped_frames_[i] != 0) {
+      CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
+    }
+  }
+
+  if (parser_) {
+    cuvidDestroyVideoParser(parser_);
+  }
+
+  if (decoder_) {
+    cuvidDestroyDecoder(decoder_);
+  }
+
   CUVIDPARSERPARAMS cuparseinfo = {};
   // cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.CodecType = cudaVideoCodec_H264;
@@ -234,7 +248,6 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     CU_CHECK(convertNV12toRGBA(
         (const u8*)mapped_frame, pitch, decoded_buffer, metadata_.width() * 3,
         metadata_.width(), metadata_.height(), streams_[mapped_frame_index]));
-    cudaDeviceSynchronize();
 
     CUD_CHECK(
         cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
