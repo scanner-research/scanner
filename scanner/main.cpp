@@ -194,11 +194,6 @@ int main(int argc, char** argv) {
       }
     }
 
-    if (vm.count("help")) {
-      std::cout << main_desc << std::endl;
-      return 1;
-    }
-
     Config* config;
     char path[256];
     snprintf(path, 256, CONFIG_DEFAULT_PATH.c_str(), getenv("HOME"));

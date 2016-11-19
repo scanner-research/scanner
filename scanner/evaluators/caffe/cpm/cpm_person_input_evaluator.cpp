@@ -167,6 +167,7 @@ void CPMPersonInputEvaluator::evaluate(const BatchedColumns& input_columns,
     LOG(FATAL) << "Not built with CUDA support.";
 #endif
   } else {
+    LOG(FATAL) << "CPU support not implemented yet.";
     // for (i32 frame = 0; frame < input_count; frame += batch_size_) {
     //   i32 batch_count = std::min(input_count - frame, batch_size_);
     //   f32* net_input = reinterpret_cast<f32*>(

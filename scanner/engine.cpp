@@ -1249,7 +1249,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     if (evaluator_caps.front().can_overlap) {
       factory_groups.push_back({evaluator_factories.front()});
       evaluator_offset_start++;
-    } 
+    }
     main_factories.insert(main_factories.end(),
                           evaluator_factories.begin() + evaluator_offset_start,
                           evaluator_factories.begin() + evaluator_offset_end);

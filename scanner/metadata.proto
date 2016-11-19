@@ -201,11 +201,6 @@ message DecodeArgs {
     required int32 end = 2;
   }
 
-  message SequenceSamples {
-    required int32 video_index = 1;
-    repeated Interval intervals = 2;
-  }
-
   required int32 start_keyframe = 1;
   required int32 end_keyframe = 2;
   required int32 warmup_count = 3;
@@ -229,11 +224,6 @@ message ImageDecodeArgs {
   message Interval {
     required int32 start = 1;
     required int32 end = 2;
-  }
-
-  message SequenceSamples {
-    required int32 video_index = 1;
-    repeated Interval intervals = 2;
   }
 
   required ImageEncodingType encoding_type = 1;
