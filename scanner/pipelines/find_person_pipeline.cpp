@@ -16,7 +16,10 @@ PipelineDescription get_pipeline_description(
   PipelineDescription desc;
   desc.input_columns = {"frame"};
   desc.sampling = Sampling::SequenceGather;
-  desc.gather_sequences = {{0, {Interval{1000, 2000}}}};
+  for (size_t i = 0; i < item_descriptors.size(); ++i) {
+    const DatasetItemMetadata& meta = item_descriptors[i];
+    desc.gather_sequences.push_back({i, {Interval{1000, 1010}}});
+  }
 
   NetDescriptor cpm_person_descriptor;
   {
@@ -25,27 +28,26 @@ PipelineDescription get_pipeline_description(
     cpm_person_descriptor = descriptor_from_net_file(net_file);
   }
 
-  NetDescriptor cpm_descriptor;
-  {
-    std::string net_descriptor_file = "features/cpm.toml";
-    std::ifstream net_file{net_descriptor_file};
-    cpm_descriptor = descriptor_from_net_file(net_file);
-  }
-
   i32 batch_size = 8;
+  DeviceType device_type;
+  VideoDecoderType decoder_type;
+#ifdef HAVE_CUDA
+  device_type = DeviceType::GPU;
+  decoder_type = VideoDecoderType::NVIDIA;
+#else
+  device_type = DeviceType::CPU;
+  decoder_type = VideoDecoderType::SOFTWARE;
+#endif
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
-  // factories.emplace_back(
-  //     new DecoderEvaluatorFactory(DeviceType::GPU,
-  //     VideoDecoderType::NVIDIA));
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+      new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new CPMPersonInputEvaluatorFactory(
-      DeviceType::GPU, cpm_person_descriptor, batch_size));
+      device_type, cpm_person_descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(
-      DeviceType::GPU, cpm_person_descriptor, batch_size, true));
+      device_type, cpm_person_descriptor, batch_size, true));
   factories.emplace_back(
       new CPMPersonParserEvaluatorFactory(DeviceType::CPU, true));
   factories.emplace_back(

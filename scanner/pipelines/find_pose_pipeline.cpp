@@ -24,23 +24,27 @@ PipelineDescription get_pipeline_description(
   }
 
   i32 batch_size = 4;
+  DeviceType device_type;
+  VideoDecoderType decoder_type;
+#ifdef HAVE_CUDA
+  device_type = DeviceType::GPU;
+  decoder_type = VideoDecoderType::NVIDIA;
+#else
+  device_type = DeviceType::CPU;
+  decoder_type = VideoDecoderType::SOFTWARE;
+#endif
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
-  // factories.emplace_back(
-  //     new DecoderEvaluatorFactory(DeviceType::GPU,
-  //     VideoDecoderType::NVIDIA));
-  factories.emplace_back(new DecoderEvaluatorFactory(
-      DeviceType::CPU, VideoDecoderType::SOFTWARE, 1));
-  factories.emplace_back(new CPMInputEvaluatorFactory(
-      DeviceType::GPU, cpm_descriptor, batch_size));
-  factories.emplace_back(new CaffeEvaluatorFactory(
-      DeviceType::GPU, cpm_descriptor, batch_size, true));
-  // factories.emplace_back(new CPMParserEvaluatorFactory(DeviceType::CPU,
-  // true));
   factories.emplace_back(
-      new SwizzleEvaluatorFactory(DeviceType::CPU, {1}, {"joint_maps"}));
+      new DecoderEvaluatorFactory(device_type, decoder_type, 1));
+  factories.emplace_back(
+      new CPMInputEvaluatorFactory(device_type, cpm_descriptor, batch_size));
+  factories.emplace_back(
+      new CaffeEvaluatorFactory(device_type, cpm_descriptor, batch_size, true));
+  factories.emplace_back(
+      new SwizzleEvaluatorFactory(device_type, {1}, {"joint_maps"}));
 
   return desc;
 }

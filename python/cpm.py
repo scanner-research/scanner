@@ -12,9 +12,21 @@ import struct
 import math
 import json
 import cv2 as cv
+import errno
 
 db = scanner.Scanner()
 import scannerpy.evaluators.types_pb2
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
 
 @db.loader('frame')
 def load_frames(buf, metadata):
@@ -85,10 +97,10 @@ def dataset_list_to_panel_cams(dataset_paths):
 def node_map_to_relative_node(heat_map):
     heat_map_resized = cv.resize(
         heat_map, (0,0), fx=8, fy=8, interpolation=cv.INTER_CUBIC)
-    x, y = np.unravel_index(heat_map_resized.argmax(),
+    y, x = np.unravel_index(heat_map_resized.argmax(),
                             heat_map_resized.shape)
-    score = heat_map_resized[x, y]
-    return [x, y, score]
+    score = heat_map_resized[y, x]
+    return [y, x, score]
 
 
 def node_maps_to_pose(offset, heat_maps):
@@ -109,14 +121,16 @@ def parse_cpm_data(person_centers_job, joint_results_job):
         sampled_frames[vi] += out['frames']
         person_centers[vi] += out['buffers']
 
-    i = 0
     person_poses = defaultdict(list)
     for out in joint_results_job.as_outputs():
         vi = out['video']
+        i = 0
         for centers in person_centers[vi]:
-            if len(centers) + i > len(out['buffers']):
-                break
             poses = []
+            if len(centers) + i > len(out['buffers']):
+                i += len(centers)
+                person_poses[vi].append(poses)
+                continue
             for p in range(len(centers)):
                 node_maps = out['buffers'][i]
                 poses.append(node_maps_to_pose(centers[p], node_maps))
@@ -147,27 +161,28 @@ def draw_pose(frame, person):
               [170, 0, 255]]
 
     for part in range(14):
-    #for part in [0]: 
         cv.circle(
             frame, (int(person[part, 1]),
                     int(person[part, 0])),
             3, (0, 0, 0), -1)
     for l in range(limbs.shape[0]):
         cur_frame = frame.copy()
-        X = person[limbs[l,:]-1, 0]
-        Y = person[limbs[l,:]-1, 1]
+        X = person[limbs[l,:]-1, 1]
+        Y = person[limbs[l,:]-1, 0]
         mX = np.mean(X)
         mY = np.mean(Y)
         length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
-        angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
-        polygon = cv.ellipse2Poly((int(mY),int(mX)),
+        angle = math.degrees(math.atan2(Y[0] - Y[1], X[0] - X[1]))
+        polygon = cv.ellipse2Poly((int(mX),int(mY)),
                                   (int(length/2), stickwidth),
                                   int(angle), 0, 360, 1)
         cv.fillConvexPoly(cur_frame, polygon, colors[l])
         frame = frame * 0.4 + cur_frame * 0.6 # for transparency
+    return frame
 
 
 def save_drawn_poses_on_frames(video_paths,
+                               video_index_to_panel_cam,
                                sampled_frames,
                                person_centers,
                                person_poses):
@@ -177,7 +192,9 @@ def save_drawn_poses_on_frames(video_paths,
         s_poses = person_poses[vi]
         s_centers = person_centers[vi]
         curr_fi = 0
-        print('Generating ' + str(len(s_fi)) + ' frames for video ' + vi)
+        panel, camera = video_index_to_panel_cam[int(vi)]
+        print('Generating ' + str(len(s_fi)) + ' frames for video ' + vi +
+              ', panel ' + str(panel) + ', camera ' + str(camera))
         for fi, poses, centers in zip(s_fi, s_poses, s_centers):
             if not cap.isOpened():
                 break
@@ -190,19 +207,17 @@ def save_drawn_poses_on_frames(video_paths,
             cs = [[c[0] * scale, c[1] * scale] for c in centers]
             for center in cs:
                 cv.circle(
-                    frame, (int(center[0]), int(center[1])),
+                    frame, (int(center[1]), int(center[0])),
                     5, (0, 255, 255), -1)
             for person in poses:
                 # [head, rsho, rwri, lsho, lwri, rank, lank]
                 person *= scale
-                draw_pose(frame, person)
+                frame = draw_pose(frame, person)
 
             if fi % 100 == 0:
                 print('At frame ' + str(fi) + '...')
             scipy.misc.toimage(frame[:,:,::-1]).save(
-                'imgs/frames{:04d}.jpg'.format(fi))
-            if not cap.isOpened():
-                break
+                'imgs/{:02d}_{:02d}_frame_{:04d}.jpg'.format(panel, camera, fi))
 
 
 def parse_calibration_data(data):
@@ -218,10 +233,82 @@ def parse_calibration_data(data):
     return calib
 
 
+# Taken from https://afni.nimh.nih.gov/pub/dist/src/pkundu/meica.libs/nibabel/quaternions.py
+def rotation2quaternion(M):
+    ''' Calculate quaternion corresponding to given rotation matrix
+
+    Parameters
+    ----------
+    M : array-like
+      3x3 rotation matrix
+
+    Returns
+    -------
+    q : (4,) array
+      closest quaternion to input matrix, having positive q[0]
+
+    Notes
+    -----
+    Method claimed to be robust to numerical errors in M
+
+    Constructs quaternion by calculating maximum eigenvector for matrix
+    K (constructed from input `M`).  Although this is not tested, a
+    maximum eigenvalue of 1 corresponds to a valid rotation.
+
+    A quaternion q*-1 corresponds to the same rotation as q; thus the
+    sign of the reconstructed quaternion is arbitrary, and we return
+    quaternions with positive w (q[0]).
+
+    References
+    ----------
+    * http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
+    * Bar-Itzhack, Itzhack Y. (2000), "New method for extracting the
+      quaternion from a rotation matrix", AIAA Journal of Guidance,
+      Control and Dynamics 23(6):1085-1087 (Engineering Note), ISSN
+      0731-5090
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> q = mat2quat(np.eye(3)) # Identity rotation
+    >>> np.allclose(q, [1, 0, 0, 0])
+    True
+    >>> q = mat2quat(np.diag([1, -1, -1]))
+    >>> np.allclose(q, [0, 1, 0, 0]) # 180 degree rotn around axis 0
+    True
+
+    '''
+    # Qyx refers to the contribution of the y input vector component to
+    # the x output vector component.  Qyx is therefore the same as
+    # M[0,1].  The notation is from the Wikipedia article.
+    Qxx, Qyx, Qzx, Qxy, Qyy, Qzy, Qxz, Qyz, Qzz = M.flat
+    # Fill only lower half of symmetric matrix
+    K = np.array([
+        [Qxx - Qyy - Qzz, 0,               0,               0              ],
+        [Qyx + Qxy,       Qyy - Qxx - Qzz, 0,               0              ],
+        [Qzx + Qxz,       Qzy + Qyz,       Qzz - Qxx - Qyy, 0              ],
+        [Qyz - Qzy,       Qzx - Qxz,       Qxy - Qyx,       Qxx + Qyy + Qzz]]
+        ) / 3.0
+    # Use Hermitian eigenvectors, values for speed
+    vals, vecs = np.linalg.eigh(K)
+    # Select largest eigenvector, reorder to w,x,y,z quaternion
+    q = vecs[[3, 0, 1, 2], np.argmax(vals)]
+    # Prefer quaternion with positive w
+    # (q * -1 corresponds to same rotation as q)
+    if q[0] < 0:
+        q *= -1
+    return q
+
+
 def write_extrinsic_params(calibration_data,
                            top_level_path):
+    panels = calibration_data['panels']
+    cameras = calibration_data['nodes']
     for panel_idx in panels:
         for camera_idx in cameras:
+            if not ((panel_idx in calibration_data['cameras']) and
+                    (camera_idx in calibration_data['cameras'][panel_idx])):
+                continue
             ext_file = os.path.join(
                 top_level_path,
                 '{:02d}_{:02d}_ext.txt'.format(panel_idx, camera_idx))
@@ -230,8 +317,16 @@ def write_extrinsic_params(calibration_data,
                 def wr(s):
                     f.write(str(s) + ' ')
 
-            # WIP
+                quat = rotation2quaternion(np.array(c['R']))
+                wr(quat[0])
+                wr(quat[1])
+                wr(quat[2])
+                wr(quat[3])
 
+                center = c['t']
+                wr(center[0][0])
+                wr(center[1][0])
+                wr(center[2][0])
 
 
 def write_pose_detections(calibration_data,
@@ -239,6 +334,7 @@ def write_pose_detections(calibration_data,
                           frame,
                           top_level_path):
     directory = os.path.join(top_level_path, 'poseDetect_pm', 'vga_25')
+    mkdir_p(directory)
     output_file_name = os.path.join(
         directory, 'poseDetectMC_{:08d}.txt'.format(frame))
 
@@ -283,8 +379,11 @@ def main():
 
     [dataset_name] = sys.argv[1:]
 
-    data_path = '/bigdata/apoms/panoptic/160422_mafia2'
-    calib_path = os.path.join(data_path, 'calibration_160422_mafia2.json')
+    output_path = 'cpm_output_' + dataset_name
+    mkdir_p(output_path)
+    data_path = '/bigdata/apoms/panoptic/' + dataset_name
+    calib_path = os.path.join(data_path,
+                              'calibration_{:s}.json'.format(dataset_name))
     with open(calib_path, 'r') as f:
         calib_data = parse_calibration_data(f.read())
 
@@ -295,11 +394,13 @@ def main():
         person_centers_job, joint_results_job)
 
     video_paths = person_centers_job._dataset.video_data.original_video_paths
-    panel_cam = dataset_list_to_panel_cams(video_paths)
-    nested_poses = nest_in_panel_cam(panel_cam, person_poses)
-    write_pose_detections(calib_data, nested_poses, 1000, '.')
+    panel_cam_mapping = dataset_list_to_panel_cams(video_paths)
+    nested_poses = nest_in_panel_cam(panel_cam_mapping, person_poses)
+    write_extrinsic_params(calib_data, output_path)
+    write_pose_detections(calib_data, nested_poses, 1000, output_path)
     save_drawn_poses_on_frames(
-        video_paths, sampled_frames, person_centers, person_poses)
+        video_paths, panel_cam_mapping,
+        sampled_frames, person_centers, person_poses)
 
 if __name__ == "__main__":
     main()
