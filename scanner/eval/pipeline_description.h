@@ -46,18 +46,34 @@ struct SequenceSamples {
  * of consecutive frames (Sampling::SequenceGather).
  */
 struct PipelineDescription {
-  // Columns to grab from the input job
+  /**
+   * @brief Columns to grab from the input table
+   */
   std::vector<std::string> input_columns;
 
+  /**
+   * @brief Sampling strategy
+   */
   Sampling sampling = Sampling::All;
-  // For strided sampling
+
+  /**
+   * @brief For strided sampling
+   */
   i32 stride;
-  // For gather sampling
+
+  /**
+   * @brief For gather sampling
+   */
   std::vector<PointSamples> gather_points;
-  // For sequence gather sampling
+
+  /**
+   * @brief For sequencegather sampling
+   */
   std::vector<SequenceSamples> gather_sequences;
 
-  // The chain of evaluators which will be executed over the input
+  /**
+   * @brief The chain of evaluators which will be executed over the input
+   */
   std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
 };
 

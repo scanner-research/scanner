@@ -70,11 +70,11 @@ class NVIDIAVideoDecoder : public VideoDecoder {
   CUvideodecoder decoder_;
 
   Queue<CUVIDPARSERDISPINFO> frame_queue_;
-  std::vector<bool> frame_in_use_;
+  std::vector<u8> frame_in_use_;
   std::vector<CUdeviceptr> mapped_frames_;
   int last_displayed_frame_;
-  int undisplayed_frames_;
-  int invalid_frames_;
+  std::vector<u8> undisplayed_frames_;
+  std::vector<u8> invalid_frames_;
   int wait_for_iframe_;
 };
 }

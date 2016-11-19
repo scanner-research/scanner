@@ -40,8 +40,8 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
       frame_in_use_(max_output_frames_, false),
       mapped_frames_(max_mapped_frames_, 0),
       last_displayed_frame_(-1),
-      undisplayed_frames_(0),
-      invalid_frames_(0) {
+      undisplayed_frames_(max_output_frames_, false),
+      invalid_frames_(max_output_frames_, false) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -160,7 +160,8 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
     last_displayed_frame_ = -1;
-    invalid_frames_ += undisplayed_frames_;
+    invalid_frames_ = undisplayed_frames_;
+    undisplayed_frames_ = std::vector<u8>(max_output_frames_, false);
     while (discard_frame()) {
       // Empty queue because we have a new section of frames
     }
@@ -287,26 +288,23 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
 
   CUresult result = cuvidDecodePicture(decoder.decoder_, picparams);
   CUD_CHECK(result);
-  decoder.undisplayed_frames_++;
-  // printf("deocde %d\n", picparams->CurrPicIdx);
+  decoder.undisplayed_frames_[picparams->CurrPicIdx] = true;
   return result == CUDA_SUCCESS;
 }
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_display(
     void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
-  if (decoder.invalid_frames_ == 0) {
+  if (decoder.invalid_frames_[dispinfo->picture_index] == false) {
     decoder.frame_queue_.push(*dispinfo);
     decoder.last_displayed_frame_++;
     // printf("valid frame %d, display %d\n", decoder.last_displayed_frame_,
     //        dispinfo->picture_index);
     decoder.frame_in_use_[dispinfo->picture_index] = true;
   } else {
-    // printf("invalid frame %d, display %d\n", decoder.last_displayed_frame_,
-    //        dispinfo->picture_index);
-    decoder.invalid_frames_--;
+    decoder.invalid_frames_[dispinfo->picture_index] = false;
   }
-  decoder.undisplayed_frames_--;
+  decoder.undisplayed_frames_[dispinfo->picture_index] = false;
   return true;
 }
 }
