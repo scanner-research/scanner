@@ -554,7 +554,6 @@ class Scanner(object):
             f.flush()
 
         current_env = os.environ.copy()
-        start = time.time()
         cmd = ['mpirun',
                '-n', str(1),
                '--bind-to', 'none',
@@ -564,8 +563,13 @@ class Scanner(object):
         if force:
             cmd.append('-f')
 
+        script_path = os.path.dirname(os.path.realpath(__file__))
+        exec_path = os.path.join(script_path, '..')
+        start = time.time()
         p = subprocess.Popen(
-            cmd, env=current_env,
+            cmd,
+            env=current_env,
+            cwd=exec_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT)
         so, se = p.communicate()
@@ -614,9 +618,14 @@ class Scanner(object):
             for k, v in custom_env.iteritems():
                 current_env[k] = v
 
+
+        script_path = os.path.dirname(os.path.realpath(__file__))
+        exec_path = os.path.join(script_path, '..')
         start = time.time()
         p = subprocess.Popen(
-            cmd[0], env=current_env,
+            cmd[0],
+            env=current_env,
+            cwd=exec_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT)
         so, se = p.communicate()

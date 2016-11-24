@@ -13,12 +13,18 @@ namespace {
 PipelineDescription get_pipeline_description(
     const DatasetMetadata& dataset_desc,
     const std::vector<DatasetItemMetadata>& item_descriptors) {
+  const char* START_FRAME = std::getenv("SC_START_FRAME");
+  const char* END_FRAME = std::getenv("SC_END_FRAME");
+
+  i32 start_frame = std::atoi(START_FRAME);
+  i32 end_frame = std::atoi(END_FRAME);
+
   PipelineDescription desc;
   desc.input_columns = {"frame"};
   desc.sampling = Sampling::SequenceGather;
   for (size_t i = 0; i < item_descriptors.size(); ++i) {
     const DatasetItemMetadata& meta = item_descriptors[i];
-    desc.gather_sequences.push_back({i, {Interval{1000, 1010}}});
+    desc.gather_sequences.push_back({i, {Interval{start_frame, end_frame}}});
   }
 
   NetDescriptor cpm_person_descriptor;
