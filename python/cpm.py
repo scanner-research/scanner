@@ -338,6 +338,29 @@ def get_uniform_camera_order():
 ### 
 
 
+def naive_camera_sampling(num_cams):
+    panel_order = [1,3,17,5,4,6,18,8,7,9,19,11,10,12,20,14,13,15,16,2]
+    cam_order = range(1, 25)
+    sampled_cams = []
+    if num_cams >= 480:
+        for p in panel_order:
+            for c in cam_order:
+                sampled_cams.append((p, c))
+    else:
+        all_cams = []
+        for p in panel_order:
+            for c in cam_order:
+                if p == 14 and c == 18:
+                    continue
+                all_cams.append((p, c))
+        ratio = len(all_cams) / float(num_cams)
+        for i in range(1, num_cams + 1):
+            idx = int(i * ratio - 1)
+            sampled_cams.append(all_cams[idx])
+
+    return sampled_cams
+
+
 def write_extrinsic_params(calibration_data,
                            top_level_path):
     panels = calibration_data['panels']
@@ -414,6 +437,7 @@ def write_pose_detections(calibration_data,
                         wr(joints[j, 2])
                     f.write('\n')
 
+
 def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
                   frame_number):
     calib = calibration_data
@@ -421,7 +445,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
 
     vga_skel_json_path = os.path.join(output_directory,
                                       'body3DPSRecon_json',
-                                      str(frame_number))
+                                      '{:04d}'.format(480))
     vga_img_path = os.path.join(data_path, 'vgaImgs')
 
     hd_skel_json_path = os.path.join(output_directory, 'hdPose3d_stage1')
@@ -532,6 +556,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
     plt.tight_layout()
     plt.savefig(dataset_name + '_' + str(frame_number) + '.png',
                 bbox_inches='tight')
+    plt.close("all")
 
 
 def load_metadata(dataset_name):

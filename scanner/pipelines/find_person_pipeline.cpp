@@ -8,13 +8,54 @@
 #include "scanner/evaluators/util/swizzle_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
+#include <map>
+
 namespace scanner {
 namespace {
+
+std::map<std::tuple<i32, i32>, i32> get_panel_cam_to_idx_mapping() {
+  std::map<std::tuple<i32, i32>, i32> mapping;
+  i32 num_panels = 20;
+  i32 cams_per_panel = 24;
+  i32 idx = 0;
+  for (i32 p = 1; p < num_panels + 1; ++p) {
+    for (i32 c = 1; c < cams_per_panel + 1; ++c) {
+      mapping.insert({std::make_tuple(p, c), idx++});
+    }
+  }
+  return mapping;
+}
+
+void split(const std::string& s, char delim, std::vector<std::string>& elems) {
+  std::stringstream ss;
+  ss.str(s);
+  std::string item;
+  while (std::getline(ss, item, delim)) {
+    elems.push_back(item);
+  }
+}
+
 PipelineDescription get_pipeline_description(
     const DatasetMetadata& dataset_desc,
     const std::vector<DatasetItemMetadata>& item_descriptors) {
+  const char* CAMERAS = std::getenv("SC_CAMERAS");
   const char* START_FRAME = std::getenv("SC_START_FRAME");
   const char* END_FRAME = std::getenv("SC_END_FRAME");
+
+  auto mapping = get_panel_cam_to_idx_mapping();
+  std::vector<i32> camera_idxs;
+  {
+    std::string cams(CAMERAS);
+    std::vector<std::string> cam_strs;
+    split(cams, ',', cam_strs);
+    for (const std::string& cam_str : cam_strs) {
+      std::vector<std::string> panel_and_cam;
+      split(cam_str, ':', panel_and_cam);
+      i32 panel = atoi(panel_and_cam[0].c_str());
+      i32 cam = atoi(panel_and_cam[1].c_str());
+      camera_idxs.push_back(mapping.at(std::make_tuple(panel, cam)));
+    }
+  }
 
   i32 start_frame = std::atoi(START_FRAME);
   i32 end_frame = std::atoi(END_FRAME);
@@ -22,9 +63,8 @@ PipelineDescription get_pipeline_description(
   PipelineDescription desc;
   desc.input_columns = {"frame"};
   desc.sampling = Sampling::SequenceGather;
-  for (size_t i = 0; i < item_descriptors.size(); ++i) {
-    const DatasetItemMetadata& meta = item_descriptors[i];
-    desc.gather_sequences.push_back({i, {Interval{start_frame, end_frame}}});
+  for (i32 idx : camera_idxs) {
+    desc.gather_sequences.push_back({idx, {Interval{start_frame, end_frame}}});
   }
 
   NetDescriptor cpm_person_descriptor;
