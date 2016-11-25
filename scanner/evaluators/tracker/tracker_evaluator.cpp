@@ -63,11 +63,9 @@ void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
   i32 box_idx = 1;
 
   for (i32 b = 0; b < input_count; ++b) {
-    u8* bbox_buffer = input_columns[box_idx].rows[b].buffer;
-    size_t num_bboxes = *((size_t*)bbox_buffer);
-    bbox_buffer += sizeof(size_t);
-    i32 bbox_size = *((i32*)bbox_buffer);
-    bbox_buffer += sizeof(i32);
+    std::vector<BoundingBox> all_boxes = deserialize_proto_vector<BoundingBox>(
+        input_columns[box_idx].rows[b].buffer,
+        input_columns[box_idx].rows[b].size);
 
     // Find all the boxes which overlap the existing tracked boxes and update
     // the tracked boxes confidence values to those as well as the time since
@@ -76,11 +74,7 @@ void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
     // For boxes which don't overlap existing ones, create a new track for them
     std::vector<BoundingBox> detected_bboxes;
     std::vector<BoundingBox> new_detected_bboxes;
-    for (size_t i = 0; i < num_bboxes; ++i) {
-      BoundingBox box;
-      box.ParseFromArray(bbox_buffer, bbox_size);
-      bbox_buffer += bbox_size;
-
+    for (const BoundingBox& box : all_boxes) {
       i32 overlap_idx = -1;
       for (size_t j = 0; j < tracks_.size(); ++j) {
         auto& tracked_bbox = tracks_[j].box;
