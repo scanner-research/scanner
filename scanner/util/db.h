@@ -37,9 +37,9 @@ struct DatabaseMetadata {
   i32 add_dataset(const std::string& dataset);
   void remove_dataset(i32 dataset_id);
 
-  bool has_job(const std::string& job) const;
+  bool has_job(i32 dataset_id, const std::string& job) const;
   bool has_job(i32 job_id) const;
-  i32 get_job_id(const std::string& job_name) const;
+  i32 get_job_id(i32 dataset_id, const std::string& job_name) const;
   const std::string& get_job_name(i32 job_id) const;
   i32 add_job(i32 dataset_id, const std::string& job_name);
   void remove_job(i32 job_id);
@@ -144,7 +144,7 @@ struct JobMetadata {
     std::vector<Interval> work_item_intervals;
   };
   // Gets the list of work items for a sequence of rows in the job
-  RowLocations row_work_item_locations(Sampling sampling, i32 group_index,
+  RowLocations row_work_item_locations(Sampling sampling, i32 group_id,
                                        const LoadWorkEntry& entry) const;
 
   struct FrameLocations {
@@ -158,12 +158,14 @@ struct JobMetadata {
 
  protected:
   std::vector<i32> rows_per_item() const;
+  i32 rows_in_item(i32 group_id) const;
 
  private:
   mutable DatasetDescriptor dataset_descriptor;
   mutable std::vector<VideoDescriptor> video_descriptors;
   mutable std::vector<ImageFormatGroupDescriptor> format_descriptors;
   mutable JobDescriptor job_descriptor;
+  bool complete_;
 };
 
 void serialize_database_metadata(storehouse::WriteFile* file,

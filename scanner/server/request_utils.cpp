@@ -19,6 +19,7 @@
 
 #include <boost/regex.hpp>
 #include <fstream>
+#include <iostream>
 
 namespace pg = proxygen;
 

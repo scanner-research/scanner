@@ -72,13 +72,13 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
     std::vector<i32> valid_frames;
     if (args.sampling() == ImageDecodeArgs::All) {
-      const ImageDecodeArgs::Interval& interval = args.interval();
+      const ImageDecodeArgs::StridedInterval& interval = args.interval();
       i32 s = interval.start();
       for (; s < interval.end(); ++s) {
         valid_frames.push_back(s);
       }
     } else if (args.sampling() == ImageDecodeArgs::Strided) {
-      const ImageDecodeArgs::Interval& interval = args.interval();
+      const ImageDecodeArgs::StridedInterval& interval = args.interval();
       i32 s = interval.start();
       i32 e = interval.end();
       i32 stride = args.stride();
@@ -92,9 +92,11 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       }
     } else if (args.sampling() == ImageDecodeArgs::SequenceGather) {
       assert(args.gather_sequences_size() == 1);
-      const ImageDecodeArgs::Interval& interval = args.gather_sequences(0);
+      const ImageDecodeArgs::StridedInterval& interval =
+          args.gather_sequences(0);
       i32 s = interval.start();
-      for (; s < interval.end(); ++s) {
+      i32 stride = interval.stride();
+      for (; s < interval.end(); s += stride) {
         valid_frames.push_back(s);
       }
     } else {

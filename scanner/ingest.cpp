@@ -801,6 +801,7 @@ void ingest_videos(storehouse::StorageBackend* storage,
     LOG(INFO) << "Ingesting video " << path << "..." << std::endl;
 
     VideoDescriptor video_descriptor;
+    video_descriptor.set_id(i);
     bool valid_video = preprocess_video(storage, dataset_name, path, item_name,
                                         video_descriptor, compute_web_metadata);
     if (!valid_video) {
@@ -863,11 +864,16 @@ void ingest_videos(storehouse::StorageBackend* storage,
   printf("max width %d, max height %d\n", max_width, max_height);
 
   // Remove bad paths
+  std::vector<i32> good_video_ids;
+  for (size_t i = 0; i < video_paths.size(); ++i) {
+    good_video_ids.push_back(i);
+  }
   size_t num_bad_videos = bad_video_indices.size();
   for (size_t i = 0; i < num_bad_videos; ++i) {
     size_t bad_index = bad_video_indices[num_bad_videos - 1 - i];
     video_paths.erase(video_paths.begin() + bad_index);
     item_names.erase(item_names.begin() + bad_index);
+    good_video_ids.erase(good_video_ids.begin() + bad_index);
   }
 
   LOG_IF(FATAL, video_paths.size() == 0)
@@ -878,6 +884,7 @@ void ingest_videos(storehouse::StorageBackend* storage,
     const std::string& item_path = item_names[i];
     metadata.add_original_video_paths(video_path);
     metadata.add_video_names(item_path);
+    metadata.add_video_ids(good_video_ids[i]);
   }
 
   // Reset last processed so that we start from scratch next time
@@ -1067,6 +1074,7 @@ void ingest_images(storehouse::StorageBackend* storage,
       desc.set_num_images(1);
 
       format_idx = metadata.format_groups_size() - 1;
+      desc.set_id(format_idx);
       // Create output file for writing to format group
       WriteFile* file;
       std::string item_path =

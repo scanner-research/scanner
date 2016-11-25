@@ -50,6 +50,17 @@ struct Interval {
   i32 end;
 };
 
+struct StridedInterval {
+ public:
+  StridedInterval() = default;
+  StridedInterval(i32 start, i32 end, i32 stride = 1);
+  StridedInterval(const Interval&);
+
+  i32 start;
+  i32 end;
+  i32 stride = 1;
+};
+
 bool string_to_dataset_type(const std::string& s, DatasetType& t);
 std::string dataset_type_to_string(DatasetType d);
 

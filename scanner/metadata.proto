@@ -63,6 +63,7 @@ message DatasetDescriptor {
 
     repeated string original_video_paths = 1;
     repeated string video_names = 2;
+    repeated int32 video_ids = 14;
   }
 
   message ImageMetadata {
@@ -91,6 +92,7 @@ message DatasetDescriptor {
     repeated int64 original_index_to_format_group = 2;
     repeated string valid_image_paths = 3;
     repeated FormatGroup format_groups = 4;
+    repeated int32 format_group_ids = 14;
   }
 
   required int32 id = 1;
@@ -112,25 +114,27 @@ message VideoDescriptor {
     YUV_444 = 3;
   }
 
-  required int32 frames = 1;
-  required int32 width = 2;
-  required int32 height = 3;
+  required int32 id = 1;
+  required int32 frames = 2;
+  required int32 width = 3;
+  required int32 height = 4;
 
-  optional VideoCodecType codec_type = 4;
-  optional VideoChromaFormat chroma_format = 5;
+  optional VideoCodecType codec_type = 5;
+  optional VideoChromaFormat chroma_format = 7;
 
-  repeated int64 keyframe_positions = 7 [packed=true];
-  repeated int64 keyframe_timestamps = 8 [packed=true];
-  repeated int64 keyframe_byte_offsets = 9 [packed=true];
+  repeated int64 keyframe_positions = 8 [packed=true];
+  repeated int64 keyframe_timestamps = 9 [packed=true];
+  repeated int64 keyframe_byte_offsets = 10 [packed=true];
   optional bytes metadata_packets = 6;
 }
 
 message ImageFormatGroupDescriptor {
-  required ImageEncodingType encoding_type = 1;
-  required ImageColorSpace color_space = 2;
-  required int32 width = 3;
-  required int32 height = 4;
-  required int32 num_images = 5;
+  required int32 id = 1;
+  required ImageEncodingType encoding_type = 2;
+  required ImageColorSpace color_space = 3;
+  required int32 width = 4;
+  required int32 height = 5;
+  required int32 num_images = 7;
   repeated int64 compressed_sizes = 6 [packed=true];
 }
 
@@ -159,14 +163,15 @@ message JobDescriptor {
     repeated int32 frames = 2;
   }
 
-  message Interval {
+  message StridedInterval {
     required int32 start = 1;
     required int32 end = 2;
+    required int32 stride = 3;
   }
 
   message SequenceSamples {
     optional int32 video_index = 1;
-    repeated Interval intervals = 2;
+    repeated StridedInterval intervals = 2;
   }
 
   required int32 id = 1;
@@ -180,6 +185,7 @@ message JobDescriptor {
 
   // For strided sampling
   optional int32 stride = 6;
+  optional int32 offset = 13;
   // For gather sampling
   repeated PointSamples gather_points = 7;
   // For sequence gather sampling
@@ -196,9 +202,10 @@ message DecodeArgs {
     SequenceGather = 4;
   }
 
-  message Interval {
+  message StridedInterval {
     required int32 start = 1;
     required int32 end = 2;
+    required int32 stride = 3;
   }
 
   required int32 start_keyframe = 1;
@@ -207,10 +214,10 @@ message DecodeArgs {
   required int32 rows_from_start = 9;
   required Sampling sampling = 4;
 
-  optional Interval interval = 5;
+  optional StridedInterval interval = 5;
   optional int32 stride = 6;
   repeated int32 gather_points = 7;
-  repeated Interval gather_sequences = 8;
+  repeated StridedInterval gather_sequences = 8;
 }
 
 message ImageDecodeArgs {
@@ -221,9 +228,10 @@ message ImageDecodeArgs {
     SequenceGather = 4;
   }
 
-  message Interval {
+  message StridedInterval {
     required int32 start = 1;
     required int32 end = 2;
+    required int32 stride = 3;
   }
 
   required ImageEncodingType encoding_type = 1;
@@ -232,10 +240,10 @@ message ImageDecodeArgs {
   required int32 rows_from_start = 9;
   required Sampling sampling = 4;
 
-  optional Interval interval = 5;
+  optional StridedInterval interval = 5;
   optional int32 stride = 6;
   repeated int32 gather_points = 7;
-  repeated Interval gather_sequences = 8;
+  repeated StridedInterval gather_sequences = 8;
 
-  repeated int64 compressed_sizes = 10;
+  repeated int64 compressed_sizes = 10 [packed=true];
 }

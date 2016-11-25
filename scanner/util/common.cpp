@@ -17,6 +17,12 @@
 
 namespace scanner {
 
+StridedInterval::StridedInterval(i32 start, i32 end, i32 stride)
+    : start(start), end(end), stride(stride) {}
+
+StridedInterval::StridedInterval(const Interval& i)
+    : start(i.start), end(i.end), stride(1) {}
+
 bool string_to_dataset_type(const std::string& s, DatasetType& type) {
   bool success = true;
   if (s == "video") {

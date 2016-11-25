@@ -217,7 +217,7 @@ EvaluatorCapabilities FacenetInputEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> FacenetInputEvaluatorFactory::get_output_names() {
-  return {"net_input", "frame"};
+  return {"frame", "net_input"};
 }
 
 Evaluator* FacenetInputEvaluatorFactory::new_evaluator(

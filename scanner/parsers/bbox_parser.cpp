@@ -15,6 +15,7 @@
 
 #include "scanner/parsers/bbox_parser.h"
 #include "scanner/evaluators/types.pb.h"
+#include "scanner/evaluators/serialize.h"
 
 #include <fstream>
 #include <queue>
@@ -38,17 +39,8 @@ void BBoxParser::parse_output(const std::vector<u8*>& output,
   size_t column_count = column_names_.size();
   for (size_t i = 0; i < column_count; ++i) {
     u8 *buf = output[i];
-    size_t num_boxes = *((size_t *)buf);
-    buf += sizeof(size_t);
-    i32 bbox_size = *((i32 *)buf);
-    buf += sizeof(i32);
-    assert(output_size[i] ==
-           sizeof(size_t) + sizeof(i32) + num_boxes * bbox_size);
-    std::vector<BoundingBox> boxes(num_boxes);
-    for (size_t i = 0; i < num_boxes; ++i) {
-      boxes[i].ParseFromArray(buf, bbox_size);
-      buf += bbox_size;
-    }
+    std::vector<BoundingBox> boxes =
+        deserialize_proto_vector<BoundingBox>(buf, output_size[i]);
 
     folly::dynamic out_bboxes = folly::dynamic::array();
     for (auto &b : boxes) {

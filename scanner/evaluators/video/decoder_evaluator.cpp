@@ -89,7 +89,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
     std::vector<i32> valid_frames;
     if (args.sampling() == DecodeArgs::All) {
-      const DecodeArgs::Interval& interval = args.interval();
+      const DecodeArgs::StridedInterval& interval = args.interval();
       i32 s = interval.start();
       if (!needs_warmup_) {
         s += std::min(
@@ -100,7 +100,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         valid_frames.push_back(s);
       }
     } else if (args.sampling() == DecodeArgs::Strided) {
-      const DecodeArgs::Interval& interval = args.interval();
+      const DecodeArgs::StridedInterval& interval = args.interval();
       i32 s = interval.start();
       i32 e = interval.end();
       i32 stride = args.stride();
@@ -125,14 +125,14 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       discontinuity_ = true;
     } else if (args.sampling() == DecodeArgs::SequenceGather) {
       assert(args.gather_sequences_size() == 1);
-      const DecodeArgs::Interval& interval = args.gather_sequences(0);
+      const DecodeArgs::StridedInterval& interval = args.gather_sequences(0);
       i32 s = interval.start();
       if (!needs_warmup_) {
         s += std::min(
             args.warmup_count(),
             static_cast<i32>(args.rows_from_start() + total_frames_used));
       }
-      for (; s < interval.end(); ++s) {
+      for (; s < interval.end(); s += interval.stride()) {
         valid_frames.push_back(s);
       }
       discontinuity_ = true;

@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/util/common.h"
+#include "scanner/util/db.h"
 
 #include <folly/dynamic.h>
 

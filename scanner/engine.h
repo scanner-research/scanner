@@ -43,14 +43,11 @@ struct LoadWorkEntry {
   // For no sampling
   Interval interval;
   // For stride
-  struct {
-    Interval interval;
-    i32 stride;
-  } strided;
+  StridedInterval strided_interval;
   // For gather
   std::vector<i32> gather_points;
   // For sequence gather
-  std::vector<Interval> gather_sequences;
+  std::vector<StridedInterval> gather_sequences;
   //};
 };
 

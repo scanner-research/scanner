@@ -1070,13 +1070,15 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     }
   } else if (sampling == Sampling::Strided) {
     i32 stride = pipeline_description.stride;
+    i32 offset = pipeline_description.offset;
     job_descriptor.set_stride(stride);
+    job_descriptor.set_offset(offset);
     for (size_t i = 0; i < total_frames_samples.size(); ++i) {
       i32 next_item_index = 0;
       i32 group_index = total_frames_samples[i].group_index;
       i32 group_frames =
           static_cast<i32>(total_frames_samples[i].frames.size());
-      i32 allocated_frames = 0;
+      i32 allocated_frames = offset;
       while (allocated_frames < group_frames) {
         i32 frames_to_allocate =
             std::min(work_item_size * stride, group_frames - allocated_frames);
@@ -1091,10 +1093,10 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
         LoadWorkEntry load_item;
         load_item.work_item_index = work_items.size() - 1;
-        load_item.strided.stride = stride;
-        load_item.strided.interval.start =
+        load_item.strided_interval.start =
             std::max(allocated_frames - warmup_size * stride, 0);
-        load_item.strided.interval.end = allocated_frames + frames_to_allocate;
+        load_item.strided_interval.end = allocated_frames + frames_to_allocate;
+        load_item.strided_interval.stride = stride;
         load_work_items.push_back(load_item);
 
         allocated_frames += frames_to_allocate;
@@ -1147,10 +1149,12 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         JobDescriptor_SequenceSamples* jd_samples =
             job_descriptor.add_gather_sequences();
         jd_samples->set_video_index(samples.video_index);
-        for (const Interval& interval : samples.intervals) {
-          JobDescriptor_Interval* jd_interval = jd_samples->add_intervals();
+        for (const StridedInterval& interval : samples.intervals) {
+          JobDescriptor::StridedInterval* jd_interval =
+              jd_samples->add_intervals();
           jd_interval->set_start(interval.start);
           jd_interval->set_end(interval.end);
+          jd_interval->set_stride(interval.stride);
         }
       }
 
@@ -1160,34 +1164,36 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       for (size_t i = 0; i < intervals_in_sample; ++i) {
         i32 frames_in_sample =
             samples.intervals[i].end - samples.intervals[i].start;
+        i32 stride = samples.intervals[i].stride;
         i32 allocated_frames = 0;
         while (allocated_frames < frames_in_sample) {
-          i32 frames_to_allocate =
-              std::min(work_item_size, frames_in_sample - allocated_frames);
+          i32 frames_to_allocate = std::min(
+              work_item_size * stride, frames_in_sample - allocated_frames);
 
           WorkItem item;
           item.video_index = samples.video_index;
           item.item_index = next_item_index++;
           item.item_id = total_frames_in_sequences;
           item.next_item_id = total_frames_in_sequences + frames_to_allocate;
-          item.rows_from_start = allocated_frames;
+          item.rows_from_start = allocated_frames / stride;
           work_items.push_back(item);
 
           LoadWorkEntry load_item;
           load_item.work_item_index = work_items.size() - 1;
           load_item.gather_sequences.push_back(
-              Interval{samples.intervals[i].start +
-                           std::max(allocated_frames - warmup_size, 0),
-                       samples.intervals[i].start + allocated_frames +
-                           frames_to_allocate});
+              StridedInterval(samples.intervals[i].start +
+                                  std::max(allocated_frames - warmup_size, 0),
+                              samples.intervals[i].start + allocated_frames +
+                                  frames_to_allocate,
+                              stride));
           load_work_items.push_back(load_item);
 
           allocated_frames += frames_to_allocate;
-          total_frames_in_sequences += frames_to_allocate;
+          total_frames_in_sequences += frames_to_allocate / stride;
         }
         // Make sure we reset after each gather interval
         work_items.back().next_item_id = -1;
-        total_frames += frames_in_sample;
+        total_frames += frames_in_sample / stride;
       }
     }
   }

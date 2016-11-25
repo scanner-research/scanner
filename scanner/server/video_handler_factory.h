@@ -19,6 +19,7 @@
 #include "scanner/server/video_handler.h"
 #include "scanner/server/video_handler_stats.h"
 #include "scanner/util/common.h"
+#include "scanner/util/db.h"
 
 #include <folly/Memory.h>
 #include <folly/Portability.h>

@@ -129,13 +129,15 @@ void DatabaseMetadata::remove_dataset(i32 dataset_id) {
   for (i32 job_id : dataset_job_ids.at(dataset_id)) {
     job_names.erase(job_id);
   }
+  assert(dataset_job_ids.count(dataset_id) > 0);
+  assert(dataset_names.count(dataset_id) > 0);
   dataset_job_ids.erase(dataset_id);
   dataset_names.erase(dataset_id);
 }
 
-bool DatabaseMetadata::has_job(const std::string& job) const {
-  for (const auto& kv : job_names) {
-    if (job == kv.second) {
+bool DatabaseMetadata::has_job(i32 dataset_id, const std::string& job) const {
+  for (i32 job_id : dataset_job_ids.at(dataset_id)) {
+    if (job == job_names.at(job_id)) {
       return true;
     }
   }
@@ -146,11 +148,11 @@ bool DatabaseMetadata::has_job(i32 job_id) const {
   return job_names.count(job_id) > 0;
 }
 
-i32 DatabaseMetadata::get_job_id(const std::string& job) const {
+i32 DatabaseMetadata::get_job_id(i32 dataset_id, const std::string& job) const {
   i32 job_id = -1;
-  for (const auto& kv : job_names) {
-    if (job == kv.second) {
-      job_id = kv.first;
+  for (i32 j_id : dataset_job_ids.at(dataset_id)) {
+    if (job == job_names.at(j_id)) {
+      job_id = j_id;
       break;
     }
   }
@@ -170,11 +172,16 @@ i32 DatabaseMetadata::add_job(i32 dataset_id, const std::string& job_name) {
 }
 
 void DatabaseMetadata::remove_job(i32 job_id) {
+  bool found = false;
   for (auto& kv : dataset_job_ids) {
     if (kv.second.count(job_id) > 0) {
       kv.second.erase(job_id);
+      found = true;
+      break;
     }
   }
+  assert(found);
+  assert(job_names.count(job_id) > 0);
   job_names.erase(job_id);
 }
 
@@ -323,19 +330,41 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// JobMetadata
-JobMetadata::JobMetadata() {}
+JobMetadata::JobMetadata() : complete_(false) {}
 JobMetadata::JobMetadata(const DatasetDescriptor& dataset,
                          const std::vector<VideoDescriptor>& videos,
                          const JobDescriptor& job)
     : dataset_descriptor(dataset),
       video_descriptors(videos),
-      job_descriptor(job) {}
+      job_descriptor(job),
+      complete_(true) {
+  std::set<i32> provided_ids;
+  for (const VideoDescriptor& desc : videos) {
+    provided_ids.insert(desc.id());
+  }
+  for (i32 id : dataset.video_data().video_ids()) {
+    if (provided_ids.count(id) == 0) {
+      complete_ = false;
+    }
+  }
+}
 JobMetadata::JobMetadata(const DatasetDescriptor& dataset,
                          const std::vector<ImageFormatGroupDescriptor>& images,
                          const JobDescriptor& job)
     : dataset_descriptor(dataset),
       format_descriptors(images),
-      job_descriptor(job) {}
+      job_descriptor(job),
+      complete_(true) {
+  std::set<i32> provided_ids;
+  for (const ImageFormatGroupDescriptor& desc : images) {
+    provided_ids.insert(desc.id());
+  }
+  for (i32 id : dataset.image_data().format_group_ids()) {
+    if (provided_ids.count(id) == 0) {
+      complete_ = false;
+    }
+  }
+}
 
 const DatasetDescriptor& JobMetadata::get_dataset_descriptor() const {
   return dataset_descriptor;
@@ -406,8 +435,9 @@ i32 JobMetadata::total_rows() const {
     }
     case Sampling::SequenceGather: {
       for (const auto& samples : job_descriptor.gather_sequences()) {
-        for (const JobDescriptor::Interval& interval : samples.intervals()) {
-          rows += interval.end() - interval.start();
+        for (const JobDescriptor::StridedInterval& interval :
+             samples.intervals()) {
+          rows += (interval.end() - interval.start()) / interval.stride();
         }
       }
       break;
@@ -463,8 +493,10 @@ std::vector<JobMetadata::GroupSample> JobMetadata::sampled_frames() const {
         group_samples.emplace_back();
         GroupSample& s = group_samples.back();
         s.group_index = samples.video_index();
-        for (const JobDescriptor::Interval& interval : samples.intervals()) {
-          for (i32 f = interval.start(); f < interval.end(); ++f) {
+        for (const JobDescriptor::StridedInterval& interval :
+             samples.intervals()) {
+          for (i32 f = interval.start(); f < interval.end();
+               f += interval.stride()) {
             s.frames.push_back(f);
           }
         }
@@ -476,17 +508,17 @@ std::vector<JobMetadata::GroupSample> JobMetadata::sampled_frames() const {
 }
 
 JobMetadata::RowLocations JobMetadata::row_work_item_locations(
-    Sampling sampling, i32 group_index, const LoadWorkEntry& entry) const {
+    Sampling sampling, i32 group_id, const LoadWorkEntry& entry) const {
   RowLocations locations;
   std::vector<i32>& items = locations.work_items;
   std::vector<Interval>& intervals = locations.work_item_intervals;
 
-  std::vector<i32> total_frames_per_item = rows_per_item();
+  i32 total_rows = rows_in_item(group_id);
   switch (sampling) {
     case Sampling::All: {
       i32 start = entry.interval.start;
       i32 end = entry.interval.end;
-      i32 tot_frames = total_frames_per_item[group_index];
+      i32 tot_frames = total_rows;
       i32 work_item_size = this->work_item_size();
       i32 first_work_item = start / work_item_size;
       i32 first_start_row = start % work_item_size;
@@ -523,7 +555,6 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
   std::vector<DecodeArgs>& dargs = locations.video_args;
   std::vector<ImageDecodeArgs>& image_dargs = locations.image_args;
 
-  std::vector<i32> total_frames_per_item = rows_per_item();
   if (job_sampling == Sampling::All) {
     if (sampling == Sampling::All) {
       intervals.push_back(Interval{entry.interval.start, entry.interval.end});
@@ -547,22 +578,22 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
       // TODO(apoms): loading a consecutive portion of the video stream might
       //   be inefficient if the stride is much larger than a single GOP.
       intervals.push_back(
-          Interval{entry.strided.interval.start, entry.strided.interval.end});
+          Interval{entry.strided_interval.start, entry.strided_interval.end});
 
       // Video decode arguments
       DecodeArgs decode_args;
       decode_args.set_sampling(DecodeArgs::Strided);
-      decode_args.mutable_interval()->set_start(entry.strided.interval.start);
-      decode_args.mutable_interval()->set_end(entry.strided.interval.end);
-      decode_args.set_stride(entry.strided.stride);
+      decode_args.mutable_interval()->set_start(entry.strided_interval.start);
+      decode_args.mutable_interval()->set_end(entry.strided_interval.end);
+      decode_args.set_stride(entry.strided_interval.stride);
 
       dargs.push_back(decode_args);
 
       ImageDecodeArgs image_args;
       image_args.set_sampling(ImageDecodeArgs::All);
-      image_args.mutable_interval()->set_start(entry.interval.start);
-      image_args.mutable_interval()->set_end(entry.interval.end);
-      image_args.set_stride(entry.strided.stride);
+      image_args.mutable_interval()->set_start(entry.strided_interval.start);
+      image_args.mutable_interval()->set_end(entry.strided_interval.end);
+      image_args.set_stride(entry.strided_interval.stride);
 
       image_dargs.push_back(image_args);
 
@@ -581,15 +612,18 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
         dargs.push_back(decode_args);
       }
     } else if (sampling == Sampling::SequenceGather) {
-      intervals = entry.gather_sequences;
+      for (const StridedInterval& s : entry.gather_sequences) {
+        intervals.push_back(Interval{s.start, s.end});
+      }
 
       for (size_t i = 0; i < entry.gather_sequences.size(); ++i) {
         // Video decode arguments
         DecodeArgs decode_args;
         decode_args.set_sampling(DecodeArgs::SequenceGather);
-        DecodeArgs::Interval* intvl = decode_args.add_gather_sequences();
+        DecodeArgs::StridedInterval* intvl = decode_args.add_gather_sequences();
         intvl->set_start(entry.gather_sequences[i].start);
         intvl->set_end(entry.gather_sequences[i].end);
+        intvl->set_stride(entry.gather_sequences[i].stride);
 
         dargs.push_back(decode_args);
       }
@@ -647,26 +681,49 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
         dargs.push_back(decode_args);
       }
     } else if (job_sampling == Sampling::SequenceGather) {
-      i32 start_frame;
-      i32 end_frame;
+      size_t s_idx = 0;
+      size_t i_idx = 0;
+      i32 frames_so_far = 0;
+      JobDescriptor::SequenceSamples* sample =
+          job_descriptor.mutable_gather_sequences(s_idx);
       while (start < end) {
-        // Find a contiguous sequence
-        start_frame = video_sample.frames[start];
-        end_frame = start_frame + 1;
-        start++;
-        while (start < end && end_frame == video_sample.frames[start]) {
-          end_frame++;
-          start++;
+        while (sample->video_index() != video_index) {
+          sample = job_descriptor.mutable_gather_sequences(++s_idx);
+          i_idx = 0;
+          frames_so_far = 0;
         }
+        JobDescriptor::StridedInterval* interval =
+            sample->mutable_intervals(i_idx);
+        i32 stride = interval->stride();
+        i32 interval_offset = 0;
+        while (frames_so_far < start) {
+          i32 needed_frames = start - frames_so_far;
+          i32 frames_in_interval =
+              (interval->end() - interval->start()) / stride;
+          if (frames_in_interval <= needed_frames) {
+            interval = sample->mutable_intervals(++i_idx);
+            interval_offset = 0;
+          } else {
+            interval_offset = needed_frames * stride;
+          }
+          frames_so_far += std::min(frames_in_interval, needed_frames);
+        }
+        i32 start_frame = interval->start() + interval_offset;
+        i32 frames_left_in_interval = (interval->end() - start_frame) / stride;
+        i32 end_frame = start_frame +
+                        std::min(frames_left_in_interval * stride, end - start);
+        start += frames_left_in_interval;
+        frames_so_far += frames_left_in_interval;
 
         intervals.push_back(Interval{start_frame, end_frame});
 
         // Video decode arguments
         DecodeArgs decode_args;
         decode_args.set_sampling(DecodeArgs::SequenceGather);
-        DecodeArgs::Interval* intvl = decode_args.add_gather_sequences();
+        DecodeArgs::StridedInterval* intvl = decode_args.add_gather_sequences();
         intvl->set_start(start_frame);
         intvl->set_end(end_frame);
+        intvl->set_stride(stride);
 
         dargs.push_back(decode_args);
       }
@@ -676,6 +733,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
 }
 
 std::vector<i32> JobMetadata::rows_per_item() const {
+  assert(complete_);
   std::vector<i32> total_frames_per_item;
   if (dataset_descriptor.type() == DatasetType_Video) {
     for (const VideoDescriptor& meta : video_descriptors) {
@@ -687,6 +745,27 @@ std::vector<i32> JobMetadata::rows_per_item() const {
     }
   }
   return total_frames_per_item;
+}
+
+i32 JobMetadata::rows_in_item(i32 group_id) const {
+  i32 total_rows = -1;
+  if (dataset_descriptor.type() == DatasetType_Video) {
+    for (const VideoDescriptor& meta : video_descriptors) {
+      if (meta.id() == group_id) {
+        total_rows = meta.frames();
+        break;
+      }
+    }
+  } else if (dataset_descriptor.type() == DatasetType_Image) {
+    for (const ImageFormatGroupDescriptor& meta : format_descriptors) {
+      if (meta.id() == group_id) {
+        total_rows = meta.num_images();
+        break;
+      }
+    }
+  }
+  assert(total_rows != -1);
+  return total_rows;
 }
 
 namespace {

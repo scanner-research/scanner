@@ -355,12 +355,15 @@ int main(int argc, char** argv) {
       rm_desc.add_options()("help", "Produce help message")(
           "resource_type", po::value<std::string>()->required(),
           "Type of resource to remove: dataset or job")(
-          "resource_name", po::value<std::string>()->required(),
-          "Unique name of the resource to remove");
+          "dataset_name", po::value<std::string>()->required(),
+          "Name of dataset.")(
+          "job_name", po::value<std::string>(),
+          "Name of job.");
 
       po::positional_options_description rm_pos;
       rm_pos.add("resource_type", 1);
-      rm_pos.add("resource_name", 1);
+      rm_pos.add("dataset_name", 1);
+      rm_pos.add("job_name", 1);
 
       try {
         po::store(po::command_line_parser(opts)
@@ -379,7 +382,10 @@ int main(int argc, char** argv) {
       }
 
       resource_type = vm["resource_type"].as<std::string>();
-      resource_name = vm["resource_name"].as<std::string>();
+      dataset_name = vm["dataset_name"].as<std::string>();
+      if (vm.count("job_name")) {
+        in_job_name = vm["resource_name"].as<std::string>();
+      }
 
     } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
@@ -456,8 +462,18 @@ int main(int argc, char** argv) {
     // persistently stored dataset which can then be operated on by the run
     // command.
 
-    if (!force && meta.has_dataset(dataset_name)) {
-      LOG(FATAL) << "Dataset with that name already exists.";
+    if (meta.has_dataset(dataset_name)) {
+      if (force) {
+        meta.remove_dataset(meta.get_dataset_id(dataset_name));
+
+        std::string db_meta_path = database_metadata_path();
+        std::unique_ptr<storehouse::WriteFile> meta_out_file;
+        make_unique_write_file(storage, db_meta_path, meta_out_file);
+        serialize_database_metadata(meta_out_file.get(), meta);
+        BACKOFF_FAIL(meta_out_file->save());
+      } else {
+        LOG(FATAL) << "Dataset with that name already exists.";
+      }
     }
 
     DatasetType type;
@@ -480,13 +496,25 @@ int main(int argc, char** argv) {
     }
     i32 dataset_id = meta.get_dataset_id(dataset_name);
 
-    if (in_job_name != base_dataset_job_name() && !meta.has_job(in_job_name)) {
+    if (in_job_name != base_dataset_job_name() &&
+        !meta.has_job(dataset_id, in_job_name)) {
       LOG(FATAL) << "Requested in job " << in_job_name << " does not exist.";
     }
 
-    if (!force && meta.has_job(out_job_name)) {
-      LOG(FATAL) << "Out job with name " << out_job_name << " already exists "
-                 << "for dataset " << dataset_name;
+    if (meta.has_job(dataset_id, out_job_name)) {
+      if (force) {
+        meta.remove_job(meta.get_job_id(dataset_id, out_job_name));
+
+        std::string db_meta_path = database_metadata_path();
+        std::unique_ptr<storehouse::WriteFile> meta_out_file;
+        make_unique_write_file(storage, db_meta_path, meta_out_file);
+        serialize_database_metadata(meta_out_file.get(), meta);
+        BACKOFF_FAIL(meta_out_file->save());
+
+      } else {
+        LOG(FATAL) << "Out job with name " << out_job_name << " already exists "
+                   << "for dataset " << dataset_name;
+      }
     }
 
     PipelineGeneratorFn pipe_gen = get_pipeline(pipeline_name);
@@ -494,16 +522,17 @@ int main(int argc, char** argv) {
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadata
+    if (!meta.has_dataset(dataset_name)) {
+      LOG(FATAL) << "Cannot remove: dataset with that name does not exist";
+    }
+    i32 dataset_id = meta.get_dataset_id(dataset_name);
     if (resource_type == "dataset") {
-      if (!meta.has_dataset(resource_name)) {
-        LOG(FATAL) << "Cannot remove: dataset with that name does not exist";
-      }
-      meta.remove_dataset(meta.get_dataset_id(resource_name));
+      meta.remove_dataset(dataset_id);
     } else if (resource_type == "job") {
-      if (!meta.has_job(resource_name)) {
+      if (!meta.has_job(dataset_id, in_job_name)) {
         LOG(FATAL) << "Cannot remove: job with that name does not exist";
       }
-      meta.remove_job(meta.get_job_id(resource_name));
+      meta.remove_job(meta.get_job_id(dataset_id, in_job_name));
     } else {
       LOG(FATAL) << "No resource type named: " << resource_type;
     }

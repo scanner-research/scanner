@@ -30,7 +30,7 @@ struct PointSamples {
 
 struct SequenceSamples {
   i32 video_index;
-  std::vector<Interval> intervals;
+  std::vector<StridedInterval> intervals;
 };
 
 /**
