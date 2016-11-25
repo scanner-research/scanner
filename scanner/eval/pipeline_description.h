@@ -55,17 +55,15 @@ struct PipelineDescription {
    * @brief Sampling strategy
    */
   Sampling sampling = Sampling::All;
-
   /**
    * @brief For strided sampling
    */
-  i32 stride;
-
+  i32 offset = 0;
+  i32 stride = 1;
   /**
    * @brief For gather sampling
    */
   std::vector<PointSamples> gather_points;
-
   /**
    * @brief For sequencegather sampling
    */
