@@ -190,7 +190,8 @@ def save_drawn_poses_on_frames(video_paths,
                                video_index_to_panel_cam,
                                sampled_frames,
                                person_centers,
-                               person_poses):
+                               person_poses,
+                               frames):
     for vi in sampled_frames.keys():
         cap = cv.VideoCapture(video_paths[int(vi)])
         s_fi = sampled_frames[vi]
@@ -198,9 +199,12 @@ def save_drawn_poses_on_frames(video_paths,
         s_centers = person_centers[vi]
         curr_fi = 0
         panel, camera = video_index_to_panel_cam[int(vi)]
-        print('Generating ' + str(len(s_fi)) + ' frames for video ' + vi +
+        print('Generating ' + str(len(frames)) + ' frames for video ' + vi +
               ', panel ' + str(panel) + ', camera ' + str(camera))
+        frame_idx = 0
         for fi, poses, centers in zip(s_fi, s_poses, s_centers):
+            if fi != frames[frame_idx]:
+                continue
             if not cap.isOpened():
                 break
             while cap.isOpened():
@@ -436,17 +440,17 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
         cam['t'] = np.array(cam['t']).reshape((3,1))
 
     # Select the first 10 VGA cameras in a uniformly sampled order
-    #cams = get_uniform_camera_order()[0:10]
-    cams = [(1, 1), (1, 4), (1, 9), (1, 18)]
+    cams = get_uniform_camera_order()[0:12]
+    #cams = [(1, 1), (1, 4), (1, 9), (1, 18)]
     sel_cameras = [cameras[cam].copy() for cam in cams]
 
     # Edges between joints in the skeleton
     edges = np.array([[1,2],[1,4],[4,5],[5,6],[1,3],[3,7],[7,8],[8,9],[3,13],
                       [13,14],[14,15],[1,10],[10,11],[11,12]])-1
-    colors = plt.cm.hsv(np.linspace(0, 1, 33)).tolist()
+    colors = plt.cm.hsv(np.linspace(0, 1, 32)).tolist()
 
     # Frame
-    idx = frame_number
+    frame = frame_number
     plt.figure(figsize=(15,15))
     for icam in xrange(len(sel_cameras)):
         # Select a camera
@@ -457,10 +461,10 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
             vga_img_path,
             '{0:02d}_{1:02d}/{0:02d}_{1:02d}_{2:08d}.jpg'.format(cam['panel'],
                                                                  cam['node'],
-                                                                 idx))
+                                                                 frame))
         im = plt.imread(image_path)
 
-        plt.subplot(3,2,icam+1)
+        plt.subplot(math.ceil(len(sel_cameras) / 3.0), 3 ,icam+1)
         plt.imshow(im)
         currentAxis = plt.gca()
         currentAxis.set_autoscale_on(False)
@@ -468,16 +472,19 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
         try:
             # Load the json file with this frame's skeletons
             skel_json_fname = os.path.join(
-                vga_skel_json_path, 'body3DScene_{0:08d}.json'.format(idx))
+                vga_skel_json_path, 'body3DScene_{0:08d}.json'.format(frame))
             with open(skel_json_fname) as dfile:
                 bframe = json.load(dfile)
 
             # Cycle through all detected bodies
-            num_bodies = min(len(bframe['bodies']), 40)
+            num_bodies = min(len(bframe['bodies']), 32)
             for body in bframe['bodies'][:num_bodies]:
                 # There are 15 3D joints, stored as an array
                 # [x1,y1,z1,c1,x2,y2,z2,c2,...]
                 # where c1 ... c15 are per-joint detection confidences
+                idx = body['id']
+                if idx > len(colors):
+                    idx = len(colors) - 1
                 skel = np.array(body['joints15']).reshape((-1,4)).transpose()
 
                 # Project skeleton into view (this is like cv2.projectPoints)
@@ -489,13 +496,13 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
                 valid = skel[3,:]>0.1
 
                 plt.plot(pt[0,valid], pt[1,valid], '.',
-                         color=colors[body['id']])
+                         color=colors[idx])
 
                 # Plot edges for each bone
                 for edge in edges:
                     if valid[edge[0]] or valid[edge[1]]:
                         plt.plot(pt[0,edge], pt[1,edge],
-                                 color=colors[body['id']])
+                                 color=colors[idx])
 
                 # Show the joint numbers
                 for ip in xrange(pt.shape[1]):
@@ -504,7 +511,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
                         pt[1,ip]>=0 and
                         pt[1,ip]<im.shape[0]):
                         plt.text(pt[0,ip], pt[1,ip]-5,
-                                 '{0}'.format(ip),color=colors[body['id']])
+                                 '{0}'.format(ip),color=colors[idx])
 
         except IOError as e:
             print('Error reading {0}\n'.format(skel_json_fname)+e.strerror)
@@ -529,14 +536,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
                 bbox_inches='tight')
 
 
-def main():
-    if len(sys.argv) != 2:
-        print('Usage: cpm.py <dataset_name>')
-        exit()
-
-    [dataset_name] = sys.argv[1:]
-
-    frame_number = 1000
+def load_metadata(dataset_name):
     output_path = 'cpm_output_' + dataset_name
     mkdir_p(output_path)
     data_path = '/bigdata/apoms/panoptic/' + dataset_name
@@ -546,25 +546,77 @@ def main():
         raw_calib_data = json.loads(f.read())
         calib_data = parse_calibration_data(raw_calib_data)
 
-    #person_centers_job = load_cpm_person_centers(dataset_name, 'person')
-    #joint_results_job = load_cpm_joint_maps(dataset_name, 'pose')
+    return {
+        'output_path': output_path,
+        'data_path': data_path,
+        'raw_calib_data': raw_calib_data,
+        'calib_data': calib_data,
+    }
+
+
+def extract_pose_detections(dataset_name):
+    person_centers_job = load_cpm_person_centers(dataset_name, 'person')
+    joint_results_job = load_cpm_joint_maps(dataset_name, 'pose')
 
     scale = 480 / 368.0
-    #sampled_frames, person_centers, person_poses = parse_cpm_data(
-    #    person_centers_job, joint_results_job, scale)
+    sampled_frames, person_centers, person_poses = parse_cpm_data(
+        person_centers_job, joint_results_job, scale)
 
-    #video_paths = person_centers_job._dataset.video_data.original_video_paths
-    #panel_cam_mapping = dataset_list_to_panel_cams(video_paths)
-    #nested_poses = nest_in_panel_cam(panel_cam_mapping, person_poses)
+    video_paths = person_centers_job._dataset.video_data.original_video_paths
+    panel_cam_mapping = dataset_list_to_panel_cams(video_paths)
+    nested_poses = nest_in_panel_cam(panel_cam_mapping, person_poses)
+
+    return {
+        'sampled_frames': sampled_frames,
+        'person_centers': person_centers,
+        'person_poses': person_poses,
+        'video_paths': video_paths,
+        'panel_cam_mapping': panel_cam_mapping,
+        'nested_poses': nested_poses,
+    }
+
+
+def export_pose_detections(dataset_name, start_frame, end_frame):
+    meta = load_metadata()
+    pose_data = extract_pose_detections(dataset_name)
     #write_extrinsic_params(calib_data, output_path)
-    #write_pose_detections(calib_data, nested_poses, 1000, output_path)
-    # save_drawn_poses_on_frames(
-    #     video_paths, panel_cam_mapping,
-    #     sampled_frames, person_centers, person_poses)
+    for frame in range(start_frame, end_frame):
+        write_pose_detections(meta['calib_data'],
+                              pose_data['nested_poses'],
+                              frame,
+                              meta['output_path'])
 
-    draw_3d_poses(raw_calib_data, data_path, output_path, dataset_name,
-                  frame_number)
+
+def draw_2d_pose_detections(dataset_name, start_frame, end_frame):
+    meta = load_metadata()
+    pose_data = extract_pose_detections(dataset_name)
+    save_drawn_poses_on_frame(pose_data['video_paths'],
+                              pose_data['panel_cam_mapping'],
+                              pose_data['sampled_frames'],
+                              pose_data['person_centers'],
+                              pose_data['person_poses'],
+                              range(start_frame, end_frame))
+
+
+def draw_3d_pose_detections(dataset_name, start_frame, end_frame):
+    meta = load_metadata()
+    for frame in range(start_frame, end_frame):
+        draw_3d_poses(meta['raw_calib_data'],
+                      meta['data_path'],
+                      meta['output_path'],
+                      dataset_name,
+                      frame)
+
+
+def main(dataset_name, start_frame, end_frame):
+    draw_3d_pose_detections(dataset_name, start_frame, end_frame)
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) != 4:
+        print('Usage: cpm.py <dataset_name> <start_frame> <end_frame>')
+        exit()
+
+    [dataset_name, start_frame, end_frame] = sys.argv[3:]
+
+    main(dataset_name, start_frame, end_frame)
