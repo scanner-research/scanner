@@ -43,7 +43,6 @@ def load_frames(buf, metadata):
 @db.loader('net_input')
 def load_cpm_person_net_input(buf, metadata):
     buf = np.frombuffer(buf, dtype=np.dtype(np.float32))
-    print(buf.shape)
     buf = np.squeeze(buf.reshape((3, 368, -1)))
     return buf
 
@@ -51,7 +50,6 @@ def load_cpm_person_net_input(buf, metadata):
 @db.loader('Mconv7_stage4')
 def load_cpm_person_heat_map(buf, metadata):
     buf = np.frombuffer(buf, dtype=np.dtype(np.float32))
-    print(buf.shape)
     buf = np.squeeze(buf.reshape((1, 1, 46, -1)))
     return buf
 
@@ -90,7 +88,6 @@ def dataset_list_to_panel_cams(dataset_paths):
     panel_cams = []
     for p in dataset_paths:
         file_name = os.path.splitext(os.path.basename(p))[0]
-        print(file_name)
         parts = file_name.split("_")
         panel_idx = int(parts[1])
         camera_idx = int(parts[2])
@@ -373,6 +370,7 @@ def write_extrinsic_params(calibration_data,
 def write_pose_detections(calibration_data,
                           poses,
                           frame,
+                          row,
                           top_level_path):
     directory = os.path.join(top_level_path, 'poseDetect_pm_org', 'vga_25')
     mkdir_p(directory)
@@ -404,7 +402,7 @@ def write_pose_detections(calibration_data,
                 wr(camera_idx)
                 f.write('\n')
 
-                people = poses[panel_idx][camera_idx][0]
+                people = poses[panel_idx][camera_idx][row]
                 num_people = len(people)
                 wr(num_people)
                 wr(num_joints)
@@ -554,9 +552,11 @@ def load_metadata(dataset_name):
     }
 
 
-def extract_pose_detections(dataset_name):
-    person_centers_job = load_cpm_person_centers(dataset_name, 'person')
-    joint_results_job = load_cpm_joint_maps(dataset_name, 'pose')
+def extract_pose_detections(dataset_name, suffix=''):
+    person_centers_job = load_cpm_person_centers(dataset_name,
+                                                 'person' + suffix)
+    joint_results_job = load_cpm_joint_maps(dataset_name,
+                                            'pose' + suffix)
 
     scale = 480 / 368.0
     sampled_frames, person_centers, person_poses = parse_cpm_data(
@@ -576,20 +576,21 @@ def extract_pose_detections(dataset_name):
     }
 
 
-def export_pose_detections(dataset_name, start_frame, end_frame):
-    meta = load_metadata()
-    pose_data = extract_pose_detections(dataset_name)
+def export_pose_detections(dataset_name, suffix, start_frame, end_frame):
+    meta = load_metadata(dataset_name)
+    pose_data = extract_pose_detections(dataset_name, suffix)
     #write_extrinsic_params(calib_data, output_path)
-    for frame in range(start_frame, end_frame):
+    for i, frame in enumerate(range(start_frame, end_frame)):
         write_pose_detections(meta['calib_data'],
                               pose_data['nested_poses'],
                               frame,
+                              i,
                               meta['output_path'])
 
 
-def draw_2d_pose_detections(dataset_name, start_frame, end_frame):
-    meta = load_metadata()
-    pose_data = extract_pose_detections(dataset_name)
+def draw_2d_pose_detections(dataset_name, suffix, start_frame, end_frame):
+    meta = load_metadata(dataset_name)
+    pose_data = extract_pose_detections(dataset_name, suffix)
     save_drawn_poses_on_frame(pose_data['video_paths'],
                               pose_data['panel_cam_mapping'],
                               pose_data['sampled_frames'],
@@ -599,7 +600,7 @@ def draw_2d_pose_detections(dataset_name, start_frame, end_frame):
 
 
 def draw_3d_pose_detections(dataset_name, start_frame, end_frame):
-    meta = load_metadata()
+    meta = load_metadata(dataset_name)
     for frame in range(start_frame, end_frame):
         draw_3d_poses(meta['raw_calib_data'],
                       meta['data_path'],
@@ -617,6 +618,8 @@ if __name__ == "__main__":
         print('Usage: cpm.py <dataset_name> <start_frame> <end_frame>')
         exit()
 
-    [dataset_name, start_frame, end_frame] = sys.argv[3:]
+    [dataset_name, start_frame, end_frame] = sys.argv[1:]
+    start_frame = int(start_frame)
+    end_frame = int(end_frame)
 
     main(dataset_name, start_frame, end_frame)
