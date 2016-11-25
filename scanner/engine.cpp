@@ -1274,6 +1274,10 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<std::vector<Profiler>> eval_chain_profilers(PUS_PER_NODE);
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
 
+  i32 num_gpus;
+#ifdef HAVE_CUDA
+  cudaGetDeviceCount(&num_gpus);
+#endif
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
     std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
@@ -1286,12 +1290,23 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       std::vector<EvaluatorConfig> eval_configs;
       for (size_t i = 0; i < factory_groups[fg].size(); ++i) {
+        DeviceType evaluator_device_type =
+            factory_groups[fg][i]->get_capabilities().device_type;
+
         EvaluatorConfig eval_config;
         eval_config.max_input_count =
             std::max(frames_per_work_item(), warmup_size);
         eval_config.max_frame_width = dataset_meta.max_width();
         eval_config.max_frame_height = dataset_meta.max_height();
-        eval_config.device_ids = {pu};
+
+        i32 device_id;
+        if (evaluator_device_type == DeviceType::GPU) {
+          device_id = pu % num_gpus;
+        } else {
+          device_id = pu;
+        }
+        eval_config.device_ids = {device_id};
+
         eval_configs.push_back(eval_config);
       }
       // Input work queue
