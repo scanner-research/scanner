@@ -564,6 +564,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
       decode_args.set_sampling(DecodeArgs::All);
       decode_args.mutable_interval()->set_start(entry.interval.start);
       decode_args.mutable_interval()->set_end(entry.interval.end);
+      decode_args.mutable_interval()->set_stride(0);  // Dummy
 
       dargs.push_back(decode_args);
 
@@ -571,6 +572,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
       image_args.set_sampling(ImageDecodeArgs::All);
       image_args.mutable_interval()->set_start(entry.interval.start);
       image_args.mutable_interval()->set_end(entry.interval.end);
+      image_args.mutable_interval()->set_stride(0);  // Dummy
 
       image_dargs.push_back(image_args);
 
@@ -585,6 +587,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
       decode_args.set_sampling(DecodeArgs::Strided);
       decode_args.mutable_interval()->set_start(entry.strided_interval.start);
       decode_args.mutable_interval()->set_end(entry.strided_interval.end);
+      decode_args.mutable_interval()->set_stride(entry.strided_interval.stride);
       decode_args.set_stride(entry.strided_interval.stride);
 
       dargs.push_back(decode_args);
@@ -593,6 +596,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
       image_args.set_sampling(ImageDecodeArgs::All);
       image_args.mutable_interval()->set_start(entry.strided_interval.start);
       image_args.mutable_interval()->set_end(entry.strided_interval.end);
+      image_args.mutable_interval()->set_stride(entry.strided_interval.stride);
       image_args.set_stride(entry.strided_interval.stride);
 
       image_dargs.push_back(image_args);
