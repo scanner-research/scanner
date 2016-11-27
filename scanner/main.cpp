@@ -163,7 +163,10 @@ int main(int argc, char** argv) {
         "Number of worker threads processing load jobs per node")(
 
         "save_workers_per_node", po::value<int>(),
-        "Number of worker threads processing save jobs per node");
+        "Number of worker threads processing save jobs per node")(
+
+        "gpu_device_ids", po::value<std::vector<int>>(),
+        "The set of GPUs that scanner should use.");
 
     po::positional_options_description main_pos;
     main_pos.add("command", 1);
@@ -224,6 +227,17 @@ int main(int argc, char** argv) {
     }
     if (config->has("job", "save_workers_per_node")) {
       SAVE_WORKERS_PER_NODE = config->get<int>("job", "save_workers_per_node");
+    }
+    if (config->has("job", "gpu_device_ids")) {
+      GPU_DEVICE_IDS = config->get<std::vector<int>>("job", "gpu_device_ids");
+    } else {
+#ifdef HAVE_CUDA
+      i32 num_gpus;
+      cudaGetDeviceCount(&num_gpus);
+      for (i32 i = 0; i < num_gpus; ++i) {
+        GPU_DEVICE_IDS.push_back(i);
+      }
+#endif
     }
 
     LOG_IF(FATAL, !config->has("storage", "db_path"))
@@ -356,9 +370,8 @@ int main(int argc, char** argv) {
           "resource_type", po::value<std::string>()->required(),
           "Type of resource to remove: dataset or job")(
           "dataset_name", po::value<std::string>()->required(),
-          "Name of dataset.")(
-          "job_name", po::value<std::string>(),
-          "Name of job.");
+          "Name of dataset.")("job_name", po::value<std::string>(),
+                              "Name of job.");
 
       po::positional_options_description rm_pos;
       rm_pos.add("resource_type", 1);

@@ -303,8 +303,6 @@ void* load_thread(void* arg) {
 
             INSERT_ROW(eval_work_entry.columns[out_col + 1], decode_args_buffer,
                        size);
-            printf("row size %lu\n",
-                   eval_work_entry.columns[out_col].rows.size());
           }
           // Jump over the next output column because we wrote two columns for
           // this iteration (frame and frame_args)
@@ -388,8 +386,6 @@ void* load_thread(void* arg) {
 
             INSERT_ROW(eval_work_entry.columns[out_col + 1], decode_args_buffer,
                        size);
-            printf("row size %lu\n",
-                   eval_work_entry.columns[out_col].rows.size());
           }
           // Jump over the next output column because we wrote two columns for
           // this iteration (frame and frame_args)
@@ -1277,10 +1273,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<std::vector<Profiler>> eval_chain_profilers(PUS_PER_NODE);
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
 
-  i32 num_gpus;
-#ifdef HAVE_CUDA
-  cudaGetDeviceCount(&num_gpus);
-#endif
+  i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
     std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
@@ -1304,7 +1297,11 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
         i32 device_id;
         if (evaluator_device_type == DeviceType::GPU) {
-          device_id = pu % num_gpus;
+          LOG_IF(FATAL, num_gpus == 0)
+              << "Scanner is configured with zero available GPUs but a GPU "
+              << "evaluator was requested! Please configure Scanner to have "
+              << "at least one GPU using the `gpu_device_ids` config option.";
+          device_id = GPU_DEVICE_IDS[pu % num_gpus];
         } else {
           device_id = pu;
         }

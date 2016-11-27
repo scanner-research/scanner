@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace scanner {
 
@@ -75,5 +76,6 @@ extern i32 WORK_ITEM_SIZE;         // Base size of a work item
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 LOAD_WORKERS_PER_NODE;  // # of worker threads loading data
 extern i32 SAVE_WORKERS_PER_NODE;  // # of worker threads loading data
-extern i32 NUM_CUDA_STREAMS;       // # of cuda streams for image processing
+extern std::vector<i32> GPU_DEVICE_IDS;  // GPU device ids to use
+extern i32 NUM_CUDA_STREAMS;  // # of cuda streams for image processing
 }
