@@ -84,6 +84,22 @@ def load_cpm_joint_maps(buf, metadata):
     return buf
 
 
+@db.loader('joint_centers')
+def load_cpm_joint_centers(buf, metadata):
+    (num_points,) = struct.unpack("=Q", buf[:8])
+    buf = buf[8:]
+    points = []
+    for i in range(num_points):
+        point_size, = struct.unpack("=i", buf[:4])
+        buf = buf[4:]
+        point = scannerpy.evaluators.types_pb2.Point()
+        point.ParseFromString(buf[:point_size])
+        buf = buf[point_size:]
+        p = np.array([point.y, point.x, point.score])
+        points.append(p)
+    return points
+
+
 def dataset_list_to_panel_cams(dataset_paths):
     panel_cams = []
     for p in dataset_paths:
@@ -114,6 +130,15 @@ def node_maps_to_pose(offset, heat_maps):
     return nodes
 
 
+def node_centers_to_pose(offset, node_centers):
+    nodes = np.zeros((14, 3))
+    for part in range(14):
+        nodes[part, :] = node_centers[part]
+    nodes[:, 0] = nodes[:, 0] - (368.0 / 2) + offset[0]
+    nodes[:, 1] = nodes[:, 1] - (368.0 / 2) + offset[1]
+    return nodes
+
+
 def parse_cpm_data(person_centers_job, joint_results_job, scale):
     sampled_frames = defaultdict(list)
     person_centers = defaultdict(list)
@@ -133,8 +158,9 @@ def parse_cpm_data(person_centers_job, joint_results_job, scale):
                 person_poses[vi].append(poses)
                 continue
             for p in range(len(centers)):
-                node_maps = out['buffers'][i]
-                poses.append(node_maps_to_pose(centers[p], node_maps) * scale)
+                node_centers = out['buffers'][i]
+                poses.append(node_centers_to_pose(
+                    centers[p], node_centers) * scale)
                 centers[p] *= scale
                 i += 1
             person_poses[vi].append(poses)
@@ -338,6 +364,7 @@ def get_uniform_camera_order():
 ### 
 
 
+# mimics the sampling order in the Social-Capture code base
 def naive_camera_sampling(num_cams):
     panel_order = [1,3,17,5,4,6,18,8,7,9,19,11,10,12,20,14,13,15,16,2]
     cam_order = range(1, 25)
@@ -445,7 +472,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
 
     vga_skel_json_path = os.path.join(output_directory,
                                       'body3DPSRecon_json',
-                                      '{:04d}'.format(480))
+                                      '{:04d}'.format(60))
     vga_img_path = os.path.join(data_path, 'vgaImgs')
 
     hd_skel_json_path = os.path.join(output_directory, 'hdPose3d_stage1')
@@ -580,8 +607,8 @@ def load_metadata(dataset_name):
 def extract_pose_detections(dataset_name, suffix=''):
     person_centers_job = load_cpm_person_centers(dataset_name,
                                                  'person' + suffix)
-    joint_results_job = load_cpm_joint_maps(dataset_name,
-                                            'pose' + suffix)
+    joint_results_job = load_cpm_joint_centers(dataset_name,
+                                               'pose' + suffix)
 
     scale = 480 / 368.0
     sampled_frames, person_centers, person_poses = parse_cpm_data(

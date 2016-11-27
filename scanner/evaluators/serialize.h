@@ -33,6 +33,21 @@ inline T deser(const u8*& buffer, size_t& size_left) {
 }
 
 template <typename T>
+void serialize_proto(const T& element, u8*& buffer, size_t& size) {
+  i32 element_size = element.ByteSize();
+  buffer = new u8[element_size];
+  size = element_size;
+  element.SerializeToArray(buffer, element_size);
+}
+
+template <typename T>
+T deserialize_proto(const u8* buffer, size_t size) {
+  T e;
+  e.ParseFromArray(buffer, size);
+  return e;
+}
+
+template <typename T>
 void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
                             size_t& size) {
   size = sizeof(size_t);

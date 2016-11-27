@@ -15,4 +15,5 @@ message BoundingBox {
 message Point {
   required float x = 1;
   required float y = 2;
+  optional float score = 3;
 }

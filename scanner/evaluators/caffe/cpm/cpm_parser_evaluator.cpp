@@ -30,10 +30,13 @@ CPMParserEvaluator::CPMParserEvaluator(const EvaluatorConfig& config,
     : config_(config),
       device_type_(device_type),
       device_id_(device_id),
-      forward_input_(forward_input) {
-  if (device_type_ == DeviceType::GPU) {
-    LOG(FATAL) << "GPU CPM parser support not implemented yet";
-  }
+      forward_input_(forward_input)
+#ifdef HAVE_CUDA
+      ,
+      num_cuda_streams_(32),
+      streams_(num_cuda_streams_)
+#endif
+{
 }
 
 void CPMParserEvaluator::configure(const InputFormat& metadata) {
@@ -52,14 +55,33 @@ void CPMParserEvaluator::configure(const InputFormat& metadata) {
 
   feature_width_ = net_input_width_ / cell_size_;
   feature_height_ = net_input_height_ / cell_size_;
+  feature_channels_ = 15;
 
-  resized_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC1);
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    cv::cuda::setDevice(device_id_);
+    cudaSetDevice(device_id_);
+
+    streams_.resize(0);
+    streams_.resize(num_cuda_streams_);
+
+    resized_g_.clear();
+    for (size_t i = 0; i < num_cuda_streams_; ++i) {
+      frame_input_g_.push_back(
+          cv::cuda::GpuMat(feature_height_, feature_width_, CV_32FC1));
+      resized_g_.push_back(
+          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
+    }
+#else
+    LOG(FATAL) << "Not built with CUDA support.";
+#endif
+  } else {
+    resized_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC1);
+  }
 }
 
 void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
                                   BatchedColumns& output_columns) {
-  i32 input_count = (i32)input_columns[0].rows.size();
-
   i32 frame_idx = 0;
   i32 feature_idx;
   if (forward_input_) {
@@ -70,41 +92,114 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
     feature_idx = 0;
   }
 
+  i32 input_count = (i32)input_columns[feature_idx].rows.size();
+
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
-  for (i32 b = 0; b < input_count; ++b) {
-    assert(input_columns[feature_idx].rows[b].size ==
-           feature_width_ * feature_height_ * sizeof(f32));
-    cv::Mat input(feature_height_, feature_width_, CV_32FC1,
-                  input_columns[feature_idx].rows[b].buffer);
-    cv::resize(input, resized_c_,
-               cv::Size(net_input_width_, net_input_height_));
-    cv::dilate(resized_c_, max_c_, dilate_kernel_);
-    // Remove elements less than threshold
-    cv::threshold(max_c_, max_c_, threshold_, 0.0, cv::THRESH_TOZERO);
-    // Remove all non maximums
-    cv::compare(max_c_, resized_c_, max_c_, cv::CMP_EQ);
-    std::vector<cv::Point> maximums;
-    // All non-zeros are maximums
-    cv::findNonZero(max_c_, maximums);
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    cv::cuda::setDevice(device_id_);
+    cudaSetDevice(device_id_);
 
-    std::vector<scanner::Point> centers;
-    for (cv::Point p : maximums) {
-      scanner::Point pt;
-      pt.set_x(p.x);
-      pt.set_y(p.y);
-      centers.push_back(pt);
-      printf("center %d, %d\n", p.x, p.y);
+    i32* min_max_locs =
+        (i32*)malloc(input_count * feature_channels_ * 2 * sizeof(int));
+    f32* min_max_values =
+        (f32*)malloc(input_count * feature_channels_ * 2 * sizeof(float));
+
+    for (i32 b = 0; b < input_count; ++b) {
+      assert(input_columns[feature_idx].rows[b].size ==
+             feature_width_ * feature_height_ * feature_channels_ *
+                 sizeof(f32));
+
+      for (i32 i = 0; i < feature_channels_; ++i) {
+        i32 offset = b * feature_channels_ + i;
+        i32 sid = offset % num_cuda_streams_;
+        cv::cuda::Stream& s = streams_[sid];
+
+        frame_input_g_[sid] = cv::cuda::GpuMat(
+            feature_height_, feature_width_, CV_32FC1,
+            input_columns[feature_idx].rows[b].buffer +
+                i * feature_width_ * feature_height_ * sizeof(f32));
+
+        cv::cuda::resize(frame_input_g_[sid], resized_g_[sid],
+                         cv::Size(net_input_width_, net_input_height_), 0, 0,
+                         cv::INTER_NEAREST, s);
+
+        cv::Mat locs(2, 1, CV_32SC1, min_max_locs + offset * 2);
+        cv::Mat vals(2, 1, CV_32FC1, min_max_values + offset * 2);
+        cv::cuda::findMinMaxLoc(resized_g_[sid], vals, locs, cv::Mat(), s);
+      }
     }
-    // Assume size of a bounding box is the same size as all bounding boxes
-    size_t size;
-    u8* buffer;
-    serialize_proto_vector(centers, buffer, size);
-    output_columns[feature_idx].rows.push_back(Row{buffer, size});
+    for (cv::cuda::Stream& s : streams_) {
+      s.waitForCompletion();
+    }
+
+    for (i32 b = 0; b < input_count; ++b) {
+      i32 sid = b % num_cuda_streams_;
+      std::vector<scanner::Point> pts;
+      for (i32 i = 0; i < feature_channels_; ++i) {
+        i32 offset = b * feature_channels_ + i;
+
+        i32 max_loc = min_max_locs[2 * offset + 1];
+        f32 max_value = min_max_values[2 * offset + 1];
+
+        scanner::Point pt;
+        pt.set_x(max_loc % net_input_width_);
+        pt.set_y(max_loc / net_input_width_);
+        pt.set_score(max_value);
+        pts.push_back(pt);
+      }
+
+      size_t size;
+      u8* buffer;
+      serialize_proto_vector(pts, buffer, size);
+
+      // cv::cuda::Stream& s = streams_[sid];
+      // cudaStream_t cuda_s = cv::cuda::StreamAccessor::getStream(cv_stream);
+
+      u8* gpu_buffer;
+      CU_CHECK(cudaMalloc((void**)&gpu_buffer, size));
+      cudaMemcpy(gpu_buffer, buffer, size, cudaMemcpyDefault);
+      delete[] buffer;
+      output_columns[feature_idx].rows.push_back(Row{gpu_buffer, size});
+    }
+    free(min_max_locs);
+    free(min_max_values);
+#endif
+  } else {
+    for (i32 b = 0; b < input_count; ++b) {
+      assert(input_columns[feature_idx].rows[b].size ==
+             feature_width_ * feature_height_ * feature_channels_ *
+                 sizeof(f32));
+
+      std::vector<scanner::Point> pts;
+      for (i32 i = 0; i < feature_channels_; ++i) {
+        cv::Mat input(feature_height_, feature_width_, CV_32FC1,
+                      input_columns[feature_idx].rows[b].buffer +
+                          i * feature_width_ * feature_height_ * sizeof(f32));
+        cv::resize(input, resized_c_,
+                   cv::Size(net_input_width_, net_input_height_));
+        double max_value;
+        cv::Point max_location;
+        cv::minMaxLoc(resized_c_, NULL, &max_value, NULL, &max_location);
+
+        scanner::Point pt;
+        pt.set_x(max_location.x);
+        pt.set_y(max_location.y);
+        pt.set_score(max_value);
+        pts.push_back(pt);
+      }
+
+      size_t size;
+      u8* buffer;
+      serialize_proto_vector(pts, buffer, size);
+      output_columns[feature_idx].rows.push_back(Row{buffer, size});
+    }
   }
 
   if (forward_input_) {
-    for (i32 b = 0; b < input_count; ++b) {
+    i32 num_frames = static_cast<i32>(output_columns[frame_idx].rows.size());
+    for (i32 b = 0; b < num_frames; ++b) {
       output_columns[frame_idx].rows.push_back(
           input_columns[frame_idx].rows[b]);
     }
@@ -119,7 +214,6 @@ EvaluatorCapabilities CPMParserEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
   caps.device_type = device_type_;
   if (device_type_ == DeviceType::GPU) {
-    LOG(FATAL) << "GPU CPM parser support not implemented yet";
     caps.max_devices = 1;
   } else {
     caps.max_devices = 1;

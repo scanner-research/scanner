@@ -43,8 +43,9 @@ PipelineDescription get_pipeline_description(
       new CPMInputEvaluatorFactory(device_type, cpm_descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(device_type, cpm_descriptor, batch_size, true));
+  factories.emplace_back(new CPMParserEvaluatorFactory(device_type, true));
   factories.emplace_back(
-      new SwizzleEvaluatorFactory(device_type, {1}, {"joint_maps"}));
+      new SwizzleEvaluatorFactory(device_type, {1}, {"joint_centers"}));
 
   return desc;
 }

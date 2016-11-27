@@ -19,6 +19,12 @@
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/util/opencv.h"
 
+#ifdef HAVE_CUDA
+#include <opencv2/core/cuda_stream_accessor.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include "scanner/util/cuda.h"
+#endif
+
 #include <memory>
 #include <vector>
 
@@ -56,8 +62,15 @@ class CPMParserEvaluator : public Evaluator {
 
   i32 feature_width_;
   i32 feature_height_;
+  i32 feature_channels_;
 
-  cv::Mat dilate_kernel_;
+#ifdef HAVE_CUDA
+  i32 num_cuda_streams_;
+  std::vector<cv::cuda::Stream> streams_;
+  std::vector<cv::cuda::GpuMat> frame_input_g_;
+  std::vector<cv::cuda::GpuMat> resized_g_;
+#endif
+
   cv::Mat resized_c_;
   cv::Mat max_c_;
 };
