@@ -139,7 +139,8 @@ def node_centers_to_pose(offset, node_centers):
     return nodes
 
 
-def parse_cpm_data(person_centers_job, joint_results_job, scale):
+def parse_cpm_data(person_centers_job, joint_results_job,
+                   scale, panel_cam_mapping):
     sampled_frames = defaultdict(list)
     person_centers = defaultdict(list)
     for out in person_centers_job.as_outputs():
@@ -164,7 +165,20 @@ def parse_cpm_data(person_centers_job, joint_results_job, scale):
                 centers[p] *= scale
                 i += 1
             person_poses[vi].append(poses)
-    return sampled_frames, person_centers, person_poses
+    # frame -> (panel, cam) -> list({center, pose})
+    by_frame = defaultdict(lambda: defaultdict(list))
+    for vi in sampled_frames.keys():
+        panel_idx, camera_idx = panel_cam_mapping[int(vi)]
+        zipped = zip(sampled_frames[vi], person_centers[vi], person_poses[vi])
+        for frame, centers, poses in zipped:
+            people = []
+            for c, p in zip(centers, poses):
+                people.append({
+                    'center': c,
+                    'pose': p,
+                })
+            by_frame[frame][(panel_idx, camera_idx)] += people
+    return by_frame
 
 
 def nest_in_panel_cam(panel_cam_list, data):
@@ -420,7 +434,6 @@ def write_extrinsic_params(calibration_data,
 def write_pose_detections(calibration_data,
                           poses,
                           frame,
-                          row,
                           top_level_path):
     directory = os.path.join(top_level_path, 'poseDetect_pm_org', 'vga_25')
     mkdir_p(directory)
@@ -442,22 +455,20 @@ def write_pose_detections(calibration_data,
         f.write('\n')
         # For all cameras on all panels
         for panel_idx in panels:
-            if not panel_idx in poses:
-                continue
             for camera_idx in cameras:
-                if not camera_idx in poses[panel_idx]:
+                if not (panel_idx, camera_idx) in poses:
                     continue
                 wr(frame)
                 wr(panel_idx)
                 wr(camera_idx)
                 f.write('\n')
 
-                people = poses[panel_idx][camera_idx][row]
+                people = poses[(panel_idx, camera_idx)]
                 num_people = len(people)
                 wr(num_people)
                 wr(num_joints)
                 for person in people:
-                    joints = person
+                    joints = person['pose']
                     for j in range(num_joints):
                         wr(joints[j, 1])
                         wr(joints[j, 0])
@@ -474,9 +485,6 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
                                       'body3DPSRecon_json',
                                       '{:04d}'.format(60))
     vga_img_path = os.path.join(data_path, 'vgaImgs')
-
-    hd_skel_json_path = os.path.join(output_directory, 'hdPose3d_stage1')
-    hd_img_path = os.path.join(data_path, 'hdImgs')
 
     # Cameras are identified by a tuple of (panel#,node#)
     cameras = {(cam['panel'],cam['node']):cam for cam in calib['cameras']}
@@ -604,43 +612,50 @@ def load_metadata(dataset_name):
     }
 
 
-def extract_pose_detections(dataset_name, suffix=''):
+def extract_pose_detections(dataset_name, person_job_name, pose_job_name):
     person_centers_job = load_cpm_person_centers(dataset_name,
-                                                 'person' + suffix)
+                                                 person_job_name)
     joint_results_job = load_cpm_joint_centers(dataset_name,
-                                               'pose' + suffix)
-
-    scale = 480 / 368.0
-    sampled_frames, person_centers, person_poses = parse_cpm_data(
-        person_centers_job, joint_results_job, scale)
+                                               pose_job_name)
 
     video_paths = person_centers_job._dataset.video_data.original_video_paths
     panel_cam_mapping = dataset_list_to_panel_cams(video_paths)
-    nested_poses = nest_in_panel_cam(panel_cam_mapping, person_poses)
+
+    scale = 480 / 368.0
+    poses_by_frame = parse_cpm_data(
+        person_centers_job, joint_results_job, scale, panel_cam_mapping)
 
     return {
-        'sampled_frames': sampled_frames,
-        'person_centers': person_centers,
-        'person_poses': person_poses,
         'video_paths': video_paths,
         'panel_cam_mapping': panel_cam_mapping,
-        'nested_poses': nested_poses,
+        'poses_by_frame': poses_by_frame,
     }
 
 
-def export_pose_detections(dataset_name, suffix, start_frame, end_frame):
+def combine_pose_detections(poses_by_frame_list):
+    # frame -> (panel_idx, camera_idx) -> list({center, pose})
+    final_poses = defaultdict(lambda: defaultdict(list))
+    for poses_by_frame in poses_by_frame_list:
+        for frame, cam_data in poses_by_frame.iteritems():
+            for (panel_idx, camera_idx), d in cam_data.iteritems():
+                final_poses[frame][(panel_idx, camera_idx)] = d
+    return final_poses
+
+
+def export_pose_detections(dataset_name, poses_by_frame,
+                           start_frame, end_frame):
     meta = load_metadata(dataset_name)
-    pose_data = extract_pose_detections(dataset_name, suffix)
     #write_extrinsic_params(calib_data, output_path)
-    for i, frame in enumerate(range(start_frame, end_frame)):
+    for frame in range(start_frame, end_frame):
         write_pose_detections(meta['calib_data'],
-                              pose_data['nested_poses'],
+                              poses_by_frame[frame],
                               frame,
-                              i,
                               meta['output_path'])
 
 
-def draw_2d_pose_detections(dataset_name, suffix, start_frame, end_frame):
+def draw_2d_pose_detections(dataset_name, pose_data,
+                            start_frame, end_frame):
+    assert(False)
     meta = load_metadata(dataset_name)
     pose_data = extract_pose_detections(dataset_name, suffix)
     save_drawn_poses_on_frame(pose_data['video_paths'],
