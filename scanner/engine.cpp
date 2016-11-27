@@ -551,8 +551,9 @@ void* evaluate_thread(void* arg) {
 
     EvalWorkEntry output_work_entry;
     output_work_entry.work_item_index = work_entry.work_item_index;
-    output_work_entry.buffer_type = DeviceType::CPU;
-    output_work_entry.buffer_device_id = 0;
+    output_work_entry.buffer_type = evaluator_caps.back().device_type;
+    output_work_entry.buffer_device_id =
+        args.evaluator_configs.back().device_ids[0];
     output_work_entry.video_decode_item = false;
 
     BatchedColumns& work_item_output_columns = output_work_entry.columns;
@@ -693,19 +694,6 @@ void* evaluate_thread(void* arg) {
         // Make sure all outputs are in CPU memory so downstream code does not
         // need to condition on buffer type
         i32 num_output_rows = static_cast<i32>(output_columns[i].rows.size());
-        printf("col %d, num outputs %d\n", i, num_output_rows);
-        if (output_buffer_type != DeviceType::CPU) {
-          for (i32 f = warmup_frames; f < (i32)num_output_rows; ++f) {
-            Row& row = output_columns[i].rows[f];
-            size_t size = row.size;
-            u8* src_buffer = row.buffer;
-            u8* dest_buffer = new_buffer(DeviceType::CPU, 0, size);
-            memcpy_buffer(dest_buffer, DeviceType::CPU, 0, src_buffer,
-                          output_buffer_type, output_device_id, size);
-            delete_buffer(output_buffer_type, output_device_id, src_buffer);
-            output_columns[i].rows[f].buffer = dest_buffer;
-          }
-        }
         // Keep non-warmup frame outputs
         work_item_output_columns[i].rows.insert(
             work_item_output_columns[i].rows.end(),
@@ -769,9 +757,9 @@ void* save_thread(void* arg) {
     const InputFormat& metadata = args.metadata[work_item.video_index];
 
     // Write out each output layer to an individual data file
-    u64 num_rows = static_cast<u64>(
-        work_entry.columns.empty() ? 0 : work_entry.columns[0].rows.size());
     for (size_t out_idx = 0; out_idx < args.output_names.size(); ++out_idx) {
+      u64 num_rows = static_cast<u64>(work_entry.columns[out_idx].rows.size());
+
       const std::string output_path = job_item_output_path(
           args.dataset_name, args.job_name, video_path,
           args.output_names[out_idx], work_item.item_index);
@@ -786,6 +774,21 @@ void* save_thread(void* arg) {
 
       if (work_entry.columns[out_idx].rows.size() != num_rows) {
         LOG(FATAL) << "Output layer's row vector has wrong length";
+      }
+
+      if (work_entry.buffer_type != DeviceType::CPU) {
+        for (i32 f = 0; f < num_rows; ++f) {
+          Row& row = work_entry.columns[out_idx].rows[f];
+          size_t size = row.size;
+          u8* src_buffer = row.buffer;
+          u8* dest_buffer = new_buffer(DeviceType::CPU, 0, size);
+          memcpy_buffer(dest_buffer, DeviceType::CPU, 0, src_buffer,
+                        work_entry.buffer_type, work_entry.buffer_device_id,
+                        size);
+          delete_buffer(work_entry.buffer_type, work_entry.buffer_device_id,
+                        src_buffer);
+          work_entry.columns[out_idx].rows[f].buffer = dest_buffer;
+        }
       }
 
       // Write number of rows in the file
