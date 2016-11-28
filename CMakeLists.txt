@@ -25,6 +25,7 @@ option(BUILD_CAFFE_INPUT_EVALUATORS "" OFF)
 option(BUILD_MOVIE_ANALYSIS_EVALUATORS "" OFF)
 option(BUILD_TRACKER_EVALUATORS "" OFF)
 option(BUILD_UTIL_EVALUATORS "" OFF)
+option(BUILD_MEDIAN_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
 option(BUILD_COMPARISON "" OFF)
 
@@ -158,6 +159,10 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
     #"-lmonocular_objects_detection"
     #"-liomp5"
     "${SCANNER_LIBRARIES}")
+endif()
+
+if (BUILD_MEDIAN_EVALUATORS)
+  find_package(Eigen)
 endif()
 
 if (OPENCV_DESIRED_COMPONENTS)
