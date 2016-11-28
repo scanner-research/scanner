@@ -1,36 +1,7 @@
 #include "scanner/engine.h"
-#include "scanner/evaluators/util/swizzle_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
-#include "scanner/util/opencv.h"
 
 namespace scanner {
-
-class JPEGEvaluator : public Evaluator {
-  void evaluate(const BatchedColumns& input_columns,
-                BatchedColumns& output_columns) {
-    for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
-      cv::Mat img = bytesToImage(input_columns[0].rows[i].buffer, metadata_);
-      cv::imwrite("test.jpg", img);
-      output_columns[0].rows.push_back(Row{new u8[1], 1});
-    }
-  }
-};
-
-class JPEGEvaluatorFactory : public EvaluatorFactory {
-  EvaluatorCapabilities get_capabilities() {
-    EvaluatorCapabilities caps;
-    caps.device_type = DeviceType::CPU;
-    caps.max_devices = 1;
-    caps.warmup_size = 0;
-    return caps;
-  }
-
-  std::vector<std::string> get_output_names() { return {"frame"}; }
-
-  Evaluator* new_evaluator(const EvaluatorConfig& config) {
-    return new JPEGEvaluator();
-  }
-};
 
 namespace {
 PipelineDescription get_pipeline_description(
@@ -56,13 +27,19 @@ PipelineDescription get_pipeline_description(
   DeviceType device_type;
   VideoDecoderType decoder_type;
 
+#ifdef HAVE_CUDA
+  device_type = DeviceType::GPU;
+  decoder_type = VideoDecoderType::NVIDIA;
+#else
+  device_type = DeviceType::CPU;
+  decoder_type = VideoDecoderType::SOFTWARE;
+#endif
+
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
-  // factories.emplace_back(
-  //   new JPEGEvaluatorFactory);
+      new DecoderEvaluatorFactory(device_type, decoder_type));
 
   return desc;
 }

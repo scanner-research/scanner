@@ -539,6 +539,20 @@ class Scanner(object):
         self._storage.write('{}/db_metadata.bin'.format(self._db_path),
                             meta.SerializeToString())
 
+    def dataset_metadata(self, dataset):
+        return self._load_descriptor(
+            self._meta.DatasetDescriptor,
+            '{}/datasets/{}/descriptor.bin'.format(self._db_path, dataset))
+
+    def video_descriptor(self, dataset, video):
+        return self._load_descriptor(
+            self._meta.VideoDescriptor,
+            '{}/datasets/{}/data/{}_metadata.bin'.format(self._db_path, dataset, video))
+
+    def video_descriptors(self, dataset):
+        meta = self.dataset_metadata(dataset).video_data
+        return {v: self.video_descriptor(dataset, v) for v in meta.video_names}
+
     def ingest(self, dataset_name, video_paths, opts={}):
         def gopt(k, default):
             return opts[k] if k in opts else default

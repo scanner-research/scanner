@@ -46,19 +46,29 @@ def load_faster_rcnn_features(buf, metadata):
 
 @db.loader('bboxes')
 def load_bboxes(buf, metadata):
-    (num_bboxes,) = struct.unpack("=Q", buf[:8])
-    buf = buf[8:]
-    bboxes = []
-    for i in range(num_bboxes):
-        bbox_size, = struct.unpack("=i", buf[:4])
-        buf = buf[4:]
-        box = evaluators.BoundingBox()
-        box.ParseFromString(buf[:bbox_size])
-        buf = buf[bbox_size:]
-        bbox = [box.x1, box.y1, box.x2, box.y2, box.score]
-        bboxes.append(bbox)
-    return bboxes
+    try:
+        (num_bboxes,) = struct.unpack("=Q", buf[:8])
+        buf = buf[8:]
+        bboxes = []
+        for i in range(num_bboxes):
+            bbox_size, = struct.unpack("=i", buf[:4])
+            buf = buf[4:]
+            box = evaluators.BoundingBox()
+            box.ParseFromString(buf[:bbox_size])
+            bboxes.append(box)
+            buf = buf[bbox_size:]
+        return bboxes
+    except struct.error:
+        return []
 
+@db.loader('frame')
+def load_frames(buf, metadata):
+    return np.frombuffer(buf, dtype=np.dtype(np.uint8)) \
+             .resize((metadata.height, metadata.width, 3))
+
+@db.loader('median')
+def load_medians(buf, metadata):
+    return np.frombuffer(buf, dtype=np.dtype(np.uint8))
 
 cv_version = 3 # int(cv2.__version__.split('.')[0])
 
@@ -82,11 +92,19 @@ def save_debug_video():
 def main():
     DATASET = sys.argv[1]
     JOB = sys.argv[2]
-    np.save('{}_histograms.npy'.format(JOB),
-            [frame
-             for (_, vid) in load_histograms(DATASET, JOB).as_frame_list()
-             for (_, frame) in vid
-            ])
+
+    with open('/bigdata/dfouhey/bboxes.txt', 'w') as f:
+        for (vid, vid_bboxes) in list(load_bboxes(DATASET, JOB).as_frame_list()):
+            for (frame, frame_bboxes) in vid_bboxes:
+                for bbox in frame_bboxes:
+                    s = ' '.join(map(str, [vid, frame, bbox.x1, bbox.y1, bbox.x2, bbox.y2, bbox.label]))
+                    f.write(s + '\n')
+
+    # np.save('{}_histograms.npy'.format(DATASET),
+    #         [frame
+    #          for (_, vid) in load_histograms(DATASET, JOB).as_frame_list()
+    #          for (_, frame) in vid
+    #         ])
 
 if __name__ == "__main__":
     main()

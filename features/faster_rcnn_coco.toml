@@ -1,0 +1,25 @@
+[net]
+    model = "features/faster_rcnn_coco/test.prototxt"
+    weights = "features/faster_rcnn_coco/coco_vgg16_faster_rcnn_final.caffemodel"
+    input_layers = ["data", "im_info"]
+    output_layers = ["cls_prob", "rois", "fc7"]
+    normalize = false
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width"
+        ]
+        channel_ordering = [
+            "blue",
+            "green",
+            "red"
+        ]
+
+[mean-image]
+    [mean-image.colors]
+        blue = 102.9801
+        green = 115.9464
+        red = 122.7717

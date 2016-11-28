@@ -4,13 +4,14 @@ namespace scanner {
 
 const i32 BINS = 16;
 
-HistogramEvaluator::HistogramEvaluator(DeviceType device_type)
-    : device_type_(device_type) {}
+HistogramEvaluator::HistogramEvaluator(DeviceType device_type, i32 device_id)
+    : device_type_(device_type), device_id_(device_id) {}
 
 HistogramEvaluator::~HistogramEvaluator() {}
 
 void HistogramEvaluator::configure(const InputFormat& metadata) {
   metadata_ = metadata;
+  set_device();
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -27,6 +28,8 @@ void HistogramEvaluator::configure(const InputFormat& metadata) {
 void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
                                   BatchedColumns& output_columns) {
   assert(input_columns.size() == 1);
+  set_device();
+
   i64 hist_size = BINS * 3 * sizeof(float);
   i32 input_count = (i32)input_columns[0].rows.size();
   if (device_type_ == DeviceType::GPU) {
@@ -81,6 +84,14 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
   }
 }
 
+void HistogramEvaluator::set_device() {
+  if (device_type_ == DeviceType::GPU) {
+#ifdef HAVE_CUDA
+    CU_CHECK(cudaSetDevice(device_id_));
+#endif
+  }
+}
+
 HistogramEvaluatorFactory::HistogramEvaluatorFactory(DeviceType device_type)
     : device_type_(device_type) {}
 
@@ -100,6 +111,6 @@ std::vector<std::string> HistogramEvaluatorFactory::get_output_names() {
 
 Evaluator* HistogramEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new HistogramEvaluator(device_type_);
+  return new HistogramEvaluator(device_type_, config.device_ids[0]);
 }
 }

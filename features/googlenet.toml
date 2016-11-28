@@ -13,11 +13,11 @@
             "batch",
             "channel",
             "height",
-            "width",
+            "width"
         ]
         channel_ordering = [
-            "blue"
-            "green"
+            "blue",
+            "green",
             "red"
         ]
 

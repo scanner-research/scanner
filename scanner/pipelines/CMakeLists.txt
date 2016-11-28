@@ -5,6 +5,11 @@ if (BUILD_VIDEO_EVALUATORS)
    frame_extract_pipeline.cpp)
 endif()
 
+if (BUILD_VIDEO_EVALUATORS)
+  list(APPEND SOURCE_FILES
+   median_pipeline.cpp)
+endif()
+
 if (BUILD_VIDEO_EVALUATORS AND
     BUILD_CAFFE_EVALUATORS AND
     BUILD_CAFFE_INPUT_EVALUATORS AND

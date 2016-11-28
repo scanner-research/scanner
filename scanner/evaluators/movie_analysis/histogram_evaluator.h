@@ -12,7 +12,7 @@ namespace scanner {
 
 class HistogramEvaluator : public Evaluator {
  public:
-  HistogramEvaluator(DeviceType device_type);
+  HistogramEvaluator(DeviceType device_type, i32 device_id);
   ~HistogramEvaluator();
 
   void configure(const InputFormat& metadata) override;
@@ -20,8 +20,11 @@ class HistogramEvaluator : public Evaluator {
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
+  void set_device();
+
  private:
   DeviceType device_type_;
+  i32 device_id_;
 
 #ifdef HAVE_CUDA
   cvc::GpuMat hist_;

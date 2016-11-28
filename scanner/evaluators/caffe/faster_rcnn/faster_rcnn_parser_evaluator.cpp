@@ -4,7 +4,7 @@
 
 namespace scanner {
 
-#define CLASSES 21
+#define CLASSES 81
 #define SCORE_THRESHOLD 0.8
 #define BOX_SIZE 5
 #define FEATURES 4096
@@ -40,6 +40,7 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
         if (score > SCORE_THRESHOLD) {
           bbox.set_score(score);
           bbox.set_track_id(j);
+          bbox.set_label(cls);
           bboxes.push_back(bbox);
           break;
         }
@@ -55,6 +56,7 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
       serialize_bbox_vector(best_bboxes, buffer, size);
       output_columns[0].rows.push_back(Row{buffer, size});
     }
+
     {
       size_t size = best_bboxes.size() * FEATURES * sizeof(f32);
       u8* buffer = new u8[size];

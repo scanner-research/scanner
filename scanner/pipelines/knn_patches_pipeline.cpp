@@ -13,9 +13,9 @@ PipelineDescription get_pipeline_description(
   PipelineDescription desc;
   desc.input_columns = {"frame"};
   desc.sampling = Sampling::Strided;
-  desc.stride = 10;
+  desc.stride = 8;
 
-  std::string net_descriptor_file = "features/faster_rcnn.toml";
+  std::string net_descriptor_file = "features/faster_rcnn_coco.toml";
   NetDescriptor descriptor;
   {
     std::ifstream net_file{net_descriptor_file};
@@ -46,17 +46,17 @@ PipelineDescription get_pipeline_description(
     *(blob + 0) = metadata.height();
     *(blob + 1) = metadata.width();
     *(blob + 2) = 1.0;
-    if (device_type == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      u8* gpu_buffer;
-      cudaMalloc(&gpu_buffer, size);
-      cudaMemcpy(gpu_buffer, buffer, size, cudaMemcpyHostToDevice);
-      delete buffer;
-      buffer = gpu_buffer;
-#else
-      LOG(FATAL) << "Cuda not built.";
-#endif
-    }
+    //     if (device_type == DeviceType::GPU) {
+    // #ifdef HAVE_CUDA
+    //       u8* gpu_buffer;
+    //       cudaMalloc(&gpu_buffer, size);
+    //       cudaMemcpy(gpu_buffer, buffer, size, cudaMemcpyHostToDevice);
+    //       delete buffer;
+    //       buffer = gpu_buffer;
+    // #else
+    //       LOG(FATAL) << "Cuda not built.";
+    // #endif
+    //     }
   };
 
   factories.emplace_back(

@@ -2,6 +2,7 @@
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
+#include "scanner/evaluators/util/discard_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 
 namespace scanner {
@@ -11,8 +12,8 @@ PipelineDescription get_pipeline_description(
     const std::vector<DatasetItemMetadata>& item_metas) {
   PipelineDescription desc;
   desc.input_columns = {"frame"};
-  desc.sampling = Sampling::Strided;
-  desc.stride = 10;
+  // desc.sampling = Sampling::Strided;
+  // desc.stride = 8;
 
   std::string net_descriptor_file = "features/squeezenet.toml";
   NetDescriptor descriptor;
@@ -25,7 +26,7 @@ PipelineDescription get_pipeline_description(
   DeviceType device_type;
   VideoDecoderType decoder_type;
 
-#ifdef HAVE_CUDA
+#if HAVE_CUDA
   device_type = DeviceType::GPU;
   decoder_type = VideoDecoderType::NVIDIA;
 #else
@@ -38,10 +39,11 @@ PipelineDescription get_pipeline_description(
 
   factories.emplace_back(
       new DecoderEvaluatorFactory(device_type, decoder_type));
-  factories.emplace_back(
-      new DefaultInputEvaluatorFactory(device_type, descriptor, batch_size));
+  factories.emplace_back(new DefaultInputEvaluatorFactory(
+      DeviceType::CPU, descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(device_type, descriptor, batch_size, false));
+  factories.emplace_back(new DiscardEvaluatorFactory(device_type));
 
   return desc;
 }

@@ -12,7 +12,7 @@ os.environ['GLOG_minloglevel'] = '4'  # Silencio, Caffe!
 import caffe
 
 USE_GPU = True
-NET = 'faster_rcnn'
+NET = 'squeezenet'
 if NET == 'squeezenet':
     FEATURE_LOADER = load_squeezenet_features
     NUM_FEATURES = 1000
@@ -22,7 +22,7 @@ elif NET == 'faster_rcnn':
 else:
     logging.critical('Unsupported KNN net {}'.format(NET))
     exit()
-K = 5
+K = 100
 
 def write(s):
     sys.stdout.write(s)
@@ -62,9 +62,10 @@ net first or you didn\'t update the FEATURE_LOADER.'.format(NET))
                     norms[cur:cur+n,:] = np.array(feats)
                     cur += n
             else:
+                norms.resize((len(buffers), NUM_FEATURES))
                 for (frame, feats) in buffers:
                     self.index.append(((video, frame), count))
-                    norms = np.vstack((norms, feats))
+                    norms[count:count+1,:] = feats
                     count += 1
         write_timer(start)
         write('Preparing KNN... ')
@@ -113,7 +114,13 @@ def init_net():
         write('Computing exemplar features... ')
         start = default_timer()
         img = caffe.io.load_image(img_path)
-        net.blobs['data'].reshape(*(1, 3, img.shape[0], img.shape[1]))
+        if 'input_width' in net_config['net']:
+            width = net_config['net']['input_width']
+            height = net_config['net']['input_height']
+        else:
+            width = img.shape(1)
+            height = img.shape(0)
+        net.blobs['data'].reshape(*(1, 3, height, width))
         transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
         transformer.set_transpose('data', (2, 0, 1))
         if NET == 'faster_rcnn':

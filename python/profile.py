@@ -314,7 +314,7 @@ def get_trial_total_decoded_frames(result):
     return total_decoded_frames, total_effective_frames
 
 def effective_decode_rate_benchmark():
-    dataset_name = 'benchmark_kcam'
+    dataset_name = 'anewhope'
     in_job_name = scanner.Scanner.base_job_name()
     pipeline_name = 'effective_decode_rate'
     out_job_name = 'edr_test'
@@ -325,7 +325,7 @@ def effective_decode_rate_benchmark():
                        'load_workers_per_node': 1,
                        'save_workers_per_node': 1}
                       for wis in [128, 256, 512, 1024, 2048, 4096]
-                      for pus in [1, 2, 4, 8]]
+                      for pus in [1, 2]]
     results = []
     decoded_frames = []
     for settings in trial_settings:
@@ -587,8 +587,8 @@ def graph_io_rate_benchmark(path):
 
     #ax.set_title('Loading ' + mb + ' MB on bodega SSD')
     #plt.savefig('io_rate_bodega.png', dpi=150)
-    ax.set_title('Loading ' + mb + ' MB on intel')
-    plt.savefig('io_rate_intel.png', dpi=150)
+    ax.set_title('Loading ' + mb + ' MB on GCS')
+    plt.savefig('io_rate_gcs.png', dpi=150)
 
 
 def graph_decode_rate_benchmark(path):
@@ -606,7 +606,8 @@ def graph_decode_rate_benchmark(path):
         ef = int(row['effective_frames'])
         wis_per_node[wis].append([pus, t, df, ef])
 
-    wis = [64, 128, 256, 512, 1024, 2048]
+    #wis = [64, 128, 256, 512, 1024, 2048]
+    wis = [128, 256, 512, 1024, 2048, 4096]
     colors = ['g', 'b', 'k', 'y', 'm', 'c', 'r', 'w']
     plt.clf()
     ax = plt.subplot(1, 1, 1)
@@ -626,15 +627,15 @@ def graph_decode_rate_benchmark(path):
     ax.set_ylabel('Decode FPS')
     ax.legend()
 
-    ax.set_title('Decoding frames on bodega')
-    plt.savefig('decode_rate_bodega.png', dpi=150)
+    ax.set_title('Decoding frames on Intel')
+    plt.savefig('decode_rate_intel.png', dpi=150)
 
 
 def bench_main(args):
     out_dir = args.output_directory
     #effective_io_rate_benchmark()
-    # effective_decode_rate_benchmark()
-    dnn_rate_benchmark()
+    effective_decode_rate_benchmark()
+    #dnn_rate_benchmark()
 
 
 def graphs_main(args):

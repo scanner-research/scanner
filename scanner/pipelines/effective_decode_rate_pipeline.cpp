@@ -10,6 +10,7 @@ PipelineDescription get_pipeline_description(
     const DatasetMetadata& dataset_meta,
     const std::vector<DatasetItemMetadata>& item_metas) {
   PipelineDescription desc;
+  desc.input_columns = {"frame"};
 
   desc.input_columns = {"frame"};
 
@@ -17,7 +18,8 @@ PipelineDescription get_pipeline_description(
       desc.evaluator_factories;
 
   // factories.emplace_back(
-  //     new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+  //     new DecoderEvaluatorFactory(DeviceType::CPU,
+  //     VideoDecoderType::SOFTWARE));
   // factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::CPU));
   factories.emplace_back(
       new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
