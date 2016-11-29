@@ -84,11 +84,14 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
     frame_input_g_.clear();
     float_input_g_.clear();
     normalized_input_g_.clear();
+    meanshifted_input_g_.clear();
     input_planes_g_.clear();
     planar_input_g_.clear();
-    for (size_t i = 0; i < num_cuda_streams_; ++i) {
+    for (size_t i = 0; i < 96; ++i) {
       frame_input_g_.push_back(
           cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+    }
+    for (size_t i = 0; i < num_cuda_streams_; ++i) {
       resized_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
       float_input_g_.push_back(
@@ -103,12 +106,12 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
         planes1.push_back(
             cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
         planes2.push_back(
-            cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
+            cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC1));
       }
       input_planes_g_.push_back(planes1);
       flipped_planes_g_.push_back(planes2);
       planar_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
+          cv::cuda::GpuMat(net_input_height_ * 3, net_input_width_, CV_32FC1));
     }
 #else
     LOG(FATAL) << "Not built with Cuda support.";
@@ -137,6 +140,13 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
 #ifdef HAVE_CUDA
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
+    // for (i32 s = 0; s < num_cuda_streams_; ++s) {
+    //   cudaStream_t stream;
+    //   //cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+    //   cudaStreamCreate(&stream);
+    //   streams_.push_back(cv::cuda::StreamAccessor::wrapStream(stream));
+    //   streams_.push_back(cv::cuda::Stream());
+    // }
 
     for (i32 frame = 0; frame < input_count; frame++) {
       f32* net_input = nullptr;
@@ -147,7 +157,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       cv::cuda::Stream& cv_stream = streams_[sid];
 
       u8* buffer = input_columns[0].rows[frame].buffer;
-      frame_input_g_[sid] = bytesToImage_gpu(buffer, metadata_);
+      frame_input_g_[frame].data = buffer;
       cv::cuda::resize(frame_input_g_[sid], resized_input_g_[sid],
                        cv::Size(net_input_width_, net_input_height_), 0, 0,
                        cv::INTER_LINEAR, cv_stream);
@@ -155,33 +165,53 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
                          meanshifted_input_g_[sid], cv::noArray(), -1,
                          cv_stream);
-      cv::cuda::divide(meanshifted_input_g_[sid], 255.0,
+      // cv_stream.waitForCompletion();
+      // cv::Mat
+      //   test1(frame_input_g_[sid]),
+      //   test2(resized_input_g_[sid]),
+      //   test3(float_input_g_[sid]),
+      //   test4(meanshifted_input_g_[sid]);
+      // LOG(INFO) << test1.at<cv::Vec3b>(100, 100) << " "
+      //           << test2.at<cv::Vec3b>(100, 100) << " "
+      //           << test3.at<cv::Vec3f>(100, 100) << " "
+      //           << test4.at<cv::Vec3f>(100, 100);
+      cv::cuda::divide(meanshifted_input_g_[sid],
+                       descriptor_.normalize ? 255.0 : 1.0,
                        normalized_input_g_[sid], 1, -1, cv_stream);
       // Changed from interleaved RGB to planar RGB
       cv::cuda::split(normalized_input_g_[sid], input_planes_g_[sid],
                       cv_stream);
-      cv::cuda::transpose(input_planes_g_[sid][0], flipped_planes_g_[sid][0],
-                          cv_stream);
-      cv::cuda::transpose(input_planes_g_[sid][1], flipped_planes_g_[sid][1],
-                          cv_stream);
-      cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
-                          cv_stream);
-      auto& plane1 = flipped_planes_g_[sid][0];
-      auto& plane2 = flipped_planes_g_[sid][1];
-      auto& plane3 = flipped_planes_g_[sid][2];
+      for (i32 i = 0; i < 3; ++i) {
+        cv::cuda::transpose(input_planes_g_[sid][i], flipped_planes_g_[sid][i],
+                            cv_stream);
+      }
+
       auto& planar_input = planar_input_g_[sid];
-      plane1.copyTo(planar_input(cv::Rect(
-          0, net_input_width_ * 0, net_input_height_, net_input_width_)));
-      plane2.copyTo(planar_input(cv::Rect(
-          0, net_input_width_ * 1, net_input_height_, net_input_width_)));
-      plane3.copyTo(planar_input(cv::Rect(
-          0, net_input_width_ * 2, net_input_height_, net_input_width_)));
-      assert(planar_input.cols == net_input_height_);
       cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
-      CU_CHECK(cudaMemcpy2DAsync(
-          net_input, net_input_height_ * sizeof(float), planar_input.data,
-          planar_input.step, net_input_height_ * sizeof(float),
-          net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
+      for (i32 i = 0; i < 3; ++i) {
+        cudaMemcpyAsync(net_input + (net_input_height_ * net_input_width_ * i),
+                        flipped_planes_g_[sid][i].data,
+                        net_input_height_ * net_input_width_ * sizeof(float),
+                        cudaMemcpyDeviceToDevice, s);
+        // input_planes_g_[sid][i].copyTo(
+        //   planar_input(
+        //     cv::Rect(
+        //       0, net_input_height_ * i, net_input_width_,
+        //       net_input_height_)),
+        //   cv_stream);
+      }
+      // assert(planar_input.cols == net_input_height_);
+      // cudaMemcpy(net_input, planar_input.data, net_input_size,
+      // cudaMemcpyDeviceToDevice);
+      // CU_CHECK(cudaMemcpy2DAsync(
+      //     net_input,
+      //     net_input_width_ * 3,
+      //     planar_input.data,
+      //     planar_input.step,
+      //     net_input_height_ * sizeof(float),
+      //     net_input_width_ * 3,
+      //     cudaMemcpyDeviceToDevice,
+      //     s));
       output_columns[1].rows.push_back(Row{(u8*)net_input, net_input_size});
     }
     for (cv::cuda::Stream& s : streams_) {

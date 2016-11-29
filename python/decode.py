@@ -93,7 +93,7 @@ def main():
     DATASET = sys.argv[1]
     JOB = sys.argv[2]
 
-    with open('/bigdata/dfouhey/bboxes.txt', 'w') as f:
+    with open('{}_bboxes.txt'.format(DATASET), 'w') as f:
         for (vid, vid_bboxes) in list(load_bboxes(DATASET, JOB).as_frame_list()):
             for (frame, frame_bboxes) in vid_bboxes:
                 for bbox in frame_bboxes:

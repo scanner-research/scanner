@@ -31,7 +31,7 @@ OPENCV_PROGRAM_PATH = os.path.join(
 
 DEVNULL = open(os.devnull, 'wb', 0)
 
-TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}.trace')
+TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
 
 NODES = [1]  # [1, 2, 4]
 GPUS = [1, 2]  # [1, 2]  # [1, 2, 4, 8]
@@ -201,7 +201,7 @@ def print_caffe_trial_times(title, trial_settings, trial_times):
                   total_time / settings['num_elements']))
 
 
-def write_trace_file(profilers, job):
+def write_trace_file(profilers, dataset, job):
     traces = []
 
     next_tid = 0
@@ -236,7 +236,7 @@ def write_trace_file(profilers, job):
                         'tid': tid,
                         'args': {}
                     })
-    with open(TRACE_OUTPUT_PATH.format(job), 'w') as f:
+    with open(TRACE_OUTPUT_PATH.format(dataset, job), 'w') as f:
         f.write(json.dumps(traces))
 
 
@@ -648,7 +648,7 @@ def trace_main(args):
     db = scanner.Scanner()
     profilers = db.parse_profiler_files(dataset, job)
     print_statistics(profilers)
-    write_trace_file(profilers, job)
+    write_trace_file(profilers, dataset, job)
 
 
 if __name__ == '__main__':

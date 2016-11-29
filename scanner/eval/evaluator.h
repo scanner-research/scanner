@@ -104,7 +104,7 @@ class Evaluator {
   /**
    * Do not call this function.
    */
-  void set_profiler(Profiler* profiler) { profiler_ = profiler; }
+  virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
 
  protected:
   /**

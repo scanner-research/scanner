@@ -15,12 +15,12 @@ void HistogramEvaluator::configure(const InputFormat& metadata) {
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-    hist_ = cvc::GpuMat(1, BINS, CV_32SC1);
+    hist_ = cvc::GpuMat(1, BINS, CV_32S);
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
           cvc::GpuMat(metadata.height(), metadata.width(), CV_8UC1));
     }
-    out_mat_ = cvc::GpuMat(1, BINS * 3, CV_32SC1);
+    out_mat_ = cvc::GpuMat(1, BINS * 3, CV_32S);
 #endif
   }
 }
@@ -39,9 +39,9 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
           bytesToImage_gpu(input_columns[0].rows[i].buffer, metadata_);
       cvc::split(img, planes_);
 
-      for (i32 i = 0; i < 3; ++i) {
-        cvc::histEven(planes_[i], hist_, BINS, 0, 256);
-        hist_.copyTo(out_mat_(cv::Rect(i * BINS, 0, BINS, 1)));
+      for (i32 j = 0; j < 3; ++j) {
+        cvc::histEven(planes_[j], hist_, BINS, 0, 256);
+        hist_.copyTo(out_mat_(cv::Rect(j * BINS, 0, BINS, 1)));
       }
 
       u8* output_buf;

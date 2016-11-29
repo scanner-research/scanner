@@ -12,8 +12,6 @@ PipelineDescription get_pipeline_description(
   PipelineDescription desc;
   desc.input_columns = {"frame"};
 
-  desc.input_columns = {"frame"};
-
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 

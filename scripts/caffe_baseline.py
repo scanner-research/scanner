@@ -11,7 +11,7 @@ import caffe
 USE_GPU = True
 NET = 'squeezenet'
 BATCH_SIZE = 96
-USE_EXPLODED_FRAMES = True
+SOURCE = 'layer' # or 'exploded' or 'video'
 NUM_FRAMES = 139302
 db = scanner.Scanner()
 
@@ -34,11 +34,12 @@ def main():
         '{}/{}'.format(scanner_path, net_config['net']['weights']),
         caffe.TEST)
 
-    start = default_timer()
-    for _ in range(0, NUM_FRAMES, BATCH_SIZE):
-        net.forward()
-    print default_timer() - start
-    exit()
+    if SOURCE == 'layer':
+        start = default_timer()
+        for _ in range(0, NUM_FRAMES, BATCH_SIZE):
+            net.forward()
+        print default_timer() - start
+        exit()
 
     width = net_config['net']['input_width']
     height = net_config['net']['input_height']
@@ -62,7 +63,7 @@ def main():
 
     start = default_timer()
 
-    if USE_EXPLODED_FRAMES:
+    if SOURCE == 'exploded':
         with open('meangirls_frames.txt') as f:
             image_paths = [s.strip() for s in f.read().split("\n")][:NUM_FRAMES]
 
