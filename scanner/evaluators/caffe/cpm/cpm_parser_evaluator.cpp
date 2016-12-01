@@ -233,6 +233,7 @@ std::vector<std::string> CPMParserEvaluatorFactory::get_output_names() {
 
 Evaluator* CPMParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new CPMParserEvaluator(config, device_type_, 0, forward_input_);
+  return new CPMParserEvaluator(config, device_type_, config.device_ids[0],
+                                forward_input_);
 }
 }

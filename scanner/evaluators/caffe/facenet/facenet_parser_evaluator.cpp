@@ -22,6 +22,7 @@
 
 #ifdef HAVE_CUDA
 #include "scanner/util/cuda.h"
+#include <opencv2/cudawarping.hpp>
 #endif
 
 #include <cassert>

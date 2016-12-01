@@ -18,6 +18,11 @@
 #include "scanner/evaluators/types.pb.h"
 #include "scanner/util/memory.h"
 
+#ifdef HAVE_CUDA
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudawarping.hpp>
+#endif
+
 namespace scanner {
 
 CPMInputEvaluator::CPMInputEvaluator(DeviceType device_type, i32 device_id,
@@ -129,6 +134,9 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
+    cv::cuda::setDevice(device_id_);
+    cudaSetDevice(device_id_);
+
     i32 sid = 0;
     for (i32 i = 0; i < input_count; ++i) {
       u8* buffer = input_columns[0].rows[i].buffer;

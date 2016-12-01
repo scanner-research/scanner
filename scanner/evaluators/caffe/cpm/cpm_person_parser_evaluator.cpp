@@ -19,6 +19,11 @@
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
 
+#ifdef HAVE_CUDA
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudawarping.hpp>
+#endif
+
 #include <cassert>
 #include <cmath>
 
@@ -139,6 +144,7 @@ std::vector<std::string> CPMPersonParserEvaluatorFactory::get_output_names() {
 
 Evaluator* CPMPersonParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new CPMPersonParserEvaluator(config, device_type_, 0, forward_input_);
+  return new CPMPersonParserEvaluator(config, device_type_,
+                                      config.device_ids[0], forward_input_);
 }
 }

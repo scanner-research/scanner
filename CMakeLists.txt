@@ -80,6 +80,9 @@ endif()
 
 if (BUILD_VIDEO_EVALUATORS)
   list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video videoio)
+
+  # Check for intel HW decode
+  #find_package(MFX)
 endif()
 
 if (BUILD_CAFFE_EVALUATORS)

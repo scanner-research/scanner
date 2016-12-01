@@ -16,6 +16,11 @@
 #include "scanner/evaluators/caffe/cpm/cpm_person_input_evaluator.h"
 #include "scanner/util/memory.h"
 
+#ifdef HAVE_CUDA
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudawarping.hpp>
+#endif
+
 namespace scanner {
 
 CPMPersonInputEvaluator::CPMPersonInputEvaluator(

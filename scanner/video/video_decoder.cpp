@@ -83,6 +83,7 @@ VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
     }
     case VideoDecoderType::INTEL: {
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
+      decoder = new IntelVideoDecoder(device_id, output_type);
 #else
 #endif
       break;
