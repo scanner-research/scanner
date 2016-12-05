@@ -60,6 +60,7 @@ void delete_buffer(DeviceType type, int device_id, u8* buffer) {
   buffer = nullptr;
 }
 
+// FIXME(wcrichto): case if transferring between two different GPUs
 void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
                    const u8* src_buffer, DeviceType src_type, i32 src_device_id,
                    size_t size) {
@@ -69,6 +70,34 @@ void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
   assert(dest_type == DeviceType::CPU);
   assert(dest_type == src_type);
   memcpy(dest_buffer, src_buffer, size);
+#endif
+}
+
+#define NUM_CUDA_STREAMS 32
+
+void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_device_id,
+                const std::vector<u8*> src_buffers, DeviceType src_type, i32 src_device_id,
+                std::vector<size_t> sizes) {
+#ifdef HAVE_CUDA
+  thread_local std::vector<cudaStream_t> streams;
+  if (streams.size() == 0) {
+    streams.resize(NUM_CUDA_STREAMS);
+    for (i32 i = 0; i < NUM_CUDA_STREAMS; ++i) {
+      cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking);
+    }
+  }
+
+  i32 n = dest_buffers.size();
+
+  for (i32 i = 0; i < n; ++i) {
+    CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
+                             cudaMemcpyDefault, streams[i % NUM_CUDA_STREAMS]));
+  }
+
+  for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
+    cudaStreamSynchronize(streams[i]);
+  }
+#else
 #endif
 }
 }

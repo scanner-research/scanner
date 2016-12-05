@@ -603,19 +603,34 @@ void* evaluate_thread(void* arg) {
         // type as the evaluator input
         if (input_buffer_type != caps.device_type ||
             input_device_id != device_id) {
+          std::vector<u8*> dest_buffers, src_buffers;
+          std::vector<size_t> sizes;
           for (i32 i = 0; i < num_inputs; ++i) {
             Column& column = input_columns[i];
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
               size_t size = column.rows[b].size;
               u8* buffer = new_buffer(caps.device_type, device_id, size);
-              memcpy_buffer(buffer, caps.device_type, device_id,
-                            column.rows[b].buffer, input_buffer_type,
-                            input_device_id, size);
-              delete_buffer(input_buffer_type, input_device_id,
-                            column.rows[b].buffer);
-              column.rows[b].buffer = buffer;
+              dest_buffers.push_back(buffer);
+              src_buffers.push_back(column.rows[b].buffer);
+              sizes.push_back(size);
             }
           }
+
+          memcpy_vec(dest_buffers, caps.device_type, device_id,
+                     src_buffers, input_buffer_type, input_device_id,
+                     sizes);
+
+          i32 cnt = 0;
+          for (i32 i = 0; i < num_inputs; ++i) {
+            Column& column = input_columns[i];
+            for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
+              delete_buffer(input_buffer_type, input_device_id,
+                            column.rows[b].buffer);
+              column.rows[b].buffer = dest_buffers[cnt];
+              cnt++;
+            }
+          }
+
           input_buffer_type = caps.device_type;
           input_device_id = device_id;
         }
@@ -773,17 +788,27 @@ void* save_thread(void* arg) {
       }
 
       if (work_entry.buffer_type != DeviceType::CPU) {
+        std::vector<u8*> dest_buffers, src_buffers;
+        std::vector<size_t> sizes;
         for (i32 f = 0; f < num_rows; ++f) {
           Row& row = work_entry.columns[out_idx].rows[f];
           size_t size = row.size;
           u8* src_buffer = row.buffer;
           u8* dest_buffer = new_buffer(DeviceType::CPU, 0, size);
-          memcpy_buffer(dest_buffer, DeviceType::CPU, 0, src_buffer,
-                        work_entry.buffer_type, work_entry.buffer_device_id,
-                        size);
+
+          dest_buffers.push_back(dest_buffer);
+          src_buffers.push_back(src_buffer);
+          sizes.push_back(size);
+        }
+
+        memcpy_vec(dest_buffers, DeviceType::CPU, 0, src_buffers,
+                      work_entry.buffer_type, work_entry.buffer_device_id,
+                      sizes);
+
+        for (i32 f = 0; f < num_rows; ++f) {
           delete_buffer(work_entry.buffer_type, work_entry.buffer_device_id,
-                        src_buffer);
-          work_entry.columns[out_idx].rows[f].buffer = dest_buffer;
+                        src_buffers[f]);
+          work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
         }
       }
 

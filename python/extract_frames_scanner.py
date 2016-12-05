@@ -22,7 +22,9 @@ def write_indices(indices):
 
 def extract_frames(args):
     success, _ = db.run(args['dataset'], 'base', 'frame_extract', 'extracted',
-                        {'force': True})
+                        {'force': True,
+                         'pus_per_node': args['pus_per_node']
+                         if 'pus_per_node' in args else '1'})
     if not success:
         print('Scanner failed')
         exit()

@@ -113,7 +113,7 @@ struct CodecState {
 };
 
 bool setup_video_codec(BufferData* buffer, CodecState& state) {
-  printf("Setting up video codec\n");
+  LOG(INFO) << "Setting up video codec";
   av_init_packet(&state.av_packet);
   state.picture = av_frame_alloc();
   state.format_context = avformat_alloc_context();
@@ -127,14 +127,14 @@ bool setup_video_codec(BufferData* buffer, CodecState& state) {
   state.format_context->pb = state.io_context;
 
   // Read file header
-  printf("Opening input file to read format\n");
+  LOG(INFO) << "Opening input file to read format";
   if (avformat_open_input(&state.format_context, NULL, NULL, NULL) < 0) {
-    fprintf(stderr, "open input failed\n");
+    LOG(ERROR) << "open input failed";
     return false;
   }
   // Some formats don't have a header
   if (avformat_find_stream_info(state.format_context, NULL) < 0) {
-    fprintf(stderr, "find stream info failed\n");
+    LOG(ERROR) << "find stream info failed";
     return false;
   }
 
@@ -145,7 +145,7 @@ bool setup_video_codec(BufferData* buffer, CodecState& state) {
       state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
       -1 /* no related stream */, &state.in_codec, 0 /* flags */);
   if (state.video_stream_index < 0) {
-    fprintf(stderr, "could not find best stream\n");
+    LOG(ERROR) << "could not find best stream";
     return false;
   }
 
@@ -154,8 +154,7 @@ bool setup_video_codec(BufferData* buffer, CodecState& state) {
 
   state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   if (state.in_codec == NULL) {
-    fprintf(stderr, "could not find h264 decoder\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "could not find h264 decoder";
   }
 
   state.in_cc = avcodec_alloc_context3(state.in_codec);
@@ -163,22 +162,22 @@ bool setup_video_codec(BufferData* buffer, CodecState& state) {
   state.in_cc_params = avcodec_parameters_alloc();
   if (avcodec_parameters_from_context(state.in_cc_params, in_stream->codec) <
       0) {
-    fprintf(stderr, "could not copy codec params from input stream\n");
+    LOG(ERROR) << "could not copy codec params from input stream";
     return false;
   }
   if (avcodec_parameters_to_context(state.in_cc, state.in_cc_params) < 0) {
-    fprintf(stderr, "could not copy codec params to in cc\n");
+    LOG(ERROR) << "could not copy codec params to in cc";
     return false;
   }
 #else
   if (avcodec_copy_context(state.in_cc, in_stream->codec) < 0) {
-    fprintf(stderr, "could not copy codec params to in cc\n");
+    LOG(ERROR) << "could not copy codec params to in cc";
     return false;
   }
 #endif
 
   if (avcodec_open2(state.in_cc, state.in_codec, NULL) < 0) {
-    fprintf(stderr, "could not open codec\n");
+    LOG(ERROR) << "could not open codec";
     return false;
   }
 
@@ -255,8 +254,9 @@ bool read_timestamps(std::string video_path, WebTimestamps& meta) {
     } else if (err != 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, err,
-              err_msg);
+      LOG(ERROR)
+        << "Error while decoding frame " << frame
+        << " (" << err << "): " << err_msg;
 
       cleanup_video_codec(state);
       return false;
@@ -292,9 +292,9 @@ bool read_timestamps(std::string video_path, WebTimestamps& meta) {
       if (len < 0) {
         char err_msg[256];
         av_strerror(len, err_msg, 256);
-        fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, len,
-                err_msg);
-        assert(false);
+        LOG(FATAL)
+          << "Error while decoding frame " << frame
+          << " (" << len << "): " << err_msg;
       }
       if (got_picture) {
         state.picture->pts = frame;
@@ -410,8 +410,9 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     } else if (err != 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame %d (%d): %s\n", frame, err,
-              err_msg);
+      LOG(ERROR)
+        << "Error while decoding frame " << frame
+        << " (" << err << "): " << err_msg;
       cleanup_video_codec(state);
       return false;
     }
@@ -448,8 +449,9 @@ bool preprocess_video(storehouse::StorageBackend* storage,
             state.av_packet.flags & AV_PKT_FLAG_KEY) < 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
-      fprintf(stderr, "Error while filtering %d (%d): %s\n", frame, err,
-              err_msg);
+      LOG(ERROR)
+        << "Error while filtering " << frame
+        << " (" << frame << "): " << err_msg;
       cleanup_video_codec(state);
       return false;
     }
@@ -467,15 +469,17 @@ bool preprocess_video(storehouse::StorageBackend* storage,
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
         i32 nal_unit_type = (*nal_start) & 0x1F;
-        // printf("extradata nal size: %d, nal ref %d, nal unit %d\n",
-        //        nal_size, nal_ref_idc, nal_unit_type);
+        LOG(INFO)
+          << "extradata nal size: " << nal_size
+          << ", nal ref " << nal_ref_idc
+          << ", nal unit " << nal_unit_type;
       }
       extradata_extracted = true;
     }
 
     i64 nal_bytestream_offset = bytestream_bytes.size();
 
-    printf("new packet %lu\n", nal_bytestream_offset);
+    LOG(INFO) << "new packet " << nal_bytestream_offset;
     bool insert_sps_nal = false;
     // Parse NAL unit
     const u8* nal_parse = filtered_data;
@@ -487,11 +491,14 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      printf("frame %d, nal size: %d, nal ref %d, nal unit %d\n", frame,
-             nal_size, nal_ref_idc, nal_unit_type);
+      LOG(INFO)
+        << "frame " << frame
+        << ", nal size " << nal_size
+        << ", nal_ref_idc " << nal_ref_idc
+        << ", nal unit " << nal_unit_type;
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
-          printf("in meta sequence %lu\n", nal_bytestream_offset);
+          LOG(INFO) << "in meta sequence " << nal_bytestream_offset;
           meta_packet_sequence_start_offset = nal_bytestream_offset;
           in_meta_packet_sequence = true;
           saw_sps_nal = false;
@@ -508,8 +515,9 @@ bool preprocess_video(storehouse::StorageBackend* storage,
                              nal_start + nal_size + 3);
         i32 offset = 32;
         i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
-        printf("Last SPS NAL (%d, %d) seen at frame %d\n", sps_id, offset,
-               frame);
+        LOG(INFO)
+          << "Last SPS NAL (" << sps_id << ", " << offset << ")"
+          << " seen at frame " << frame;
       }
       if (nal_unit_type == 8) {
         i32 offset = 8;
@@ -518,7 +526,10 @@ bool preprocess_video(storehouse::StorageBackend* storage,
         saw_pps_nal = true;
         pps_nal_bytes.insert(pps_nal_bytes.end(), nal_start - 3,
                              nal_start + nal_size + 3);
-        printf("PPS id: %d, SPS id: %d, frame %d\n", pps_id, sps_id, frame);
+        LOG(INFO)
+          << "PPS id " << pps_id
+          << ", SPS id " << sps_id
+          << ", frame " << frame;
       }
       if (is_vcl_nal(nal_unit_type)) {
         frame++;
@@ -532,11 +543,12 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       keyframe_timestamps.push_back(state.av_packet.pts);
       in_meta_packet_sequence = false;
       saw_sps_nal = false;
-      printf("keyframe %d, byte offset %d\n", frame - 1,
-             meta_packet_sequence_start_offset);
+      LOG(INFO)
+        << "keyframe " << frame - 1
+        << ", byte offset " << meta_packet_sequence_start_offset;
 
       // Insert metadata
-      printf("inserting sps and pss nals\n");
+      LOG(INFO) << "inserting sps and pss nals";
       size_t prev_size = bytestream_bytes.size();
       i32 size = filtered_data_size + static_cast<i32>(sps_nal_bytes.size()) +
                  static_cast<i32>(pps_nal_bytes.size());
@@ -676,15 +688,17 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     WebTimestamps timestamps_meta;
     succeeded = read_timestamps(temp_output_path, timestamps_meta);
     if (!succeeded) {
-      fprintf(stderr, "Could not get timestamps from web data\n");
+      LOG(ERROR) << "Could not get timestamps from web data";
       cleanup_video_codec(state);
       return false;
     }
 
-    printf("time base (%d/%d), orig frames %d, dts size %lu\n",
-           timestamps_meta.time_base_numerator(),
-           timestamps_meta.time_base_denominator(), frame,
-           timestamps_meta.pts_timestamps_size());
+    LOG(INFO)
+      << "time base (" << timestamps_meta.time_base_numerator()
+      << "/" << timestamps_meta.time_base_denominator() << ")"
+      << ", orig frames " << frame
+      << ", dts size " << timestamps_meta.pts_timestamps_size();
+
 
     {
       // Write to database storage
@@ -861,7 +875,9 @@ void ingest_videos(storehouse::StorageBackend* storage,
     metadata.set_average_height(average_height / total_frames);
   }
 
-  printf("max width %d, max height %d\n", max_width, max_height);
+  LOG(INFO)
+    << "max width " << max_width
+    << ",  max_height " << max_height;
 
   // Remove bad paths
   std::vector<i32> good_video_ids;
@@ -954,8 +970,8 @@ void ingest_images(storehouse::StorageBackend* storage,
       image_bytes = read_entire_file(in_file.get(), pos);
     }
 
-    printf("path %s\n", path.c_str());
-    printf("image size %lu\n", image_bytes.size() / (1024));
+    LOG(INFO) << "path " << path;
+    LOG(INFO) << "image size " << image_bytes.size() / 1024;
     i32 image_width;
     i32 image_height;
     ImageColorSpace color_space;
@@ -1142,7 +1158,9 @@ void ingest_images(storehouse::StorageBackend* storage,
     metadata.set_average_height(average_height / total_images);
   }
 
-  printf("max width %d, max height %d\n", max_width, max_height);
+  LOG(INFO)
+    << "max width " << max_width
+    << ",  max_height " << max_height;
 
   for (size_t i = 0; i < image_paths.size(); ++i) {
     const std::string& path = image_paths[i];

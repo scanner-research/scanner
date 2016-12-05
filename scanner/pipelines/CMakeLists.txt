@@ -6,9 +6,9 @@ if (BUILD_VIDEO_EVALUATORS)
 endif()
 
 if (BUILD_VIDEO_EVALUATORS AND
-    BULID_MEDIAN_EVALUATORS)
+    BUILD_MEDIAN_EVALUATORS)
   list(APPEND SOURCE_FILES
-   median_pipeline.cpp)
+    median_pipeline.cpp)
 endif()
 
 if (BUILD_VIDEO_EVALUATORS AND

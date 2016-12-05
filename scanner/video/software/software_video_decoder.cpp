@@ -36,8 +36,9 @@ namespace scanner {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
-SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id,
-                                           DeviceType output_type)
+SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
+                                           DeviceType output_type,
+                                           i32 pu_count)
     : device_id_(device_id),
       output_type_(output_type),
       codec_(nullptr),
@@ -60,6 +61,9 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(int device_id,
     fprintf(stderr, "could not alloc codec context");
     exit(EXIT_FAILURE);
   }
+
+  cc_->thread_count = pu_count;
+  cc_->refcounted_frames = 1;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");

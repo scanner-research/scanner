@@ -5,53 +5,14 @@ import json
 import os
 import random
 from extract_frames_scanner import *
+from movie_graphs import get_shot_type, get_shot_people, CLASSES, PERSON, classify_shots, get_shots
 from decode import load_bboxes, db
-
-CLASSES = ('__background__', 'person', 'bicycle', 'car', 'motorcycle',
-           'airplane', 'bus','train', 'truck', 'boat', 'traffic light',
-           'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
-           'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
-           'giraffe', 'backpack','umbrella', 'handbag', 'tie', 'suitcase',
-           'frisbee', 'skis', 'snowboard', 'sports ball', 'kite','baseball bat',
-           'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
-           'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
-           'banana', 'apple', 'sandwich', 'orange', 'broccoli','carrot',
-           'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-           'potted plant', 'bed', 'dining table','toilet', 'tv', 'laptop',
-           'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
-           'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
-           'scissors', 'teddy bear', 'hair drier','toothbrush')
-PERSON = CLASSES.index('person')
-
-ZOOMS = {
-    "CU": 0.6,
-    "MS": 0.05,
-    "LS": 0
-}
-ZOOMS_SORT = sorted(ZOOMS, key=ZOOMS.get, reverse=True)
-
-
-def get_zoom(areas):
-    area = max(areas)
-    for zoom in ZOOMS_SORT:
-        if area > ZOOMS[zoom]:
-            return zoom
-
-
-def get_type(areas):
-    if len(areas) == 1:
-        return '1'
-    elif len(areas) == 2:
-        if abs(areas[0] - areas[1]) < 0.4:
-            return '2-eq'
-        else:
-            return '2-neq'
-    else:
-        return 'n'
-
+from subprocess import check_output, STDOUT
+import re
+import sys
 
 def main():
-    dataset_name = 'meangirls'
+    dataset_name = 'anewhope'
     knn_job_name = 'frame_features'
     knn_patches_job_name = 'patch_features'
     dataset_meta = db.dataset_metadata(dataset_name).video_data
@@ -63,23 +24,42 @@ def main():
 
     # Composition
     all_bboxes = list(load_bboxes(dataset_name, knn_patches_job_name).as_frame_list())
+    stride = 8
 
-    def query_knn():
-        exemplar = get_exemplar_features('/bigdata/query.png')
-        results = searcher.search(exemplar)
-        final = results[0:1]
+    def draw_bboxes(vid, frame, name):
+        img = cv2.imread('/bigdata/0_{:07d}.jpg'.format(frame))
+        vid_bboxes = all_bboxes[vid][1]
+        (f, bboxes) = vid_bboxes[frame/stride]
+        print f
+        for bbox in bboxes:
+            if bbox.label == PERSON:
+                print bbox
+                cv2.rectangle(img,
+                              (int(bbox.x1), int(bbox.y1)),
+                              (int(bbox.x2), int(bbox.y2)),
+                              (0, 0, 255),
+                              thickness=3)
+        cv2.imwrite('/bigdata/{}.jpg'.format(name), img)
+
+
+    def get_diff_results(results, N):
+        final = []
         for (vid, frame) in results[1:]:
             ignore = False
             for (good_vid, good_frame) in final:
-                if vid == good_vid and abs(frame - good_frame) <= 200:
+                if vid == good_vid and abs(frame - good_frame) <= 300:
                     ignore = True
                     break
             if ignore: continue
             final.append((vid, frame))
-            if len(final) == 5: break
-        results = final
+            if len(final) == N: break
+        return final
 
-        print results
+    def query_knn():
+        exemplar = get_exemplar_features('/bigdata/query.png')
+        results = searcher.search(exemplar)
+        results = get_diff_results(results, 10)
+        print(results)
         write_indices(results)
         extract_frames({
             'dataset': dataset_name,
@@ -89,7 +69,7 @@ def main():
             os.system('mv /bigdata/{}_{:07d}.jpg /bigdata/result{}.jpg' \
                       .format(vid, frame, i))
 
-    def query_composition(shot_length, shot_type):
+    def query_composition(shot_type, shot_people):
         results = []
         for (vid, vid_bboxes) in all_bboxes:
             desc = vid_descriptors[vid]
@@ -98,26 +78,78 @@ def main():
                 ppl = [p for p in frame_bboxes if p.label == PERSON]
                 if len(ppl) == 0: continue
                 areas = [(p.x2 - p.x1) * (p.y2 - p.y1) / vid_area for p in ppl]
-                if (shot_length == 'NA' or \
-                    shot_length == get_zoom(areas)) and \
-                    (shot_type == 'NA' or \
-                     shot_type == get_type(areas)):
+                ty = get_shot_type(areas)
+                ppl = get_shot_people(areas)
+                if (shot_type == 'NA' or \
+                    shot_type == ty) and \
+                    (shot_people == 'NA' or \
+                     shot_people == ppl):
                     results.append((vid, frame))
-        print shot_length, shot_type, len(results)
+        print(shot_type, shot_people, len(results))
+        random.seed(0xdeadbeef)
         random.shuffle(results)
-        results = results[:10]
+        results = get_diff_results(results, 10)
         write_indices(results)
         extract_frames({
             'dataset': dataset_name,
             'out_dir': '/bigdata'
         })
         for (i, (vid, frame)) in enumerate(results):
-            os.system('mv /bigdata/{}_{:07d}.jpg /bigdata/result{}.jpg' \
-                      .format(vid, frame, i))
+            draw_bboxes(int(vid), frame, 'result{}'.format(i))
+
+    def query_montage(movie):
+        print 'Generating montage...'
+        output = check_output('./scripts/generate_montage.sh {}'.format(movie),
+                              shell=True,
+                              stderr=STDOUT)
+        times = [s.replace('elapsed', '') for s in re.findall(r'[^\s]+elapsed', output)]
+        os.system('mv shot_montage_tmp_by_time.jpg /home/wcrichto/mp/movieproject-django/mpserver/mp/static/mp/shot_montage_time.jpg')
+        os.system('mv shot_montage_tmp_by_color.jpg /home/wcrichto/mp/movieproject-django/mpserver/mp/static/mp/shot_montage_color.jpg')
+        os.system('mv median_bar_montage_tmp.png /home/wcrichto/mp/movieproject-django/mpserver/mp/static/mp/median_montage.png')
+        return times
+
+    def query_shot_sequence(seq):
+        dataset = 'anewhope'
+        stride = 8
+        cls, shots = classify_shots(dataset, stride)
+        seq = seq.split(' ')
+        N = len(seq)
+
+        results = []
+        for i in range(len(cls) - N + 1):
+            if cls[i:i+N] == seq:
+                #print cls[i:i+N], shots[i:i+N]
+                results.append(i)
+
+        random.seed(0xdeadbeef)
+        random.shuffle(results)
+        results = results[:10]
+
+        final = []
+        for i in results:
+            final = final + [('0', shots[i+j]) for j in range(N)]
+
+        write_indices(final)
+        extract_frames({
+            'dataset': dataset_name,
+            'out_dir': '/bigdata'
+        })
+
+        for (a, i) in enumerate(results):
+            for j in range(N):
+                frame = shots[i+j]
+                draw_bboxes(0, frame, 'result{}_{}'.format(a, j))
+
+        return {
+            'num_shots': len(results),
+            'shot_len': N,
+            'indices': [i for (_, i) in final]
+        }
 
 
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 7000
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('0.0.0.0', 7000))
+    s.bind(('0.0.0.0', port))
     s.listen(1)
 
     while True:
@@ -128,11 +160,17 @@ def main():
             query = json.loads(data)
             if query['key'] == 'knn':
                 query_knn()
-                conn.send('ack')
-            else:
+                conn.send(json.dumps([]))
+            elif query['key'] == 'composition':
                 params = query['value']
                 query_composition(params['length'], params['type'])
-                conn.send('ack')
+                conn.send(json.dumps([]))
+            elif query['key'] == 'montage':
+                times = query_montage(query['value'])
+                conn.send(json.dumps(times))
+            elif query['key'] == 'shot_sequence':
+                ret = query_shot_sequence(query['value'])
+                conn.send(json.dumps(ret))
         conn.close()
 
 if __name__ == "__main__":

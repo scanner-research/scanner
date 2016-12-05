@@ -38,7 +38,7 @@ namespace scanner {
 /// SoftwareVideoDecoder
 class SoftwareVideoDecoder : public VideoDecoder {
  public:
-  SoftwareVideoDecoder(int device_id, DeviceType output_type);
+  SoftwareVideoDecoder(i32 device_id, DeviceType output_type, i32 pu_count);
 
   ~SoftwareVideoDecoder();
 

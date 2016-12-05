@@ -57,7 +57,8 @@ bool VideoDecoder::has_decoder_type(VideoDecoderType type) {
 VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
                                              int device_id,
                                              VideoDecoderType type,
-                                             DeviceType output_type) {
+                                             DeviceType output_type,
+                                             i32 pu_count) {
   VideoDecoder* decoder = nullptr;
 
   switch (type) {
@@ -89,7 +90,7 @@ VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
       break;
     }
     case VideoDecoderType::SOFTWARE: {
-      decoder = new SoftwareVideoDecoder(device_id, output_type);
+      decoder = new SoftwareVideoDecoder(device_id, output_type, pu_count);
       break;
     }
     default: {}

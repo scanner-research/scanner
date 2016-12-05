@@ -39,9 +39,11 @@ class VideoDecoder {
 
   static bool has_decoder_type(VideoDecoderType type);
 
-  static VideoDecoder* make_from_config(DeviceType device_type, int device_id,
+  static VideoDecoder* make_from_config(DeviceType device_type,
+                                        i32 device_id,
                                         VideoDecoderType type,
-                                        DeviceType output_type);
+                                        DeviceType output_type,
+                                        i32 pu_count);
 
   virtual ~VideoDecoder(){};
 

@@ -28,4 +28,8 @@ void delete_buffer(DeviceType type, int device_id, u8* buffer);
 void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
                    const u8* src_buffer, DeviceType src_type, i32 src_device_id,
                    size_t size);
+
+void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_device_id,
+                const std::vector<u8*> src_buffers, DeviceType src_type, i32 src_device_id,
+                std::vector<size_t> sizes);
 }
