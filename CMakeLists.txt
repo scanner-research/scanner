@@ -69,6 +69,23 @@ endif()
 set(OPENCV_DESIRED_COMPONENTS)
 set(OPENCV_MAJOR_VERSION 3)
 
+set(HALIDE_TARGETS)
+macro(add_halide_target SRC)
+  if (NOT HALIDE_FOUND)
+    find_package(Halide)
+    include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
+  endif()
+
+  get_filename_component(NAME ${SRC} NAME_WE)
+  set(GENERATOR ${NAME}.generator)
+  halide_add_generator(${GENERATOR}
+    SRCS ${SRC})
+  halide_add_aot_library(${NAME}
+    GENERATOR_TARGET ${GENERATOR}
+    GENERATOR_ARGS target=host)
+  list(APPEND HALIDE_TARGETS ${NAME})
+endmacro()
+
 find_package(CUDA)
 if (CUDA_FOUND)
   add_definitions(-DHAVE_CUDA)
@@ -255,6 +272,10 @@ if (CUDA_FOUND)
     "-lnvcuvid")
 endif()
 
+if (HALIDE_FOUND)
+  include_directories("${CMAKE_CURRENT_BINARY_DIR}/generator_genfiles")
+endif()
+
 if (APPLE)
   include_directories(
     "/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Versions/Current/Headers/")
@@ -304,6 +325,12 @@ add_executable(scanner_server
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 
+if (HALIDE_FOUND)
+  foreach(TARGET ${HALIDE_TARGETS})
+    halide_add_aot_library_dependency(scanner_server ${TARGET})
+  endforeach()
+endif()
+
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set_target_properties(scanner_server PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
   set_property(TARGET scanner_server APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
@@ -324,7 +351,7 @@ elseif(UNIX)
   set(PLATFORM_LINK_FLAGS "-pthread -ldl -lrt")
 endif()
 
-target_link_libraries(scanner_server
+target_link_libraries(scanner_server PUBLIC
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
 
