@@ -28,18 +28,14 @@ namespace scanner {
 
 DefaultInputEvaluator::DefaultInputEvaluator(
     DeviceType device_type, i32 device_id, const NetDescriptor& descriptor,
-    i32 batch_size, std::vector<InputLayerBuilder> input_layer_builders)
+    i32 batch_size, std::vector<InputLayerBuilder> input_layer_builders,
+    const EvaluatorConfig& config)
     : device_type_(device_type),
       device_id_(device_id),
       descriptor_(descriptor),
       batch_size_(batch_size),
-      input_layer_builders_(input_layer_builders)
-#ifdef HAVE_CUDA
-      ,
-      num_cuda_streams_(32),
-      streams_(num_cuda_streams_)
-#endif
-
+      input_layer_builders_(input_layer_builders),
+      config_(config)
 {
   if (descriptor_.input_width != -1) {
     net_input_width_ = descriptor_.input_width;
@@ -49,17 +45,10 @@ DefaultInputEvaluator::DefaultInputEvaluator(
     net_input_height_ = -1;
   }
 
-  if (device_type_ == DeviceType::CPU) {
-    std::vector<float>& mean_colors = descriptor_.mean_colors;
-    caffe::TransformationParameter param;
-    param.set_force_color(true);
-    if (descriptor_.normalize) {
-      param.set_scale(1.0 / 255.0);
-    }
-    for (i32 i = 0; i < mean_colors.size(); i++) {
-      param.add_mean_value(mean_colors[i]);
-    }
-    transformer_.reset(new caffe::DataTransformer<f32>(param, caffe::TEST));
+  for (i32 i = 0; i < config_.max_input_count; ++i) {
+    size_t size = config_.max_frame_width * config_.max_frame_height * 3;
+    cpu_input_buffers_.push_back(new u8[size]);
+    cpu_output_buffers_.push_back(new u8[size]);
   }
 }
 
@@ -72,62 +61,16 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
     net_input_width_ = width;
     net_input_height_ = height;
   }
-  output_blob_.Reshape(batch_size_, 3, net_input_height_, net_input_width_);
-
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     cv::cuda::setDevice(device_id_);
     cudaSetDevice(device_id_);
-
-    mean_mat_g_ = cv::cuda::GpuMat(
-        net_input_height_, net_input_width_, CV_32FC3,
-
-        cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
-                   descriptor_.mean_colors[2]));
-
-    frame_input_g_.clear();
-    float_input_g_.clear();
-    normalized_input_g_.clear();
-    meanshifted_input_g_.clear();
-    input_planes_g_.clear();
-    planar_input_g_.clear();
-    for (size_t i = 0; i < 512; ++i) {
-      frame_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
-    }
-    for (size_t i = 0; i < num_cuda_streams_; ++i) {
-      resized_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
-      float_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      meanshifted_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      normalized_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
-      std::vector<cv::cuda::GpuMat> planes1;
-      std::vector<cv::cuda::GpuMat> planes2;
-      for (i32 i = 0; i < 3; ++i) {
-        planes1.push_back(
-            cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
-        planes2.push_back(
-            cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC1));
-      }
-      input_planes_g_.push_back(planes1);
-      flipped_planes_g_.push_back(planes2);
-      planar_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_ * 3, net_input_width_, CV_32FC1));
-    }
 #else
-    LOG(FATAL) << "Not built with Cuda support.";
+  LOG(FATAL) << "Not built with Cuda support.";
 #endif
-  } else {
-    resized_input_c_ = cv::Mat(net_input_height_, net_input_width_, CV_8UC3);
-    for (i32 i = 0; i < batch_size_; ++i) {
-      input_mats_c_.emplace_back(
-          cv::Mat(net_input_height_, net_input_width_, CV_8UC3));
-    }
   }
 }
+
 
 void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      BatchedColumns& output_columns) {
@@ -148,7 +91,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     u8* input_buffer = input_columns[0].rows[frame].buffer;
     if (device_type_ == DeviceType::GPU) {
       size_t size = input_columns[0].rows[frame].size;
-      u8* cpu_buffer = new u8[size];
+      u8* cpu_buffer = cpu_input_buffers_[frame];
       memcpy_buffer(cpu_buffer, DeviceType::CPU, 0,
                     input_buffer, DeviceType::GPU, device_id_,
                     size);
@@ -167,7 +110,9 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     input_buf.elem_size = 1;
 
     // Halide conveniently defaults to a planar format, which is what Caffe expects
-    u8* output_buffer = new u8[net_input_size];
+    u8* output_buffer = device_type_ == DeviceType::GPU
+      ? cpu_output_buffers_[frame]
+      : new u8[net_input_size];
     output_buf.host = output_buffer;
     output_buf.stride[0] = 1;
     output_buf.stride[1] = net_input_width_;
@@ -198,7 +143,6 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       memcpy_buffer(gpu_buffer, DeviceType::GPU, device_id_,
                     output_buffer, DeviceType::CPU, 0,
                     net_input_size);
-      delete output_buffer;
       output_buffer = gpu_buffer;
 #else
       LOG(FATAL) << "Cuda not found.";
@@ -257,6 +201,7 @@ Evaluator* DefaultInputEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new DefaultInputEvaluator(device_type_, config.device_ids[0],
                                    net_descriptor_, batch_size_,
-                                   input_layer_builders_);
+                                   input_layer_builders_,
+                                   config);
 }
 }

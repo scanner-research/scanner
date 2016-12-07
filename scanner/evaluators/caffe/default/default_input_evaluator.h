@@ -38,7 +38,8 @@ class DefaultInputEvaluator : public Evaluator {
  public:
   DefaultInputEvaluator(DeviceType device_type, i32 device_id,
                         const NetDescriptor& descriptor, i32 batch_size,
-                        std::vector<InputLayerBuilder> input_layer_builders);
+                        std::vector<InputLayerBuilder> input_layer_builders,
+                        const EvaluatorConfig& config);
 
   void configure(const InputFormat& metadata) override;
 
@@ -47,6 +48,7 @@ class DefaultInputEvaluator : public Evaluator {
 
   i32 net_input_width_;
   i32 net_input_height_;
+  EvaluatorConfig config_;
 
  private:
   DeviceType device_type_;
@@ -57,22 +59,10 @@ class DefaultInputEvaluator : public Evaluator {
 
 #ifdef HAVE_CUDA
   i32 num_cuda_streams_;
-  cv::cuda::GpuMat mean_mat_g_;
-  std::vector<cv::cuda::Stream> streams_;
-  std::vector<cv::cuda::GpuMat> frame_input_g_;
-  std::vector<cv::cuda::GpuMat> resized_input_g_;
-  std::vector<cv::cuda::GpuMat> float_input_g_;
-  std::vector<cv::cuda::GpuMat> meanshifted_input_g_;
-  std::vector<cv::cuda::GpuMat> normalized_input_g_;
-  std::vector<std::vector<cv::cuda::GpuMat>> input_planes_g_;
-  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_g_;
-  std::vector<cv::cuda::GpuMat> planar_input_g_;
+  std::vector<u8*> cpu_input_buffers_;
+  std::vector<u8*> cpu_output_buffers_;
 #endif
 
-  cv::Mat resized_input_c_;
-  std::vector<cv::Mat> input_mats_c_;
-  std::unique_ptr<caffe::DataTransformer<f32>> transformer_;
-  caffe::Blob<f32> output_blob_;
   std::vector<InputLayerBuilder> input_layer_builders_;
 };
 
