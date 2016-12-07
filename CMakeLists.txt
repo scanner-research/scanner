@@ -111,6 +111,9 @@ if (BUILD_CAFFE_EVALUATORS)
     add_definitions(-DCPU_ONLY)
   endif()
 
+  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_cpu.cpp)
+  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_gpu.cpp)
+
   if (BUILD_CAFFE_INPUT_EVALUATORS)
     # Requires opencv3
     list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
@@ -272,10 +275,6 @@ if (CUDA_FOUND)
     "-lnvcuvid")
 endif()
 
-if (HALIDE_FOUND)
-  include_directories("${CMAKE_CURRENT_BINARY_DIR}/generator_genfiles")
-endif()
-
 if (APPLE)
   include_directories(
     "/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Versions/Current/Headers/")
@@ -293,14 +292,25 @@ protobuf_generate_python(PROTO_PY ${PROTO_FILES})
 
 add_custom_target(proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY})
 
+macro(add_deps)
+  add_dependencies(${targetName} proto_files)
+  if (HALIDE_FOUND)
+    foreach(HALIDE_TARGET ${HALIDE_TARGETS})
+      add_dependencies(${targetName} "${HALIDE_TARGET}.exec_generator")
+      target_include_directories(${targetName} PUBLIC
+        "${PROJECT_BINARY_DIR}/generator_genfiles")
+    endforeach()
+  endif()
+endmacro()
+
 function(add_library targetName)
   _add_library(${targetName} ${ARGN})
-  add_dependencies(${targetName} proto_files)
+  add_deps()
 endfunction()
 
 function(add_executable targetName)
   _add_executable(${targetName} ${ARGN})
-  add_dependencies(${targetName} proto_files)
+  add_deps()
 endfunction()
 
 add_subdirectory(scanner)

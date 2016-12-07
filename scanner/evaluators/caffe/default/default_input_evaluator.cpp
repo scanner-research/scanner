@@ -15,6 +15,8 @@
 
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/util/memory.h"
+#include "caffe_input_transformer_gpu/caffe_input_transformer_gpu.h"
+#include "caffe_input_transformer_cpu/caffe_input_transformer_cpu.h"
 
 #ifdef HAVE_CUDA
 #include <opencv2/cudaimgproc.hpp>
@@ -89,7 +91,7 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
     meanshifted_input_g_.clear();
     input_planes_g_.clear();
     planar_input_g_.clear();
-    for (size_t i = 0; i < 96; ++i) {
+    for (size_t i = 0; i < 512; ++i) {
       frame_input_g_.push_back(
           cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
     }
@@ -131,120 +133,79 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      BatchedColumns& output_columns) {
   auto eval_start = now();
 
-  size_t frame_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
+  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
   i32 input_count = input_columns[0].rows.size();
+
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
 
-  if (device_type_ == DeviceType::GPU) {
+  i32 frame_width = metadata_.width();
+  i32 frame_height = metadata_.height();
+
+  for (i32 frame = 0; frame < input_count; frame++) {
+    u8* input_buffer = input_columns[0].rows[frame].buffer;
+    if (device_type_ == DeviceType::GPU) {
+      size_t size = input_columns[0].rows[frame].size;
+      u8* cpu_buffer = new u8[size];
+      memcpy_buffer(cpu_buffer, DeviceType::CPU, 0,
+                    input_buffer, DeviceType::GPU, device_id_,
+                    size);
+      input_buffer = cpu_buffer;
+    }
+
+    buffer_t input_buf = {0}, output_buf = {0};
+    // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
+    input_buf.host = input_buffer;
+    input_buf.stride[0] = 3;
+    input_buf.stride[1] = metadata_.width() * 3;
+    input_buf.stride[2] = 1;
+    input_buf.extent[0] = metadata_.width();
+    input_buf.extent[1] = metadata_.height();
+    input_buf.extent[2] = 3;
+    input_buf.elem_size = 1;
+
+    // Halide conveniently defaults to a planar format, which is what Caffe expects
+    u8* output_buffer = new u8[net_input_size];
+    output_buf.host = output_buffer;
+    output_buf.stride[0] = 1;
+    output_buf.stride[1] = net_input_width_;
+    output_buf.stride[2] = net_input_width_ * net_input_height_;
+    output_buf.extent[0] = net_input_width_;
+    output_buf.extent[1] = net_input_height_;
+    output_buf.extent[2] = 3;
+    output_buf.elem_size = 4;
+
+    auto func = device_type_ == DeviceType::GPU ?
+      caffe_input_transformer_gpu :
+      caffe_input_transformer_cpu;
+    int error = func(
+      &input_buf,
+      metadata_.width(), metadata_.height(),
+      net_input_width_, net_input_height_,
+      descriptor_.normalize,
+      descriptor_.mean_colors[2],
+      descriptor_.mean_colors[1],
+      descriptor_.mean_colors[0],
+      true,
+      &output_buf);
+    LOG_IF(FATAL, error != 0) << "Halide error " << error;
+
+    if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-    streams_.resize(0);
-    streams_.resize(num_cuda_streams_);
-    // for (i32 s = 0; s < num_cuda_streams_; ++s) {
-    //   cudaStream_t stream;
-    //   //cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
-    //   cudaStreamCreate(&stream);
-    //   streams_.push_back(cv::cuda::StreamAccessor::wrapStream(stream));
-    //   streams_.push_back(cv::cuda::Stream());
-    // }
-
-    for (i32 frame = 0; frame < input_count; frame++) {
-      f32* net_input = nullptr;
-      i32 net_input_size = frame_size;
-      cudaMalloc((void**)&net_input, net_input_size);
-
-      int sid = frame % num_cuda_streams_;
-      cv::cuda::Stream& cv_stream = streams_[sid];
-
-      u8* buffer = input_columns[0].rows[frame].buffer;
-      frame_input_g_[frame].data = buffer;
-      cv::cuda::resize(frame_input_g_[sid], resized_input_g_[sid],
-                       cv::Size(net_input_width_, net_input_height_), 0, 0,
-                       cv::INTER_LINEAR, cv_stream);
-      resized_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3, cv_stream);
-      cv::cuda::subtract(float_input_g_[sid], mean_mat_g_,
-                         meanshifted_input_g_[sid], cv::noArray(), -1,
-                         cv_stream);
-      // cv_stream.waitForCompletion();
-      // cv::Mat
-      //   test1(frame_input_g_[sid]),
-      //   test2(resized_input_g_[sid]),
-      //   test3(float_input_g_[sid]),
-      //   test4(meanshifted_input_g_[sid]);
-      // LOG(INFO) << test1.at<cv::Vec3b>(100, 100) << " "
-      //           << test2.at<cv::Vec3b>(100, 100) << " "
-      //           << test3.at<cv::Vec3f>(100, 100) << " "
-      //           << test4.at<cv::Vec3f>(100, 100);
-      cv::cuda::divide(meanshifted_input_g_[sid],
-                       descriptor_.normalize ? 255.0 : 1.0,
-                       normalized_input_g_[sid], 1, -1, cv_stream);
-      // Changed from interleaved RGB to planar RGB
-      cv::cuda::split(normalized_input_g_[sid], input_planes_g_[sid],
-                      cv_stream);
-      for (i32 i = 0; i < 3; ++i) {
-        cv::cuda::transpose(input_planes_g_[sid][i], flipped_planes_g_[sid][i],
-                            cv_stream);
-      }
-
-      auto& planar_input = planar_input_g_[sid];
-      cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
-      for (i32 i = 0; i < 3; ++i) {
-        cudaMemcpyAsync(net_input + (net_input_height_ * net_input_width_ * i),
-                        flipped_planes_g_[sid][i].data,
-                        net_input_height_ * net_input_width_ * sizeof(float),
-                        cudaMemcpyDeviceToDevice, s);
-        // input_planes_g_[sid][i].copyTo(
-        //   planar_input(
-        //     cv::Rect(
-        //       0, net_input_height_ * i, net_input_width_,
-        //       net_input_height_)),
-        //   cv_stream);
-      }
-      // assert(planar_input.cols == net_input_height_);
-      // cudaMemcpy(net_input, planar_input.data, net_input_size,
-      // cudaMemcpyDeviceToDevice);
-      // CU_CHECK(cudaMemcpy2DAsync(
-      //     net_input,
-      //     net_input_width_ * 3,
-      //     planar_input.data,
-      //     planar_input.step,
-      //     net_input_height_ * sizeof(float),
-      //     net_input_width_ * 3,
-      //     cudaMemcpyDeviceToDevice,
-      //     s));
-      output_columns[1].rows.push_back(Row{(u8*)net_input, net_input_size});
-    }
-    for (cv::cuda::Stream& s : streams_) {
-      s.waitForCompletion();
-    }
+      u8* gpu_buffer = new_buffer(device_type_, device_id_, net_input_size);
+      memcpy_buffer(gpu_buffer, DeviceType::GPU, device_id_,
+                    output_buffer, DeviceType::CPU, 0,
+                    net_input_size);
+      delete output_buffer;
+      output_buffer = gpu_buffer;
 #else
-    LOG(FATAL) << "Not built with CUDA support.";
-#endif  // HAVE_CUDA
-  } else {
-    i32 frame_width = metadata_.width();
-    i32 frame_height = metadata_.height();
-
-    for (i32 frame = 0; frame < input_count; frame++) {
-      u8* buffer = input_columns[0].rows[frame].buffer;
-      cv::Mat input_mat(frame_height, frame_width, CV_8UC3, buffer);
-
-      cv::resize(input_mat, resized_input_c_,
-                 cv::Size(net_input_width_, net_input_height_), 0, 0,
-                 cv::INTER_LINEAR);
-      cv::cvtColor(resized_input_c_, input_mats_c_[0], CV_RGB2BGR);
-
-      std::vector<cv::Mat> input_mats = {input_mats_c_[0]};
-
-      u8* net_input = new u8[frame_size];
-      output_blob_.set_cpu_data((f32*)net_input);
-      output_blob_.Reshape(1, output_blob_.shape(1), output_blob_.shape(2),
-                           output_blob_.shape(3));
-      transformer_->Transform(input_mats, &output_blob_);
-
-      output_columns[1].rows.push_back(Row{net_input, frame_size});
+      LOG(FATAL) << "Cuda not found.";
+#endif
     }
+
+    INSERT_ROW(output_columns[1], output_buffer, net_input_size);
   }
 
   for (i32 l = 0; l < input_layer_builders_.size(); ++l) {
