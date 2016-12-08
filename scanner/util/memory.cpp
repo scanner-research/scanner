@@ -26,14 +26,6 @@
 
 namespace scanner {
 
-// class Allocator {
-// public:
-//   virtual ~Allocator(){};
-//   virtual u8* allocate(size_t size) = 0;
-//   virtual void free(u8* buffer) = 0;
-//   virtual void setref(u8* buffer, i32 refs) = 0;
-// };
-
 class SystemAllocator {
 public:
   SystemAllocator(DeviceType device_type) : device_type_(device_type) {
@@ -81,7 +73,7 @@ public:
     alloc.length = size;
     alloc.refs = 1;
 
-    lock.lock();
+    std::lock_guard<std::mutex> guard(lock);
     bool found = false;
     i32 num_alloc = allocations.size();
     for (i32 i = 0; i < num_alloc - 1; ++i) {
@@ -94,6 +86,7 @@ public:
         break;
       }
     }
+
     if (!found) {
       if (num_alloc > 0) {
         Allocation& last = allocations[num_alloc - 1];
@@ -103,34 +96,32 @@ public:
       }
       allocations.push_back(alloc);
     }
-    u8* buffer = pool_ + alloc.offset;
-    LOG_IF(FATAL, alloc.offset + alloc.length > pool_size) << "Exceeded pool size";
 
-    lock.unlock();
+    u8* buffer = pool_ + alloc.offset;
+    LOG_IF(FATAL, alloc.offset + alloc.length > pool_size)
+      << "Exceeded pool size";
 
     return buffer;
   }
 
   void free(u8* buffer) {
     if (!buffer_in_pool(buffer)) {
-      LOG(FATAL) << "hard free";
       system_allocator->free(buffer);
       return;
     }
 
-    lock.lock();
-
+    std::lock_guard<std::mutex> guard(lock);
     i32 index;
-    // if (!find_buffer(buffer, index)) {
-    //   printf("Problem %p\n", buffer);
-    //   for (auto alloc : allocations) {
-    //     printf("[%p, %p)\n", pool_ + alloc.offset,
-    //            pool_ + alloc.offset + alloc.length);
-    //   }
-    //   exit(EXIT_FAILURE);
-    // }
-    LOG_IF(FATAL, !find_buffer(buffer, index))
-      << "Attempted to free unallocated buffer (did you forget to setref?)";
+    if (!find_buffer(buffer, index)) {
+      printf("Problem %p\n", buffer);
+      for (auto alloc : allocations) {
+        printf("[%p, %p)\n", pool_ + alloc.offset,
+               pool_ + alloc.offset + alloc.length);
+      }
+      LOG(FATAL) << "fuck";
+    }
+    // LOG_IF(FATAL, !find_buffer(buffer, index))
+    //   << "Attempted to free unallocated buffer (did you forget to setref?)";
 
     Allocation& alloc = allocations[index];
     LOG_IF(FATAL, alloc.refs == 0)
@@ -138,31 +129,26 @@ public:
 
     // printf("%p, [%p, %p)\n", buffer, pool_ + alloc.offset, pool_ + alloc.offset
     //        + alloc.length);
-    // assert(buffer == pool_ + alloc.offset);
 
     alloc.refs -= 1;
     if (alloc.refs == 0) {
+      //printf("Removing [%p, %p)\n", pool_ + alloc.offset, pool_ + alloc.offset + alloc.length);
       allocations.erase(allocations.begin() + index);
     }
-
-    lock.unlock();
   }
 
   void setref(u8* buffer, i32 refs) {
-    lock.lock();
-
+    std::lock_guard<std::mutex> guard(lock);
     i32 index;
-    LOG_IF(FATAL, !find_buffer(buffer, index))
-      << "Attempted to setref unallocated buffer";
+    bool found = find_buffer(buffer, index);
+    LOG_IF(FATAL, !found) << "Attempted to setref unallocated buffer";
 
-    Allocation& alloc = allocations[index];
-    alloc.refs = refs;
-
-    lock.unlock();
+    allocations[index].refs = refs;
   }
 
   bool buffer_in_pool(u8* buffer) {
-    return buffer >= pool_ && buffer <= pool_ + pool_size;
+    return (size_t) buffer >= (size_t) pool_ &&
+      (size_t) buffer <= (size_t) (pool_ + pool_size);
   }
 
 private:
@@ -170,8 +156,8 @@ private:
     i32 num_alloc = allocations.size();
     for (i32 i = 0; i < num_alloc; ++i) {
       Allocation alloc = allocations[i];
-      if (buffer >= pool_ + alloc.offset &&
-          buffer < pool_ + alloc.offset + alloc.length) {
+      if ((size_t) buffer >= (size_t) (pool_ + alloc.offset) &&
+          (size_t) buffer < (size_t) (pool_ + alloc.offset + alloc.length)) {
         index = i;
         return true;
       }
@@ -298,8 +284,6 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_de
     cudaStreamSynchronize(streams[0]);
   } else {
 #ifdef HAVE_CUDA
-    LOG(FATAL) << "??";
-
     i32 n = dest_buffers.size();
 
     for (i32 i = 0; i < n; ++i) {

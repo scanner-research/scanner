@@ -601,6 +601,7 @@ void* evaluate_thread(void* arg) {
         // If current evaluator type and input buffer type differ, then move
         // the data in the input buffer into a new buffer which has the same
         // type as the evaluator input
+        auto copy_start = now();
         if (input_buffer_type != caps.device_type ||
             input_device_id != device_id) {
           for (i32 i = 0; i < num_inputs; ++i) {
@@ -624,11 +625,16 @@ void* evaluate_thread(void* arg) {
               sizes.push_back(size);
             }
 
+            auto memcpy_start = now();
             memcpy_vec(dest_buffers, caps.device_type, device_id,
                        src_buffers, input_buffer_type, input_device_id,
                        sizes);
+            args.profiler.add_interval("memcpy", memcpy_start, now());
 
+            // printf("e: %d, col: %d\n", e, i);
+            auto delete_start = now();
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
+              // printf("b: %d\n", b);
               delete_buffer(input_buffer_type, input_device_id,
                             column.rows[b].buffer);
               column.rows[b].buffer = dest_buffers[b];
@@ -638,6 +644,7 @@ void* evaluate_thread(void* arg) {
           input_buffer_type = caps.device_type;
           input_device_id = device_id;
         }
+        args.profiler.add_interval("copy", copy_start, now());
 
         // Setup output buffers to receive evaluator output
         output_columns.clear();

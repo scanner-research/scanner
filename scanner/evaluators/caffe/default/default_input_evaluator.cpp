@@ -114,7 +114,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     // Halide conveniently defaults to a planar format, which is what Caffe expects
     u8* output_buffer = device_type_ == DeviceType::GPU
       ? cpu_output_buffers_[frame]
-      : (output_block + frame * input_count);
+      : (output_block + frame * net_input_size);
     output_buf.host = output_buffer;
     output_buf.stride[0] = 1;
     output_buf.stride[1] = net_input_width_;
@@ -163,6 +163,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       size_t size;
       input_layer_builders_[l](buffer, size, metadata_);
       total_size += size;
+      bufs.push_back(buffer);
       sizes.push_back(size);
     }
 
