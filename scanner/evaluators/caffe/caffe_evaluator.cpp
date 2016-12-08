@@ -119,7 +119,6 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
 
     for (i32 i = 0; i < input_blobs.size(); ++i) {
       f32* net_input_buffer = nullptr;
-
       if (device_type_ == DeviceType::GPU) {
         net_input_buffer = input_blobs[i]->mutable_gpu_data();
       } else {
@@ -138,38 +137,51 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
     // Compute features
     auto net_start = now();
     net_->ForwardPrefilled();
+    cudaDeviceSynchronize();
     if (profiler_) {
       profiler_->add_interval("caffe:net", net_start, now());
     }
 
     // Save batch of frames
     size_t num_outputs = descriptor_.output_layer_names.size();
+    size_t total_size = 0;
+    i32 total_rows = num_outputs * batch_count;
     for (size_t i = 0; i < num_outputs; ++i) {
       const std::string& output_layer_name = descriptor_.output_layer_names[i];
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
       size_t output_length = output_blob->count() / batch_count;
       size_t output_size = output_length * sizeof(float);
-      for (i32 b = 0; b < batch_count; ++b) {
-        u8* buffer = nullptr;
-        if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-          cudaMalloc((void**)&buffer, output_size);
-          cudaMemcpy(buffer, output_blob->gpu_data() + b * output_length,
-                     output_size, cudaMemcpyDefault);
-#else
-          LOG(FATAL) << "Not built with CUDA support.";
-#endif
-        } else {
-          buffer = new u8[output_size];
-          memcpy(buffer, output_blob->cpu_data() + b * output_length,
-                 output_size);
-        }
-        assert(buffer != nullptr);
-        output_columns[output_offset + i].rows.push_back(
-            Row{buffer, output_size});
-      }
+      total_size += output_size * batch_count;
     }
+
+    u8* output_block = new_buffer_from_pool(device_type_, device_id_, total_size);
+    setref_buffer(device_type_, output_block, total_rows);
+    std::vector<u8*> dest_buffers, src_buffers;
+    std::vector<size_t> sizes;
+    for (size_t i = 0; i < num_outputs; ++i) {
+      const std::string& output_layer_name = descriptor_.output_layer_names[i];
+      const boost::shared_ptr<caffe::Blob<float>> output_blob{
+          net_->blob_by_name(output_layer_name)};
+      size_t output_length = output_blob->count() / batch_count;
+      size_t output_size = output_length * sizeof(float);
+      dest_buffers.push_back(output_block);
+      src_buffers.push_back(
+        (u8*) (device_type_ == DeviceType::CPU
+               ? output_blob->cpu_data()
+               : output_blob->gpu_data()));
+      sizes.push_back(output_size * batch_count);
+      for (i32 b = 0; b < batch_count; b++) {
+        u8* output_buf = output_block + b * output_size;
+        output_columns[output_offset + i].rows.push_back(
+          Row{output_buf, output_size});
+      }
+      output_block += output_size * batch_count;
+    }
+
+    // memcpy_vec(dest_buffers, device_type_, device_id_,
+    //            src_buffers, device_type_, device_id_,
+    //            sizes);
   }
 }
 

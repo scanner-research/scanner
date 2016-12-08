@@ -71,7 +71,6 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
   }
 }
 
-
 void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      BatchedColumns& output_columns) {
   auto eval_start = now();
@@ -79,13 +78,16 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
   size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
   i32 input_count = input_columns[0].rows.size();
 
-
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
 
   i32 frame_width = metadata_.width();
   i32 frame_height = metadata_.height();
+
+  u8* output_block = new_buffer_from_pool(device_type_, device_id_,
+                                          net_input_size * input_count);
+  setref_buffer(device_type_, output_block, input_count);
 
   for (i32 frame = 0; frame < input_count; frame++) {
     u8* input_buffer = input_columns[0].rows[frame].buffer;
@@ -112,7 +114,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     // Halide conveniently defaults to a planar format, which is what Caffe expects
     u8* output_buffer = device_type_ == DeviceType::GPU
       ? cpu_output_buffers_[frame]
-      : new u8[net_input_size];
+      : (output_block + frame * input_count);
     output_buf.host = output_buffer;
     output_buf.stride[0] = 1;
     output_buf.stride[1] = net_input_width_;
@@ -139,7 +141,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
     if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-      u8* gpu_buffer = new_buffer(device_type_, device_id_, net_input_size);
+      u8* gpu_buffer = output_block + frame * input_count;
       memcpy_buffer(gpu_buffer, DeviceType::GPU, device_id_,
                     output_buffer, DeviceType::CPU, 0,
                     net_input_size);
@@ -153,11 +155,30 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
   }
 
   for (i32 l = 0; l < input_layer_builders_.size(); ++l) {
+    std::vector<u8*> bufs;
+    std::vector<size_t> sizes;
+    size_t total_size = 0;
     for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
       u8* buffer;
       size_t size;
       input_layer_builders_[l](buffer, size, metadata_);
-      output_columns[l + 2].rows.push_back(Row{buffer, size});
+      total_size += size;
+      sizes.push_back(size);
+    }
+
+    u8* column_block = new_buffer_from_pool(device_type_, device_id_,
+                                            total_size);
+    setref_buffer(device_type_, column_block, input_columns[0].rows.size());
+    for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
+      memcpy_buffer(column_block, device_type_, device_id_,
+                    bufs[i], device_type_, device_id_,
+                    sizes[i]);
+      output_columns[l + 2].rows.push_back(Row{column_block, sizes[i]});
+      column_block += sizes[i];
+    }
+
+    for (auto buf : bufs) {
+      delete_buffer(device_type_, device_id_, buf);
     }
   }
 

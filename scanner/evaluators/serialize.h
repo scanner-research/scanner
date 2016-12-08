@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/evaluators/types.pb.h"
+#include "scanner/util/memory.h"
 
 #include <cstddef>
 #include <vector>
@@ -35,7 +36,7 @@ inline T deser(const u8*& buffer, size_t& size_left) {
 template <typename T>
 void serialize_proto(const T& element, u8*& buffer, size_t& size) {
   i32 element_size = element.ByteSize();
-  buffer = new u8[element_size];
+  buffer = new_buffer(DeviceType::CPU, 0, size);
   size = element_size;
   element.SerializeToArray(buffer, element_size);
 }
@@ -54,7 +55,7 @@ void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
   for (auto& e : elements) {
     size += e.ByteSize() + sizeof(i32);
   }
-  buffer = new u8[size];
+  buffer = new_buffer(DeviceType::CPU, 0, size);
 
   u8* buf = buffer;
   *((size_t*)buf) = elements.size();
@@ -94,7 +95,7 @@ inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
 inline void serialize_decode_args(const DecodeArgs& args, u8*& buffer,
                                   size_t& size) {
   size = args.ByteSize();
-  buffer = new u8[size];
+  buffer = new_buffer(DeviceType::CPU, 0, size);
   args.SerializeToArray(buffer, size);
 }
 
@@ -107,7 +108,7 @@ inline DecodeArgs deserialize_decode_args(const u8* buffer, size_t size) {
 inline void serialize_image_decode_args(const ImageDecodeArgs& args,
                                         u8*& buffer, size_t& size) {
   size = args.ByteSize();
-  buffer = new u8[size];
+  buffer = new_buffer(DeviceType::CPU, 0, size);
   args.SerializeToArray(buffer, size);
 }
 

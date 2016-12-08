@@ -16,6 +16,7 @@
 #include "scanner/util/memory.h"
 
 #include <cassert>
+#include <mutex>
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -25,39 +26,236 @@
 
 namespace scanner {
 
-u8* new_buffer(DeviceType type, int device_id, size_t size) {
-  assert(size > 0);
-  u8* buffer = nullptr;
-  if (type == DeviceType::CPU) {
-    buffer = new u8[size];
+// class Allocator {
+// public:
+//   virtual ~Allocator(){};
+//   virtual u8* allocate(size_t size) = 0;
+//   virtual void free(u8* buffer) = 0;
+//   virtual void setref(u8* buffer, i32 refs) = 0;
+// };
+
+class SystemAllocator {
+public:
+  SystemAllocator(DeviceType device_type) : device_type_(device_type) {
+    assert(device_type == DeviceType::CPU || device_type == DeviceType::GPU);
   }
+
+  u8* allocate(size_t size) {
+    if (device_type_ == DeviceType::CPU) {
+      return new u8[size];
+    } else if (device_type_ == DeviceType::GPU) {
+      u8* buffer;
+      CU_CHECK(cudaMalloc((void**) &buffer, size));
+      return buffer;
+    }
+  }
+
+  void free(u8* buffer) {
+    if (device_type_ == DeviceType::CPU) {
+      delete buffer;
+    } else if (device_type_ == DeviceType::GPU) {
+      CU_CHECK(cudaFree(buffer));
+    }
+  }
+
+private:
+  DeviceType device_type_;
+};
+
+class PoolAllocator {
+public:
+  PoolAllocator(DeviceType device_type, SystemAllocator* allocator) :
+    device_type_(device_type),
+    system_allocator(allocator) {
+    assert(device_type_ == DeviceType::CPU || device_type_ == DeviceType::GPU);
+    pool_ = system_allocator->allocate(pool_size);
+    printf("Created pool %ld at %p --> %p\n", device_type, pool_, pool_ + pool_size);
+  }
+
+  ~PoolAllocator() {
+    system_allocator->free(pool_);
+  }
+
+  u8* allocate(size_t size) {
+    Allocation alloc;
+    alloc.length = size;
+    alloc.refs = 1;
+
+    lock.lock();
+    bool found = false;
+    i32 num_alloc = allocations.size();
+    for (i32 i = 0; i < num_alloc - 1; ++i) {
+      Allocation& lower = allocations[i];
+      Allocation& higher = allocations[i+1];
+      if ((higher.offset - (lower.offset + lower.length)) >= size) {
+        alloc.offset = lower.offset + lower.length;
+        allocations.insert(allocations.begin() + i, alloc);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      if (num_alloc > 0) {
+        Allocation& last = allocations[num_alloc - 1];
+        alloc.offset = last.offset + last.length;
+      } else {
+        alloc.offset = 0;
+      }
+      allocations.push_back(alloc);
+    }
+    u8* buffer = pool_ + alloc.offset;
+    LOG_IF(FATAL, alloc.offset + alloc.length > pool_size) << "Exceeded pool size";
+
+    lock.unlock();
+
+    return buffer;
+  }
+
+  void free(u8* buffer) {
+    if (!buffer_in_pool(buffer)) {
+      LOG(FATAL) << "hard free";
+      system_allocator->free(buffer);
+      return;
+    }
+
+    lock.lock();
+
+    i32 index;
+    // if (!find_buffer(buffer, index)) {
+    //   printf("Problem %p\n", buffer);
+    //   for (auto alloc : allocations) {
+    //     printf("[%p, %p)\n", pool_ + alloc.offset,
+    //            pool_ + alloc.offset + alloc.length);
+    //   }
+    //   exit(EXIT_FAILURE);
+    // }
+    LOG_IF(FATAL, !find_buffer(buffer, index))
+      << "Attempted to free unallocated buffer (did you forget to setref?)";
+
+    Allocation& alloc = allocations[index];
+    LOG_IF(FATAL, alloc.refs == 0)
+      << "Attempted to free buffer with no refs";
+
+    // printf("%p, [%p, %p)\n", buffer, pool_ + alloc.offset, pool_ + alloc.offset
+    //        + alloc.length);
+    // assert(buffer == pool_ + alloc.offset);
+
+    alloc.refs -= 1;
+    if (alloc.refs == 0) {
+      allocations.erase(allocations.begin() + index);
+    }
+
+    lock.unlock();
+  }
+
+  void setref(u8* buffer, i32 refs) {
+    lock.lock();
+
+    i32 index;
+    LOG_IF(FATAL, !find_buffer(buffer, index))
+      << "Attempted to setref unallocated buffer";
+
+    Allocation& alloc = allocations[index];
+    alloc.refs = refs;
+
+    lock.unlock();
+  }
+
+  bool buffer_in_pool(u8* buffer) {
+    return buffer >= pool_ && buffer <= pool_ + pool_size;
+  }
+
+private:
+  bool find_buffer(u8* buffer, i32& index) {
+    i32 num_alloc = allocations.size();
+    for (i32 i = 0; i < num_alloc; ++i) {
+      Allocation alloc = allocations[i];
+      if (buffer >= pool_ + alloc.offset &&
+          buffer < pool_ + alloc.offset + alloc.length) {
+        index = i;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  typedef struct {
+    i64 offset;
+    i64 length;
+    i64 refs;
+  } Allocation;
+
+  DeviceType device_type_;
+  u8* pool_ = nullptr;
+  const i64 pool_size = 4L*1024L*1024L*1024L;
+  std::mutex lock;
+  std::vector<Allocation> allocations;
+
+  SystemAllocator* system_allocator;
+};
+
+static SystemAllocator* cpu_system_allocator = nullptr;
+static SystemAllocator* gpu_system_allocator = nullptr;
+static PoolAllocator* cpu_pool_allocator = nullptr;
+static PoolAllocator* gpu_pool_allocator = nullptr;
+
+void init_memory_allocators(bool use_pool) {
+  cpu_system_allocator = new SystemAllocator(DeviceType::CPU);
 #ifdef HAVE_CUDA
-  else if (type == DeviceType::GPU) {
-    CU_CHECK(cudaSetDevice(device_id));
-    CU_CHECK(cudaMalloc((void**)&buffer, size));
-  }
+  gpu_system_allocator = new SystemAllocator(DeviceType::GPU);
 #endif
-  else {
+  if (use_pool) {
+    cpu_pool_allocator =
+      new PoolAllocator(DeviceType::CPU, cpu_system_allocator);
+#ifdef HAVE_CUDA
+    gpu_pool_allocator =
+      new PoolAllocator(DeviceType::GPU, gpu_system_allocator);
+#endif
+  }
+}
+
+SystemAllocator* system_allocator_for_device(DeviceType type) {
+  if (type == DeviceType::CPU) {
+    return cpu_system_allocator;
+  } else if (type == DeviceType::GPU) {
+    return gpu_system_allocator;
+  } else {
     LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
   }
-  return buffer;
+}
+
+PoolAllocator* pool_allocator_for_device(DeviceType type) {
+  if (type == DeviceType::CPU) {
+    return cpu_pool_allocator;
+  } else if (type == DeviceType::GPU) {
+    return gpu_pool_allocator;
+  } else {
+    LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
+  }
+}
+
+u8* new_buffer(DeviceType type, int device_id, size_t size) {
+  assert(size > 0);
+  SystemAllocator* allocator = system_allocator_for_device(type);
+  return allocator->allocate(size);
+}
+
+u8* new_buffer_from_pool(DeviceType type, int device_id, size_t size) {
+  assert(size > 0);
+  PoolAllocator* allocator = pool_allocator_for_device(type);
+  assert(allocator != nullptr);
+  return allocator->allocate(size);
 }
 
 void delete_buffer(DeviceType type, int device_id, u8* buffer) {
   assert(buffer != nullptr);
-  if (type == DeviceType::CPU) {
-    delete[] buffer;
+  PoolAllocator* pool_allocator = pool_allocator_for_device(type);
+  SystemAllocator* system_allocator = system_allocator_for_device(type);
+  if (pool_allocator != nullptr && pool_allocator->buffer_in_pool(buffer)) {
+    pool_allocator->free(buffer);
+  } else {
+    system_allocator->free(buffer);
   }
-#ifdef HAVE_CUDA
-  else if (type == DeviceType::GPU) {
-    CU_CHECK(cudaSetDevice(device_id));
-    CU_CHECK(cudaFree(buffer));
-  }
-#endif
-  else {
-    LOG(FATAL) << "Tried to delete buffer of unsupported device type";
-  }
-  buffer = nullptr;
 }
 
 // FIXME(wcrichto): case if transferring between two different GPUs
@@ -78,7 +276,6 @@ void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
 void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_device_id,
                 const std::vector<u8*> src_buffers, DeviceType src_type, i32 src_device_id,
                 std::vector<size_t> sizes) {
-#ifdef HAVE_CUDA
   thread_local std::vector<cudaStream_t> streams;
   if (streams.size() == 0) {
     streams.resize(NUM_CUDA_STREAMS);
@@ -87,17 +284,42 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_de
     }
   }
 
-  i32 n = dest_buffers.size();
+  PoolAllocator* dest_allocator = pool_allocator_for_device(dest_type);
+  PoolAllocator* src_allocator = pool_allocator_for_device(src_type);
+  if (dest_allocator->buffer_in_pool(dest_buffers[0]) &&
+      src_allocator->buffer_in_pool(src_buffers[0])) {
+    size_t total_size = 0;
+    for (auto size : sizes) {
+      total_size += size;
+    }
 
-  for (i32 i = 0; i < n; ++i) {
-    CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
-                             cudaMemcpyDefault, streams[i % NUM_CUDA_STREAMS]));
-  }
+    cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
+                    cudaMemcpyDefault, streams[0]);
+    cudaStreamSynchronize(streams[0]);
+  } else {
+#ifdef HAVE_CUDA
+    LOG(FATAL) << "??";
 
-  for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
-    cudaStreamSynchronize(streams[i]);
-  }
+    i32 n = dest_buffers.size();
+
+    for (i32 i = 0; i < n; ++i) {
+      CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
+                               cudaMemcpyDefault, streams[i % NUM_CUDA_STREAMS]));
+    }
+
+    for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
+      cudaStreamSynchronize(streams[i]);
+    }
 #else
+    LOG(FATAL) << "Not yet implemented";
 #endif
+  }
+}
+
+void setref_buffer(DeviceType type, u8* buffer, i32 refs) {
+  assert(buffer != nullptr);
+  PoolAllocator* allocator = pool_allocator_for_device(type);
+  assert(allocator != nullptr);
+  allocator->setref(buffer, refs);
 }
 }

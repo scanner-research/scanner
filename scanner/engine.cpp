@@ -274,7 +274,7 @@ void* load_thread(void* arg) {
             size_t buffer_size =
                 end_keyframe_byte_offset - start_keyframe_byte_offset;
 
-            u8* buffer = new u8[buffer_size];
+            u8* buffer = new_buffer(DeviceType::CPU, 0, buffer_size);
 
             auto io_start = now();
 
@@ -356,7 +356,7 @@ void* load_thread(void* arg) {
 
             size_t buffer_size = end_byte_offset - start_byte_offset;
 
-            u8* buffer = new u8[buffer_size];
+            u8* buffer = new_buffer(DeviceType::CPU, 0, buffer_size);
 
             auto io_start = now();
 
@@ -441,7 +441,7 @@ void* load_thread(void* arg) {
           u64 offset = 0;
           for (i32 i = interval.start; i < interval.end; ++i) {
             size_t buffer_size = static_cast<size_t>(row_sizes[i]);
-            u8* buffer = new u8[buffer_size];
+            u8* buffer = new_buffer(DeviceType::CPU, 0, buffer_size);
             memcpy(buffer, row_data.data() + offset, buffer_size);
             offset += buffer_size;
             INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
@@ -603,31 +603,35 @@ void* evaluate_thread(void* arg) {
         // type as the evaluator input
         if (input_buffer_type != caps.device_type ||
             input_device_id != device_id) {
-          std::vector<u8*> dest_buffers, src_buffers;
-          std::vector<size_t> sizes;
           for (i32 i = 0; i < num_inputs; ++i) {
+            std::vector<u8*> dest_buffers, src_buffers;
+            std::vector<size_t> sizes;
+
             Column& column = input_columns[i];
+            size_t total_size = 0;
+            for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
+              total_size += column.rows[b].size;
+            }
+
+            u8* block = new_buffer_from_pool(caps.device_type, device_id,
+                                             total_size);
+            setref_buffer(caps.device_type, block, column.rows.size());
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
               size_t size = column.rows[b].size;
-              u8* buffer = new_buffer(caps.device_type, device_id, size);
-              dest_buffers.push_back(buffer);
+              dest_buffers.push_back(block);
+              block += size;
               src_buffers.push_back(column.rows[b].buffer);
               sizes.push_back(size);
             }
-          }
 
-          memcpy_vec(dest_buffers, caps.device_type, device_id,
-                     src_buffers, input_buffer_type, input_device_id,
-                     sizes);
+            memcpy_vec(dest_buffers, caps.device_type, device_id,
+                       src_buffers, input_buffer_type, input_device_id,
+                       sizes);
 
-          i32 cnt = 0;
-          for (i32 i = 0; i < num_inputs; ++i) {
-            Column& column = input_columns[i];
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
               delete_buffer(input_buffer_type, input_device_id,
                             column.rows[b].buffer);
-              column.rows[b].buffer = dest_buffers[cnt];
-              cnt++;
+              column.rows[b].buffer = dest_buffers[b];
             }
           }
 
@@ -790,15 +794,24 @@ void* save_thread(void* arg) {
       if (work_entry.buffer_type != DeviceType::CPU) {
         std::vector<u8*> dest_buffers, src_buffers;
         std::vector<size_t> sizes;
+        size_t total_size = 0;
+        for (i32 f = 0; f < num_rows; ++f) {
+          Row& row = work_entry.columns[out_idx].rows[f];
+          total_size += row.size;
+        }
+        u8* output_block = new_buffer_from_pool(DeviceType::CPU, 0, total_size);
+        setref_buffer(DeviceType::CPU, output_block, num_rows);
         for (i32 f = 0; f < num_rows; ++f) {
           Row& row = work_entry.columns[out_idx].rows[f];
           size_t size = row.size;
           u8* src_buffer = row.buffer;
-          u8* dest_buffer = new_buffer(DeviceType::CPU, 0, size);
+          u8* dest_buffer = output_block;
 
           dest_buffers.push_back(dest_buffer);
           src_buffers.push_back(src_buffer);
           sizes.push_back(size);
+
+          output_block += size;
         }
 
         memcpy_vec(dest_buffers, DeviceType::CPU, 0, src_buffers,
@@ -876,6 +889,9 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
   i32 num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
+
+  init_memory_allocators(true);
+
   // Load the dataset descriptor to find all data files
   DatasetDescriptor descriptor;
   {
