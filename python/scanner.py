@@ -326,8 +326,10 @@ class JobResult(object):
             work_item_index = 0
             video = self._load_item_descriptor(video_name)
 
-            intervals = [i for i in range(0, video.frames - 1,
-                                          item_size * stride)]
+            interval = [0]
+            intervals += [i for i in range(item_size * stride,
+                                           video.frames - 1,
+                                           item_size * stride)]
             intervals.append(video.frames)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)
@@ -402,24 +404,26 @@ class JobResult(object):
             (istart, iend) = interval if interval is not None else (0,
                                                                     maxint)
             for intvl in sequences:
-                intervals = [i for i in range(intvl.start, intvl.end - 1,
-                                              item_size)]
+                intervals = [intvl.start]
+                intervals += [i for i in range(intvl.start + item_size * intvl.stride,
+                                               intvl.end - 1,
+                                               item_size * intvl.stride)]
                 intervals.append(intvl.end)
                 intervals = zip(intervals[:-1], intervals[1:])
                 assert(intervals is not None)
 
-                for i, intvl in enumerate(intervals):
-                    start = intvl[0]
-                    end = intvl[1]
+                for i, ivl in enumerate(intervals):
+                    start = ivl[0]
+                    end = ivl[1]
                     if start > iend or end < istart: continue
-                    rows = range(start, end)
+                    rows = range(start, end, intvl.stride)
                     result['buffers'] += self._load_output_file(video,
                                                                 video_name,
                                                                 work_item_index,
                                                                 rows,
                                                                 istart,
                                                                 iend)
-                    result['frames'] += range(start, end)
+                    result['frames'] += range(start, end, intvl.stride)
                     work_item_index += 1
             yield result
 
