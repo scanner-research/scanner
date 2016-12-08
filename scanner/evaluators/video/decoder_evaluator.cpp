@@ -145,6 +145,10 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
     i32 total_output_frames = static_cast<i32>(valid_frames.size());
 
+    u8* output_block = new_buffer_from_pool(device_type_, device_id_,
+                                            total_output_frames * frame_size_);
+    setref_buffer(device_type_, output_block, total_output_frames);
+
     size_t encoded_buffer_offset = 0;
     i32 current_frame = args.start_keyframe();
     i32 valid_index = 0;
@@ -166,8 +170,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         bool more_frames = true;
         while (more_frames && valid_index < total_output_frames) {
           if (current_frame == valid_frames[valid_index]) {
-            u8* decoded_buffer =
-                new_buffer(device_type_, device_id_, frame_size_);
+            u8* decoded_buffer = output_block + valid_index * frame_size_;
             more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
             output_columns[0].rows.push_back(Row{decoded_buffer, frame_size_});
             valid_index++;

@@ -1,4 +1,5 @@
 #include "histogram_evaluator.h"
+#include "scanner/util/memory.h"
 
 namespace scanner {
 
@@ -32,6 +33,9 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
 
   i64 hist_size = BINS * 3 * sizeof(float);
   i32 input_count = (i32)input_columns[0].rows.size();
+  u8* output_block = new_buffer_from_pool(device_type_, 0, hist_size * input_count);
+  setref_buffer(device_type_, output_block, input_count);
+
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     for (i32 i = 0; i < input_count; ++i) {
@@ -44,8 +48,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
         hist_.copyTo(out_mat_(cv::Rect(j * BINS, 0, BINS, 1)));
       }
 
-      u8* output_buf;
-      cudaMalloc((void**)&output_buf, hist_size);
+      u8* output_buf = output_block + i * hist_size;
       cudaMemcpy(output_buf, out_mat_.data, hist_size,
                  cudaMemcpyDeviceToDevice);
       output_columns[0].rows.push_back(Row{output_buf, hist_size});
@@ -75,7 +78,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
       cv::Mat hist;
       cv::hconcat(hists, hist);
 
-      u8* hist_buffer = new u8[hist_size];
+      u8* hist_buffer = output_block + i * hist_size;
       assert(hist_size == hist.total() * hist.elemSize());
       memcpy(hist_buffer, hist.data, hist_size);
 
