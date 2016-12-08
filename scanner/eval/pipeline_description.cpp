@@ -16,9 +16,12 @@
 #include "scanner/eval/pipeline_description.h"
 
 namespace scanner {
-namespace {
 
-std::map<std::string, PipelineGeneratorFn> pipeline_fns;
+namespace {
+std::map<std::string, PipelineGeneratorFn>& pipeline_fns() {
+  static std::map<std::string, PipelineGeneratorFn> m;
+  return m;
+}
 }
 
 DatasetItemMetadata::DatasetItemMetadata(i32 frames, i32 width, i32 height)
@@ -31,16 +34,16 @@ i32 DatasetItemMetadata::width() const { return width_; }
 i32 DatasetItemMetadata::height() const { return height_; }
 
 bool add_pipeline(std::string name, PipelineGeneratorFn fn) {
-  LOG_IF(FATAL, pipeline_fns.count(name) > 0)
+  LOG_IF(FATAL, pipeline_fns().count(name) > 0)
       << "Pipeline with name " << name << " has already been registered!";
-  pipeline_fns.insert({name, fn});
+  pipeline_fns().insert({name, fn});
   return true;
 }
 
 PipelineGeneratorFn get_pipeline(const std::string& name) {
-  if (pipeline_fns.count(name) == 0) {
+  if (pipeline_fns().count(name) == 0) {
     std::string current_names;
-    for (auto& entry : pipeline_fns) {
+    for (auto& entry : pipeline_fns()) {
       current_names += entry.first + " ";
     }
 
@@ -48,6 +51,6 @@ PipelineGeneratorFn get_pipeline(const std::string& name) {
                << "Valid pipelines are: " << current_names;
   }
 
-  return pipeline_fns.at(name);
+  return pipeline_fns().at(name);
 }
 }
