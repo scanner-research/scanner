@@ -631,10 +631,8 @@ void* evaluate_thread(void* arg) {
                        sizes);
             args.profiler.add_interval("memcpy", memcpy_start, now());
 
-            // printf("e: %d, col: %d\n", e, i);
             auto delete_start = now();
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-              // printf("b: %d\n", b);
               delete_buffer(input_buffer_type, input_device_id,
                             column.rows[b].buffer);
               column.rows[b].buffer = dest_buffers[b];

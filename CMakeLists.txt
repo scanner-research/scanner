@@ -72,7 +72,7 @@ set(OPENCV_MAJOR_VERSION 3)
 set(HALIDE_TARGETS)
 macro(add_halide_target SRC)
   if (NOT HALIDE_FOUND)
-    find_package(Halide)
+    find_package(Halide REQUIRED)
     include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
   endif()
 

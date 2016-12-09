@@ -17,6 +17,8 @@
 
 #include <cassert>
 #include <mutex>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -61,7 +63,6 @@ public:
     system_allocator(allocator) {
     assert(device_type_ == DeviceType::CPU || device_type_ == DeviceType::GPU);
     pool_ = system_allocator->allocate(pool_size);
-    printf("Created pool %ld at %p --> %p\n", device_type, pool_, pool_ + pool_size);
   }
 
   ~PoolAllocator() {
@@ -76,9 +77,16 @@ public:
     std::lock_guard<std::mutex> guard(lock);
     bool found = false;
     i32 num_alloc = allocations.size();
-    for (i32 i = 0; i < num_alloc - 1; ++i) {
-      Allocation& lower = allocations[i];
-      Allocation& higher = allocations[i+1];
+    for (i32 i = 0; i < num_alloc; ++i) {
+      Allocation lower;
+      if (i == 0) {
+        lower.offset = 0;
+        lower.length = 0;
+      } else {
+        lower = allocations[i-1];
+      }
+      Allocation higher = allocations[i];
+      assert(higher.offset >= lower.offset + lower.length);
       if ((higher.offset - (lower.offset + lower.length)) >= size) {
         alloc.offset = lower.offset + lower.length;
         allocations.insert(allocations.begin() + i, alloc);
@@ -112,27 +120,16 @@ public:
 
     std::lock_guard<std::mutex> guard(lock);
     i32 index;
-    if (!find_buffer(buffer, index)) {
-      printf("Problem %p\n", buffer);
-      for (auto alloc : allocations) {
-        printf("[%p, %p)\n", pool_ + alloc.offset,
-               pool_ + alloc.offset + alloc.length);
-      }
-      LOG(FATAL) << "fuck";
-    }
-    // LOG_IF(FATAL, !find_buffer(buffer, index))
-    //   << "Attempted to free unallocated buffer (did you forget to setref?)";
+    bool found = find_buffer(buffer, index);
+    LOG_IF(FATAL, !found)
+      << "Attempted to free unallocated buffer (did you forget to setref?)";
 
     Allocation& alloc = allocations[index];
     LOG_IF(FATAL, alloc.refs == 0)
       << "Attempted to free buffer with no refs";
 
-    // printf("%p, [%p, %p)\n", buffer, pool_ + alloc.offset, pool_ + alloc.offset
-    //        + alloc.length);
-
     alloc.refs -= 1;
     if (alloc.refs == 0) {
-      //printf("Removing [%p, %p)\n", pool_ + alloc.offset, pool_ + alloc.offset + alloc.length);
       allocations.erase(allocations.begin() + index);
     }
   }
@@ -143,6 +140,7 @@ public:
     bool found = find_buffer(buffer, index);
     LOG_IF(FATAL, !found) << "Attempted to setref unallocated buffer";
 
+    assert(allocations[index].refs == 1);
     allocations[index].refs = refs;
   }
 
