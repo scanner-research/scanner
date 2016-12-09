@@ -114,6 +114,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       for (; s < e; s += stride) {
         valid_frames.push_back(s);
       }
+      discontinuity_ = true;
     } else if (args.sampling() == DecodeArgs::Gather) {
       i32 s = 0;
       if (!needs_warmup_) {
