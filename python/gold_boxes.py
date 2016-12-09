@@ -4,21 +4,21 @@ import numpy as np
 import struct
 import sys
 from pprint import pprint
-import metadata_pb2
-import evaluators.types_pb2
 import scanner
 
 db = scanner.Scanner()
+from scannerpy import metadata_pb2
+from scannerpy.evaluators import types_pb2
 
 def load_bboxes(dataset_name, job_name, column_name):
     def buf_to_bboxes(buf, md):
         (num_bboxes,) = struct.unpack("=Q", buf[:8])
         buf = buf[8:]
-        (bbox_size,) = struct.unpack("=i", buf[:4])
-        buf = buf[4:]
         bboxes = []
         for i in range(num_bboxes):
-            box = evaluators.types_pb2.BoundingBox()
+            (bbox_size,) = struct.unpack("=i", buf[:4])
+            buf = buf[4:]
+            box = types_pb2.BoundingBox()
             box.ParseFromString(buf[:bbox_size])
             buf = buf[bbox_size:]
             bbox = [box.x1, box.y1, box.x2, box.y2, box.score,
@@ -33,7 +33,7 @@ def save_bboxes(dataset_name, job_name, ident, column_name, bboxes):
     def bboxes_to_buf(boxes):
         data = struct.pack("=Q", len(boxes))
 
-        box = evaluators.types_pb2.BoundingBox()
+        box = types_pb2.BoundingBox()
         box.x1 = 0
         box.y1 = 0
         box.x2 = 0
@@ -43,7 +43,7 @@ def save_bboxes(dataset_name, job_name, ident, column_name, bboxes):
         data += struct.pack("=i", bbox_size)
 
         for bbox in boxes:
-            box = evaluators.types_pb2.BoundingBox()
+            box = types_pb2.BoundingBox()
             box.x1 = bbox[0]
             box.y1 = bbox[1]
             box.x2 = bbox[2]
@@ -144,13 +144,13 @@ def nms(boxes, overlapThresh):
     # integer data type
     return boxes[pick].astype("int")
 
-BOX_SCORE_THRESH = 2.5
-BOX_SCORE_CONTINUE_THRESH = 1.5
+BOX_SCORE_THRESH = 1.5
+BOX_SCORE_CONTINUE_THRESH = 1.0
 DETECT_OVERLAP_THRESH = 0.5
 TRACK_OVERLAP_THRESH = 0.1
 TRACK_SCORE_THRESH = 0.6
 LAST_DETECTION_THRESH = 30
-TOTAL_DETECTIONS_THRESH = 10
+TOTAL_DETECTIONS_THRESH = 5
 TRIM_AMOUNT = 1
 
 def collate_boxes(base, tr):
@@ -249,8 +249,8 @@ def collate_boxes(base, tr):
 
 
 def main():
-    dataset_name = "example"
-    input_job = "facenet_example"
+    dataset_name = "kcam_pier"
+    input_job = "facenet_18250_19150"
     input_base_column = "base_bboxes"
     input_track_column = "tracked_bboxes"
     output_job = "gold_k3"
@@ -296,12 +296,12 @@ def main():
         jtd.job_id = job_id
         jtd.dataset_id = dataset_id
 
-    save_bboxes(dataset_name, output_job, job_id, output_column, gold_boxes)
+    #save_bboxes(dataset_name, output_job, job_id, output_column, gold_boxes)
 
-    db.write_db_metadata(meta)
+    #db.write_db_metadata(meta)
 
     # Write out data to use for extracting frames in extract_frames.py
-    video_paths = []
+    video_paths = ['/bigdata/apoms/benchmark/kcam/20150308_205310_836.mp4']
     frame_indices = []
     frame_bboxes = []
     avg_bboxes = 0.0
@@ -332,7 +332,7 @@ def main():
         for (vi, fi) in frame_indices:
             f.write(str(vi) + ' ' + str(fi) + '\n')
 
-    with open('frame_bboxes.txt', 'w') as f:
+    with open('face_frame_bboxes.txt', 'w') as f:
         for bboxes in frame_bboxes:
             for box in bboxes:
                 for c in box[0:4]:
