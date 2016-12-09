@@ -28,7 +28,7 @@ class DecoderEvaluator : public Evaluator {
  public:
   DecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    VideoDecoderType decoder_type, i32 extra_outputs,
-                   i32 pu_count);
+                   i32 num_devices);
 
   void configure(const InputFormat& metadata) override;
 
@@ -64,6 +64,6 @@ class DecoderEvaluatorFactory : public EvaluatorFactory {
   DeviceType device_type_;
   VideoDecoderType decoder_type_;
   i32 extra_outputs_;
-  i32 pu_count_;
+  i32 num_devices_;
 };
 }

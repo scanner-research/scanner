@@ -25,7 +25,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type,
                                    VideoDecoderType decoder_type,
                                    i32 extra_outputs,
-                                   i32 pu_count)
+                                   i32 num_devices)
     : device_type_(device_type),
       device_id_(config.device_ids[0]),
       decoder_type_(decoder_type),
@@ -34,7 +34,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
       extra_outputs_(extra_outputs) {
   decoder_.reset(VideoDecoder::make_from_config(device_type_, device_id_,
                                                 decoder_type_, device_type_,
-                                                pu_count));
+                                                num_devices));
   assert(decoder_.get());
 }
 
@@ -223,13 +223,13 @@ DecoderEvaluatorFactory::DecoderEvaluatorFactory(DeviceType device_type,
     : device_type_(device_type),
       decoder_type_(decoder_type),
       extra_outputs_(extra_outputs) {
-  pu_count_ = device_type_ == DeviceType::GPU ? 1 : 8;
+  num_devices_ = device_type_ == DeviceType::GPU ? 1 : 8;
 }
 
 EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
   caps.device_type = device_type_;
-  caps.max_devices = pu_count_;
+  caps.max_devices = num_devices_;
   caps.warmup_size = 0;
   caps.can_overlap = true;
   return caps;
@@ -246,6 +246,6 @@ std::vector<std::string> DecoderEvaluatorFactory::get_output_names() {
 Evaluator* DecoderEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new DecoderEvaluator(config, device_type_, decoder_type_,
-                              extra_outputs_, pu_count_);
+                              extra_outputs_, num_devices_);
 }
 }

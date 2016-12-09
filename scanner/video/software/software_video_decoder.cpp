@@ -38,7 +38,7 @@ namespace scanner {
 /// SoftwareVideoDecoder
 SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
                                            DeviceType output_type,
-                                           i32 pu_count)
+                                           i32 thread_count)
     : device_id_(device_id),
       output_type_(output_type),
       codec_(nullptr),
@@ -62,7 +62,7 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
     exit(EXIT_FAILURE);
   }
 
-  cc_->thread_count = pu_count;
+  cc_->thread_count = thread_count;
   cc_->refcounted_frames = 1;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
@@ -130,7 +130,47 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     assert(false);
   }
   memcpy(packet_.data, encoded_buffer, encoded_size);
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 25, 0)
+  auto send_start = now();
+  int error = avcodec_send_packet(cc_, &packet_);
+  if (error < 0) {
+    char err_msg[256];
+    av_strerror(error, err_msg, 256);
+    fprintf(stderr, "Error while sending packet (%d): %s\n", error, err_msg);
+    assert(false);
+  }
+  auto send_end = now();
 
+  auto received_start = now();
+  bool done = false;
+  while (!done) {
+    if (frame_pool_.empty()) {
+      // Create a new frame if our pool is empty
+      frame_pool_.push_back(av_frame_alloc());
+    }
+    AVFrame *frame = frame_pool_.back();
+    frame_pool_.pop_back();
+
+    error = avcodec_receive_frame(cc_, frame);
+    if (error == 0) {
+      decoded_frame_queue_.push_back(frame);
+    } else if (error == AVERROR(EAGAIN)) {
+      done = true;
+      frame_pool_.push_back(frame);
+    } else {
+      char err_msg[256];
+      av_strerror(error, err_msg, 256);
+      fprintf(stderr, "Error while receiving frame (%d): %s\n", error, err_msg);
+      assert(false);
+    }
+  }
+  auto received_end = now();
+  if (profiler_) {
+    profiler_->add_interval("ffmpeg:send_packet", send_start, send_end);
+    profiler_->add_interval("ffmpeg:receive_frame", received_start,
+                           received_end);
+  }
+#else
   uint8_t* orig_data = packet_.data;
   int orig_size = packet_.size;
   int got_picture = 0;
@@ -140,11 +180,15 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
       // Create a new frame if our pool is empty
       frame_pool_.push_back(av_frame_alloc());
     }
-    AVFrame* frame = frame_pool_.back();
+    AVFrame *frame = frame_pool_.back();
     frame_pool_.pop_back();
 
+    auto decode_start = now();
     int consumed_length =
         avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
+    if (profiler_) {
+      profiler_->add_interval("ffmpeg:decode_video", decode_start, now());
+    }
     if (consumed_length < 0) {
       char err_msg[256];
       av_strerror(consumed_length, err_msg, 256);
@@ -155,13 +199,14 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     if (got_picture) {
       if (frame->buf[0] == NULL) {
         // Must copy packet as data is stored statically
-        AVFrame* cloned_frame = av_frame_clone(frame);
+        AVFrame *cloned_frame = av_frame_clone(frame);
         if (cloned_frame == NULL) {
           fprintf(stderr, "could not clone frame\n");
           assert(false);
         }
         decoded_frame_queue_.push_back(cloned_frame);
-        av_frame_free(&frame);
+        av_frame_unref(frame);
+        frame_pool_.push_back(frame);
       } else {
         // Frame is reference counted so we can just take it directly
         decoded_frame_queue_.push_back(frame);
@@ -174,6 +219,7 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   } while (packet_.size > 0 || (orig_size == 0 && got_picture));
   packet_.data = orig_data;
   packet_.size = orig_size;
+#endif
   av_packet_unref(&packet_);
 
   return decoded_frame_queue_.size() > 0;
@@ -195,17 +241,25 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   decoded_frame_queue_.pop_front();
 
   if (reset_context_) {
+    auto get_context_start = now();
     AVPixelFormat decoder_pixel_format = cc_->pix_fmt;
     sws_context_ = sws_getCachedContext(
         sws_context_, metadata_.width(), metadata_.height(),
         decoder_pixel_format, metadata_.width(), metadata_.height(),
         AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+    reset_context_ = false;
+    auto get_context_end = now();
+    if (profiler_) {
+      profiler_->add_interval("ffmpeg:get_sws_context", get_context_start,
+                              get_context_end);
+    }
   }
 
   if (sws_context_ == NULL) {
     fprintf(stderr, "Could not get sws_context for rgb conversion\n");
     exit(EXIT_FAILURE);
   }
+
 
   u8* scale_buffer = nullptr;
   if (output_type_ == DeviceType::GPU) {
@@ -227,11 +281,13 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     fprintf(stderr, "Decode buffer not large enough for image\n");
     exit(EXIT_FAILURE);
   }
+  auto scale_start = now();
   if (sws_scale(sws_context_, frame->data, frame->linesize, 0, frame->height,
                 out_slices, out_linesizes) < 0) {
     fprintf(stderr, "sws_scale failed\n");
     exit(EXIT_FAILURE);
   }
+  auto scale_end = now();
 
   if (output_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -244,6 +300,10 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
 
   av_frame_unref(frame);
   frame_pool_.push_back(frame);
+
+  if (profiler_) {
+    profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
+  }
 
   return decoded_frame_queue_.size() > 0;
 }

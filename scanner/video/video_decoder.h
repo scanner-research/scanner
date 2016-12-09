@@ -43,7 +43,7 @@ class VideoDecoder {
                                         i32 device_id,
                                         VideoDecoderType type,
                                         DeviceType output_type,
-                                        i32 pu_count);
+                                        i32 num_devices);
 
   virtual ~VideoDecoder(){};
 
