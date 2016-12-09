@@ -14,6 +14,9 @@ import json
 import cv2 as cv
 import errno
 import json
+
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams['image.interpolation'] = 'nearest'
 
@@ -167,7 +170,9 @@ def parse_cpm_data(person_centers_job, joint_results_job,
             person_poses[vi].append(poses)
     # frame -> (panel, cam) -> list({center, pose})
     by_frame = defaultdict(lambda: defaultdict(list))
+    video_ids = []
     for vi in sampled_frames.keys():
+        video_ids.append(vi)
         panel_idx, camera_idx = panel_cam_mapping[int(vi)]
         zipped = zip(sampled_frames[vi], person_centers[vi], person_poses[vi])
         for frame, centers, poses in zipped:
@@ -178,7 +183,7 @@ def parse_cpm_data(person_centers_job, joint_results_job,
                     'pose': p,
                 })
             by_frame[frame][(panel_idx, camera_idx)] += people
-    return by_frame
+    return video_ids, by_frame
 
 
 def nest_in_panel_cam(panel_cam_list, data):
@@ -223,40 +228,66 @@ def draw_pose(frame, person):
     return frame
 
 
-def save_drawn_poses_on_frames(video_paths,
+def save_drawn_poses_on_frames(video_ids,
+                               video_paths,
                                video_index_to_panel_cam,
-                               sampled_frames,
-                               person_centers,
-                               person_poses,
+                               poses_by_frame,
                                frames):
-    for vi in sampled_frames.keys():
+
+    cams = poses_by_frame[frames[0]].keys()
+
+    for vi in video_ids:
         cap = cv.VideoCapture(video_paths[int(vi)])
-        s_fi = sampled_frames[vi]
-        s_poses = person_poses[vi]
-        s_centers = person_centers[vi]
-        curr_fi = 0
         panel, camera = video_index_to_panel_cam[int(vi)]
+
         print('Generating ' + str(len(frames)) + ' frames for video ' + vi +
               ', panel ' + str(panel) + ', camera ' + str(camera))
-        frame_idx = 0
-        for fi, poses, centers in zip(s_fi, s_poses, s_centers):
-            if fi != frames[frame_idx]:
-                continue
-            if not cap.isOpened():
+
+        with open('cpm_frame_bboxes.txt', 'w') as f:
+            for fi in frames:
+                people = poses_by_frame[fi][(panel, camera)]
+                for person in people:
+                    head = person['pose'][0]
+                    neck = person['pose'][1]
+                    x = (head[1] + neck[1]) / 2
+                    y1 = head[0]
+                    y2 = neck[0]
+                    height = y2 - y1
+                    width = height * 0.75
+                    x1 = x - width / 2
+                    x2 = x + width / 2
+                    box = [x1, y1, x2, y2]
+                    for c in box[0:4]:
+                        f.write(str(c) + ' ')
+                    f.seek(-1, 1)
+                    f.write(',')
+                if len(people) == 0:
+                    f.write('.')
+                f.seek(-1, 1)
+                f.write('\n')
+
+
+        # Get to first frame we are interested in
+        curr_fi = 0
+        while cap.isOpened():
+            if curr_fi + 1 == frames[0]:
                 break
-            while cap.isOpened():
-                r, frame = cap.read()
-                curr_fi += 1
-                if curr_fi - 1 == fi:
-                    break
-            cs = centers
-            for center in cs:
+            r, frame = cap.read()
+            curr_fi += 1
+
+        for fi in frames:
+            assert(cap.isOpened())
+            r, frame = cap.read()
+            people = poses_by_frame[fi][(panel, camera)]
+            for person in people:
+                center = person['center']
                 cv.circle(
                     frame, (int(center[1]), int(center[0])),
                     5, (0, 255, 255), -1)
-            for person in poses:
+            for person in people:
+                pose = person['pose']
                 # [head, rsho, rwri, lsho, lwri, rank, lank]
-                frame = draw_pose(frame, person)
+                frame = draw_pose(frame, pose)
 
             if fi % 100 == 0:
                 print('At frame ' + str(fi) + '...')
@@ -461,12 +492,12 @@ def write_pose_detections(calibration_data,
                 wr(frame)
                 wr(panel_idx)
                 wr(camera_idx)
-                f.write('\n')
 
                 people = poses[(panel_idx, camera_idx)]
                 num_people = len(people)
                 wr(num_people)
                 wr(num_joints)
+                f.write('\n')
                 for person in people:
                     joints = person['pose']
                     for j in range(num_joints):
@@ -476,15 +507,21 @@ def write_pose_detections(calibration_data,
                     f.write('\n')
 
 
-def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
-                  frame_number):
+def draw_3d_poses(calibration_data, data_path, output_directory,
+                  dataset_name, num_cams, frame_number, opacity=1.0):
     calib = calibration_data
     seq_name = dataset_name
 
     vga_skel_json_path = os.path.join(output_directory,
                                       'body3DPSRecon_json',
-                                      '{:04d}'.format(60))
+                                      '{:04d}'.format(num_cams))
     vga_img_path = os.path.join(data_path, 'vgaImgs')
+
+    render_image_path = os.path.join(output_directory,
+                                     'renders',
+                                     '{:04d}'.format(num_cams))
+    mkdir_p(render_image_path)
+
 
     # Cameras are identified by a tuple of (panel#,node#)
     cameras = {(cam['panel'],cam['node']):cam for cam in calib['cameras']}
@@ -497,7 +534,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
         cam['t'] = np.array(cam['t']).reshape((3,1))
 
     # Select the first 10 VGA cameras in a uniformly sampled order
-    cams = get_uniform_camera_order()[0:12]
+    cams = get_uniform_camera_order()[0:6]
     #cams = [(1, 1), (1, 4), (1, 9), (1, 18)]
     sel_cameras = [cameras[cam].copy() for cam in cams]
 
@@ -508,7 +545,8 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
 
     # Frame
     frame = frame_number
-    plt.figure(figsize=(15,15))
+    ddpi = 100.0
+    plt.figure(figsize=(1920/ddpi,960/ddpi), dpi=ddpi)
     for icam in xrange(len(sel_cameras)):
         # Select a camera
         cam = sel_cameras[icam]
@@ -519,10 +557,13 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
             '{0:02d}_{1:02d}/{0:02d}_{1:02d}_{2:08d}.jpg'.format(cam['panel'],
                                                                  cam['node'],
                                                                  frame))
-        im = plt.imread(image_path)
+        im = plt.imread(image_path) * opacity
+        im = im.astype(np.uint8)
 
-        plt.subplot(math.ceil(len(sel_cameras) / 3.0), 3 ,icam+1)
+        plt.subplot(2, 3, icam+1)
+        #plt.subplots_adjust(hspace=0.1, wspace=0.1)
         plt.imshow(im)
+        plt.axis('off')
         currentAxis = plt.gca()
         currentAxis.set_autoscale_on(False)
 
@@ -561,37 +602,48 @@ def draw_3d_poses(calibration_data, data_path, output_directory, dataset_name,
                         plt.plot(pt[0,edge], pt[1,edge],
                                  color=colors[idx])
 
+                # Show the id number
+                head_joint = 1
+                if (pt[0,head_joint]>=0 and
+                    pt[0,head_joint]<im.shape[1] and
+                    pt[1,head_joint]>=0 and
+                    pt[1,head_joint]<im.shape[0]):
+                        plt.text(pt[0,head_joint], pt[1,head_joint]-5,
+                                 '{0}'.format(idx),color=colors[idx])
+
                 # Show the joint numbers
-                for ip in xrange(pt.shape[1]):
-                    if (pt[0,ip]>=0 and
-                        pt[0,ip]<im.shape[1] and
-                        pt[1,ip]>=0 and
-                        pt[1,ip]<im.shape[0]):
-                        plt.text(pt[0,ip], pt[1,ip]-5,
-                                 '{0}'.format(ip),color=colors[idx])
+                # for ip in xrange(pt.shape[1]):
+                #     if (pt[0,ip]>=0 and
+                #         pt[0,ip]<im.shape[1] and
+                #         pt[1,ip]>=0 and
+                #         pt[1,ip]<im.shape[0]):
+                #         plt.text(pt[0,ip], pt[1,ip]-5,
+                #                  '{0}'.format(ip),color=colors[idx])
 
         except IOError as e:
             print('Error reading {0}\n'.format(skel_json_fname)+e.strerror)
 
         # Also plot selected cameras with (panel,node) label
-        for ca in sel_cameras:
-            cc = (-ca['R'].transpose()*ca['t'])
-            pt = projectPoints(cc,
-                               cam['K'], cam['R'], cam['t'],
-                               cam['distCoef'])
-            if (pt[0]>=0 and
-                pt[0]<im.shape[1] and
-                pt[1]>=0 and
-                pt[1]<im.shape[0]):
-                plt.plot(pt[0], pt[1], '.', color=[0,1,0], markersize=5)
-                plt.text(pt[0], pt[1],
-                         'cam({0},{1})'.format(ca['panel'],ca['node']),
-                         color=[1,1,1])
+        # for ca in sel_cameras:
+        #     cc = (-ca['R'].transpose()*ca['t'])
+        #     pt = projectPoints(cc,
+        #                        cam['K'], cam['R'], cam['t'],
+        #                        cam['distCoef'])
+        #     if (pt[0]>=0 and
+        #         pt[0]<im.shape[1] and
+        #         pt[1]>=0 and
+        #         pt[1]<im.shape[0]):
+        #         plt.plot(pt[0], pt[1], '.', color=[0,1,0], markersize=5)
+        #         plt.text(pt[0], pt[1],
+        #                  'cam({0},{1})'.format(ca['panel'],ca['node']),
+        #                  color=[1,1,1])
 
+    render_path = os.path.join(render_image_path,
+                               dataset_name + '_' + str(frame_number) + '.png')
     plt.tight_layout()
-    plt.savefig(dataset_name + '_' + str(frame_number) + '.png',
-                bbox_inches='tight')
+    plt.savefig(render_path, bbox_inches='tight')
     plt.close("all")
+
 
 
 def load_metadata(dataset_name):
@@ -622,11 +674,12 @@ def extract_pose_detections(dataset_name, person_job_name, pose_job_name):
     panel_cam_mapping = dataset_list_to_panel_cams(video_paths)
 
     scale = 480 / 368.0
-    poses_by_frame = parse_cpm_data(
+    video_ids, poses_by_frame = parse_cpm_data(
         person_centers_job, joint_results_job, scale, panel_cam_mapping)
 
     return {
         'video_paths': video_paths,
+        'video_ids': video_ids,
         'panel_cam_mapping': panel_cam_mapping,
         'poses_by_frame': poses_by_frame,
     }
@@ -653,31 +706,58 @@ def export_pose_detections(dataset_name, poses_by_frame,
                               meta['output_path'])
 
 
-def draw_2d_pose_detections(dataset_name, pose_data,
-                            start_frame, end_frame):
-    assert(False)
-    meta = load_metadata(dataset_name)
-    pose_data = extract_pose_detections(dataset_name, suffix)
-    save_drawn_poses_on_frame(pose_data['video_paths'],
-                              pose_data['panel_cam_mapping'],
-                              pose_data['sampled_frames'],
-                              pose_data['person_centers'],
-                              pose_data['person_poses'],
-                              range(start_frame, end_frame))
+def draw_2d_pose_detections(dataset_name, pose_data, start_frame, end_frame):
+    save_drawn_poses_on_frames(pose_data['video_ids'],
+                               pose_data['video_paths'],
+                               pose_data['panel_cam_mapping'],
+                               pose_data['poses_by_frame'],
+                               range(start_frame, end_frame))
 
 
-def draw_3d_pose_detections(dataset_name, start_frame, end_frame):
+def draw_3d_pose_detections(dataset_name, num_cams, start_frame, end_frame):
     meta = load_metadata(dataset_name)
     for frame in range(start_frame, end_frame):
         draw_3d_poses(meta['raw_calib_data'],
                       meta['data_path'],
                       meta['output_path'],
                       dataset_name,
+                      num_cams,
                       frame)
 
 
+def draw_3d_pose_detections_fade(dataset_name, num_cams,
+                                 start_frame, end_frame):
+    meta = load_metadata(dataset_name)
+    total_frames = (end_frame - start_frame) * 1.0
+    first_mid_frame = start_frame + total_frames / 3
+    second_mid_frame = start_frame + total_frames * 2 / 3
+    for i, frame in enumerate(range(start_frame, end_frame)):
+        if frame < first_mid_frame:
+            opacity = ((first_mid_frame - frame) / (total_frames / 3))
+        elif frame < second_mid_frame:
+            opacity = 0
+        else:
+            opacity = 1 - ((end_frame - frame) / (total_frames / 3))
+        draw_3d_poses(meta['raw_calib_data'],
+                      meta['data_path'],
+                      meta['output_path'],
+                      dataset_name,
+                      num_cams,
+                      frame,
+                      opacity)
+
+
 def main(dataset_name, start_frame, end_frame):
-    draw_3d_pose_detections(dataset_name, start_frame, end_frame)
+    job_suffix = '_{:d}_{:d}'.format(start_frame, end_frame)
+    person_job_name = 'person' + job_suffix
+    pose_job_name = 'pose' + job_suffix
+
+    pose_data = extract_pose_detections(dataset_name, person_job_name,
+                                            pose_job_name)
+    #print(pose_data)
+    draw_2d_pose_detections(dataset_name, pose_data, start_frame, end_frame)
+
+    # draw_3d_pose_detections_fade(dataset_name, start_frame, end_frame)
 
 
 if __name__ == "__main__":
