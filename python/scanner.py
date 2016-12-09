@@ -326,7 +326,7 @@ class JobResult(object):
             work_item_index = 0
             video = self._load_item_descriptor(video_name)
 
-            interval = [0]
+            intervals = [0]
             intervals += [i for i in range(item_size * stride,
                                            video.frames - 1,
                                            item_size * stride)]
