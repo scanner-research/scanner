@@ -22,10 +22,12 @@ def extract_frames(args):
                 _, video_frame = inp.read()
                 video_frame_num += 1
             scanner_frame = cv2.cvtColor(buf, cv2.COLOR_RGB2BGR)
-            frame_diff = (scanner_frame - video_frame).sum()
-            if frame_diff != 0:
+            frame_diff = np.abs(scanner_frame - video_frame)
+            if frame_diff.sum() != 0:
                 print('Frame {} does not match!'.format(frame_num))
-
+                cv2.imwrite('decode_frames_' + str(frame_num) + '.jpg',
+                            np.concatenate(
+                                (scanner_frame, video_frame, frame_diff), 1))
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description='Extract JPEG frames from videos')
