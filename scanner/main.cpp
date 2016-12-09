@@ -84,7 +84,7 @@ const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
-  FLAGS_minloglevel = 3;
+  FLAGS_minloglevel = 1;
 #ifdef HAVE_CUDA
   CUD_CHECK(cuInit(0));
 #endif
@@ -120,48 +120,6 @@ class Config {
 };
 
 int main(int argc, char** argv) {
-
-  // u8* input = new u8[12];
-  // for (i32 i = 0; i < 12; ++i) {
-  //   *(input+i) = i;
-  // }
-
-  // buffer_t input_buf = {0}, output_buf = {0};
-  // input_buf.host = input;
-  // output_buf.host = new u8[12 * sizeof(float)];
-  // input_buf.stride[0] = 3;
-  // input_buf.stride[1] = 2 * 3;
-  // input_buf.stride[2] = 1;
-  // input_buf.extent[0] = 2;
-  // input_buf.extent[1] = 2;
-  // input_buf.extent[2] = 3;
-  // input_buf.elem_size = 1;
-
-  // output_buf.stride[0] = 1;
-  // output_buf.stride[1] = 2;
-  // output_buf.stride[2] = 4;
-  // output_buf.extent[0] = 2;
-  // output_buf.extent[1] = 2;
-  // output_buf.extent[2] = 3;
-  // output_buf.elem_size = 4;
-
-  // int error = caffe_input_transformer(
-  //   &input_buf,
-  //   2, 2, 2, 2,
-  //   false,
-  //   0.0,
-  //   0.0,
-  //   0.0,
-  //   &output_buf);
-  // LOG_IF(FATAL, error != 0) << "Halide error " << error;
-
-  // f32* p = (f32*) output_buf.host;
-  // for (i32 i = 0; i < 12; ++i) {
-  //   printf("%d: %f\n", i, *(p + i));
-  // }
-
-  // exit(0);
-
   // Variables for holding parsed command line arguments
 
   std::string cmd;  // sub-command to execute
