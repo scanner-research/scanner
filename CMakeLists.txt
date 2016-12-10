@@ -70,7 +70,7 @@ set(OPENCV_DESIRED_COMPONENTS)
 set(OPENCV_MAJOR_VERSION 3)
 
 set(HALIDE_TARGETS)
-macro(add_halide_target SRC)
+macro(add_halide_target SRC TARGET)
   if (NOT HALIDE_FOUND)
     find_package(Halide REQUIRED)
     include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
@@ -82,7 +82,7 @@ macro(add_halide_target SRC)
     SRCS ${SRC})
   halide_add_aot_library(${NAME}
     GENERATOR_TARGET ${GENERATOR}
-    GENERATOR_ARGS target=host)
+    GENERATOR_ARGS target=${TARGET})
   list(APPEND HALIDE_TARGETS ${NAME})
 endmacro()
 
@@ -111,8 +111,8 @@ if (BUILD_CAFFE_EVALUATORS)
     add_definitions(-DCPU_ONLY)
   endif()
 
-  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_cpu.cpp)
-  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_gpu.cpp)
+  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_cpu.cpp host)
+  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_gpu.cpp cuda)
 
   if (BUILD_CAFFE_INPUT_EVALUATORS)
     # Requires opencv3
@@ -263,7 +263,8 @@ include_directories(
   "${MPI_INCLUDE_PATH}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
-  "${GOOGLETEST_INCLUDE_DIRS}")
+  "${GOOGLETEST_INCLUDE_DIRS}"
+  "${HALIDE_INCLUDE_DIR}")
 
 if (CUDA_FOUND)
   list(APPEND SCANNER_LIBRARIES
