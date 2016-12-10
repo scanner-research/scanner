@@ -42,6 +42,7 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
     assert(GPUS_PER_NODE > 0);
     device_id = device_id % GPUS_PER_NODE;
     device_id_ = device_id;
+    printf("devce %d\n", device_id);
   }
   set_device();
   // Initialize our network
@@ -156,7 +157,7 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
     }
 
     u8* output_block = new_buffer_from_pool(device_type_, device_id_, total_size);
-    setref_buffer(device_type_, output_block, total_rows);
+    setref_buffer(device_type_, device_id_, output_block, total_rows);
     std::vector<u8*> dest_buffers, src_buffers;
     std::vector<size_t> sizes;
     for (size_t i = 0; i < num_outputs; ++i) {
@@ -179,9 +180,9 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
       output_block += output_size * batch_count;
     }
 
-    // memcpy_vec(dest_buffers, device_type_, device_id_,
-    //            src_buffers, device_type_, device_id_,
-    //            sizes);
+    memcpy_vec(dest_buffers, device_type_, device_id_,
+               src_buffers, device_type_, device_id_,
+               sizes);
   }
 }
 

@@ -95,7 +95,7 @@ public:
     Target target = Halide::get_target_from_environment();
 #ifdef HALIDE_USE_GPU
     target.set_feature(Target::CUDA);
-    // TODO(ravi): give us schedule plz :(
+    rescaled.gpu_tile(x, y, 8, 8);
 #else
     Pipeline p(rescaled);
     p.auto_schedule(target);

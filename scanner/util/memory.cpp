@@ -30,7 +30,9 @@ namespace scanner {
 
 class SystemAllocator {
 public:
-  SystemAllocator(DeviceType device_type) : device_type_(device_type) {
+  SystemAllocator(DeviceType device_type, i32 device_id) :
+    device_type_(device_type),
+    device_id_(device_id) {
     assert(device_type == DeviceType::CPU || device_type == DeviceType::GPU);
   }
 
@@ -39,6 +41,7 @@ public:
       return new u8[size];
     } else if (device_type_ == DeviceType::GPU) {
       u8* buffer;
+      CU_CHECK(cudaSetDevice(device_id_));
       CU_CHECK(cudaMalloc((void**) &buffer, size));
       return buffer;
     }
@@ -48,18 +51,21 @@ public:
     if (device_type_ == DeviceType::CPU) {
       delete buffer;
     } else if (device_type_ == DeviceType::GPU) {
+      CU_CHECK(cudaSetDevice(device_id_));
       CU_CHECK(cudaFree(buffer));
     }
   }
 
 private:
   DeviceType device_type_;
+  i32 device_id_;
 };
 
 class PoolAllocator {
 public:
-  PoolAllocator(DeviceType device_type, SystemAllocator* allocator) :
+  PoolAllocator(DeviceType device_type, i32 device_id, SystemAllocator* allocator) :
     device_type_(device_type),
+    device_id_(device_id),
     system_allocator(allocator) {
     assert(device_type_ == DeviceType::CPU || device_type_ == DeviceType::GPU);
     pool_ = system_allocator->allocate(pool_size);
@@ -170,6 +176,7 @@ private:
   } Allocation;
 
   DeviceType device_type_;
+  i32 device_id_;
   u8* pool_ = nullptr;
   const i64 pool_size = 4L*1024L*1024L*1024L;
   std::mutex lock;
@@ -179,62 +186,66 @@ private:
 };
 
 static SystemAllocator* cpu_system_allocator = nullptr;
-static SystemAllocator* gpu_system_allocator = nullptr;
+static std::map<i32, SystemAllocator*> gpu_system_allocators;
 static PoolAllocator* cpu_pool_allocator = nullptr;
-static PoolAllocator* gpu_pool_allocator = nullptr;
+static std::map<i32, PoolAllocator*> gpu_pool_allocators;
 
-void init_memory_allocators(bool use_pool) {
-  cpu_system_allocator = new SystemAllocator(DeviceType::CPU);
-#ifdef HAVE_CUDA
-  gpu_system_allocator = new SystemAllocator(DeviceType::GPU);
-#endif
+void init_memory_allocators(std::vector<i32> gpu_device_ids, bool use_pool) {
+  cpu_system_allocator = new SystemAllocator(DeviceType::CPU, 0);
   if (use_pool) {
     cpu_pool_allocator =
-      new PoolAllocator(DeviceType::CPU, cpu_system_allocator);
-#ifdef HAVE_CUDA
-    gpu_pool_allocator =
-      new PoolAllocator(DeviceType::GPU, gpu_system_allocator);
-#endif
+      new PoolAllocator(DeviceType::CPU, 0, cpu_system_allocator);
   }
+#ifdef HAVE_CUDA
+  for (i32 device_id : gpu_device_ids) {
+    SystemAllocator* gpu_system_allocator =
+      new SystemAllocator(DeviceType::GPU, device_id);
+    gpu_system_allocators[device_id] = gpu_system_allocator;
+    if (use_pool) {
+      gpu_pool_allocators[device_id] =
+        new PoolAllocator(DeviceType::GPU, device_id, gpu_system_allocator);
+    }
+  }
+#endif
 }
 
-SystemAllocator* system_allocator_for_device(DeviceType type) {
+SystemAllocator* system_allocator_for_device(DeviceType type, i32 device_id) {
   if (type == DeviceType::CPU) {
     return cpu_system_allocator;
   } else if (type == DeviceType::GPU) {
-    return gpu_system_allocator;
+    return gpu_system_allocators[device_id];
   } else {
     LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
   }
 }
 
-PoolAllocator* pool_allocator_for_device(DeviceType type) {
+PoolAllocator* pool_allocator_for_device(DeviceType type, i32 device_id) {
   if (type == DeviceType::CPU) {
     return cpu_pool_allocator;
   } else if (type == DeviceType::GPU) {
-    return gpu_pool_allocator;
+    return gpu_pool_allocators[device_id];
   } else {
     LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
   }
 }
 
-u8* new_buffer(DeviceType type, int device_id, size_t size) {
+u8* new_buffer(DeviceType type, i32 device_id, size_t size) {
   assert(size > 0);
-  SystemAllocator* allocator = system_allocator_for_device(type);
+  SystemAllocator* allocator = system_allocator_for_device(type, device_id);
   return allocator->allocate(size);
 }
 
-u8* new_buffer_from_pool(DeviceType type, int device_id, size_t size) {
+u8* new_buffer_from_pool(DeviceType type, i32 device_id, size_t size) {
   assert(size > 0);
-  PoolAllocator* allocator = pool_allocator_for_device(type);
+  PoolAllocator* allocator = pool_allocator_for_device(type, device_id);
   assert(allocator != nullptr);
   return allocator->allocate(size);
 }
 
-void delete_buffer(DeviceType type, int device_id, u8* buffer) {
+void delete_buffer(DeviceType type, i32 device_id, u8* buffer) {
   assert(buffer != nullptr);
-  PoolAllocator* pool_allocator = pool_allocator_for_device(type);
-  SystemAllocator* system_allocator = system_allocator_for_device(type);
+  PoolAllocator* pool_allocator = pool_allocator_for_device(type, device_id);
+  SystemAllocator* system_allocator = system_allocator_for_device(type, device_id);
   if (pool_allocator != nullptr && pool_allocator->buffer_in_pool(buffer)) {
     pool_allocator->free(buffer);
   } else {
@@ -268,8 +279,8 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_de
     }
   }
 
-  PoolAllocator* dest_allocator = pool_allocator_for_device(dest_type);
-  PoolAllocator* src_allocator = pool_allocator_for_device(src_type);
+  PoolAllocator* dest_allocator = pool_allocator_for_device(dest_type, dest_device_id);
+  PoolAllocator* src_allocator = pool_allocator_for_device(src_type, src_device_id);
   if (dest_allocator->buffer_in_pool(dest_buffers[0]) &&
       src_allocator->buffer_in_pool(src_buffers[0])) {
     size_t total_size = 0;
@@ -298,9 +309,9 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_de
   }
 }
 
-void setref_buffer(DeviceType type, u8* buffer, i32 refs) {
+void setref_buffer(DeviceType type, i32 device_id, u8* buffer, i32 refs) {
   assert(buffer != nullptr);
-  PoolAllocator* allocator = pool_allocator_for_device(type);
+  PoolAllocator* allocator = pool_allocator_for_device(type, device_id);
   assert(allocator != nullptr);
   allocator->setref(buffer, refs);
 }

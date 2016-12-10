@@ -15,8 +15,8 @@
 
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/util/memory.h"
-#include "caffe_input_transformer_gpu/caffe_input_transformer_gpu.h"
-#include "caffe_input_transformer_cpu/caffe_input_transformer_cpu.h"
+
+#include "HalideRuntimeCuda.h"
 
 #ifdef HAVE_CUDA
 #include <opencv2/cudaimgproc.hpp>
@@ -44,12 +44,6 @@ DefaultInputEvaluator::DefaultInputEvaluator(
     net_input_width_ = -1;
     net_input_height_ = -1;
   }
-
-  for (i32 i = 0; i < config_.max_input_count; ++i) {
-    size_t size = config_.max_frame_width * config_.max_frame_height * 3;
-    cpu_input_buffers_.push_back(new u8[size]);
-    cpu_output_buffers_.push_back(new u8[size]);
-  }
 }
 
 void DefaultInputEvaluator::configure(const InputFormat& metadata) {
@@ -71,6 +65,33 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
   }
 }
 
+void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size) {
+  if (device_type_ == DeviceType::GPU) {
+    halide_buf.dev = (uintptr_t) nullptr;
+
+    i32 err = halide_cuda_wrap_device_ptr(nullptr, &halide_buf,
+                                          (uintptr_t) buf);
+    LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
+
+    // "You'll need to set the host field of the buffer_t structs to
+    // something other than nullptr as that is used to indicate bounds query
+    // calls" - Zalman Stern
+    halide_buf.host = new u8[size]; //(u8*) 0xdeadbeef;
+
+    // "You likely want to set the dev_dirty flag for correctness. (It will
+    // not matter if all the code runs on the GPU.)"
+    halide_buf.dev_dirty = true;
+  } else {
+    halide_buf.host = buf;
+  }
+}
+
+void DefaultInputEvaluator::unset_halide_buf(buffer_t& halide_buf) {
+  if (device_type_ == DeviceType::GPU) {
+    halide_cuda_detach_device_ptr(nullptr, &halide_buf);
+  }
+}
+
 void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      BatchedColumns& output_columns) {
   auto eval_start = now();
@@ -87,22 +108,19 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   u8* output_block = new_buffer_from_pool(device_type_, device_id_,
                                           net_input_size * input_count);
-  setref_buffer(device_type_, output_block, input_count);
+  setref_buffer(device_type_, device_id_, output_block, input_count);
 
   for (i32 frame = 0; frame < input_count; frame++) {
     u8* input_buffer = input_columns[0].rows[frame].buffer;
-    if (device_type_ == DeviceType::GPU) {
-      size_t size = input_columns[0].rows[frame].size;
-      u8* cpu_buffer = cpu_input_buffers_[frame];
-      memcpy_buffer(cpu_buffer, DeviceType::CPU, 0,
-                    input_buffer, DeviceType::GPU, device_id_,
-                    size);
-      input_buffer = cpu_buffer;
-    }
+    u8* output_buffer = output_block + frame * net_input_size;
 
     buffer_t input_buf = {0}, output_buf = {0};
+
+    set_halide_buf(input_buf, input_buffer, frame_width*frame_height*3);
+    set_halide_buf(output_buf, output_buffer, net_input_size);
+
     // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
-    input_buf.host = input_buffer;
+    // input_buf.host = input_buffer;
     input_buf.stride[0] = 3;
     input_buf.stride[1] = metadata_.width() * 3;
     input_buf.stride[2] = 1;
@@ -112,9 +130,6 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     input_buf.elem_size = 1;
 
     // Halide conveniently defaults to a planar format, which is what Caffe expects
-    u8* output_buffer = device_type_ == DeviceType::GPU
-      ? cpu_output_buffers_[frame]
-      : (output_block + frame * net_input_size);
     output_buf.host = output_buffer;
     output_buf.stride[0] = 1;
     output_buf.stride[1] = net_input_width_;
@@ -139,17 +154,8 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       &output_buf);
     LOG_IF(FATAL, error != 0) << "Halide error " << error;
 
-    if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      u8* gpu_buffer = output_block + frame * input_count;
-      memcpy_buffer(gpu_buffer, DeviceType::GPU, device_id_,
-                    output_buffer, DeviceType::CPU, 0,
-                    net_input_size);
-      output_buffer = gpu_buffer;
-#else
-      LOG(FATAL) << "Cuda not found.";
-#endif
-    }
+    unset_halide_buf(input_buf);
+    unset_halide_buf(output_buf);
 
     INSERT_ROW(output_columns[1], output_buffer, net_input_size);
   }
@@ -169,7 +175,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
     u8* column_block = new_buffer_from_pool(device_type_, device_id_,
                                             total_size);
-    setref_buffer(device_type_, column_block, input_columns[0].rows.size());
+    setref_buffer(device_type_, device_id_, column_block, input_columns[0].rows.size());
     for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
       memcpy_buffer(column_block, device_type_, device_id_,
                     bufs[i], device_type_, device_id_,

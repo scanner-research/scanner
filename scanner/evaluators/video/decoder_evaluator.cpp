@@ -147,7 +147,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
     u8* output_block = new_buffer_from_pool(device_type_, device_id_,
                                             total_output_frames * frame_size_);
-    setref_buffer(device_type_, output_block, total_output_frames);
+    setref_buffer(device_type_, device_id_, output_block, total_output_frames);
 
     size_t encoded_buffer_offset = 0;
     i32 current_frame = args.start_keyframe();

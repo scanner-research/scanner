@@ -23,6 +23,9 @@
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
 
+#include "caffe_input_transformer_gpu/caffe_input_transformer_gpu.h"
+#include "caffe_input_transformer_cpu/caffe_input_transformer_cpu.h"
+
 #ifdef HAVE_CUDA
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include <opencv2/cudaarithm.hpp>
@@ -51,6 +54,9 @@ class DefaultInputEvaluator : public Evaluator {
   EvaluatorConfig config_;
 
  private:
+  void set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size);
+  void unset_halide_buf(buffer_t& halide_buf);
+
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
@@ -59,8 +65,6 @@ class DefaultInputEvaluator : public Evaluator {
 
 #ifdef HAVE_CUDA
   i32 num_cuda_streams_;
-  std::vector<u8*> cpu_input_buffers_;
-  std::vector<u8*> cpu_output_buffers_;
 #endif
 
   std::vector<InputLayerBuilder> input_layer_builders_;
