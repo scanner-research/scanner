@@ -616,7 +616,7 @@ void* evaluate_thread(void* arg) {
 
             u8* block = new_buffer_from_pool(caps.device_type, device_id,
                                              total_size);
-            setref_buffer(caps.device_type, block, column.rows.size());
+            setref_buffer(caps.device_type, device_id, block, column.rows.size());
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
               size_t size = column.rows[b].size;
               dest_buffers.push_back(block);
@@ -805,7 +805,7 @@ void* save_thread(void* arg) {
           total_size += row.size;
         }
         u8* output_block = new_buffer_from_pool(DeviceType::CPU, 0, total_size);
-        setref_buffer(DeviceType::CPU, output_block, num_rows);
+        setref_buffer(DeviceType::CPU, 0, output_block, num_rows);
         for (i32 f = 0; f < num_rows; ++f) {
           Row& row = work_entry.columns[out_idx].rows[f];
           size_t size = row.size;
@@ -895,7 +895,16 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   i32 num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
 
-  init_memory_allocators(true);
+  // Get node-local info
+  // http://stackoverflow.com/questions/9022496/how-to-determine-mpi-rank-process-number-local-to-a-socket-node
+  MPI_Comm shmcomm;
+  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0,
+                      MPI_INFO_NULL, &shmcomm);
+  i32 local_rank;
+  MPI_Comm_rank(shmcomm, &local_rank);
+
+  i32 local_num_nodes;
+  MPI_Comm_size(MPI_COMM_WORLD, &local_num_nodes);
 
   // Load the dataset descriptor to find all data files
   DatasetDescriptor descriptor;
@@ -1320,6 +1329,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
 
   i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
+  std::vector<i32> gpu_device_ids;
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
     std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
@@ -1347,12 +1357,19 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
               << "Scanner is configured with zero available GPUs but a GPU "
               << "evaluator was requested! Please configure Scanner to have "
               << "at least one GPU using the `gpu_device_ids` config option.";
-          device_id = GPU_DEVICE_IDS[pu % num_gpus];
+
+          // If we have more than one MPI process on a single machine, then
+          // we should round robin the GPUs between the nodes if possible.
+          // This case occurs if having multiple PUs per process would conflict,
+          // e.g. Caffe with Python layers.
+          i32 base_index = num_gpus / local_num_nodes * local_rank;
+          device_id = GPU_DEVICE_IDS[(base_index + pu) % num_gpus];
+          gpu_device_ids.push_back(device_id);
         } else {
           device_id = pu;
         }
-        eval_config.device_ids = {device_id};
 
+        eval_config.device_ids = {device_id};
         eval_configs.push_back(eval_config);
       }
       // Input work queue
@@ -1384,6 +1401,9 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
           *input_work_queue, *output_work_queue});
     }
   }
+
+  init_memory_allocators(gpu_device_ids, true);
+
   std::vector<std::vector<pthread_t>> eval_chain_threads(PUS_PER_NODE);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     std::vector<pthread_t>& eval_threads = eval_chain_threads[pu];

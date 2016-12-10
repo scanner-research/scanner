@@ -21,13 +21,13 @@
 
 namespace scanner {
 
-void init_memory_allocators(bool use_pool);
+void init_memory_allocators(std::vector<i32> gpu_device_ids, bool use_pool);
 
-u8* new_buffer(DeviceType type, int device_id, size_t size);
+u8* new_buffer(DeviceType type, i32 device_id, size_t size);
 
-u8* new_buffer_from_pool(DeviceType type, int device_id, size_t size);
+u8* new_buffer_from_pool(DeviceType type, i32 device_id, size_t size);
 
-void delete_buffer(DeviceType type, int device_id, u8* buffer);
+void delete_buffer(DeviceType type, i32 device_id, u8* buffer);
 
 void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
                    const u8* src_buffer, DeviceType src_type, i32 src_device_id,
@@ -37,5 +37,5 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_de
                 const std::vector<u8*> src_buffers, DeviceType src_type, i32 src_device_id,
                 std::vector<size_t> sizes);
 
-void setref_buffer(DeviceType type, u8* buffer, i32 refs);
+void setref_buffer(DeviceType type, i32 device_id, u8* buffer, i32 refs);
 }

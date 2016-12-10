@@ -84,7 +84,7 @@ const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 void startup(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   av_register_all();
-  FLAGS_minloglevel = 1;
+  FLAGS_minloglevel = 0;
 #ifdef HAVE_CUDA
   CUD_CHECK(cuInit(0));
 #endif
