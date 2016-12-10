@@ -69,6 +69,10 @@ void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf, size_t
   if (device_type_ == DeviceType::GPU) {
     halide_buf.dev = (uintptr_t) nullptr;
 
+    // "You likely want to set the dev_dirty flag for correctness. (It will
+    // not matter if all the code runs on the GPU.)"
+    halide_buf.dev_dirty = true;
+
     i32 err = halide_cuda_wrap_device_ptr(nullptr, &halide_buf,
                                           (uintptr_t) buf);
     LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
@@ -76,11 +80,8 @@ void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf, size_t
     // "You'll need to set the host field of the buffer_t structs to
     // something other than nullptr as that is used to indicate bounds query
     // calls" - Zalman Stern
-    halide_buf.host = new u8[size]; //(u8*) 0xdeadbeef;
+    halide_buf.host = (u8*) 0xdeadbeef;
 
-    // "You likely want to set the dev_dirty flag for correctness. (It will
-    // not matter if all the code runs on the GPU.)"
-    halide_buf.dev_dirty = true;
   } else {
     halide_buf.host = buf;
   }
@@ -92,19 +93,96 @@ void DefaultInputEvaluator::unset_halide_buf(buffer_t& halide_buf) {
   }
 }
 
+void DefaultInputEvaluator::transform_halide(u8* input_buffer, u8* output_buffer) {
+  i32 frame_width = metadata_.width();
+  i32 frame_height = metadata_.height();
+  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
+
+  buffer_t input_buf = {0}, output_buf = {0};
+
+  set_halide_buf(input_buf, input_buffer, frame_width*frame_height*3);
+  set_halide_buf(output_buf, output_buffer, net_input_size);
+
+  // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
+  // input_buf.host = input_buffer;
+  input_buf.stride[0] = 3;
+  input_buf.stride[1] = metadata_.width() * 3;
+  input_buf.stride[2] = 1;
+  input_buf.extent[0] = metadata_.width();
+  input_buf.extent[1] = metadata_.height();
+  input_buf.extent[2] = 3;
+  input_buf.elem_size = 1;
+
+  // Halide conveniently defaults to a planar format, which is what Caffe expects
+  output_buf.host = output_buffer;
+  output_buf.stride[0] = 1;
+  output_buf.stride[1] = net_input_width_;
+  output_buf.stride[2] = net_input_width_ * net_input_height_;
+  output_buf.extent[0] = net_input_width_;
+  output_buf.extent[1] = net_input_height_;
+  output_buf.extent[2] = 3;
+  output_buf.elem_size = 4;
+
+  auto func = device_type_ == DeviceType::GPU ?
+    caffe_input_transformer_gpu :
+    caffe_input_transformer_cpu;
+  int error = func(
+    &input_buf,
+    metadata_.width(), metadata_.height(),
+    net_input_width_, net_input_height_,
+    descriptor_.normalize,
+    descriptor_.mean_colors[2],
+    descriptor_.mean_colors[1],
+    descriptor_.mean_colors[0],
+    true,
+    &output_buf);
+  LOG_IF(FATAL, error != 0) << "Halide error " << error;
+
+  unset_halide_buf(input_buf);
+  unset_halide_buf(output_buf);
+}
+
+void DefaultInputEvaluator::transform_caffe(u8* input_buffer, u8* output_buffer) {
+  i32 frame_width = metadata_.width();
+  i32 frame_height = metadata_.height();
+  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
+
+  cv::Mat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
+  cv::Mat resized_input;
+
+  cv::resize(input_mat, resized_input,
+             cv::Size(net_input_width_, net_input_height_), 0, 0,
+             cv::INTER_LINEAR);
+  cv::cvtColor(resized_input, resized_input, CV_RGB2BGR);
+  std::vector<cv::Mat> input_mats = {resized_input};
+
+  caffe::Blob<f32> output_blob;
+  output_blob.Reshape(1, 3, net_input_height_, net_input_width_);
+  output_blob.set_cpu_data((f32*)output_buffer);
+
+  caffe::TransformationParameter param;
+  std::vector<float>& mean_colors = descriptor_.mean_colors;
+  param.set_force_color(true);
+  if (descriptor_.normalize) {
+    param.set_scale(1.0 / 255.0);
+  }
+  for (i32 i = 0; i < mean_colors.size(); i++) {
+    param.add_mean_value(mean_colors[i]);
+  }
+
+  caffe::DataTransformer<f32> transformer(param, caffe::TEST);
+  transformer.Transform(input_mats, &output_blob);
+}
+
 void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      BatchedColumns& output_columns) {
   auto eval_start = now();
-
-  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
   i32 input_count = input_columns[0].rows.size();
+  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
-
-  i32 frame_width = metadata_.width();
-  i32 frame_height = metadata_.height();
 
   u8* output_block = new_buffer_from_pool(device_type_, device_id_,
                                           net_input_size * input_count);
@@ -114,48 +192,7 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     u8* input_buffer = input_columns[0].rows[frame].buffer;
     u8* output_buffer = output_block + frame * net_input_size;
 
-    buffer_t input_buf = {0}, output_buf = {0};
-
-    set_halide_buf(input_buf, input_buffer, frame_width*frame_height*3);
-    set_halide_buf(output_buf, output_buffer, net_input_size);
-
-    // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
-    // input_buf.host = input_buffer;
-    input_buf.stride[0] = 3;
-    input_buf.stride[1] = metadata_.width() * 3;
-    input_buf.stride[2] = 1;
-    input_buf.extent[0] = metadata_.width();
-    input_buf.extent[1] = metadata_.height();
-    input_buf.extent[2] = 3;
-    input_buf.elem_size = 1;
-
-    // Halide conveniently defaults to a planar format, which is what Caffe expects
-    output_buf.host = output_buffer;
-    output_buf.stride[0] = 1;
-    output_buf.stride[1] = net_input_width_;
-    output_buf.stride[2] = net_input_width_ * net_input_height_;
-    output_buf.extent[0] = net_input_width_;
-    output_buf.extent[1] = net_input_height_;
-    output_buf.extent[2] = 3;
-    output_buf.elem_size = 4;
-
-    auto func = device_type_ == DeviceType::GPU ?
-      caffe_input_transformer_gpu :
-      caffe_input_transformer_cpu;
-    int error = func(
-      &input_buf,
-      metadata_.width(), metadata_.height(),
-      net_input_width_, net_input_height_,
-      descriptor_.normalize,
-      descriptor_.mean_colors[2],
-      descriptor_.mean_colors[1],
-      descriptor_.mean_colors[0],
-      true,
-      &output_buf);
-    LOG_IF(FATAL, error != 0) << "Halide error " << error;
-
-    unset_halide_buf(input_buf);
-    unset_halide_buf(output_buf);
+    transform_halide(input_buffer, output_buffer);
 
     INSERT_ROW(output_columns[1], output_buffer, net_input_size);
   }

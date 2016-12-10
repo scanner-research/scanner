@@ -82,7 +82,7 @@ public:
              select(c==1, mean_g, mean_b));
 
     Func rescaled("rescaled");
-    rescaled(x, y, c) = mean_subtract(x, y, c) / select(normalize, 255.0f, 1.0f);
+    rescaled(x, y, c) = mean_subtract(x, y, 2-c) / select(normalize, 255.0f, 1.0f);
 
     input
       .set_stride(0, 3)

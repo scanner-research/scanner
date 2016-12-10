@@ -1329,7 +1329,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
 
   i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
-  std::vector<i32> gpu_device_ids;
+  std::set<i32> gpu_device_ids;
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
     std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
@@ -1364,7 +1364,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
           // e.g. Caffe with Python layers.
           i32 base_index = num_gpus / local_num_nodes * local_rank;
           device_id = GPU_DEVICE_IDS[(base_index + pu) % num_gpus];
-          gpu_device_ids.push_back(device_id);
+          gpu_device_ids.insert(device_id);
         } else {
           device_id = pu;
         }
@@ -1402,7 +1402,10 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     }
   }
 
-  init_memory_allocators(gpu_device_ids, true);
+  std::vector<i32> gpu_device_ids_vec;
+  std::copy(gpu_device_ids.begin(), gpu_device_ids.end(),
+            std::back_inserter(gpu_device_ids_vec));
+  init_memory_allocators(gpu_device_ids_vec, true);
 
   std::vector<std::vector<pthread_t>> eval_chain_threads(PUS_PER_NODE);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
