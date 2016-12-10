@@ -173,11 +173,10 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
                : output_blob->gpu_data()));
       sizes.push_back(output_size * batch_count);
       for (i32 b = 0; b < batch_count; b++) {
-        u8* output_buf = output_block + b * output_size;
         output_columns[output_offset + i].rows.push_back(
-          Row{output_buf, output_size});
+          Row{output_block, output_size});
+        output_block += output_size;
       }
-      output_block += output_size * batch_count;
     }
 
     memcpy_vec(dest_buffers, device_type_, device_id_,

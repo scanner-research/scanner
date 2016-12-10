@@ -33,7 +33,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
 
   i64 hist_size = BINS * 3 * sizeof(float);
   i32 input_count = (i32)input_columns[0].rows.size();
-  u8* output_block = new_buffer_from_pool(device_type_, 0, hist_size * input_count);
+  u8* output_block = new_buffer_from_pool(device_type_, device_id_, hist_size * input_count);
   setref_buffer(device_type_, device_id_, output_block, input_count);
 
   if (device_type_ == DeviceType::GPU) {

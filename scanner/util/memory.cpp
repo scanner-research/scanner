@@ -155,6 +155,15 @@ public:
       (size_t) buffer <= (size_t) (pool_ + pool_size);
   }
 
+  bool buffers_in_same_block(u8* buf1, u8* buf2) {
+    std::lock_guard<std::mutex> guard(lock);
+    i32 i1, i2;
+    bool f1 = find_buffer(buf1, i1);
+    bool f2 = find_buffer(buf2, i2);
+    assert(f1 && f2);
+    return i1 == i2;
+  }
+
 private:
   bool find_buffer(u8* buffer, i32& index) {
     i32 num_alloc = allocations.size();
@@ -279,10 +288,18 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_de
     }
   }
 
+  assert(dest_buffers.size() > 0);
+  assert(src_buffers.size() > 0);
+  assert(dest_buffers.size() == src_buffers.size());
+
   PoolAllocator* dest_allocator = pool_allocator_for_device(dest_type, dest_device_id);
   PoolAllocator* src_allocator = pool_allocator_for_device(src_type, src_device_id);
   if (dest_allocator->buffer_in_pool(dest_buffers[0]) &&
-      src_allocator->buffer_in_pool(src_buffers[0])) {
+      src_allocator->buffer_in_pool(src_buffers[0]) &&
+      (dest_buffers.size() == 1 ||
+       (dest_allocator->buffers_in_same_block(dest_buffers[0], dest_buffers[1]) &&
+        src_allocator->buffers_in_same_block(src_buffers[0], src_buffers[1]))))
+  {
     size_t total_size = 0;
     for (auto size : sizes) {
       total_size += size;
