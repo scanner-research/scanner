@@ -21,21 +21,27 @@
 
 namespace scanner {
 
-void init_memory_allocators(std::vector<i32> gpu_device_ids, bool use_pool);
+static const i64 DEFAULT_POOL_SIZE = 2L*1024L*1024L*1024L;
 
-u8* new_buffer(DeviceType type, i32 device_id, size_t size);
+struct MemoryPoolConfig {
+  bool use_pool;
+  i64 pool_size;
+};
 
-u8* new_buffer_from_pool(DeviceType type, i32 device_id, size_t size);
+void init_memory_allocators(std::vector<i32> gpu_device_ids,
+                            MemoryPoolConfig config);
 
-void delete_buffer(DeviceType type, i32 device_id, u8* buffer);
+u8* new_buffer(DeviceHandle device, size_t size);
 
-void memcpy_buffer(u8* dest_buffer, DeviceType dest_type, i32 dest_device_id,
-                   const u8* src_buffer, DeviceType src_type, i32 src_device_id,
+u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs);
+
+void delete_buffer(DeviceHandle device, u8* buffer);
+
+void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
+                   const u8* src_buffer, DeviceHandle src_device,
                    size_t size);
 
-void memcpy_vec(std::vector<u8*> dest_buffers, DeviceType dest_type, i32 dest_device_id,
-                const std::vector<u8*> src_buffers, DeviceType src_type, i32 src_device_id,
+void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
+                const std::vector<u8*> src_buffers, DeviceHandle src_device,
                 std::vector<size_t> sizes);
-
-void setref_buffer(DeviceType type, i32 device_id, u8* buffer, i32 refs);
 }

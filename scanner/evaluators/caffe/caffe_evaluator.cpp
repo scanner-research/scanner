@@ -42,7 +42,6 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
     assert(GPUS_PER_NODE > 0);
     device_id = device_id % GPUS_PER_NODE;
     device_id_ = device_id;
-    printf("devce %d\n", device_id);
   }
   set_device();
   // Initialize our network
@@ -128,9 +127,10 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
 
       size_t offset = 0;
       for (i32 j = 0; j < batch_count; ++j) {
-        memcpy_buffer((u8*)net_input_buffer + offset, device_type_, device_id_,
-                      input_columns[i + 1].rows[frame + j].buffer, device_type_,
-                      device_id_, input_columns[i + 1].rows[frame + j].size);
+        memcpy_buffer((u8*)net_input_buffer + offset, {device_type_, device_id_},
+                      input_columns[i + 1].rows[frame + j].buffer,
+                      {device_type_, device_id_},
+                      input_columns[i + 1].rows[frame + j].size);
         offset += input_columns[i + 1].rows[frame + j].size;
       }
     }
@@ -138,8 +138,8 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
     // Compute features
     auto net_start = now();
     net_->ForwardPrefilled();
-    cudaDeviceSynchronize();
     if (profiler_) {
+      cudaDeviceSynchronize();
       profiler_->add_interval("caffe:net", net_start, now());
     }
 
@@ -156,8 +156,8 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
       total_size += output_size * batch_count;
     }
 
-    u8* output_block = new_buffer_from_pool(device_type_, device_id_, total_size);
-    setref_buffer(device_type_, device_id_, output_block, total_rows);
+    u8* output_block = new_block_buffer({device_type_, device_id_}, total_size,
+                                        total_rows);
     std::vector<u8*> dest_buffers, src_buffers;
     std::vector<size_t> sizes;
     for (size_t i = 0; i < num_outputs; ++i) {
@@ -179,8 +179,8 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
       }
     }
 
-    memcpy_vec(dest_buffers, device_type_, device_id_,
-               src_buffers, device_type_, device_id_,
+    memcpy_vec(dest_buffers, {device_type_, device_id_},
+               src_buffers, {device_type_, device_id_},
                sizes);
   }
 }

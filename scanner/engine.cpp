@@ -274,7 +274,7 @@ void* load_thread(void* arg) {
             size_t buffer_size =
                 end_keyframe_byte_offset - start_keyframe_byte_offset;
 
-            u8* buffer = new_buffer(DeviceType::CPU, 0, buffer_size);
+            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
 
             auto io_start = now();
 
@@ -356,7 +356,7 @@ void* load_thread(void* arg) {
 
             size_t buffer_size = end_byte_offset - start_byte_offset;
 
-            u8* buffer = new_buffer(DeviceType::CPU, 0, buffer_size);
+            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
 
             auto io_start = now();
 
@@ -441,7 +441,7 @@ void* load_thread(void* arg) {
           u64 offset = 0;
           for (i32 i = interval.start; i < interval.end; ++i) {
             size_t buffer_size = static_cast<size_t>(row_sizes[i]);
-            u8* buffer = new_buffer(DeviceType::CPU, 0, buffer_size);
+            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
             memcpy(buffer, row_data.data() + offset, buffer_size);
             offset += buffer_size;
             INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
@@ -614,9 +614,9 @@ void* evaluate_thread(void* arg) {
               total_size += column.rows[b].size;
             }
 
-            u8* block = new_buffer_from_pool(caps.device_type, device_id,
-                                             total_size);
-            setref_buffer(caps.device_type, device_id, block, column.rows.size());
+            u8* block = new_block_buffer({caps.device_type, device_id},
+                                         total_size,
+                                         column.rows.size());
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
               size_t size = column.rows[b].size;
               dest_buffers.push_back(block);
@@ -626,14 +626,14 @@ void* evaluate_thread(void* arg) {
             }
 
             auto memcpy_start = now();
-            memcpy_vec(dest_buffers, caps.device_type, device_id,
-                       src_buffers, input_buffer_type, input_device_id,
+            memcpy_vec(dest_buffers, {caps.device_type, device_id},
+                       src_buffers, {input_buffer_type, input_device_id},
                        sizes);
             args.profiler.add_interval("memcpy", memcpy_start, now());
 
             auto delete_start = now();
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-              delete_buffer(input_buffer_type, input_device_id,
+              delete_buffer({input_buffer_type, input_device_id},
                             column.rows[b].buffer);
               column.rows[b].buffer = dest_buffers[b];
             }
@@ -642,7 +642,7 @@ void* evaluate_thread(void* arg) {
           input_buffer_type = caps.device_type;
           input_device_id = device_id;
         }
-        args.profiler.add_interval("copy", copy_start, now());
+        args.profiler.add_interval("evaluator_marshal", copy_start, now());
 
         // Setup output buffers to receive evaluator output
         output_columns.clear();
@@ -688,7 +688,7 @@ void* evaluate_thread(void* arg) {
           for (Row& row : column.rows) {
             u8* buff = row.buffer;
             if (all_output_buffers_set.count(buff) == 0) {
-              delete_buffer(input_buffer_type, input_device_id, buff);
+              delete_buffer({input_buffer_type, input_device_id}, buff);
             }
           }
         }
@@ -707,7 +707,7 @@ void* evaluate_thread(void* arg) {
       for (i32 i = 0; i < last_evaluator_num_columns; ++i) {
         // Delete warmup frame outputs
         for (i32 w = 0; w < warmup_frames; ++w) {
-          delete_buffer(last_evaluator_device_type, last_evaluator_device_id,
+          delete_buffer({last_evaluator_device_type, last_evaluator_device_id},
                         output_columns[i].rows[w].buffer);
         }
 
@@ -804,8 +804,7 @@ void* save_thread(void* arg) {
           Row& row = work_entry.columns[out_idx].rows[f];
           total_size += row.size;
         }
-        u8* output_block = new_buffer_from_pool(DeviceType::CPU, 0, total_size);
-        setref_buffer(DeviceType::CPU, 0, output_block, num_rows);
+        u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
         for (i32 f = 0; f < num_rows; ++f) {
           Row& row = work_entry.columns[out_idx].rows[f];
           size_t size = row.size;
@@ -819,12 +818,12 @@ void* save_thread(void* arg) {
           output_block += size;
         }
 
-        memcpy_vec(dest_buffers, DeviceType::CPU, 0, src_buffers,
-                      work_entry.buffer_type, work_entry.buffer_device_id,
-                      sizes);
+        memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
+                   {work_entry.buffer_type, work_entry.buffer_device_id},
+                   sizes);
 
         for (i32 f = 0; f < num_rows; ++f) {
-          delete_buffer(work_entry.buffer_type, work_entry.buffer_device_id,
+          delete_buffer({work_entry.buffer_type, work_entry.buffer_device_id},
                         src_buffers[f]);
           work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
         }
@@ -852,9 +851,10 @@ void* save_thread(void* arg) {
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
       for (size_t i = 0; i < num_rows; ++i) {
-        delete_buffer(DeviceType::CPU,  // work_entry.buffer_type,
-                      work_entry.buffer_device_id,
-                      work_entry.columns[out_idx].rows[i].buffer);
+        delete_buffer(
+          {DeviceType::CPU,  // work_entry.buffer_type,
+              work_entry.buffer_device_id},
+          work_entry.columns[out_idx].rows[i].buffer);
       }
 
       delete output_file;
@@ -882,12 +882,9 @@ void* save_thread(void* arg) {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
-void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
-             const std::string& in_job_name,
-             PipelineGeneratorFn pipeline_gen_fn,
-             const std::string& out_job_name) {
+void run_job(JobParameters& params) {
   storehouse::StorageBackend* storage =
-      storehouse::StorageBackend::make_from_config(config);
+    storehouse::StorageBackend::make_from_config(params.storage_config);
 
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -911,7 +908,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   {
     std::unique_ptr<RandomReadFile> file;
     BACKOFF_FAIL(make_unique_random_read_file(
-        storage, dataset_descriptor_path(dataset_name), file));
+        storage, dataset_descriptor_path(params.dataset_name), file));
     u64 pos = 0;
     descriptor = deserialize_dataset_descriptor(file.get(), pos);
   }
@@ -931,7 +928,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     const std::string& path = paths.at(i);
     std::unique_ptr<RandomReadFile> metadata_file;
     BACKOFF_FAIL(make_unique_random_read_file(
-        storage, dataset_item_metadata_path(dataset_name, path),
+        storage, dataset_item_metadata_path(params.dataset_name, path),
         metadata_file));
     if (dataset_meta.type() == DatasetType_Video) {
       u64 pos = 0;
@@ -954,10 +951,10 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   // Read the in job descriptor so we know what we are dealing with and to
   // verify that the requested columns in the pipeline description exist
   JobDescriptor in_job_desc;
-  if (in_job_name != base_dataset_job_name()) {
+  if (params.in_job_name != base_dataset_job_name()) {
     std::unique_ptr<RandomReadFile> file;
     BACKOFF_FAIL(make_unique_random_read_file(
-        storage, job_descriptor_path(dataset_name, in_job_name), file));
+        storage, job_descriptor_path(params.dataset_name, params.in_job_name), file));
     u64 pos = 0;
     in_job_desc = deserialize_job_descriptor(file.get(), pos);
 
@@ -986,7 +983,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   // Generate the pipeline description by feeding in the dataset information
   // into the user supplied pipeline generator function
   PipelineDescription pipeline_description =
-      pipeline_gen_fn(descriptor, item_descriptors);
+      params.pipeline_gen_fn(descriptor, item_descriptors);
   // Verify the requested columns are in the in job descriptor
   {
     std::string all_column_names;
@@ -1002,7 +999,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
     for (size_t i = 0; i < pipeline_description.input_columns.size(); ++i) {
       std::string& requested_column = pipeline_description.input_columns[i];
-      // if (in_job_name != base_dataset_job_name() &&
+      // if (params.in_job_name != base_dataset_job_name() &&
       //     requested_column == base_column_name()) {
       //   LOG(FATAL) << "Scanner does not currently support reading the "
       //              << base_column_name() << " column in derived datasets. ";
@@ -1014,7 +1011,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       }
     }
   }
-  bool derived_job = in_job_name != base_dataset_job_name();
+  bool derived_job = params.in_job_name != base_dataset_job_name();
   // HACK(apoms): We only support sampling on the base job at the moment
   Sampling sampling = pipeline_description.sampling;
   LOG_IF(FATAL, derived_job && sampling != Sampling::All)
@@ -1051,7 +1048,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   JobDescriptor job_descriptor;
   job_descriptor.set_work_item_size(work_item_size);
   job_descriptor.set_num_nodes(num_nodes);
-  job_descriptor.set_in_job_name(in_job_name);
+  job_descriptor.set_in_job_name(params.in_job_name);
   job_descriptor.set_derived(derived_job);
   JobDescriptor::Sampling desc_sampling;
   switch (sampling) {
@@ -1278,7 +1275,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
         work_items,
 
         // Per worker arguments
-        i, config, load_thread_profilers[i],
+        i, params.storage_config, load_thread_profilers[i],
 
         // Queues
         load_work, initial_eval_work,
@@ -1405,7 +1402,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
   std::vector<i32> gpu_device_ids_vec;
   std::copy(gpu_device_ids.begin(), gpu_device_ids.end(),
             std::back_inserter(gpu_device_ids_vec));
-  init_memory_allocators(gpu_device_ids_vec, true);
+  init_memory_allocators(gpu_device_ids_vec, params.memory_pool_config);
 
   std::vector<std::vector<pthread_t>> eval_chain_threads(PUS_PER_NODE);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
@@ -1425,11 +1422,11 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     // Create IO thread for reading and decoding data
     save_thread_args.emplace_back(SaveThreadArgs{
         // Uniform arguments
-        dataset_name, out_job_name, paths, input_formats, work_items,
+        params.dataset_name, params.out_job_name, paths, input_formats, work_items,
         evaluator_factories.back()->get_output_names(),
 
         // Per worker arguments
-        i, config, save_thread_profilers[i],
+        i, params.storage_config, save_thread_profilers[i],
 
         // Queues
         save_work, retired_items});
@@ -1593,8 +1590,8 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
       DatabaseMetadata meta =
           deserialize_database_metadata(meta_in_file.get(), pos);
 
-      i32 dataset_id = meta.get_dataset_id(dataset_name);
-      job_id = meta.add_job(dataset_id, out_job_name);
+      i32 dataset_id = meta.get_dataset_id(params.dataset_name);
+      job_id = meta.add_job(dataset_id, params.out_job_name);
 
       std::unique_ptr<WriteFile> meta_out_file;
       BACKOFF_FAIL(
@@ -1603,13 +1600,13 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
     }
 
     job_descriptor.set_id(job_id);
-    job_descriptor.set_name(out_job_name);
+    job_descriptor.set_name(params.out_job_name);
 
     // Write out metadata to describe where the output results are for each
     // video
     {
       const std::string job_file_path =
-          job_descriptor_path(dataset_name, out_job_name);
+          job_descriptor_path(params.dataset_name, params.out_job_name);
       std::unique_ptr<WriteFile> output_file;
       BACKOFF_FAIL(make_unique_write_file(storage, job_file_path, output_file));
 
@@ -1624,7 +1621,7 @@ void run_job(storehouse::StorageConfig* config, const std::string& dataset_name,
 
   // Execution done, write out profiler intervals for each worker
   std::string profiler_file_name =
-      job_profiler_path(dataset_name, out_job_name, rank);
+      job_profiler_path(params.dataset_name, params.out_job_name, rank);
   std::unique_ptr<WriteFile> profiler_output;
   BACKOFF_FAIL(
       make_unique_write_file(storage, profiler_file_name, profiler_output));

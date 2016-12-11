@@ -162,8 +162,8 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
         u8* center_points_buffer = input_columns[1].rows[i].buffer;
         size_t center_points_size = input_columns[1].rows[i].size;
         u8* cpu_buffer = new u8[center_points_size];
-        memcpy_buffer(cpu_buffer, DeviceType::CPU, 0, center_points_buffer,
-                      device_type_, device_id_, center_points_size);
+        memcpy_buffer(cpu_buffer, CPU_DEVICE, center_points_buffer,
+                      {device_type_, device_id_}, center_points_size);
         center_points = deserialize_proto_vector<scanner::Point>(
             cpu_buffer, center_points_size);
         delete[] cpu_buffer;
