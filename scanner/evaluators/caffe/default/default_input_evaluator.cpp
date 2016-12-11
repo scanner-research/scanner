@@ -184,9 +184,10 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
 
-  u8* output_block = new_buffer_from_pool(device_type_, device_id_,
-                                          net_input_size * input_count);
-  setref_buffer(device_type_, device_id_, output_block, input_count);
+  u8* output_block = new_block_buffer({device_type_, device_id_},
+                                      net_input_size * input_count,
+                                      input_count);
+
 
   for (i32 frame = 0; frame < input_count; frame++) {
     u8* input_buffer = input_columns[0].rows[frame].buffer;
@@ -210,19 +211,19 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       sizes.push_back(size);
     }
 
-    u8* column_block = new_buffer_from_pool(device_type_, device_id_,
-                                            total_size);
-    setref_buffer(device_type_, device_id_, column_block, input_columns[0].rows.size());
+    u8* column_block = new_block_buffer({device_type_, device_id_},
+                                        total_size,
+                                        input_columns[0].rows.size());
     for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
-      memcpy_buffer(column_block, device_type_, device_id_,
-                    bufs[i], device_type_, device_id_,
+      memcpy_buffer(column_block, {device_type_, device_id_},
+                    bufs[i], {device_type_, device_id_},
                     sizes[i]);
       output_columns[l + 2].rows.push_back(Row{column_block, sizes[i]});
       column_block += sizes[i];
     }
 
     for (auto buf : bufs) {
-      delete_buffer(device_type_, device_id_, buf);
+      delete_buffer({device_type_, device_id_}, buf);
     }
   }
 

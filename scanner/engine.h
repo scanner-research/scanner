@@ -19,6 +19,7 @@
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/video/video_decoder.h"
+#include "scanner/util/memory.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -61,8 +62,14 @@ struct EvalWorkEntry {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-void run_job(storehouse::StorageConfig* storage_config,
-             const std::string& dataset_name, const std::string& in_job_name,
-             PipelineGeneratorFn pipeline_gen_fn,
-             const std::string& out_job_name);
+struct JobParameters {
+  storehouse::StorageConfig* storage_config;
+  MemoryPoolConfig memory_pool_config;
+  std::string dataset_name;
+  std::string in_job_name;
+  PipelineGeneratorFn pipeline_gen_fn;
+  std::string out_job_name;
+};
+
+void run_job(JobParameters& params);
 }

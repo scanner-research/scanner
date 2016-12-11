@@ -52,14 +52,14 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
     if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
       u8* buffer = new u8[decode_args_buffer_size];
-      memcpy_buffer(buffer, DeviceType::CPU, 0, decode_args_buffer,
-                    DeviceType::GPU, device_id_, decode_args_buffer_size);
+      memcpy_buffer(buffer, CPU_DEVICE, decode_args_buffer,
+                    {DeviceType::GPU, device_id_}, decode_args_buffer_size);
       args = deserialize_image_decode_args(buffer, decode_args_buffer_size);
       delete[] buffer;
 
       buffer = new u8[encoded_buffer_size];
-      memcpy_buffer(buffer, DeviceType::CPU, 0, in_encoded_buffer,
-                    DeviceType::GPU, device_id_, encoded_buffer_size);
+      memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer,
+                    {DeviceType::GPU, device_id_}, encoded_buffer_size);
       encoded_buffer = buffer;
 #else
       LOG(FATAL) << "Cuda not build.";
@@ -152,7 +152,7 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
           //   break;
           // }
           i32 frame_size = metadata_.width() * metadata_.height() * 3;
-          u8* output = new_buffer(device_type_, device_id_, frame_size);
+          u8* output = new_buffer({device_type_, device_id_}, frame_size);
           std::vector<u8*> rows;
           for (i32 r = 0; r < metadata_.height(); ++r) {
             rows.push_back(output + r * metadata_.width() * 3);
@@ -164,7 +164,7 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         }
         case ImageEncodingType::PNG: {
           i32 frame_size = metadata_.width() * metadata_.height() * 3;
-          u8* output = new_buffer(device_type_, device_id_, frame_size);
+          u8* output = new_buffer({device_type_, device_id_}, frame_size);
           std::vector<u8*> rows;
           for (i32 r = 0; r < metadata_.height(); ++r) {
             rows.push_back(output + r * metadata_.width() * 3);

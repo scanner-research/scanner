@@ -108,9 +108,9 @@ void SqueezeNetInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     size_t size = ROW_SIZE(input_columns[0], i);
-    u8* buffer = new_buffer(device_type_, device_id_, size);
-    memcpy_buffer(buffer, device_type_, device_id_,
-                  ROW_BUFFER(input_columns[0], i), device_type_, device_id_,
+    u8* buffer = new_buffer({device_type_, device_id_}, size);
+    memcpy_buffer(buffer, {device_type_, device_id_},
+                  ROW_BUFFER(input_columns[0], i), {device_type_, device_id_},
                   size);
     INSERT_ROW(output_columns[1], buffer, size);
   }

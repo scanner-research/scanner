@@ -71,14 +71,14 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
     if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
       u8* buffer = new u8[decode_args_buffer_size];
-      memcpy_buffer(buffer, DeviceType::CPU, 0, decode_args_buffer,
-                    DeviceType::GPU, device_id_, decode_args_buffer_size);
+      memcpy_buffer(buffer, CPU_DEVICE, decode_args_buffer,
+                    {DeviceType::GPU, device_id_}, decode_args_buffer_size);
       args = deserialize_decode_args(buffer, decode_args_buffer_size);
       delete[] buffer;
 
       buffer = new u8[encoded_buffer_size];
-      memcpy_buffer(buffer, DeviceType::CPU, 0, in_encoded_buffer,
-                    DeviceType::GPU, device_id_, encoded_buffer_size);
+      memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer,
+                    {DeviceType::GPU, device_id_}, encoded_buffer_size);
       encoded_buffer = buffer;
 #else
 
@@ -145,9 +145,9 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
     i32 total_output_frames = static_cast<i32>(valid_frames.size());
 
-    u8* output_block = new_buffer_from_pool(device_type_, device_id_,
-                                            total_output_frames * frame_size_);
-    setref_buffer(device_type_, device_id_, output_block, total_output_frames);
+    u8* output_block = new_block_buffer({device_type_, device_id_},
+                                            total_output_frames * frame_size_,
+                                            total_output_frames);
 
     size_t encoded_buffer_offset = 0;
     i32 current_frame = args.start_keyframe();

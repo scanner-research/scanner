@@ -39,6 +39,13 @@ enum class DeviceType {
   CPU,
 };
 
+struct DeviceHandle {
+  DeviceType type;
+  i32 id;
+};
+
+static const DeviceHandle CPU_DEVICE = {DeviceType::CPU, 0};
+
 enum class Sampling {
   All,
   Strided,

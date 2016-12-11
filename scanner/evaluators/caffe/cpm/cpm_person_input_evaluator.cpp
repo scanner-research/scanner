@@ -207,9 +207,9 @@ void CPMPersonInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     size_t size = input_columns[0].rows[i].size;
-    u8* buffer = new_buffer(device_type_, device_id_, size);
-    memcpy_buffer(buffer, device_type_, device_id_,
-                  input_columns[0].rows[i].buffer, device_type_, device_id_,
+    u8* buffer = new_buffer({device_type_, device_id_}, size);
+    memcpy_buffer(buffer, {device_type_, device_id_},
+                  input_columns[0].rows[i].buffer, {device_type_, device_id_},
                   size);
     output_columns[0].rows.push_back(Row{buffer, size});
   }

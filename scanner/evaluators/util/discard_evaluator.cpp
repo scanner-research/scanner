@@ -31,7 +31,7 @@ void DiscardEvaluator::evaluate(const BatchedColumns& input_columns,
   i32 input_count = static_cast<i32>(input_columns[0].rows.size());
   for (i32 i = 0; i < input_count; ++i) {
     output_columns[0].rows.push_back(
-        Row{new_buffer(device_type_, device_id_, 1), 1});
+      Row{new_buffer({device_type_, device_id_}, 1), 1});
   }
 }
 

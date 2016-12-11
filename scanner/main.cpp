@@ -138,6 +138,7 @@ int main(int argc, char** argv) {
   std::string resource_type;  // dataset or job
   std::string resource_name;  // name of resource to rm
   storehouse::StorageConfig* storage_config;
+  MemoryPoolConfig memory_pool_config;
   {
     po::variables_map vm;
 
@@ -244,6 +245,15 @@ int main(int argc, char** argv) {
         << "Scanner config must contain storage.db_path";
     std::string db_path = config->get<std::string>("storage", "db_path");
     set_database_path(db_path);
+
+    if (config->has("memory_pool", "use_pool")) {
+      memory_pool_config.use_pool = config->get<bool>("memory_pool", "use_pool");
+      if (config->has("memory_pool", "pool_size")) {
+        memory_pool_config.pool_size = config->get<i64>("memory_pool", "pool_size");
+      } else {
+        memory_pool_config.pool_size = DEFAULT_POOL_SIZE;
+      }
+    }
 
     std::string storage_type = config->get<std::string>("storage", "type");
     if (storage_type == "posix") {
@@ -531,7 +541,14 @@ int main(int argc, char** argv) {
     }
 
     PipelineGeneratorFn pipe_gen = get_pipeline(pipeline_name);
-    run_job(storage_config, dataset_name, in_job_name, pipe_gen, out_job_name);
+    JobParameters params;
+    params.storage_config = storage_config;
+    params.memory_pool_config = memory_pool_config;
+    params.dataset_name = dataset_name;
+    params.in_job_name = in_job_name;
+    params.pipeline_gen_fn = pipe_gen;
+    params.out_job_name = out_job_name;
+    run_job(params);
   } else if (cmd == "rm") {
     // TODO(apoms): properly delete the excess files for the resource we are
     // removing instead of just clearing the metadata
