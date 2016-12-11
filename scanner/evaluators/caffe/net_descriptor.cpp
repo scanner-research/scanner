@@ -130,11 +130,17 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
   }
 
   auto normalize = net->find("normalize");
-
   if (normalize) {
     descriptor.normalize = normalize->as<bool>();
   } else {
     descriptor.normalize = false;
+  }
+
+  auto transpose = net->find("transpose");
+  if (transpose) {
+    descriptor.transpose = transpose->as<bool>();
+  } else {
+    descriptor.transpose = false;
   }
 
   auto mean_image = root.find("mean-image");

@@ -48,6 +48,7 @@ struct NetDescriptor {
 
   bool normalize;
   bool preserve_aspect_ratio;
+  bool transpose;
   i32 pad_mod;
 };
 

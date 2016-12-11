@@ -62,8 +62,14 @@ void CaffeEvaluator::configure(const InputFormat& metadata) {
                          input_blob->shape(2), input_blob->shape(3)});
   }
 
-  i32 width = metadata.width();
-  i32 height = metadata.height();
+  i32 width, height;
+  if (descriptor_.transpose) {
+    width = metadata.height();
+    height = metadata.width();
+  } else {
+    width = metadata.width();
+    height = metadata.height();
+  }
   if (descriptor_.preserve_aspect_ratio) {
     if (descriptor_.input_width != -1) {
       width = descriptor_.input_width;

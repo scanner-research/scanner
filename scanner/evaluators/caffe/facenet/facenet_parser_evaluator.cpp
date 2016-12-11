@@ -197,10 +197,6 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
         break;
     }
 
-    for (auto bbox : best_bboxes) {
-      printf("%f, %f, %f, %f\n", bbox.x1(), bbox.x2(), bbox.y1(), bbox.y2());
-    }
-
     // Assume size of a bounding box is the same size as all bounding boxes
     size_t size;
     u8* buffer;
