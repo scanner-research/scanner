@@ -253,6 +253,8 @@ int main(int argc, char** argv) {
       } else {
         memory_pool_config.pool_size = DEFAULT_POOL_SIZE;
       }
+    } else {
+      memory_pool_config.use_pool = false;
     }
 
     std::string storage_type = config->get<std::string>("storage", "type");
