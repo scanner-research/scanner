@@ -154,7 +154,7 @@ public:
     }
 
     u8* buffer = pool_ + alloc.offset;
-    LOG_IF(FATAL, alloc.offset + alloc.length > pool_size_)
+    LOG_IF(FATAL, alloc.offset + alloc.length >= pool_size_)
       << "Exceeded pool size";
 
     return buffer;
@@ -169,6 +169,7 @@ public:
     bool found = find_buffer(buffer, index);
     LOG_IF(FATAL, !found)
       << "Attempted to free unallocated buffer in pool";
+
 
     Allocation& alloc = allocations_[index];
     allocations_.erase(allocations_.begin() + index);
@@ -230,6 +231,7 @@ public:
     Allocation& alloc = allocations_[index];
     assert(alloc.refs > 0);
     alloc.refs -= 1;
+
     if (alloc.refs == 0) {
       allocator_->free(alloc.buffer);
       allocations_.erase(allocations_.begin() + index);
@@ -284,7 +286,6 @@ private:
   std::mutex lock_;
   std::vector<Allocation> allocations_;
   Allocator* allocator_;
-  DeviceHandle device_;
 };
 
 static SystemAllocator* cpu_system_allocator = nullptr;
@@ -374,7 +375,12 @@ void delete_buffer(DeviceHandle device, u8* buffer) {
 void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
                    const u8* src_buffer, DeviceHandle src_device,
                    size_t size) {
+  assert(!(dest_device.type == DeviceType::GPU &&
+           src_device.type == DeviceType::GPU &&
+           dest_device.id != src_device.id));
+
 #ifdef HAVE_CUDA
+  CU_CHECK(cudaSetDevice(src_device.id));
   CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
 #else
   assert(dest_type == DeviceType::CPU);
@@ -388,6 +394,10 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
 void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
                 const std::vector<u8*> src_buffers, DeviceHandle src_device,
                 std::vector<size_t> sizes) {
+  assert(!(dest_device.type == DeviceType::GPU &&
+           src_device.type == DeviceType::GPU &&
+           dest_device.id != src_device.id));
+
   thread_local std::vector<cudaStream_t> streams;
   if (streams.size() == 0) {
     streams.resize(NUM_CUDA_STREAMS);
@@ -402,6 +412,8 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
 
   BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
   BlockAllocator* src_allocator = block_allocator_for_device(src_device);
+
+  CU_CHECK(cudaSetDevice(src_device.id));
 
   // In the case where the dest and src vectors are each respectively drawn
   // from a single block, we do a single memcpy from one block to the other.
