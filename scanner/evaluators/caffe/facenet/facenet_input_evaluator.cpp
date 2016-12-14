@@ -149,8 +149,9 @@ void FacenetInputEvaluator::evaluate(const BatchedColumns& input_columns,
       assert(planar_input.cols == net_input_height_);
       cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
       CU_CHECK(cudaMemcpy2DAsync(
-          net_input, net_input_height_ * sizeof(float), planar_input.data,
-          planar_input.step, net_input_height_ * sizeof(float),
+          net_input, net_input_height_ * sizeof(float),
+          planar_input.data, planar_input.step,
+          net_input_height_ * sizeof(float),
           net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
 
       INSERT_ROW(output_columns[1], (u8*)net_input, net_input_size);

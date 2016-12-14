@@ -1,0 +1,29 @@
+[net]
+    model = "features/cpm2/mpi_pose_deploy_linvec.prototxt"
+    weights = "features/cpm2/mpi_pose_iter_160000.caffemodel"
+    input_layers = ["image"]
+    output_layers = ["resized_map", "joints"]
+    input_height = 368
+    preserve_aspect_ratio = true
+    pad_mod = 8
+    normalize = false
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width"
+        ]
+        channel_ordering = [
+            "blue",
+            "green",
+            "red",
+            "weight"
+        ]
+
+[mean-image]
+    [mean-image.colors]
+        blue = 0.0
+        green = 0.0
+        red = 0.0

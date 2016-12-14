@@ -31,13 +31,15 @@ namespace scanner {
 CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
                                DeviceType device_type, i32 device_id,
                                const NetDescriptor& descriptor, i32 batch_size,
-                               bool forward_input)
+                               bool forward_input,
+                               CustomNetConfiguration net_config)
     : config_(config),
       device_type_(device_type),
       device_id_(device_id),
       descriptor_(descriptor),
       batch_size_(batch_size),
-      forward_input_(forward_input) {
+      forward_input_(forward_input),
+      net_config_(net_config) {
   if (device_type_ == DeviceType::GPU) {
     assert(GPUS_PER_NODE > 0);
     device_id = device_id % GPUS_PER_NODE;
@@ -62,38 +64,42 @@ void CaffeEvaluator::configure(const InputFormat& metadata) {
                          input_blob->shape(2), input_blob->shape(3)});
   }
 
-  i32 width, height;
-  if (descriptor_.transpose) {
-    width = metadata.height();
-    height = metadata.width();
+  if (net_config_) {
+    net_config_(metadata, net_.get());
   } else {
-    width = metadata.width();
-    height = metadata.height();
-  }
-  if (descriptor_.preserve_aspect_ratio) {
-    if (descriptor_.input_width != -1) {
-      width = descriptor_.input_width;
-      f32 scale = static_cast<f32>(descriptor_.input_width) / width;
-      width = width * scale;
-      height = height * scale;
-    } else if (descriptor_.input_height != -1) {
-      f32 scale = static_cast<f32>(descriptor_.input_height) / height;
-      width = width * scale;
-      height = height * scale;
+    i32 width, height;
+    if (descriptor_.transpose) {
+      width = metadata.height();
+      height = metadata.width();
+    } else {
+      width = metadata.width();
+      height = metadata.height();
     }
-  } else if (descriptor_.input_width != -1) {
-    width = descriptor_.input_width;
-    height = descriptor_.input_height;
-  }
+    if (descriptor_.preserve_aspect_ratio) {
+      if (descriptor_.input_width != -1) {
+        width = descriptor_.input_width;
+        f32 scale = static_cast<f32>(descriptor_.input_width) / width;
+        width = width * scale;
+        height = height * scale;
+      } else if (descriptor_.input_height != -1) {
+        f32 scale = static_cast<f32>(descriptor_.input_height) / height;
+        width = width * scale;
+        height = height * scale;
+      }
+    } else if (descriptor_.input_width != -1) {
+      width = descriptor_.input_width;
+      height = descriptor_.input_height;
+    }
 
-  if (descriptor_.pad_mod != -1) {
-    i32 pad = descriptor_.pad_mod;
-    width += (width % pad) ? pad - (width % pad) : 0;
-    height += (height % pad) ? pad - (height % pad) : 0;
-  }
+    if (descriptor_.pad_mod != -1) {
+      i32 pad = descriptor_.pad_mod;
+      width += (width % pad) ? pad - (width % pad) : 0;
+      height += (height % pad) ? pad - (height % pad) : 0;
+    }
 
-  input_blob->Reshape(
-      {input_blob->shape(0), input_blob->shape(1), height, width});
+    input_blob->Reshape(
+        {input_blob->shape(0), input_blob->shape(1), height, width});
+  }
 }
 
 void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
@@ -205,12 +211,11 @@ void CaffeEvaluator::set_device() {
 }
 
 CaffeEvaluatorFactory::CaffeEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor& net_descriptor, i32 batch_size,
-    bool forward_input)
-    : device_type_(device_type),
-      net_descriptor_(net_descriptor),
-      batch_size_(batch_size),
-      forward_input_(forward_input) {}
+    DeviceType device_type, const NetDescriptor &net_descriptor, i32 batch_size,
+    bool forward_input, CustomNetConfiguration net_config)
+    : device_type_(device_type), net_descriptor_(net_descriptor),
+      batch_size_(batch_size), forward_input_(forward_input),
+      net_config_(net_config) {}
 
 EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -242,6 +247,7 @@ std::vector<std::string> CaffeEvaluatorFactory::get_output_names() {
 
 Evaluator* CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
   return new CaffeEvaluator(config, device_type_, config.device_ids[0],
-                            net_descriptor_, batch_size_, forward_input_);
+                            net_descriptor_, batch_size_, forward_input_,
+                            net_config_);
 }
 }

@@ -27,6 +27,10 @@ if (BUILD_VIDEO_EVALUATORS AND
   list(APPEND SOURCE_FILES
     find_person_pipeline.cpp
     find_pose_pipeline.cpp)
+  if (BUILD_CPM2_EVALUATORS)
+    list(APPEND SOURCE_FILES
+      find_body_pipeline.cpp)
+  endif()
 endif()
 
 if (BUILD_UTIL_EVALUATORS)

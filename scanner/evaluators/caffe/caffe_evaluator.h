@@ -24,16 +24,20 @@
 
 namespace scanner {
 
+using CustomNetConfiguration =
+    std::function<void(const InputFormat &descriptor, caffe::Net<float> *net)>;
+
 class CaffeEvaluator : public Evaluator {
  public:
-  CaffeEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                 i32 device_id, const NetDescriptor& descriptor, i32 batch_size,
-                 bool forward_input = false);
+   CaffeEvaluator(const EvaluatorConfig &config, DeviceType device_type,
+                  i32 device_id, const NetDescriptor &descriptor,
+                  i32 batch_size, bool forward_input = false,
+                  CustomNetConfiguration net_config = nullptr);
 
-  void configure(const InputFormat& descriptor) override;
+   void configure(const InputFormat &descriptor) override;
 
-  void evaluate(const BatchedColumns& input_columns,
-                BatchedColumns& output_columns) override;
+   void evaluate(const BatchedColumns &input_columns,
+                 BatchedColumns &output_columns) override;
 
  protected:
   void set_device();
@@ -44,6 +48,7 @@ class CaffeEvaluator : public Evaluator {
   NetDescriptor descriptor_;
   i32 batch_size_;
   bool forward_input_;
+  CustomNetConfiguration net_config_;
   std::unique_ptr<caffe::Net<float>> net_;
 
   InputFormat metadata_;
@@ -53,7 +58,8 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
  public:
   CaffeEvaluatorFactory(DeviceType device_type,
                         const NetDescriptor& net_descriptor, i32 batch_size,
-                        bool forward_input = false);
+                        bool forward_input = false,
+                        CustomNetConfiguration net_config = nullptr);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -66,5 +72,6 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
   NetDescriptor net_descriptor_;
   i32 batch_size_;
   bool forward_input_;
+  CustomNetConfiguration net_config_;
 };
 }  // end namespace scanner

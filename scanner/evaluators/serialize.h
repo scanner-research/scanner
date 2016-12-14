@@ -71,6 +71,36 @@ void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
 }
 
 template <typename T>
+void serialize_proto_vector_of_vectors(
+    const std::vector<std::vector<T>>& elements, u8*& buffer, size_t& size) {
+  size = sizeof(size_t);
+  for (auto &vec_of_e : elements) {
+    size += sizeof(size_t);
+    for (auto &e : vec_of_e) {
+      size += e.ByteSize() + sizeof(i32);
+    }
+  }
+  buffer = new_buffer(CPU_DEVICE, size);
+
+  u8* buf = buffer;
+  *((size_t*)buf) = elements.size();
+  buf += sizeof(size_t);
+  for (size_t i = 0; i < elements.size(); ++i) {
+    const std::vector<T>& vec_of_e = elements[i];
+    *((size_t*)buf) = vec_of_e.size();
+    buf += sizeof(size_t);
+    for (size_t j = 0; j < vec_of_e.size(); ++j) {
+      const T& e = vec_of_e[j];
+      i32 element_size = e.ByteSize();
+      *((i32*)buf) = element_size;
+      buf += sizeof(i32);
+      e.SerializeToArray(buf, element_size);
+      buf += element_size;
+    }
+  }
+}
+
+template <typename T>
 std::vector<T> deserialize_proto_vector(const u8* buffer, size_t size) {
   const u8* buf = buffer;
   size_t num_elements = deser<size_t>(buf, size);

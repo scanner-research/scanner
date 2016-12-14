@@ -72,7 +72,6 @@ def load_cpm_person_centers(buf, metadata):
         points.append(p)
     return points
 
-
 @db.loader('cpm_input')
 def load_cpm_input(buf, metadata):
     buf = np.frombuffer(buf, dtype=np.dtype(np.float32))
@@ -101,6 +100,29 @@ def load_cpm_joint_centers(buf, metadata):
         p = np.array([point.y, point.x, point.score])
         points.append(p)
     return points
+
+
+@db.loader('joint_centers')
+def load_cpm2_joint_centers(buf, metadata):
+    (num_bodies,) = struct.unpack("=Q", buf[:8])
+    buf = buf[8:]
+    bodies = []
+    for i in range(num_bodies):
+        (num_joints,) = struct.unpack("=Q", buf[:8])
+        assert(num_joints == 15)
+        buf = buf[8:]
+        joints = np.zeros((15, 3))
+        for i in range(num_joints):
+            point_size, = struct.unpack("=i", buf[:4])
+            buf = buf[4:]
+            point = scannerpy.evaluators.types_pb2.Point()
+            point.ParseFromString(buf[:point_size])
+            buf = buf[point_size:]
+            joints[i, 0] = point.y
+            joints[i, 1] = point.x
+            joints[i, 2] = point.score
+        bodies.append(joints)
+    return bodies
 
 
 def dataset_list_to_panel_cams(dataset_paths):
@@ -186,6 +208,32 @@ def parse_cpm_data(person_centers_job, joint_results_job,
     return video_ids, by_frame
 
 
+def parse_cpm2_data(joint_results_job, scale, panel_cam_mapping):
+    sampled_frames = defaultdict(list)
+    person_poses = defaultdict(list)
+    for out in joint_results_job.as_outputs():
+        vi = out['video']
+        sampled_frames[vi] = out['frames']
+        person_poses[vi] += out['buffers']
+    # frame -> (panel, cam) -> list({center, pose})
+    by_frame = defaultdict(lambda: defaultdict(list))
+    video_ids = []
+    for vi in sampled_frames.keys():
+        video_ids.append(vi)
+        panel_idx, camera_idx = panel_cam_mapping[int(vi)]
+        zipped = zip(sampled_frames[vi], person_poses[vi])
+        for frame, poses in zipped:
+            centers = [(0, 0) for i in range(len(poses))]
+            people = []
+            for c, p in zip(centers, poses):
+                people.append({
+                    'center': c,
+                    'pose': p,
+                })
+            by_frame[frame][(panel_idx, camera_idx)] += people
+    return video_ids, by_frame
+
+
 def nest_in_panel_cam(panel_cam_list, data):
     nested = defaultdict(dict)
     for vi, d in data.iteritems():
@@ -216,6 +264,10 @@ def draw_pose(frame, person):
         cur_frame = frame.copy()
         X = person[limbs[l,:]-1, 1]
         Y = person[limbs[l,:]-1, 0]
+        score1 = person[limbs[l,0]-1, 0]
+        score2 = person[limbs[l,1]-1, 0]
+        if score1 == 0 or score2 == 0:
+            continue
         mX = np.mean(X)
         mY = np.mean(Y)
         length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
@@ -685,6 +737,24 @@ def extract_pose_detections(dataset_name, person_job_name, pose_job_name):
     }
 
 
+def extract_cpm2_pose_detections(dataset_name, body_job_name):
+    joint_results_job = load_cpm2_joint_centers(dataset_name, body_job_name)
+
+    video_paths = joint_results_job._dataset.video_data.original_video_paths
+    panel_cam_mapping = dataset_list_to_panel_cams(video_paths)
+
+    scale = 480 / 368.0
+    video_ids, poses_by_frame = parse_cpm2_data(
+        joint_results_job, scale, panel_cam_mapping)
+
+    return {
+        'video_paths': video_paths,
+        'video_ids': video_ids,
+        'panel_cam_mapping': panel_cam_mapping,
+        'poses_by_frame': poses_by_frame,
+    }
+
+
 def combine_pose_detections(poses_by_frame_list):
     # frame -> (panel_idx, camera_idx) -> list({center, pose})
     final_poses = defaultdict(lambda: defaultdict(list))
@@ -703,6 +773,7 @@ def export_pose_detections(dataset_name, poses_by_frame,
         write_pose_detections(meta['calib_data'],
                               poses_by_frame[frame],
                               frame,
+                              #'cpm2_output')
                               meta['output_path'])
 
 

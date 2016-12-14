@@ -34,6 +34,11 @@ if (BUILD_CAFFE_EVALUATORS)
       caffe/cpm/cpm_person_parser_evaluator.cpp
       caffe/cpm/cpm_input_evaluator.cpp
       caffe/cpm/cpm_parser_evaluator.cpp)
+    if (BUILD_CPM2_EVALUATORS)
+      list(APPEND SOURCE_FILES
+        caffe/cpm2/cpm2_input_evaluator.cpp
+        caffe/cpm2/cpm2_parser_evaluator.cpp)
+    endif()
   endif()
 endif()
 
