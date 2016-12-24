@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>three.js webgl - multiple views</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+     body {
+         color: #000;
+         font-family:Monospace;
+         font-size:13px;
+         text-align:center;
+
+         background-color: #fff;
+         margin: 0px;
+         overflow: hidden;
+     }
+
+     #info {
+         position: absolute;
+         top: 0px; width: 100%;
+         padding: 5px;
+     }
+
+     a {
+
+         color: #0080ff;
+     }
+
+    </style>
+  </head>
+  <body>
+
+    <div id="container"></div>
+    <div id="info"><a href="http://threejs.org" target="_blank">three.js</a> - multiple views - webgl</div>
+
+    <script src="https://threejs.org/build/three.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+
+     var visualize = true;
+
+     var frame = 0;
+
+     var socket = io.connect('http://localhost:3000');
+
+     var container, stats;
+
+     var views, scene, renderer;
+
+     var mesh, light;
+     var groups = [];
+     var numGroups = 16;
+     var groupsRadius = 1500;
+
+     var mouseX = 0, mouseY = 0;
+
+     var windowWidth, windowHeight;
+
+     var views = [];
+     var numCameras = 16;
+     var cameraRadius = 14; // cm
+     var ipDistance = 3.25; // cm
+     var minPointDistance = 40; // cm
+     var B = 2 * Math.PI / numCameras +
+             Math.acos(ipDistance / minPointDistance) -
+             Math.acos(ipDistance / cameraRadius);
+     var fov =
+       2 * Math.acos(
+         (minPointDistance * Math.cos(B) - cameraRadius) /
+         (Math.sqrt(Math.pow(minPointDistance, 2) +
+                    Math.pow(cameraRadius, 2) -
+                    2 * minPointDistance * cameraRadius * Math.cos(B))));
+     fov = 180 * fov / Math.PI;
+     fov = 94;
+     var height = 0.5;
+     var width = 1.0 / (numCameras / 2);
+     for (var i = 0; i < numCameras; ++i) {
+       var bottom = i >= (numCameras / 2) ? 0.5 : 0;
+       var left = (i % (numCameras / 2)) / (numCameras / 2);
+
+       if (!visualize) {
+         bottom = 0.0;
+         left = 0.0;
+         width = 1.0;
+         height = 1.0;
+       }
+
+       var p = (i / (1.0 * numCameras) * 2 * Math.PI);
+       var ring_x = cameraRadius * Math.cos(p);
+       var ring_y = 0;
+       var ring_z = cameraRadius * Math.sin(p);
+
+       var pos_x = 0;
+       var pos_y = 0;
+       var pos_z = 0;
+
+       var eye_x = pos_x + ring_x;
+       var eye_y = pos_y + ring_y;
+       var eye_z = pos_z + ring_z;
+
+       var lookVector = new THREE.Vector3(pos_x + ring_x * 1.1,
+                                          pos_y + ring_y * 1.1,
+                                          pos_z + ring_z * 1.1);
+       var view = {
+         left: left,
+         bottom: bottom,
+         width: width,
+         height: height,
+         background: new THREE.Color().setRGB( 0.5, 0.5, 0.7 ),
+         eye: [ eye_x, eye_y, eye_z],
+         up: [ 0, 1, 0 ],
+         lookAt: lookVector,
+         fov: fov,
+         updateCamera: function ( camera, scene, mouseX, mouseY ) {
+           //camera.position.x += mouseX * 0.05;
+           //camera.position.x = Math.max( Math.min( camera.position.x, 2000 ), -2000 );
+           //camera.lookAt( scene.position );
+         }
+       };
+       views.push(view);
+     }
+     socket.emit('calibration', {
+       calibration: {
+         ringRadius: cameraRadius,
+         numCameras: numCameras,
+         fov: fov,
+         ipDistance: ipDistance, // cm
+         minPointDistance: minPointDistance // cm
+       },
+     });
+
+     init();
+     animate();
+
+     function init() {
+
+       container = document.getElementById( 'container' );
+
+       for (var ii =  0; ii < views.length; ++ii ) {
+
+         var view = views[ii];
+         camera = new THREE.PerspectiveCamera( view.fov, window.innerWidth / window.innerHeight, 1, 10000 );
+         camera.position.x = view.eye[ 0 ];
+         camera.position.y = view.eye[ 1 ];
+         camera.position.z = view.eye[ 2 ];
+         camera.up.x = view.up[ 0 ];
+         camera.up.y = view.up[ 1 ];
+         camera.up.z = view.up[ 2 ];
+         view.camera = camera;
+         view.camera.lookAt(view.lookAt);
+       }
+
+       scene = new THREE.Scene();
+
+       light = new THREE.DirectionalLight( 0xffffff );
+       light.position.set( 0, 0, 1 );
+       scene.add( light );
+
+       // shadow
+
+       var canvas = document.createElement( 'canvas' );
+       canvas.width = 128;
+       canvas.height = 128;
+
+       var context = canvas.getContext( '2d' );
+       var gradient = context.createRadialGradient( canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 2 );
+       gradient.addColorStop( 0.1, 'rgba(0,0,0,0.15)' );
+       gradient.addColorStop( 1, 'rgba(0,0,0,0)' );
+
+       context.fillStyle = gradient;
+       context.fillRect( 0, 0, canvas.width, canvas.height );
+
+       var shadowTexture = new THREE.CanvasTexture( canvas );
+
+       var shadowMaterial = new THREE.MeshBasicMaterial( { map: shadowTexture, transparent: true } );
+       var shadowGeo = new THREE.PlaneBufferGeometry( 300, 300, 1, 1 );
+
+       mesh = new THREE.Mesh( shadowGeo, shadowMaterial );
+       mesh.position.y = - 250;
+       mesh.rotation.x = - Math. PI / 2;
+       scene.add( mesh );
+
+       mesh = new THREE.Mesh( shadowGeo, shadowMaterial );
+       mesh.position.x = - 400;
+       mesh.position.y = - 250;
+       mesh.rotation.x = - Math. PI / 2;
+       scene.add( mesh );
+
+       mesh = new THREE.Mesh( shadowGeo, shadowMaterial );
+       mesh.position.x = 400;
+       mesh.position.y = - 250;
+       mesh.rotation.x = - Math. PI / 2;
+       scene.add( mesh );
+
+       var faceIndices = [ 'a', 'b', 'c' ];
+
+       var color, f, f2, f3, p, vertexIndex,
+
+           radius = 200,
+
+           geometry  = new THREE.IcosahedronGeometry( radius, 1 ),
+           geometry2 = new THREE.IcosahedronGeometry( radius, 1 ),
+           geometry3 = new THREE.IcosahedronGeometry( radius, 1 );
+
+       for ( var i = 0; i < geometry.faces.length; i ++ ) {
+
+         f  = geometry.faces[ i ];
+         f2 = geometry2.faces[ i ];
+         f3 = geometry3.faces[ i ];
+
+         for( var j = 0; j < 3; j++ ) {
+
+           vertexIndex = f[ faceIndices[ j ] ];
+
+           p = geometry.vertices[ vertexIndex ];
+
+           color = new THREE.Color( 0xffffff );
+           color.setHSL( ( p.y / radius + 1 ) / 2, 1.0, 0.5 );
+
+           f.vertexColors[ j ] = color;
+
+           color = new THREE.Color( 0xffffff );
+           color.setHSL( 0.0, ( p.y / radius + 1 ) / 2, 0.5 );
+
+           f2.vertexColors[ j ] = color;
+
+           color = new THREE.Color( 0xffffff );
+           color.setHSL( 0.125 * vertexIndex/geometry.vertices.length, 1.0, 0.5 );
+
+           f3.vertexColors[ j ] = color;
+
+         }
+
+       }
+
+
+       var materials = [
+
+         new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.FlatShading, vertexColors: THREE.VertexColors, shininess: 0 } ),
+         new THREE.MeshBasicMaterial( { color: 0x000000, shading: THREE.FlatShading, wireframe: true, transparent: true } )
+
+       ];
+
+       for (var j = 0; j < numGroups; ++j) {
+         var p = j / (1.0 * numGroups) * 2 * Math.PI;
+         var group = THREE.SceneUtils.createMultiMaterialObject( geometry, materials );
+         group.position.x = groupsRadius * Math.sin(p);
+         group.rotation.x = -1.87;
+         group.position.z = groupsRadius * Math.cos(p);
+         scene.add( group );
+         groups.push(group);
+       }
+
+       renderer = new THREE.WebGLRenderer( { antialias: true } );
+       if (visualize) {
+         renderer.setPixelRatio( window.devicePixelRatio );
+       } else {
+         renderer.setPixelRatio(1.0);
+       }
+       renderer.setSize( window.innerWidth, window.innerHeight );
+       container.appendChild( renderer.domElement );
+
+
+       document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+
+     }
+
+     function onDocumentMouseMove( event ) {
+
+       mouseX = ( event.clientX - windowWidth / 2 );
+       mouseY = ( event.clientY - windowHeight / 2 );
+
+     }
+
+     function updateSize() {
+
+       if ( windowWidth != window.innerWidth || windowHeight != window.innerHeight ) {
+
+         windowWidth  = window.innerWidth;
+         windowHeight = window.innerHeight;
+
+         renderer.setSize ( windowWidth, windowHeight );
+
+       }
+
+     }
+
+     function animate() {
+
+       render();
+
+       requestAnimationFrame( animate );
+     }
+
+     function render() {
+
+       if (visualize) {
+         updateSize();
+       } else {
+         windowWidth  = 3840;
+         windowHeight = 2160;
+         renderer.setSize(3840, 2160);
+       }
+
+       var g = frame / 600 * 2 * Math.PI;
+       for (var i = 0; i < groups.length; ++i) {
+         var group = groups[i];
+         var offset = i / (1.0 * groups.length) * 2 * Math.PI;
+         group.position.y = 700 + 700 * Math.sin(g + offset);
+       }
+
+       for ( var ii = 0; ii < views.length; ++ii ) {
+
+         view = views[ii];
+         camera = view.camera;
+
+         view.updateCamera( camera, scene, mouseX, mouseY );
+
+         var left   = Math.floor( windowWidth  * view.left );
+         var bottom = Math.floor( windowHeight * view.bottom );
+         var width  = Math.floor( windowWidth  * view.width );
+         var height = Math.floor( windowHeight * view.height );
+         renderer.setViewport( left, bottom, width, height );
+         renderer.setScissor( left, bottom, width, height );
+         renderer.setScissorTest( true );
+         renderer.setClearColor( view.background );
+
+         camera.aspect = width / height;
+         camera.updateProjectionMatrix();
+
+         renderer.render( scene, camera );
+
+         if (!visualize) {
+           socket.emit('render-frame', {
+             frame: frame,
+             cam: ii,
+             file: document.querySelector('canvas').toDataURL()
+           });
+         }
+
+       }
+       frame++;
+
+     }
+
+    </script>
+
+  </body>
+</html>
