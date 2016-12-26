@@ -21,6 +21,7 @@
 // For image ingest
 #include "jpegwrapper/JPEGReader.h"
 #include "lodepng/lodepng.h"
+#include "bitmap-cpp/bitmap.h"
 
 namespace scanner {
 
@@ -122,9 +123,11 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       const u8* encoded_packet = encoded_buffer + encoded_buffer_offset;
       encoded_buffer_offset += encoded_image_size;
 
-      printf("encoded_image size %d, offset %lu\n", encoded_image_size,
-             encoded_buffer_offset);
+      // printf("encoded_image size %d, offset %lu\n", encoded_image_size,
+      //        encoded_buffer_offset);
 
+      i32 frame_size = metadata_.width() * metadata_.height() * 3;
+      u8* output = new_buffer({device_type_, device_id_}, frame_size);
       switch (args.encoding_type()) {
         case ImageEncodingType::JPEG: {
           JPEGReader reader;
@@ -151,20 +154,14 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
           //              << "COLOR_UNKNOWN. Exiting.";
           //   break;
           // }
-          i32 frame_size = metadata_.width() * metadata_.height() * 3;
-          u8* output = new_buffer({device_type_, device_id_}, frame_size);
           std::vector<u8*> rows;
           for (i32 r = 0; r < metadata_.height(); ++r) {
             rows.push_back(output + r * metadata_.width() * 3);
           }
           reader.load(rows.begin());
-
-          output_columns[0].rows.push_back(Row{output, frame_size});
           break;
         }
         case ImageEncodingType::PNG: {
-          i32 frame_size = metadata_.width() * metadata_.height() * 3;
-          u8* output = new_buffer({device_type_, device_id_}, frame_size);
           std::vector<u8*> rows;
           for (i32 r = 0; r < metadata_.height(); ++r) {
             rows.push_back(output + r * metadata_.width() * 3);
@@ -178,12 +175,19 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
                        << lodepng_error_text(error) << ". Exiting.";
           }
 
-          output_columns[0].rows.push_back(Row{output, frame_size});
           break;
         }
-        default:
-          assert(false);
+      case ImageEncodingType::BMP: {
+        bitmap::DecodeResult result =
+          bitmap::bitmap_decode(encoded_packet, encoded_image_size, output);
+        LOG_IF(FATAL, result != bitmap::DecodeResult::Success)
+          << "BMP file could not be parsed";
+        break;
       }
+      default:
+        assert(false);
+      }
+      output_columns[0].rows.push_back(Row{output, frame_size});
       valid_index++;
       current_frame++;
       current_frame_idx++;

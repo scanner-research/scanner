@@ -57,6 +57,8 @@ bool string_to_image_encoding_type(const std::string& s,
     type = ImageEncodingType::PNG;
   } else if (s == "jpeg" || s == "JPEG" || s == "jpg" || s == "JPG") {
     type = ImageEncodingType::JPEG;
+  } else if (s == "bmp") {
+    type = ImageEncodingType::BMP;
   } else {
     success = false;
   }
@@ -71,6 +73,9 @@ std::string image_encoding_type_to_string(ImageEncodingType t) {
       break;
     case ImageEncodingType::PNG:
       s = "png";
+      break;
+    case ImageEncodingType::BMP:
+      s = "bmp";
       break;
     default:
       assert(false);

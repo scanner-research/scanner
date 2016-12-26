@@ -28,6 +28,7 @@ message DatabaseDescriptor {
 enum ImageEncodingType {
   JPEG = 0;
   PNG = 1;
+  BMP = 2;
 }
 
 enum ImageColorSpace {

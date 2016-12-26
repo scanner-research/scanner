@@ -25,6 +25,7 @@
 // For image ingest
 #include "jpegwrapper/JPEGReader.h"
 #include "lodepng/lodepng.h"
+#include "bitmap-cpp/bitmap.h"
 
 #include <glog/logging.h>
 
@@ -976,86 +977,103 @@ void ingest_images(storehouse::StorageBackend* storage,
     i32 image_height;
     ImageColorSpace color_space;
     switch (image_type) {
-      case ImageEncodingType::JPEG: {
-        JPEGReader reader;
-        reader.header_mem(image_bytes.data(), image_bytes.size());
-        if (reader.warnings() != "") {
-          LOG(WARNING) << "JPEG file " << path
-                       << " header could not be parsed: " << reader.warnings()
-                       << ". Ignoring.";
-          bad_image_indices.push_back(i);
-          image_idx_to_format_group.push_back(0);
-          continue;
-        }
-        image_width = reader.width();
-        image_height = reader.height();
-        switch (reader.colorSpace()) {
-          case JPEG::COLOR_GRAYSCALE:
-            color_space = ImageColorSpace::Gray;
-            break;
-          case JPEG::COLOR_RGB:
-          case JPEG::COLOR_YCC:
-          case JPEG::COLOR_CMYK:
-          case JPEG::COLOR_YCCK:
-            color_space = ImageColorSpace::RGB;
-            break;
-          case JPEG::COLOR_UNKNOWN:
-            LOG(WARNING) << "JPEG file " << path << " is of unsupported type: "
-                         << "COLOR_UNKNOWN. Ignoring.";
-            bad_image_indices.push_back(i);
-            image_idx_to_format_group.push_back(0);
-            continue;
-            break;
-        }
+    case ImageEncodingType::JPEG: {
+      JPEGReader reader;
+      reader.header_mem(image_bytes.data(), image_bytes.size());
+      if (reader.warnings() != "") {
+        LOG(WARNING) << "JPEG file " << path
+                     << " header could not be parsed: " << reader.warnings()
+                     << ". Ignoring.";
+        bad_image_indices.push_back(i);
+        image_idx_to_format_group.push_back(0);
+        continue;
+      }
+      image_width = reader.width();
+      image_height = reader.height();
+      switch (reader.colorSpace()) {
+      case JPEG::COLOR_GRAYSCALE:
+        color_space = ImageColorSpace::Gray;
+        break;
+      case JPEG::COLOR_RGB:
+      case JPEG::COLOR_YCC:
+      case JPEG::COLOR_CMYK:
+      case JPEG::COLOR_YCCK:
+        color_space = ImageColorSpace::RGB;
+        break;
+      case JPEG::COLOR_UNKNOWN:
+        LOG(WARNING) << "JPEG file " << path << " is of unsupported type: "
+                     << "COLOR_UNKNOWN. Ignoring.";
+        bad_image_indices.push_back(i);
+        image_idx_to_format_group.push_back(0);
+        continue;
         break;
       }
-      case ImageEncodingType::PNG: {
-        unsigned w;
-        unsigned h;
-        LodePNGState png_state;
-        lodepng_state_init(&png_state);
-        unsigned error = lodepng_inspect(
-            &w, &h, &png_state,
-            reinterpret_cast<const unsigned char*>(image_bytes.data()),
-            image_bytes.size());
-        if (error) {
-          LOG(WARNING) << "PNG file " << path << " header could not be parsed: "
-                       << lodepng_error_text(error) << ". Ignoring";
-          bad_image_indices.push_back(i);
-          image_idx_to_format_group.push_back(0);
-          continue;
-        }
-        image_width = w;
-        image_height = h;
-        switch (png_state.info_png.color.colortype) {
-          case LCT_GREY:
-            color_space = ImageColorSpace::Gray;
-            break;
-          case LCT_RGB:
-            color_space = ImageColorSpace::RGB;
-            break;
-          case LCT_RGBA:
-            color_space = ImageColorSpace::RGBA;
-            break;
-          case LCT_PALETTE:
-            // NOTE(apoms): We force a paletted file to RGB
-            color_space = ImageColorSpace::RGB;
-            break;
-            ;
-          case LCT_GREY_ALPHA: {
-            LOG(WARNING) << "PNG file " << path << " is of unsupported type: "
-                         << "GREY_ALPHA. Ignoring.";
-            bad_image_indices.push_back(i);
-            image_idx_to_format_group.push_back(0);
-            continue;
-          }
-        }
+      break;
+    }
+    case ImageEncodingType::PNG: {
+      unsigned w;
+      unsigned h;
+      LodePNGState png_state;
+      lodepng_state_init(&png_state);
+      unsigned error = lodepng_inspect(
+        &w, &h, &png_state,
+        reinterpret_cast<const unsigned char*>(image_bytes.data()),
+        image_bytes.size());
+      if (error) {
+        LOG(WARNING) << "PNG file " << path << " header could not be parsed: "
+                     << lodepng_error_text(error) << ". Ignoring";
+        bad_image_indices.push_back(i);
+        image_idx_to_format_group.push_back(0);
+        continue;
+      }
+      image_width = w;
+      image_height = h;
+      switch (png_state.info_png.color.colortype) {
+      case LCT_GREY:
+        color_space = ImageColorSpace::Gray;
+        break;
+      case LCT_RGB:
+        color_space = ImageColorSpace::RGB;
+        break;
+      case LCT_RGBA:
+        color_space = ImageColorSpace::RGBA;
+        break;
+      case LCT_PALETTE:
+        // NOTE(apoms): We force a paletted file to RGB
+        color_space = ImageColorSpace::RGB;
+        break;
+        ;
+      case LCT_GREY_ALPHA: {
+        LOG(WARNING) << "PNG file " << path << " is of unsupported type: "
+                     << "GREY_ALPHA. Ignoring.";
+        bad_image_indices.push_back(i);
+        image_idx_to_format_group.push_back(0);
+        continue;
+      }
+      }
 
-        lodepng_state_cleanup(&png_state);
-        break;
+      lodepng_state_cleanup(&png_state);
+      break;
+    }
+    case ImageEncodingType::BMP: {
+      bitmap::BitmapMetadata metadata;
+      bitmap::DecodeResult result =
+        bitmap::bitmap_metadata(image_bytes.data(), image_bytes.size(), metadata);
+      if (result != bitmap::DecodeResult::Success) {
+        LOG(WARNING) << "BMP file " << path << " is invalid.";
+        bad_image_indices.push_back(i);
+        image_idx_to_format_group.push_back(0);
+        continue;
       }
-      default:
-        assert(false);
+      image_width = metadata.width;
+      image_height = metadata.height;
+      color_space = metadata.color_space == bitmap::ImageColorSpace::RGB ?
+        ImageColorSpace::RGB :
+        ImageColorSpace::RGBA;
+      break;
+    }
+    default:
+      assert(false);
     }
 
     // Check if image is of the same type as an existing set of images. If so,
