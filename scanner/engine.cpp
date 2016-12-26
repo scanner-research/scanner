@@ -614,28 +614,30 @@ void* evaluate_thread(void* arg) {
               total_size += column.rows[b].size;
             }
 
-            u8* block = new_block_buffer({caps.device_type, device_id},
-                                         total_size,
-                                         column.rows.size());
-            for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-              size_t size = column.rows[b].size;
-              dest_buffers.push_back(block);
-              block += size;
-              src_buffers.push_back(column.rows[b].buffer);
-              sizes.push_back(size);
-            }
+            if (column.rows.size() > 0) {
+              u8* block = new_block_buffer({caps.device_type, device_id},
+                                           total_size,
+                                           column.rows.size());
+              for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
+                size_t size = column.rows[b].size;
+                dest_buffers.push_back(block);
+                block += size;
+                src_buffers.push_back(column.rows[b].buffer);
+                sizes.push_back(size);
+              }
 
-            auto memcpy_start = now();
-            memcpy_vec(dest_buffers, {caps.device_type, device_id},
-                       src_buffers, {input_buffer_type, input_device_id},
-                       sizes);
-            args.profiler.add_interval("memcpy", memcpy_start, now());
+              auto memcpy_start = now();
+              memcpy_vec(dest_buffers, {caps.device_type, device_id},
+                         src_buffers, {input_buffer_type, input_device_id},
+                         sizes);
+              args.profiler.add_interval("memcpy", memcpy_start, now());
 
-            auto delete_start = now();
-            for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-              delete_buffer({input_buffer_type, input_device_id},
-                            column.rows[b].buffer);
-              column.rows[b].buffer = dest_buffers[b];
+              auto delete_start = now();
+              for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
+                delete_buffer({input_buffer_type, input_device_id},
+                              column.rows[b].buffer);
+                column.rows[b].buffer = dest_buffers[b];
+              }
             }
           }
 
@@ -804,28 +806,31 @@ void* save_thread(void* arg) {
           Row& row = work_entry.columns[out_idx].rows[f];
           total_size += row.size;
         }
-        u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
-        for (i32 f = 0; f < num_rows; ++f) {
-          Row& row = work_entry.columns[out_idx].rows[f];
-          size_t size = row.size;
-          u8* src_buffer = row.buffer;
-          u8* dest_buffer = output_block;
 
-          dest_buffers.push_back(dest_buffer);
-          src_buffers.push_back(src_buffer);
-          sizes.push_back(size);
+        if (num_rows > 0) {
+          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
+          for (i32 f = 0; f < num_rows; ++f) {
+            Row& row = work_entry.columns[out_idx].rows[f];
+            size_t size = row.size;
+            u8* src_buffer = row.buffer;
+            u8* dest_buffer = output_block;
 
-          output_block += size;
-        }
+            dest_buffers.push_back(dest_buffer);
+            src_buffers.push_back(src_buffer);
+            sizes.push_back(size);
 
-        memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
-                   {work_entry.buffer_type, work_entry.buffer_device_id},
-                   sizes);
+            output_block += size;
+          }
 
-        for (i32 f = 0; f < num_rows; ++f) {
-          delete_buffer({work_entry.buffer_type, work_entry.buffer_device_id},
-                        src_buffers[f]);
-          work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
+          memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
+                     {work_entry.buffer_type, work_entry.buffer_device_id},
+                     sizes);
+
+          for (i32 f = 0; f < num_rows; ++f) {
+            delete_buffer({work_entry.buffer_type, work_entry.buffer_device_id},
+                          src_buffers[f]);
+            work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
+          }
         }
       }
 
