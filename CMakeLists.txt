@@ -216,6 +216,9 @@ find_package(JsonCpp REQUIRED)
 find_package(JPEGWrapper REQUIRED CONFIG
   PATHS "thirdparty/build/bin/jpegwrapper")
 find_package(LodePNG REQUIRED)
+find_package(BitmapCpp REQUIRED CONFIG
+  PATHS "thirdparty/build/bin/bitmap-cpp")
+
 
 set(GTEST_INCLUDE_DIRS
   "${GLOBAL_OUTPUT_PATH}/googletest/include")
@@ -245,6 +248,7 @@ set(SCANNER_LIBRARIES
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
   "${JPEGWRAPPER_LIBRARIES}"
+  "${BITMAPCPP_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
   "-ljpeg"
   "-lz")
@@ -259,6 +263,7 @@ include_directories(
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${JPEGWRAPPER_INCLUDE_DIRS}"
   "${LODEPNG_INCLUDE_DIRS}"
+  "${BITMAPCPP_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
   "${MPI_INCLUDE_PATH}"
