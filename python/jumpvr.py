@@ -57,15 +57,6 @@ def midpoint_transformation(calibration, cam_left_idx, cam_right_idx):
     cam_mid_ext_inv = np.vstack((cam_mid_ext_inv, np.array([0, 0, 0, 1])))
     cam_mid_ext = np.linalg.inv(cam_mid_ext_inv)
 
-    print()
-    print('left',cam_left_ext_inv)
-    print(cam_left_ext)
-    print('right',cam_right_ext_inv)
-    print(cam_right_ext)
-    print('mid', cam_mid_ext_inv)
-    print(cam_mid_ext)
-    # need to compute inverse of camera matrix and then apply mid point camera
-
     # transformation to get projection matrix
     image = scipy.misc.imread('cam-1-frame-100.png')
     imageLeft = image
@@ -83,8 +74,6 @@ def midpoint_transformation(calibration, cam_left_idx, cam_right_idx):
                                [0, 0, 1, 0],
                                [0, 0, 0, 1]])
     cam_space = np.vstack((cam_space, np.array([0, 0, 1])))
-    print(cam_space)
-    print(cam_space_inv)
     ez = np.tan(fov / 2 )
     perspective_inv = np.matrix([[ez * aspect_ratio, 0, 0, 0],
                                  [0, ez, 0, 0],
@@ -94,16 +83,11 @@ def midpoint_transformation(calibration, cam_left_idx, cam_right_idx):
                              [0, 1 / ez, 0, 0],
                              [0, 0, 1, 0],
                              [0, 0, 1, 0]])
-    #print('persp', np.linalg.inv(perspective))
 
     left_to_mid_matrix1 = perspective_inv * cam_space
     left_to_mid_matrix = perspective * cam_mid_ext * cam_left_ext_inv
     right_to_mid_matrix1 = perspective_inv * cam_space
-    right_to_mid_matrix = perspective * cam_mid_ext * cam_right_ext_inv 
-    print(left_to_mid_matrix)
-    print(right_to_mid_matrix)
-
-    # Create a blank 300x300 black image
+    right_to_mid_matrix = perspective * cam_mid_ext * cam_right_ext_inv
 
     out = np.zeros((height, width, 3), np.uint8)
     out[:] = (0, 0, 0)
@@ -118,13 +102,10 @@ def midpoint_transformation(calibration, cam_left_idx, cam_right_idx):
         one = np.array([1])
         one.shape = (1, 1)
         p = np.hstack((source_points[i], one))
-        print('in',p)
         zl = left_to_mid_matrix1 * p.T
-        print(zl)
         zl[3] = 1/infz
         zl *= 1/zl[3]
         zl = left_to_mid_matrix * zl
-        print('ou',zl)
         zl /= zl[3]
         zl[0] = zl[0] * width / 2 + width / 2
         zl[1] = zl[1] * height / 2 + height / 2
@@ -136,45 +117,10 @@ def midpoint_transformation(calibration, cam_left_idx, cam_right_idx):
         zr /= zr[3]
         zr[0] = zr[0] * width / 2 + width / 2
         zr[1] = zr[1] * height / 2 + height / 2
-        print('p', p)
-        print('left', zl)
-        print('right', zr)
         left_destination_points[i,0] = zl[0]
         left_destination_points[i,1] = zl[1]
         right_destination_points[i,0] = zr[0]
         right_destination_points[i,1] = zr[1]
-
-    print('dest pts', left_destination_points)
-    print('dest pts', right_destination_points)
-
-    zer1 = cam_mid_ext * cam_mid_ext_inv * perspective_inv * cam_space * np.reshape(np.array([width/2, height/2, 1]), (3, 1))
-    zer2 = perspective_inv * cam_space * np.reshape(np.array([width/2, height/2, 1]), (3, 1))
-    zer3 = perspective * cam_mid_ext * cam_mid_ext_inv * perspective_inv * cam_space * np.reshape(np.array([width/2, height/2, 1]), (3, 1))
-    zer4 = cam_space * np.reshape(np.array([width/2, height/2, 1]), (3, 1))
-    print('should be eq', zer1, zer2)
-    print('should be eq', zer3 / zer3[3], zer4)
-
-    mid_rot = np.vstack((np.hstack((cam_mid_rotation.T,
-                                    np.reshape(np.array([0, 0, 0]), (3, 1)))),
-                         np.array([0, 0, 0, 1])))
-    #zer5 = perspective * cam_mid_ext * cam_left_ext_inv * perspective_inv * cam_space * np.reshape(np.array([width/2, height/2, 1]), (3, 1))
-    zer5 = cam_left_ext_inv * perspective_inv * cam_space * np.reshape(np.array([width, 0, 1]), (3, 1))
-    #zer5 = mid_rot * zer5
-    print('should be idk', zer5 )
-    zer6 = cam_mid_ext_inv * perspective_inv * cam_space * np.reshape(np.array([width/2, height/2, 1]), (3, 1))
-    #zer6 = mid_rot * zer6
-    print('should be idk', zer6 )
-    zer7 = cam_right_ext_inv * perspective_inv * cam_space * np.reshape(np.array([0, height, 1]), (3, 1))
-    #zer7 = mid_rot * zer7
-    print('should be idk', zer7 )
-    a5 = math.atan2(zer5[0], zer5[2]) * 180 / np.pi
-    a6 = math.atan2(zer6[0], zer6[2]) * 180 / np.pi
-    a7 = math.atan2(zer7[0], zer7[2]) * 180 / np.pi
-    print('angles', a5 - a6, a6 - a6, a7 - a6)
-    print('mid', perspective * cam_mid_ext * (zer5))
-    print('mid', perspective * mid_rot * (zer6))
-    print('mid', perspective * mid_rot * (zer7))
-    print('per', perspective)
 
     left_to_mid_warp = cv2.getPerspectiveTransform(source_points,
                                                    left_destination_points)
