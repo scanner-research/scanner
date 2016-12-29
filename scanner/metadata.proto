@@ -147,104 +147,48 @@ message WebTimestamps {
 }
 
 message JobDescriptor {
-  enum Sampling {
-    All = 0;
-    Strided = 1;
-    Gather = 2;
-    SequenceGather = 3;
-  }
-
   message Column {
     required int32 id = 1;
     required string name = 2;
   }
 
-  message PointSamples {
-    optional int32 video_index = 1;
-    repeated int32 frames = 2;
-  }
+  message Task {
+    message TableSample {
+      required string job_name = 1;
+      required string table_name = 2;
+      repeated Column columns = 3;
+      repeated i64 rows = 4 [packed=true];
+    }
 
-  message StridedInterval {
-    required int32 start = 1;
-    required int32 end = 2;
-    required int32 stride = 3;
-  }
-
-  message SequenceSamples {
-    optional int32 video_index = 1;
-    repeated StridedInterval intervals = 2;
+    required int32 table_id = 1;
+    required string table_name = 2;
+    required TableSample samples = 3;
   }
 
   required int32 id = 1;
-  required string name = 12;
-  repeated Column columns = 2;
-  required Sampling sampling = 3;
+  required string name = 2;
+  required int32 io_item_size = 3;
   required int32 work_item_size = 4;
   required int32 num_nodes = 5;
-  required string in_job_name = 10;
-  required bool derived = 11;
-
-  // For strided sampling
-  optional int32 stride = 6;
-  optional int32 offset = 13;
-  // For gather sampling
-  repeated PointSamples gather_points = 7;
-  // For sequence gather sampling
-  repeated SequenceSamples gather_sequences = 8;
-  // For derived datasets
-  repeated PointSamples derived_frames = 9;
+  repeated Task tasks = 6;
+  repeated Column columns = 7;
 }
 
 message DecodeArgs {
-  enum Sampling {
-    All = 1;
-    Strided = 2;
-    Gather = 3;
-    SequenceGather = 4;
-  }
-
-  message StridedInterval {
-    required int32 start = 1;
-    required int32 end = 2;
-    required int32 stride = 3;
-  }
-
   required int32 start_keyframe = 1;
   required int32 end_keyframe = 2;
   required int32 warmup_count = 3;
-  required int32 rows_from_start = 9;
-  required Sampling sampling = 4;
+  required int32 rows_from_start = 4;
 
-  optional StridedInterval interval = 5;
-  optional int32 stride = 6;
-  repeated int32 gather_points = 7;
-  repeated StridedInterval gather_sequences = 8;
+  // TODO add sampling
 }
 
 message ImageDecodeArgs {
-  enum Sampling {
-    All = 1;
-    Strided = 2;
-    Gather = 3;
-    SequenceGather = 4;
-  }
-
-  message StridedInterval {
-    required int32 start = 1;
-    required int32 end = 2;
-    required int32 stride = 3;
-  }
-
   required ImageEncodingType encoding_type = 1;
   required ImageColorSpace color_space = 2;
   required int32 warmup_count = 3;
-  required int32 rows_from_start = 9;
-  required Sampling sampling = 4;
+  required int32 rows_from_start = 4;
+  repeated int64 compressed_sizes = 5 [packed=true];
 
-  optional StridedInterval interval = 5;
-  optional int32 stride = 6;
-  repeated int32 gather_points = 7;
-  repeated StridedInterval gather_sequences = 8;
-
-  repeated int64 compressed_sizes = 10 [packed=true];
+  // TODO add sampling
 }

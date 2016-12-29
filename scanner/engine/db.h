@@ -67,7 +67,7 @@ struct DatasetMetadata {
   i32 id() const;
   std::string name() const;
   DatasetType type() const;
-  i32 total_frames() const;
+  i32 total_rows() const;
   i32 max_width() const;
   i32 max_height() const;
   std::vector<std::string> original_paths() const;
@@ -112,62 +112,41 @@ struct ImageFormatGroupMetadata {
   mutable ImageFormatGroupDescriptor descriptor;
 };
 
-class LoadWorkEntry;
-
 struct JobMetadata {
  public:
   JobMetadata();
-  JobMetadata(const DatasetDescriptor& dataset,
-              const std::vector<VideoDescriptor>& videos,
-              const JobDescriptor& job);
-  JobMetadata(const DatasetDescriptor& dataset,
-              const std::vector<ImageFormatGroupDescriptor>& images,
-              const JobDescriptor& job);
+  JobMetadata(const JobDescriptor& job);
 
-  const DatasetDescriptor& get_dataset_descriptor() const;
   const JobDescriptor& get_job_descriptor() const;
 
   i32 id() const;
+
   std::string name() const;
-  std::vector<std::string> columns() const;
-  Sampling sampling() const;
+
+  i32 io_item_size() const;
+
   i32 work_item_size() const;
-  i32 total_rows() const;
 
-  struct GroupSample {
-    i32 group_index;
-    std::vector<i32> frames;
-  };
-  std::vector<GroupSample> sampled_frames() const;
+  i32 num_nodes() const;
 
-  struct RowLocations {
-    // For regular columns
-    std::vector<i32> work_items;
-    std::vector<Interval> work_item_intervals;
-  };
-  // Gets the list of work items for a sequence of rows in the job
-  RowLocations row_work_item_locations(Sampling sampling, i32 group_id,
-                                       const LoadWorkEntry& entry) const;
+  const std::vector<std::string>& columns() const;
 
-  struct FrameLocations {
-    // For frame column
-    std::vector<Interval> intervals;
-    std::vector<DecodeArgs> video_args;
-    std::vector<ImageDecodeArgs> image_args;
-  };
-  FrameLocations frame_locations(Sampling sampling, i32 group_index,
-                                 const LoadWorkEntry& entry) const;
+  const std::vector<std::string>& table_names() const;
 
- protected:
-  std::vector<i32> rows_per_item() const;
-  i32 rows_in_item(i32 group_id) const;
+  bool has_table(const std::string& table_name) const;
+
+  i32 table_id(const std::string& table_name) const;
+
+  i64 rows_in_table(i32 table_id) const;
+
+  i64 total_rows() const;
 
  private:
-  mutable DatasetDescriptor dataset_descriptor;
-  mutable std::vector<VideoDescriptor> video_descriptors;
-  mutable std::vector<ImageFormatGroupDescriptor> format_descriptors;
-  mutable JobDescriptor job_descriptor;
-  bool complete_;
+  mutable JobDescriptor job_descriptor_;
+  std::vector<std::string> columns_;
+  std::vector<std::string> table_names_;
+  std::map<std::string, i32> table_id_;
+  std::map<i32, i64> rows_in_table_;
 };
 
 void serialize_database_metadata(storehouse::WriteFile* file,
@@ -276,7 +255,9 @@ inline std::string job_profiler_path(const std::string& dataset_name,
          std::to_string(node) + ".bin";
 }
 
-inline i32 frames_per_work_item() { return WORK_ITEM_SIZE; }
+inline i32 rows_per_io_item() { return IO_ITEM_SIZE; }
+
+inline i32 rows_per_work_item() { return WORK_ITEM_SIZE; }
 
 inline std::string base_dataset_job_name() { return "base"; }
 

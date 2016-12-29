@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-#include "scanner/engine.h"
+#include "scanner/engine/runtime.h"
+#include "scanner/engine/db.h"
 
 #include "scanner/evaluators/serialize.h"
 
 #include "scanner/util/common.h"
-#include "scanner/util/db.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/profiler.h"
 #include "scanner/util/queue.h"
@@ -922,7 +922,7 @@ void run_job(JobParameters& params) {
   // Establish base time to use for profilers
   timepoint_t base_time = now();
 
-  // Get video metadata for all videos for distributing with work items
+  // Get metadata for all dataset items for distributing to evaluators
   std::vector<std::string> paths{dataset_meta.item_names()};
 
   std::vector<VideoMetadata> video_metadata;
@@ -953,24 +953,21 @@ void run_job(JobParameters& params) {
     }
   }
 
-  // Read the in job descriptor so we know what we are dealing with and to
-  // verify that the requested columns in the pipeline description exist
-  JobDescriptor in_job_desc;
-  if (params.in_job_name != base_dataset_job_name()) {
-    std::unique_ptr<RandomReadFile> file;
-    BACKOFF_FAIL(make_unique_random_read_file(
-        storage, job_descriptor_path(params.dataset_name, params.in_job_name), file));
-    u64 pos = 0;
-    in_job_desc = deserialize_job_descriptor(file.get(), pos);
+  // Generate the pipeline description by feeding in the dataset information
+  // into the user supplied pipeline generator function
+  PipelineDescription pipeline_description =
+      params.pipeline_gen_fn(descriptor, item_descriptors);
 
-    LOG_IF(FATAL, in_job_desc.work_item_size() != WORK_ITEM_SIZE)
-        << "Derived datasets must currently have the same work item size as "
-        << "the dataset they are deriving from.";
-
-  } else {
-    in_job_desc.set_sampling(JobDescriptor::All);
+  // Load job metadata for jobs listed in pipeline description tasks
+  std::set<std::string> required_job_names;
+  std::set<i32> required_job_ids;
+  for (const JobDescriptor::Task& task : job_descriptor_.tasks()) {
+    assert(task.samples_size() > 0);
+    JobDescriptor::Task::TableSample& sample = task.samples(0);
+    rows = sample.rows_size();
+    rows_in_table_.insert({table_id, rows});
   }
-  JobMetadata in_job_meta;
+  std::map<i32, JobMetadata> job_meta;
   if (dataset_meta.type() == DatasetType_Video) {
     std::vector<VideoDescriptor> video_descs;
     for (const VideoMetadata& meta : video_metadata) {
@@ -985,10 +982,6 @@ void run_job(JobParameters& params) {
     in_job_meta = JobMetadata(descriptor, image_descs, in_job_desc);
   }
 
-  // Generate the pipeline description by feeding in the dataset information
-  // into the user supplied pipeline generator function
-  PipelineDescription pipeline_description =
-      params.pipeline_gen_fn(descriptor, item_descriptors);
   // Verify the requested columns are in the in job descriptor
   {
     std::string all_column_names;

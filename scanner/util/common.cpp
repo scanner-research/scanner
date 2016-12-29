@@ -84,8 +84,9 @@ std::string image_encoding_type_to_string(ImageEncodingType t) {
 }
 
 int PUS_PER_NODE = 1;             // Number of available PUs per node
-int GPUS_PER_NODE = 2;            // Number of available GPUs per node
-int WORK_ITEM_SIZE = 8;           // Base size of a work item
+int GPUS_PER_NODE = 1;            // Number of available GPUs per node
+i32 IO_ITEM_SIZE = 64;            // Number of rows to load and save at a time
+int WORK_ITEM_SIZE = 8;           // Max size of a work item
 int TASKS_IN_QUEUE_PER_PU = 4;    // How many tasks per PU to allocate to a node
 int LOAD_WORKERS_PER_NODE = 2;    // Number of worker threads loading data
 int SAVE_WORKERS_PER_NODE = 2;    // Number of worker threads loading data

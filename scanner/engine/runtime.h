@@ -66,7 +66,6 @@ struct JobParameters {
   storehouse::StorageConfig* storage_config;
   MemoryPoolConfig memory_pool_config;
   std::string dataset_name;
-  std::string in_job_name;
   PipelineGeneratorFn pipeline_gen_fn;
   std::string out_job_name;
 };

@@ -126,12 +126,12 @@ int main(int argc, char** argv) {
   // Common among sub-commands
   std::string dataset_name;  // name of dataset to create/operate on
   bool force;
+  std::string in_job_name;    
   // For ingest sub-command
   std::string dataset_type;           // type of datset to ingest
   std::string paths_file;             // paths of files to turn into dataset
   bool compute_web_metadata = false;  // whether to compute metadata on ingest
   // For run sub-command
-  std::string in_job_name;    // name of job to read columns from
   std::string pipeline_name;  // name of pipeline to run
   std::string out_job_name;   // name of job to refer to after run
   // For rm sub-command
@@ -155,7 +155,12 @@ int main(int argc, char** argv) {
 
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
 
-        "work_item_size", po::value<int>(), "Size of a work item")(
+        "io_item_size", po::value<int>(),
+        "Number of rows to load and save together.")(
+
+        "work_item_size", po::value<int>(),
+        "Maximum number of rows that will be fed to an evaluator. "
+        "Will always smaller than the io item size.")(
 
         "tasks_in_queue_per_pu", po::value<int>(),
         "Number of tasks a node will try to maintain in the work queue per PU")(
@@ -216,6 +221,9 @@ int main(int argc, char** argv) {
 
     if (config->has("job", "pus_per_node")) {
       PUS_PER_NODE = config->get<int>("job", "pus_per_node");
+    }
+    if (config->has("job", "io_item_size")) {
+      IO_ITEM_SIZE = config->get<int>("job", "io_item_size");
     }
     if (config->has("job", "work_item_size")) {
       WORK_ITEM_SIZE = config->get<int>("job", "work_item_size");
@@ -335,10 +343,6 @@ int main(int argc, char** argv) {
           "dataset_name", po::value<std::string>()->required(),
           "Unique name of the dataset to store persistently")(
 
-          "in_job_name", po::value<std::string>()->required(),
-          "Name of the input job to read columns from. Use 'base' to read "
-          "from just the ingested dataset.")(
-
           "pipeline_name", po::value<std::string>()->required(),
           "Name of the pipeline to run on the given dataset")(
 
@@ -350,7 +354,6 @@ int main(int argc, char** argv) {
 
       po::positional_options_description run_pos;
       run_pos.add("dataset_name", 1);
-      run_pos.add("in_job_name", 1);
       run_pos.add("pipeline_name", 1);
       run_pos.add("out_job_name", 1);
 
@@ -371,7 +374,6 @@ int main(int argc, char** argv) {
       }
 
       dataset_name = vm["dataset_name"].as<std::string>();
-      in_job_name = vm["in_job_name"].as<std::string>();
       pipeline_name = vm["pipeline_name"].as<std::string>();
       out_job_name = vm["out_job_name"].as<std::string>();
       force = vm["force"].as<bool>();
@@ -521,11 +523,6 @@ int main(int argc, char** argv) {
     }
     i32 dataset_id = meta.get_dataset_id(dataset_name);
 
-    if (in_job_name != base_dataset_job_name() &&
-        !meta.has_job(dataset_id, in_job_name)) {
-      LOG(FATAL) << "Requested in job " << in_job_name << " does not exist.";
-    }
-
     if (meta.has_job(dataset_id, out_job_name)) {
       if (force) {
         meta.remove_job(meta.get_job_id(dataset_id, out_job_name));
@@ -547,7 +544,6 @@ int main(int argc, char** argv) {
     params.storage_config = storage_config;
     params.memory_pool_config = memory_pool_config;
     params.dataset_name = dataset_name;
-    params.in_job_name = in_job_name;
     params.pipeline_gen_fn = pipe_gen;
     params.out_job_name = out_job_name;
     run_job(params);

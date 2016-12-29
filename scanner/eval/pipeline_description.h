@@ -23,14 +23,46 @@
 
 namespace scanner {
 
-struct PointSamples {
-  i32 video_index;
-  std::vector<i32> frames;
+struct TableSample {
+  /**
+   * @brief Name of the job to select from
+   */
+  std::string job_name;
+
+  /**
+   * @brief Name of table to sample from
+   */
+  std::string table_name;
+
+  /**
+   * @brief Columns to grab from the input table
+   */
+  std::vector<std::string> columns;
+
+  /**
+   * @brief Indices of the rows to sample
+   */
+  std::vector<i64> rows;
 };
 
-struct SequenceSamples {
-  i32 video_index;
-  std::vector<StridedInterval> intervals;
+struct Task {
+  /**
+   * @brief Name of the table to write the results of this task to
+   */
+  std::string table_name;
+
+  /**
+   * @brief Specifies a list of tables to sample from.
+   *
+   * If multiple tables are given, their columns will be joined together so
+   * that the first evaluator receives all of the columns from the first row
+   * specified in each TableSample, all of the columns from the second row,
+   * and so on. All TableSamples must have the same number of rows selected.
+   *
+   */
+  std::vector<TableSample> samples;
+
+  i32 resolution_downsample_factor;
 };
 
 /**
@@ -39,35 +71,10 @@ struct SequenceSamples {
  * A pipeline is a sequence, or chain, of evaluators which execute over a stream
  * of video data. A sampling pattern can be specified that selects a subset of
  * frames from the videos in a given dataset. The chain of evaluators is
- * specified by the "evaluator_factories" variable. The sampling pattern
- * defaults to reading all frames of all videos in the dataset (Sampling::All),
- * but can be refined to grab only every n-th frame (Sampling::Stride), select a
- * subset of individual frames (Sampling::Gather), or select in dense sequences
- * of consecutive frames (Sampling::SequenceGather).
+ * specified by the "evaluator_factories" variable.
  */
 struct PipelineDescription {
-  /**
-   * @brief Columns to grab from the input table
-   */
-  std::vector<std::string> input_columns;
-
-  /**
-   * @brief Sampling strategy
-   */
-  Sampling sampling = Sampling::All;
-  /**
-   * @brief For strided sampling
-   */
-  i32 offset = 0;
-  i32 stride = 1;
-  /**
-   * @brief For gather sampling
-   */
-  std::vector<PointSamples> gather_points;
-  /**
-   * @brief For sequencegather sampling
-   */
-  std::vector<SequenceSamples> gather_sequences;
+  std::vector<Task> tasks;
 
   /**
    * @brief The chain of evaluators which will be executed over the input
@@ -75,22 +82,60 @@ struct PipelineDescription {
   std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
 };
 
-struct DatasetItemMetadata {
+struct TableInformation {
  public:
-  DatasetItemMetadata(i32 frames, i32 width, i32 height);
+  TableInformation(i64 rows,
+                   const std::vector<std::string>& sample_job_names,
+                   const std::vector<std::string>& sample_table_names,
+                   const std::vector<std::vector<std::string>>& sample_columns,
+                   const std::vector<i64>& sample_rows);
 
-  i32 frames() const;
-  i32 width() const;
-  i32 height() const;
+  i64 num_rows() const;
 
  private:
-  i32 frames_;
-  i32 width_;
-  i32 height_;
+  i64 rows_;
+  std::vector<std::string> sample_job_names_;
+  std::vector<std::string> sample_table_names_;
+  std::vector<std::vector<std::string>> sample_columns_;
+  std::vector<std::vector<i64>> sample_rows_;
+};
+
+struct JobInformation {
+ public:
+  JobInformation(const std::string& dataset_name,
+                 const std::string& job_name);
+
+  const std::vector<std::string>& table_names();
+
+  const std::vector<std::string>& column_names();
+
+  const TableInformation& table(const std::string& name);
+
+ private:
+  std::string dataset_name_;
+  std::string job_name_;
+  std::vector<std::string> table_names_;
+  std::vector<std::string> column_names_;
+  std::map<std::string, TableInformation> tables_;
+};
+
+struct DatasetInformation {
+ public:
+  DatasetInformation(const std::string& dataset_name,
+                     const std::vector<std::string>& job_names);
+
+  const std::vector<std::string>& job_names();
+
+  const JobInformation& job(const std::string& name);
+
+ private:
+  std::string dataset_name_;
+  std::vector<std::string> job_names_;
+  std::map<std::string, JobInformation> job_;
 };
 
 using PipelineGeneratorFn = std::function<PipelineDescription(
-    const DatasetMetadata&, const std::vector<DatasetItemMetadata>&)>;
+    const DatasetInformation&)>;
 
 bool add_pipeline(std::string name, PipelineGeneratorFn fn);
 
