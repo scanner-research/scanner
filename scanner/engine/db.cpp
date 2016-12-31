@@ -334,6 +334,7 @@ JobMetadata::JobMetadata() {}
 JobMetadata::JobMetadata(const JobDescriptor &job) : job_descriptor_(job) {
   for (auto &c : job_descriptor_.columns()) {
     columns_.push_back(c.name());
+    column_ids_.insert({c.name(), c.id()});
   }
   for (auto &t : job_descriptor_.tasks()) {
     table_names_.push_back(t.table_name());
@@ -363,6 +364,10 @@ i32 JobMetadata::num_nodes() const {
 
 const std::vector<std::string>& JobMetadata::columns() const {
   return columns_;
+}
+
+i32 JobMetadata::column_id(const std::string& column_name) const {
+  column_ids_.at(column_name);
 }
 
 const std::vector<std::string>& JobMetadata::table_names() const {

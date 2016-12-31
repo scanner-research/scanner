@@ -131,6 +131,8 @@ struct JobMetadata {
 
   const std::vector<std::string>& columns() const;
 
+  i32 column_id(const std::string& column_name) const;
+
   const std::vector<std::string>& table_names() const;
 
   bool has_table(const std::string& table_name) const;
@@ -144,6 +146,7 @@ struct JobMetadata {
  private:
   mutable JobDescriptor job_descriptor_;
   std::vector<std::string> columns_;
+  std::map<std::string, i32> column_id_;
   std::vector<std::string> table_names_;
   std::map<std::string, i32> table_id_;
   std::map<i32, i64> rows_in_table_;
@@ -259,7 +262,11 @@ inline i32 rows_per_io_item() { return IO_ITEM_SIZE; }
 
 inline i32 rows_per_work_item() { return WORK_ITEM_SIZE; }
 
-inline std::string base_dataset_job_name() { return "base"; }
+inline i32 base_job_id() { return 0; }
+
+inline std::string base_job_name() { return "base"; }
+
+inline i32 base_column_id() { return 0; }
 
 inline std::string base_column_name() { return "frame"; }
 

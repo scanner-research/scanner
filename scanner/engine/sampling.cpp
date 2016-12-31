@@ -1,4 +1,23 @@
-std::vector<JobMetadata::GroupSample> JobMetadata::sampled_frames() const {
+/* Copyright 2016 Carnegie Mellon University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "scanner/engine/sampling.h"
+
+namespace scanner {
+
+std::vector<GroupSample> sampled_frames() const {
   Sampling sampling = this->sampling();
   std::vector<GroupSample> group_samples;
 
@@ -59,7 +78,7 @@ std::vector<JobMetadata::GroupSample> JobMetadata::sampled_frames() const {
   return group_samples;
 }
 
-JobMetadata::RowLocations JobMetadata::row_work_item_locations(
+RowLocations row_work_item_locations(
     Sampling sampling, i32 group_id, const LoadWorkEntry& entry) const {
   RowLocations locations;
   std::vector<i32>& items = locations.work_items;
@@ -99,9 +118,8 @@ JobMetadata::RowLocations JobMetadata::row_work_item_locations(
   return locations;
 }
 
-JobMetadata::FrameLocations JobMetadata::frame_locations(
-    Sampling sampling, i32 video_index, const LoadWorkEntry& entry) const {
-  Sampling job_sampling = this->sampling();
+FrameLocations frame_locations(
+    i32 video_index, const LoadWorkEntry& entry) const {
   FrameLocations locations;
   std::vector<Interval>& intervals = locations.intervals;
   std::vector<DecodeArgs>& dargs = locations.video_args;

@@ -32,16 +32,22 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
       needs_warmup_(false),
       discontinuity_(false),
       extra_outputs_(extra_outputs) {
-  decoder_.reset(VideoDecoder::make_from_config(device_type_, device_id_,
-                                                decoder_type_, device_type_,
-                                                num_devices));
-  assert(decoder_.get());
 }
 
-void DecoderEvaluator::configure(const InputFormat& metadata) {
+void DecoderEvaluator::configure(const std::vector<InputFormat>& metadata) {
   metadata_ = metadata;
-  frame_size_ = metadata_.width() * metadata_.height() * 3;
-  decoder_->configure(metadata);
+  for (const InputFormat& m : metadata) {
+    frame_sizes_.push_back(m.width() * m.height() * 3);
+  }
+  for (size_t i = 0; i < metadata.size(); ++i) {
+    if (decoders_.size() < metdata.size()) {
+      VideoDecoder* decoder = VideoDecoder::make_from_config(
+          device_type_, device_id_, decoder_type_, device_type_, num_devices);
+      assert(decoder);
+      decoders_.emplace_back(decoder);
+    }
+    decoders_[i]->configure(metadata[i]);
+  }
 }
 
 void DecoderEvaluator::reset() {
@@ -55,8 +61,9 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
   auto start = now();
 
-  i64 total_frames_decoded = 0;
-  i64 total_frames_used = 0;
+  std::vector<i64> total_frames_decoded = 0;
+  std::vector<i64> total_frames_used = 0;
+
   size_t num_inputs = input_columns.empty() ? 0 : input_columns[0].rows.size();
   for (size_t i = 0; i < num_inputs; ++i) {
     u8* decode_args_buffer = input_columns[1].rows[i].buffer;
@@ -89,9 +96,8 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       encoded_buffer = in_encoded_buffer;
     }
 
-    std::vector<i32> valid_frames;
-    if (args.sampling() == DecodeArgs::All) {
-      const DecodeArgs::StridedInterval& interval = args.interval();
+    std::vector<std::vector<i32>> valid_frames;
+    const DecodeArgs::StridedInterval& interval = args.interval();
       i32 s = interval.start();
       if (!needs_warmup_) {
         s += std::min(

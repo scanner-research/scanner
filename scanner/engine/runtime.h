@@ -30,34 +30,41 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// Work structs - structs used to exchange data between workers during
 ///   execution of the run command.
+struct IOItem {
+  // @brief the output table id
+  i32 table_id;
+  // @brief the first row in this item
+  i64 start_row;
+  // @brief the row after the last row in this item
+  i64 end_row;
+};
+
 struct WorkItem {
-  i32 video_index;
-  i64 item_index;
-  i64 item_id;
-  i64 next_item_id;
-  i32 rows_from_start;
+  // @brief the index in the IOItem list of the parent io item
+  i64 io_item_index;
 };
 
 struct LoadWorkEntry {
-  i32 work_item_index;
-  // union {
-  // For no sampling
-  Interval interval;
-  // For stride
-  StridedInterval strided_interval;
-  // For gather
-  std::vector<i32> gather_points;
-  // For sequence gather
-  std::vector<StridedInterval> gather_sequences;
-  //};
+  struct Sample {
+    // @brief which job to select tables from
+    i32 job_id;
+    // @brief which table to select rows from
+    i32 table_id;
+    // @brief the columns to read from
+    std::vector<std::string> columns;
+    // @brief the rows to read from the sampled table
+    std::vector<i64> rows;
+  };
+
+  i32 io_item_index;
+  std::vector<Sample> samples;
 };
 
 struct EvalWorkEntry {
-  i32 work_item_index;
+  i32 io_item_index;
   std::vector<std::string> column_names;
   BatchedColumns columns;
-  DeviceType buffer_type;
-  i32 buffer_device_id;
+  DeviceHandle buffer_handle;
   bool video_decode_item;
 };
 

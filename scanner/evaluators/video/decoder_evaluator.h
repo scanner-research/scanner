@@ -30,7 +30,7 @@ class DecoderEvaluator : public Evaluator {
                    VideoDecoderType decoder_type, i32 extra_outputs,
                    i32 num_devices);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const std::vector<InputFormat>& metadata) override;
 
   void reset() override;
 
@@ -42,9 +42,8 @@ class DecoderEvaluator : public Evaluator {
   i32 device_id_;
   VideoDecoderType decoder_type_;
   i32 extra_outputs_;
-  InputFormat metadata_;
-  size_t frame_size_;
-  std::unique_ptr<VideoDecoder> decoder_;
+  std::vector<size_t> frame_sizes_;
+  std::vector<std::unique_ptr<VideoDecoder>> decoders_;
   bool needs_warmup_;
   bool discontinuity_;
 };
@@ -52,6 +51,7 @@ class DecoderEvaluator : public Evaluator {
 class DecoderEvaluatorFactory : public EvaluatorFactory {
  public:
   DecoderEvaluatorFactory(DeviceType device_type, VideoDecoderType decoder_type,
+                          std::vector<i32> video_columns);
                           i32 extra_outputs = 0);
 
   EvaluatorCapabilities get_capabilities() override;

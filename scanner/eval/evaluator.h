@@ -68,7 +68,9 @@ class Evaluator {
    * This provides the evaluator with information about its input like
    * dimensions.
    */
-  virtual void configure(const InputFormat& metadata) { metadata_ = metadata; };
+  virtual void configure(const std::vector<InputFormat>& metadata) {
+    metadata_ = metadata;
+  };
 
   /**
    * @brief Resets evaluators when about to receive non-consecutive inputs.
@@ -114,7 +116,7 @@ class Evaluator {
   Profiler* profiler_ = nullptr;
 
   /** configure() by default will save the metadata for use in evaluate(). */
-  InputFormat metadata_;
+  std::vector<InputFormat> metadata_;
 };
 
 #define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)

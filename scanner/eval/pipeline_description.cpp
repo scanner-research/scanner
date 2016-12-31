@@ -55,7 +55,6 @@ JobInformation::JobInformation(const std::string& dataset_name,
     : dataset_name_(dataset_name), job_name_(job_name) {
   JobDescriptor descriptor;
   {
-    std::string descriptor_path = ;
     std::unique_ptr<RandomReadFile> file;
     BACKOFF_FAIL(make_unique_random_read_file(
         storage, job_descriptor_path(dataset_name, job_name), file));
