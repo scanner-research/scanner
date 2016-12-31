@@ -27,10 +27,9 @@ namespace scanner {
 class DecoderEvaluator : public Evaluator {
  public:
   DecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                   VideoDecoderType decoder_type, i32 extra_outputs,
-                   i32 num_devices);
+                   VideoDecoderType decoder_type, i32 num_devices);
 
-  void configure(const std::vector<InputFormat>& metadata) override;
+  void configure(const BatchConfig& info) override;
 
   void reset() override;
 
@@ -41,29 +40,29 @@ class DecoderEvaluator : public Evaluator {
   DeviceType device_type_;
   i32 device_id_;
   VideoDecoderType decoder_type_;
-  i32 extra_outputs_;
+  std::vector<std::tuple<i32, i32>> video_column_idxs;
   std::vector<size_t> frame_sizes_;
   std::vector<std::unique_ptr<VideoDecoder>> decoders_;
+  std::vector<std::tuple<i32, i32>> regular_column_idxs;
   bool needs_warmup_;
   bool discontinuity_;
 };
 
 class DecoderEvaluatorFactory : public EvaluatorFactory {
  public:
-  DecoderEvaluatorFactory(DeviceType device_type, VideoDecoderType decoder_type,
-                          std::vector<i32> video_columns);
-                          i32 extra_outputs = 0);
+  DecoderEvaluatorFactory(DeviceType device_type,
+                          VideoDecoderType decoder_type);
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
  private:
   DeviceType device_type_;
   VideoDecoderType decoder_type_;
-  i32 extra_outputs_;
   i32 num_devices_;
 };
 }

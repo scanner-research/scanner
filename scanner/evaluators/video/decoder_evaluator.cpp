@@ -34,19 +34,27 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
       extra_outputs_(extra_outputs) {
 }
 
-void DecoderEvaluator::configure(const std::vector<InputFormat>& metadata) {
-  metadata_ = metadata;
-  for (const InputFormat& m : metadata) {
+void DecoderEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  for (const InputFormat& m : config.formats) {
     frame_sizes_.push_back(m.width() * m.height() * 3);
   }
-  for (size_t i = 0; i < metadata.size(); ++i) {
+  for (size_t i = 0; i < config.formats.size(); ++i) {
     if (decoders_.size() < metdata.size()) {
       VideoDecoder* decoder = VideoDecoder::make_from_config(
           device_type_, device_id_, decoder_type_, device_type_, num_devices);
       assert(decoder);
       decoders_.emplace_back(decoder);
     }
-    decoders_[i]->configure(metadata[i]);
+    decoders_[i]->configure(config.formats[i]);
+  }
+  i32 out_col_idx = 0;
+  for (size_t i = 0; i < config.input_columns.size(); ++i) {
+    if (config.input_columns[i] == base_column_name()) {
+      video_column_idxs.push_back({static_cast<i32>(i), out_col_idx++});
+    } else if (config.input_columns[i] != base_column_args_name()) {
+      regular_column_idxs.push_back({static_cast<i32>(i), out_col_idx++});
+    }
   }
 }
 
@@ -57,167 +65,152 @@ void DecoderEvaluator::reset() {
 
 void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
                                 BatchedColumns& output_columns) {
-  assert(input_columns.size() == 2 + extra_outputs_);
+  assert(input_columns.size() ==
+         video_column_idx.size() + regular_column_idx.size());
 
   auto start = now();
 
-  std::vector<i64> total_frames_decoded = 0;
-  std::vector<i64> total_frames_used = 0;
+  i64 total_frames_decoded = 0;
+  i64 total_frames_used = 0;
 
-  size_t num_inputs = input_columns.empty() ? 0 : input_columns[0].rows.size();
-  for (size_t i = 0; i < num_inputs; ++i) {
-    u8* decode_args_buffer = input_columns[1].rows[i].buffer;
-    size_t decode_args_buffer_size = input_columns[1].rows[i].size;
+  i32 video_num = 0;
+  for (std::tuple<i32, i32> idxs : video_column_idxs) {
+    assert(video_num < frame_sizes_.size());
+    size_t frame_size = frame_sizes_.at(video_num);
+    VideoDecoder* decoder = decoders_.at(video_num).get();
+    i64 frames_passed = 0;
 
-    const u8* in_encoded_buffer = input_columns[0].rows[i].buffer;
-    size_t in_encoded_buffer_size = input_columns[0].rows[i].size;
+    i32 col_idx;
+    i32 out_col_idx;
+    std::tie(col_idx, out_col_idx) = idxs;
 
-    DecodeArgs args;
-    const u8* encoded_buffer;
-    size_t encoded_buffer_size = in_encoded_buffer_size;
-    if (device_type_ == DeviceType::GPU) {
+    const Column& frame_col = input_columns[col_idx];
+    const Column& args_col = input_columns[col_idx + 1];
+    size_t num_inputs = frame_col.rows.size();
+    for (size_t i = 0; i < num_inputs; ++i) {
+      const u8* in_encoded_buffer = frame_col.rows[i].buffer;
+      size_t in_encoded_buffer_size = frame_col.rows[i].size;
+
+      u8* decode_args_buffer = args_col.rows[i].buffer;
+      size_t decode_args_buffer_size = args_col.rows[i].size;
+
+      DecodeArgs args;
+      const u8* encoded_buffer;
+      size_t encoded_buffer_size = in_encoded_buffer_size;
+      if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-      u8* buffer = new u8[decode_args_buffer_size];
-      memcpy_buffer(buffer, CPU_DEVICE, decode_args_buffer,
-                    {DeviceType::GPU, device_id_}, decode_args_buffer_size);
-      args = deserialize_decode_args(buffer, decode_args_buffer_size);
-      delete[] buffer;
+        u8* buffer = new u8[decode_args_buffer_size];
+        memcpy_buffer(buffer, CPU_DEVICE, decode_args_buffer,
+                      {DeviceType::GPU, device_id_}, decode_args_buffer_size);
+        args = deserialize_decode_args(buffer, decode_args_buffer_size);
+        delete[] buffer;
 
-      buffer = new u8[encoded_buffer_size];
-      memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer,
-                    {DeviceType::GPU, device_id_}, encoded_buffer_size);
-      encoded_buffer = buffer;
+        buffer = new u8[encoded_buffer_size];
+        memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer,
+                      {DeviceType::GPU, device_id_}, encoded_buffer_size);
+        encoded_buffer = buffer;
 #else
-
+        LOG(FATAL) << "Not built with cuda support!";
 #endif
-    } else {
-      args =
-          deserialize_decode_args(decode_args_buffer, decode_args_buffer_size);
-      encoded_buffer = in_encoded_buffer;
-    }
-
-    std::vector<std::vector<i32>> valid_frames;
-    const DecodeArgs::StridedInterval& interval = args.interval();
-      i32 s = interval.start();
-      if (!needs_warmup_) {
-        s += std::min(
-            args.warmup_count(),
-            static_cast<i32>(args.rows_from_start() + total_frames_used));
-      }
-      for (; s < interval.end(); ++s) {
-        valid_frames.push_back(s);
-      }
-    } else if (args.sampling() == DecodeArgs::Strided) {
-      const DecodeArgs::StridedInterval& interval = args.interval();
-      i32 s = interval.start();
-      i32 e = interval.end();
-      i32 stride = args.stride();
-      if (!needs_warmup_) {
-        s += std::min(
-            args.warmup_count() * stride,
-            static_cast<i32>(args.rows_from_start() + total_frames_used));
-      }
-      for (; s < e; s += stride) {
-        valid_frames.push_back(s);
-      }
-      discontinuity_ = true;
-    } else if (args.sampling() == DecodeArgs::Gather) {
-      i32 s = 0;
-      if (!needs_warmup_) {
-        s += std::min(
-            args.warmup_count(),
-            static_cast<i32>(args.rows_from_start() + total_frames_used));
-      }
-      for (; s < args.gather_points_size(); ++s) {
-        valid_frames.push_back(args.gather_points(s));
-      }
-      discontinuity_ = true;
-    } else if (args.sampling() == DecodeArgs::SequenceGather) {
-      assert(args.gather_sequences_size() == 1);
-      const DecodeArgs::StridedInterval& interval = args.gather_sequences(0);
-      i32 s = interval.start();
-      if (!needs_warmup_) {
-        s += std::min(
-            args.warmup_count(),
-            static_cast<i32>(args.rows_from_start() + total_frames_used));
-      }
-      for (; s < interval.end(); s += interval.stride()) {
-        valid_frames.push_back(s);
-      }
-      discontinuity_ = true;
-    } else {
-      assert(false);
-    }
-
-    i32 total_output_frames = static_cast<i32>(valid_frames.size());
-
-    u8* output_block = new_block_buffer({device_type_, device_id_},
-                                            total_output_frames * frame_size_,
-                                            total_output_frames);
-
-    size_t encoded_buffer_offset = 0;
-    i32 current_frame = args.start_keyframe();
-    i32 valid_index = 0;
-    while (valid_index < total_output_frames) {
-      auto video_start = now();
-
-      i32 encoded_packet_size = 0;
-      const u8* encoded_packet = NULL;
-      if (encoded_buffer_offset < encoded_buffer_size) {
-        encoded_packet_size = *reinterpret_cast<const i32*>(
-            encoded_buffer + encoded_buffer_offset);
-        encoded_buffer_offset += sizeof(i32);
-        encoded_packet = encoded_buffer + encoded_buffer_offset;
-        encoded_buffer_offset += encoded_packet_size;
+      } else {
+        args = deserialize_decode_args(decode_args_buffer,
+                                       decode_args_buffer_size);
+        encoded_buffer = in_encoded_buffer;
       }
 
-      if (decoder_->feed(encoded_packet, encoded_packet_size, discontinuity_)) {
-        // New frames
-        bool more_frames = true;
-        while (more_frames && valid_index < total_output_frames) {
-          if (current_frame == valid_frames[valid_index]) {
-            u8* decoded_buffer = output_block + valid_index * frame_size_;
-            more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
-            output_columns[0].rows.push_back(Row{decoded_buffer, frame_size_});
-            valid_index++;
-            total_frames_used++;
-          } else {
-            more_frames = decoder_->discard_frame();
-          }
-          current_frame++;
-          total_frames_decoded++;
+      std::vector<i32> valid_frames;
+      {
+        i32 s = 0;
+        if (!needs_warmup_) {
+          s += std::min(args.warmup_count() - frames_passed,
+                        static_cast<i32>(args.rows_from_start()));
         }
+        frames_passed += static_cast<i32>(args.valid_frames.size());
+        valid_frames.insert(args.valid_frames.begin() + s,
+                            args.valid_frames.end());
       }
-      // Set a discontinuity if we sent an empty packet to reset
-      // the stream next time
-      discontinuity_ = (encoded_packet_size == 0);
-    }
-    // Wait on all memcpys from frames to be done
-    decoder_->wait_until_frames_copied();
+      // HACK(apoms): just always force discontinuity for now instead of
+      //  properly figuring out if the previous frame was abut
+      discontinuity_ = true;
 
-    if (decoder_->decoded_frames_buffered() > 0) {
-      while (decoder_->discard_frame()) {
-        total_frames_decoded++;
-      };
-    }
+      i32 total_output_frames = static_cast<i32>(valid_frames.size());
 
-    if (device_type_ == DeviceType::GPU) {
-      delete[] encoded_buffer;
-    }
+      u8* output_block = new_block_buffer({device_type_, device_id_},
+                                          total_output_frames * frame_size,
+                                          total_output_frames);
 
-    // All warmed up
-    needs_warmup_ = false;
+      size_t encoded_buffer_offset = 0;
+      i32 current_frame = args.start_keyframe();
+      i32 valid_index = 0;
+      while (valid_index < total_output_frames) {
+        auto video_start = now();
+
+        i32 encoded_packet_size = 0;
+        const u8* encoded_packet = NULL;
+        if (encoded_buffer_offset < encoded_buffer_size) {
+          encoded_packet_size = *reinterpret_cast<const i32*>(
+              encoded_buffer + encoded_buffer_offset);
+          encoded_buffer_offset += sizeof(i32);
+          encoded_packet = encoded_buffer + encoded_buffer_offset;
+          encoded_buffer_offset += encoded_packet_size;
+        }
+
+        if (decoder->feed(encoded_packet, encoded_packet_size,
+                           discontinuity_)) {
+          // New frames
+          bool more_frames = true;
+          while (more_frames && valid_index < total_output_frames) {
+            if (current_frame == valid_frames[valid_index]) {
+              u8* decoded_buffer = output_block + valid_index * frame_size_;
+              more_frames = decoder->get_frame(decoded_buffer, frame_size_);
+              output_columns[0].rows.push_back(
+                  Row{decoded_buffer, frame_size_});
+              valid_index++;
+              total_frames_used++;
+            } else {
+              more_frames = decoder->discard_frame();
+            }
+            current_frame++;
+            total_frames_decoded++;
+          }
+        }
+        // Set a discontinuity if we sent an empty packet to reset
+        // the stream next time
+        discontinuity_ = (encoded_packet_size == 0);
+      }
+      // Wait on all memcpys from frames to be done
+      decoder->wait_until_frames_copied();
+
+      if (decoder->decoded_frames_buffered() > 0) {
+        while (decoder->discard_frame()) {
+          total_frames_decoded++;
+        };
+      }
+
+      if (device_type_ == DeviceType::GPU) {
+        delete[] encoded_buffer;
+      }
+    }
+    video_num++;
   }
 
   // Forward all inputs
-  i32 output_idx = 1;
-  for (size_t col = 2; col < input_columns.size(); ++col) {
-    size_t num_inputs = input_columns[col].rows.size();
-    for (size_t i = 0; i < num_inputs; ++i) {
-      output_columns[output_idx].rows.push_back(input_columns[col].rows[i]);
+  for (std::tuple<i32, i32> idxs : regular_column_idxs) {
+    i32 col_idx;
+    i32 out_col_idx;
+    std::tie(col_idx, out_col_idx) = idxs;
+
+    size_t s = 0;
+    if (!needs_warmup_) {
+      s += std::min(args.warmup_count(),
+                    static_cast<i32>(args.rows_from_start()));
     }
-    output_idx++;
+    output_columns[out_col_idx].rows.insert(
+        input_columns[col_idx].rows.begin() + s,
+        input_columns[col_idx].rows.end());
   }
+  // All warmed up
+  needs_warmup_ = false;
 
   if (profiler_) {
     profiler_->add_interval("decode", start, now());
@@ -244,10 +237,13 @@ EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> DecoderEvaluatorFactory::get_output_names() {
-  std::vector<std::string> outputs = {"frame"};
-  for (i32 i = 0; i < extra_outputs_; ++i) {
-    outputs.push_back("extra" + std::to_string(i));
+std::vector<std::string> DecoderEvaluatorFactory::get_output_names(
+    const std::vector<std::string>& input_columns) {
+  std::vector<std::string> output_columns;
+  for (const std::string& col : input_columns) {
+    if (col != base_column_args_name()) {
+      outputs.push_back(col);
+    }
   }
   return outputs;
 }

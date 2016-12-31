@@ -36,6 +36,11 @@ struct InputFormat {
   i32 height_;
 };
 
+struct BatchConfig {
+  std::vector<std::string> input_columns;
+  std::vector<InputFormat> formats;
+};
+
 struct Row {
   u8* buffer;
   size_t size;
@@ -68,8 +73,8 @@ class Evaluator {
    * This provides the evaluator with information about its input like
    * dimensions.
    */
-  virtual void configure(const std::vector<InputFormat>& metadata) {
-    metadata_ = metadata;
+  virtual void configure(const BatchConfig& config) {
+    config_ = config;
   };
 
   /**
@@ -116,7 +121,7 @@ class Evaluator {
   Profiler* profiler_ = nullptr;
 
   /** configure() by default will save the metadata for use in evaluate(). */
-  std::vector<InputFormat> metadata_;
+  BatchConfig config_;
 };
 
 #define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)

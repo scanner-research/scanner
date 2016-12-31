@@ -75,6 +75,7 @@ struct EvaluatorConfig {
   i32 max_input_count;
   i32 max_frame_width;
   i32 max_frame_height;
+  std::vector<std::string> input_columns;
 };
 
 /**
@@ -101,7 +102,8 @@ class EvaluatorFactory {
    * return, and the string names define the column name. Column names are
    * currently only used when retrieving outputs from disk.
    */
-  virtual std::vector<std::string> get_output_names() = 0;
+  virtual std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) = 0;
 
   /* @brief Constructs an evaluator to be used for processing rows of data.
    *

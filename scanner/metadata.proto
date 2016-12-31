@@ -175,28 +175,18 @@ message JobDescriptor {
 }
 
 message DecodeArgs {
-  message Sample {
-    required int32 column_index = 1;
-    required int32 start_keyframe = 2;
-    required int32 end_keyframe = 3;
-    repeated int64 valid_frames = 4;
-  }
-
   required int32 warmup_count = 1;
   required int32 rows_from_start = 2;
-  repeated Sample samples = 3;
+  required int32 start_keyframe = 3;
+  required int32 end_keyframe = 4;
+  repeated int64 valid_frames = 5;
 }
 
 message ImageDecodeArgs {
-  message Sample {
-    required int32 column_index = 1;
-    required ImageEncodingType encoding_type = 2;
-    required ImageColorSpace color_space = 3;
-    repeated int64 compressed_sizes = 4 [packed=true];
-    repeated int64 valid_images = 5;
-  }
-
   required int32 warmup_count = 1;
   required int32 rows_from_start = 2;
-  repeated Sample samples = 3;
+  required ImageEncodingType encoding_type = 3;
+  required ImageColorSpace color_space = 4;
+  repeated int64 compressed_sizes = 5 [packed=true];
+  repeated int64 valid_images = 6;
 }
