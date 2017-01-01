@@ -16,11 +16,12 @@ import io
 import csv
 import argparse
 from collections import defaultdict as dd
-
+import tempfile
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from multiprocessing import cpu_count
+import toml
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -55,7 +56,8 @@ def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
 
     # Clear cache
     clear_filesystem_cache()
-    db = scanner.Scanner()
+    config_path = opts['config_path'] if 'config_path' in opts else None
+    db = scanner.Scanner(config_path=config_path)
     result, t = db.run(dataset_name, in_job_name, pipeline_name, out_job_name,
                        opts)
     profiler_output = {}
@@ -259,6 +261,333 @@ def get_trial_total_io_read(result):
             counters = prof['counters']
             total_io += counters['io_read'] if 'io_read' in counters else 0
     return total_io
+
+def video_encoding_benchmark():
+    input_video = '/bigdata/wcrichto/videos/charade_short.mkv'
+    num_frames = 2878 # TODO(wcrichto): automate this
+    output_video = '/tmp/test.mkv'
+    video_paths = '/tmp/videos.txt'
+    dataset_name = 'video_encoding'
+    in_job_name = scanner.Scanner.base_job_name()
+    input_width = 1920
+    input_height = 1080
+
+    variables = {
+        'scale': {
+            'default': 0,
+            'range': []
+        },
+        'crf': {
+            'default': 23,
+            'range': [1, 10, 20, 30, 40, 50]
+        },
+        'gop': {
+            'default': 25,
+            'range': [5, 15, 25, 35, 45]
+        }
+    }
+
+    pipelines = [
+        'effective_decode_rate',
+        'histogram',
+        'knn_patches'
+    ]
+
+    variables['scale']['default'] = '{}x{}'.format(input_width, input_height)
+    for scale in [1, 2, 3, 4, 8]:
+        width = input_width / scale
+        height = input_height / scale
+        # FFMPEG says dimensions must be multiple of 2
+        variables['scale']['range'].append('{}x{}'.format(width//2 * 2,
+                                                          height//2 * 2))
+
+    command_template = """
+ffmpeg -i {input} -vf scale={scale} -c:v libx264 -x264opts \
+    keyint={gop}:min-keyint={gop} -crf {crf} {output}
+"""
+
+    db = scanner.Scanner()
+    scanner_settings = {
+        'force': True,
+        'node_count': 1,
+        'pus_per_node': 1,
+        'work_item_size': 512
+    }
+
+    all_results = {}
+    for pipeline in pipelines:
+        all_results[pipeline] = {}
+        for var in variables:
+            all_results[pipeline][var] = {}
+
+    for current_var in variables:
+        settings = {'input': input_video, 'output': output_video}
+        for var in variables:
+            settings[var] = variables[var]['default']
+
+        var_range = variables[current_var]['range']
+        for val in var_range:
+            settings[current_var] = val
+            os.system('rm -f {}'.format(output_video))
+            cmd = command_template.format(**settings)
+            if os.system(cmd) != 0:
+                print('Error: bad ffmpeg command')
+                print(cmd)
+                exit()
+
+            result, _ = db.ingest('video', dataset_name, [output_video], {'force': True})
+            if result != True:
+                print('Error: failed to ingest')
+                exit()
+
+            for pipeline in pipelines:
+                _, result = run_trial(dataset_name, in_job_name, pipeline,
+                                      'test', scanner_settings)
+                stats = generate_statistics(result)
+                if pipeline == 'effective_decode_rate':
+                    t = stats['eval']['decode']
+                elif pipeline == 'histogram':
+                    t = float(stats['eval']['evaluate']) - \
+                        float(stats['eval']['decode'])
+                else:
+                    t = float(stats['eval']['caffe:net']) + \
+                        float(stats['eval']['caffe:transform_input'])
+
+                fps = '{:.3f}'.format(num_frames / float(t))
+                all_results[pipeline][current_var][val] = fps
+
+    pprint(all_results)
+
+
+def run_cmd(template, settings):
+    cmd = template.format(**settings)
+    if os.system(cmd) != 0:
+        print('Bad command: {}'.format(cmd))
+        exit()
+
+def image_video_decode_benchmark():
+    input_video = '/bigdata/wcrichto/videos/charade_short.mkv'
+    num_frames = 2878 # TODO(wcrichto): automate this
+    output_video = '/tmp/test.mkv'
+    output_im_bmp = '/tmp/test_bmp'
+    output_im_jpg = '/tmp/test_jpg'
+    paths_file = '/tmp/paths.txt'
+    dataset_name = 'video_encoding'
+    in_job_name = scanner.Scanner.base_job_name()
+    input_width = 1920
+    input_height = 1080
+
+    scales = []
+
+    for scale in [1, 2, 3, 4, 8]:
+        width = input_width / scale
+        height = input_height / scale
+        # FFMPEG says dimensions must be multiple of 2
+        scales.append('{}x{}'.format(width//2 * 2, height//2 * 2))
+
+    scale_template = "ffmpeg -i {input} -vf scale={scale} -c:v libx264 {output}"
+    jpg_template = "ffmpeg -i {input} {output}/frame%07d.jpg"
+    bmp_template = "ffmpeg -i {input} {output}/frame%07d.bmp"
+
+    db = scanner.Scanner()
+    scanner_settings = {
+        'force': True,
+        'node_count': 1,
+        'work_item_size': 512
+    }
+
+    def run_cmd(template, settings):
+        cmd = template.format(**settings)
+        if os.system(cmd) != 0:
+            print('Bad command: {}'.format(cmd))
+            exit()
+
+    all_results = {}
+    for scale in scales:
+        all_results[scale] = {}
+
+        os.system('rm {}'.format(output_video))
+        run_cmd(scale_template, {
+            'input': input_video,
+            'output': output_video,
+            'scale': scale
+        })
+
+        os.system('mkdir -p {path} && rm -f {path}/*'.format(path=output_im_bmp))
+        run_cmd(bmp_template, {
+            'input': output_video,
+            'output': output_im_bmp
+        })
+
+        os.system('mkdir -p {path} && rm -f {path}/*'.format(path=output_im_jpg))
+        run_cmd(jpg_template, {
+            'input': output_video,
+            'output': output_im_jpg
+        })
+
+        datasets = [('video', [output_video], 'effective_decode_rate'),
+                    ('image', ['{}/{}'.format(output_im_bmp, f)
+                               for f in os.listdir(output_im_bmp)],
+                     'image_decode_rate'),
+                    ('image', ['{}/{}'.format(output_im_jpg, f)
+                               for f in os.listdir(output_im_jpg)],
+                     'image_decode_rate')]
+
+        for (i, (ty, paths, pipeline)) in enumerate(datasets):
+            result, _ = db.ingest(ty, dataset_name, paths, {'force': True})
+            if result != True:
+                print('Error: failed to ingest')
+                exit()
+
+            pus_per_node = cpu_count() if pipeline == 'image_decode_rate' else 1
+            scanner_settings['pus_per_node'] = pus_per_node
+            t, result = run_trial(dataset_name, in_job_name, pipeline,
+                                  'test', scanner_settings)
+            stats = generate_statistics(result)
+            all_results[scale][i] = {
+                'decode': stats['eval']['decode'],
+                'io': stats['load']['io'],
+                'total': t
+            }
+
+    pprint(all_results)
+
+
+def disk_size(path):
+    output = subprocess.check_output("du -bh {}".format(path), shell=True)
+    return output.split("\t")[0]
+
+
+def storage_benchmark():
+    config_path = '/tmp/scanner.toml'
+    output_video = '/tmp/test.mkv'
+    output_video_stride = '/tmp/test_stride.mkv'
+    output_images_jpg = '/tmp/test_jpg'
+    output_images_bmp = '/tmp/test_bmp'
+    output_images_stride = '/tmp/test_jpg_stride'
+    paths_file = '/tmp/paths.txt'
+    dataset_name = 'video_encoding'
+    in_job_name = scanner.Scanner.base_job_name()
+
+    video_paths = {
+        'charade': '/bigdata/wcrichto/videos/charade_short.mkv',
+        'meangirls': '/bigdata/wcrichto/videos/meanGirls_medium.mp4'
+    }
+
+    datasets = [(video, scale)
+                for video in [('charade', 1920, 1080, 2878),
+                              ('meangirls', 640, 480, 5755)]
+                for scale in [1, 2, 4, 8]]
+
+    strides = [1, 2, 4, 8]
+    disks = {
+        'sdd': '/data/wcrichto/db',
+        'hdd': '/bigdata/wcrichto/db',
+    }
+
+    scale_template = "ffmpeg -i {input} -vf scale={scale} -c:v libx264 {output}"
+    jpg_template = "ffmpeg -i {input} {output}/frame%07d.jpg"
+    bmp_template = "ffmpeg -i {input} {output}/frame%07d.bmp"
+    stride_template = "ffmpeg -f image2 -i {input}/frame%*.jpg {output}"
+
+    scanner_settings = {
+        'force': True,
+        'node_count': 1,
+        'work_item_size': 96,
+        'pus_per_node': 1,
+        'config_path': config_path
+    }
+
+    scanner_toml = scanner.ScannerConfig.default_config_path()
+    with open(scanner_toml, 'r') as f:
+        scanner_config = toml.loads(f.read())
+
+    all_results = []
+    all_sizes = []
+    for ((video, width, height, num_frames), scale) in datasets:
+        width /= scale
+        height /= scale
+        scale = '{}x{}'.format(width//2*2, height//2*2)
+
+        os.system('rm -f {}'.format(output_video))
+        run_cmd(scale_template, {
+            'input': video_paths[video],
+            'scale': scale,
+            'output': output_video
+        })
+
+        os.system('mkdir -p {path} && rm -f {path}/*'.format(path=output_images_jpg))
+        run_cmd(jpg_template, {
+            'input': output_video,
+            'output': output_images_jpg
+        })
+
+        os.system('mkdir -p {path} && rm -f {path}/*'.format(path=output_images_bmp))
+        run_cmd(bmp_template, {
+            'input': output_video,
+            'output': output_images_bmp
+        })
+
+        for stride in strides:
+            os.system('mkdir -p {path} && rm -f {path}/*'
+                      .format(path=output_images_stride))
+            for frame in range(0, num_frames, stride):
+                os.system('ln -s {}/frame{:07d}.jpg {}'
+                          .format(output_images_jpg, frame, output_images_stride))
+            os.system('rm -f {}'.format(output_video_stride))
+            run_cmd(stride_template, {
+                'input': output_images_stride,
+                'output': output_video_stride
+            })
+
+            jobs = [
+                ('orig_video', 'video', [output_video], 'effective_decode_rate', stride),
+                ('strided_video', 'video', [output_video_stride], 'effective_decode_rate', 1),
+                ('exploded_jpg', 'image',
+                 ['{}/{}'.format(output_images_jpg, f)
+                  for f in os.listdir(output_images_jpg)],
+                 'image_decode_rate', stride),
+                ('exploded_bmp', 'image',
+                 ['{}/{}'.format(output_images_bmp, f)
+                  for f in os.listdir(output_images_bmp)],
+                 'image_decode_rate', stride)
+            ]
+
+            config = (video, scale, stride)
+            all_sizes.append((config, {
+                'orig_video': disk_size(output_video),
+                'strided_video': disk_size(output_video_stride),
+                'exploded_jpg': disk_size(output_images_jpg),
+                'exploded_bmp': disk_size(output_images_bmp)
+            }))
+
+            for disk in disks:
+                scanner_config['storage']['db_path'] = disks[disk]
+                with open(config_path, 'w') as f:
+                    f.write(toml.dumps(scanner_config))
+                db = scanner.Scanner(config_path=config_path)
+                for (job_label, ty, paths, pipeline, pipeline_stride) in jobs:
+                    config = (video, scale, stride, disk, job_label)
+                    print('Running test: ', config)
+                    result, _ = db.ingest(ty, dataset_name, paths, {'force': True})
+                    if result != True:
+                        print('Error: failed to ingest')
+                        exit()
+
+                    with open('stride.txt', 'w') as f:
+                        f.write(str(pipeline_stride))
+                    t, result = run_trial(dataset_name, in_job_name, pipeline,
+                                          'test', scanner_settings)
+                    stats = generate_statistics(result)
+                    all_results.append((config, {
+                        'decode': stats['eval']['decode'],
+                        'io': stats['load']['io'],
+                        'total': t
+                    }))
+
+    print(json.dumps(all_results))
+    print(json.dumps(all_sizes))
+
 
 def effective_io_rate_benchmark():
     dataset_name = 'kcam_benchmark'
@@ -534,8 +863,7 @@ def convert_time(d):
     return {k: convert_time(v) if isinstance(v, dict) else convert(v) \
             for (k, v) in d.iteritems()}
 
-
-def print_statistics(profilers):
+def generate_statistics(profilers):
     totals = {}
     for _, profiler in profilers.values():
         for kind in profiler:
@@ -546,7 +874,7 @@ def print_statistics(profilers):
                     totals[kind][key] += end-start
 
     readable_totals = convert_time(totals)
-    pprint(readable_totals)
+    return readable_totals
 
 
 def graph_io_rate_benchmark(path):
@@ -634,8 +962,9 @@ def graph_decode_rate_benchmark(path):
 def bench_main(args):
     out_dir = args.output_directory
     #effective_io_rate_benchmark()
-    effective_decode_rate_benchmark()
+    #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
+    storage_benchmark()
 
 
 def graphs_main(args):
@@ -647,7 +976,7 @@ def trace_main(args):
     job = args.job
     db = scanner.Scanner()
     profilers = db.parse_profiler_files(dataset, job)
-    print_statistics(profilers)
+    pprint(generate_statistics(profilers))
     write_trace_file(profilers, dataset, job)
 
 
