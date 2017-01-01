@@ -23,6 +23,10 @@
 #include "lodepng/lodepng.h"
 #include "bitmap-cpp/bitmap.h"
 
+#ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
+#endif
+
 namespace scanner {
 
 ImageDecoderEvaluator::ImageDecoderEvaluator(const EvaluatorConfig& config,
@@ -119,46 +123,48 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         current_frame++;
         current_frame_idx++;
       }
-      i32 encoded_image_size = args.compressed_sizes(valid_index);
+
+      i32 encoded_image_size = args.compressed_sizes(current_frame_idx);
       const u8* encoded_packet = encoded_buffer + encoded_buffer_offset;
       encoded_buffer_offset += encoded_image_size;
-
-      // printf("encoded_image size %d, offset %lu\n", encoded_image_size,
-      //        encoded_buffer_offset);
 
       i32 frame_size = metadata_.width() * metadata_.height() * 3;
       u8* output = new_buffer({device_type_, device_id_}, frame_size);
       switch (args.encoding_type()) {
         case ImageEncodingType::JPEG: {
-          JPEGReader reader;
-          reader.header_mem(const_cast<u8*>(encoded_packet),
-                            encoded_image_size);
-          if (reader.warnings() != "") {
-            LOG(FATAL) << "JPEG file header could not be parsed: "
-                       << reader.warnings() << ". Exiting.";
+          try {
+            JPEGReader reader;
+            reader.header_mem(const_cast<u8*>(encoded_packet),
+                              encoded_image_size);
+            if (reader.warnings() != "") {
+              LOG(FATAL) << "JPEG file header could not be parsed: "
+                         << reader.warnings() << ". Exiting.";
+            }
+            assert(metadata_.width() == reader.width());
+            assert(metadata_.height() == reader.height());
+            // switch (reader.colorSpace()) {
+            // case JPEG::COLOR_GRAYSCALE:
+            //   color_space = ImageColorSpace::Gray;
+            //   break;
+            // case JPEG::COLOR_RGB:
+            // case JPEG::COLOR_YCC:
+            // case JPEG::COLOR_CMYK:
+            // case JPEG::COLOR_YCCK:
+            //   color_space = ImageColorSpace::RGB;
+            //   break;
+            // case JPEG::COLOR_UNKNOWN:
+            //   LOG(FATAL) << "JPEG file " << path << " is of unsupported type: "
+            //              << "COLOR_UNKNOWN. Exiting.";
+            //   break;
+            // }
+            std::vector<u8*> rows;
+            for (i32 r = 0; r < metadata_.height(); ++r) {
+              rows.push_back(output + r * metadata_.width() * 3);
+            }
+            reader.load(rows.begin());
+          } catch (const std::exception& e) {
+            LOG(FATAL) << "Failed to load JPEG with error: " << e.what();
           }
-          assert(metadata_.width() == reader.width());
-          assert(metadata_.height() == reader.height());
-          // switch (reader.colorSpace()) {
-          // case JPEG::COLOR_GRAYSCALE:
-          //   color_space = ImageColorSpace::Gray;
-          //   break;
-          // case JPEG::COLOR_RGB:
-          // case JPEG::COLOR_YCC:
-          // case JPEG::COLOR_CMYK:
-          // case JPEG::COLOR_YCCK:
-          //   color_space = ImageColorSpace::RGB;
-          //   break;
-          // case JPEG::COLOR_UNKNOWN:
-          //   LOG(FATAL) << "JPEG file " << path << " is of unsupported type: "
-          //              << "COLOR_UNKNOWN. Exiting.";
-          //   break;
-          // }
-          std::vector<u8*> rows;
-          for (i32 r = 0; r < metadata_.height(); ++r) {
-            rows.push_back(output + r * metadata_.width() * 3);
-          }
-          reader.load(rows.begin());
           break;
         }
         case ImageEncodingType::PNG: {
@@ -189,8 +195,8 @@ void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       }
       output_columns[0].rows.push_back(Row{output, frame_size});
       valid_index++;
-      current_frame++;
       current_frame_idx++;
+      current_frame++;
     }
 
     if (device_type_ == DeviceType::GPU) {

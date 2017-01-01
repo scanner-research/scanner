@@ -593,7 +593,7 @@ JobMetadata::FrameLocations JobMetadata::frame_locations(
       dargs.push_back(decode_args);
 
       ImageDecodeArgs image_args;
-      image_args.set_sampling(ImageDecodeArgs::All);
+      image_args.set_sampling(ImageDecodeArgs::Strided);
       image_args.mutable_interval()->set_start(entry.strided_interval.start);
       image_args.mutable_interval()->set_end(entry.strided_interval.end);
       image_args.mutable_interval()->set_stride(entry.strided_interval.stride);
