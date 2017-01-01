@@ -66,7 +66,7 @@ void DecoderEvaluator::reset() {
 void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
                                 BatchedColumns& output_columns) {
   assert(input_columns.size() ==
-         video_column_idx.size() + regular_column_idx.size());
+         video_column_idxs.size() * 2 + regular_column_idxs.size());
 
   auto start = now();
 
@@ -161,10 +161,10 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
           bool more_frames = true;
           while (more_frames && valid_index < total_output_frames) {
             if (current_frame == valid_frames[valid_index]) {
-              u8* decoded_buffer = output_block + valid_index * frame_size_;
-              more_frames = decoder->get_frame(decoded_buffer, frame_size_);
-              output_columns[0].rows.push_back(
-                  Row{decoded_buffer, frame_size_});
+              u8* decoded_buffer = output_block + valid_index * frame_size;
+              more_frames = decoder->get_frame(decoded_buffer, frame_size);
+              output_columns[out_col_idx].rows.push_back(
+                  Row{decoded_buffer, frame_size});
               valid_index++;
               total_frames_used++;
             } else {

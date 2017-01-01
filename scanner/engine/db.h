@@ -240,11 +240,12 @@ inline std::string job_directory(const std::string& dataset_name,
 
 inline std::string job_item_output_path(const std::string& dataset_name,
                                         const std::string& job_name,
-                                        const std::string& video_name,
+                                        i32 table_id,
                                         const std::string& column_name,
                                         i32 work_item_index) {
-  return job_directory(dataset_name, job_name) + "/" + video_name + "_" +
-         column_name + "_" + std::to_string(work_item_index) + ".bin";
+  return job_directory(dataset_name, job_name) + "/" +
+         std::to_string(table_id) + "_" + column_name + "_" +
+         std::to_string(work_item_index) + ".bin";
 }
 
 inline std::string job_descriptor_path(const std::string& dataset_name,

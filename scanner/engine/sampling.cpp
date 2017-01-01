@@ -17,291 +17,85 @@
 
 namespace scanner {
 
-std::vector<GroupSample> sampled_frames() const {
-  Sampling sampling = this->sampling();
-  std::vector<GroupSample> group_samples;
+// Gets the list of work items for a sequence of rows in the job
+RowIntervals row_work_item_locations(const JobMetadata& job, i32 table_id,
+                                     const std::string& column,
+                                     const std::vector<i64>& rows) {
+  RowIntervals info;
+  // Analyze rows and job to determine what item ids and offsets in them to
+  // sample from
+  i32 io_item_size = job.io_item_size();
+  auto item_from_row = [io_item_size](i64 r) -> i32 {
+    return r / io_item_size;
+  };
+  auto offset_from_row = [io_item_size](i64 r) -> i64 {
+    return r % io_item_size;
+  };
 
-  std::vector<i32> total_frames_per_item = rows_per_item();
-  switch (sampling) {
-    case Sampling::All: {
-      for (size_t i = 0; i < total_frames_per_item.size(); ++i) {
-        group_samples.emplace_back();
-        GroupSample& s = group_samples.back();
-        s.group_index = static_cast<i32>(i);
-        i32 tot_frames = total_frames_per_item[i];
-        for (i32 f = 0; f < tot_frames; ++f) {
-          s.frames.push_back(f);
-        }
-      }
-      break;
+  assert(!rows.empty());
+  i32 current_item = item_from_row(rows[0]);
+  i64 item_start = offset_from_row(rows[0]);
+  i64 item_end = item_start + 1;
+  std::vector<i64> valid_offsets;
+  for (i64 row : rows) {
+    i32 item = item_from_row(row);
+    i64 item_offset = offset_from_row(row);
+    if (item != current_item) {
+      // Start a new item and push the current one into the list
+      info.item_ids.push_back(current_item);
+      info.item_intervals.push_back({item_start, item_end});
+      info.valid_offsets.push_back(valid_offsets);
+
+      current_item = item;
+      item_start = item_offset;
+      item_end = item_offset + 1;
+      valid_offsets.clear();
     }
-    case Sampling::Strided: {
-      i32 stride = job_descriptor.stride();
-      for (size_t i = 0; i < total_frames_per_item.size(); ++i) {
-        group_samples.emplace_back();
-        GroupSample& s = group_samples.back();
-        s.group_index = static_cast<i32>(i);
-        i32 tot_frames = total_frames_per_item[i];
-        for (i32 f = 0; f < tot_frames; f += stride) {
-          s.frames.push_back(f);
-        }
-      }
-      break;
-    }
-    case Sampling::Gather: {
-      for (const auto& samples : job_descriptor.gather_points()) {
-        group_samples.emplace_back();
-        GroupSample& s = group_samples.back();
-        s.group_index = samples.video_index();
-        for (i32 f : samples.frames()) {
-          s.frames.push_back(f);
-        }
-      }
-      break;
-    }
-    case Sampling::SequenceGather: {
-      for (const auto& samples : job_descriptor.gather_sequences()) {
-        group_samples.emplace_back();
-        GroupSample& s = group_samples.back();
-        s.group_index = samples.video_index();
-        for (const JobDescriptor::StridedInterval& interval :
-             samples.intervals()) {
-          for (i32 f = interval.start(); f < interval.end();
-               f += interval.stride()) {
-            s.frames.push_back(f);
-          }
-        }
-      }
-      break;
-    }
+
+    valid_offsets.push_back(item_offset);
+    item_end = item_offset + 1;
   }
-  return group_samples;
+  info.item_ids.push_back(current_item);
+  info.item_intervals.push_back({item_start, item_end});
+  info.valid_offsets.push_back(valid_offsets);
+
+  return info;
 }
 
-RowLocations row_work_item_locations(
-    Sampling sampling, i32 group_id, const LoadWorkEntry& entry) const {
-  RowLocations locations;
-  std::vector<i32>& items = locations.work_items;
-  std::vector<Interval>& intervals = locations.work_item_intervals;
+VideoIntervals slice_into_video_intervals(
+    const std::vector<i64>& keyframe_positions,
+    const std::vector<i64>& rows) const {
+  VideoIntervals info;
+  assert(keyframe_positions.size() >= 2);
+  size_t start_keyframe_index = 0;
+  size_t end_keyframe_index = 1;
+  i64 next_keyframe = keyframe_positions[end_keyframe_index];
+  std::vector<i64> valid_frames;
+  for (i64 row : rows) {
+    if (row >= next_keyframe) {
+      assert(end_keyframe_index < keyframe_positions.size() - 1);
+      next_keyframe = keyframe_positions[end_keyframe_index + 1];
+      if (row >= next_keyframe) {
+        // Skipped a keyframe, so make a new interval
+        info.keyframe_index_intervals.push_back(
+            {start_keyframe_index, end_keyframe_index});
+        info.valid_frames.push_back(valid_frames);
 
-  i32 total_rows = rows_in_item(group_id);
-  switch (sampling) {
-    case Sampling::All: {
-      i32 start = entry.interval.start;
-      i32 end = entry.interval.end;
-      i32 tot_frames = total_rows;
-      i32 work_item_size = this->work_item_size();
-      i32 first_work_item = start / work_item_size;
-      i32 first_start_row = start % work_item_size;
-      i32 frames_left_in_wi = work_item_size - first_start_row;
-      items.push_back(first_work_item);
-      intervals.push_back(
-          Interval{first_start_row, std::min(work_item_size, (end - start))});
-      start += work_item_size;
-      i32 curr_work_item = first_work_item + 1;
-      while (start < end) {
-        items.push_back(curr_work_item);
-        intervals.push_back(
-            Interval{0, std::min(work_item_size, (end - start))});
-        start += work_item_size;
-        curr_work_item++;
-      }
-      break;
-    }
-    case Sampling::Strided:
-    case Sampling::Gather:
-    case Sampling::SequenceGather: {
-      assert(false);
-      break;
-    }
-  }
-  return locations;
-}
-
-FrameLocations frame_locations(
-    i32 video_index, const LoadWorkEntry& entry) const {
-  FrameLocations locations;
-  std::vector<Interval>& intervals = locations.intervals;
-  std::vector<DecodeArgs>& dargs = locations.video_args;
-  std::vector<ImageDecodeArgs>& image_dargs = locations.image_args;
-
-  if (job_sampling == Sampling::All) {
-    if (sampling == Sampling::All) {
-      intervals.push_back(Interval{entry.interval.start, entry.interval.end});
-
-      // Video decode arguments
-      DecodeArgs decode_args;
-      decode_args.set_sampling(DecodeArgs::All);
-      decode_args.mutable_interval()->set_start(entry.interval.start);
-      decode_args.mutable_interval()->set_end(entry.interval.end);
-      decode_args.mutable_interval()->set_stride(0);  // Dummy
-
-      dargs.push_back(decode_args);
-
-      ImageDecodeArgs image_args;
-      image_args.set_sampling(ImageDecodeArgs::All);
-      image_args.mutable_interval()->set_start(entry.interval.start);
-      image_args.mutable_interval()->set_end(entry.interval.end);
-      image_args.mutable_interval()->set_stride(0);  // Dummy
-
-      image_dargs.push_back(image_args);
-
-    } else if (sampling == Sampling::Strided) {
-      // TODO(apoms): loading a consecutive portion of the video stream might
-      //   be inefficient if the stride is much larger than a single GOP.
-      intervals.push_back(
-          Interval{entry.strided_interval.start, entry.strided_interval.end});
-
-      // Video decode arguments
-      DecodeArgs decode_args;
-      decode_args.set_sampling(DecodeArgs::Strided);
-      decode_args.mutable_interval()->set_start(entry.strided_interval.start);
-      decode_args.mutable_interval()->set_end(entry.strided_interval.end);
-      decode_args.mutable_interval()->set_stride(entry.strided_interval.stride);
-      decode_args.set_stride(entry.strided_interval.stride);
-
-      dargs.push_back(decode_args);
-
-      ImageDecodeArgs image_args;
-      image_args.set_sampling(ImageDecodeArgs::All);
-      image_args.mutable_interval()->set_start(entry.strided_interval.start);
-      image_args.mutable_interval()->set_end(entry.strided_interval.end);
-      image_args.mutable_interval()->set_stride(entry.strided_interval.stride);
-      image_args.set_stride(entry.strided_interval.stride);
-
-      image_dargs.push_back(image_args);
-
-    } else if (sampling == Sampling::Gather) {
-      // TODO(apoms): This implementation is not efficient for gathers which
-      //   overlap in the same GOP.
-      for (size_t i = 0; i < entry.gather_points.size(); ++i) {
-        intervals.push_back(
-            Interval{entry.gather_points[i], entry.gather_points[i] + 1});
-
-        // Video decode arguments
-        DecodeArgs decode_args;
-        decode_args.set_sampling(DecodeArgs::Gather);
-        decode_args.add_gather_points(entry.gather_points[i]);
-
-        dargs.push_back(decode_args);
-      }
-    } else if (sampling == Sampling::SequenceGather) {
-      for (const StridedInterval& s : entry.gather_sequences) {
-        intervals.push_back(Interval{s.start, s.end});
-      }
-
-      for (size_t i = 0; i < entry.gather_sequences.size(); ++i) {
-        // Video decode arguments
-        DecodeArgs decode_args;
-        decode_args.set_sampling(DecodeArgs::SequenceGather);
-        DecodeArgs::StridedInterval* intvl = decode_args.add_gather_sequences();
-        intvl->set_start(entry.gather_sequences[i].start);
-        intvl->set_end(entry.gather_sequences[i].end);
-        intvl->set_stride(entry.gather_sequences[i].stride);
-
-        dargs.push_back(decode_args);
-      }
-    }
-  } else {
-    // Only support all sampling on derived datasets
-    assert(sampling == Sampling::All);
-
-    std::vector<GroupSample> samples = this->sampled_frames();
-    GroupSample video_sample;
-    video_sample.group_index = -1;
-    for (GroupSample& s : samples) {
-      if (s.group_index == video_index) {
-        video_sample = s;
-        break;
-      }
-    }
-    assert(video_sample.group_index != -1);
-
-    i32 start = entry.interval.start;
-    i32 end = entry.interval.end;
-    if (job_sampling == Sampling::Strided) {
-      i32 stride = job_descriptor.stride();
-      i32 stride_start = video_sample.frames[start];
-      i32 stride_end = video_sample.frames[end - 1] + stride;
-      intervals.push_back(Interval{stride_start, stride_end});
-
-      // Video decode arguments
-      DecodeArgs decode_args;
-      decode_args.set_sampling(DecodeArgs::Strided);
-      decode_args.mutable_interval()->set_start(stride_start);
-      decode_args.mutable_interval()->set_end(stride_end);
-      decode_args.set_stride(stride);
-
-      dargs.push_back(decode_args);
-
-      ImageDecodeArgs image_args;
-      image_args.set_sampling(ImageDecodeArgs::All);
-      image_args.mutable_interval()->set_start(stride_start);
-      image_args.mutable_interval()->set_end(stride_end);
-      decode_args.set_stride(stride);
-
-      image_dargs.push_back(image_args);
-
-    } else if (job_sampling == Sampling::Gather) {
-      for (i32 s = start; s < end; ++s) {
-        i32 frame = video_sample.frames[s];
-        intervals.push_back(Interval{frame, frame + 1});
-
-        // Video decode arguments
-        DecodeArgs decode_args;
-        decode_args.set_sampling(DecodeArgs::Gather);
-        decode_args.add_gather_points(frame);
-
-        dargs.push_back(decode_args);
-      }
-    } else if (job_sampling == Sampling::SequenceGather) {
-      size_t s_idx = 0;
-      size_t i_idx = 0;
-      i32 frames_so_far = 0;
-      JobDescriptor::SequenceSamples* sample =
-          job_descriptor.mutable_gather_sequences(s_idx);
-      while (start < end) {
-        while (sample->video_index() != video_index) {
-          sample = job_descriptor.mutable_gather_sequences(++s_idx);
-          i_idx = 0;
-          frames_so_far = 0;
+        end_keyframe_index = end_keyframe_index + 1;
+        while (row > keyframe_positions[end_keyframe_index]) {
+          end_keyframe_index++;
         }
-        JobDescriptor::StridedInterval* interval =
-            sample->mutable_intervals(i_idx);
-        i32 stride = interval->stride();
-        i32 interval_offset = 0;
-        while (frames_so_far < start) {
-          i32 needed_frames = start - frames_so_far;
-          i32 frames_in_interval =
-              (interval->end() - interval->start()) / stride;
-          if (frames_in_interval <= needed_frames) {
-            interval = sample->mutable_intervals(++i_idx);
-            interval_offset = 0;
-          } else {
-            interval_offset = needed_frames * stride;
-          }
-          frames_so_far += std::min(frames_in_interval, needed_frames);
-        }
-        i32 start_frame = interval->start() + interval_offset;
-        i32 frames_left_in_interval = (interval->end() - start_frame) / stride;
-        i32 end_frame = start_frame +
-                        std::min(frames_left_in_interval * stride, end - start);
-        start += frames_left_in_interval;
-        frames_so_far += frames_left_in_interval;
-
-        intervals.push_back(Interval{start_frame, end_frame});
-
-        // Video decode arguments
-        DecodeArgs decode_args;
-        decode_args.set_sampling(DecodeArgs::SequenceGather);
-        DecodeArgs::StridedInterval* intvl = decode_args.add_gather_sequences();
-        intvl->set_start(start_frame);
-        intvl->set_end(end_frame);
-        intvl->set_stride(stride);
-
-        dargs.push_back(decode_args);
+        valid_frames.clear();
+        start_keyframe_index = end_keyframe_index - 1;
+        next_keyframe = keyframe_positions[end_keyframe_index];
+      } else {
+        end_keyframe_index++;
       }
     }
+    valid_frames.push_back(row);
   }
-  return locations;
+  info.keyframe_index_intervals.push_back(
+      {start_keyframe_index, end_keyframe_index});
+  info.valid_frames.push_back(valid_frames);
+  return info;
 }

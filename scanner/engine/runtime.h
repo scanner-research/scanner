@@ -33,6 +33,8 @@ namespace scanner {
 struct IOItem {
   // @brief the output table id
   i32 table_id;
+  // @brief the unique id for this item in the table
+  i64 item_id;
   // @brief the first row in this item
   i64 start_row;
   // @brief the row after the last row in this item

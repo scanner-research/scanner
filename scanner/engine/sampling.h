@@ -20,23 +20,22 @@
 
 namespace scanner {
 
-struct RowLocations {
-  // For regular columns
-  std::vector<i32> work_items;
-  std::vector<Interval> work_item_intervals;
+struct RowIntervals {
+  std::vector<i32> item_ids;
+  std::vector<std::tuple<i64, i64>> item_intervals;
+  std::vector<std::vector<i64>> valid_offsets;
 };
 
 // Gets the list of work items for a sequence of rows in the job
-RowLocations row_work_item_locations(Sampling sampling, i32 group_id,
-                                     const LoadWorkEntry& entry) const;
+RowIntervals slice_into_row_intervals(const JobMetadata& job,
+                                     const std::vector<i64>& rows) const;
 
-struct FrameLocations {
-  // For frame column
-  std::vector<Interval> intervals;
-  std::vector<DecodeArgs> video_args;
-  std::vector<ImageDecodeArgs> image_args;
+struct VideoIntervals {
+  std::vector<std::tuple<size_t, size_t>> keyframe_index_intervals;
+  std::vector<std::vector<i64>> valid_frames;
 };
 
-FrameLocations frame_locations(i32 video_index,
-                               const LoadWorkEntry& entry) const;
+VideoIntervals slice_into_video_intervals(
+    const std::vector<i64>& keyframe_positions,
+    const std::vector<i64>& rows) const;
 }
