@@ -35,7 +35,7 @@ class CPMInputEvaluator : public Evaluator {
   CPMInputEvaluator(DeviceType device_type, i32 device_id,
                     const NetDescriptor& descriptor, i32 batch_size);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
@@ -44,11 +44,12 @@ class CPMInputEvaluator : public Evaluator {
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
-  InputFormat metadata_;
 
   i32 batch_size_;
 
   i32 box_size_ = 368;
+  i32 frame_width_;
+  i32 frame_height_;
   i32 resize_width_;
   i32 resize_height_;
   i32 width_padding_;
@@ -86,7 +87,8 @@ class CPMInputEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_names(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

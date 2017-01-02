@@ -1,4 +1,4 @@
-#include "scanner/engine.h"
+#include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/evaluators/caffe/faster_rcnn/faster_rcnn_parser_evaluator.h"

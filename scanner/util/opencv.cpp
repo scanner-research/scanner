@@ -1,4 +1,6 @@
 #include "scanner/util/opencv.h"
+
+#include "scanner/engine/db.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/util/image.h"
 

@@ -17,24 +17,26 @@
 
 #include "scanner/engine/runtime.h"
 #include "scanner/util/common.h"
+#include "scanner/util/queue.h"
 
 namespace scanner {
 
-struct RowIntervals {
-  std::vector<i32> item_ids;
-  std::vector<std::tuple<i64, i64>> item_intervals;
-  std::vector<std::vector<i64>> valid_offsets;
+struct SaveThreadArgs {
+  // Uniform arguments
+  std::string dataset_name;
+  std::string job_name;
+  const std::vector<IOItem>& io_items;
+
+  // Per worker arguments
+  int id;
+  storehouse::StorageConfig* storage_config;
+  Profiler& profiler;
+
+  // Queues for communicating work
+  Queue<EvalWorkEntry>& input_work;
+  std::atomic<i64>& retired_items;
 };
 
-// Gets the list of work items for a sequence of rows in the job
-RowIntervals slice_into_row_intervals(const JobMetadata& job,
-                                      const std::vector<i64>& rows);
+void* save_thread(void* arg);
 
-struct VideoIntervals {
-  std::vector<std::tuple<size_t, size_t>> keyframe_index_intervals;
-  std::vector<std::vector<i64>> valid_frames;
-};
-
-VideoIntervals slice_into_video_intervals(
-    const std::vector<i64>& keyframe_positions, const std::vector<i64>& rows);
 }

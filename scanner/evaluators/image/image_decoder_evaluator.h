@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include "scanner/engine.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
 

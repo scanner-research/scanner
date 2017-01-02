@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include "scanner/engine.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/video/video_decoder.h"
@@ -40,6 +39,7 @@ class DecoderEvaluator : public Evaluator {
   DeviceType device_type_;
   i32 device_id_;
   VideoDecoderType decoder_type_;
+  i32 num_devices_;
   std::vector<std::tuple<i32, i32>> video_column_idxs;
   std::vector<size_t> frame_sizes_;
   std::vector<std::unique_ptr<VideoDecoder>> decoders_;

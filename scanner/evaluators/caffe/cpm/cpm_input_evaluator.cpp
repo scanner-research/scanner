@@ -40,13 +40,17 @@ CPMInputEvaluator::CPMInputEvaluator(DeviceType device_type, i32 device_id,
 {
 }
 
-void CPMInputEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void CPMInputEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
 
-  f32 scale = static_cast<f32>(box_size_) / metadata.height();
+  assert(config.formats.size() == 1);
+  frame_width_ = config.formats[0].width();
+  frame_height_ = config.formats[0].height();
+
+  f32 scale = static_cast<f32>(box_size_) / frame_height_;
   // Calculate width by scaling by box size
-  resize_width_ = metadata.width() * scale;
-  resize_height_ = metadata.height() * scale;
+  resize_width_ = frame_width_ * scale;
+  resize_height_ = frame_height_ * scale;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
   padded_width_ = resize_width_ + width_padding_;
@@ -73,9 +77,9 @@ void CPMInputEvaluator::configure(const InputFormat& metadata) {
     planar_input_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3));
       bgr_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3));
       resized_input_g_.push_back(
           cv::cuda::GpuMat(resize_height_, resize_width_, CV_8UC3));
       padded_input_g_.push_back(
@@ -132,6 +136,7 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
   size_t frame_size = net_input_width_ * net_input_height_ * 3;
   i32 input_count = input_columns[0].rows.size();
 
+  output_columns[0].rows = input_columns[0].rows;
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     cv::cuda::setDevice(device_id_);
@@ -141,13 +146,13 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
     for (i32 i = 0; i < input_count; ++i) {
       u8* buffer = input_columns[0].rows[i].buffer;
       assert(input_columns[0].rows[i].size ==
-             metadata_.height() * metadata_.width() * 3);
+             frame_height_ * frame_width_ * 3);
 
       cv::cuda::Stream& cv_stream = streams_[sid];
       cudaStream_t cuda_s = cv::cuda::StreamAccessor::getStream(cv_stream);
 
       frame_input_g_[sid] = cv::cuda::GpuMat(
-          metadata_.height(), metadata_.width(), CV_8UC3, buffer);
+          frame_height_, frame_width_, CV_8UC3, buffer);
       cv::cuda::cvtColor(frame_input_g_[sid], bgr_input_g_[sid],
                          cv::COLOR_RGB2BGR, 0, cv_stream);
       cv::cuda::resize(bgr_input_g_[sid], resized_input_g_[sid],
@@ -231,7 +236,7 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
             planar_input.step, net_input_width_ * sizeof(float),
             net_input_height_ * 4, cudaMemcpyDeviceToDevice, cuda_s));
 
-        output_columns[1].rows.push_back(Row{(u8*)net_input, net_input_size});
+        output_columns[0].rows.push_back(Row{(u8*)net_input, net_input_size});
       }
       sid += 1;
       sid %= num_cuda_streams_;
@@ -283,8 +288,8 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
     // }
   }
 
-  for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
-    output_columns[0].rows.push_back(input_columns[0].rows[i]);
+  for (i32 i = 1; i < input_columns.size(); ++i) {
+    output_columns[i + 1].rows = input_columns[i].rows[i];
   }
 
   if (profiler_) {
@@ -310,8 +315,11 @@ EvaluatorCapabilities CPMInputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPMInputEvaluatorFactory::get_output_names() {
-  return {"frame", "net_input"};
+std::vector<std::string> CPMInputEvaluatorFactory::get_output_names(
+    const std::vector<std::string>& input_columns) {
+  std::vector<std::string> output_columns = {"frame", "net_input"};
+  output_columns.insert(output_columns.end(), input_columns.begin() + 1,
+                        input_columns.end());
 }
 
 Evaluator* CPMInputEvaluatorFactory::new_evaluator(

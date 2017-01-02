@@ -1,4 +1,4 @@
-#include "scanner/engine.h"
+#include "scanner/engine/runtime.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/cpm/cpm_input_evaluator.h"
 #include "scanner/evaluators/caffe/cpm/cpm_parser_evaluator.h"
@@ -89,7 +89,9 @@ PipelineDescription get_pipeline_description(
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(device_type, decoder_type));
+      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+  // factories.emplace_back(
+  //     new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new CPMPersonInputEvaluatorFactory(
       device_type, cpm_person_descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(

@@ -88,7 +88,7 @@ struct TableInformation {
                    const std::vector<std::string>& sample_job_names,
                    const std::vector<std::string>& sample_table_names,
                    const std::vector<std::vector<std::string>>& sample_columns,
-                   const std::vector<i64>& sample_rows);
+                   const std::vector<std::vector<i64>>& sample_rows);
 
   i64 num_rows() const;
 
@@ -102,8 +102,8 @@ struct TableInformation {
 
 struct JobInformation {
  public:
-  JobInformation(const std::string& dataset_name,
-                 const std::string& job_name);
+  JobInformation(const std::string& dataset_name, const std::string& job_name,
+                 storehouse::StorageBackend* storage);
 
   const std::vector<std::string>& table_names();
 
@@ -114,6 +114,7 @@ struct JobInformation {
  private:
   std::string dataset_name_;
   std::string job_name_;
+  storehouse::StorageBackend* storage_;
   std::vector<std::string> table_names_;
   std::vector<std::string> column_names_;
   std::map<std::string, TableInformation> tables_;
@@ -122,7 +123,8 @@ struct JobInformation {
 struct DatasetInformation {
  public:
   DatasetInformation(const std::string& dataset_name,
-                     const std::vector<std::string>& job_names);
+                     const std::vector<std::string>& job_names,
+                     storehouse::StorageBackend* storage);
 
   const std::vector<std::string>& job_names();
 
@@ -131,6 +133,7 @@ struct DatasetInformation {
  private:
   std::string dataset_name_;
   std::vector<std::string> job_names_;
+  storehouse::StorageBackend* storage_;
   std::map<std::string, JobInformation> job_;
 };
 

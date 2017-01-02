@@ -14,7 +14,6 @@
 
 set(SOURCE_FILES
   common.cpp
-  db.cpp
   memory.cpp
   profiler.cpp
   util.cpp

@@ -14,6 +14,9 @@
  */
 
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/save_worker.h"
+#include "scanner/engine/evaluate_worker.h"
+#include "scanner/engine/load_worker.h"
 #include "scanner/engine/db.h"
 
 #include "scanner/evaluators/serialize.h"
@@ -37,12 +40,6 @@
 #include <string>
 #include <thread>
 
-extern "C" {
-#include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
-#include <libswscale/swscale.h>
-}
-
 #ifdef HAVE_CUDA
 #include <cuda.h>
 #include <cuda_runtime_api.h>
@@ -54,851 +51,6 @@ using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
 namespace scanner {
-///////////////////////////////////////////////////////////////////////////////
-/// Worker thread arguments
-struct LoadThreadArgs {
-  // Uniform arguments
-  const DatasetMetadata& dataset;
-  const std::map<i32, JobMetadata&> job_meta;
-  const std::vector<VideoMetadata>& video_meta;
-  const std::vector<ImageFormatGroupMetadata>& image_meta;
-  const std::vector<IOItem>& io_items;
-  i32 warmup_count;
-
-  // Per worker arguments
-  int id;
-  storehouse::StorageConfig* storage_config;
-  Profiler& profiler;
-
-  // Queues for communicating work
-  Queue<LoadWorkEntry>& load_work;  // in
-  Queue<EvalWorkEntry>& eval_work;  // out
-};
-
-struct EvaluateThreadArgs {
-  // Uniform arguments
-  const std::vector<InputFormat>& metadata;
-  const std::vector<IOItem>& io_items;
-  i32 warmup_count;
-
-  // Per worker arguments
-  int id;
-  int evaluator_group;
-  bool last_evaluator_group;
-  std::vector<EvaluatorFactory*> evaluator_factories;
-  std::vector<EvaluatorConfig> evaluator_configs;
-  Profiler& profiler;
-
-  // Queues for communicating work
-  Queue<EvalWorkEntry>& input_work;
-  Queue<EvalWorkEntry>& output_work;
-};
-
-struct SaveThreadArgs {
-  // Uniform arguments
-  std::string dataset_name;
-  std::string job_name;
-  const std::vector<std::string>& video_paths;
-  const std::vector<InputFormat>& metadata;
-  const std::vector<WorkItem>& work_items;
-  std::vector<std::string> output_names;
-
-  // Per worker arguments
-  int id;
-  storehouse::StorageConfig* storage_config;
-  Profiler& profiler;
-
-  // Queues for communicating work
-  Queue<EvalWorkEntry>& input_work;
-  std::atomic<i64>& retired_items;
-};
-
-///////////////////////////////////////////////////////////////////////////////
-/// Thread to asynchronously load video
-std::tuple<size_t, size_t> find_keyframe_indices(
-    i32 start_frame, i32 end_frame,
-    const std::vector<i64>& keyframe_positions) {
-  size_t start_keyframe_index = std::numeric_limits<size_t>::max();
-  for (size_t i = 1; i < keyframe_positions.size(); ++i) {
-    if (keyframe_positions[i] > start_frame) {
-      start_keyframe_index = i - 1;
-      break;
-    }
-  }
-  assert(start_keyframe_index != std::numeric_limits<size_t>::max());
-
-  size_t end_keyframe_index = 0;
-  for (size_t i = start_keyframe_index; i < keyframe_positions.size(); ++i) {
-    if (keyframe_positions[i] >= end_frame) {
-      end_keyframe_index = i;
-      break;
-    }
-  }
-  assert(end_keyframe_index != 0);
-  return std::make_tuple(start_keyframe_index, end_keyframe_index);
-}
-
-void* load_thread(void* arg) {
-  LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
-
-  auto setup_start = now();
-
-  i32 rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend* storage =
-      storehouse::StorageBackend::make_from_config(args.storage_config);
-
-  // To ammortize opening files
-  i32 last_table_id = -1;
-  std::vector<RandomReadFile*> files;
-  std::vector<u64> file_sizes;
-  std::vector<std::vector<i64>> all_keyframe_positions;
-  std::vector<std::vector<i64>> all_keyframe_byte_offsets;
-  std::vector<std::vector<i64>> all_image_compressed_sizes;
-  std::vector<std::vector<i64>> all_image_compressed_offsets;
-
-  args.profiler.add_interval("setup", setup_start, now());
-  while (true) {
-    auto idle_start = now();
-
-    LoadWorkEntry load_work_entry;
-    args.load_work.pop(load_work_entry);
-
-    if (load_work_entry.io_item_index == -1) {
-      break;
-    }
-
-    LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id
-              << "): processing item " << load_work_entry.io_item_index;
-
-    args.profiler.add_interval("idle", idle_start, now());
-
-    auto work_start = now();
-
-    const IOItem& io_item = args.io_items[load_work_entry.io_item_index];
-    const std::vector<LoadWorkEntry::Sample>& samples = load_work_entry.samples;
-
-    if (io_item.table_id != last_table_id) {
-      // Not from the same task so clear cached data
-      last_table_id = io_item.table_id;
-      for (auto file : files) {
-        delete file;
-      }
-      files.clear();
-      file_sizes.clear();
-      keyframe_positions.clear();
-      keyframe_byte_offsets.clear();
-      image_compressed_sizes.clear();
-      image_compressed_offsets.clear();
-    }
-
-    EvalWorkEntry eval_work_entry;
-    eval_work_entry.io_item_index = load_work_entry.io_item_index;
-    eval_work_entry.video_decode_item = false;
-
-    // Aggregate all sample columns so we know the tuple size
-    for (size_t i = 0; i < samples.size(); ++i) {
-      for (const std::string& c : samples[i].columns) {
-        eval_work_entry.column_names.push_back(c);
-        if (c == base_column_name()) {
-          eval_work_entry.video_decode_item = true;
-        }
-      }
-    }
-    i32 num_columns = static_cast<i32>(eval_work_entry.column_names.size());
-    eval_work_entry.columns.resize(num_columns);
-    eval_work_entry.buffer_handle = CPU_DEVICE;
-
-    i32 media_col_idx = 0;
-    i32 col_idx = 0;
-    for (LoadWorkEntry::Sample& sample : samples) {
-      const std::vector<i64>& rows = sample.rows;
-      if (sample.job_id == base_job_id() &&
-          samples.columns[0] == base_column_name()) {
-        // If reading from base job and special visual data column...
-        if (args.dataset.type() == DatasetType_Video) {
-          // Special video column
-          const VideoMetadata& metadata = args.video_meta[sample.table_id];
-          if (files.size() <= media_col_idx) {
-            // Open the video file for reading
-            RandomReadFile* video_file;
-            BACKOFF_FAIL(storage->make_random_read_file(
-                dataset_item_data_path(
-                    args.dataset.name(),
-                    args.dataset.item_names[sample.table_id]),
-                video_file));
-            u64 file_size;
-            BACKOFF_FAIL(video_file->get_size(file_size));
-            file_sizes.push_back(file_size);
-
-            all_keyframe_positions.push_back(metadata.keyframe_positions());
-            all_keyframe_byte_offsets.push_back(metadata.keyframe_byte_offsets());
-            // Place end of file and num frame at end of iframe to handle edge
-            // case
-            all_keyframe_positions.back().push_back(metadata.frames());
-            all_keyframe_byte_offsets.back().push_back(file_size);
-          }
-          RandomReadFile* video_file = files.at(media_col_idx);
-          u64 file_size = file_sizes.at(media_col_idx);
-          std::vector<i64>& keyframe_positions =
-              all_keyframe_positions[media_col_idx];
-          std::vector<i64>& keyframe_byte_offsets =
-              all_keyframe_byte_offsets[media_col_idx];
-
-          // Read the bytes from the file that correspond to the sequences of
-          // frames we are interested in decoding. This sequence will contain
-          // the bytes starting at the iframe at or preceding the first frame
-          // we are interested and will continue up to the bytes before the
-          // iframe at or after the last frame we are interested in.
-          VideoIntervals intervals =
-              slice_into_video_intervals(keyframe_positions, rows);
-          size_t num_intervals = intervals.keyframe_index_intervals.size();
-          for (size_t i = 0; i < num_intervals; ++i) {
-            size_t start_keyframe_index;;
-            size_t end_keyframe_index;
-            std::tie(start_keyframe_index, end_keyframe_index) =
-                intervals.keyframe_index_intervals[i];
-
-            u64 start_keyframe_byte_offset =
-                static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
-            u64 end_keyframe_byte_offset =
-                static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
-            size_t buffer_size =
-                end_keyframe_byte_offset - start_keyframe_byte_offset;
-
-            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-
-            auto io_start = now();
-
-            u64 pos = start_keyframe_byte_offset;
-            read(video_file, buffer, buffer_size, pos);
-
-            args.profiler.add_interval("io", io_start, now());
-            args.profiler.increment("io_read", static_cast<i64>(buffer_size));
-
-            // Encoded buffer
-            INSERT_ROW(eval_work_entry.columns[col_idx], buffer, buffer_size);
-
-            // Decode args
-            DecodeArgs& decode_args = dargs[i];
-
-            decode_args.set_warmup_count(args.warmup_count);
-            decode_args.set_rows_from_start(io_item.start_row);
-            decode_args.set_start_keyframe(
-                keyframe_positions[start_keyframe_index]);
-            decode_args.set_end_keyframe(
-                keyframe_positions[end_keyframe_index]);
-            for (i64 r : intervals.valid_frames[i]) {
-              decode_args.add_valid_frames(r);
-            }
-
-            u8* decode_args_buffer = nullptr;
-            size_t size;
-            serialize_decode_args(decode_args, decode_args_buffer, size);
-
-            INSERT_ROW(eval_work_entry.columns[col_idx + 1], decode_args_buffer,
-                       size);
-          }
-          // Jump over the next output column because we wrote two columns for
-          // this iteration (frame and frame_args)
-          col_idx++;
-        } else if (args.dataset.type() == DatasetType_Image) {
-          assert(false);
-          // Special image column
-          // const ImageFormatGroupMetadata& metadata =
-          //     args.image_meta[work_item.video_index];
-          // if (video_path != last_video_path) {
-          //   if (image_file != nullptr) {
-          //     delete image_file;
-          //     image_file = nullptr;
-          //   }
-          //   image_compressed_sizes.clear();
-          //   image_compressed_offsets.clear();
-
-          //   // Open the video file for reading
-          //   BACKOFF_FAIL(storage->make_random_read_file(
-          //       dataset_item_data_path(args.dataset.name(), video_path),
-          //       image_file));
-
-          //   BACKOFF_FAIL(image_file->get_size(file_size));
-
-          //   i64 s = 0;
-          //   for (i64 size : metadata.compressed_sizes()) {
-          //     image_compressed_sizes.push_back(size);
-          //     image_compressed_offsets.push_back(s);
-          //     s += size;
-          //   }
-          //   image_compressed_offsets.push_back(s);
-          // }
-          // last_video_path = video_path;
-
-          // // Read the bytes from the file that correspond to the sequences
-          // // of images we are interested in decoding.
-          // JobMetadata::FrameLocations locations = args.in_job.frame_locations(
-          //     args.sampling, work_item.video_index, load_work_entry);
-          // std::vector<Interval>& intervals = locations.intervals;
-          // std::vector<ImageDecodeArgs>& dargs = locations.image_args;
-          // assert(intervals.size() == dargs.size());
-          // size_t num_intervals = intervals.size();
-          // for (size_t i = 0; i < num_intervals; ++i) {
-          //   i32 start_frame = intervals[i].start;
-          //   i32 end_frame = intervals[i].end;
-
-          //   u64 start_byte_offset =
-          //       static_cast<u64>(image_compressed_offsets[start_frame]);
-
-          //   u64 end_byte_offset =
-          //       static_cast<u64>(image_compressed_offsets[end_frame]);
-
-          //   size_t buffer_size = end_byte_offset - start_byte_offset;
-
-          //   u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-
-          //   auto io_start = now();
-
-          //   u64 pos = start_byte_offset;
-          //   read(image_file, buffer, buffer_size, pos);
-
-          //   args.profiler.add_interval("io", io_start, now());
-          //   args.profiler.increment("io_read", static_cast<i64>(buffer_size));
-
-          //   // Encoded buffer
-          //   INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
-
-          //   // Decode args
-          //   ImageDecodeArgs& decode_args = dargs[i];
-
-          //   decode_args.set_warmup_count(args.warmup_count);
-          //   decode_args.set_rows_from_start(work_item.rows_from_start);
-          //   decode_args.set_encoding_type(metadata.encoding_type());
-          //   decode_args.set_color_space(metadata.color_space());
-          //   for (i32 f = start_frame; f < end_frame; ++f) {
-          //     decode_args.add_compressed_sizes(image_compressed_sizes[f]);
-          //   }
-
-          //   u8* decode_args_buffer = nullptr;
-          //   size_t size;
-          //   serialize_image_decode_args(decode_args, decode_args_buffer, size);
-
-          //   INSERT_ROW(eval_work_entry.columns[out_col + 1], decode_args_buffer,
-          //              size);
-          // }
-          // Jump over the next output column because we wrote two columns for
-          // this iteration (frame and frame_args)
-        } else {
-          assert(false);
-        }
-        media_col_idx++;
-        col_idx++;
-      } else {
-        // Regular column load
-        JobMetadata& job = args.job_meta.at(sample.job_id);
-        RowIntervals intervals = slice_into_row_intervals(job, rows);
-        size_t num_items = intervals.item_ids.size();
-        i32 in_job_work_item_size = args.in_job.work_item_size();
-        for (const std::string& column_name : samples.columns) {
-          for (size_t i = 0; i < num_items; ++i) {
-            i32 item_id = intervals.item_ids[i];
-            i64 item_start;
-            i64 item_end;
-            std::tie(item_start, item_end) = intervals.item_intervals[i];
-            const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
-
-            std::unique_ptr<RandomReadFile> file;
-            StoreResult result;
-            BACKOFF_FAIL(make_unique_random_read_file(
-                storage, job_item_output_path(args.dataset.name(), job.name(),
-                                              sample.table_id, column_name, wi),
-                file));
-
-            u64 file_size = 0;
-            BACKOFF_FAIL(file->get_size(file_size));
-
-            // Read number of rows in file
-            u64 pos = 0;
-            u64 num_rows = read<u64>(file.get(), pos);
-
-            // Read row sizes from work item file header
-            std::vector<i64> row_sizes(num_rows);
-            read(file.get(), reinterpret_cast<u8*>(row_sizes.data()),
-                 row_sizes.size() * sizeof(i64), pos);
-
-            // Determine start and end position of rows to read in file
-            u64 start_offset;
-            for (i64 i = 0; i < item_start; ++i) {
-              start_offset += row_sizes[i];
-            }
-            u64 end_offset = start_offset;
-            for (i64 i = item_start; i < item_end; ++i) {
-              end_offset += row_sizes[i];
-            }
-            u64 row_data_size = end_offset - start_offset;
-            std::vector<u8> row_data(row_data_size);
-
-            // Read chunk of file corresponding to requested rows
-            pos += start_offset;
-            read(file.get(), row_data.data(), row_data.size(), pos);
-
-            // Extract individual rows and insert into output work entry
-            u64 offset = 0;
-            size_t valid_idx = 0;
-            for (i32 i = item_start; i < item_end; ++i) {
-              size_t buffer_size = static_cast<size_t>(row_sizes[i]);
-              if (i == valid_offsets[valid_idx]) {
-                u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-                memcpy(buffer, row_data.data() + offset, buffer_size);
-                INSERT_ROW(eval_work_entry.columns[col_idx], buffer,
-                           buffer_size);
-                valid_idx++;
-              }
-              offset += buffer_size;
-            }
-            assert(valid_idx == valid_offsets.size());
-          }
-          col_idx++;
-        }
-      }
-    }
-
-    args.profiler.add_interval("task", work_start, now());
-
-    args.eval_work.push(eval_work_entry);
-  }
-
-  LOG(INFO) << "Load (N/PU: " << rank << "/" << args.id << "): thread finished";
-
-  // Cleanup
-  for (auto file : files) {
-    delete file;
-  }
-  delete storage;
-
-  THREAD_RETURN_SUCCESS();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// Thread to run evaluation
-void* pre_evaluate_thread(void* arg) {
-  // Split up a work entry into work item size chunks
-}
-
-void* evaluate_thread(void* arg) {
-  EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
-
-  auto setup_start = now();
-
-  i32 rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  assert(args.evaluator_factories.size() == args.evaluator_configs.size());
-  std::vector<EvaluatorCapabilities> evaluator_caps;
-  std::vector<std::unique_ptr<Evaluator>> evaluators;
-  std::vector<i32> num_evaluator_outputs;
-  for (size_t i = 0; i < args.evaluator_factories.size(); ++i) {
-    EvaluatorFactory* factory = args.evaluator_factories[i];
-    const EvaluatorConfig& config = args.evaluator_configs[i];
-    evaluator_caps.push_back(factory->get_capabilities());
-    evaluators.emplace_back(factory->new_evaluator(config));
-    num_evaluator_outputs.push_back(factory->get_output_names().size());
-  }
-  assert(evaluators.size() > 0);
-
-  for (auto& evaluator : evaluators) {
-    evaluator->set_profiler(&args.profiler);
-  }
-
-  i32 last_evaluator_num_columns =
-      args.evaluator_factories.back()->get_output_names().size();
-  i32 last_evaluator_device_id = args.evaluator_configs.back().device_ids[0];
-  DeviceType last_evaluator_device_type = evaluator_caps.back().device_type;
-
-  args.profiler.add_interval("setup", setup_start, now());
-
-  int last_video_index = -1;
-  int last_next_item_id = -1;
-  while (true) {
-    auto idle_start = now();
-    // Wait for next work item to process
-    EvalWorkEntry work_entry;
-    args.input_work.pop(work_entry);
-
-    if (work_entry.work_item_index == -1) {
-      break;
-    }
-
-    LOG(INFO) << "Evaluate (N/PU/G: " << rank << "/" << args.id << "/"
-              << args.evaluator_group << "): processing item "
-              << work_entry.work_item_index;
-
-    args.profiler.add_interval("idle", idle_start, now());
-
-    auto work_start = now();
-
-    const WorkItem& work_item = args.work_items[work_entry.work_item_index];
-    const InputFormat& metadata = args.metadata[work_item.video_index];
-
-    bool needs_configure = !(work_item.video_index == last_video_index);
-    bool needs_reset = (!(work_item.video_index == last_video_index &&
-                          work_item.item_id == last_next_item_id));
-    for (auto& evaluator : evaluators) {
-      // Make the evaluator aware of the format of the data we are about to
-      // feed it
-      if (needs_configure) {
-        evaluator->configure(metadata);
-      }
-      if (needs_reset) {
-        evaluator->reset();
-      }
-    }
-    last_video_index = work_item.video_index;
-    last_next_item_id = work_item.next_item_id;
-
-    size_t frame_size = metadata.width() * metadata.height() * 3 * sizeof(u8);
-
-    EvalWorkEntry output_work_entry;
-    output_work_entry.work_item_index = work_entry.work_item_index;
-    output_work_entry.buffer_type = evaluator_caps.back().device_type;
-    output_work_entry.buffer_device_id =
-        args.evaluator_configs.back().device_ids[0];
-    output_work_entry.video_decode_item = false;
-
-    BatchedColumns& work_item_output_columns = output_work_entry.columns;
-    work_item_output_columns.resize(last_evaluator_num_columns);
-
-    i32 current_input = 0;
-    i32 total_inputs = 0;
-    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-      total_inputs =
-          std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
-    }
-    while (current_input < total_inputs) {
-      i32 batch_size = std::min(total_inputs - current_input, WORK_ITEM_SIZE);
-
-      std::vector<std::string> input_names;
-      BatchedColumns input_columns;
-      DeviceType input_buffer_type;
-      i32 input_device_id;
-      // Initialize the output buffers with the frame input because we
-      // perform a swap from output to input on each iterator to pass outputs
-      // from the previous evaluator into the input of the next one
-      std::vector<std::string> output_names = work_entry.column_names;
-      BatchedColumns output_columns;
-      output_columns.resize(work_entry.columns.size());
-      for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-        i32 batch =
-            std::min(batch_size, (i32)work_entry.columns[i].rows.size());
-        assert(batch > 0);
-        output_columns[i].rows.insert(
-            output_columns[i].rows.end(),
-            work_entry.columns[i].rows.begin() + current_input,
-            work_entry.columns[i].rows.begin() + current_input + batch);
-      }
-      DeviceType output_buffer_type = work_entry.buffer_type;
-      i32 output_device_id = work_entry.buffer_device_id;
-
-      for (size_t e = 0; e < evaluators.size(); ++e) {
-        i32 device_id = args.evaluator_configs[e].device_ids[0];
-        EvaluatorCapabilities& caps = evaluator_caps[e];
-        std::unique_ptr<Evaluator>& evaluator = evaluators[e];
-        i32 num_outputs = num_evaluator_outputs[e];
-
-        input_names.swap(output_names);
-        input_columns.swap(output_columns);
-        input_buffer_type = output_buffer_type;
-        input_device_id = output_device_id;
-
-        i32 num_inputs = input_columns.size();
-        // If current evaluator type and input buffer type differ, then move
-        // the data in the input buffer into a new buffer which has the same
-        // type as the evaluator input
-        auto copy_start = now();
-        if (input_buffer_type != caps.device_type ||
-            input_device_id != device_id) {
-          for (i32 i = 0; i < num_inputs; ++i) {
-            std::vector<u8*> dest_buffers, src_buffers;
-            std::vector<size_t> sizes;
-
-            Column& column = input_columns[i];
-            size_t total_size = 0;
-            for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-              total_size += column.rows[b].size;
-            }
-
-            if (column.rows.size() > 0) {
-              u8* block = new_block_buffer({caps.device_type, device_id},
-                                           total_size,
-                                           column.rows.size());
-              for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-                size_t size = column.rows[b].size;
-                dest_buffers.push_back(block);
-                block += size;
-                src_buffers.push_back(column.rows[b].buffer);
-                sizes.push_back(size);
-              }
-
-              auto memcpy_start = now();
-              memcpy_vec(dest_buffers, {caps.device_type, device_id},
-                         src_buffers, {input_buffer_type, input_device_id},
-                         sizes);
-              args.profiler.add_interval("memcpy", memcpy_start, now());
-
-              auto delete_start = now();
-              for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-                delete_buffer({input_buffer_type, input_device_id},
-                              column.rows[b].buffer);
-                column.rows[b].buffer = dest_buffers[b];
-              }
-            }
-          }
-
-          input_buffer_type = caps.device_type;
-          input_device_id = device_id;
-        }
-        args.profiler.add_interval("evaluator_marshal", copy_start, now());
-
-        // Setup output buffers to receive evaluator output
-        output_columns.clear();
-        output_buffer_type = caps.device_type;
-        output_device_id = device_id;
-        output_columns.resize(num_outputs);
-        output_names = args.evaluator_factories[e]->get_output_names();
-
-        auto eval_start = now();
-        evaluator->evaluate(input_columns, output_columns);
-        args.profiler.add_interval("evaluate", eval_start, now());
-        // Do not verify outputs == inputs if we are decoding encoded video as
-        // there is an increase of 1 encoded chunk to multiple frames
-        if (false && !(e == 0 && work_entry.video_decode_item)) {
-          for (size_t i = 0; i < output_columns.size(); ++i) {
-            LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
-                << "Evaluator " << e << " produced "
-                << output_columns[i].rows.size() << " output rows for column "
-                << output_names[i] << ". Expected " << batch_size
-                << " outputs.";
-          }
-        }
-        // HACK(apoms): Handle the case where the video decode evaluator gets a
-        //   single input but produces multiple outputs. Should be removed if we
-        //   add flatmap esque increases in output element count
-        if (e == 0 && work_entry.video_decode_item) {
-          batch_size = output_columns[0].rows.size();
-        }
-
-        // Allow passing input buffers through to an evaluator output
-        // by tracking the pointers and comparing the output pointers
-        // for equality
-        std::set<u8*> all_output_buffers_set;
-        for (Column& column : output_columns) {
-          for (Row& row : column.rows) {
-            all_output_buffers_set.insert(row.buffer);
-          }
-        }
-
-        // Delete input buffers after they are used
-        for (size_t i = 0; i < num_inputs; ++i) {
-          Column& column = input_columns[i];
-          for (Row& row : column.rows) {
-            u8* buff = row.buffer;
-            if (all_output_buffers_set.count(buff) == 0) {
-              delete_buffer({input_buffer_type, input_device_id}, buff);
-            }
-          }
-        }
-      }
-      // Only discard warmup frames for last evaluator group because otherwise
-      // they need to be forwarded to warm up later evaluator groups
-      i32 warmup_frames;
-      if (args.last_evaluator_group && needs_reset) {
-        i32 total_warmup_frames =
-            std::min(args.warmup_count, work_item.rows_from_start);
-        warmup_frames = std::min(
-            batch_size, std::max(0, total_warmup_frames - current_input));
-      } else {
-        warmup_frames = 0;
-      }
-      for (i32 i = 0; i < last_evaluator_num_columns; ++i) {
-        // Delete warmup frame outputs
-        for (i32 w = 0; w < warmup_frames; ++w) {
-          delete_buffer({last_evaluator_device_type, last_evaluator_device_id},
-                        output_columns[i].rows[w].buffer);
-        }
-
-        // Make sure all outputs are in CPU memory so downstream code does not
-        // need to condition on buffer type
-        i32 num_output_rows = static_cast<i32>(output_columns[i].rows.size());
-        // Keep non-warmup frame outputs
-        work_item_output_columns[i].rows.insert(
-            work_item_output_columns[i].rows.end(),
-            output_columns[i].rows.begin() + warmup_frames,
-            output_columns[i].rows.end());
-      }
-      current_input += batch_size;
-    }
-
-    args.profiler.add_interval("task", work_start, now());
-
-    LOG(INFO) << "Evaluate (N/PU/G: " << rank << "/" << args.id << "/"
-              << args.evaluator_group << "): finished item "
-              << work_entry.work_item_index;
-
-    args.output_work.push(output_work_entry);
-  }
-
-  LOG(INFO) << "Evaluate (N/PU: " << rank << "/" << args.id
-            << "): thread finished";
-
-  THREAD_RETURN_SUCCESS();
-}
-
-void* post_evaluate_thread(void* arg) {
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// Thread to asynchronously save result buffers
-void* save_thread(void* arg) {
-  SaveThreadArgs& args = *reinterpret_cast<SaveThreadArgs*>(arg);
-
-  auto setup_start = now();
-
-  i32 rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend* storage =
-      storehouse::StorageBackend::make_from_config(args.storage_config);
-
-  args.profiler.add_interval("setup", setup_start, now());
-
-  while (true) {
-    auto idle_start = now();
-
-    EvalWorkEntry work_entry;
-    args.input_work.pop(work_entry);
-
-    if (work_entry.work_item_index == -1) {
-      break;
-    }
-
-    LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
-              << "): processing item " << work_entry.work_item_index;
-
-    args.profiler.add_interval("idle", idle_start, now());
-
-    auto work_start = now();
-
-    const WorkItem& work_item = args.work_items[work_entry.work_item_index];
-
-    const std::string& video_path = args.video_paths[work_item.video_index];
-    const InputFormat& metadata = args.metadata[work_item.video_index];
-
-    // Write out each output layer to an individual data file
-    for (size_t out_idx = 0; out_idx < args.output_names.size(); ++out_idx) {
-      u64 num_rows = static_cast<u64>(work_entry.columns[out_idx].rows.size());
-
-      const std::string output_path = job_item_output_path(
-          args.dataset_name, args.job_name, video_path,
-          args.output_names[out_idx], work_item.item_index);
-
-      auto io_start = now();
-
-      WriteFile* output_file = nullptr;
-      {
-        StoreResult result;
-        BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
-      }
-
-      if (work_entry.columns[out_idx].rows.size() != num_rows) {
-        LOG(FATAL) << "Output layer's row vector has wrong length";
-      }
-
-      if (work_entry.buffer_type != DeviceType::CPU) {
-        std::vector<u8*> dest_buffers, src_buffers;
-        std::vector<size_t> sizes;
-        size_t total_size = 0;
-        for (i32 f = 0; f < num_rows; ++f) {
-          Row& row = work_entry.columns[out_idx].rows[f];
-          total_size += row.size;
-        }
-
-        if (num_rows > 0) {
-          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
-          for (i32 f = 0; f < num_rows; ++f) {
-            Row& row = work_entry.columns[out_idx].rows[f];
-            size_t size = row.size;
-            u8* src_buffer = row.buffer;
-            u8* dest_buffer = output_block;
-
-            dest_buffers.push_back(dest_buffer);
-            src_buffers.push_back(src_buffer);
-            sizes.push_back(size);
-
-            output_block += size;
-          }
-
-          memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
-                     {work_entry.buffer_type, work_entry.buffer_device_id},
-                     sizes);
-
-          for (i32 f = 0; f < num_rows; ++f) {
-            delete_buffer({work_entry.buffer_type, work_entry.buffer_device_id},
-                          src_buffers[f]);
-            work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
-          }
-        }
-      }
-
-      // Write number of rows in the file
-      write(output_file, num_rows);
-      // Write out all output sizes first so we can easily index into the file
-      i64 size_written = 0;
-      for (size_t i = 0; i < num_rows; ++i) {
-        i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-        write(output_file, buffer_size);
-        size_written += sizeof(i64);
-      }
-      // Write actual output data
-      for (size_t i = 0; i < num_rows; ++i) {
-        i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-        u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
-        write(output_file, buffer, buffer_size);
-        size_written += buffer_size;
-      }
-
-      BACKOFF_FAIL(output_file->save());
-
-      // TODO(apoms): For now, all evaluators are expected to return CPU
-      //   buffers as output so just assume CPU
-      for (size_t i = 0; i < num_rows; ++i) {
-        delete_buffer(
-          {DeviceType::CPU,  // work_entry.buffer_type,
-              work_entry.buffer_device_id},
-          work_entry.columns[out_idx].rows[i].buffer);
-      }
-
-      delete output_file;
-
-      args.profiler.add_interval("io", io_start, now());
-      args.profiler.increment("io_write", size_written);
-    }
-
-    LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id << "): finished item "
-              << work_entry.work_item_index;
-
-    args.profiler.add_interval("task", work_start, now());
-
-    args.retired_items++;
-  }
-
-  LOG(INFO) << "Save (N/PU: " << rank << "/" << args.id
-            << "): thread finished ";
-
-  // Cleanup
-  delete storage;
-
-  THREAD_RETURN_SUCCESS();
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
@@ -923,8 +75,19 @@ void run_job(JobParameters& params) {
   i32 local_num_nodes;
   MPI_Comm_size(MPI_COMM_WORLD, &local_num_nodes);
 
+  // Load database metadata
+  DatabaseMetadata db_meta{};
+  {
+    std::string db_meta_path = database_metadata_path();
+    std::unique_ptr<RandomReadFile> meta_in_file;
+    BACKOFF_FAIL(
+        make_unique_random_read_file(storage, db_meta_path, meta_in_file));
+    u64 pos = 0;
+    db_meta = deserialize_database_metadata(meta_in_file.get(), pos);
+  }
+
   // Load the dataset descriptor to find all data files
-  i32 dataset_id = meta.get_dataset_id(params.dataset_name);
+  i32 dataset_id = db_meta.get_dataset_id(params.dataset_name);
   DatasetDescriptor descriptor;
   {
     std::unique_ptr<RandomReadFile> file;
@@ -939,12 +102,11 @@ void run_job(JobParameters& params) {
   timepoint_t base_time = now();
 
   // Get metadata for all dataset items for distributing to evaluators
-  std::vector<std::string> paths{dataset_meta.item_names()};
+  std::vector<std::string> paths(dataset_meta.item_names());
 
   std::vector<VideoMetadata> video_metadata;
   std::vector<ImageFormatGroupMetadata> image_metadata;
   std::vector<InputFormat> input_formats;
-  std::vector<DatasetItemMetadata> item_descriptors;
   for (size_t i = 0; i < paths.size(); ++i) {
     const std::string& path = paths.at(i);
     std::unique_ptr<RandomReadFile> metadata_file;
@@ -957,15 +119,12 @@ void run_job(JobParameters& params) {
           deserialize_video_metadata(metadata_file.get(), pos));
       VideoMetadata& meta = video_metadata.back();
       input_formats.emplace_back(meta.width(), meta.height());
-      item_descriptors.emplace_back(meta.frames(), meta.width(), meta.height());
     } else if (dataset_meta.type() == DatasetType_Image) {
       u64 pos = 0;
       image_metadata.push_back(
           deserialize_image_format_group_metadata(metadata_file.get(), pos));
       ImageFormatGroupMetadata& meta = image_metadata.back();
       input_formats.emplace_back(meta.width(), meta.height());
-      item_descriptors.emplace_back(meta.num_images(), meta.width(),
-                                    meta.height());
     }
   }
 
@@ -977,7 +136,7 @@ void run_job(JobParameters& params) {
   }
   PipelineDescription pipeline_description;
   {
-    DatasetInformation info(params.dataset_name, dataset_job_names);
+    DatasetInformation info(params.dataset_name, dataset_job_names, storage);
     pipeline_description = params.pipeline_gen_fn(info);
   }
 
@@ -990,19 +149,20 @@ void run_job(JobParameters& params) {
     LOG_IF(FATAL, task.samples.empty())
         << "No samples specified for task with table name " << task.table_name
         << "!";
-    for (TableSample &sample : task.samples) {
-      i32 job_id = db.get_job_id(dataset_id, sample.job_name);
+    for (TableSample& sample : task.samples) {
+      LOG_IF(FATAL, !db_meta.has_job(dataset_id, sample.job_name))
+          << "Requested job " << sample.job_name
+          << " does not exist in dataset " << params.dataset_name << "!";
+      i32 job_id = db_meta.get_job_id(dataset_id, sample.job_name);
       if (job_meta.count(job_id) == 0) {
-        LOG_IF(FATAL, !db_meta.has_job(job_name))
-            << "Requested job " << job_name << " does not exist in dataset "
-            << params.dataset_name << "!";
         JobDescriptor descriptor;
         std::unique_ptr<RandomReadFile> file;
         BACKOFF_FAIL(make_unique_random_read_file(
-            storage, job_descriptor_path(params.dataset_name, job_name), file));
+            storage, job_descriptor_path(params.dataset_name, sample.job_name),
+            file));
         u64 pos = 0;
-        JobDescriptor descriptor = deserialize_job_descriptor(file.get(), pos);
-        job_meta.insert({job_id, JobMetadata(descriptor)});
+        JobDescriptor desc = deserialize_job_descriptor(file.get(), pos);
+        job_meta.insert({job_id, JobMetadata(desc)});
       }
       JobMetadata& meta = job_meta.at(job_id);
       LOG_IF(FATAL, !meta.has_table(sample.table_name))
@@ -1017,7 +177,7 @@ void run_job(JobParameters& params) {
                                         meta.columns().end());
       assert(!job_columns.empty());
       std::string available_columns = *job_columns.begin();
-      for (auto it = job_columns.begin() + 1; it != job_columns.end(); ++it) {
+      for (auto it = ++job_columns.begin(); it != job_columns.end(); ++it) {
         available_columns += ", " + *it;
       }
       for (const std::string &column : sample.columns) {
@@ -1038,6 +198,20 @@ void run_job(JobParameters& params) {
   std::vector<EvaluatorCapabilities> evaluator_caps;
   for (EvaluatorFactory* factory : evaluator_factories) {
     evaluator_caps.push_back(factory->get_capabilities());
+  }
+
+  // Setup format metadata for each task
+  std::map<i32, BatchConfig> format_metadata;
+  for (size_t i = 0; i < pipeline_description.tasks.size(); ++i) {
+    const auto& task = pipeline_description.tasks[i];
+    BatchConfig batch_config;
+    for (const auto& sample : task.samples) {
+      if (sample.job_name == base_job_name()) {
+        i32 table_id = std::atoi(sample.table_name.c_str());
+        batch_config.formats.push_back(input_formats[table_id]);
+      }
+    }
+    format_metadata.insert({(i32)i, batch_config});
   }
 
   // We break up work into IO items which are then broken up into work items
@@ -1065,8 +239,20 @@ void run_job(JobParameters& params) {
   std::vector<IOItem> io_items;
   std::vector<LoadWorkEntry> load_work_entries;
   std::vector<size_t> item_task_delimeters;
-  std::vector<std::string> final_column_names =
-      evaluator_factories.back()->get_output_names();
+  std::vector<std::string> final_column_names;
+  {
+    std::vector<std::string> input_columns;
+    auto& task = pipeline_description.tasks[0];
+    for (auto& sample : task.samples) {
+      input_columns.insert(input_columns.end(),
+                           sample.columns.begin(),
+                           sample.columns.end());
+    }
+    for (auto factory : evaluator_factories) {
+      input_columns = factory->get_output_columns(input_columns);
+    }
+    final_column_names = input_columns;
+  }
   JobDescriptor job_descriptor;
   job_descriptor.set_io_item_size(io_item_size);
   job_descriptor.set_work_item_size(work_item_size);
@@ -1082,9 +268,9 @@ void run_job(JobParameters& params) {
     jd_task->set_table_name(task.table_name);
     for (TableSample &sample : task.samples) {
       i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name);
-      JobMeta& meta = job_meta.at(sample_job_id);
+      JobMetadata& meta = job_meta.at(sample_job_id);
 
-      JobDescriptor::Task::TableSample* jd_sample = jd_task.add_samples();
+      JobDescriptor::Task::TableSample* jd_sample = jd_task->add_samples();
       jd_sample->set_job_id(sample_job_id);
       i32 sample_table_id =
           meta.table_id(sample.table_name);
@@ -1105,7 +291,7 @@ void run_job(JobParameters& params) {
     i64 allocated_rows = 0;
     while (allocated_rows < rows_in_task) {
       i64 rows_to_allocate =
-          std::min(io_item_size, rows_in_sample - allocated_rows);
+          std::min((i64)io_item_size, rows_in_task - allocated_rows);
 
       IOItem item;
       item.table_id = i;
@@ -1117,7 +303,7 @@ void run_job(JobParameters& params) {
       load_item.io_item_index = io_items.size() - 1;
       for (TableSample &sample : task.samples) {
         i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name);
-        JobMeta& meta = job_meta.at(sample_job_id);
+        JobMetadata& meta = job_meta.at(sample_job_id);
         i32 sample_table_id = meta.table_id(sample.table_name);
 
         LoadWorkEntry::Sample load_sample;
@@ -1162,7 +348,7 @@ void run_job(JobParameters& params) {
     // Create IO thread for reading and decoding data
     load_thread_args.emplace_back(LoadThreadArgs{
         // Uniform arguments
-        dataset_meta, job_meta, video_metadata, image_metadata, input_formats,
+        dataset_meta, job_meta, video_metadata, image_metadata,
         io_items, warmup_size,
 
         // Per worker arguments
@@ -1235,7 +421,7 @@ void run_job(JobParameters& params) {
 
         EvaluatorConfig eval_config;
         eval_config.max_input_count =
-            std::max(frames_per_work_item(), warmup_size);
+            std::max(rows_per_work_item(), warmup_size);
         eval_config.max_frame_width = dataset_meta.max_width();
         eval_config.max_frame_height = dataset_meta.max_height();
 
@@ -1279,7 +465,7 @@ void run_job(JobParameters& params) {
       // Create eval thread for passing data through neural net
       eval_thread_args.emplace_back(EvaluateThreadArgs{
           // Uniform arguments
-          warmup_size, input_formats, work_items,
+          format_metadata, io_items, warmup_size,
 
           // Per worker arguments
           pu, fg, last_evaluator_group, factory_groups[fg], eval_configs,
@@ -1313,8 +499,7 @@ void run_job(JobParameters& params) {
     // Create IO thread for reading and decoding data
     save_thread_args.emplace_back(SaveThreadArgs{
         // Uniform arguments
-        params.dataset_name, params.out_job_name, paths, input_formats, work_items,
-        evaluator_factories.back()->get_output_names(),
+        params.dataset_name, params.out_job_name, io_items,
 
         // Per worker arguments
         i, params.storage_config, save_thread_profilers[i],
@@ -1330,21 +515,21 @@ void run_job(JobParameters& params) {
   // Push work into load queues
   if (is_master(rank)) {
     // Begin distributing work on master node
-    i32 next_work_item_to_allocate = 0;
+    i32 next_io_item_to_allocate = 0;
     // Wait for clients to ask for work
-    while (next_work_item_to_allocate < static_cast<i32>(work_items.size())) {
+    while (next_io_item_to_allocate < static_cast<i32>(io_items.size())) {
       // Check if we need to allocate work to our own processing thread
       i32 local_work = accepted_items - retired_items;
       if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-        LoadWorkEntry& entry = load_work_items[next_work_item_to_allocate++];
+        LoadWorkEntry& entry = load_work_entries[next_io_item_to_allocate++];
         load_work.push(entry);
 
         accepted_items++;
-        if ((static_cast<i32>(work_items.size()) - next_work_item_to_allocate) %
+        if ((static_cast<i32>(io_items.size()) - next_io_item_to_allocate) %
                 10 ==
             0) {
-          printf("Work items left: %d\n", static_cast<i32>(work_items.size()) -
-                                              next_work_item_to_allocate);
+          printf("Work items left: %d\n", static_cast<i32>(io_items.size()) -
+                                              next_io_item_to_allocate);
           fflush(stdout);
         }
         continue;
@@ -1355,7 +540,7 @@ void run_job(JobParameters& params) {
         MPI_Status status;
         MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
                  MPI_COMM_WORLD, &status);
-        i32 next_item = next_work_item_to_allocate++;
+        i32 next_item = next_io_item_to_allocate++;
         MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
         std::this_thread::yield();
       }
@@ -1386,7 +571,7 @@ void run_job(JobParameters& params) {
           // No more work left
           break;
         } else {
-          LoadWorkEntry& entry = load_work_items[next_item];
+          LoadWorkEntry& entry = load_work_entries[next_item];
           load_work.push(entry);
           accepted_items++;
         }
@@ -1398,7 +583,7 @@ void run_job(JobParameters& params) {
   // Push sentinel work entries into queue to terminate load threads
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     LoadWorkEntry entry;
-    entry.work_item_index = -1;
+    entry.io_item_index = -1;
     load_work.push(entry);
   }
 
@@ -1416,7 +601,7 @@ void run_job(JobParameters& params) {
   // Push sentinel work entries into queue to terminate eval threads
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
     EvalWorkEntry entry;
-    entry.work_item_index = -1;
+    entry.io_item_index = -1;
     initial_eval_work.push(entry);
   }
 
@@ -1434,7 +619,7 @@ void run_job(JobParameters& params) {
   for (i32 fg = 1; fg < factory_groups_per_chain; ++fg) {
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       EvalWorkEntry entry;
-      entry.work_item_index = -1;
+      entry.io_item_index = -1;
       eval_work[pu][fg - 1].push(entry);
     }
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
@@ -1452,7 +637,7 @@ void run_job(JobParameters& params) {
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     EvalWorkEntry entry;
-    entry.work_item_index = -1;
+    entry.io_item_index = -1;
     save_work.push(entry);
   }
 

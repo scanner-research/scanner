@@ -14,7 +14,7 @@
  */
 
 #include "scanner/engine/db.h"
-#include "scanner/engine.h"
+#include "scanner/engine/runtime.h"
 #include "scanner/util/jsoncpp.h"
 #include "scanner/util/storehouse.h"
 #include "scanner/util/util.h"
@@ -202,7 +202,7 @@ std::string DatasetMetadata::name() const { return descriptor.name(); }
 
 DatasetType DatasetMetadata::type() const { return descriptor.type(); }
 
-i32 DatasetMetadata::total_frames() const {
+i32 DatasetMetadata::total_rows() const {
   if (this->type() == DatasetType_Video) {
     return descriptor.video_data().total_frames();
   } else if (this->type() == DatasetType_Image) {
@@ -388,9 +388,9 @@ i64 JobMetadata::rows_in_table(i32 table_id) const {
   if (it == rows_in_table_.end()) {
     for (const JobDescriptor::Task& task : job_descriptor_.tasks()) {
       assert(task.samples_size() > 0);
-      JobDescriptor::Task::TableSample& sample = task.samples(0);
+      const JobDescriptor::Task::TableSample& sample = task.samples(0);
       rows = sample.rows_size();
-      rows_in_table_.insert({table_id, rows});
+      rows_in_table_.insert(std::make_pair(table_id, rows));
     }
   } else {
     rows = it->second;
@@ -403,7 +403,7 @@ i64 JobMetadata::total_rows() const {
   i64 rows = 0;
   for (const JobDescriptor::Task& task : job_descriptor_.tasks()) {
     assert(task.samples_size() > 0);
-    JobDescriptor::Task::TableSample& sample = task.samples(0);
+    const JobDescriptor::Task::TableSample& sample = task.samples(0);
     rows += sample.rows_size();
   }
   return rows;

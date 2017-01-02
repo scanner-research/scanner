@@ -75,7 +75,9 @@ macro(add_halide_target SRC TARGET)
   if (NOT HALIDE_FOUND)
     find_package(Halide REQUIRED)
     include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
+    include_directories("${HALIDE_INCLUDE_DIR}")
   endif()
+
 
   get_filename_component(NAME ${SRC} NAME_WE)
   set(GENERATOR ${NAME}.generator)
@@ -269,8 +271,7 @@ include_directories(
   "${MPI_INCLUDE_PATH}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
-  "${GOOGLETEST_INCLUDE_DIRS}"
-  "${HALIDE_INCLUDE_DIR}")
+  "${GOOGLETEST_INCLUDE_DIRS}")
 
 if (CUDA_FOUND)
   list(APPEND SCANNER_LIBRARIES
@@ -328,8 +329,7 @@ endif()
 
 add_executable(scanner_server
   scanner/main.cpp
-  scanner/ingest.cpp
-  scanner/engine.cpp
+  $<TARGET_OBJECTS:engine>
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:eval>
   $<TARGET_OBJECTS:evaluators>

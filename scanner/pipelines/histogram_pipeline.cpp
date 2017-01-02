@@ -1,4 +1,4 @@
-#include "scanner/engine.h"
+#include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/movie_analysis/histogram_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 

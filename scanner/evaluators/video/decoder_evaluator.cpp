@@ -24,14 +24,13 @@ namespace scanner {
 DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type,
                                    VideoDecoderType decoder_type,
-                                   i32 extra_outputs,
                                    i32 num_devices)
     : device_type_(device_type),
       device_id_(config.device_ids[0]),
       decoder_type_(decoder_type),
+      num_devices_(num_devices),
       needs_warmup_(false),
-      discontinuity_(false),
-      extra_outputs_(extra_outputs) {
+      discontinuity_(false) {
 }
 
 void DecoderEvaluator::configure(const BatchConfig& config) {
@@ -40,9 +39,9 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
     frame_sizes_.push_back(m.width() * m.height() * 3);
   }
   for (size_t i = 0; i < config.formats.size(); ++i) {
-    if (decoders_.size() < metdata.size()) {
+    if (decoders_.size() <= i) {
       VideoDecoder* decoder = VideoDecoder::make_from_config(
-          device_type_, device_id_, decoder_type_, device_type_, num_devices);
+          device_type_, device_id_, decoder_type_, device_type_, num_devices_);
       assert(decoder);
       decoders_.emplace_back(decoder);
     }
@@ -51,9 +50,9 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
   i32 out_col_idx = 0;
   for (size_t i = 0; i < config.input_columns.size(); ++i) {
     if (config.input_columns[i] == base_column_name()) {
-      video_column_idxs.push_back({static_cast<i32>(i), out_col_idx++});
+      video_column_idxs.push_back(std::make_tuple(static_cast<i32>(i), out_col_idx++));
     } else if (config.input_columns[i] != base_column_args_name()) {
-      regular_column_idxs.push_back({static_cast<i32>(i), out_col_idx++});
+      regular_column_idxs.push_back(std::make_tuple(static_cast<i32>(i), out_col_idx++));
     }
   }
 }
@@ -123,11 +122,12 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         i32 s = 0;
         if (!needs_warmup_) {
           s += std::min(args.warmup_count() - frames_passed,
-                        static_cast<i32>(args.rows_from_start()));
+                        static_cast<i64>(args.rows_from_start()));
         }
-        frames_passed += static_cast<i32>(args.valid_frames.size());
-        valid_frames.insert(args.valid_frames.begin() + s,
-                            args.valid_frames.end());
+        frames_passed += static_cast<i32>(args.valid_frames_size());
+        valid_frames.insert(valid_frames.end(),
+                            args.valid_frames().begin() + s,
+                            args.valid_frames().end());
       }
       // HACK(apoms): just always force discontinuity for now instead of
       //  properly figuring out if the previous frame was abut
@@ -200,13 +200,9 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
     i32 out_col_idx;
     std::tie(col_idx, out_col_idx) = idxs;
 
-    size_t s = 0;
-    if (!needs_warmup_) {
-      s += std::min(args.warmup_count(),
-                    static_cast<i32>(args.rows_from_start()));
-    }
     output_columns[out_col_idx].rows.insert(
-        input_columns[col_idx].rows.begin() + s,
+        output_columns[out_col_idx].rows.end(),
+        input_columns[col_idx].rows.begin(),
         input_columns[col_idx].rows.end());
   }
   // All warmed up
@@ -220,11 +216,9 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 }
 
 DecoderEvaluatorFactory::DecoderEvaluatorFactory(DeviceType device_type,
-                                                 VideoDecoderType decoder_type,
-                                                 i32 extra_outputs)
+                                                 VideoDecoderType decoder_type)
     : device_type_(device_type),
-      decoder_type_(decoder_type),
-      extra_outputs_(extra_outputs) {
+      decoder_type_(decoder_type) {
   num_devices_ = device_type_ == DeviceType::GPU ? 1 : 8;
 }
 
@@ -237,20 +231,20 @@ EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> DecoderEvaluatorFactory::get_output_names(
+std::vector<std::string> DecoderEvaluatorFactory::get_output_columns(
     const std::vector<std::string>& input_columns) {
   std::vector<std::string> output_columns;
   for (const std::string& col : input_columns) {
     if (col != base_column_args_name()) {
-      outputs.push_back(col);
+      output_columns.push_back(col);
     }
   }
-  return outputs;
+  return output_columns;
 }
 
 Evaluator* DecoderEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new DecoderEvaluator(config, device_type_, decoder_type_,
-                              extra_outputs_, num_devices_);
+                              num_devices_);
 }
 }

@@ -43,7 +43,7 @@ RowIntervals row_work_item_locations(const JobMetadata& job, i32 table_id,
     if (item != current_item) {
       // Start a new item and push the current one into the list
       info.item_ids.push_back(current_item);
-      info.item_intervals.push_back({item_start, item_end});
+      info.item_intervals.push_back(std::make_tuple(item_start, item_end));
       info.valid_offsets.push_back(valid_offsets);
 
       current_item = item;
@@ -56,7 +56,7 @@ RowIntervals row_work_item_locations(const JobMetadata& job, i32 table_id,
     item_end = item_offset + 1;
   }
   info.item_ids.push_back(current_item);
-  info.item_intervals.push_back({item_start, item_end});
+  info.item_intervals.push_back(std::make_tuple(item_start, item_end));
   info.valid_offsets.push_back(valid_offsets);
 
   return info;
@@ -64,7 +64,7 @@ RowIntervals row_work_item_locations(const JobMetadata& job, i32 table_id,
 
 VideoIntervals slice_into_video_intervals(
     const std::vector<i64>& keyframe_positions,
-    const std::vector<i64>& rows) const {
+    const std::vector<i64>& rows) {
   VideoIntervals info;
   assert(keyframe_positions.size() >= 2);
   size_t start_keyframe_index = 0;
@@ -78,7 +78,7 @@ VideoIntervals slice_into_video_intervals(
       if (row >= next_keyframe) {
         // Skipped a keyframe, so make a new interval
         info.keyframe_index_intervals.push_back(
-            {start_keyframe_index, end_keyframe_index});
+            std::make_tuple(start_keyframe_index, end_keyframe_index));
         info.valid_frames.push_back(valid_frames);
 
         end_keyframe_index = end_keyframe_index + 1;
@@ -95,7 +95,9 @@ VideoIntervals slice_into_video_intervals(
     valid_frames.push_back(row);
   }
   info.keyframe_index_intervals.push_back(
-      {start_keyframe_index, end_keyframe_index});
+      std::make_tuple(start_keyframe_index, end_keyframe_index));
   info.valid_frames.push_back(valid_frames);
   return info;
+}
+
 }

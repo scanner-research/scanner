@@ -154,15 +154,15 @@ message JobDescriptor {
 
   message Task {
     message TableSample {
-      required i32 job_id = 1;
-      required string table_id = 2;
+      required int32 job_id = 1;
+      required int32 table_id = 2;
       repeated Column columns = 3;
-      repeated i64 rows = 4 [packed=true];
+      repeated int64 rows = 4 [packed=true];
     }
 
     required int32 table_id = 1;
     required string table_name = 2;
-    required TableSample samples = 3;
+    repeated TableSample samples = 3;
   }
 
   required int32 id = 1;

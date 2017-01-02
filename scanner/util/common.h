@@ -40,6 +40,14 @@ enum class DeviceType {
 };
 
 struct DeviceHandle {
+  bool operator==(const DeviceHandle& other) {
+    return type == other.type && id == other.id;
+  }
+
+  bool operator!=(const DeviceHandle& other) {
+    return *this != other;
+  }
+
   DeviceType type;
   i32 id;
 };

@@ -14,9 +14,9 @@
  */
 
 #include "scanner/engine/ingest.h"
+#include "scanner/engine/db.h"
 
 #include "scanner/util/common.h"
-#include "scanner/util/db.h"
 #include "scanner/util/h264.h"
 #include "scanner/util/util.h"
 

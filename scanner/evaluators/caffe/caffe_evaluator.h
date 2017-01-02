@@ -25,45 +25,44 @@
 namespace scanner {
 
 using CustomNetConfiguration =
-    std::function<void(const InputFormat &descriptor, caffe::Net<float> *net)>;
+    std::function<void(const BatchConfig& config, caffe::Net<float>* net)>;
 
 class CaffeEvaluator : public Evaluator {
  public:
-   CaffeEvaluator(const EvaluatorConfig &config, DeviceType device_type,
-                  i32 device_id, const NetDescriptor &descriptor,
-                  i32 batch_size, bool forward_input = false,
-                  CustomNetConfiguration net_config = nullptr);
+  CaffeEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                 i32 device_id, const NetDescriptor& descriptor, i32 batch_size,
+                 CustomNetConfiguration net_config = nullptr);
 
-   void configure(const InputFormat &descriptor) override;
+  void configure(const BatchConfig& config) override;
 
-   void evaluate(const BatchedColumns &input_columns,
-                 BatchedColumns &output_columns) override;
+  void evaluate(const BatchedColumns& input_columns,
+                BatchedColumns& output_columns) override;
 
  protected:
   void set_device();
 
-  EvaluatorConfig config_;
+  EvaluatorConfig eval_config_;
   DeviceType device_type_;
   i32 device_id_;
   NetDescriptor descriptor_;
   i32 batch_size_;
-  bool forward_input_;
   CustomNetConfiguration net_config_;
   std::unique_ptr<caffe::Net<float>> net_;
 
-  InputFormat metadata_;
+  i32 frame_width;
+  i32 frame_height;
 };
 
 class CaffeEvaluatorFactory : public EvaluatorFactory {
  public:
   CaffeEvaluatorFactory(DeviceType device_type,
                         const NetDescriptor& net_descriptor, i32 batch_size,
-                        bool forward_input = false,
                         CustomNetConfiguration net_config = nullptr);
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
@@ -71,7 +70,6 @@ class CaffeEvaluatorFactory : public EvaluatorFactory {
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   i32 batch_size_;
-  bool forward_input_;
   CustomNetConfiguration net_config_;
 };
 }  // end namespace scanner

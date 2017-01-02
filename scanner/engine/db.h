@@ -146,10 +146,10 @@ struct JobMetadata {
  private:
   mutable JobDescriptor job_descriptor_;
   std::vector<std::string> columns_;
-  std::map<std::string, i32> column_id_;
+  std::map<std::string, i32> column_ids_;
   std::vector<std::string> table_names_;
-  std::map<std::string, i32> table_id_;
-  std::map<i32, i64> rows_in_table_;
+  std::map<std::string, i32> table_ids_;
+  mutable std::map<i32, i64> rows_in_table_;
 };
 
 void serialize_database_metadata(storehouse::WriteFile* file,

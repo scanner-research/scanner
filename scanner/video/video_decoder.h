@@ -15,8 +15,8 @@
 
 #pragma once
 
+#include "scanner/engine/db.h"
 #include "scanner/util/common.h"
-#include "scanner/util/db.h"
 #include "scanner/util/profiler.h"
 
 #include <vector>

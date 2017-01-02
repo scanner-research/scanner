@@ -1,4 +1,4 @@
-#include "scanner/engine.h"
+#include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_input_evaluator.h"
 #include "scanner/evaluators/caffe/facenet/facenet_parser_evaluator.h"
@@ -15,6 +15,8 @@ PipelineDescription get_pipeline_description(
     const std::vector<DatasetItemMetadata>& item_descriptors) {
   PipelineDescription desc;
   desc.input_columns = {"frame"};
+  desc.sampling = Sampling::SequenceGather;
+  desc.gather_sequences = {{0, {StridedInterval{18250, 19150}}}};
 
   std::string net_descriptor_file = "features/caffe_facenet.toml";
   NetDescriptor descriptor;
@@ -27,14 +29,16 @@ PipelineDescription get_pipeline_description(
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
+  // factories.emplace_back(
+  //     new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
+      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new FacenetInputEvaluatorFactory(
       DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size, true));
   factories.emplace_back(new FacenetParserEvaluatorFactory(
-      DeviceType::CPU, 0.5, FacenetParserEvaluator::NMSType::Average, true));
+      DeviceType::CPU, 0.8, FacenetParserEvaluator::NMSType::Average, true));
   factories.emplace_back(new TrackerEvaluatorFactory(DeviceType::CPU, 32));
   factories.emplace_back(new SwizzleEvaluatorFactory(
       DeviceType::CPU, {1, 2}, {"base_bboxes", "tracked_bboxes"}));

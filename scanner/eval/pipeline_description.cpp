@@ -15,6 +15,15 @@
 
 #include "scanner/eval/pipeline_description.h"
 
+#include "scanner/metadata.pb.h"
+#include "scanner/engine/db.h"
+
+#include "storehouse/storage_backend.h"
+
+using storehouse::StoreResult;
+using storehouse::WriteFile;
+using storehouse::RandomReadFile;
+
 namespace scanner {
 
 namespace {
@@ -25,34 +34,34 @@ std::map<std::string, PipelineGeneratorFn>& pipeline_fns() {
 }
 
 TableInformation::TableInformation(
-    i64 rows, const std::vector<std::string> &sample_job_names,
-    const std::vector<std::string> &sample_table_names,
-    const std::vector<std::vector<std::string>> &sample_columns,
-    const std::vector<std::vector<i64>> &sample_rows)
-    : rows_(rows), sample_job_names_(sample_job_names),
-      sample_table_names_(sample_table_names), sample_columns_(sample_columns),
+    i64 rows, const std::vector<std::string>& sample_job_names,
+    const std::vector<std::string>& sample_table_names,
+    const std::vector<std::vector<std::string>>& sample_columns,
+    const std::vector<std::vector<i64>>& sample_rows)
+    : rows_(rows),
+      sample_job_names_(sample_job_names),
+      sample_table_names_(sample_table_names),
+      sample_columns_(sample_columns),
       sample_rows_(sample_rows_) {}
 
-i64 TableMetadata::num_rows() const { return rows_; }
-
-JobMetadata::JobMetadata(const std::string& dataset_name)
-    : dataset_name_(dataset_name) {
-  for (auto& kv : tables) {
-    tables_names_.push_back(kv.first);
-  }
-}
-
-const std::vector<std::string>& JobMetadata::table_names() {
-  return table_names_;
-}
-
-const TableMetadata& JobMetadata::table(const std::string& name) {
-  return tables_.at(name);
-}
+i64 TableInformation::num_rows() const { return rows_; }
 
 JobInformation::JobInformation(const std::string& dataset_name,
-                               const std::string& job_name)
-    : dataset_name_(dataset_name), job_name_(job_name) {
+                               const std::string& job_name,
+                               storehouse::StorageBackend* storage)
+    : dataset_name_(dataset_name), job_name_(job_name), storage_(storage) {
+  // Load database metadata
+  DatabaseMetadata db_meta{};
+  {
+    std::string db_meta_path = database_metadata_path();
+    std::unique_ptr<RandomReadFile> meta_in_file;
+    BACKOFF_FAIL(
+        make_unique_random_read_file(storage, db_meta_path, meta_in_file));
+    u64 pos = 0;
+    db_meta = deserialize_database_metadata(meta_in_file.get(), pos);
+  }
+  i32 dataset_id = db_meta.get_dataset_id(dataset_name);
+
   JobDescriptor descriptor;
   {
     std::unique_ptr<RandomReadFile> file;
@@ -65,23 +74,41 @@ JobInformation::JobInformation(const std::string& dataset_name,
   table_names_ = meta.table_names();
   column_names_ = meta.columns();
 
-  for (JobDescriptor::Task& task : descriptor.tasks) {
+  for (auto& task : descriptor.tasks()) {
     std::vector<std::string> sample_job_names;
     std::vector<std::string> sample_table_names;
     std::vector<std::vector<std::string>> sample_column_names;
     std::vector<std::vector<i64>> sample_rows;
-    for (JobDescriptor::Task::TableSample& sample : task.samples) {
-      sample_job_names.push_back(sample.job_name());
-      sample_table_names.push_back(sample.table_name());
-      sample_columns_names.push_back(std::vector<std::string>(
-          sample.columns().begin(), sample.columns().end()));
+    for (auto& sample : task.samples()) {
+      std::string sampled_job_name =
+          db_meta.get_job_name(sample.job_id());
+      JobDescriptor sampled_desc;
+      {
+        std::unique_ptr<RandomReadFile> file;
+        BACKOFF_FAIL(make_unique_random_read_file(
+            storage, job_descriptor_path(dataset_name, sampled_job_name),
+            file));
+        u64 pos = 0;
+        descriptor = deserialize_job_descriptor(file.get(), pos);
+      }
+      JobMetadata sampled_meta(sampled_desc);
+
+      sample_job_names.push_back(sampled_job_name);
+      sample_table_names.push_back(
+          sampled_meta.table_names()[sample.table_id()]);
+      std::vector<std::string> column_names;
+      for (const auto& col : sample.columns()) {
+        column_names.push_back(col.name());
+      }
+      sample_column_names.push_back(column_names);
       sample_rows.push_back(
           std::vector<i64>(sample.rows().begin(), sample.rows().end()));
     }
-    tables_.insert({task.table_name(),
-                    TableInformation(task.samples(0).rows(), sample_job_names,
-                                     sample_table_names, sample_column_names,
-                                     sample_rows)});
+    tables_.insert(
+        std::make_pair(task.table_name(),
+                       TableInformation(task.samples(0).rows_size(),
+                                        sample_job_names, sample_table_names,
+                                        sample_column_names, sample_rows)));
   }
 }
 
@@ -102,8 +129,9 @@ const TableInformation& JobInformation::table(const std::string& name) {
 }
 
 DatasetInformation::DatasetInformation(
-    const std::string &dataset_name, const std::vector<std::string> &job_names)
-    : dataset_name_(dataset_name), job_names_(job_names) {}
+    const std::string &dataset_name, const std::vector<std::string> &job_names,
+    storehouse::StorageBackend* storage)
+    : dataset_name_(dataset_name), job_names_(job_names), storage_(storage) {}
 
 const std::vector<std::string>& DatasetInformation::job_names() {
   return job_names_;
@@ -121,7 +149,7 @@ const JobInformation& DatasetInformation::job(const std::string& name) {
     }
     LOG_IF(FATAL, !found) << "Could not find job " << name << " in dataset "
                           << dataset_name_ << "!";
-    job_.insert({name, JobInformation(dataset_name_, job_name_)});
+    job_.insert({name, JobInformation(dataset_name_, name, storage_)});
     return job_.at(name);
   } else {
     return it->second;

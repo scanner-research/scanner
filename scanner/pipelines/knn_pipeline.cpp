@@ -1,4 +1,4 @@
-#include "scanner/engine.h"
+#include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
@@ -38,9 +38,11 @@ PipelineDescription get_pipeline_description(
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(device_type, decoder_type));
+      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+  // factories.emplace_back(
+  //     new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new DefaultInputEvaluatorFactory(
-      DeviceType::CPU, descriptor, batch_size));
+      DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(device_type, descriptor, batch_size, false));
   factories.emplace_back(new DiscardEvaluatorFactory(device_type));
