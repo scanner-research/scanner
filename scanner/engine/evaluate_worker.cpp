@@ -397,6 +397,8 @@ void* post_evaluate_thread(void* arg) {
       buffered_entry.io_item_index = work_entry.io_item_index;
       buffered_entry.column_names = work_entry.column_names;
       buffered_entry.buffer_handle = work_entry.buffer_handle;
+
+      args.output_work.push(buffered_entry);
     }
   }
   THREAD_RETURN_SUCCESS();
