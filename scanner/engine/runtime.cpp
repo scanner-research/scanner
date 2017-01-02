@@ -311,7 +311,9 @@ void run_job(JobParameters& params) {
         load_sample.table_id = sample_table_id;
         load_sample.columns = sample.columns;
         i64 e = allocated_rows + rows_to_allocate;
-        for (i64 s = allocated_rows; s < e; ++s) {
+        // Add extra frames for warmup
+        i64 s = std::max(allocated_rows - warmup_size, 0L);
+        for (; s < e; ++s) {
           load_sample.rows.push_back(sample.rows[s]);
         }
       }

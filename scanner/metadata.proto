@@ -175,11 +175,9 @@ message JobDescriptor {
 }
 
 message DecodeArgs {
-  required int32 warmup_count = 1;
-  required int32 rows_from_start = 2;
-  required int32 start_keyframe = 3;
-  required int32 end_keyframe = 4;
-  repeated int64 valid_frames = 5;
+  required int64 start_keyframe = 3;
+  required int64 end_keyframe = 4;
+  required int64 valid_frame = 5;
 }
 
 message ImageDecodeArgs {

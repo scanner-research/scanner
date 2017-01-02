@@ -22,6 +22,21 @@
 namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
+struct PreEvaluateThreadArgs {
+  // Uniform arguments
+  const std::map<i32, BatchConfig>& metadata;
+  const std::vector<IOItem>& io_items;
+  i32 warmup_count;
+
+  // Per worker arguments
+  int id;
+  Profiler& profiler;
+
+  // Queues for communicating work
+  Queue<EvalWorkEntry>& input_work;
+  Queue<EvalWorkEntry>& output_work;
+};
+
 struct EvaluateThreadArgs {
   // Uniform arguments
   const std::map<i32, BatchConfig>& metadata;
@@ -34,6 +49,21 @@ struct EvaluateThreadArgs {
   bool last_evaluator_group;
   std::vector<EvaluatorFactory*> evaluator_factories;
   std::vector<EvaluatorConfig> evaluator_configs;
+  Profiler& profiler;
+
+  // Queues for communicating work
+  Queue<EvalWorkEntry>& input_work;
+  Queue<EvalWorkEntry>& output_work;
+};
+
+struct PostEvaluateThreadArgs {
+  // Uniform arguments
+  const std::map<i32, BatchConfig>& metadata;
+  const std::vector<IOItem>& io_items;
+  i32 warmup_count;
+
+  // Per worker arguments
+  int id;
   Profiler& profiler;
 
   // Queues for communicating work

@@ -61,6 +61,9 @@ void* load_thread(void* arg) {
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  const i32 io_item_size = rows_per_io_item();
+  const i32 work_item_size = rows_per_work_item();
+
   // Setup a distinct storage backend for each IO thread
   storehouse::StorageBackend* storage =
       storehouse::StorageBackend::make_from_config(args.storage_config);
@@ -111,15 +114,11 @@ void* load_thread(void* arg) {
 
     EvalWorkEntry eval_work_entry;
     eval_work_entry.io_item_index = load_work_entry.io_item_index;
-    eval_work_entry.video_decode_item = false;
 
     // Aggregate all sample columns so we know the tuple size
     for (size_t i = 0; i < samples.size(); ++i) {
       for (const std::string& c : samples[i].columns) {
         eval_work_entry.column_names.push_back(c);
-        if (c == base_column_name()) {
-          eval_work_entry.video_decode_item = true;
-        }
       }
     }
     i32 num_columns = static_cast<i32>(eval_work_entry.column_names.size());
@@ -171,7 +170,7 @@ void* load_thread(void* arg) {
               slice_into_video_intervals(keyframe_positions, rows);
           size_t num_intervals = intervals.keyframe_index_intervals.size();
           for (size_t i = 0; i < num_intervals; ++i) {
-            size_t start_keyframe_index;;
+            size_t start_keyframe_index;
             size_t end_keyframe_index;
             std::tie(start_keyframe_index, end_keyframe_index) =
                 intervals.keyframe_index_intervals[i];
@@ -193,28 +192,38 @@ void* load_thread(void* arg) {
             args.profiler.add_interval("io", io_start, now());
             args.profiler.increment("io_read", static_cast<i64>(buffer_size));
 
-            // Encoded buffer
-            INSERT_ROW(eval_work_entry.columns[col_idx], buffer, buffer_size);
+            i64 num_non_warmup_frames = io_item.end_row - io_item.start_row;
+            i64 first_non_warmup_index =
+                static_cast<i64>(rows.size()) - num_non_warmup_frames;
+            for (size_t j = 0; j < intervals.valid_frames.size(); ++j) {
+              u8* b = nullptr;
+              size_t size = 0;
+              if (j == 0) {
+                // Encoded buffer
+                b = buffer;
+                size = buffer_size;
+              } else if (j == first_non_warmup_index) {
+                u8* non_warmup_buffer = new_buffer(CPU_DEVICE, buffer_size);
+                memcpy(non_warmup_buffer, buffer, buffer_size);
+                b = non_warmup_buffer;
+                size = buffer_size;
+              }
+              INSERT_ROW(eval_work_entry.columns[col_idx], b, size);
 
-            // Decode args
-            DecodeArgs decode_args;
+              // Decode args
+              DecodeArgs decode_args;
+              decode_args.set_start_keyframe(
+                  keyframe_positions[start_keyframe_index]);
+              decode_args.set_end_keyframe(
+                  keyframe_positions[end_keyframe_index]);
+              decode_args.set_valid_frame(intervals.valid_frames[i][j]);
 
-            decode_args.set_warmup_count(args.warmup_count);
-            decode_args.set_rows_from_start(io_item.start_row);
-            decode_args.set_start_keyframe(
-                keyframe_positions[start_keyframe_index]);
-            decode_args.set_end_keyframe(
-                keyframe_positions[end_keyframe_index]);
-            for (i64 r : intervals.valid_frames[i]) {
-              decode_args.add_valid_frames(r);
+              u8* decode_args_buffer = nullptr;
+              serialize_decode_args(decode_args, decode_args_buffer, size);
+
+              INSERT_ROW(eval_work_entry.columns[col_idx + 1],
+                         decode_args_buffer, size);
             }
-
-            u8* decode_args_buffer = nullptr;
-            size_t size;
-            serialize_decode_args(decode_args, decode_args_buffer, size);
-
-            INSERT_ROW(eval_work_entry.columns[col_idx + 1], decode_args_buffer,
-                       size);
           }
           // Jump over the next output column because we wrote two columns for
           // this iteration (frame and frame_args)

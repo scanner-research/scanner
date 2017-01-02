@@ -67,7 +67,10 @@ struct EvalWorkEntry {
   std::vector<std::string> column_names;
   BatchedColumns columns;
   DeviceHandle buffer_handle;
-  bool video_decode_item;
+  // Below only for pre/evaluate/post workers
+  bool needs_configure;
+  bool needs_reset;
+  bool last_in_io_item;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

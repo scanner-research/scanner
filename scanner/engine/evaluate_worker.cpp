@@ -17,7 +17,76 @@
 
 namespace scanner {
 void* pre_evaluate_thread(void* arg) {
-  // Split up a work entry into work item size chunks
+  PreEvaluateThreadArgs& args = *reinterpret_cast<PreEvaluateThreadArgs*>(arg);
+
+  i32 rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  i64 work_item_size = rows_per_work_item();
+
+  i32 last_table_id = -1;
+  i32 last_end_row = -1;
+  i32 last_item_id = -1;
+  while (true) {
+    auto idle_start = now();
+    // Wait for next work item to process
+    EvalWorkEntry work_entry;
+    args.input_work.pop(work_entry);
+
+    if (work_entry.io_item_index == -1) {
+      break;
+    }
+
+    LOG(INFO) << "Pre-evaluate (N/PU: " << rank << "/" << args.id << "): "
+              << "processing item " << work_entry.io_item_index;
+
+    args.profiler.add_interval("idle", idle_start, now());
+
+    auto work_start = now();
+
+    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+    const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
+
+    bool needs_configure = !(io_item.table_id == last_table_id);
+    bool needs_reset = !(io_item.item_id == last_item_id ||
+                         (io_item.table_id == last_table_id &&
+                          io_item.start_row == last_end_row));
+    last_table_id = io_item.table_id;
+    last_end_row = io_item.end_row;
+    last_item_id = io_item.item_id;
+
+    // Split up a work entry into work item size chunks
+    i64 total_rows = work_entry.columns[0].rows.size();
+    std::vector<EvalWorkEntry> work_items;
+    for (i64 r = 0; r < work_entry.columns[0].rows.size();
+         r += work_item_size) {
+      EvalWorkEntry entry;
+      entry.io_item_index = work_entry.io_item_index;
+      entry.column_names = work_entry.column_names;
+      entry.buffer_handle = work_entry.buffer_handle;
+      entry.needs_configure = false;
+      entry.needs_reset = false;
+      entry.last_in_io_item = false;
+
+      entry.columns.resize(work_entry.columns.size());
+      for (size_t c = 0; c < work_entry.columns.size(); ++c) {
+        entry.columns[c].rows =
+            std::vector<Row>(work_entry.columns[c].rows.begin() + r,
+                             work_entry.columns[c].rows.begin() +
+                                 std::min(r + work_item_size, total_rows));
+      }
+    }
+    assert(!work_items.empty());
+    work_items.front().needs_configure = needs_configure;
+    work_items.front().needs_reset = needs_reset;
+    work_items.back().last_in_io_item = true;
+
+    for (EvalWorkEntry& output_work_entry : work_items) {
+      args.output_work.push(output_work_entry);
+    }
+  }
+
+  THREAD_RETURN_SUCCESS();
 }
 
 void* evaluate_thread(void* arg) {
@@ -32,7 +101,6 @@ void* evaluate_thread(void* arg) {
   std::vector<EvaluatorCapabilities> evaluator_caps;
   std::vector<std::unique_ptr<Evaluator>> evaluators;
 
-  std::vector<std::string> input_columns{"frame"};
   for (size_t i = 0; i < args.evaluator_factories.size(); ++i) {
     EvaluatorFactory* factory = args.evaluator_factories[i];
     const EvaluatorConfig& config = args.evaluator_configs[i];
@@ -78,12 +146,8 @@ void* evaluate_thread(void* arg) {
     const IOItem& io_item = args.io_items[work_entry.io_item_index];
     const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
 
-    bool needs_configure = !(io_item.table_id == last_table_id);
-    bool needs_reset = !(io_item.item_id == last_item_id ||
-                         (io_item.table_id == last_table_id &&
-                          io_item.start_row == last_end_row));
     // Make the evaluator aware of the format of the data
-    if (needs_configure) {
+    if (work_entry.needs_configure) {
       // Thread new set of columns through evaluators
       evaluator_output_columns.clear();
       num_evaluator_outputs.clear();
@@ -104,21 +168,20 @@ void* evaluate_thread(void* arg) {
       }
       last_evaluator_num_columns = num_evaluator_outputs.back();
     }
-    if (needs_reset) {
+    if (work_entry.needs_reset) {
       for (auto& evaluator : evaluators) {
         evaluator->reset();
       }
     }
-    last_table_id = io_item.table_id;
-    last_end_row = io_item.end_row;
-    last_item_id = io_item.item_id;
 
     EvalWorkEntry output_work_entry;
     output_work_entry.io_item_index = work_entry.io_item_index;
     output_work_entry.buffer_handle = {
         evaluator_caps.back().device_type,
         args.evaluator_configs.back().device_ids[0]};
-    output_work_entry.video_decode_item = false;
+    output_work_entry.needs_configure = work_entry.needs_configure;
+    output_work_entry.needs_reset = work_entry.needs_reset;
+    output_work_entry.last_in_io_item = work_entry.last_in_io_item;
 
     BatchedColumns& work_item_output_columns = output_work_entry.columns;
     work_item_output_columns.resize(last_evaluator_num_columns);
@@ -219,7 +282,7 @@ void* evaluate_thread(void* arg) {
         args.profiler.add_interval("evaluate", eval_start, now());
         // Do not verify outputs == inputs if we are decoding encoded video as
         // there is an increase of 1 encoded chunk to multiple frames
-        if (false && !(e == 0 && work_entry.video_decode_item)) {
+        if (false) {
           for (size_t i = 0; i < output_columns.size(); ++i) {
             LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
                 << "Evaluator " << e << " produced "
@@ -228,13 +291,6 @@ void* evaluate_thread(void* arg) {
                 << " outputs.";
           }
         }
-        // HACK(apoms): Handle the case where the video decode evaluator gets a
-        //   single input but produces multiple outputs. Should be removed if we
-        //   add flatmap esque increases in output element count
-        if (e == 0 && work_entry.video_decode_item) {
-          batch_size = output_columns[0].rows.size();
-        }
-
         // Allow passing input buffers through to an evaluator output
         // by tracking the pointers and comparing the output pointers
         // for equality
@@ -256,32 +312,11 @@ void* evaluate_thread(void* arg) {
           }
         }
       }
-      // Only discard warmup frames for last evaluator group because otherwise
-      // they need to be forwarded to warm up later evaluator groups
-      i32 warmup_frames;
-      if (args.last_evaluator_group && needs_reset) {
-        i32 total_warmup_frames =
-            std::min((i64)args.warmup_count, io_item.start_row);
-        warmup_frames = std::min(
-            batch_size, std::max(0, total_warmup_frames - current_input));
-      } else {
-        warmup_frames = 0;
-      }
       for (i32 i = 0; i < last_evaluator_num_columns; ++i) {
-        // Delete warmup frame outputs
-        for (i32 w = 0; w < warmup_frames; ++w) {
-          delete_buffer({last_evaluator_device_type, last_evaluator_device_id},
-                        output_columns[i].rows[w].buffer);
-        }
-
-        // Make sure all outputs are in CPU memory so downstream code does not
-        // need to condition on buffer type
         i32 num_output_rows = static_cast<i32>(output_columns[i].rows.size());
-        // Keep non-warmup frame outputs
         work_item_output_columns[i].rows.insert(
             work_item_output_columns[i].rows.end(),
-            output_columns[i].rows.begin() + warmup_frames,
-            output_columns[i].rows.end());
+            output_columns[i].rows.begin(), output_columns[i].rows.end());
       }
       current_input += batch_size;
     }
@@ -302,6 +337,69 @@ void* evaluate_thread(void* arg) {
 }
 
 void* post_evaluate_thread(void* arg) {
+  PostEvaluateThreadArgs& args =
+      *reinterpret_cast<PostEvaluateThreadArgs*>(arg);
+
+  i32 rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  EvalWorkEntry buffered_entry;
+  i64 current_offset = 0;
+  while (true) {
+    auto idle_start = now();
+    // Wait for next work item to process
+    EvalWorkEntry work_entry;
+    args.input_work.pop(work_entry);
+
+    if (work_entry.io_item_index == -1) {
+      break;
+    }
+
+    LOG(INFO) << "Post-evaluate (N/PU: " << rank << "/" << args.id << "): "
+              << "processing item " << work_entry.io_item_index;
+
+    args.profiler.add_interval("idle", idle_start, now());
+
+    auto work_start = now();
+
+    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+    const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
+
+    if (buffered_entry.columns.size() == 0) {
+      buffered_entry.columns.resize(work_entry.columns.size());
+    }
+
+    i64 num_rows = work_entry.columns[0].rows.size();
+    i32 warmup_frames;
+    if (work_entry.needs_reset) {
+      i32 total_warmup_frames =
+          std::min((i64)args.warmup_count, io_item.start_row);
+      warmup_frames =
+          std::min(num_rows, std::max(0L, total_warmup_frames - current_offset));
+    } else {
+      warmup_frames = 0;
+    }
+    current_offset += num_rows;
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      // Delete warmup frame outputs
+      for (i32 w = 0; w < warmup_frames; ++w) {
+        delete_buffer(work_entry.buffer_handle,
+                      work_entry.columns[i].rows[w].buffer);
+      }
+      // Keep non-warmup frame outputs
+      buffered_entry.columns[i].rows.insert(
+          buffered_entry.columns[i].rows.end(),
+          work_entry.columns[i].rows.begin() + warmup_frames,
+          work_entry.columns[i].rows.end());
+    }
+
+    if (work_entry.last_in_io_item) {
+      buffered_entry.io_item_index = work_entry.io_item_index;
+      buffered_entry.column_names = work_entry.column_names;
+      buffered_entry.buffer_handle = work_entry.buffer_handle;
+    }
+  }
+  THREAD_RETURN_SUCCESS();
 }
 
 }
