@@ -4,24 +4,27 @@
 namespace scanner {
 
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_meta,
-    const std::vector<DatasetItemMetadata>& item_metas) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::Gather;
 
   std::ifstream infile("indices.txt");
   std::string line;
   while (std::getline(infile, line)) {
     std::istringstream iss(line);
-    PointSamples samples;
-    iss >> samples.video_index;
+    Task task;
+    i32 video_index;
+    iss >> video_index;
+    task.table_name = std::to_string(video_index);
+    TableSample sample;
+    sample.job_name = "base";
+    sample.table_name = task.table_name;
+    sample.columns = {"frame"};
     int frame;
     while (iss >> frame) {
-      samples.frames.push_back(frame);
+      sample.rows.push_back(frame);
     }
-    desc.gather_points.push_back(samples);
+    task.samples.push_back(sample);
+    desc.tasks.push_back(task);
   }
 
   DeviceType device_type;

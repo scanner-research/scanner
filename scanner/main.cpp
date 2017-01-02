@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "scanner/engine.h"
+#include "scanner/engine/runtime.h"
+#include "scanner/engine/ingest.h"
 #include "scanner/eval/pipeline_description.h"
-#include "scanner/ingest.h"
 
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"

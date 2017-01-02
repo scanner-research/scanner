@@ -6,8 +6,12 @@ namespace scanner {
 
 EncoderEvaluator::EncoderEvaluator(EvaluatorConfig config) {}
 
-void EncoderEvaluator::configure(const InputFormat& metadata) {
-  this->metadata = metadata;
+void EncoderEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+
+  assert(config.formats.size() == 1);
+  frame_width_ = config.formats[0].width();
+  frame_height_ = config.formats[0].height();
 }
 
 void EncoderEvaluator::evaluate(const BatchedColumns& input_columns,
@@ -31,11 +35,11 @@ void EncoderEvaluator::evaluate(const BatchedColumns& input_columns,
   {
     cv::VideoWriter writer(path, fourcc,
                            24.0,  // TODO: get this from metadata
-                           cv::Size(metadata.width(), metadata.height()));
+                           cv::Size(frame_width_, frame_height_));
 
     for (const Row& r : input_columns[0].rows) {
       auto& buf = r.buffer;
-      cv::Mat img = bytesToImage(buf, metadata);
+      cv::Mat img = bytesToImage(buf, config_.formats[0]);
       cv::cvtColor(img, img, CV_BGR2RGB);
       writer.write(img);
     }
@@ -82,7 +86,8 @@ EvaluatorCapabilities EncoderEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> EncoderEvaluatorFactory::get_output_names() {
+std::vector<std::string> EncoderEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   return {"video"};
 }
 

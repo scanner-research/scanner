@@ -37,4 +37,5 @@ struct VideoIntervals {
 
 VideoIntervals slice_into_video_intervals(
     const std::vector<i64>& keyframe_positions, const std::vector<i64>& rows);
+
 }

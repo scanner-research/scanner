@@ -25,16 +25,19 @@ BlurEvaluator::BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma)
       filter_right_(kernel_size / 2),
       sigma_(sigma) {}
 
-void BlurEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void BlurEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  frame_width_ = config.formats[0].width();
+  frame_height_ = config.formats[0].height();
 }
 
 void BlurEvaluator::evaluate(const BatchedColumns& input_columns,
                              BatchedColumns& output_columns) {
   i32 input_count = (i32)input_columns[0].rows.size();
 
-  i32 width = metadata_.width();
-  i32 height = metadata_.height();
+  i32 width = frame_width_;
+  i32 height = frame_height_;
   size_t frame_size = width * height * 3 * sizeof(u8);
 
   for (i32 i = 0; i < input_count; ++i) {
@@ -73,7 +76,8 @@ EvaluatorCapabilities BlurEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> BlurEvaluatorFactory::get_output_names() {
+std::vector<std::string> BlurEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   return {"image"};
 }
 

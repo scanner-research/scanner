@@ -35,8 +35,8 @@ SwizzleEvaluator::SwizzleEvaluator(const EvaluatorConfig& config,
       device_id_(device_id),
       output_to_input_idx_(output_to_input_idx) {}
 
-void SwizzleEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void SwizzleEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
 }
 
 void SwizzleEvaluator::evaluate(const BatchedColumns& input_columns,
@@ -69,7 +69,8 @@ EvaluatorCapabilities SwizzleEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> SwizzleEvaluatorFactory::get_output_names() {
+std::vector<std::string> SwizzleEvaluatorFactory::get_output_names(
+    const std::vector<std::string>& input_columns) {
   return output_names_;
 }
 

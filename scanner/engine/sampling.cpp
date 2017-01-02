@@ -18,9 +18,8 @@
 namespace scanner {
 
 // Gets the list of work items for a sequence of rows in the job
-RowIntervals row_work_item_locations(const JobMetadata& job, i32 table_id,
-                                     const std::string& column,
-                                     const std::vector<i64>& rows) {
+RowIntervals slice_into_row_intervals(const JobMetadata& job,
+                                      const std::vector<i64>& rows) {
   RowIntervals info;
   // Analyze rows and job to determine what item ids and offsets in them to
   // sample from

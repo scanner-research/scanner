@@ -112,15 +112,15 @@ JobInformation::JobInformation(const std::string& dataset_name,
   }
 }
 
-const std::vector<std::string>& JobInformation::table_names() {
+const std::vector<std::string>& JobInformation::table_names() const {
   return table_names_;
 }
 
-const std::vector<std::string>& JobInformation::column_names() {
+const std::vector<std::string>& JobInformation::column_names() const {
   return column_names_;
 }
 
-const TableInformation& JobInformation::table(const std::string& name) {
+const TableInformation& JobInformation::table(const std::string& name) const {
   auto it = tables_.find(name);
   LOG_IF(FATAL, it == tables_.end())
       << "Could not find table " << name << " in job " << job_name_
@@ -133,11 +133,11 @@ DatasetInformation::DatasetInformation(
     storehouse::StorageBackend* storage)
     : dataset_name_(dataset_name), job_names_(job_names), storage_(storage) {}
 
-const std::vector<std::string>& DatasetInformation::job_names() {
+const std::vector<std::string>& DatasetInformation::job_names() const {
   return job_names_;
 }
 
-const JobInformation& DatasetInformation::job(const std::string& name) {
+const JobInformation& DatasetInformation::job(const std::string& name) const {
   auto it = job_.find(name);
   if (it == job_.end()) {
     bool found = false;
@@ -153,6 +153,25 @@ const JobInformation& DatasetInformation::job(const std::string& name) {
     return job_.at(name);
   } else {
     return it->second;
+  }
+}
+
+void sample_all_frames(const DatasetInformation& info,
+                       PipelineDescription& desc) {
+  const JobInformation& base_job = info.job("base");
+  for (const std::string& table_name : base_job.table_names()) {
+    Task task;
+    task.table_name = table_name;
+    TableSample sample;
+    sample.job_name = "base";
+    sample.table_name = table_name;
+    sample.columns = {"frame"};
+    const TableInformation& table = base_job.table(table_name);
+    for (i64 r = 0; r < table.num_rows(); ++r) {
+      sample.rows.push_back(r);
+    }
+    task.samples.push_back(sample);
+    desc.tasks.push_back(task);
   }
 }
 

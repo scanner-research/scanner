@@ -24,7 +24,7 @@ class BlurEvaluator : public Evaluator {
  public:
   BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
@@ -35,7 +35,8 @@ class BlurEvaluator : public Evaluator {
   i32 filter_right_;
   f64 sigma_;
 
-  InputFormat metadata_;
+  i32 frame_width_;
+  i32 frame_height_;
 };
 
 class BlurEvaluatorFactory : public EvaluatorFactory {
@@ -44,7 +45,8 @@ class BlurEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

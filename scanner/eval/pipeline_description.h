@@ -105,11 +105,11 @@ struct JobInformation {
   JobInformation(const std::string& dataset_name, const std::string& job_name,
                  storehouse::StorageBackend* storage);
 
-  const std::vector<std::string>& table_names();
+  const std::vector<std::string>& table_names() const;
 
-  const std::vector<std::string>& column_names();
+  const std::vector<std::string>& column_names() const;
 
-  const TableInformation& table(const std::string& name);
+  const TableInformation& table(const std::string& name) const;
 
  private:
   std::string dataset_name_;
@@ -126,19 +126,22 @@ struct DatasetInformation {
                      const std::vector<std::string>& job_names,
                      storehouse::StorageBackend* storage);
 
-  const std::vector<std::string>& job_names();
+  const std::vector<std::string>& job_names() const;
 
-  const JobInformation& job(const std::string& name);
+  const JobInformation& job(const std::string& name) const;
 
  private:
   std::string dataset_name_;
   std::vector<std::string> job_names_;
   storehouse::StorageBackend* storage_;
-  std::map<std::string, JobInformation> job_;
+  mutable std::map<std::string, JobInformation> job_;
 };
 
-using PipelineGeneratorFn = std::function<PipelineDescription(
-    const DatasetInformation&)>;
+void sample_all_frames(const DatasetInformation& info,
+                       PipelineDescription& desc);
+
+using PipelineGeneratorFn =
+    std::function<PipelineDescription(const DatasetInformation&)>;
 
 bool add_pipeline(std::string name, PipelineGeneratorFn fn);
 

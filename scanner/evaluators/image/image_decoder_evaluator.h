@@ -26,7 +26,7 @@ class ImageDecoderEvaluator : public Evaluator {
  public:
   ImageDecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
@@ -34,7 +34,8 @@ class ImageDecoderEvaluator : public Evaluator {
  private:
   DeviceType device_type_;
   i32 device_id_;
-  InputFormat metadata_;
+  i32 frame_width_;
+  i32 frame_height_;
 };
 
 class ImageDecoderEvaluatorFactory : public EvaluatorFactory {
@@ -43,7 +44,8 @@ class ImageDecoderEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

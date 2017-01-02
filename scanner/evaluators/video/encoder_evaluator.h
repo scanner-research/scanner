@@ -9,13 +9,14 @@ class EncoderEvaluator : public Evaluator {
  public:
   EncoderEvaluator(EvaluatorConfig config);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
  private:
-  InputFormat metadata;
+  i32 frame_width_;
+  i32 frame_height_;
 };
 
 class EncoderEvaluatorFactory : public EvaluatorFactory {
@@ -24,7 +25,8 @@ class EncoderEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 };
