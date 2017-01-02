@@ -42,7 +42,7 @@ TableInformation::TableInformation(
       sample_job_names_(sample_job_names),
       sample_table_names_(sample_table_names),
       sample_columns_(sample_columns),
-      sample_rows_(sample_rows_) {}
+      sample_rows_(sample_rows) {}
 
 i64 TableInformation::num_rows() const { return rows_; }
 
@@ -80,6 +80,9 @@ JobInformation::JobInformation(const std::string& dataset_name,
     std::vector<std::vector<std::string>> sample_column_names;
     std::vector<std::vector<i64>> sample_rows;
     for (auto& sample : task.samples()) {
+      // Skip the base job dummy sample
+      if (sample.job_id() == -1) continue;
+
       std::string sampled_job_name =
           db_meta.get_job_name(sample.job_id());
       JobDescriptor sampled_desc;

@@ -774,8 +774,10 @@ void write_last_processed_video(storehouse::StorageBackend* storage,
 
 void ingest_videos(storehouse::StorageBackend* storage,
                    const std::string& dataset_name,
-                   std::vector<std::string>& video_paths,
-                   bool compute_web_metadata, DatasetDescriptor& descriptor) {
+                   const std::vector<std::string>& video_paths,
+                   bool compute_web_metadata, DatasetDescriptor& descriptor,
+                   std::vector<size_t>& ingested_video_ids,
+                   std::vector<i64>& num_frames) {
   // Start from the file after the one we last processed succesfully before
   // crashing/exiting
 
@@ -825,8 +827,10 @@ void ingest_videos(storehouse::StorageBackend* storage,
                    << "(" << BAD_VIDEOS_FILE_PATH << "in current directory)."
                    << std::endl;
       bad_video_indices.push_back(i);
+      num_frames.push_back(0);
     } else {
       total_frames += video_descriptor.frames();
+      num_frames.push_back(video_descriptor.frames());
       // We are summing into the average variables but we will divide
       // by the number of entries at the end
       min_frames = std::min(min_frames, (i64)video_descriptor.frames());
@@ -881,27 +885,24 @@ void ingest_videos(storehouse::StorageBackend* storage,
     << ",  max_height " << max_height;
 
   // Remove bad paths
-  std::vector<i32> good_video_ids;
   for (size_t i = 0; i < video_paths.size(); ++i) {
-    good_video_ids.push_back(i);
+    ingested_video_ids.push_back(i);
   }
   size_t num_bad_videos = bad_video_indices.size();
   for (size_t i = 0; i < num_bad_videos; ++i) {
     size_t bad_index = bad_video_indices[num_bad_videos - 1 - i];
-    video_paths.erase(video_paths.begin() + bad_index);
-    item_names.erase(item_names.begin() + bad_index);
-    good_video_ids.erase(good_video_ids.begin() + bad_index);
+    ingested_video_ids.erase(ingested_video_ids.begin() + bad_index);
   }
 
   LOG_IF(FATAL, video_paths.size() == 0)
       << "Dataset would be created with zero videos! Exiting";
 
-  for (size_t i = 0; i < video_paths.size(); ++i) {
-    const std::string& video_path = video_paths[i];
-    const std::string& item_path = item_names[i];
+  for (size_t video_id : ingested_video_ids) {
+    const std::string& video_path = video_paths[video_id];
+    const std::string& item_path = item_names[video_id];
     metadata.add_original_video_paths(video_path);
     metadata.add_video_names(item_path);
-    metadata.add_video_ids(good_video_ids[i]);
+    metadata.add_video_ids(video_id);
   }
 
   // Reset last processed so that we start from scratch next time
@@ -1247,10 +1248,12 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
+  std::vector<size_t> ingested_video_ids;
+  std::vector<i64> video_frames;
   DatasetDescriptor descriptor{};
   if (dataset_type == DatasetType_Video) {
     ingest_videos(storage.get(), dataset_name, paths, compute_web_metadata,
-                  descriptor);
+                  descriptor, ingested_video_ids, video_frames);
   } else if (dataset_type == DatasetType_Image) {
     ingest_images(storage.get(), dataset_name, paths, compute_web_metadata,
                   descriptor);
@@ -1258,8 +1261,32 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
     assert(false);
   }
 
+  JobDescriptor base_job_descriptor;
+  base_job_descriptor.set_io_item_size(0);
+  base_job_descriptor.set_work_item_size(0);
+  base_job_descriptor.set_num_nodes(1);
+  {
+    JobDescriptor::Column* col = base_job_descriptor.add_columns();
+    col->set_id(0);
+    col->set_name(base_column_name());
+  }
+  for (size_t i = 0; i < ingested_video_ids.size(); ++i) {
+    size_t video_id = ingested_video_ids[i];
+    JobDescriptor::Task* task = base_job_descriptor.add_tasks();
+    task->set_table_id(video_id);
+    task->set_table_name(std::to_string(video_id));
+    // HACK(apoms): necessary because we determine number of available
+    //  rows based on first table sample num rows.
+    JobDescriptor::Task::TableSample* sample = task->add_samples();
+    sample->set_job_id(-1);
+    sample->set_table_id(-1);
+    for (i64 r = 0; r < video_frames[video_id]; ++r) {
+      sample->add_rows(r);
+    }
+  }
+  base_job_descriptor.set_num_nodes(1);
+
   DatabaseMetadata meta{};
-  i32 dataset_id;
   {
     const std::string db_meta_path = database_metadata_path();
 
@@ -1269,11 +1296,14 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
     u64 pos = 0;
     meta = deserialize_database_metadata(meta_in_file.get(), pos);
 
-    dataset_id = meta.add_dataset(dataset_name);
   }
+  i32 dataset_id = meta.add_dataset(dataset_name);
+  i32 base_job_id = meta.add_job(dataset_id, base_job_name());
 
   descriptor.set_id(dataset_id);
   descriptor.set_name(dataset_name);
+  base_job_descriptor.set_id(base_job_id);
+  base_job_descriptor.set_name(base_job_name());
 
   // Write out dataset descriptor
   {
@@ -1283,6 +1313,18 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
         make_unique_write_file(storage.get(), dataset_file_path, output_file));
 
     serialize_dataset_descriptor(output_file.get(), descriptor);
+    BACKOFF_FAIL(output_file->save());
+  }
+
+  // Write out base job descriptor
+  {
+    const std::string job_file_path =
+        job_descriptor_path(dataset_name, base_job_name());
+    std::unique_ptr<WriteFile> output_file;
+    BACKOFF_FAIL(
+        make_unique_write_file(storage.get(), job_file_path, output_file));
+
+    serialize_job_descriptor(output_file.get(), base_job_descriptor);
     BACKOFF_FAIL(output_file->save());
   }
 
