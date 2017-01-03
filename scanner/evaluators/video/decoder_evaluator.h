@@ -36,14 +36,24 @@ class DecoderEvaluator : public Evaluator {
                 BatchedColumns& output_columns) override;
 
  private:
+  struct CachedEncodedVideo {
+    const u8* encoded_buffer = nullptr;
+    size_t encoded_buffer_size = 0;
+    i64 current_start_keyframe = -1;
+    i64 current_end_keyframe = -1;
+    size_t encoded_buffer_offset = 0;
+    i32 current_frame = 0;
+  };
+
   DeviceType device_type_;
   i32 device_id_;
   VideoDecoderType decoder_type_;
   i32 num_devices_;
-  std::vector<std::tuple<i32, i32>> video_column_idxs;
+  std::vector<std::tuple<i32, i32>> video_column_idxs_;
   std::vector<size_t> frame_sizes_;
   std::vector<std::unique_ptr<VideoDecoder>> decoders_;
-  std::vector<std::tuple<i32, i32>> regular_column_idxs;
+  std::vector<CachedEncodedVideo> cached_video_;
+  std::vector<std::tuple<i32, i32>> regular_column_idxs_;
   bool needs_warmup_;
   bool discontinuity_;
 };

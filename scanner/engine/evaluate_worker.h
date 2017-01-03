@@ -46,7 +46,6 @@ struct EvaluateThreadArgs {
   // Per worker arguments
   int id;
   int evaluator_group;
-  bool last_evaluator_group;
   std::vector<EvaluatorFactory*> evaluator_factories;
   std::vector<EvaluatorConfig> evaluator_configs;
   Profiler& profiler;

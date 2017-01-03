@@ -58,9 +58,9 @@ void* pre_evaluate_thread(void* arg) {
     // Split up a work entry into work item size chunks
     i64 total_rows = work_entry.columns[0].rows.size();
     std::vector<EvalWorkEntry> work_items;
-    for (i64 r = 0; r < work_entry.columns[0].rows.size();
-         r += work_item_size) {
-      EvalWorkEntry entry;
+    for (i64 r = 0; r < total_rows; r += work_item_size) {
+      work_items.emplace_back();
+      EvalWorkEntry& entry = work_items.back();
       entry.io_item_index = work_entry.io_item_index;
       entry.column_names = work_entry.column_names;
       entry.buffer_handle = work_entry.buffer_handle;
@@ -182,6 +182,7 @@ void* evaluate_thread(void* arg) {
     output_work_entry.needs_configure = work_entry.needs_configure;
     output_work_entry.needs_reset = work_entry.needs_reset;
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
+    output_work_entry.column_names = evaluator_output_columns.back();
 
     BatchedColumns& work_item_output_columns = output_work_entry.columns;
     work_item_output_columns.resize(last_evaluator_num_columns);
@@ -367,6 +368,9 @@ void* post_evaluate_thread(void* arg) {
 
     if (buffered_entry.columns.size() == 0) {
       buffered_entry.columns.resize(work_entry.columns.size());
+      buffered_entry.column_names = work_entry.column_names;
+      buffered_entry.io_item_index = work_entry.io_item_index;
+      buffered_entry.buffer_handle = work_entry.buffer_handle;
     }
 
     i64 num_rows = work_entry.columns[0].rows.size();
@@ -394,11 +398,9 @@ void* post_evaluate_thread(void* arg) {
     }
 
     if (work_entry.last_in_io_item) {
-      buffered_entry.io_item_index = work_entry.io_item_index;
-      buffered_entry.column_names = work_entry.column_names;
-      buffered_entry.buffer_handle = work_entry.buffer_handle;
-
       args.output_work.push(buffered_entry);
+      buffered_entry.columns.clear();
+      buffered_entry.column_names.clear();
     }
   }
   THREAD_RETURN_SUCCESS();

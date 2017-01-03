@@ -116,9 +116,13 @@ void* load_thread(void* arg) {
     eval_work_entry.io_item_index = load_work_entry.io_item_index;
 
     // Aggregate all sample columns so we know the tuple size
+    assert(!samples.empty());
     for (size_t i = 0; i < samples.size(); ++i) {
       for (const std::string& c : samples[i].columns) {
         eval_work_entry.column_names.push_back(c);
+        if (c == base_column_name()) {
+          eval_work_entry.column_names.push_back(base_column_args_name());
+        }
       }
     }
     i32 num_columns = static_cast<i32>(eval_work_entry.column_names.size());
@@ -143,12 +147,14 @@ void* load_thread(void* arg) {
                     args.dataset.name(),
                     args.dataset.item_names()[sample.table_id]),
                 video_file));
+            files.push_back(video_file);
             u64 file_size;
             BACKOFF_FAIL(video_file->get_size(file_size));
             file_sizes.push_back(file_size);
 
             all_keyframe_positions.push_back(metadata.keyframe_positions());
-            all_keyframe_byte_offsets.push_back(metadata.keyframe_byte_offsets());
+            all_keyframe_byte_offsets.push_back(
+                metadata.keyframe_byte_offsets());
             // Place end of file and num frame at end of iframe to handle edge
             // case
             all_keyframe_positions.back().push_back(metadata.frames());
@@ -195,7 +201,7 @@ void* load_thread(void* arg) {
             i64 num_non_warmup_frames = io_item.end_row - io_item.start_row;
             i64 first_non_warmup_index =
                 static_cast<i64>(rows.size()) - num_non_warmup_frames;
-            for (size_t j = 0; j < intervals.valid_frames.size(); ++j) {
+            for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
               u8* b = nullptr;
               size_t size = 0;
               if (j == 0) {
@@ -207,6 +213,9 @@ void* load_thread(void* arg) {
                 memcpy(non_warmup_buffer, buffer, buffer_size);
                 b = non_warmup_buffer;
                 size = buffer_size;
+              } else {
+                size = 1;
+                b = new_buffer(CPU_DEVICE, size);
               }
               INSERT_ROW(eval_work_entry.columns[col_idx], b, size);
 

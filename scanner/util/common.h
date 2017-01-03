@@ -45,7 +45,7 @@ struct DeviceHandle {
   }
 
   bool operator!=(const DeviceHandle& other) {
-    return *this != other;
+    return !(*this == other);
   }
 
   DeviceType type;

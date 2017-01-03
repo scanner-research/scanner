@@ -44,7 +44,7 @@ void BlurEvaluator::evaluate(const BatchedColumns& input_columns,
     u8* input_buffer = input_columns[0].rows[i].buffer;
     u8* output_buffer = new u8[frame_size];
 
-    u8* frame_buffer = (input_buffer + frame_size * i);
+    u8* frame_buffer = input_buffer;
     u8* blurred_buffer = (output_buffer);
     for (i32 y = filter_left_; y < height - filter_right_; ++y) {
       for (i32 x = filter_left_; x < width - filter_right_; ++x) {

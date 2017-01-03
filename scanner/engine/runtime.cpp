@@ -287,6 +287,7 @@ void run_job(JobParameters& params) {
 
     // Split up task into IOItems
     assert(task.samples.size() > 0);
+    i64 item_id = 0;
     i64 rows_in_task = static_cast<i64>(task.samples[0].rows.size());
     i64 allocated_rows = 0;
     while (allocated_rows < rows_in_task) {
@@ -295,6 +296,7 @@ void run_job(JobParameters& params) {
 
       IOItem item;
       item.table_id = i;
+      item.item_id = item_id++;
       item.start_row = allocated_rows;
       item.end_row = allocated_rows + rows_to_allocate;
       io_items.push_back(item);
@@ -306,7 +308,8 @@ void run_job(JobParameters& params) {
         JobMetadata& meta = job_meta.at(sample_job_id);
         i32 sample_table_id = meta.table_id(sample.table_name);
 
-        LoadWorkEntry::Sample load_sample;
+        load_item.samples.emplace_back();
+        LoadWorkEntry::Sample& load_sample = load_item.samples.back();
         load_sample.job_id = sample_job_id;
         load_sample.table_id = sample_table_id;
         load_sample.columns = sample.columns;
@@ -402,7 +405,9 @@ void run_job(JobParameters& params) {
   assert(factory_groups_per_chain > 0);
 
   std::vector<std::vector<Profiler>> eval_chain_profilers(PUS_PER_NODE);
+  std::vector<PreEvaluateThreadArgs> pre_eval_args;
   std::vector<std::vector<EvaluateThreadArgs>> eval_chain_args(PUS_PER_NODE);
+  std::vector<PostEvaluateThreadArgs> post_eval_args;
 
   i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
   std::set<i32> gpu_device_ids;
@@ -410,11 +415,27 @@ void run_job(JobParameters& params) {
     std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
     std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
     std::vector<EvaluateThreadArgs>& eval_thread_args = eval_chain_args[pu];
-    work_queues.resize(factory_groups_per_chain - 1);
+    work_queues.resize(factory_groups_per_chain - 1 + 2 /* for pre/post */);
     // Setup profilers and thread args
-    for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
+    for (i32 fg = 0; fg < factory_groups_per_chain + 2 /* for pre/post */;
+         ++fg) {
       eval_thread_profilers.push_back(Profiler(base_time));
     }
+    // Pre evaluate worker
+    {
+      Queue<EvalWorkEntry>* input_work_queue = &initial_eval_work;
+      Queue<EvalWorkEntry>* output_work_queue = &work_queues[0];
+      pre_eval_args.emplace_back(PreEvaluateThreadArgs{
+          // Uniform arguments
+          format_metadata, io_items, warmup_size,
+
+          // Per worker arguments
+          pu, eval_thread_profilers.front(),
+
+          // Queues
+          *input_work_queue, *output_work_queue});
+    }
+
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       std::vector<EvaluatorConfig> eval_configs;
       for (size_t i = 0; i < factory_groups[fg].size(); ++i) {
@@ -431,7 +452,7 @@ void run_job(JobParameters& params) {
         if (evaluator_device_type == DeviceType::GPU) {
           LOG_IF(FATAL, num_gpus == 0)
               << "Scanner is configured with zero available GPUs but a GPU "
-              << "evaluator was requested! Please configure Scanner to have "
+              << "evaluator was reque(PUS_PER_NODE)sted! Please configure Scanner to have "
               << "at least one GPU using the `gpu_device_ids` config option.";
 
           // If we have more than one MPI process on a single machine, then
@@ -449,29 +470,31 @@ void run_job(JobParameters& params) {
         eval_configs.push_back(eval_config);
       }
       // Input work queue
-      Queue<EvalWorkEntry>* input_work_queue;
-      bool first_evaluator_group = (fg == 0);
-      if (first_evaluator_group) {
-        input_work_queue = &initial_eval_work;
-      } else {
-        input_work_queue = &work_queues[fg - 1];
-      }
+      Queue<EvalWorkEntry>* input_work_queue = &work_queues[fg];
       // Create new queue for output, reuse previous queue as input
-      bool last_evaluator_group = (fg == factory_groups_per_chain - 1);
-      Queue<EvalWorkEntry>* output_work_queue;
-      if (last_evaluator_group) {
-        output_work_queue = &save_work;
-      } else {
-        output_work_queue = &work_queues[fg];
-      }
+      Queue<EvalWorkEntry>* output_work_queue = &work_queues[fg + 1];
       // Create eval thread for passing data through neural net
       eval_thread_args.emplace_back(EvaluateThreadArgs{
           // Uniform arguments
           format_metadata, io_items, warmup_size,
 
           // Per worker arguments
-          pu, fg, last_evaluator_group, factory_groups[fg], eval_configs,
-          eval_thread_profilers[fg],
+          pu, fg, factory_groups[fg], eval_configs,
+          eval_thread_profilers[fg + 1],
+
+          // Queues
+          *input_work_queue, *output_work_queue});
+    }
+    // Post evaluate worker
+    {
+      Queue<EvalWorkEntry>* input_work_queue = &work_queues.back();
+      Queue<EvalWorkEntry>* output_work_queue = &save_work;
+      post_eval_args.emplace_back(PostEvaluateThreadArgs{
+          // Uniform arguments
+          format_metadata, io_items, warmup_size,
+
+          // Per worker arguments
+          pu, eval_thread_profilers.back(),
 
           // Queues
           *input_work_queue, *output_work_queue});
@@ -483,14 +506,24 @@ void run_job(JobParameters& params) {
             std::back_inserter(gpu_device_ids_vec));
   init_memory_allocators(gpu_device_ids_vec, params.memory_pool_config);
 
+  // Launch eval worker threads
+  std::vector<pthread_t> pre_eval_threads(PUS_PER_NODE);
   std::vector<std::vector<pthread_t>> eval_chain_threads(PUS_PER_NODE);
+  std::vector<pthread_t> post_eval_threads(PUS_PER_NODE);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    // Pre thread
+    pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
+                   &pre_eval_args[pu]);
+    // Evaluator threads
     std::vector<pthread_t>& eval_threads = eval_chain_threads[pu];
     eval_threads.resize(factory_groups_per_chain);
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       pthread_create(&eval_threads[fg], NULL, evaluate_thread,
                      &eval_chain_args[pu][fg]);
     }
+    // Post threads
+    pthread_create(&post_eval_threads[pu], NULL, post_evaluate_thread,
+                   &post_eval_args[pu]);
   }
 
   // Setup save workers
@@ -608,21 +641,21 @@ void run_job(JobParameters& params) {
   }
 
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
-    // Wait until first eval has finished
+    // Wait until pre eval has finished
     void* result;
-    i32 err = pthread_join(eval_chain_threads[i][0], &result);
+    i32 err = pthread_join(pre_eval_threads[i], &result);
     if (err != 0) {
-      fprintf(stderr, "error in pthread_join of eval thread\n");
+      fprintf(stderr, "error in pthread_join of pre eval thread\n");
       exit(EXIT_FAILURE);
     }
     free(result);
   }
 
-  for (i32 fg = 1; fg < factory_groups_per_chain; ++fg) {
+  for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
-      eval_work[pu][fg - 1].push(entry);
+      eval_work[pu][fg].push(entry);
     }
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       // Wait until eval has finished
@@ -634,6 +667,22 @@ void run_job(JobParameters& params) {
       }
       free(result);
     }
+  }
+  // Terminate post eval threads
+  for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    EvalWorkEntry entry;
+    entry.io_item_index = -1;
+    eval_work[pu][factory_groups_per_chain].push(entry);
+  }
+  for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    // Wait until eval has finished
+    void* result;
+    i32 err = pthread_join(post_eval_threads[pu], &result);
+    if (err != 0) {
+      fprintf(stderr, "error in pthread_join of post eval thread\n");
+      exit(EXIT_FAILURE);
+    }
+    free(result);
   }
 
   // Push sentinel work entries into queue to terminate save threads
