@@ -44,14 +44,14 @@ class DefaultInputEvaluator : public Evaluator {
                         std::vector<InputLayerBuilder> input_layer_builders,
                         const EvaluatorConfig& config);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
   i32 net_input_width_;
   i32 net_input_height_;
-  EvaluatorConfig config_;
+  EvaluatorConfig eval_config_;
 
  private:
   void set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size);
@@ -80,7 +80,8 @@ class DefaultInputEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

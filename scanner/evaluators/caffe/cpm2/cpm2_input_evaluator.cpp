@@ -66,13 +66,17 @@ CPM2InputEvaluator::CPM2InputEvaluator(
 {
 }
 
-void CPM2InputEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void CPM2InputEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
 
-  f32 scale = static_cast<f32>(box_size_) / metadata.height();
+  frame_width_ = config.formats[0].width();
+  frame_height_ = config.formats[0].height();
+
+  f32 scale = static_cast<f32>(box_size_) / frame_height_;
   // Calculate width by scaling by box size
-  resize_width_ = metadata.width() * scale;
-  resize_height_ = metadata.height() * scale;
+  resize_width_ = frame_width_ * scale;
+  resize_height_ = frame_height_ * scale;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
 
@@ -94,9 +98,9 @@ void CPM2InputEvaluator::configure(const InputFormat& metadata) {
     planar_input_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3));
       bgr_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3));
       resized_input_g_.push_back(
           cv::cuda::GpuMat(resize_height_, resize_width_, CV_8UC3));
       padded_input_g_.push_back(
@@ -157,9 +161,9 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
 
       u8* buffer = input_columns[0].rows[i].buffer;
       assert(input_columns[0].rows[i].size ==
-             metadata_.height() * metadata_.width() * 3);
+             frame_height_ * frame_width_ * 3);
       frame_input_g_[sid] = cv::cuda::GpuMat(
-          metadata_.height(), metadata_.width(), CV_8UC3, buffer);
+          frame_height_, frame_width_, CV_8UC3, buffer);
       cv::cuda::cvtColor(frame_input_g_[sid], bgr_input_g_[sid],
                          cv::COLOR_RGB2BGR, 0, cv_stream);
       cv::cuda::resize(bgr_input_g_[sid], resized_input_g_[sid],
@@ -263,7 +267,8 @@ EvaluatorCapabilities CPM2InputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPM2InputEvaluatorFactory::get_output_names() {
+std::vector<std::string> CPM2InputEvaluatorFactory::get_output_names(
+    const std::vector<std::string>& input_columns) {
   return {"frame", "net_input"};
 }
 

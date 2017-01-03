@@ -35,9 +35,7 @@ void split(const std::string& s, char delim, std::vector<std::string>& elems) {
   }
 }
 
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_desc,
-    const std::vector<DatasetItemMetadata>& item_descriptors) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   const char* CAMERAS = std::getenv("SC_CAMERAS");
   const char* START_FRAME = std::getenv("SC_START_FRAME");
   const char* END_FRAME = std::getenv("SC_END_FRAME");
@@ -61,10 +59,18 @@ PipelineDescription get_pipeline_description(
   i32 end_frame = std::atoi(END_FRAME);
 
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::SequenceGather;
   for (i32 idx : camera_idxs) {
-    desc.gather_sequences.push_back({idx, {Interval{start_frame, end_frame}}});
+    desc.tasks.emplace_back();
+    Task& task = desc.tasks.back();
+    task.table_name = std::to_string(idx);
+    task.samples.emplace_back();
+    TableSample& sample = task.samples.back();
+    sample.job_name = base_job_name();
+    sample.table_name = std::to_string(idx);
+    sample.columns = {base_column_name()};
+    for (i64 r = start_frame; r < end_frame; ++r) {
+      sample.rows.push_back(r);
+    }
   }
 
   NetDescriptor cpm_person_descriptor;
@@ -95,9 +101,9 @@ PipelineDescription get_pipeline_description(
   factories.emplace_back(new CPMPersonInputEvaluatorFactory(
       device_type, cpm_person_descriptor, batch_size));
   factories.emplace_back(new CaffeEvaluatorFactory(
-      device_type, cpm_person_descriptor, batch_size, true));
+      device_type, cpm_person_descriptor, batch_size));
   factories.emplace_back(
-      new CPMPersonParserEvaluatorFactory(DeviceType::CPU, true));
+      new CPMPersonParserEvaluatorFactory(DeviceType::CPU));
   factories.emplace_back(
       new SwizzleEvaluatorFactory(DeviceType::CPU, {1}, {"centers"}));
 

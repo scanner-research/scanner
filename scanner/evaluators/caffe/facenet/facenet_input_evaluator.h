@@ -35,7 +35,7 @@ class FacenetInputEvaluator : public Evaluator {
   FacenetInputEvaluator(DeviceType device_type, i32 device_id,
                         const NetDescriptor& descriptor, i32 batch_size);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
@@ -76,7 +76,8 @@ class FacenetInputEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

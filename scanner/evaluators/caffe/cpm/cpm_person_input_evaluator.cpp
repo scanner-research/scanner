@@ -40,13 +40,15 @@ CPMPersonInputEvaluator::CPMPersonInputEvaluator(
 {
 }
 
-void CPMPersonInputEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void CPMPersonInputEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
-  f32 scale = static_cast<f32>(box_size_) / metadata.height();
+  f32 scale = static_cast<f32>(box_size_) / metadata_.height();
   // Calculate width by scaling by box size
-  resize_width_ = metadata.width() * scale;
-  resize_height_ = metadata.height() * scale;
+  resize_width_ = metadata_.width() * scale;
+  resize_height_ = metadata_.height() * scale;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
 
@@ -68,9 +70,9 @@ void CPMPersonInputEvaluator::configure(const InputFormat& metadata) {
     planar_input_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+          cv::cuda::GpuMat(metadata_.height(), metadata_.width(), CV_8UC3));
       bgr_input_g_.push_back(
-          cv::cuda::GpuMat(metadata.height(), metadata.width(), CV_8UC3));
+          cv::cuda::GpuMat(metadata_.height(), metadata_.width(), CV_8UC3));
       resized_input_g_.push_back(
           cv::cuda::GpuMat(resize_height_, resize_width_, CV_8UC3));
       padded_input_g_.push_back(
@@ -237,7 +239,8 @@ EvaluatorCapabilities CPMPersonInputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPMPersonInputEvaluatorFactory::get_output_names() {
+std::vector<std::string> CPMPersonInputEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   return {"frame", "net_input"};
 }
 

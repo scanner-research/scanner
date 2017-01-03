@@ -3,11 +3,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_desc,
-    const std::vector<DatasetItemMetadata>& item_descriptors) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
-  desc.input_columns = {"base_bboxes", "tracked_bboxes"};
+  Sampler::all(info, desc, "kcam", {"base_bboxes", "tracked_bboxes"});
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;

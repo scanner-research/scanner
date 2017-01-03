@@ -35,7 +35,7 @@ DefaultInputEvaluator::DefaultInputEvaluator(
       descriptor_(descriptor),
       batch_size_(batch_size),
       input_layer_builders_(input_layer_builders),
-      config_(config)
+      eval_config_(config)
 {
   if (descriptor_.input_width != -1) {
     net_input_width_ = descriptor_.input_width;
@@ -46,11 +46,13 @@ DefaultInputEvaluator::DefaultInputEvaluator(
   }
 }
 
-void DefaultInputEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void DefaultInputEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
-  i32 width = metadata.width();
-  i32 height = metadata.height();
+  i32 width = metadata_.width();
+  i32 height = metadata_.height();
   if (net_input_width_ == -1) {
     net_input_width_ = width;
     net_input_height_ = height;
@@ -65,7 +67,8 @@ void DefaultInputEvaluator::configure(const InputFormat& metadata) {
   }
 }
 
-void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size) {
+void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf,
+                                           size_t size) {
   if (device_type_ == DeviceType::GPU) {
     halide_buf.dev = (uintptr_t) nullptr;
 
@@ -73,14 +76,13 @@ void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf, size_t
     // not matter if all the code runs on the GPU.)"
     halide_buf.dev_dirty = true;
 
-    i32 err = halide_cuda_wrap_device_ptr(nullptr, &halide_buf,
-                                          (uintptr_t) buf);
+    i32 err = halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
     LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
 
     // "You'll need to set the host field of the buffer_t structs to
     // something other than nullptr as that is used to indicate bounds query
     // calls" - Zalman Stern
-    halide_buf.host = (u8*) 0xdeadbeef;
+    halide_buf.host = (u8*)0xdeadbeef;
 
   } else {
     halide_buf.host = buf;
@@ -93,14 +95,16 @@ void DefaultInputEvaluator::unset_halide_buf(buffer_t& halide_buf) {
   }
 }
 
-void DefaultInputEvaluator::transform_halide(u8* input_buffer, u8* output_buffer) {
+void DefaultInputEvaluator::transform_halide(u8* input_buffer,
+                                             u8* output_buffer) {
   i32 frame_width = metadata_.width();
   i32 frame_height = metadata_.height();
-  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
+  size_t net_input_size =
+      net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   buffer_t input_buf = {0}, output_buf = {0};
 
-  set_halide_buf(input_buf, input_buffer, frame_width*frame_height*3);
+  set_halide_buf(input_buf, input_buffer, frame_width * frame_height * 3);
   set_halide_buf(output_buf, output_buffer, net_input_size);
 
   // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
@@ -113,7 +117,8 @@ void DefaultInputEvaluator::transform_halide(u8* input_buffer, u8* output_buffer
   input_buf.extent[2] = 3;
   input_buf.elem_size = 1;
 
-  // Halide conveniently defaults to a planar format, which is what Caffe expects
+  // Halide conveniently defaults to a planar format, which is what Caffe
+  // expects
   output_buf.host = output_buffer;
   output_buf.stride[0] = 1;
   output_buf.stride[1] = net_input_width_;
@@ -123,29 +128,24 @@ void DefaultInputEvaluator::transform_halide(u8* input_buffer, u8* output_buffer
   output_buf.extent[2] = 3;
   output_buf.elem_size = 4;
 
-  auto func = device_type_ == DeviceType::GPU ?
-    caffe_input_transformer_gpu :
-    caffe_input_transformer_cpu;
-  int error = func(
-    &input_buf,
-    metadata_.width(), metadata_.height(),
-    net_input_width_, net_input_height_,
-    descriptor_.normalize,
-    descriptor_.mean_colors[2],
-    descriptor_.mean_colors[1],
-    descriptor_.mean_colors[0],
-    true,
-    &output_buf);
+  auto func = device_type_ == DeviceType::GPU ? caffe_input_transformer_gpu
+                                              : caffe_input_transformer_cpu;
+  int error = func(&input_buf, metadata_.width(), metadata_.height(),
+                   net_input_width_, net_input_height_, descriptor_.normalize,
+                   descriptor_.mean_colors[2], descriptor_.mean_colors[1],
+                   descriptor_.mean_colors[0], true, &output_buf);
   LOG_IF(FATAL, error != 0) << "Halide error " << error;
 
   unset_halide_buf(input_buf);
   unset_halide_buf(output_buf);
 }
 
-void DefaultInputEvaluator::transform_caffe(u8* input_buffer, u8* output_buffer) {
+void DefaultInputEvaluator::transform_caffe(u8* input_buffer,
+                                            u8* output_buffer) {
   i32 frame_width = metadata_.width();
   i32 frame_height = metadata_.height();
-  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
+  size_t net_input_size =
+      net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   cv::Mat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
   cv::Mat resized_input;
@@ -178,16 +178,15 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      BatchedColumns& output_columns) {
   auto eval_start = now();
   i32 input_count = input_columns[0].rows.size();
-  size_t net_input_size = net_input_width_ * net_input_height_ * 3 * sizeof(float);
+  size_t net_input_size =
+      net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     output_columns[0].rows.push_back(input_columns[0].rows[i]);
   }
 
-  u8* output_block = new_block_buffer({device_type_, device_id_},
-                                      net_input_size * input_count,
-                                      input_count);
-
+  u8* output_block = new_block_buffer(
+      {device_type_, device_id_}, net_input_size * input_count, input_count);
 
   for (i32 frame = 0; frame < input_count; frame++) {
     u8* input_buffer = input_columns[0].rows[frame].buffer;
@@ -211,13 +210,11 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
       sizes.push_back(size);
     }
 
-    u8* column_block = new_block_buffer({device_type_, device_id_},
-                                        total_size,
+    u8* column_block = new_block_buffer({device_type_, device_id_}, total_size,
                                         input_columns[0].rows.size());
     for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
-      memcpy_buffer(column_block, {device_type_, device_id_},
-                    bufs[i], {device_type_, device_id_},
-                    sizes[i]);
+      memcpy_buffer(column_block, {device_type_, device_id_}, bufs[i],
+                    {device_type_, device_id_}, sizes[i]);
       output_columns[l + 2].rows.push_back(Row{column_block, sizes[i]});
       column_block += sizes[i];
     }
@@ -252,10 +249,15 @@ EvaluatorCapabilities DefaultInputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> DefaultInputEvaluatorFactory::get_output_names() {
+std::vector<std::string> DefaultInputEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   std::vector<std::string> output_names = {"frame"};
   for (std::string& name : net_descriptor_.input_layer_names) {
     output_names.emplace_back(name);
+  }
+  assert(input_columns[0] == "frame");
+  for (size_t i = 1; i < input_columns.size(); ++i) {
+    output_names.push_back(input_columns[i]);
   }
   assert(net_descriptor_.input_layer_names.size() > 0);
   assert(input_layer_builders_.size() ==

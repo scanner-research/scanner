@@ -249,9 +249,11 @@ void run_job(JobParameters& params) {
                            sample.columns.end());
     }
     for (auto factory : evaluator_factories) {
-      input_columns = factory->get_output_columns(input_columns);
+      std::vector<std::string> out_columns =
+          factory->get_output_columns(input_columns);
+      input_columns.swap(out_columns);
     }
-    final_column_names = input_columns;
+    final_column_names.swap(input_columns);
   }
   JobDescriptor job_descriptor;
   job_descriptor.set_io_item_size(io_item_size);

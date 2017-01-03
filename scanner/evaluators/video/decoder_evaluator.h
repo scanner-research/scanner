@@ -53,9 +53,8 @@ class DecoderEvaluator : public Evaluator {
   std::vector<size_t> frame_sizes_;
   std::vector<std::unique_ptr<VideoDecoder>> decoders_;
   std::vector<CachedEncodedVideo> cached_video_;
+  std::vector<bool> discontinuity_;
   std::vector<std::tuple<i32, i32>> regular_column_idxs_;
-  bool needs_warmup_;
-  bool discontinuity_;
 };
 
 class DecoderEvaluatorFactory : public EvaluatorFactory {

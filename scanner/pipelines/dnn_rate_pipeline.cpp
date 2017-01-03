@@ -8,9 +8,7 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_meta,
-    const std::vector<DatasetItemMetadata>& item_metas) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   const char* NET = std::getenv("SC_NET");
   const char* BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
 
@@ -24,9 +22,7 @@ PipelineDescription get_pipeline_description(
   }
 
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::SequenceGather;
-  desc.gather_sequences = {{0, {Interval{1000, 5000}}}};
+  Sampler::all_frames(info, desc);
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
@@ -36,7 +32,7 @@ PipelineDescription get_pipeline_description(
   factories.emplace_back(new DefaultInputEvaluatorFactory(
       DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(
-      new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size, true));
+      new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::GPU));
 
   return desc;

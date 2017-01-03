@@ -33,13 +33,11 @@ namespace scanner {
 FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
                                                DeviceType device_type,
                                                i32 device_id, double threshold,
-                                               NMSType nms_type,
-                                               bool forward_input)
-    : config_(config),
+                                               NMSType nms_type)
+    : eval_config_(config),
       device_type_(device_type),
       device_id_(device_id),
       nms_type_(nms_type),
-      forward_input_(forward_input),
       num_templates_(25),
       net_input_width_(224),
       net_input_height_(224),
@@ -74,8 +72,10 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
   };
 }
 
-void FacenetParserEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void FacenetParserEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
   net_input_width_ = metadata_.width();
   net_input_height_ = metadata_.height();
@@ -98,15 +98,9 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
   i32 feature_idx;
   i32 frame_idx;
-  if (forward_input_) {
-    assert(input_columns.size() >= 2);
-    feature_idx = 1;
-    frame_idx = 0;
-  } else {
-    assert(input_columns.size() >= 1);
-    feature_idx = 0;
-    frame_idx = 0;
-  }
+  assert(input_columns.size() >= 2);
+  feature_idx = 1;
+  frame_idx = 0;
 
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
@@ -204,34 +198,31 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
     output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
 
-  if (forward_input_) {
-    u8* buffer = nullptr;
-    for (i32 b = 0; b < input_count; ++b) {
-      size_t size = input_columns[frame_idx].rows[b].size;
-      if (device_type_ == DeviceType::GPU) {
+  u8* buffer = nullptr;
+  for (i32 b = 0; b < input_count; ++b) {
+    size_t size = input_columns[frame_idx].rows[b].size;
+    if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-        cudaMalloc((void**)&buffer, size);
-        cudaMemcpy(buffer, input_columns[frame_idx].rows[b].buffer, size,
-                   cudaMemcpyDefault);
+      cudaMalloc((void**)&buffer, size);
+      cudaMemcpy(buffer, input_columns[frame_idx].rows[b].buffer, size,
+                 cudaMemcpyDefault);
 #else
-        LOG(FATAL) << "Not built with CUDA support.";
+      LOG(FATAL) << "Not built with CUDA support.";
 #endif
-      } else {
-        buffer = new u8[size];
-        memcpy(buffer, input_columns[frame_idx].rows[b].buffer, size);
-      }
-      output_columns[frame_idx].rows.push_back(Row{buffer, size});
+    } else {
+      buffer = new u8[size];
+      memcpy(buffer, input_columns[frame_idx].rows[b].buffer, size);
     }
+    output_columns[frame_idx].rows.push_back(Row{buffer, size});
   }
 }
 
 FacenetParserEvaluatorFactory::FacenetParserEvaluatorFactory(
     DeviceType device_type, double threshold,
-    FacenetParserEvaluator::NMSType nms_type, bool forward_input)
+    FacenetParserEvaluator::NMSType nms_type)
     : device_type_(device_type),
       threshold_(threshold),
-      nms_type_(nms_type),
-      forward_input_(forward_input) {}
+      nms_type_(nms_type) {}
 
 EvaluatorCapabilities FacenetParserEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -246,11 +237,10 @@ EvaluatorCapabilities FacenetParserEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> FacenetParserEvaluatorFactory::get_output_names() {
+std::vector<std::string> FacenetParserEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   std::vector<std::string> output_names;
-  if (forward_input_) {
-    output_names.push_back("frame");
-  }
+  output_names.push_back("frame");
   output_names.push_back("bboxes");
   return output_names;
 }
@@ -258,6 +248,6 @@ std::vector<std::string> FacenetParserEvaluatorFactory::get_output_names() {
 Evaluator* FacenetParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new FacenetParserEvaluator(config, device_type_, 0, threshold_,
-                                    nms_type_, forward_input_);
+                                    nms_type_);
 }
 }

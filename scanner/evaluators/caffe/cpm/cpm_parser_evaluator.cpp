@@ -25,12 +25,9 @@
 namespace scanner {
 
 CPMParserEvaluator::CPMParserEvaluator(const EvaluatorConfig& config,
-                                       DeviceType device_type, i32 device_id,
-                                       bool forward_input)
-    : config_(config),
-      device_type_(device_type),
-      device_id_(device_id),
-      forward_input_(forward_input)
+                                       DeviceType device_type, i32 device_id)
+    : device_type_(device_type),
+      device_id_(device_id)
 #ifdef HAVE_CUDA
       ,
       num_cuda_streams_(32),
@@ -39,13 +36,15 @@ CPMParserEvaluator::CPMParserEvaluator(const EvaluatorConfig& config,
 {
 }
 
-void CPMParserEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void CPMParserEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
-  f32 scale = static_cast<f32>(box_size_) / metadata.height();
+  f32 scale = static_cast<f32>(box_size_) / metadata_.height();
   // Calculate width by scaling by box size
-  resize_width_ = metadata.width() * scale;
-  resize_height_ = metadata.height() * scale;
+  resize_width_ = metadata_.width() * scale;
+  resize_height_ = metadata_.height() * scale;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
   padded_width_ = resize_width_ + width_padding_;
@@ -84,13 +83,8 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
                                   BatchedColumns& output_columns) {
   i32 frame_idx = 0;
   i32 feature_idx;
-  if (forward_input_) {
-    assert(input_columns.size() >= 2);
-    feature_idx = 1;
-  } else {
-    assert(input_columns.size() >= 1);
-    feature_idx = 0;
-  }
+  assert(input_columns.size() >= 2);
+  feature_idx = 1;
 
   i32 input_count = (i32)input_columns[feature_idx].rows.size();
 
@@ -197,18 +191,14 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
     }
   }
 
-  if (forward_input_) {
-    i32 num_frames = static_cast<i32>(output_columns[frame_idx].rows.size());
-    for (i32 b = 0; b < num_frames; ++b) {
-      output_columns[frame_idx].rows.push_back(
-          input_columns[frame_idx].rows[b]);
-    }
+  i32 num_frames = static_cast<i32>(output_columns[frame_idx].rows.size());
+  for (i32 b = 0; b < num_frames; ++b) {
+    output_columns[frame_idx].rows.push_back(input_columns[frame_idx].rows[b]);
   }
 }
 
-CPMParserEvaluatorFactory::CPMParserEvaluatorFactory(DeviceType device_type,
-                                                     bool forward_input)
-    : device_type_(device_type), forward_input_(forward_input) {}
+CPMParserEvaluatorFactory::CPMParserEvaluatorFactory(DeviceType device_type)
+    : device_type_(device_type) {}
 
 EvaluatorCapabilities CPMParserEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -222,18 +212,16 @@ EvaluatorCapabilities CPMParserEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPMParserEvaluatorFactory::get_output_names() {
+std::vector<std::string> CPMParserEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   std::vector<std::string> output_names;
-  if (forward_input_) {
-    output_names.push_back("frame");
-  }
+  output_names.push_back("frame");
   output_names.push_back("centers");
   return output_names;
 }
 
 Evaluator* CPMParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new CPMParserEvaluator(config, device_type_, config.device_ids[0],
-                                forward_input_);
+  return new CPMParserEvaluator(config, device_type_, config.device_ids[0]);
 }
 }

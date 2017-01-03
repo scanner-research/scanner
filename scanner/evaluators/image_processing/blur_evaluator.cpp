@@ -27,7 +27,7 @@ BlurEvaluator::BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma)
 
 void BlurEvaluator::configure(const BatchConfig& config) {
   config_ = config;
-  assert(config.formats.size() == 1);
+  //assert(config.formats.size() == 1);
   frame_width_ = config.formats[0].width();
   frame_height_ = config.formats[0].height();
 }

@@ -7,13 +7,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_meta,
-    const std::vector<DatasetItemMetadata>& item_metas) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::Strided;
-  desc.stride = 8;
+  Sampler::strided_frames(info, desc, 8);
 
   std::string net_descriptor_file = "features/faster_rcnn_coco.toml";
   NetDescriptor descriptor;
@@ -64,7 +60,7 @@ PipelineDescription get_pipeline_description(
   factories.emplace_back(new DefaultInputEvaluatorFactory(
       DeviceType::CPU, descriptor, batch_size, {im_info_builder}));
   factories.emplace_back(
-      new CaffeEvaluatorFactory(device_type, descriptor, batch_size, false));
+      new CaffeEvaluatorFactory(device_type, descriptor, batch_size));
   factories.emplace_back(new FasterRCNNParserEvaluatorFactory);
 
   return desc;

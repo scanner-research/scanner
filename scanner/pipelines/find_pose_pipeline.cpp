@@ -10,11 +10,13 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_desc,
-    const std::vector<DatasetItemMetadata>& item_descriptors) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+  const char* JOB_NAME = std::getenv("SC_JOB_NAME");
+  std::string job_name(JOB_NAME);
+
   PipelineDescription desc;
-  desc.input_columns = {"frame", "centers"};
+  Sampler::all(info, desc, job_name, {"centers"});
+  Sampler::join_prepend(info, desc, "centers", "frame");
 
   NetDescriptor cpm_descriptor;
   {
@@ -38,14 +40,14 @@ PipelineDescription get_pipeline_description(
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE, 1));
+      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   // factories.emplace_back(
   //     new DecoderEvaluatorFactory(device_type, decoder_type, 1));
   factories.emplace_back(
       new CPMInputEvaluatorFactory(device_type, cpm_descriptor, batch_size));
   factories.emplace_back(
-      new CaffeEvaluatorFactory(device_type, cpm_descriptor, batch_size, true));
-  factories.emplace_back(new CPMParserEvaluatorFactory(device_type, true));
+      new CaffeEvaluatorFactory(device_type, cpm_descriptor, batch_size));
+  factories.emplace_back(new CPMParserEvaluatorFactory(device_type));
   factories.emplace_back(
       new SwizzleEvaluatorFactory(device_type, {1}, {"joint_centers"}));
 

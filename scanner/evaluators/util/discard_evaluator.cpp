@@ -24,8 +24,6 @@ DiscardEvaluator::DiscardEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type, i32 device_id)
     : config_(config), device_type_(device_type), device_id_(device_id) {}
 
-void DiscardEvaluator::configure(const InputFormat& metadata) {}
-
 void DiscardEvaluator::evaluate(const BatchedColumns& input_columns,
                                 BatchedColumns& output_columns) {
   i32 input_count = static_cast<i32>(input_columns[0].rows.size());
@@ -46,7 +44,8 @@ EvaluatorCapabilities DiscardEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> DiscardEvaluatorFactory::get_output_names() {
+std::vector<std::string> DiscardEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   return {"discard"};
 }
 

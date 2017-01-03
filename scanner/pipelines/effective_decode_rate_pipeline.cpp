@@ -6,13 +6,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_meta,
-    const std::vector<DatasetItemMetadata>& item_metas) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::SequenceGather;
-  desc.gather_sequences = {{0, {StridedInterval(0, 8096, 1)}}};
+  Sampler::all_frames(info, desc);
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;

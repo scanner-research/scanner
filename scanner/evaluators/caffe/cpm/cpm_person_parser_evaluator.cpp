@@ -30,24 +30,23 @@
 namespace scanner {
 
 CPMPersonParserEvaluator::CPMPersonParserEvaluator(
-    const EvaluatorConfig& config, DeviceType device_type, i32 device_id,
-    bool forward_input)
-    : config_(config),
-      device_type_(device_type),
-      device_id_(device_id),
-      forward_input_(forward_input) {
+    const EvaluatorConfig& config, DeviceType device_type, i32 device_id)
+    : device_type_(device_type),
+      device_id_(device_id) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU CPM person parser support not implemented yet";
   }
 }
 
-void CPMPersonParserEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void CPMPersonParserEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
-  f32 scale = static_cast<f32>(box_size_) / metadata.height();
+  f32 scale = static_cast<f32>(box_size_) / metadata_.height();
   // Calculate width by scaling by box size
-  resize_width_ = metadata.width() * scale;
-  resize_height_ = metadata.height() * scale;
+  resize_width_ = metadata_.width() * scale;
+  resize_height_ = metadata_.height() * scale;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
 
@@ -68,13 +67,8 @@ void CPMPersonParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
   i32 frame_idx = 0;
   i32 feature_idx;
-  if (forward_input_) {
-    assert(input_columns.size() >= 2);
-    feature_idx = 1;
-  } else {
-    assert(input_columns.size() >= 1);
-    feature_idx = 0;
-  }
+  assert(input_columns.size() >= 2);
+  feature_idx = 1;
 
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
@@ -108,17 +102,14 @@ void CPMPersonParserEvaluator::evaluate(const BatchedColumns& input_columns,
     output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
 
-  if (forward_input_) {
-    for (i32 b = 0; b < input_count; ++b) {
-      output_columns[frame_idx].rows.push_back(
-          input_columns[frame_idx].rows[b]);
-    }
+  for (i32 b = 0; b < input_count; ++b) {
+    output_columns[frame_idx].rows.push_back(input_columns[frame_idx].rows[b]);
   }
 }
 
 CPMPersonParserEvaluatorFactory::CPMPersonParserEvaluatorFactory(
-    DeviceType device_type, bool forward_input)
-    : device_type_(device_type), forward_input_(forward_input) {}
+    DeviceType device_type)
+    : device_type_(device_type) {}
 
 EvaluatorCapabilities CPMPersonParserEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -133,11 +124,10 @@ EvaluatorCapabilities CPMPersonParserEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPMPersonParserEvaluatorFactory::get_output_names() {
+std::vector<std::string> CPMPersonParserEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   std::vector<std::string> output_names;
-  if (forward_input_) {
-    output_names.push_back("frame");
-  }
+  output_names.push_back("frame");
   output_names.push_back("centers");
   return output_names;
 }
@@ -145,6 +135,6 @@ std::vector<std::string> CPMPersonParserEvaluatorFactory::get_output_names() {
 Evaluator* CPMPersonParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new CPMPersonParserEvaluator(config, device_type_,
-                                      config.device_ids[0], forward_input_);
+                                      config.device_ids[0]);
 }
 }

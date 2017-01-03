@@ -27,20 +27,17 @@ namespace scanner {
 class CPMPersonParserEvaluator : public Evaluator {
  public:
   CPMPersonParserEvaluator(const EvaluatorConfig& config,
-                           DeviceType device_type, i32 device_id,
-                           bool forward_input = false);
+                           DeviceType device_type, i32 device_id);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
  protected:
-  EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
   f32 threshold_ = 0.5f;
-  bool forward_input_;
 
   InputFormat metadata_;
   i32 cell_size_ = 8;
@@ -60,17 +57,16 @@ class CPMPersonParserEvaluator : public Evaluator {
 
 class CPMPersonParserEvaluatorFactory : public EvaluatorFactory {
  public:
-  CPMPersonParserEvaluatorFactory(DeviceType device_type,
-                                  bool forward_input = false);
+  CPMPersonParserEvaluatorFactory(DeviceType device_type);
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
  private:
   DeviceType device_type_;
-  bool forward_input_;
 };
 }  // end namespace scanner

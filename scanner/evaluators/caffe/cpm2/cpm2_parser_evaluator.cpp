@@ -114,19 +114,19 @@ struct COCOModelDescriptor : public ModelDescriptor {
 
 
 CPM2ParserEvaluator::CPM2ParserEvaluator(const EvaluatorConfig& config,
-                                       DeviceType device_type, i32 device_id,
-                                       bool forward_input)
+                                       DeviceType device_type, i32 device_id)
     : config_(config),
       device_type_(device_type),
-      device_id_(device_id),
-      forward_input_(forward_input)
+      device_id_(device_id)
 {
   modeldesc.reset(new MPIModelDescriptor());
   joints_.resize(max_people_ * 3 * max_num_parts_);
 }
 
-void CPM2ParserEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void CPM2ParserEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
   f32 scale = static_cast<f32>(box_size_) / metadata.height();
   // Calculate width by scaling by box size
@@ -153,19 +153,13 @@ void CPM2ParserEvaluator::configure(const InputFormat& metadata) {
 }
 
 void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
-                                  BatchedColumns& output_columns) {
+                                   BatchedColumns& output_columns) {
   i32 frame_idx = 0;
   i32 heatmap_idx;
   i32 joints_idx;
-  if (forward_input_) {
-    assert(input_columns.size() >= 3);
-    heatmap_idx = 1;
-    joints_idx = 2;
-  } else {
-    assert(input_columns.size() >= 2);
-    heatmap_idx = 0;
-    joints_idx = 1;
-  }
+  assert(input_columns.size() >= 3);
+  heatmap_idx = 1;
+  joints_idx = 2;
 
   i32 input_count = (i32)input_columns[heatmap_idx].rows.size();
 
@@ -212,12 +206,10 @@ void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
     }
   }
 
-  if (forward_input_) {
-    i32 num_frames = static_cast<i32>(output_columns[frame_idx].rows.size());
-    for (i32 b = 0; b < num_frames; ++b) {
-      output_columns[frame_idx].rows.push_back(
-          input_columns[frame_idx].rows[b]);
-    }
+  i32 num_frames = static_cast<i32>(output_columns[frame_idx].rows.size());
+  for (i32 b = 0; b < num_frames; ++b) {
+    output_columns[frame_idx].rows.push_back(
+        input_columns[frame_idx].rows[b]);
   }
 }
 
@@ -484,9 +476,8 @@ int CPM2ParserEvaluator::connect_limbs(
   return cnt;
 }
 
-CPM2ParserEvaluatorFactory::CPM2ParserEvaluatorFactory(DeviceType device_type,
-                                                     bool forward_input)
-    : device_type_(device_type), forward_input_(forward_input) {}
+CPM2ParserEvaluatorFactory::CPM2ParserEvaluatorFactory(DeviceType device_type)
+    : device_type_(device_type) {}
 
 EvaluatorCapabilities CPM2ParserEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -500,18 +491,13 @@ EvaluatorCapabilities CPM2ParserEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPM2ParserEvaluatorFactory::get_output_names() {
-  std::vector<std::string> output_names;
-  if (forward_input_) {
-    output_names.push_back("frame");
-  }
-  output_names.push_back("poses");
-  return output_names;
+std::vector<std::string> CPM2ParserEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
+  return {"frame", "poses"};
 }
 
 Evaluator* CPM2ParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new CPM2ParserEvaluator(config, device_type_, config.device_ids[0],
-                                forward_input_);
+  return new CPM2ParserEvaluator(config, device_type_, config.device_ids[0]);
 }
 }

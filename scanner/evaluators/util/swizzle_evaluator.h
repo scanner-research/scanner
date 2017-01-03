@@ -34,7 +34,6 @@ class SwizzleEvaluator : public Evaluator {
                 BatchedColumns& output_columns) override;
 
  protected:
-  EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
   std::vector<i32> output_to_input_idx_;

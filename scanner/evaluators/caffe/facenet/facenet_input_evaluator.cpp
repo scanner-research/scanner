@@ -36,11 +36,13 @@ FacenetInputEvaluator::FacenetInputEvaluator(DeviceType device_type,
 {
 }
 
-void FacenetInputEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void FacenetInputEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 
-  net_input_width_ = metadata.width();
-  net_input_height_ = metadata.height();
+  net_input_width_ = metadata_.width();
+  net_input_height_ = metadata_.height();
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -217,7 +219,8 @@ EvaluatorCapabilities FacenetInputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> FacenetInputEvaluatorFactory::get_output_names() {
+std::vector<std::string> FacenetInputEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
   return {"frame", "net_input"};
 }
 

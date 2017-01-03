@@ -51,8 +51,10 @@ YoloInputEvaluator::YoloInputEvaluator(DeviceType device_type, i32 device_id,
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void YoloInputEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void YoloInputEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 }
 
 void YoloInputEvaluator::evaluate(const BatchedColumns& input_columns,
@@ -138,8 +140,9 @@ EvaluatorCapabilities YoloInputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> YoloInputEvaluatorFactory::get_output_names() {
-  return {"net_input", "frame"};
+std::vector<std::string> YoloInputEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_columns) {
+  return {"frame", "net_input"};
 }
 
 Evaluator* YoloInputEvaluatorFactory::new_evaluator(

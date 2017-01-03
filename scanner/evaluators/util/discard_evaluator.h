@@ -27,8 +27,6 @@ class DiscardEvaluator : public Evaluator {
   DiscardEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    i32 device_id);
 
-  void configure(const InputFormat& metadata) override;
-
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
@@ -44,7 +42,8 @@ class DiscardEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

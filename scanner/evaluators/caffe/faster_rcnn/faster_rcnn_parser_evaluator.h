@@ -15,7 +15,8 @@ class FasterRCNNParserEvaluatorFactory : public EvaluatorFactory {
  public:
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 };

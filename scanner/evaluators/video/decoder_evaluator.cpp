@@ -28,8 +28,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
     : device_type_(device_type),
       device_id_(config.device_ids[0]),
       decoder_type_(decoder_type),
-      num_devices_(num_devices),
-      discontinuity_(false) {
+      num_devices_(num_devices) {
 }
 
 void DecoderEvaluator::configure(const BatchConfig& config) {
@@ -59,10 +58,11 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
   }
   cached_video_.resize(0);
   cached_video_.resize(video_column_idxs_.size());
+  discontinuity_.resize(0);
+  discontinuity_.resize(video_column_idxs_.size());
 }
 
 void DecoderEvaluator::reset() {
-  discontinuity_ = true;
 
   for (size_t i = 0; i < video_column_idxs_.size(); ++i) {
     VideoDecoder* decoder = decoders_[i].get();
@@ -81,6 +81,7 @@ void DecoderEvaluator::reset() {
     cache.current_end_keyframe = -1;
     cache.encoded_buffer_offset = 0;
     cache.current_frame = 0;
+    discontinuity_[i] = true;
   }
 }
 
@@ -113,6 +114,8 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
     // expect previous rows to have given the encoded buffer
     CachedEncodedVideo& cache = cached_video_[video_num];
     size_t current_input = 0;
+    printf("video_num %d\n", video_num);
+    printf("num inputs %lu\n", num_inputs);
     while (current_input < num_inputs) {
       const u8*& encoded_buffer = cache.encoded_buffer;
       size_t& encoded_buffer_size = cache.encoded_buffer_size;
@@ -189,6 +192,8 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       size_t& encoded_buffer_offset = cache.encoded_buffer_offset;
       i32& current_frame = cache.current_frame;
       i32 valid_index = 0;
+      printf("current frame %d, clear cache %d, buffer size %lu\n",
+             current_frame, clear_cache, encoded_buffer_size);
       while (valid_index < total_output_frames) {
         auto video_start = now();
 
@@ -221,11 +226,17 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
           encoded_packet = encoded_buffer + encoded_buffer_offset;
           encoded_buffer_offset += encoded_packet_size;
         }
+        printf("current frame %d, packet size %lu, size %lu, offset %lu\n",
+               current_frame,
+               encoded_packet_size,
+               encoded_buffer_size,
+               encoded_buffer_offset);
 
-        decoder->feed(encoded_packet, encoded_packet_size, discontinuity_);
+        decoder->feed(encoded_packet, encoded_packet_size,
+                      discontinuity_[video_num]);
         // Set a discontinuity if we sent an empty packet to reset
         // the stream next time
-        discontinuity_ = (encoded_packet_size == 0);
+        discontinuity_[video_num] = (encoded_packet_size == 0);
       }
       // Wait on all memcpys from frames to be done
       decoder->wait_until_frames_copied();
@@ -233,7 +244,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       if (clear_cache) {
         // HACK(apoms): just always force discontinuity for now instead of
         //  properly figuring out if the previous frame was abut
-        discontinuity_ = true;
+        discontinuity_[video_num] = true;
 
         delete[] encoded_buffer;
         encoded_buffer = nullptr;

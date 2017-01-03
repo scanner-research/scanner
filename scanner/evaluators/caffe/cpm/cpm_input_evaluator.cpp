@@ -289,7 +289,7 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
   }
 
   for (i32 i = 1; i < input_columns.size(); ++i) {
-    output_columns[i + 1].rows = input_columns[i].rows[i];
+    output_columns[i + 1].rows = input_columns[i].rows;
   }
 
   if (profiler_) {
@@ -315,11 +315,12 @@ EvaluatorCapabilities CPMInputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPMInputEvaluatorFactory::get_output_names(
+std::vector<std::string> CPMInputEvaluatorFactory::get_output_columns(
     const std::vector<std::string>& input_columns) {
   std::vector<std::string> output_columns = {"frame", "net_input"};
   output_columns.insert(output_columns.end(), input_columns.begin() + 1,
                         input_columns.end());
+  return output_columns;
 }
 
 Evaluator* CPMInputEvaluatorFactory::new_evaluator(

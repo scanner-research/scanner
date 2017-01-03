@@ -11,15 +11,18 @@ namespace scanner {
 
 void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
                                          BatchedColumns& output_columns) {
-  assert(input_columns.size() == 3);
+  assert(input_columns.size() == 4);
 
   i32 input_count = input_columns[0].rows.size();
-  const std::vector<Row>&cls_prob = input_columns[0].rows,
-        &rois = input_columns[1].rows, &fc7 = input_columns[2].rows;
+  i32 cls_prob_idx = 1;
+  i32 rois_idx = 2;
+  i32 fc7_idx = 3;
+  const std::vector<Row>&cls_prob = input_columns[cls_prob_idx].rows,
+        &rois = input_columns[rois_idx].rows, &fc7 = input_columns[fc7_idx].rows;
 
   for (i32 i = 0; i < input_count; ++i) {
     i32 proposal_count =
-        input_columns[1].rows[i].size / (BOX_SIZE * sizeof(f32));
+        input_columns[rois_idx].rows[rois_idx].size / (BOX_SIZE * sizeof(f32));
 
     std::vector<BoundingBox> bboxes;
     for (i32 j = 0; j < proposal_count; ++j) {
@@ -79,7 +82,8 @@ EvaluatorCapabilities FasterRCNNParserEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> FasterRCNNParserEvaluatorFactory::get_output_names() {
+std::vector<std::string> FasterRCNNParserEvaluatorFactory::get_output_columns(
+    const std::vector<std::string>& input_column) {
   return {"bboxes", "fc7"};
 }
 

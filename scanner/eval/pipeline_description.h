@@ -92,12 +92,11 @@ struct TableInformation {
 
   i64 num_rows() const;
 
+  const std::vector<TableSample>& samples() const;
+
  private:
   i64 rows_;
-  std::vector<std::string> sample_job_names_;
-  std::vector<std::string> sample_table_names_;
-  std::vector<std::vector<std::string>> sample_columns_;
-  std::vector<std::vector<i64>> sample_rows_;
+  std::vector<TableSample> samples_;
 };
 
 struct JobInformation {
@@ -137,9 +136,6 @@ struct DatasetInformation {
   mutable std::map<std::string, JobInformation> job_;
 };
 
-void sample_all_frames(const DatasetInformation& info,
-                       PipelineDescription& desc);
-
 using PipelineGeneratorFn =
     std::function<PipelineDescription(const DatasetInformation&)>;
 
@@ -149,4 +145,43 @@ PipelineGeneratorFn get_pipeline(const std::string& name);
 
 #define REGISTER_PIPELINE(name, fn) \
   static bool dummy_##name = add_pipeline(#name, fn);
+
+class Sampler {
+ public:
+  // All
+  static void all_frames(const DatasetInformation& info,
+                         PipelineDescription& desc);
+
+  static void all(const DatasetInformation& info, PipelineDescription& desc,
+                  const std::string& job);
+
+  static void all(const DatasetInformation& info, PipelineDescription& desc,
+                  const std::string& job,
+                  const std::vector<std::string>& columns);
+
+  // Strided
+  static void strided_frames(const DatasetInformation& info,
+                             PipelineDescription& desc, i64 stride,
+                             i64 offset = 0);
+
+  static void strided(const DatasetInformation& info, PipelineDescription& desc,
+                      const std::string& job, i64 stride,
+                      i64 offset = 0);
+
+  static void strided(const DatasetInformation& info, PipelineDescription& desc,
+                      const std::string& job,
+                      const std::vector<std::string>& columns,
+                      i64 stride,
+                      i64 offset = 0);
+
+  static void join_prepend(const DatasetInformation& info,
+                           PipelineDescription& desc,
+                           const std::string& existing_column,
+                           const std::string& to_join_column);
+
+  static void join_append(const DatasetInformation& info,
+                          PipelineDescription& desc,
+                          const std::string& existing_column,
+                          const std::string& to_join_column);
+};
 }

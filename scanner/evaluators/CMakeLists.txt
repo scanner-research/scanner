@@ -26,7 +26,6 @@ if (BUILD_CAFFE_EVALUATORS)
     list(APPEND SOURCE_FILES
       caffe/default/default_input_evaluator.cpp
       caffe/yolo/yolo_input_evaluator.cpp
-      caffe/squeezenet/squeezenet_input_evaluator.cpp
       caffe/facenet/facenet_parser_evaluator.cpp
       caffe/facenet/facenet_input_evaluator.cpp
       caffe/faster_rcnn/faster_rcnn_parser_evaluator.cpp

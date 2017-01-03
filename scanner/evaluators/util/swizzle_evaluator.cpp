@@ -30,8 +30,7 @@ namespace scanner {
 SwizzleEvaluator::SwizzleEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type, i32 device_id,
                                    const std::vector<i32>& output_to_input_idx)
-    : config_(config),
-      device_type_(device_type),
+    : device_type_(device_type),
       device_id_(device_id),
       output_to_input_idx_(output_to_input_idx) {}
 
@@ -69,7 +68,7 @@ EvaluatorCapabilities SwizzleEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> SwizzleEvaluatorFactory::get_output_names(
+std::vector<std::string> SwizzleEvaluatorFactory::get_output_columns(
     const std::vector<std::string>& input_columns) {
   return output_names_;
 }

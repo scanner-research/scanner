@@ -7,7 +7,7 @@ namespace scanner {
 namespace {
 PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
-  sample_all_frames(info, desc);
+  Sampler::strided_frames(info, desc, 2);
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;

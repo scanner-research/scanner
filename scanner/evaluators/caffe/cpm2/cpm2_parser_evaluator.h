@@ -27,66 +27,65 @@ namespace scanner {
 class ModelDescriptor;
 
 class CPM2ParserEvaluator : public Evaluator {
-public:
-  CPM2ParserEvaluator(const EvaluatorConfig &config, DeviceType device_type,
-                      i32 device_id, bool forward_input = false);
+ public:
+  CPM2ParserEvaluator(const EvaluatorConfig& config, DeviceType device_type,
+                      i32 device_id);
 
-  void configure(const InputFormat &metadata) override;
+  void configure(const BatchConfig& config) override;
 
-  void evaluate(const BatchedColumns &input_columns,
-                BatchedColumns &output_columns) override;
+  void evaluate(const BatchedColumns& input_columns,
+                BatchedColumns& output_columns) override;
 
  protected:
-   int connect_limbs(std::vector<std::vector<double>> &subset,
-                     std::vector<std::vector<std::vector<double>>> &connection,
-                     const float *heatmap_pointer, const float *peaks,
-                     float *joints);
+  int connect_limbs(std::vector<std::vector<double>>& subset,
+                    std::vector<std::vector<std::vector<double>>>& connection,
+                    const float* heatmap_pointer, const float* peaks,
+                    float* joints);
 
-   EvaluatorConfig config_;
-   DeviceType device_type_;
-   i32 device_id_;
-   f32 threshold_ = 0.5f;
-   bool forward_input_;
+  EvaluatorConfig config_;
+  DeviceType device_type_;
+  i32 device_id_;
+  f32 threshold_ = 0.5f;
+  bool forward_input_;
 
-   std::unique_ptr<ModelDescriptor> modeldesc;
-   InputFormat metadata_;
-   // The maximum number of joint peaks from the nms output layer
-   i32 cell_size_ = 8;
-   i32 box_size_ = 368;
-   i32 resize_width_;
-   i32 resize_height_;
-   i32 width_padding_;
-   i32 padded_width_;
-   i32 net_input_width_;
-   i32 net_input_height_;
-   i32 feature_width_;
-   i32 feature_height_;
-   i32 feature_channels_;
+  std::unique_ptr<ModelDescriptor> modeldesc;
+  InputFormat metadata_;
+  // The maximum number of joint peaks from the nms output layer
+  i32 cell_size_ = 8;
+  i32 box_size_ = 368;
+  i32 resize_width_;
+  i32 resize_height_;
+  i32 width_padding_;
+  i32 padded_width_;
+  i32 net_input_width_;
+  i32 net_input_height_;
+  i32 feature_width_;
+  i32 feature_height_;
+  i32 feature_channels_;
 
-   const int max_people_ = 96;
-   const int max_num_parts_ = 70;
-   const int max_peaks_ = 20;
-   const int num_joints_ = 15;
-   int connect_min_subset_cnt_ = 3;
-   float connect_min_subset_score_ = 0.4;
-   float connect_inter_threshold_ = 0.01;
-   int connect_inter_min_above_threshold_ = 8;
-   std::vector<float> joints_;
+  const int max_people_ = 96;
+  const int max_num_parts_ = 70;
+  const int max_peaks_ = 20;
+  const int num_joints_ = 15;
+  int connect_min_subset_cnt_ = 3;
+  float connect_min_subset_score_ = 0.4;
+  float connect_inter_threshold_ = 0.01;
+  int connect_inter_min_above_threshold_ = 8;
+  std::vector<float> joints_;
 };
 
 class CPM2ParserEvaluatorFactory : public EvaluatorFactory {
-public:
-  CPM2ParserEvaluatorFactory(DeviceType device_type,
-                             bool forward_input = false);
+ public:
+  CPM2ParserEvaluatorFactory(DeviceType device_type);
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
-  Evaluator *new_evaluator(const EvaluatorConfig &config) override;
+  Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
  private:
   DeviceType device_type_;
-  bool forward_input_;
 };
 }  // end namespace scanner
