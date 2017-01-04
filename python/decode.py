@@ -8,11 +8,11 @@ db = scanner.Scanner()
 import scannerpy.evaluators.types_pb2 as evaluators
 
 @db.loader('histogram')
-def load_histograms(buf, metadata):
+def load_histograms(buf, config):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
 
 @db.loader('faces')
-def load_faces(buf, metadata):
+def load_faces(buf, config):
     num_faces = len(buf) / 16
     faces = []
     for i in range(num_faces):
@@ -20,7 +20,8 @@ def load_faces(buf, metadata):
     return faces
 
 @db.loader('opticalflow')
-def load_opticalflow(buf, metadata):
+def load_opticalflow(buf, config):
+    metadata = config[0]
     return np.frombuffer(buf, dtype=np.dtype(np.float32)).reshape((metadata.width, metadata.height, 2))
 
 @db.loader('cameramotion')
@@ -62,7 +63,8 @@ def load_bboxes(buf, metadata):
         return []
 
 @db.loader('frame')
-def load_frames(buf, metadata):
+def load_frames(buf, config):
+    metadata = config[0]
     return np.frombuffer(buf, dtype=np.dtype(np.uint8)) \
              .resize((metadata.height, metadata.width, 3))
 

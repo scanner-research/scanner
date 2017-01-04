@@ -169,13 +169,13 @@ def parse_cpm_data(person_centers_job, joint_results_job,
     sampled_frames = defaultdict(list)
     person_centers = defaultdict(list)
     for out in person_centers_job.as_outputs():
-        vi = out['video']
+        vi = out['table']
         sampled_frames[vi] += out['frames']
         person_centers[vi] += out['buffers']
 
     person_poses = defaultdict(list)
     for out in joint_results_job.as_outputs():
-        vi = out['video']
+        vi = out['table']
         i = 0
         for centers in person_centers[vi]:
             poses = []
@@ -212,7 +212,7 @@ def parse_cpm2_data(joint_results_job, scale, panel_cam_mapping):
     sampled_frames = defaultdict(list)
     person_poses = defaultdict(list)
     for out in joint_results_job.as_outputs():
-        vi = out['video']
+        vi = out['table']
         sampled_frames[vi] = out['frames']
         person_poses[vi] += out['buffers']
     # frame -> (panel, cam) -> list({center, pose})
@@ -650,7 +650,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory,
 
                 # Plot edges for each bone
                 for edge in edges:
-                    if valid[edge[0]] or valid[edge[1]]:
+                    if valid[edge[0]] and valid[edge[1]]:
                         plt.plot(pt[0,edge], pt[1,edge],
                                  color=colors[idx])
 
@@ -699,8 +699,6 @@ def draw_3d_poses(calibration_data, data_path, output_directory,
 
 
 def load_metadata(dataset_name):
-    output_path = 'cpm_output_' + dataset_name
-    mkdir_p(output_path)
     data_path = '/bigdata/apoms/panoptic/' + dataset_name
     calib_path = os.path.join(data_path,
                               'calibration_{:s}.json'.format(dataset_name))
@@ -709,7 +707,6 @@ def load_metadata(dataset_name):
         calib_data = parse_calibration_data(raw_calib_data)
 
     return {
-        'output_path': output_path,
         'data_path': data_path,
         'raw_calib_data': raw_calib_data,
         'calib_data': calib_data,
@@ -766,15 +763,14 @@ def combine_pose_detections(poses_by_frame_list):
 
 
 def export_pose_detections(dataset_name, poses_by_frame,
-                           start_frame, end_frame):
+                           start_frame, end_frame, output_directory):
     meta = load_metadata(dataset_name)
     #write_extrinsic_params(calib_data, output_path)
     for frame in range(start_frame, end_frame):
         write_pose_detections(meta['calib_data'],
                               poses_by_frame[frame],
                               frame,
-                              #'cpm2_output')
-                              meta['output_path'])
+                              output_directory)
 
 
 def draw_2d_pose_detections(dataset_name, pose_data, start_frame, end_frame):
@@ -785,19 +781,20 @@ def draw_2d_pose_detections(dataset_name, pose_data, start_frame, end_frame):
                                range(start_frame, end_frame))
 
 
-def draw_3d_pose_detections(dataset_name, num_cams, start_frame, end_frame):
+def draw_3d_pose_detections(dataset_name, num_cams, start_frame, end_frame,
+                            output_directory):
     meta = load_metadata(dataset_name)
     for frame in range(start_frame, end_frame):
         draw_3d_poses(meta['raw_calib_data'],
                       meta['data_path'],
-                      meta['output_path'],
+                      output_directory,
                       dataset_name,
                       num_cams,
                       frame)
 
 
 def draw_3d_pose_detections_fade(dataset_name, num_cams,
-                                 start_frame, end_frame):
+                                 start_frame, end_frame, output_directory):
     meta = load_metadata(dataset_name)
     total_frames = (end_frame - start_frame) * 1.0
     first_mid_frame = start_frame + total_frames / 3
@@ -811,7 +808,7 @@ def draw_3d_pose_detections_fade(dataset_name, num_cams,
             opacity = 1 - ((end_frame - frame) / (total_frames / 3))
         draw_3d_poses(meta['raw_calib_data'],
                       meta['data_path'],
-                      meta['output_path'],
+                      output_directory,
                       dataset_name,
                       num_cams,
                       frame,

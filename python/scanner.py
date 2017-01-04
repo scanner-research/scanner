@@ -19,7 +19,8 @@ DEVNULL = open(os.devnull, 'wb', 0)
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in xrange(0, len(l), n):
-        yield l[i:i + n]
+        e = min(i + n, len(l))
+        yield l[i:e]
 
 
 def read_advance(fmt, buf, offset):
@@ -159,6 +160,7 @@ class JobResult(object):
         self._load_fn = load_fn
         self._storage = self._scanner.config.storage
         self._db_path = self._scanner.config.db_path
+        self._db = self._scanner._db
 
         self._dataset = self._scanner._meta.DatasetDescriptor()
         self._dataset.ParseFromString(
@@ -205,12 +207,13 @@ class JobResult(object):
                     '{}/datasets/{}/data/{}_metadata.bin'.format(
                         self._db_path, self._dataset_name, name)))
 
-    def _load_output_file(self, table_name, item_id, rows, istart, iend):
+    def _load_output_file(self, config, table_id, item_id, rows,
+                          istart, iend):
         try:
             contents = self._storage.read(
                 '{}/datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
                     self._db_path, self._dataset_name, self._job_name,
-                    table_name, self._column, item_id))
+                    table_id, self._column, item_id))
             lens = []
             start_pos = maxint
             pos = 0
@@ -233,7 +236,7 @@ class JobResult(object):
             for buf_len in lens:
                 buf = contents[i:i+buf_len]
                 i += buf_len
-                item = self._load_fn(buf)
+                item = self._load_fn(buf, config)
                 bufs.append(item)
 
             return bufs
@@ -244,38 +247,60 @@ class JobResult(object):
     def _load(self, interval=None):
         item_size = self._job.io_item_size
         for table in self._job.tasks:
+            # Setup metadata for video formats
+            config = []
+            frames = []
+            for sample in table.samples:
+                if sample.job_id == -1:
+                    continue
+                # Find the name of the job
+                job_name = None
+                for job in self._db.jobs:
+                    if job.id == sample.job_id:
+                        job_name = job.name
+                        break
+                assert(job_name is not None)
+                if job_name == Scanner.base_job_name():
+                    video_id = sample.table_id
+                    config.append(self._load_item_descriptor(str(video_id)))
+                    frames.append(sample.rows)
+
             num_rows = len(table.samples[0].rows)
             intervals = [i for i in range(0, num_rows - 1, item_size)]
             intervals.append(num_rows)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)
 
-            result = {'table': table.name,
-                      'rows': [],
+            frame_intervals = chunks(frames[0], item_size)
+            print([f for f in frame_intervals])
+            frame_intervals = chunks(frames[0], item_size)
+
+            result = {'table': table.table_name,
+                      'frames': [],
                       'buffers': []}
             (istart, iend) = interval if interval is not None else (0, maxint)
 
-            item_id = 0
             for i, ivl in enumerate(intervals):
                 start = ivl[0]
                 end = ivl[1]
                 if start > iend or end < istart: continue
-                result['buffers'] += self._load_output_file(table.name,
-                                                            item_id,
+                result['buffers'] += self._load_output_file(config,
+                                                            table.table_id,
+                                                            i,
                                                             range(start, end),
                                                             istart,
                                                             iend)
-                result['rows'] += range(start, end)
-                item_id += 1
+                if len(frames) > 0:
+                    result['frames'] += frame_intervals.next()
             yield result
 
     def as_outputs(self, interval=None):
-        for i in _load(interval):
+        for i in self._load(interval):
             yield i
 
     def as_frame_list(self, interval=None):
         for d in self.as_outputs(interval):
-            yield (d['video'], zip(d['frames'], d['buffers']))
+            yield (d['table'], zip(d['frames'], d['buffers']))
 
 class Scanner(object):
     """ TODO(wcrichto): document me """
@@ -291,6 +316,7 @@ class Scanner(object):
             '{}/build/scanner_server'.format(self.config.scanner_path))
         self._storage = self.config.storage
         self._db_path = self.config.db_path
+        self._db = self.load_db_metadata()
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
@@ -446,7 +472,6 @@ class Scanner(object):
         if custom_env:
             for k, v in custom_env.iteritems():
                 current_env[k] = v
-
 
         script_path = os.path.dirname(os.path.realpath(__file__))
         exec_path = os.path.join(script_path, '..')
