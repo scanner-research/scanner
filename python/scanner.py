@@ -141,12 +141,6 @@ class ScannerConfig(object):
             exit()
 
 
-class Sampling(Enum):
-    All = 0
-    Strided = 1
-    Gather = 2
-    SequenceGather = 3
-
 class DatasetType(Enum):
     DatasetType_Video = 0
     DatasetType_Image = 1
@@ -176,15 +170,6 @@ class JobResult(object):
             self._storage.read(
                 '{}/datasets/{}/jobs/{}/descriptor.bin'
                 .format(self._db_path, dataset_name, job_name)))
-
-        self._in_job_name = self._job.in_job_name
-        self._derived = self._job.derived
-        if self._derived:
-            self._in_job = self._scanner._meta.JobDescriptor()
-            self._in_job.ParseFromString(
-                self._storage.read(
-                    '{}/datasets/{}/jobs/{}/descriptor.bin'
-                    .format(self._db_path, dataset_name, self._in_job_name)))
 
     def _dataset_type(self):
         meta = self._scanner._meta
@@ -220,13 +205,12 @@ class JobResult(object):
                     '{}/datasets/{}/data/{}_metadata.bin'.format(
                         self._db_path, self._dataset_name, name)))
 
-    def _load_output_file(self, video, video_name, work_item_index, rows,
-                          istart, iend):
+    def _load_output_file(self, table_name, item_id, rows, istart, iend):
         try:
             contents = self._storage.read(
                 '{}/datasets/{}/jobs/{}/{}_{}_{}.bin'.format(
                     self._db_path, self._dataset_name, self._job_name,
-                    video_name, self._column, work_item_index))
+                    table_name, self._column, item_id))
             lens = []
             start_pos = maxint
             pos = 0
@@ -249,7 +233,7 @@ class JobResult(object):
             for buf_len in lens:
                 buf = contents[i:i+buf_len]
                 i += buf_len
-                item = self._load_fn(buf, video)
+                item = self._load_fn(buf)
                 bufs.append(item)
 
             return bufs
@@ -257,216 +241,41 @@ class JobResult(object):
             raise JobLoadException('Column {} does not exist for job {}'.format(
                 self._column, self._job_name))
 
-    def _load_derived_sampling(self, interval=None):
-        item_size = self._job.work_item_size
-        for samples in self._job.derived_frames:
-            work_item_index = 0
-            video_index = samples.video_index
-            video_name = self._dataset_item_names()[video_index]
-            video = self._load_item_descriptor(video_name)
-
-            work_items = chunks(samples.frames, item_size)
-            assert(work_items is not None)
-
-            result = {'video': video_name,
-                      'frames': [],
-                      'buffers': []}
-            (istart, iend) = interval if interval is not None else (0,
-                                                                    maxint)
-            for i, item in enumerate(work_items):
-                start = item[0]
-                end = item[-1]
-                if start > iend or end < istart: continue
-                rows = []
-                result['buffers'] += self._load_output_file(video,
-                                                            video_name,
-                                                            work_item_index,
-                                                            rows,
-                                                            istart,
-                                                            iend)
-                result['frames'] += item
-                work_item_index += 1
-            yield result
-
-    def _load_all_sampling(self, interval=None):
-        item_size = self._job.work_item_size
-        for vi, video_name in enumerate(self._dataset_item_names()):
-            work_item_index = 0
-            video = self._load_item_descriptor(video_name)
-
-            intervals = [i for i in range(0, video.frames - 1, item_size)]
-            intervals.append(video.frames)
+    def _load(self, interval=None):
+        item_size = self._job.io_item_size
+        for table in self._job.tasks:
+            num_rows = len(table.samples[0].rows)
+            intervals = [i for i in range(0, num_rows - 1, item_size)]
+            intervals.append(num_rows)
             intervals = zip(intervals[:-1], intervals[1:])
             assert(intervals is not None)
 
-            result = {'video': video_name,
-                      'frames': [],
+            result = {'table': table.name,
+                      'rows': [],
                       'buffers': []}
-            (istart, iend) = interval if interval is not None else (0,
-                                                                    maxint)
+            (istart, iend) = interval if interval is not None else (0, maxint)
 
+            item_id = 0
             for i, ivl in enumerate(intervals):
                 start = ivl[0]
                 end = ivl[1]
                 if start > iend or end < istart: continue
-                result['buffers'] += self._load_output_file(video,
-                                                            video_name,
-                                                            work_item_index,
+                result['buffers'] += self._load_output_file(table.name,
+                                                            item_id,
                                                             range(start, end),
                                                             istart,
                                                             iend)
-                result['frames'] += range(start, end)
-                work_item_index += 1
+                result['rows'] += range(start, end)
+                item_id += 1
             yield result
-
-    def _load_stride_sampling(self, interval=None):
-        item_size = self._job.work_item_size
-        stride = self._job.stride
-        for vi, video_name in enumerate(self._dataset_item_names()):
-            work_item_index = 0
-            video = self._load_item_descriptor(video_name)
-
-            intervals = [0]
-            intervals += [i for i in range(item_size * stride,
-                                           video.frames - 1,
-                                           item_size * stride)]
-            intervals.append(video.frames)
-            intervals = zip(intervals[:-1], intervals[1:])
-            assert(intervals is not None)
-
-            result = {'video': video_name,
-                      'frames': [],
-                      'buffers': []}
-            (istart, iend) = interval if interval is not None else (0,
-                                                                    maxint)
-            for i, ivl in enumerate(intervals):
-                start = ivl[0]
-                end = ivl[1]
-                if start > iend or end < istart: continue
-                rows = (end - start) / stride
-                rows = range(start, end, stride)
-                result['buffers'] += self._load_output_file(video,
-                                                            video_name,
-                                                            work_item_index,
-                                                            rows,
-                                                            istart,
-                                                            iend)
-                result['frames'] += range(start, end, stride)
-                work_item_index += 1
-            yield result
-
-    def _load_gather_sampling(self, interval=None):
-        item_size = self._job.work_item_size
-        for samples in self._job.gather_points:
-            work_item_index = 0
-            video_index = samples.video_index
-            video_name = self._dataset_item_names()[video_index]
-            video = self._load_item_descriptor(video_name)
-
-            work_items = chunks(samples.frames, item_size)
-            assert(work_items is not None)
-
-            result = {'video': video_name,
-                      'frames': [],
-                      'buffers': []}
-            (istart, iend) = interval if interval is not None else (0,
-                                                                    maxint)
-            for i, item in enumerate(work_items):
-                start = item[0]
-                end = item[-1]
-                if start > iend or end < istart: continue
-                rows = item
-                result['buffers'] += self._load_output_file(video,
-                                                            video_name,
-                                                            work_item_index,
-                                                            rows,
-                                                            istart,
-                                                            iend)
-                result['frames'] += item
-                work_item_index += 1
-            yield result
-
-    def _load_sequence_gather_sampling(self, interval=None):
-        item_size = self._job.work_item_size
-        for samples in self._job.gather_sequences:
-            work_item_index = 0
-            video_index = samples.video_index
-            video_name = self._dataset_item_names()[video_index]
-            video = self._load_item_descriptor(video_name)
-
-            sequences = samples.intervals
-
-            result = {'video': video_name,
-                      'sequences': [(s.start, s.end) for s in sequences],
-                      'frames': [],
-                      'buffers': []}
-
-            (istart, iend) = interval if interval is not None else (0,
-                                                                    maxint)
-            for intvl in sequences:
-                intervals = [intvl.start]
-                intervals += [i for i in range(intvl.start + item_size * intvl.stride,
-                                               intvl.end - 1,
-                                               item_size * intvl.stride)]
-                intervals.append(intvl.end)
-                intervals = zip(intervals[:-1], intervals[1:])
-                assert(intervals is not None)
-
-                for i, ivl in enumerate(intervals):
-                    start = ivl[0]
-                    end = ivl[1]
-                    if start > iend or end < istart: continue
-                    rows = range(start, end, intvl.stride)
-                    result['buffers'] += self._load_output_file(video,
-                                                                video_name,
-                                                                work_item_index,
-                                                                rows,
-                                                                istart,
-                                                                iend)
-                    result['frames'] += range(start, end, intvl.stride)
-                    work_item_index += 1
-            yield result
-
-    def get_sampling_type(self):
-        JD = self._scanner._meta.JobDescriptor
-        js = self._job.sampling
-        s = None
-        if js == JD.All:
-            s = Sampling.All
-        elif js == JD.Strided:
-            s = Sampling.Strided
-        elif js == JD.Gather:
-            s = Sampling.Gather
-        elif js == JD.SequenceGather:
-            s = Sampling.SequenceGather
-        return s
 
     def as_outputs(self, interval=None):
-        gen = None
-        sampling = self.get_sampling_type()
-        if self._derived:
-            gen = self._load_derived_sampling(interval)
-        elif sampling is Sampling.All:
-            gen = self._load_all_sampling(interval)
-        elif sampling is Sampling.Strided:
-            gen = self._load_stride_sampling(interval)
-        elif sampling is Sampling.Gather:
-            gen = self._load_gather_sampling(interval)
-        elif sampling is Sampling.SequenceGather:
-            gen = self._load_sequence_gather_sampling(interval)
-        for i in gen:
+        for i in _load(interval):
             yield i
 
     def as_frame_list(self, interval=None):
         for d in self.as_outputs(interval):
             yield (d['video'], zip(d['frames'], d['buffers']))
-
-    def as_sequences(self, interval=None):
-        """ TODO(apoms): implement """
-        if self.get_sampling_type() != Sampling.SequenceGather:
-            logging.error("")
-            return
-        pass
 
 class Scanner(object):
     """ TODO(wcrichto): document me """
@@ -602,13 +411,14 @@ class Scanner(object):
     def base_job_name():
         return 'base'
 
-    def run(self, dataset_name, in_job_name, pipeline_name, out_job_name,
+    def run(self, dataset_name, pipeline_name, out_job_name,
             opts={}):
         def gopt(k, default):
             return opts[k] if k in opts else default
         force = gopt('force', False)
         node_count = gopt('node_count', 1)
         pus_per_node = gopt('pus_per_node', 1)
+        io_item_size = gopt('io_item_size', None)
         work_item_size = gopt('work_item_size', None)
         tasks_in_queue_per_pu = gopt('tasks_in_queue_per_pu', None)
         load_workers_per_node = gopt('tasks_in_queue_per_pu', None)
@@ -619,7 +429,7 @@ class Scanner(object):
                 '-n', str(node_count),
                 '--bind-to', 'none',
                 self._executable_path,
-                'run', dataset_name, in_job_name, pipeline_name, out_job_name]]
+                'run', dataset_name, pipeline_name, out_job_name]]
 
         def add_opt(name, opt):
             if opt:
@@ -627,6 +437,7 @@ class Scanner(object):
         if force:
             cmd[0].append('-f')
         add_opt('pus_per_node', pus_per_node)
+        add_opt('io_item_size', io_item_size)
         add_opt('work_item_size', work_item_size)
         add_opt('tasks_in_queue_per_pu', tasks_in_queue_per_pu)
         add_opt('load_workers_per_node', load_workers_per_node)
