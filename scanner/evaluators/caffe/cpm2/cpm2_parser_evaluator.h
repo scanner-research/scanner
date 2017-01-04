@@ -42,7 +42,6 @@ class CPM2ParserEvaluator : public Evaluator {
                     const float* heatmap_pointer, const float* peaks,
                     float* joints);
 
-  EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
   f32 threshold_ = 0.5f;

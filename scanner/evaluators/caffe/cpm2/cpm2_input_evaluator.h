@@ -30,7 +30,7 @@
 
 namespace scanner {
 
-void cpm2_net_config(const InputFormat& metadata, caffe::Net<float> *net);
+void cpm2_net_config(const BatchConfig& config, caffe::Net<float> *net);
 
 class CPM2InputEvaluator : public Evaluator {
  public:

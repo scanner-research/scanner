@@ -174,6 +174,30 @@ class Sampler {
                       i64 stride,
                       i64 offset = 0);
 
+  // Range
+  static void range_frames(const DatasetInformation& info,
+                           PipelineDescription& desc,
+                           i64 start, i64 end);
+
+  static void range(const DatasetInformation& info, PipelineDescription& desc,
+                    const std::string& job, i64 start, i64 end);
+
+  static void range(const DatasetInformation& info, PipelineDescription& desc,
+                    const std::string& job,
+                    const std::vector<std::string>& columns, i64 start,
+                    i64 end);
+
+  // Strided range
+  static void strided_range_frames(const DatasetInformation& info,
+                                   PipelineDescription& desc, i64 stride,
+                                   i64 start,
+                                   i64 end);
+
+  static void strided_range(const DatasetInformation& info,
+                            PipelineDescription& desc, const std::string& job,
+                            const std::vector<std::string>& columns, i64 stride,
+                            i64 start, i64 end);
+
   static void join_prepend(const DatasetInformation& info,
                            PipelineDescription& desc,
                            const std::string& existing_column,

@@ -115,8 +115,7 @@ struct COCOModelDescriptor : public ModelDescriptor {
 
 CPM2ParserEvaluator::CPM2ParserEvaluator(const EvaluatorConfig& config,
                                        DeviceType device_type, i32 device_id)
-    : config_(config),
-      device_type_(device_type),
+    : device_type_(device_type),
       device_id_(device_id)
 {
   modeldesc.reset(new MPIModelDescriptor());
@@ -128,10 +127,10 @@ void CPM2ParserEvaluator::configure(const BatchConfig& config) {
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
 
-  f32 scale = static_cast<f32>(box_size_) / metadata.height();
+  f32 scale = static_cast<f32>(box_size_) / metadata_.height();
   // Calculate width by scaling by box size
-  resize_width_ = metadata.width() * scale;
-  resize_height_ = metadata.height() * scale;
+  resize_width_ = metadata_.width() * scale;
+  resize_height_ = metadata_.height() * scale;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
   padded_width_ = resize_width_ + width_padding_;

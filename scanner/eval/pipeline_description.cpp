@@ -240,6 +240,56 @@ void Sampler::strided(const DatasetInformation& info, PipelineDescription& desc,
   }
 }
 
+void Sampler::range_frames(const DatasetInformation& info,
+                           PipelineDescription& desc, i64 start, i64 end)
+{
+  range(info, desc, base_job_name(), start, end);
+}
+
+void Sampler::range(const DatasetInformation& info, PipelineDescription& desc,
+                    const std::string& job_name,
+                    i64 start, i64 end)
+{
+  const JobInformation& job = info.job(job_name);
+  range(info, desc, job_name, job.column_names(), start, end);
+}
+
+void Sampler::range(const DatasetInformation& info, PipelineDescription& desc,
+                    const std::string& job_name,
+                    const std::vector<std::string>& columns, i64 start,
+                    i64 end) {
+  strided_range(info, desc, job_name, columns, 1, start, end);
+}
+
+void Sampler::strided_range_frames(const DatasetInformation& info,
+                                   PipelineDescription& desc, i64 stride,
+                                   i64 start, i64 end) {
+  strided_range(info, desc, base_job_name(), {base_column_name()}, stride,
+                start, end);
+}
+
+void Sampler::strided_range(const DatasetInformation& info,
+                            PipelineDescription& desc,
+                            const std::string& job_name,
+                            const std::vector<std::string>& columns, i64 stride,
+                            i64 start, i64 end) {
+  const JobInformation& job = info.job(job_name);
+  for (const std::string& table_name : job.table_names()) {
+    Task task;
+    task.table_name = table_name;
+    TableSample sample;
+    sample.job_name = job_name;
+    sample.table_name = table_name;
+    sample.columns = columns;
+    const TableInformation& table = job.table(table_name);
+    for (i64 r = start; r < end; r += stride) {
+      sample.rows.push_back(r);
+    }
+    task.samples.push_back(sample);
+    desc.tasks.push_back(task);
+  }
+}
+
 void Sampler::join_prepend(const DatasetInformation& info,
                            PipelineDescription& desc,
                            const std::string& existing_column,

@@ -24,7 +24,9 @@
 
 namespace scanner {
 
-void cpm2_net_config(const InputFormat& metadata, caffe::Net<float> *net) {
+void cpm2_net_config(const BatchConfig& config, caffe::Net<float> *net) {
+  assert(config.formats.size() == 1);
+  const InputFormat& metadata = config.formats[0];
   f32 scale = static_cast<f32>(368) / metadata.height();
   // Calculate width by scaling by box size
   int resize_width = metadata.width() * scale;
@@ -267,7 +269,7 @@ EvaluatorCapabilities CPM2InputEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> CPM2InputEvaluatorFactory::get_output_names(
+std::vector<std::string> CPM2InputEvaluatorFactory::get_output_columns(
     const std::vector<std::string>& input_columns) {
   return {"frame", "net_input"};
 }
