@@ -228,6 +228,10 @@ int main(int argc, char** argv) {
     if (config->has("job", "work_item_size")) {
       WORK_ITEM_SIZE = config->get<int>("job", "work_item_size");
     }
+    LOG_IF(FATAL, WORK_ITEM_SIZE > IO_ITEM_SIZE)
+        << "Work item size (" << WORK_ITEM_SIZE
+        << ") must be <= to IO item size (" << IO_ITEM_SIZE << ")!";
+
     if (config->has("job", "tasks_in_queue_per_pu")) {
       TASKS_IN_QUEUE_PER_PU = config->get<int>("job", "tasks_in_queue_per_pu");
     }
