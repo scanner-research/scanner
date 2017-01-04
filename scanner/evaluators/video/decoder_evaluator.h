@@ -42,7 +42,7 @@ class DecoderEvaluator : public Evaluator {
     i64 current_start_keyframe = -1;
     i64 current_end_keyframe = -1;
     size_t encoded_buffer_offset = 0;
-    i32 current_frame = 0;
+    i32 current_frame = -1;
   };
 
   DeviceType device_type_;

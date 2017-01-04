@@ -47,6 +47,8 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
     decoders_[i]->configure(config.formats[i]);
   }
   i32 out_col_idx = 0;
+  video_column_idxs_.clear();
+  regular_column_idxs_.clear();
   for (size_t i = 0; i < config.input_columns.size(); ++i) {
     if (config.input_columns[i] == base_column_name()) {
       video_column_idxs_.push_back(
@@ -80,7 +82,7 @@ void DecoderEvaluator::reset() {
     cache.current_start_keyframe = -1;
     cache.current_end_keyframe = -1;
     cache.encoded_buffer_offset = 0;
-    cache.current_frame = 0;
+    cache.current_frame = -1;
     discontinuity_[i] = true;
   }
 }
@@ -114,8 +116,6 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
     // expect previous rows to have given the encoded buffer
     CachedEncodedVideo& cache = cached_video_[video_num];
     size_t current_input = 0;
-    printf("video_num %d\n", video_num);
-    printf("num inputs %lu\n", num_inputs);
     while (current_input < num_inputs) {
       const u8*& encoded_buffer = cache.encoded_buffer;
       size_t& encoded_buffer_size = cache.encoded_buffer_size;
@@ -191,6 +191,9 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 
       size_t& encoded_buffer_offset = cache.encoded_buffer_offset;
       i32& current_frame = cache.current_frame;
+      if (current_frame == -1) {
+        current_frame = cache.current_start_keyframe;
+      }
       i32 valid_index = 0;
       printf("current frame %d, clear cache %d, buffer size %lu\n",
              current_frame, clear_cache, encoded_buffer_size);
@@ -252,7 +255,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         current_start_keyframe = -1;
         current_end_keyframe = -1;
         encoded_buffer_offset = 0;
-        current_frame = 0;
+        current_frame = -1;
       }
     }
     video_num++;

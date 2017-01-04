@@ -133,7 +133,8 @@ void* load_thread(void* arg) {
     i32 col_idx = 0;
     for (const LoadWorkEntry::Sample& sample : samples) {
       const std::vector<i64>& rows = sample.rows;
-      if (sample.job_id == base_job_id() &&
+      const JobMetadata& job = args.job_meta.at(sample.job_id);
+      if (job.name() == base_job_name() &&
           sample.columns[0] == base_column_name()) {
         // If reading from base job and special visual data column...
         if (args.dataset.type() == DatasetType_Video) {
@@ -327,7 +328,6 @@ void* load_thread(void* arg) {
         col_idx++;
       } else {
         // Regular column load
-        const JobMetadata& job = args.job_meta.at(sample.job_id);
         RowIntervals intervals = slice_into_row_intervals(job, rows);
         size_t num_items = intervals.item_ids.size();
         for (const std::string& column_name : sample.columns) {
