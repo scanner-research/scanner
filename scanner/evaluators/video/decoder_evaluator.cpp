@@ -184,65 +184,63 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
       }
 
       i32 total_output_frames = static_cast<i32>(valid_frames.size());
-
-      u8* output_block = new_block_buffer({device_type_, device_id_},
-                                          total_output_frames * frame_size,
-                                          total_output_frames);
-
       size_t& encoded_buffer_offset = cache.encoded_buffer_offset;
       i32& current_frame = cache.current_frame;
-      if (current_frame == -1) {
-        current_frame = cache.current_start_keyframe;
-      }
-      i32 valid_index = 0;
-      printf("current frame %d, clear cache %d, buffer size %lu\n",
-             current_frame, clear_cache, encoded_buffer_size);
-      while (valid_index < total_output_frames) {
-        auto video_start = now();
+      // May have switched buffer since last evaluation
+      if (total_output_frames > 0) {
+        u8* output_block = new_block_buffer({device_type_, device_id_},
+                                            total_output_frames * frame_size,
+                                            total_output_frames);
 
-        if (decoder->decoded_frames_buffered() > 0) {
-          // New frames
-          bool more_frames = true;
-          while (more_frames && valid_index < total_output_frames) {
-            if (current_frame == valid_frames[valid_index]) {
-              u8* decoded_buffer = output_block + valid_index * frame_size;
-              more_frames = decoder->get_frame(decoded_buffer, frame_size);
-              output_columns[out_col_idx].rows.push_back(
-                  Row{decoded_buffer, frame_size});
-              valid_index++;
-              total_frames_used++;
-            } else {
-              more_frames = decoder->discard_frame();
+        if (current_frame == -1) {
+          current_frame = cache.current_start_keyframe;
+        }
+        i32 valid_index = 0;
+        while (valid_index < total_output_frames) {
+          auto video_start = now();
+
+          if (decoder->decoded_frames_buffered() > 0) {
+            // New frames
+            bool more_frames = true;
+            while (more_frames && valid_index < total_output_frames) {
+              if (current_frame == valid_frames[valid_index]) {
+                u8* decoded_buffer = output_block + valid_index * frame_size;
+                more_frames = decoder->get_frame(decoded_buffer, frame_size);
+                output_columns[out_col_idx].rows.push_back(
+                    Row{decoded_buffer, frame_size});
+                valid_index++;
+                total_frames_used++;
+              } else {
+                more_frames = decoder->discard_frame();
+              }
+              current_frame++;
+              total_frames_decoded++;
             }
-            current_frame++;
-            total_frames_decoded++;
+            continue;
           }
-          continue;
-        }
 
-        i32 encoded_packet_size = 0;
-        const u8* encoded_packet = NULL;
-        if (encoded_buffer_offset < encoded_buffer_size) {
-          encoded_packet_size = *reinterpret_cast<const i32*>(
-              encoded_buffer + encoded_buffer_offset);
-          encoded_buffer_offset += sizeof(i32);
-          encoded_packet = encoded_buffer + encoded_buffer_offset;
-          encoded_buffer_offset += encoded_packet_size;
-        }
-        printf("current frame %d, packet size %lu, size %lu, offset %lu\n",
-               current_frame,
-               encoded_packet_size,
-               encoded_buffer_size,
-               encoded_buffer_offset);
+          i32 encoded_packet_size = 0;
+          const u8* encoded_packet = NULL;
+          if (encoded_buffer_offset < encoded_buffer_size) {
+            encoded_packet_size = *reinterpret_cast<const i32*>(
+                encoded_buffer + encoded_buffer_offset);
+            encoded_buffer_offset += sizeof(i32);
+            encoded_packet = encoded_buffer + encoded_buffer_offset;
+            encoded_buffer_offset += encoded_packet_size;
+          }
+          printf("current frame %d, packet size %lu, size %lu, offset %lu\n",
+                 current_frame, encoded_packet_size, encoded_buffer_size,
+                 encoded_buffer_offset);
 
-        decoder->feed(encoded_packet, encoded_packet_size,
-                      discontinuity_[video_num]);
-        // Set a discontinuity if we sent an empty packet to reset
-        // the stream next time
-        discontinuity_[video_num] = (encoded_packet_size == 0);
+          decoder->feed(encoded_packet, encoded_packet_size,
+                        discontinuity_[video_num]);
+          // Set a discontinuity if we sent an empty packet to reset
+          // the stream next time
+          discontinuity_[video_num] = (encoded_packet_size == 0);
+        }
+        // Wait on all memcpys from frames to be done
+        decoder->wait_until_frames_copied();
       }
-      // Wait on all memcpys from frames to be done
-      decoder->wait_until_frames_copied();
 
       if (clear_cache) {
         // HACK(apoms): just always force discontinuity for now instead of
