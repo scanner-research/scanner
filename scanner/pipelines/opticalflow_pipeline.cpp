@@ -13,8 +13,7 @@ PipelineDescription get_pipeline_description(
   DeviceType device_type;
   VideoDecoderType decoder_type;
 
-//#ifdef HAVE_CUDA
-#if 0
+#ifdef HAVE_CUDA
   device_type = DeviceType::GPU;
   decoder_type = VideoDecoderType::NVIDIA;
 #else
@@ -27,7 +26,7 @@ PipelineDescription get_pipeline_description(
 
   factories.emplace_back(
       new DecoderEvaluatorFactory(device_type, decoder_type));
-  factories.emplace_back(new OpticalFlowEvaluatorFactory(DeviceType::GPU));
+  factories.emplace_back(new OpticalFlowEvaluatorFactory(device_type));
 
   return desc;
 }

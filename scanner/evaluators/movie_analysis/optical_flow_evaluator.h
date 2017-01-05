@@ -12,7 +12,7 @@ namespace scanner {
 
 class OpticalFlowEvaluator : public Evaluator {
  public:
-  OpticalFlowEvaluator(DeviceType device_type);
+  OpticalFlowEvaluator(DeviceType device_type, i32 device_id);
   ~OpticalFlowEvaluator();
 
   void reset() override;
@@ -20,8 +20,11 @@ class OpticalFlowEvaluator : public Evaluator {
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
+  void set_device();
+
  private:
   DeviceType device_type_;
+  i32 device_id_;
   void* initial_frame_;
 };
 
