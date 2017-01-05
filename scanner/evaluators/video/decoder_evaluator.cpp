@@ -228,9 +228,6 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
             encoded_packet = encoded_buffer + encoded_buffer_offset;
             encoded_buffer_offset += encoded_packet_size;
           }
-          printf("current frame %d, packet size %lu, size %lu, offset %lu\n",
-                 current_frame, encoded_packet_size, encoded_buffer_size,
-                 encoded_buffer_offset);
 
           decoder->feed(encoded_packet, encoded_packet_size,
                         discontinuity_[video_num]);
