@@ -48,6 +48,11 @@ endif()
 
 if (BUILD_VIDEO_EVALUATORS AND BUILD_UTIL_EVALUATORS)
   list(APPEND SOURCE_FILES
+    multi_decode_pipeline.cpp)
+endif()
+
+if (BUILD_VIDEO_EVALUATORS AND BUILD_UTIL_EVALUATORS)
+  list(APPEND SOURCE_FILES
     effective_io_rate_pipeline.cpp)
 endif()
 
