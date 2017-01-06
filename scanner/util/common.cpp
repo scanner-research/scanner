@@ -17,6 +17,18 @@
 
 namespace scanner {
 
+std::ostream &operator<<(std::ostream &os, DeviceHandle const& handle) {
+  std::string name;
+  if (handle.type == DeviceType::CPU) {
+    name = "CPU";
+  } else if (handle.type == DeviceType::GPU) {
+    name = "GPU";
+  } else {
+    LOG(FATAL) << "Invalid device type";
+  }
+  return os << "{" << name << ", " << handle.id << "}";
+}
+
 StridedInterval::StridedInterval(i32 start, i32 end, i32 stride)
     : start(start), end(end), stride(stride) {}
 

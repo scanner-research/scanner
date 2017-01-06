@@ -223,16 +223,19 @@ void* evaluate_thread(void* arg) {
         std::unique_ptr<Evaluator>& evaluator = evaluators[e];
         i32 num_outputs = num_evaluator_outputs[e];
 
+        // LOG(INFO) << e << " " << input_handle << " " << output_handle << " " << current_handle;
+
         input_names.swap(output_names);
         input_columns.swap(output_columns);
         input_handle = output_handle;
+
 
         i32 num_inputs = input_columns.size();
         // If current evaluator type and input buffer type differ, then move
         // the data in the input buffer into a new buffer which has the same
         // type as the evaluator input
         auto copy_start = now();
-        if (current_handle != input_handle) {
+        if (!current_handle.is_same_address_space(input_handle)) {
           for (i32 i = 0; i < num_inputs; ++i) {
             std::vector<u8*> dest_buffers, src_buffers;
             std::vector<size_t> sizes;
@@ -244,7 +247,7 @@ void* evaluate_thread(void* arg) {
             }
 
             if (column.rows.size() > 0) {
-              u8* block = new_block_buffer({caps.device_type, device_id},
+              u8* block = new_block_buffer(current_handle,
                                            total_size,
                                            column.rows.size());
               for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
@@ -256,8 +259,8 @@ void* evaluate_thread(void* arg) {
               }
 
               auto memcpy_start = now();
-              memcpy_vec(dest_buffers, current_handle, src_buffers,
-                         input_handle, sizes);
+              memcpy_vec(dest_buffers, current_handle,
+                         src_buffers, input_handle, sizes);
               args.profiler.add_interval("memcpy", memcpy_start, now());
 
               auto delete_start = now();

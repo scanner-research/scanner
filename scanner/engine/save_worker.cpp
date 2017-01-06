@@ -84,7 +84,7 @@ void* save_thread(void* arg) {
         LOG(FATAL) << "Output layer's row vector has wrong length";
       }
 
-      if (work_entry.buffer_handle != CPU_DEVICE) {
+      if (!work_entry.buffer_handle.is_same_address_space(CPU_DEVICE)) {
         std::vector<u8*> dest_buffers, src_buffers;
         std::vector<size_t> sizes;
         size_t total_size = 0;

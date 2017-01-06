@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/metadata.pb.h"
+#include "glog/logging.h"
 
 #include <cstdint>
 #include <string>
@@ -40,6 +41,7 @@ enum class DeviceType {
 };
 
 struct DeviceHandle {
+public:
   bool operator==(const DeviceHandle& other) {
     return type == other.type && id == other.id;
   }
@@ -48,9 +50,25 @@ struct DeviceHandle {
     return !(*this == other);
   }
 
+  bool can_copy_to(const DeviceHandle& other) {
+    return !(this->type == DeviceType::GPU &&
+             other.type == DeviceType::GPU &&
+             this->id != other.id);
+  }
+
+  bool is_same_address_space(const DeviceHandle& other) {
+    return
+      this->type == other.type &&
+      ((this->type == DeviceType::CPU) ||
+       (this->type == DeviceType::GPU &&
+        this->id == other.id));
+  }
+
   DeviceType type;
   i32 id;
 };
+
+std::ostream& operator<<(std::ostream &os, const DeviceHandle& handle);
 
 static const DeviceHandle CPU_DEVICE = {DeviceType::CPU, 0};
 
