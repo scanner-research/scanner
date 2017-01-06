@@ -26,6 +26,12 @@ class OpticalFlowEvaluator : public Evaluator {
   DeviceType device_type_;
   i32 device_id_;
   void* initial_frame_;
+
+#ifdef HAVE_CUDA
+  i32 num_cuda_streams_;
+  std::vector<cv::cuda::Stream> streams_;
+  cvc::GpuMat flow;
+#endif
 };
 
 class OpticalFlowEvaluatorFactory : public EvaluatorFactory {
@@ -34,7 +40,8 @@ class OpticalFlowEvaluatorFactory : public EvaluatorFactory {
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+    const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 

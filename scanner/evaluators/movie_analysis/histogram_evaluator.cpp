@@ -10,8 +10,8 @@ HistogramEvaluator::HistogramEvaluator(DeviceType device_type, i32 device_id)
 
 HistogramEvaluator::~HistogramEvaluator() {}
 
-void HistogramEvaluator::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void HistogramEvaluator::configure(const BatchConfig& config) {
+  config_ = config;
   set_device();
 
   if (device_type_ == DeviceType::GPU) {
@@ -19,7 +19,7 @@ void HistogramEvaluator::configure(const InputFormat& metadata) {
     hist_ = cvc::GpuMat(1, BINS, CV_32S);
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
-          cvc::GpuMat(metadata.height(), metadata.width(), CV_8UC1));
+          cvc::GpuMat(config_.formats[0].height(), config_.formats[0].width(), CV_8UC1));
     }
     out_mat_ = cvc::GpuMat(1, BINS * 3, CV_32S);
 #endif
@@ -41,7 +41,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
 #ifdef HAVE_CUDA
     for (i32 i = 0; i < input_count; ++i) {
       cvc::GpuMat img =
-          bytesToImage_gpu(input_columns[0].rows[i].buffer, metadata_);
+          bytesToImage_gpu(input_columns[0].rows[i].buffer, config_.formats[0]);
       cvc::split(img, planes_);
 
       for (i32 j = 0; j < 3; ++j) {
@@ -59,7 +59,8 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
 #endif
   } else {
     for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat img = bytesToImage(input_columns[0].rows[i].buffer, metadata_);
+      cv::Mat img = bytesToImage(input_columns[0].rows[i].buffer,
+                                 config_.formats[0]);
 
       std::vector<cv::Mat> bgr_planes;
       cv::split(img, bgr_planes);
@@ -92,6 +93,7 @@ void HistogramEvaluator::set_device() {
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     CU_CHECK(cudaSetDevice(device_id_));
+    cvc::setDevice(device_id_);
 #endif
   }
 }
@@ -109,7 +111,9 @@ EvaluatorCapabilities HistogramEvaluatorFactory::get_capabilities() {
   return caps;
 }
 
-std::vector<std::string> HistogramEvaluatorFactory::get_output_names() {
+std::vector<std::string> HistogramEvaluatorFactory::get_output_columns(
+  const std::vector<std::string>& input_columns)
+{
   return {"histogram"};
 }
 
