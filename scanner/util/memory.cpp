@@ -96,6 +96,14 @@ public:
     }
   }
 
+  size_t alignment() {
+    if (device_.type == DeviceType::CPU) {
+      return 16;
+    } else if (device_.type == DeviceType::GPU) {
+      return 256;
+    }
+  }
+
 private:
   DeviceHandle device_;
 };
@@ -107,7 +115,7 @@ bool pointer_in_buffer(u8* ptr, u8* buf_start, u8* buf_end) {
 
 class PoolAllocator : public Allocator {
 public:
-  PoolAllocator(DeviceHandle device, SystemAllocator* allocator, i64 pool_size) :
+  PoolAllocator(DeviceHandle device, SystemAllocator* allocator, size_t pool_size) :
     device_(device),
     system_allocator(allocator),
     pool_size_(pool_size) {
@@ -135,8 +143,9 @@ public:
       }
       Allocation higher = allocations_[i];
       assert(higher.offset >= lower.offset + lower.length);
-      if ((higher.offset - (lower.offset + lower.length)) >= size) {
-        alloc.offset = lower.offset + lower.length;
+      size_t base = align(lower.offset + lower.length);
+      if ((higher.offset - base) >= size) {
+        alloc.offset = base;
         allocations_.insert(allocations_.begin() + i, alloc);
         found = true;
         break;
@@ -146,18 +155,28 @@ public:
     if (!found) {
       if (num_alloc > 0) {
         Allocation& last = allocations_[num_alloc - 1];
-        alloc.offset = last.offset + last.length;
+        alloc.offset = align(last.offset + last.length);
       } else {
         alloc.offset = 0;
       }
       allocations_.push_back(alloc);
     }
 
-    u8* buffer = pool_ + alloc.offset;
     LOG_IF(FATAL, alloc.offset + alloc.length >= pool_size_)
       << "Exceeded pool size";
 
+    u8* buffer = pool_ + alloc.offset;
     return buffer;
+  }
+
+  size_t align(size_t ptr) {
+    size_t alignment = system_allocator->alignment();
+    size_t remainder = ptr % alignment;
+    if (remainder != 0) {
+      return ptr + (alignment - remainder);
+    } else {
+      return ptr;
+    }
   }
 
   void free(u8* buffer) {
@@ -169,7 +188,6 @@ public:
     bool found = find_buffer(buffer, index);
     LOG_IF(FATAL, !found)
       << "Attempted to free unallocated buffer in pool";
-
 
     Allocation& alloc = allocations_[index];
     allocations_.erase(allocations_.begin() + index);
@@ -189,13 +207,13 @@ private:
   }
 
   typedef struct {
-    i64 offset;
-    i64 length;
+    size_t offset;
+    size_t length;
   } Allocation;
 
   DeviceHandle device_;
   u8* pool_ = nullptr;
-  i64 pool_size_;
+  size_t pool_size_;
   std::mutex lock_;
   std::vector<Allocation> allocations_;
 
