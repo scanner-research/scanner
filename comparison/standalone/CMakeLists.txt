@@ -2,13 +2,14 @@ set(LIBRARIES
   "${OpenCV_LIBRARIES}"
   "${Boost_LIBRARIES}")
 
-if(HAVE_CUDA AND HAVE_OPENCV) 
-  add_executable(opencv_compare
+if(CUDA_FOUND AND OpenCV_FOUND)
+  add_executable(standalone_comparison
     main.cpp
+    ../../../scanner/evaluators/caffe/net_descriptor.cpp
     ${PROTO_SRCS}
     $<TARGET_OBJECTS:util>)
 
-  target_link_libraries(opencv_compare
+  target_link_libraries(standalone_comparison
     "${LIBRARIES}"
     "${PUBLIC_LIBRARIES}"
     "${SCANNER_LIBRARIES}"

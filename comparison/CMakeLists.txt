@@ -1,2 +1,2 @@
-add_subdirectory(opencv)
-add_subdirectory(caffe)
+add_subdirectory(standalone)
+#add_subdirectory(caffe)
