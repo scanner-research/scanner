@@ -140,7 +140,7 @@ void* save_thread(void* arg) {
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
       for (size_t i = 0; i < num_rows; ++i) {
-        delete_buffer(work_entry.buffer_handle,
+        delete_buffer(CPU_DEVICE,
                       work_entry.columns[out_idx].rows[i].buffer);
       }
 
