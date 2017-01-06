@@ -86,10 +86,16 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
       output_block += out_buf_size;
     }
 
-    for (auto& input : inputs) {
+    for (i32 i = 0; i < inputs.size(); ++i) {
+      i32 sid = i % num_cuda_streams_;
+      cv::cuda::Stream& s = streams_[sid];
       cvc::GpuMat gray;
-      cvc::cvtColor(input, gray, CV_BGR2GRAY);
+      cvc::cvtColor(inputs[i], gray, CV_BGR2GRAY, 0, s);
       imgs_gray.emplace_back(gray);
+    }
+
+    for (cv::cuda::Stream& s : streams_) {
+      s.waitForCompletion();
     }
 
     cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::OpticalFlowDual_TVL1::create();

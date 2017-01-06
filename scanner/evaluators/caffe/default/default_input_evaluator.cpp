@@ -133,7 +133,7 @@ void DefaultInputEvaluator::transform_halide(u8* input_buffer,
   int error = func(&input_buf, metadata_.width(), metadata_.height(),
                    net_input_width_, net_input_height_, descriptor_.normalize,
                    descriptor_.mean_colors[2], descriptor_.mean_colors[1],
-                   descriptor_.mean_colors[0], true, &output_buf);
+                   descriptor_.mean_colors[0], &output_buf);
   LOG_IF(FATAL, error != 0) << "Halide error " << error;
 
   unset_halide_buf(input_buf);

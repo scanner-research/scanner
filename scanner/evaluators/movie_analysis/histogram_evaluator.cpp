@@ -6,7 +6,13 @@ namespace scanner {
 const i32 BINS = 16;
 
 HistogramEvaluator::HistogramEvaluator(DeviceType device_type, i32 device_id)
-    : device_type_(device_type), device_id_(device_id) {}
+    : device_type_(device_type), device_id_(device_id)
+#ifdef HAVE_CUDA
+    ,
+      num_cuda_streams_(32),
+      streams_(num_cuda_streams_)
+#endif
+{}
 
 HistogramEvaluator::~HistogramEvaluator() {}
 
@@ -16,12 +22,13 @@ void HistogramEvaluator::configure(const BatchConfig& config) {
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-    hist_ = cvc::GpuMat(1, BINS, CV_32S);
+    streams_.resize(0);
+    streams_.resize(num_cuda_streams_);
+    planes_.clear();
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
           cvc::GpuMat(config_.formats[0].height(), config_.formats[0].width(), CV_8UC1));
     }
-    out_mat_ = cvc::GpuMat(1, BINS * 3, CV_32S);
 #endif
   }
 }
@@ -37,22 +44,34 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
                                       hist_size * input_count,
                                       input_count);
 
+  auto start = now();
+
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     for (i32 i = 0; i < input_count; ++i) {
+      i32 sid = i % num_cuda_streams_;
+      cv::cuda::Stream& s = streams_[sid];
+
       cvc::GpuMat img =
           bytesToImage_gpu(input_columns[0].rows[i].buffer, config_.formats[0]);
-      cvc::split(img, planes_);
-
-      for (i32 j = 0; j < 3; ++j) {
-        cvc::histEven(planes_[j], hist_, BINS, 0, 256);
-        hist_.copyTo(out_mat_(cv::Rect(j * BINS, 0, BINS, 1)));
-      }
+      cvc::split(img, planes_, s);
 
       u8* output_buf = output_block + i * hist_size;
-      cudaMemcpy(output_buf, out_mat_.data, hist_size,
-                 cudaMemcpyDeviceToDevice);
+      cvc::GpuMat out_mat(1, BINS * 3, CV_32S, output_buf);
+
+      for (i32 j = 0; j < 3; ++j) {
+        cvc::histEven(planes_[j],
+                      out_mat(cv::Rect(j * BINS, 0, BINS, 1)),
+                      BINS,
+                      0, 256,
+                      s);
+      }
+
       output_columns[0].rows.push_back(Row{output_buf, hist_size});
+    }
+
+    for (cv::cuda::Stream& s : streams_) {
+      s.waitForCompletion();
     }
 #else
     LOG(FATAL) << "Cuda not installed.";
@@ -86,6 +105,10 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
 
       output_columns[0].rows.push_back(Row{hist_buffer, hist_size});
     }
+  }
+
+  if (profiler_) {
+    profiler_->add_interval("histogram", start, now());
   }
 }
 

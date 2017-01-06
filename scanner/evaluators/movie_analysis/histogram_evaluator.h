@@ -27,9 +27,9 @@ class HistogramEvaluator : public Evaluator {
   i32 device_id_;
 
 #ifdef HAVE_CUDA
-  cvc::GpuMat hist_;
+  i32 num_cuda_streams_;
+  std::vector<cv::cuda::Stream> streams_;
   std::vector<cvc::GpuMat> planes_;
-  cvc::GpuMat out_mat_;
 #endif
 };
 
