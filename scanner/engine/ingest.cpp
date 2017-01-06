@@ -380,8 +380,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     return false;
   }
 
-  video_descriptor.set_width(state.in_cc->coded_width);
-  video_descriptor.set_height(state.in_cc->coded_height);
+  video_descriptor.set_width(state.in_cc->width);
+  video_descriptor.set_height(state.in_cc->height);
   video_descriptor.set_chroma_format(VideoDescriptor::YUV_420);
   video_descriptor.set_codec_type(VideoDescriptor::H264);
 
