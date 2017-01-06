@@ -777,14 +777,25 @@ void run_job(JobParameters& params) {
   // Evaluate worker profilers
   u8 eval_worker_count = PUS_PER_NODE;
   write(profiler_output.get(), eval_worker_count);
-  u8 groups_per_chain = factory_groups_per_chain;
-  write(profiler_output.get(), groups_per_chain);
+  u8 profilers_per_chain = factory_groups_per_chain + 2;
+  write(profiler_output.get(), profilers_per_chain);
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    i32 i = pu;
+    {
+      std::string tag = "pre";
+      write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
+                             eval_chain_profilers[pu][0]);
+    }
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
-      i32 i = pu;
       std::string tag = "fg" + std::to_string(fg);
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
-                             eval_chain_profilers[pu][fg]);
+                             eval_chain_profilers[pu][fg + 1]);
+    }
+    {
+      std::string tag = "post";
+      write_profiler_to_file(
+          profiler_output.get(), out_rank, "eval", tag, i,
+          eval_chain_profilers[pu][factory_groups_per_chain + 1]);
     }
   }
 
