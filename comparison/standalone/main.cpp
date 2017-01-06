@@ -14,6 +14,7 @@
  */
 
 #include "scanner/util/queue.h"
+#include "scanner/util/util.h"
 
 //#define USE_OFDIS
 #ifdef USE_OFDIS
@@ -68,6 +69,7 @@ std::vector<std::string> PATHS;
 int GPUS_PER_NODE = 1;           // GPUs to use per node
 const int BATCH_SIZE = 96;      // Batch size for network
 
+const int FLOW_WORK_REDUCTION = 20;
 const int BINS = 16;
 const std::string NET_PATH = "features/googlenet.toml";
 
@@ -97,12 +99,17 @@ std::string output_path(int64_t idx) {
 }
 
 void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double load_time = 0;
+  double histo_time = 0;
+  double save_time = 0;
+
   // Set ourselves to the correct GPU
   cv::cuda::setDevice(gpu_device_id);
 
-  cvc::GpuMat hist = cvc::GpuMat(1, BINS, CV_32S);
-  cvc::GpuMat out_gpu = cvc::GpuMat(1, BINS * 3, CV_32S);
-  cv::Mat out = cv::Mat(1, BINS * 3, CV_32S);
+  //cvc::GpuMat hist = cvc::GpuMat(1, BINS, CV_32S);
+  cv::Mat hist;
+  cv::Mat hist_32s;
+  cv::Mat out(1, BINS * 3, CV_32S);
   while (true) {
     int64_t work_item_index;
     work_items.pop(work_item_index);
@@ -122,31 +129,76 @@ void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     meta_file >> width;
     meta_file >> height;
 
-    // Read first image in directory to figure out width and height
-    std::vector<cvc::GpuMat> planes;
+    // std::vector<cvc::GpuMat> planes;
+    // for (int i = 0; i < 3; ++i) {
+    //   planes.push_back(cvc::GpuMat(height, width, CV_8UC1));
+    // }
+    std::vector<cv::Mat> planes;
     for (int i = 0; i < 3; ++i) {
-      planes.push_back(cvc::GpuMat(height, width, CV_8UC1));
+      planes.push_back(cv::Mat(height, width, CV_8UC1));
     }
     cvc::GpuMat image_gpu(height, width, CV_8UC1);
 
     std::ofstream outfile(output_path(work_item_index),
                           std::fstream::binary | std::fstream::trunc);
     assert(outfile.good());
-    for (int64_t frame = 0; frame < num_images; ++frame) {
-      cv::Mat image = cv::imread(bmp_path(path, frame));
-      assert(image.data != nullptr);
-      image_gpu.upload(image);
-      cvc::split(image_gpu, planes);
 
-      for (int j = 0; j < 3; ++j) {
-        cvc::histEven(planes[j], hist, BINS, 0, 256);
-        hist.copyTo(out_gpu(cv::Rect(j * BINS, 0, BINS, 1)));
+    // for (int64_t frame = 0; frame < num_images; ++frame) {
+    //   auto load_start = scanner::now();
+    //   cv::Mat image = cv::imread(bmp_path(path, frame));
+    //   if (image.data == nullptr) {
+    //     std::cout << bmp_path(path, frame) << std::endl;
+    //     assert(image.data != nullptr);
+    //   }
+    //   load_time += scanner::nano_since(load_start);
+    //   auto histo_start_ = scanner::now();
+    //   image_gpu.upload(image);
+    //   cvc::split(image_gpu, planes);
+
+    //   for (int j = 0; j < 3; ++j) {
+    //     cvc::histEven(planes[j], hist, BINS, 0, 256);
+    //     hist.copyTo(out_gpu(cv::Rect(j * BINS, 0, BINS, 1)));
+    //   }
+    //   out_gpu.download(out);
+    //   histo_time += scanner::nano_since(load_start);
+    //   // Save outputs
+    //   auto save_start = scanner::now();
+    //   outfile.write((char*)out.data, BINS * 3 * sizeof(float));
+    //   save_time += scanner::nano_since(save_start);
+    // }
+    for (int64_t frame = 0; frame < num_images; ++frame) {
+      auto load_start = scanner::now();
+      cv::Mat image = cv::imread(bmp_path(path, frame));
+      if (image.data == nullptr) {
+        std::cout << bmp_path(path, frame) << std::endl;
+        assert(image.data != nullptr);
       }
-      out_gpu.download(out);
+      load_time += scanner::nano_since(load_start);
+      auto histo_start_ = scanner::now();
+      cv::split(image, planes);
+
+      float range[] = {0, 256};
+      const float* histRange = {range};
+      int channels[] = {0};
+      for (int j = 0; j < 3; ++j) {
+        cv::calcHist(&planes[j], 1, channels, cv::Mat(), hist, 1, &BINS,
+                     &histRange);
+        hist.convertTo(hist_32s, CV_32S);
+        cv::transpose(hist_32s, hist_32s);
+        hist_32s.copyTo(out(cv::Rect(j * BINS, 0, BINS, 1)));
+      }
+      histo_time += scanner::nano_since(load_start);
       // Save outputs
+      auto save_start = scanner::now();
       outfile.write((char*)out.data, BINS * 3 * sizeof(float));
+      save_time += scanner::nano_since(save_start);
     }
   }
+
+  printf("load: %.2f ms, histo: %.2f ms, save: %.2f ms\n",
+         load_time / 1000000,
+         histo_time / 1000000,
+         save_time / 1000000);
 }
 
 void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
@@ -157,8 +209,8 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
   cvc::GpuMat out_gpu = cvc::GpuMat(1, BINS * 3, CV_32S);
   cv::Mat out = cv::Mat(1, BINS * 3, CV_32S);
 
-  cv::VideoCapture video;
-  cv::Mat frame;
+  cv::Ptr<cv::cudacodec::VideoReader> video;
+  cvc::GpuMat frame;
   while (true) {
     int64_t work_item_index;
     work_items.pop(work_item_index);
@@ -169,34 +221,32 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 
     const std::string& path = PATHS[work_item_index];
     // Read video file to determine number of
-    video.open(path);
-    assert(video.isOpened());
-    int width = (int)video.get(CV_CAP_PROP_FRAME_WIDTH);
-    int height = (int)video.get(CV_CAP_PROP_FRAME_HEIGHT);
+
+    video = cv::cudacodec::createVideoReader(path);
+    int width = video->format().width;
+    int height = video->format().height;
     assert(width != 0 && height != 0);
 
     std::vector<cvc::GpuMat> planes;
     for (int i = 0; i < 3; ++i) {
       planes.push_back(cvc::GpuMat(height, width, CV_8UC1));
     }
-    cvc::GpuMat image_gpu(height, width, CV_8UC3);
 
     std::ofstream outfile(output_path(work_item_index),
                           std::fstream::binary | std::fstream::trunc);
     assert(outfile.good());
-    cv::Mat image;
+    cvc::GpuMat image(height, width, CV_8UC3);
     bool done = false;
     int64_t frame = 0;
     while (!done) {
-      bool valid_frame = video.read(image);
+      bool valid_frame = video->nextFrame(image);
       if (!valid_frame) {
         done = true;
       }
       if (image.data == nullptr) {
         break;
       }
-      image_gpu.upload(image);
-      cvc::split(image_gpu, planes);
+      cvc::split(image, planes);
 
       for (int j = 0; j < 3; ++j) {
         cvc::histEven(planes[j], hist, BINS, 0, 256);
@@ -211,6 +261,10 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 }
 
 void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double load_time = 0;
+  double eval_time = 0;
+  double save_time = 0;
+
   // Set ourselves to the correct GPU
   cv::cuda::setDevice(gpu_device_id);
 
@@ -231,6 +285,9 @@ void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     meta_file >> num_images;
     meta_file >> width;
     meta_file >> height;
+
+    // Flow makes much longer than other pipelines
+    num_images /= FLOW_WORK_REDUCTION;
 
     // Flow intermediates
     std::vector<cvc::GpuMat> inputs;
@@ -289,9 +346,12 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     const std::string& path = PATHS[work_item_index];
     video.open(path);
     assert(video.isOpened());
+    int64_t num_frames = (int64_t)video.get(CV_CAP_PROP_FRAME_COUNT);
     int width = (int)video.get(CV_CAP_PROP_FRAME_WIDTH);
     int height = (int)video.get(CV_CAP_PROP_FRAME_HEIGHT);
     assert(width != 0 && height != 0);
+
+    num_frames /= FLOW_WORK_REDUCTION;
 
     // Flow intermediates
     std::vector<cvc::GpuMat> inputs;
@@ -319,14 +379,12 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     cvc::cvtColor(inputs[0], gray[0], CV_BGR2GRAY);
     bool done = false;
     int64_t frame = 1;
-    while (!done) {
+    for (int64_t frame = 0; frame < num_frames; ++frame) {
       int curr_idx = frame % 2;
       int prev_idx = (frame - 1) % 2;
 
       bool valid_frame = video.read(image);
-      if (!valid_frame) {
-        done = true;
-      }
+      assert(valid_frame);
       if (image.data == nullptr) {
         break;
       }
@@ -341,7 +399,6 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
         outfile.write((char*)output_flow.data + output_flow.step * i,
                       width * sizeof(float) * 2);
       }
-      frame++;
     }
   }
 }
@@ -572,6 +629,8 @@ int main(int argc, char** argv) {
       }
     }
   }
+  std::cout << "input " << input_type << ", paths " << paths_file
+            << ", operation " << operation << std::endl;
 
   if (input_type == "bmp") {
     INPUT = BMP;

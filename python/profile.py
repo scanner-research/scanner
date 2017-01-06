@@ -22,34 +22,29 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from multiprocessing import cpu_count
 import toml
+from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-LIGHTSCAN_PROGRAM_PATH = os.path.join(
-    SCRIPT_DIR, 'build/debug/lightscanner')
 OPENCV_PROGRAM_PATH = os.path.join(
     SCRIPT_DIR, 'build/debug/comparison/opencv/opencv_compare')
+
+STANDALONE_PROGRAM_PATH = os.path.join(
+    SCRIPT_DIR, '../build/comparison/standalone/standalone_comparison')
 
 DEVNULL = open(os.devnull, 'wb', 0)
 
 TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
 
-NODES = [1]  # [1, 2, 4]
-GPUS = [1, 2]  # [1, 2]  # [1, 2, 4, 8]
-BATCH_SIZES = [1, 2, 4]  # [1, 2, 4, 8, 10, 12, 14, 16]  # [16, 64, 128, 256]
-VIDEO_FILE = 'kcam_videos_small.txt'
-BATCHES_PER_WORK_ITEM = 4
-TASKS_IN_QUEUE_PER_GPU = 4
-LOAD_WORKERS_PER_NODE = 2
 
 def clear_filesystem_cache():
     os.system('sudo /sbin/sysctl vm.drop_caches=3')
 
-def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
-    print('Running trial: dataset {:s}, in_job {:s}, pipeline {:s}, '
+
+def run_trial(dataset_name, pipeline_name, out_job_name, opts={}):
+    print('Running trial: dataset {:s}, pipeline {:s}, '
           'out_job {:s}'.format(
               dataset_name,
-              in_job_name,
               pipeline_name,
               out_job_name,
           ))
@@ -58,8 +53,7 @@ def run_trial(dataset_name, in_job_name, pipeline_name, out_job_name, opts={}):
     clear_filesystem_cache()
     config_path = opts['config_path'] if 'config_path' in opts else None
     db = scanner.Scanner(config_path=config_path)
-    result, t = db.run(dataset_name, in_job_name, pipeline_name, out_job_name,
-                       opts)
+    result, t = db.run(dataset_name, pipeline_name, out_job_name, opts)
     profiler_output = {}
     if result:
         print('Trial succeeded, took {:.3f}s'.format(t))
@@ -268,7 +262,6 @@ def video_encoding_benchmark():
     output_video = '/tmp/test.mkv'
     video_paths = '/tmp/videos.txt'
     dataset_name = 'video_encoding'
-    in_job_name = scanner.Scanner.base_job_name()
     input_width = 1920
     input_height = 1080
 
@@ -341,8 +334,8 @@ ffmpeg -i {input} -vf scale={scale} -c:v libx264 -x264opts \
                 exit()
 
             for pipeline in pipelines:
-                _, result = run_trial(dataset_name, in_job_name, pipeline,
-                                      'test', scanner_settings)
+                _, result = run_trial(dataset_name, pipeline, 'test',
+                                      scanner_settings)
                 stats = generate_statistics(result)
                 if pipeline == 'effective_decode_rate':
                     t = stats['eval']['decode']
@@ -587,6 +580,136 @@ def storage_benchmark():
 
     print(json.dumps(all_results))
     print(json.dumps(all_sizes))
+
+
+def standalone_benchmark():
+    output_dir = '/tmp/standalone'
+    paths_file = os.path.join(output_dir, 'paths.txt')
+
+    def read_meta(path):
+        files = [name for name in os.listdir(path)
+                 if os.path.isfile(os.path.join(path, name))]
+        filename = os.path.join(path, files[0])
+        with Image.open(filename) as im:
+            width, height = im.size
+        return {'num_images': len(files) - 2, 'width': width, 'height': height}
+
+    def write_meta_file(path, meta):
+        with open(os.path.join(path, 'meta.txt'), 'w') as f:
+            f.write(str(meta['num_images']) + '\n')
+            f.write(str(meta['width']) + '\n')
+            f.write(str(meta['height']))
+
+    def write_paths(paths):
+        with open(paths_file, 'w') as f:
+            f.write(paths[0])
+            for p in paths[1:]:
+                f.write('\n' + p)
+
+    def run_standalone_trial(input_type, paths_file, operation):
+        print('Running standalone trial: {}, {}, {}'.format(
+            input_type,
+            paths_file,
+            operation))
+        clear_filesystem_cache()
+        current_env = os.environ.copy()
+        start = time.time()
+        p = subprocess.Popen([
+            STANDALONE_PROGRAM_PATH,
+            '--input_type', input_type,
+            '--paths_file', paths_file,
+            '--operation', operation
+        ], env=current_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        so, se = p.communicate()
+        rc = p.returncode
+        elapsed = time.time() - start
+        if rc != 0:
+            print('Trial FAILED after {:.3f}s'.format(elapsed))
+            print(so)
+            elapsed = -1
+        else:
+            print('Trial succeeded, took {:.3f}s'.format(elapsed))
+        return elapsed
+
+    tests = {
+        #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
+        'charade': ['/bigdata/wcrichto/videos/charade_reallyshort.mkv'],
+        #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+        'mean': ['/bigdata/wcrichto/videos/meangirls_reallyshort.mp4']
+        # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
+        # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+        # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+    }
+    operations = ['histogram', 'flow', 'caffe']
+
+    bmp_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.bmp"
+    jpg_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.jpg"
+
+
+    all_results = {}
+    for test_name, paths in tests.iteritems():
+        all_results[test_name] = {}
+        for op in operations:
+            all_results[test_name][op] = []
+        # bmp
+        os.system('rm -rf {}'.format(output_dir))
+        os.system('mkdir {}'.format(output_dir))
+        run_paths = []
+        for p in paths:
+            base = os.path.basename(p)
+            run_path = os.path.join(output_dir, base)
+            os.system('mkdir -p {}'.format(run_path))
+            run_cmd(bmp_template, {
+                'input': p,
+                'output': run_path
+            })
+            meta = read_meta(run_path)
+            write_meta_file(run_path, meta)
+            run_paths.append(run_path)
+        write_paths(run_paths)
+
+        for op in operations:
+            all_results[test_name][op].append(
+                run_standalone_trial('bmp', paths_file, op))
+
+        # jpg
+        os.system('rm -rf {}'.format(output_dir))
+        os.system('mkdir {}'.format(output_dir))
+        run_paths = []
+        for p in paths:
+            base = os.path.basename(p)
+            run_path = os.path.join(output_dir, base)
+            os.system('mkdir -p {}'.format(run_path))
+            run_cmd(jpg_template, {
+                'input': p,
+                'output': run_path
+            })
+            meta = read_meta(run_path)
+            write_meta_file(run_path, meta)
+            run_paths.append(run_path)
+        write_paths(run_paths)
+
+        for op in operations:
+            all_results[test_name][op].append(
+                run_standalone_trial('jpg', paths_file, op))
+
+        # video
+        os.system('rm -rf {}'.format(output_dir))
+        os.system('mkdir {}'.format(output_dir))
+        run_paths = []
+        for p in paths:
+            base = os.path.basename(p)
+            run_path = os.path.join(output_dir, base)
+            os.system('cp {} {}'.format(p, run_path))
+            run_paths.append(run_path)
+        write_paths(run_paths)
+
+        for op in operations:
+            all_results[test_name][op].append(
+                run_standalone_trial('mp4', paths_file, op))
+
+    print(all_results)
+    print(json.dumps(all_results))
 
 
 def effective_io_rate_benchmark():
@@ -964,7 +1087,8 @@ def bench_main(args):
     #effective_io_rate_benchmark()
     #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
-    storage_benchmark()
+    #storage_benchmark()
+    standalone_benchmark()
 
 
 def graphs_main(args):
