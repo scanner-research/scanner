@@ -22,23 +22,29 @@
 
 namespace scanner {
 
-class ImageDecoderEvaluator : public Evaluator {
+class ImageEncoderEvaluator : public Evaluator {
  public:
-  ImageDecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type);
+  ImageEncoderEvaluator(const EvaluatorConfig& config,
+                        DeviceType device_type,
+                        ImageEncodingType image_type);
+
+  void configure(const BatchConfig& config) override;
 
   void evaluate(const BatchedColumns& input_columns,
                 BatchedColumns& output_columns) override;
 
  private:
   DeviceType device_type_;
+  ImageEncodingType image_type_;
   i32 device_id_;
   i32 frame_width_;
   i32 frame_height_;
 };
 
-class ImageDecoderEvaluatorFactory : public EvaluatorFactory {
+class ImageEncoderEvaluatorFactory : public EvaluatorFactory {
  public:
-  ImageDecoderEvaluatorFactory(DeviceType device_type);
+  ImageEncoderEvaluatorFactory(DeviceType device_type,
+                               ImageEncodingType image_type);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -49,5 +55,6 @@ class ImageDecoderEvaluatorFactory : public EvaluatorFactory {
 
  private:
   DeviceType device_type_;
+  ImageEncodingType image_type_;
 };
 }

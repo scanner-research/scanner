@@ -20,6 +20,13 @@ void HistogramEvaluator::configure(const BatchConfig& config) {
   config_ = config;
   set_device();
 
+  // HACK(wcrichto): temporary image support
+  if (config_.formats.size() == 0) {
+    format_ = InputFormat(640, 480);
+  } else {
+    format_ = config_.formats[0];
+  }
+
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
     streams_.resize(0);
@@ -27,7 +34,7 @@ void HistogramEvaluator::configure(const BatchConfig& config) {
     planes_.clear();
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
-          cvc::GpuMat(config_.formats[0].height(), config_.formats[0].width(), CV_8UC1));
+          cvc::GpuMat(format_.height(), format_.width(), CV_8UC1));
     }
 #endif
   }
@@ -53,7 +60,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
       cv::cuda::Stream& s = streams_[sid];
 
       cvc::GpuMat img =
-          bytesToImage_gpu(input_columns[0].rows[i].buffer, config_.formats[0]);
+          bytesToImage_gpu(input_columns[0].rows[i].buffer, format_);
       cvc::split(img, planes_, s);
 
       u8* output_buf = output_block + i * hist_size;
@@ -79,7 +86,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
   } else {
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img = bytesToImage(input_columns[0].rows[i].buffer,
-                                 config_.formats[0]);
+                                 format_);
 
       std::vector<cv::Mat> bgr_planes;
       cv::split(img, bgr_planes);

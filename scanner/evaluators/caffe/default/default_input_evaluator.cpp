@@ -82,7 +82,7 @@ void DefaultInputEvaluator::set_halide_buf(buffer_t& halide_buf, u8* buf,
     // "You'll need to set the host field of the buffer_t structs to
     // something other than nullptr as that is used to indicate bounds query
     // calls" - Zalman Stern
-    halide_buf.host = (u8*)0xdeadbeef;
+    halide_buf.host = (u8*) 0xdeadbeef;
 
   } else {
     halide_buf.host = buf;

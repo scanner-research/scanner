@@ -15,7 +15,8 @@ endif()
 
 if (BUILD_IMAGE_EVALUATORS)
   list(APPEND SOURCE_FILES
-    image/image_decoder_evaluator.cpp)
+    image/image_decoder_evaluator.cpp
+    image/image_encoder_evaluator.cpp)
 endif()
 
 if (BUILD_CAFFE_EVALUATORS)

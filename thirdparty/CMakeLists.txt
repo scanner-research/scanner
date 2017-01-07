@@ -137,7 +137,7 @@ endif()
 if (NOT JPEGWRAPPER_FOUND)
   ExternalProject_Add(JPEGWrapper
     GIT_REPOSITORY "https://github.com/scanner-research/jpegwrapper"
-    GIT_TAG "bb3a4a9752fc5572266eb6b6260d8443649b43c4"
+    GIT_TAG "cdcbc57ba7ddea16c33994d2af7c9766f0549d3b"
 
     UPDATE_COMMAND ""
 

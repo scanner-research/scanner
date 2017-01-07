@@ -89,6 +89,7 @@ public:
 
     Func rescaled("rescaled");
     rescaled(x, y, c) = mean_subtract(x, y, 2-c) / select(normalize, 255.0f, 1.0f);
+    rescaled.bound(c, 0, 3);
 
     input
       .dim(0).set_stride(3)
@@ -98,37 +99,12 @@ public:
 #ifdef HALIDE_USE_GPU
     target.set_feature(Target::CUDA);
     target.set_feature(Target::CUDACapability50);
-    resized_x.compute_at(rescaled, Var::gpu_blocks()).gpu_threads(x, y);
-    resized_y.compute_at(rescaled, Var::gpu_blocks()).gpu_threads(x, y);
-    rescaled.gpu_tile(x, y, 4, 4);
+    resized_x.compute_root().reorder(c, x, y).unroll(c).gpu_tile(x, y, 8, 8);
+    rescaled.reorder(c, x, y).unroll(c).gpu_tile(x, y, 8, 8);
 #else
-#ifdef HAS_AUTOSCHEDULER
     rescaled.reorder(x, c, y).parallel(y).vectorize(x, 8);
     resized_x.compute_at(rescaled, y).vectorize(x, 8);
     resized_y.compute_at(rescaled, y).vectorize(x, 8);
-    rescaled.bound(c, 0, 3);
-
-// rescaled.estimate(x, 0, 227)
-    //   .estimate(y, 0, 227)
-    //   .estimate(c, 0, 3);
-    // input_width.estimate(640);
-    // input_height.estimate(480);
-    // target_width.estimate(227);
-    // target_height.estimate(227);
-    // mean_r.estimate(0);
-    // mean_g.estimate(0);
-    // mean_b.estimate(0);
-    // normalize.estimate(false);
-
-    // rescaled.bound(x, 0, target_width)
-    //   .bound(y, 0, target_height)
-    //   .bound(c, 0, 3);
-
-    // Pipeline p(rescaled);
-    // p.auto_schedule(target);
-#else
-    // no default schedule for CPU target
-#endif
 #endif
 
     return rescaled;

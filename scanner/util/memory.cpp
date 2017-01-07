@@ -409,12 +409,13 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
 
 #define NUM_CUDA_STREAMS 32
 
-// TODO(wcrichto): implement this for same-device transfers?
+// TODO(wcrichto): implement CPU-CPU transfer
 void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
                 const std::vector<u8*> src_buffers, DeviceHandle src_device,
                 std::vector<size_t> sizes) {
+  assert(dest_device.type == DeviceType::GPU ||
+         src_device.type == DeviceType::GPU);
   assert(src_device.can_copy_to(dest_device));
-  assert(dest_device.type != src_device.type);
   assert(dest_buffers.size() > 0);
   assert(src_buffers.size() > 0);
   assert(dest_buffers.size() == src_buffers.size());

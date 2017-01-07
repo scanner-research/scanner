@@ -29,6 +29,7 @@ enum ImageEncodingType {
   JPEG = 0;
   PNG = 1;
   BMP = 2;
+  RAW = 3;
 }
 
 enum ImageColorSpace {

@@ -11,7 +11,7 @@ OpticalFlowEvaluator::OpticalFlowEvaluator(DeviceType device_type, i32 device_id
   : device_type_(device_type), device_id_(device_id), initial_frame_(nullptr)
 #ifdef HAVE_CUDA
   ,
-    num_cuda_streams_(1),
+    num_cuda_streams_(4),
     streams_(num_cuda_streams_)
 #endif
 {
@@ -98,7 +98,9 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
       s.waitForCompletion();
     }
 
-    cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::OpticalFlowDual_TVL1::create();
+    cv::Ptr<cvc::DenseOpticalFlow> flow =
+      cvc::FarnebackOpticalFlow::create();
+      //cvc::OpticalFlowDual_TVL1::create();
 
     for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
       u8* output_buf = output_block + i * out_buf_size;
@@ -107,7 +109,11 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
       i32 sid = i % num_cuda_streams_;
       cv::cuda::Stream& s = streams_[sid];
 
+      auto start = now();
       flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow_gpu, s);
+      if (profiler_) {
+        profiler_->add_interval("flowcalc", start, now());
+      }
 
       output_columns[0].rows.push_back(Row{output_buf, out_buf_size});
     }

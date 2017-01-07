@@ -25,6 +25,7 @@ class HistogramEvaluator : public Evaluator {
  private:
   DeviceType device_type_;
   i32 device_id_;
+  InputFormat format_;
 
 #ifdef HAVE_CUDA
   i32 num_cuda_streams_;

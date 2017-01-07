@@ -61,9 +61,14 @@ if (BUILD_VIDEO_EVALUATORS AND BUILD_UTIL_EVALUATORS)
     effective_decode_rate_pipeline.cpp)
 endif()
 
+# if (BUILD_IMAGE_EVALUATORS AND BUILD_UTIL_EVALUATORS)
+#   list(APPEND SOURCE_FILES
+#     image_decode_rate_pipeline.cpp)
+# endif()
+
 if (BUILD_IMAGE_EVALUATORS AND BUILD_UTIL_EVALUATORS)
   list(APPEND SOURCE_FILES
-    image_decode_rate_pipeline.cpp)
+    video_explode_pipeline.cpp)
 endif()
 
 if (BUILD_VIDEO_EVALUATORS AND
