@@ -64,14 +64,16 @@ enum OpType {
   Caffe
 };
 
-InputType INPUT;
-std::vector<std::string> PATHS;
-int GPUS_PER_NODE = 1;           // GPUs to use per node
 const int BATCH_SIZE = 96;      // Batch size for network
-
 const int FLOW_WORK_REDUCTION = 20;
 const int BINS = 16;
 const std::string NET_PATH = "features/googlenet.toml";
+
+InputType INPUT;
+std::vector<std::string> PATHS;
+int GPUS_PER_NODE = 1;           // GPUs to use per node
+
+std::map<std::string, double> TIMINGS;
 
 std::string meta_path(std::string path) {
   return path + "/meta.txt";
@@ -174,7 +176,7 @@ void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
         assert(image.data != nullptr);
       }
       load_time += scanner::nano_since(load_start);
-      auto histo_start_ = scanner::now();
+      auto histo_start = scanner::now();
       cv::split(image, planes);
 
       float range[] = {0, 256};
@@ -187,21 +189,24 @@ void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
         cv::transpose(hist_32s, hist_32s);
         hist_32s.copyTo(out(cv::Rect(j * BINS, 0, BINS, 1)));
       }
-      histo_time += scanner::nano_since(load_start);
+      histo_time += scanner::nano_since(histo_start);
       // Save outputs
       auto save_start = scanner::now();
       outfile.write((char*)out.data, BINS * 3 * sizeof(float));
       save_time += scanner::nano_since(save_start);
     }
   }
-
-  printf("load: %.2f ms, histo: %.2f ms, save: %.2f ms\n",
-         load_time / 1000000,
-         histo_time / 1000000,
-         save_time / 1000000);
+  TIMINGS["load"] = load_time;
+  TIMINGS["eval"] = histo_time;
+  TIMINGS["save"] = save_time;
 }
 
 void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double setup_time = 0;
+  double load_time = 0;
+  double histo_time = 0;
+  double save_time = 0;
+
   // Set ourselves to the correct GPU
   cv::cuda::setDevice(gpu_device_id);
 
@@ -222,6 +227,7 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     const std::string& path = PATHS[work_item_index];
     // Read video file to determine number of
 
+    auto setup_start = scanner::now();
     video = cv::cudacodec::createVideoReader(path);
     int width = video->format().width;
     int height = video->format().height;
@@ -236,28 +242,39 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
                           std::fstream::binary | std::fstream::trunc);
     assert(outfile.good());
     cvc::GpuMat image(height, width, CV_8UC3);
+    setup_time += scanner::nano_since(setup_start);
+
     bool done = false;
     int64_t frame = 0;
     while (!done) {
+      auto load_start = scanner::now();
       bool valid_frame = video->nextFrame(image);
+      load_time += scanner::nano_since(load_start);
       if (!valid_frame) {
         done = true;
       }
       if (image.data == nullptr) {
         break;
       }
+      auto histo_start = scanner::now();
       cvc::split(image, planes);
-
       for (int j = 0; j < 3; ++j) {
         cvc::histEven(planes[j], hist, BINS, 0, 256);
         hist.copyTo(out_gpu(cv::Rect(j * BINS, 0, BINS, 1)));
       }
       out_gpu.download(out);
+      histo_time += scanner::nano_since(histo_start);
       // Save outputs
+      auto save_start = scanner::now();
       outfile.write((char*)out.data, BINS * 3 * sizeof(float));
+      save_time += scanner::nano_since(save_start);
       frame++;
     }
   }
+  TIMINGS["setup"] = setup_time;
+  TIMINGS["load"] = load_time;
+  TIMINGS["eval"] = histo_time;
+  TIMINGS["save"] = save_time;
 }
 
 void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
@@ -308,33 +325,49 @@ void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 
     // Load the first frame
     assert(num_images > 0);
+    auto load_first = scanner::now();
     cv::Mat image = cv::imread(bmp_path(path, 0));
+    load_time += scanner::nano_since(load_first);
+    auto eval_first = scanner::now();
     inputs[0].upload(image);
     cvc::cvtColor(inputs[0], gray[0], CV_BGR2GRAY);
+    eval_time += scanner::nano_since(eval_first);
     for (int64_t frame = 1; frame < num_images; ++frame) {
       int curr_idx = frame % 2;
       int prev_idx = (frame - 1) % 2;
 
+      auto load_start = scanner::now();
       image = cv::imread(bmp_path(path, frame));
+      load_time += scanner::nano_since(load_start);
+      auto eval_start = scanner::now();
       inputs[curr_idx].upload(image);
       cvc::cvtColor(inputs[curr_idx], gray[curr_idx], CV_BGR2GRAY);
       flow->calc(gray[prev_idx], gray[curr_idx], output_flow_gpu);
       output_flow_gpu.download(output_flow);
+      eval_time += scanner::nano_since(eval_start);
 
       // Save outputs
+      auto save_start = scanner::now();
       for (size_t i = 0; i < height; ++i) {
         outfile.write((char*)output_flow.data + output_flow.step * i,
                       width * sizeof(float) * 2);
       }
+      save_time += scanner::nano_since(save_start);
     }
   }
+  TIMINGS["load"] = load_time;
+  TIMINGS["eval"] = eval_time;
+  TIMINGS["save"] = save_time;
 }
 
 void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double load_time = 0;
+  double eval_time = 0;
+  double save_time = 0;
   // Set ourselves to the correct GPU
   cv::cuda::setDevice(gpu_device_id);
 
-  cv::VideoCapture video;
+  cv::Ptr<cv::cudacodec::VideoReader> video;
   while (true) {
     int64_t work_item_index;
     work_items.pop(work_item_index);
@@ -344,11 +377,16 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     }
 
     const std::string& path = PATHS[work_item_index];
-    video.open(path);
-    assert(video.isOpened());
-    int64_t num_frames = (int64_t)video.get(CV_CAP_PROP_FRAME_COUNT);
-    int width = (int)video.get(CV_CAP_PROP_FRAME_WIDTH);
-    int height = (int)video.get(CV_CAP_PROP_FRAME_HEIGHT);
+    int64_t num_frames;
+    {
+      cv::VideoCapture video;
+      video.open(path);
+      assert(video.isOpened());
+      num_frames = (int64_t)video.get(CV_CAP_PROP_FRAME_COUNT);
+    }
+    video = cv::cudacodec::createVideoReader(path);
+    int width = video->format().width;
+    int height = video->format().height;
     assert(width != 0 && height != 0);
 
     num_frames /= FLOW_WORK_REDUCTION;
@@ -356,7 +394,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     // Flow intermediates
     std::vector<cvc::GpuMat> inputs;
     for (int i = 0; i < 2; ++i) {
-      inputs.emplace_back(height, width, CV_8UC3);
+      inputs.emplace_back(height, width, CV_8UC4);
     }
     std::vector<cvc::GpuMat> gray;
     for (int i = 0; i < 2; ++i) {
@@ -371,39 +409,53 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     assert(outfile.good());
 
     // Load the first frame
-    cv::Mat image;
-    if (!video.read(image)) {
+    auto load_first = scanner::now();
+    if (!video->nextFrame(inputs[0])) {
       assert(false);
     }
-    inputs[0].upload(image);
-    cvc::cvtColor(inputs[0], gray[0], CV_BGR2GRAY);
+    load_time += scanner::nano_since(load_first);
+    auto eval_first = scanner::now();
+    cvc::cvtColor(inputs[0], gray[0], CV_BGRA2GRAY);
+    eval_time += scanner::nano_since(eval_first);
     bool done = false;
-    int64_t frame = 1;
-    for (int64_t frame = 0; frame < num_frames; ++frame) {
+    for (int64_t frame = 1; frame < num_frames; ++frame) {
       int curr_idx = frame % 2;
       int prev_idx = (frame - 1) % 2;
 
-      bool valid_frame = video.read(image);
+      auto load_start = scanner::now();
+      bool valid_frame = video->nextFrame(inputs[curr_idx]);
+      load_time += scanner::nano_since(load_start);
       assert(valid_frame);
-      if (image.data == nullptr) {
+      if (inputs[curr_idx].data == nullptr) {
         break;
       }
 
-      inputs[curr_idx].upload(image);
-      cvc::cvtColor(inputs[curr_idx], gray[curr_idx], CV_BGR2GRAY);
+      auto eval_start = scanner::now();
+      cvc::cvtColor(inputs[curr_idx], gray[curr_idx], CV_BGRA2GRAY);
       flow->calc(gray[prev_idx], gray[curr_idx], output_flow_gpu);
       output_flow_gpu.download(output_flow);
+      eval_time += scanner::nano_since(eval_start);
 
       // Save outputs
+      auto save_start = scanner::now();
       for (size_t i = 0; i < height; ++i) {
         outfile.write((char*)output_flow.data + output_flow.step * i,
                       width * sizeof(float) * 2);
       }
+      save_time += scanner::nano_since(save_start);
     }
   }
+  TIMINGS["load"] = load_time;
+  TIMINGS["eval"] = eval_time;
+  TIMINGS["save"] = save_time;
 }
 
 void image_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double load_time = 0;
+  double transform_time = 0;
+  double net_time = 0;
+  double eval_time = 0;
+  double save_time = 0;
   NetDescriptor descriptor;
   {
     std::ifstream net_file{NET_PATH};
@@ -472,24 +524,50 @@ void image_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       input_blob->Reshape({batch, input_blob->shape(1), input_blob->shape(2),
                            input_blob->shape(3)});
       for (int b = 0; b < batch; ++b) {
+        auto load_start = scanner::now();
         input = cv::imread(bmp_path(path, frame + b));
+        load_time += scanner::nano_since(load_start);
+        auto transform_start = scanner::now();
         cv::resize(input, images[b],
                    cv::Size(net_input_width, net_input_height), 0, 0,
                    cv::INTER_LINEAR);
         cv::cvtColor(images[b], images[b], CV_RGB2BGR);
+        transform_time += scanner::nano_since(transform_start);
+        eval_time += scanner::nano_since(transform_start);
       }
+      auto transform_start = scanner::now();
       transformer.Transform(images, input_blob.get());
+      transform_time += scanner::nano_since(transform_start);
+      eval_time += scanner::nano_since(transform_start);
+
+      auto net_start = scanner::now();
       net->Forward();
+      net_time += scanner::nano_since(net_start);
+      eval_time += scanner::nano_since(net_start);
+
       // Save outputs
+      auto save_start = scanner::now();
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
         net->blob_by_name(descriptor.output_layer_names[0])};
       outfile.write((char*)output_blob->cpu_data(),
                     output_blob->count() * sizeof(float));
+      save_time += scanner::nano_since(save_start);
     }
   }
+  TIMINGS["load"] = load_time;
+  TIMINGS["transform"] = transform_time;
+  TIMINGS["net"] = net_time;
+  TIMINGS["eval"] = eval_time;
+  TIMINGS["save"] = save_time;
 }
 
 void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double load_time = 0;
+  double transform_time = 0;
+  double net_time = 0;
+  double eval_time = 0;
+  double save_time = 0;
+
   NetDescriptor descriptor;
   {
     std::ifstream net_file{NET_PATH};
@@ -555,32 +633,53 @@ void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       int b;
       images.resize(BATCH_SIZE);
       for (b = 0; b < BATCH_SIZE; b++) {
+        auto load_start = scanner::now();
         bool valid_frame = video.read(input);
+        load_time += scanner::nano_since(load_start);
         if (!valid_frame) {
           done = true;
           break;
         }
+        auto transform_start = scanner::now();
         cv::resize(input, images[b],
                    cv::Size(net_input_width, net_input_height), 0, 0,
                    cv::INTER_LINEAR);
         cv::cvtColor(images[b], images[b], CV_RGB2BGR);
+        transform_time += scanner::nano_since(transform_start);
+        eval_time += scanner::nano_since(transform_start);
       }
 
       int batch = b;
       images.resize(batch);
       input_blob->Reshape({batch, input_blob->shape(1), input_blob->shape(2),
                            input_blob->shape(3)});
+
+      auto transform_start = scanner::now();
       transformer.Transform(images, input_blob.get());
+      transform_time += scanner::nano_since(transform_start);
+      eval_time += scanner::nano_since(transform_start);
+
+      auto net_start = scanner::now();
       net->Forward();
+      net_time += scanner::nano_since(net_start);
+      eval_time += scanner::nano_since(net_start);
+
       // Save outputs
+      auto save_start = scanner::now();
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
         net->blob_by_name(descriptor.output_layer_names[0])};
       outfile.write((char*)output_blob->cpu_data(),
                     output_blob->count() * sizeof(float));
 
       frame += batch;
+      save_time += scanner::nano_since(save_start);
     }
   }
+  TIMINGS["load"] = load_time;
+  TIMINGS["transform"] = transform_time;
+  TIMINGS["net"] = net_time;
+  TIMINGS["eval"] = eval_time;
+  TIMINGS["save"] = save_time;
 }
 
 int main(int argc, char** argv) {
@@ -689,5 +788,8 @@ int main(int argc, char** argv) {
   // Wait for workers to finish
   for (int gpu = 0; gpu < GPUS_PER_NODE; ++gpu) {
     workers[gpu].join();
+  }
+  for (auto& kv : TIMINGS) {
+    printf("TIMING: %s,%.2f\n", kv.first.c_str(), kv.second / 1000000);
   }
 }

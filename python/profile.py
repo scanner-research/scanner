@@ -18,11 +18,15 @@ import argparse
 from collections import defaultdict as dd
 import tempfile
 import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
+plt.rcParams['image.interpolation'] = 'nearest'
 import seaborn as sns
 from multiprocessing import cpu_count
 import toml
 from PIL import Image
+import numpy as np
+
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -606,7 +610,7 @@ def standalone_benchmark():
             for p in paths[1:]:
                 f.write('\n' + p)
 
-    def run_standalone_trial(input_type, paths_file, operation):
+    def run_standalone_trial(input_type, paths_file, operation, frames):
         print('Running standalone trial: {}, {}, {}'.format(
             input_type,
             paths_file,
@@ -623,19 +627,24 @@ def standalone_benchmark():
         so, se = p.communicate()
         rc = p.returncode
         elapsed = time.time() - start
+        timings = {}
         if rc != 0:
             print('Trial FAILED after {:.3f}s'.format(elapsed))
             print(so)
             elapsed = -1
         else:
             print('Trial succeeded, took {:.3f}s'.format(elapsed))
-        return elapsed
+            for line in so.splitlines():
+                if line.startswith('TIMING: '):
+                    k, s, v = line[len('TIMING: '):].partition(",")
+                    timings[k] = float(v)
+        return elapsed, frames, timings
 
     tests = {
         #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        'charade': ['/bigdata/wcrichto/videos/charade_reallyshort.mkv'],
+        'charade': ['/n/scanner/wcrichto.new/videos/charade_short.mkv'],
         #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        'mean': ['/bigdata/wcrichto/videos/meangirls_reallyshort.mp4']
+        #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
         # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
         # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
         # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
@@ -645,13 +654,14 @@ def standalone_benchmark():
     bmp_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.bmp"
     jpg_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.jpg"
 
-
     all_results = {}
     for test_name, paths in tests.iteritems():
         all_results[test_name] = {}
         for op in operations:
             all_results[test_name][op] = []
-        # bmp
+
+        frames = 0
+        # # bmp
         os.system('rm -rf {}'.format(output_dir))
         os.system('mkdir {}'.format(output_dir))
         run_paths = []
@@ -666,32 +676,33 @@ def standalone_benchmark():
             meta = read_meta(run_path)
             write_meta_file(run_path, meta)
             run_paths.append(run_path)
+            frames += meta['num_images']
         write_paths(run_paths)
 
         for op in operations:
             all_results[test_name][op].append(
-                run_standalone_trial('bmp', paths_file, op))
+                run_standalone_trial('bmp', paths_file, op, frames))
 
-        # jpg
-        os.system('rm -rf {}'.format(output_dir))
-        os.system('mkdir {}'.format(output_dir))
-        run_paths = []
-        for p in paths:
-            base = os.path.basename(p)
-            run_path = os.path.join(output_dir, base)
-            os.system('mkdir -p {}'.format(run_path))
-            run_cmd(jpg_template, {
-                'input': p,
-                'output': run_path
-            })
-            meta = read_meta(run_path)
-            write_meta_file(run_path, meta)
-            run_paths.append(run_path)
-        write_paths(run_paths)
+        # # jpg
+        # os.system('rm -rf {}'.format(output_dir))
+        # os.system('mkdir {}'.format(output_dir))
+        # run_paths = []
+        # for p in paths:
+        #     base = os.path.basename(p)
+        #     run_path = os.path.join(output_dir, base)
+        #     os.system('mkdir -p {}'.format(run_path))
+        #     run_cmd(jpg_template, {
+        #         'input': p,
+        #         'output': run_path
+        #     })
+        #     meta = read_meta(run_path)
+        #     write_meta_file(run_path, meta)
+        #     run_paths.append(run_path)
+        # write_paths(run_paths)
 
-        for op in operations:
-            all_results[test_name][op].append(
-                run_standalone_trial('jpg', paths_file, op))
+        # for op in operations:
+        #     all_results[test_name][op].append(
+        #         run_standalone_trial('jpg', paths_file, op, frames))
 
         # video
         os.system('rm -rf {}'.format(output_dir))
@@ -706,10 +717,42 @@ def standalone_benchmark():
 
         for op in operations:
             all_results[test_name][op].append(
-                run_standalone_trial('mp4', paths_file, op))
+                run_standalone_trial('mp4', paths_file, op, frames))
 
     print(all_results)
-    print(json.dumps(all_results))
+    return all_results
+
+
+def standalone_graphs(results):
+    plt.clf()
+    plt.title("Standalone perf on Charade")
+    plt.ylabel("FPS")
+    plt.xlabel("Pipeline")
+
+    x = np.arange(3)
+    labels = ['caffe', 'flow', 'histogram']
+    plt.xticks(x, labels)
+
+    results = results['charade']
+    for test_name, tests in results:
+        ys = []
+        for label in test_types:
+            y = []
+            totals, frames, timings = tests[label]
+            if label == 'flow':
+                frames /= 20.0
+            for ms in totals:
+                y.append(frames / (ms / 1000.0))
+            ys.append(y)
+
+        for (i, y) in enumerate(ys):
+            xx = x+(i*0.3)
+            plt.bar(xx, y, 0.3, align='center', color=colors[i])
+            for xy in zip(xx, y):
+                plt.annotate(xy[1], xy=xy)
+        plt.legend(['BMP', 'JPG', 'Video'], loc='upper left')
+        plt.tight_layout()
+        plt.savefig('standalone_' + test_name + '.png', dpi=150)
 
 
 def effective_io_rate_benchmark():
@@ -1088,7 +1131,9 @@ def bench_main(args):
     #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
     #storage_benchmark()
-    standalone_benchmark()
+    results = standalone_benchmark()
+    standalone_graphs(results)
+
 
 
 def graphs_main(args):
