@@ -10,6 +10,7 @@ import tempfile
 import time
 import subprocess
 import re
+from pprint import pprint
 
 is_py3 = sys.version_info.major == 3
 maxint = sys.maxsize if is_py3 else sys.maxint
@@ -99,9 +100,8 @@ class ScannerConfig(object):
     """ TODO(wcrichto): document me """
 
     def __init__(self, config_path=None):
-        if config_path is None:
-            config_path = self.default_config_path()
-        config = self.load_config(config_path)
+        self.config_path = config_path or self.default_config_path()
+        config = self.load_config(self.config_path)
         try:
             self.scanner_path = config['scanner_path']
             sys.path.append('{}/build'.format(self.scanner_path))
@@ -411,7 +411,8 @@ class Scanner(object):
                 '-n', str(1),
                 '--bind-to', 'none',
                 self._executable_path,
-                'ingest', typ, dataset_name, paths_file_name]]
+                'ingest', typ, dataset_name, paths_file_name,
+                '--config_file', self.config.config_path]]
 
         def add_opt(name, opt):
             if opt:
@@ -476,6 +477,7 @@ class Scanner(object):
         add_opt('load_workers_per_node', load_workers_per_node)
         add_opt('save_workers_per_node', save_workers_per_node)
         add_opt('db_path', db_path)
+        add_opt('config_file', self.config.config_path)
         current_env = os.environ.copy()
         if custom_env:
             for k, v in custom_env.iteritems():
@@ -536,8 +538,12 @@ class Scanner(object):
             self._db_path, dataset_name, job_name)
 
         job = self._meta.JobDescriptor()
-        job.ParseFromString(
-            self._storage.read('{}/descriptor.bin'.format(job_path)))
+        path = '{}/descriptor.bin'.format(job_path)
+        try:
+            job.ParseFromString(self._storage.read(path))
+        except:
+            # TODO(wcrichto): catch FileDoesNotExist
+            raise Exception('File {} does not exist'.format(path))
 
         profilers = {}
         for n in range(job.num_nodes):

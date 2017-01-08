@@ -4,6 +4,7 @@
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/util/discard_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
+#include "scanner/evaluators/util/swizzle_evaluator.h"
 
 namespace scanner {
 namespace {
@@ -11,15 +12,19 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
   Sampler::all_frames(info, desc);
   // desc.sampling = Sampling::Strided;
-  // desc.stride = 8;
 
-  std::string net_descriptor_file = "features/squeezenet.toml";
+  // std::ifstream infile("stride.txt");
+  // i32 stride;
+  // infile >> stride;
+  // desc.stride = stride;
+
+  std::string net_descriptor_file = "features/googlenet.toml";
   NetDescriptor descriptor;
   {
     std::ifstream net_file{net_descriptor_file};
     descriptor = descriptor_from_net_file(net_file);
   }
-  i32 batch_size = 96;
+  i32 batch_size = 100;
 
   DeviceType device_type;
   VideoDecoderType decoder_type;
@@ -36,11 +41,9 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
-  // factories.emplace_back(
-  //     new DecoderEvaluatorFactory(device_type, decoder_type));
+      new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new DefaultInputEvaluatorFactory(
-      DeviceType::GPU, descriptor, batch_size));
+      device_type, descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(device_type, descriptor, batch_size));
   factories.emplace_back(new DiscardEvaluatorFactory(device_type));

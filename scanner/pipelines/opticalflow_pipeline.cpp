@@ -1,6 +1,7 @@
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/movie_analysis/optical_flow_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
+#include "scanner/evaluators/util/discard_evaluator.h"
 
 namespace scanner {
 namespace {
@@ -25,6 +26,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   factories.emplace_back(
       new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new OpticalFlowEvaluatorFactory(device_type));
+  factories.emplace_back(new DiscardEvaluatorFactory(device_type));
 
   return desc;
 }

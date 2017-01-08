@@ -58,7 +58,7 @@ def run_trial(dataset_name, pipeline_name, out_job_name, opts={}):
     config_path = opts['config_path'] if 'config_path' in opts else None
     db_path = opts['db_path'] if 'db_path' in opts else None
     db = scanner.Scanner(config_path=config_path)
-    db._db_path = db_path
+    if db_path is not None: db._db_path = db_path
     result, t = db.run(dataset_name, pipeline_name, out_job_name, opts)
     profiler_output = {}
     if result:
@@ -355,6 +355,58 @@ ffmpeg -i {input} -vf scale={scale} -c:v libx264 -x264opts \
 
                 fps = '{:.3f}'.format(num_frames / float(t))
                 all_results[pipeline][current_var][val] = fps
+
+    pprint(all_results)
+
+
+def multi_gpu_benchmark():
+    dataset_name = 'multi_gpu'
+
+    videos = [
+        ('/bigdata/wcrichto/videos/meanGirls_medium.mp4', 2878)
+    ]
+
+    pipelines = [
+        'effective_decode_rate',
+        'knn',
+        'histogram',
+        #'opticalflow'
+    ]
+
+    # num_gpus = [1, 2, 3, 4]
+    num_gpus = [1]
+
+    db = scanner.Scanner()
+    scanner_settings = {
+        'force': True,
+        'node_count': 1,
+        'work_item_size': 96,
+        'io_item_size': 96
+    }
+
+    all_results = {}
+    for (video, frames) in videos:
+        all_results[video] = {}
+
+        print('Ingesting {}'.format(video))
+        result, _ = db.ingest('video', dataset_name, [video], {'force': True})
+        if result is False:
+            print('Failed to ingest')
+            exit()
+
+        for pipeline in pipelines:
+            all_results[video][pipeline] = {}
+
+            for gpus in num_gpus:
+                scanner_settings['pus_per_node'] = gpus
+                print('Running {}, {} GPUS'.format(pipeline, gpus))
+                t, result = run_trial(dataset_name, pipeline,
+                                      'test', scanner_settings)
+                if result is False:
+                    print('Trial failed')
+                    exit()
+
+                all_results[video][pipeline][gpus] = frames / float(t)
 
     pprint(all_results)
 
@@ -1220,7 +1272,10 @@ def bench_main(args):
     #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
     #storage_benchmark()
-    micro_comparison_driver()
+    #micro_comparison_driver()
+    # results = standalone_benchmark()
+    # standalone_graphs(results)
+    multi_gpu_benchmark()
 
 
 
@@ -1232,7 +1287,7 @@ def trace_main(args):
     dataset = args.dataset
     job = args.job
     db = scanner.Scanner()
-    db._db_path = '/tmp/scanner_db'
+    #db._db_path = '/tmp/scanner_db'
     profilers = db.parse_profiler_files(dataset, job)
     pprint(generate_statistics(profilers))
     write_trace_file(profilers, dataset, job)

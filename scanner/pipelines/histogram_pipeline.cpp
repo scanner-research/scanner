@@ -23,7 +23,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(device_type, decoder_type));
+    new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new HistogramEvaluatorFactory(device_type));
 
   return desc;

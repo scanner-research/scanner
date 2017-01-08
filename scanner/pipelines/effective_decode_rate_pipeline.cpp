@@ -1,3 +1,4 @@
+
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/util/discard_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
@@ -20,7 +21,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   // factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::GPU));
   // factories.emplace_back(
   //     new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::INTEL));
-  // factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::CPU));
+  factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::GPU));
 
   return desc;
 }
