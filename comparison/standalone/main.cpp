@@ -92,7 +92,7 @@ std::string bmp_path(std::string path, int64_t frame) {
 }
 
 std::string output_path(int64_t idx) {
-  return "outputs/videos" + std::to_string(idx) + ".bin";
+  return "/tmp/outputs/videos" + std::to_string(idx) + ".bin";
 }
 
 void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
@@ -163,6 +163,8 @@ void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     //   outfile.write((char*)out.data, BINS * 3 * sizeof(float));
     //   save_time += scanner::nano_since(save_start);
     // }
+
+    auto start_time = scanner::now();
     for (int64_t frame = 0; frame < num_images; ++frame) {
       auto load_start = scanner::now();
       cv::Mat image = cv::imread(bmp_path(path, frame));
@@ -190,6 +192,7 @@ void image_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       outfile.write((char*)out.data, BINS * 3 * sizeof(float));
       save_time += scanner::nano_since(save_start);
     }
+    TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["load"] = load_time;
   TIMINGS["eval"] = histo_time;
@@ -239,6 +242,7 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     cvc::GpuMat image(height, width, CV_8UC3);
     setup_time += scanner::nano_since(setup_start);
 
+    auto start_time = scanner::now();
     bool done = false;
     int64_t frame = 0;
     while (!done) {
@@ -265,6 +269,7 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       save_time += scanner::nano_since(save_start);
       frame++;
     }
+    TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["setup"] = setup_time;
   TIMINGS["load"] = load_time;
@@ -369,6 +374,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
   cv::cuda::setDevice(gpu_device_id);
 
   cv::Ptr<cv::cudacodec::VideoReader> video;
+  cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::FarnebackOpticalFlow::create();
   while (true) {
     int64_t work_item_index;
     work_items.pop(work_item_index);
@@ -404,7 +410,6 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     }
     cvc::GpuMat output_flow_gpu(height, width, CV_32FC2);
     cv::Mat output_flow(height, width, CV_32FC2);
-    cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::FarnebackOpticalFlow::create();
 
     std::ofstream outfile(output_path(work_item_index),
                           std::fstream::binary | std::fstream::trunc);
@@ -413,6 +418,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     setup_time = scanner::nano_since(startup_start);
 
     // Load the first frame
+    auto start_time = scanner::now();
     auto load_first = scanner::now();
     if (!video->nextFrame(inputs[0])) {
       assert(false);
@@ -448,6 +454,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       }
       save_time += scanner::nano_since(save_start);
     }
+    TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["setup"] = setup_time;
   TIMINGS["load"] = load_time;
@@ -623,23 +630,26 @@ void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     assert(video.isOpened());
     int width = (int)video.get(CV_CAP_PROP_FRAME_WIDTH);
     int height = (int)video.get(CV_CAP_PROP_FRAME_HEIGHT);
+    int num_frames = (int)video.get(CV_CAP_PROP_FRAME_COUNT);
     assert(width != 0 && height != 0);
 
     std::ofstream outfile(output_path(work_item_index),
                           std::fstream::binary | std::fstream::trunc);
     assert(outfile.good());
 
+    cv::Mat input(height, width, CV_8UC3);
     // Load the first frame
-    cv::Mat input;
+    auto start_time = scanner::now();
     std::vector<cv::Mat> images(BATCH_SIZE);
     int64_t frame = 0;
     bool done = false;
     while (!done) {
-      int b;
+      int b = 0;
       images.resize(BATCH_SIZE);
       for (b = 0; b < BATCH_SIZE; b++) {
         auto load_start = scanner::now();
         bool valid_frame = video.read(input);
+        assert(input.data != nullptr);
         load_time += scanner::nano_since(load_start);
         if (!valid_frame) {
           done = true;
@@ -652,6 +662,9 @@ void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
         cv::cvtColor(images[b], images[b], CV_RGB2BGR);
         transform_time += scanner::nano_since(transform_start);
         eval_time += scanner::nano_since(transform_start);
+      }
+      if (b == 0) {
+        continue;
       }
 
       int batch = b;
@@ -679,6 +692,7 @@ void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       frame += batch;
       save_time += scanner::nano_since(save_start);
     }
+    TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["load"] = load_time;
   TIMINGS["transform"] = transform_time;

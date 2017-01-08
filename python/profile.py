@@ -39,6 +39,12 @@ STANDALONE_PROGRAM_PATH = os.path.join(
 PEAK_PROGRAM_PATH = os.path.join(
     SCRIPT_DIR, '../build/comparison/peak/peak_comparison')
 
+OCV_PROGRAM_PATH = os.path.join(
+    SCRIPT_DIR, '../build/comparison/ocv_decode/ocv_decode')
+
+KERNEL_SOL_PROGRAM_PATH = os.path.join(
+    SCRIPT_DIR, '../build/comparison/kernel_sol/kernel_sol')
+
 DEVNULL = open(os.devnull, 'wb', 0)
 
 TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
@@ -697,6 +703,7 @@ def standalone_benchmark(tests):
                 if line.startswith('TIMING: '):
                     k, s, v = line[len('TIMING: '):].partition(",")
                     timings[k] = float(v)
+            elapsed = timings['total']
         return elapsed, timings
 
     operations = ['histogram', 'flow', 'caffe']
@@ -898,6 +905,170 @@ def peak_benchmark(test, frame_count, width, height):
     return all_results
 
 
+def decode_sol(tests, frame_count):
+    db_dir = '/tmp/scanner_db'
+    input_video = '/tmp/scanner_db/datasets/test/data/0_data.bin'
+
+    db = scanner.Scanner()
+    db._db_path = db_dir
+    scanner_settings = {
+        'db_path': db_dir,
+        'node_count': 1,
+        'pus_per_node': 1,
+        'io_item_size': 1024,
+        'work_item_size': 128,
+        'tasks_in_queue_per_pu': 4,
+        'force': True,
+        'env': {}
+    }
+    dataset_name = 'test'
+    video_job = 'base'
+
+    decode_pipeline = 'effective_decode_rate'
+
+    def run_ocv_trial(ty, path):
+        print('Running ocv trial: {}'.format(path))
+        clear_filesystem_cache()
+        current_env = os.environ.copy()
+        start = time.time()
+        p = subprocess.Popen([
+            OCV_PROGRAM_PATH,
+            '--decoder', ty,
+            '--path', path,
+        ], env=current_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        so, se = p.communicate()
+        rc = p.returncode
+        elapsed = time.time() - start
+        timings = {}
+        if rc != 0:
+            print('Trial FAILED after {:.3f}s'.format(elapsed))
+            print(so)
+            elapsed = -1
+        else:
+            print('Trial succeeded, took {:.3f}s'.format(elapsed))
+            for line in so.splitlines():
+                if line.startswith('TIMING: '):
+                    k, s, v = line[len('TIMING: '):].partition(",")
+                    timings[k] = float(v)
+            elapsed = timings['total']
+        return elapsed, timings
+
+    def run_cmd(template, settings):
+        cmd = template.format(**settings)
+        if os.system(cmd) != 0:
+            print('Bad command: {}'.format(cmd))
+            exit()
+
+    ffmpeg_cpu_template = 'ffmpeg -vcodec h264 -i {path} -f null -'
+    ffmpeg_gpu_template = 'ffmpeg -vcodec h264_cuvid -i {path} -f null -'
+
+
+    all_results = {}
+    for test_name, paths in tests.iteritems():
+        assert(len(paths) == 1)
+        path = paths[0]
+
+        all_results[test_name] = {}
+
+        vid_path = '/tmp/vid'
+
+        os.system('rm -rf {}'.format(db_dir))
+        os.system('cp {} {}'.format(path, vid_path))
+
+        # ingest data
+        result, _ = db.ingest('video', dataset_name, paths, scanner_settings)
+        assert(result)
+
+        # Scanner decode
+        total, prof = run_trial(dataset_name, decode_pipeline, 'test',
+                                scanner_settings)
+        all_results[test_name]['scanner'] = total
+
+        # OCV decode
+        total, _ = run_ocv_trial('cpu', vid_path)
+        all_results[test_name]['opencv_cpu'] = total
+
+        total, _ = run_ocv_trial('gpu', vid_path)
+        all_results[test_name]['opencv_gpu'] = total
+
+        # FFMPEG CPU decode
+        start_time = time.time()
+        run_cmd(ffmpeg_cpu_template, {'path': vid_path})
+        all_results[test_name]['ffmpeg_cpu'] = time.time() - start_time
+
+        # FFMPEG GPU decode
+        start_time = time.time()
+        run_cmd(ffmpeg_gpu_template, {'path': vid_path})
+        all_results[test_name]['ffmpeg_gpu'] = time.time() - start_time
+
+        print('Decode test on ', test_name)
+        print("{:10s} | {:6s} | {:7s}".format('Type', 'Total', 'FPS'))
+        for ty, total in all_results[test_name].iteritems():
+            print("{:10s} | {:6.2f} | {:7.2f}".format(
+                ty, total, frame_count[test_name] / total))
+
+    print(all_results)
+    return all_results
+
+
+def kernel_sol(tests):
+    def run_kernel_trial(operation, path, frames):
+        print('Running kernel trial: {}'.format(path))
+        clear_filesystem_cache()
+        current_env = os.environ.copy()
+        start = time.time()
+        p = subprocess.Popen([
+            KERNEL_SOL_PROGRAM_PATH,
+            '--operation', operation,
+            '--frames', str(frames),
+            '--path', path,
+        ], env=current_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        so, se = p.communicate()
+        rc = p.returncode
+        elapsed = time.time() - start
+        timings = {}
+        if rc != 0:
+            print('Trial FAILED after {:.3f}s'.format(elapsed))
+            print(so)
+            elapsed = -1
+        else:
+            print('Trial succeeded, took {:.3f}s'.format(elapsed))
+            for line in so.splitlines():
+                if line.startswith('TIMING: '):
+                    k, s, v = line[len('TIMING: '):].partition(",")
+                    timings[k] = float(v)
+            elapsed = timings['total']
+        return elapsed, timings
+
+    operations = ['histogram', 'flow', 'caffe']
+    iters = {'histogram': 50,
+             'flow': 5,
+             'caffe': 10}
+
+    all_results = {}
+    for test_name, paths in tests.iteritems():
+        assert(len(paths) == 1)
+        path = paths[0]
+
+        all_results[test_name] = {}
+
+        frames = 512
+
+        for op in operations:
+            all_results[test_name][op] = run_kernel_trial(
+                op, path, frames)
+
+        print('Kernel SOL on ', test_name)
+        print("{:10s} | {:6s} | {:7s}".format('Kernel', 'Total', 'FPS'))
+        for ty, (total, _) in all_results[test_name].iteritems():
+            tot_frames = frames * iters[ty]
+            print("{:10s} | {:6.2f} | {:7.2f}".format(
+                ty, total, tot_frames / (1.0 * total)))
+
+    print(all_results)
+    return all_results
+
+
 def standalone_graphs(frame_counts, results):
     plt.clf()
     plt.title("Standalone perf on Charade")
@@ -939,10 +1110,11 @@ def standalone_graphs(frame_counts, results):
         plt.savefig('standalone_' + test_name + '.png', dpi=150)
 
 
-def comparison_graphs(frame_counts, standalone_results, scanner_results,
+def comparison_graphs(test_name,
+                      frame_counts, standalone_results, scanner_results,
                       peak_results):
     plt.clf()
-    plt.title("Microbenchmarks on 1920x1080 video")
+    plt.title("Microbenchmarks on 1920x800 video")
     plt.ylabel("FPS")
     plt.xlabel("Pipeline")
 
@@ -952,7 +1124,6 @@ def comparison_graphs(frame_counts, standalone_results, scanner_results,
     labels = ['caffe', 'flow', 'histogram']
     plt.xticks(x, labels)
 
-    test_name = 'charade'
     standalone_tests = standalone_results[test_name]
     scanner_tests = scanner_results[test_name]
     peak_tests = peak_results[test_name]
@@ -1317,27 +1488,51 @@ def graph_decode_rate_benchmark(path):
 def micro_comparison_driver():
     tests = {
         #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        'charade': ['/n/scanner/apoms/videos/charade_medium.mkv'],
+        #'charade': ['/n/scanner/apoms/videos/charade_medium.mkv'],
+        #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+        #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
+        'fight': ['/n/scanner/apoms/videos/fightClub_50k.mp4'],
+        #'excalibur': ['/n/scanner/apoms/videos/excalibur_50k.mp4'],
+    }
+    frame_counts = {'charade': 21579,
+                    'fight': 50350,
+                    'excalibur': 50100}
+    frame_wh = {'charade': {'width': 1920, 'height': 1080},
+                'fight': {'width': 1920, 'height': 800},
+                'excalibur': {'width': 1920, 'height': 1080}}
+    t = 'fight'
+    # standalone_results = standalone_benchmark(tests)
+    # scanner_results = scanner_benchmark(tests)
+    # peak_results = peak_benchmark(t, frame_counts[t],
+    #                               frame_wh[t]['width'],
+    #                               frame_wh[t]['height'])
+    # print(standalone_results)
+    # print(scanner_results)
+    # print(peak_results)
+    standalone_results = {'fight': {'caffe': [(257.01, {'load': 162.09, 'save': 0.16, 'transform': 56.68, 'eval': 94.74, 'net': 38.06, 'total': 257.01})], 'flow': [(117.21, {'load': 1.27, 'total': 117.21, 'setup': 0.23, 'save': 55.43, 'eval': 60.51})], 'histogram': [(52.57, {'load': 38.76, 'total': 52.57, 'setup': 0.14, 'save': 0.09, 'eval': 13.7})]}}
+    scanner_results = {'fight': {'caffe': [(137.108575113, {'load': {'setup': '0.000395', 'task': '6.897367', 'idle': '397.431399', 'io': '6.863604'}, 'save': {'setup': '0.000009', 'task': '0.958859', 'idle': '269.800834', 'io': '0.953071'}, 'eval': {'task': '218.017667', 'evaluate': '204.490312', 'setup': '41.859860', 'evaluator_marshal': '2.993790', 'decode': '117.142565', 'idle': '280.694488', 'caffe:net': '34.965114', 'caffe:transform_input': '51.927390', 'memcpy': '2.930448'}})], 'flow': [(72.315366847, {'load': {'setup': '0.000043', 'task': '4.139968', 'idle': '137.844597', 'io': '4.114909'}, 'save': {'setup': '0.000006', 'task': '27.182298', 'idle': '111.433524', 'io': '27.181488'}, 'eval': {'task': '74.400841', 'evaluate': '73.954871', 'setup': '1.890981', 'evaluator_marshal': '0.203315', 'decode': '6.179634', 'idle': '171.577621', 'memcpy': '0.198606', 'flowcalc': '61.209670'}})], 'histogram': [(70.882922309, {'load': {'setup': '0.000010', 'task': '0.558809', 'idle': '207.476644', 'io': '0.522676'}, 'save': {'setup': '0.000007', 'task': '0.596554', 'idle': '140.104636', 'io': '0.591316'}, 'eval': {'task': '78.248330', 'evaluate': '76.713791', 'setup': '2.377652', 'histogram': '7.796299', 'decode': '68.908860', 'idle': '200.050535', 'evaluator_marshal': '1.168046', 'memcpy': '1.108454'}})]}}
+    peak_results = {'fight': {'caffe': [(93.15, {'load': 0.0, 'save': 0.03, 'transform': 59.08, 'eval': 92.86, 'net': 33.78, 'total': 93.15})], 'flow': [(66.06, {'load': 0.0, 'total': 66.06, 'save': 0.0, 'eval': 65.92})], 'histogram': [(52.17, {'load': 0.0, 'total': 52.17, 'setup': 0.0, 'save': 0.0, 'eval': 12.71})]}}
+    comparison_graphs(t, frame_counts, standalone_results, scanner_results,
+                      peak_results)
+
+    tests = {
+        #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
+        #'charade': ['/n/scanner/wcrichto.new/videos/charade.mkv'],
         #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
         #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
         # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
         # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
         # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+        'fight': ['/n/scanner/wcrichto.new/videos/movies/fightClub.mp4'],
+        #'excalibur': ['/n/scanner/wrichto.new/videos/movies/excalibur.mp4'],
     }
-    frame_counts = {'charade': 21579}
-    frame_wh = {'charade': {'width': 1920, 'height': 1080}}
-    #standalone_results = standalone_benchmark(tests)
-    standalone_results = {'charade': {'caffe': [(148.1546459197998, {'load': 96.35, 'net': 16.31, 'save': 0.06, 'transform': 24.28, 'eval': 40.58})], 'flow': [(234.77257895469666, {'load': 0.24, 'setup': 0.19, 'save': 15.37, 'eval': 40.99})], 'histogram': [(42.13741683959961, {'load': 25.7, 'setup': 0.15, 'save': 0.04, 'eval': 6.67})]}}
-    #standalone_results = {'charade': {'caffe': [(76.31734204292297, {'load': 47101.1, 'net': 7565.63, 'save': 28.68, 'transform': 12419.58, 'eval': 19985.57})], 'flow': [(112.57583904266357, {'load': 136.91, 'setup': 192.12, 'save': 6010.22, 'eval': 19057.95})], 'histogram': [(22.20790386199951, {'load': 11844.44, 'setup': 150.87, 'save': 19.54, 'eval': 3165.65})]}}
-    #scanner_results = scanner_benchmark(tests)
-    scanner_results = {'charade': {'caffe': [(93.451617786, {'load': {'setup': '0.000009', 'task': '24.945926', 'idle': '247.417962', 'io': '24.928408'}, 'save': {'setup': '0.000008', 'task': '0.541265', 'idle': '185.607273', 'io': '0.538287'}, 'eval': {'task': '130.644244', 'evaluate': '123.318425', 'setup': '38.457329', 'evaluator_marshal': '1.812350', 'decode': '79.806572', 'idle': '201.898069', 'caffe:net': '14.832060', 'caffe:transform_input': '28.365365', 'memcpy': '1.143933'}})], 'flow': [(51.119019301, {'load': {'setup': '0.000007', 'task': '0.463885', 'idle': '43.970452', 'io': '0.413162'}, 'save': {'setup': '0.000003', 'task': '20.574623', 'idle': '80.918500', 'io': '20.574152'}, 'eval': {'task': '52.551383', 'evaluate': '51.722559', 'setup': '2.331639', 'evaluator_marshal': '0.144466', 'decode': '4.728092', 'idle': '99.795180', 'memcpy': '0.058712', 'flowcalc': '42.591227'}})], 'histogram': [(48.951459601, {'load': {'setup': '0.000120', 'task': '1.277663', 'idle': '140.050975', 'io': '1.256591'}, 'save': {'setup': '0.001416', 'task': '0.304692', 'idle': '97.275121', 'io': '0.301761'}, 'eval': {'task': '54.898705', 'evaluate': '52.389792', 'setup': '5.334408', 'histogram': '5.243467', 'decode': '46.520794', 'idle': '134.012181', 'evaluator_marshal': '1.461392', 'memcpy': '0.845152'}})]}}
-    peak_results = peak_benchmark('charade', frame_counts['charade'],
-                                  frame_wh['charade']['width'],
-                                  frame_wh['charade']['height'])
-    #standalone_graphs(standalone_results)
-    #peak_results = {'charade': {'caffe': [(-1, {})], 'flow': [(44.32, {'load': 0.0, 'total': 44.32, 'save': 0.0, 'eval': 42.45})], 'histogram': [(33.13, {'load': 0.0, 'total': 33.13, 'setup': 0.0, 'save': 0.0, 'eval': 6.08})]}}
-    comparison_graphs(frame_counts, standalone_results, scanner_results,
-                      peak_results)
+    frame_counts = {'charade': 163430,
+                    'fight': 200158,
+                    'excalibur': 202275
+    }
+    decode_sol(tests, frame_counts)
+
+    #kernel_sol(tests)
 
 
 def bench_main(args):
