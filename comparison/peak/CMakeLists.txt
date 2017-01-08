@@ -10,9 +10,13 @@ if(CUDA_FOUND AND OpenCV_FOUND)
     ${PROTO_SRCS}
     $<TARGET_OBJECTS:util>)
 
-  target_link_libraries(peak_comparison
+  target_link_libraries(peak_comparison PRIVATE
     "${LIBRARIES}"
     "${PUBLIC_LIBRARIES}"
     "${SCANNER_LIBRARIES}"
     "${PLATFORM_LINK_FLAGS}")
+
+  foreach(TARGET ${HALIDE_TARGETS})
+    halide_add_aot_library_dependency(peak_comparison ${TARGET})
+  endforeach()
 endif()
