@@ -359,7 +359,7 @@ void* load_thread(void* arg) {
                  row_sizes.size() * sizeof(i64), pos);
 
             // Determine start and end position of rows to read in file
-            u64 start_offset;
+            u64 start_offset = 0;
             for (i64 i = 0; i < item_start; ++i) {
               start_offset += row_sizes[i];
             }

@@ -44,6 +44,7 @@ DefaultInputEvaluator::DefaultInputEvaluator(
     net_input_width_ = -1;
     net_input_height_ = -1;
   }
+  halide_set_gpu_device(device_id);
 }
 
 void DefaultInputEvaluator::configure(const BatchConfig& config) {
@@ -61,6 +62,7 @@ void DefaultInputEvaluator::configure(const BatchConfig& config) {
 #ifdef HAVE_CUDA
     cv::cuda::setDevice(device_id_);
     cudaSetDevice(device_id_);
+    halide_set_gpu_device(device_id_);
 #else
   LOG(FATAL) << "Not built with Cuda support.";
 #endif

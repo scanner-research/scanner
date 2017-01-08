@@ -160,7 +160,7 @@ class JobResult(object):
         self._load_fn = load_fn
         self._storage = self._scanner.config.storage
         self._db_path = self._scanner.config.db_path
-        self._db = self._scanner._db
+        self._db = self._scanner.load_db_metadata()
 
         self._dataset = self._scanner._meta.DatasetDescriptor()
         self._dataset.ParseFromString(
@@ -316,7 +316,6 @@ class Scanner(object):
             '{}/build/scanner_server'.format(self.config.scanner_path))
         self._storage = self.config.storage
         self._db_path = self.config.db_path
-        self._db = self.load_db_metadata()
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
@@ -347,7 +346,7 @@ class Scanner(object):
             interval.end = end
 
             path = '{}/datasets/{}/jobs/{}/{}_{}_{}-{}.bin'.format(
-                self.config.db_path, dataset_name, job_name, str(i), column,
+                self._db_path, dataset_name, job_name, str(i), column,
                 start, end)
 
             with open(path, 'wb') as f:
@@ -359,7 +358,7 @@ class Scanner(object):
                 f.write(all_bytes)
 
         with open('{}/datasets/{}/jobs/{}/descriptor.bin'
-                  .format(self.config.db_path, dataset_name, job_name), 'wb') as f:
+                  .format(self._db_path, dataset_name, job_name), 'wb') as f:
             f.write(job.SerializeToString())
 
     def loader(self, column):
@@ -392,10 +391,11 @@ class Scanner(object):
         meta = self.dataset_metadata(dataset).video_data
         return {v: self.video_descriptor(dataset, v) for v in meta.video_names}
 
-    def ingest(self, dataset_name, video_paths, opts={}):
+    def ingest(self, typ, dataset_name, video_paths, opts={}):
         def gopt(k, default):
             return opts[k] if k in opts else default
         force = gopt('force', False)
+        db_path = gopt('db_path', None)
 
         # Write video paths to temp file
         fd, paths_file_name = tempfile.mkstemp()
@@ -407,14 +407,20 @@ class Scanner(object):
             f.flush()
 
         current_env = os.environ.copy()
-        cmd = ['mpirun',
-               '-n', str(1),
-               '--bind-to', 'none',
-               self._executable_path,
-               'ingest', dataset_name, paths_file_name]
+        cmd = [['mpirun',
+                '-n', str(1),
+                '--bind-to', 'none',
+                self._executable_path,
+                'ingest', typ, dataset_name, paths_file_name]]
 
+        def add_opt(name, opt):
+            if opt:
+                cmd[0] += ['--' + name, str(opt)]
         if force:
-            cmd.append('-f')
+            cmd[0].append('-f')
+        add_opt('db_path', db_path)
+
+        cmd = cmd[0]
 
         script_path = os.path.dirname(os.path.realpath(__file__))
         exec_path = os.path.join(script_path, '..')
@@ -449,6 +455,7 @@ class Scanner(object):
         tasks_in_queue_per_pu = gopt('tasks_in_queue_per_pu', None)
         load_workers_per_node = gopt('tasks_in_queue_per_pu', None)
         save_workers_per_node = gopt('save_workers_per_node', None)
+        db_path = gopt('db_path', None)
         custom_env = gopt('env', None)
 
         cmd = [['mpirun',
@@ -468,6 +475,7 @@ class Scanner(object):
         add_opt('tasks_in_queue_per_pu', tasks_in_queue_per_pu)
         add_opt('load_workers_per_node', load_workers_per_node)
         add_opt('save_workers_per_node', save_workers_per_node)
+        add_opt('db_path', db_path)
         current_env = os.environ.copy()
         if custom_env:
             for k, v in custom_env.iteritems():

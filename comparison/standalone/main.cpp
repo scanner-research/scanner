@@ -16,11 +16,6 @@
 #include "scanner/util/queue.h"
 #include "scanner/util/util.h"
 
-//#define USE_OFDIS
-#ifdef USE_OFDIS
-#include "oflow.h"
-#endif
-
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
@@ -278,6 +273,7 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 }
 
 void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double setup_time = 0;
   double load_time = 0;
   double eval_time = 0;
   double save_time = 0;
@@ -293,6 +289,7 @@ void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       break;
     }
 
+    auto setup_start = scanner::now();
     const std::string& path = PATHS[work_item_index];
     // Read meta file to determine number of
     std::ifstream meta_file(meta_path(path));
@@ -317,11 +314,13 @@ void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     }
     cvc::GpuMat output_flow_gpu(height, width, CV_32FC2);
     cv::Mat output_flow(height, width, CV_32FC2);
-    cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::OpticalFlowDual_TVL1::create();
+    cv::Ptr<cvc::DenseOpticalFlow> flow =
+      cvc::FarnebackOpticalFlow::create();
 
     std::ofstream outfile(output_path(work_item_index),
                           std::fstream::binary | std::fstream::trunc);
     assert(outfile.good());
+    setup_time += scanner::nano_since(setup_start);
 
     // Load the first frame
     assert(num_images > 0);
@@ -355,12 +354,14 @@ void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       save_time += scanner::nano_since(save_start);
     }
   }
+  TIMINGS["setup"] = setup_time;
   TIMINGS["load"] = load_time;
   TIMINGS["eval"] = eval_time;
   TIMINGS["save"] = save_time;
 }
 
 void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
+  double setup_time = 0;
   double load_time = 0;
   double eval_time = 0;
   double save_time = 0;
@@ -376,6 +377,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       break;
     }
 
+    auto startup_start = scanner::now();
     const std::string& path = PATHS[work_item_index];
     int64_t num_frames;
     {
@@ -402,11 +404,13 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     }
     cvc::GpuMat output_flow_gpu(height, width, CV_32FC2);
     cv::Mat output_flow(height, width, CV_32FC2);
-    cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::OpticalFlowDual_TVL1::create();
+    cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::FarnebackOpticalFlow::create();
 
     std::ofstream outfile(output_path(work_item_index),
                           std::fstream::binary | std::fstream::trunc);
     assert(outfile.good());
+
+    setup_time = scanner::nano_since(startup_start);
 
     // Load the first frame
     auto load_first = scanner::now();
@@ -445,6 +449,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       save_time += scanner::nano_since(save_start);
     }
   }
+  TIMINGS["setup"] = setup_time;
   TIMINGS["load"] = load_time;
   TIMINGS["eval"] = eval_time;
   TIMINGS["save"] = save_time;
@@ -790,6 +795,6 @@ int main(int argc, char** argv) {
     workers[gpu].join();
   }
   for (auto& kv : TIMINGS) {
-    printf("TIMING: %s,%.2f\n", kv.first.c_str(), kv.second / 1000000);
+    printf("TIMING: %s,%.2f\n", kv.first.c_str(), kv.second / 1000000000.0);
   }
 }

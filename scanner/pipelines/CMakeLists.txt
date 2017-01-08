@@ -90,5 +90,15 @@ if (BUILD_VIDEO_EVALUATORS AND BUILD_MOVIE_ANALYSIS_EVALUATORS)
     histogram_pipeline.cpp)
 endif()
 
+if (BUILD_VIDEO_EVALUATORS AND
+    BUILD_MOVIE_ANALYSIS_EVALUATORS AND
+    BUILD_CAFFE_EVALUATORS AND
+    BUILD_CAFFE_INPUT_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    benchmarks/flow_benchmark.cpp
+    benchmarks/histogram_benchmark.cpp
+    benchmarks/caffe_benchmark.cpp)
+endif()
+
 add_library(pipelines OBJECT
   ${SOURCE_FILES})

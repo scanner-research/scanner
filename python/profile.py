@@ -56,7 +56,9 @@ def run_trial(dataset_name, pipeline_name, out_job_name, opts={}):
     # Clear cache
     clear_filesystem_cache()
     config_path = opts['config_path'] if 'config_path' in opts else None
+    db_path = opts['db_path'] if 'db_path' in opts else None
     db = scanner.Scanner(config_path=config_path)
+    db._db_path = db_path
     result, t = db.run(dataset_name, pipeline_name, out_job_name, opts)
     profiler_output = {}
     if result:
@@ -67,7 +69,7 @@ def run_trial(dataset_name, pipeline_name, out_job_name, opts={}):
         t /= float(1e9)  # ns to s
     else:
         print('Trial FAILED after {:.3f}s'.format(t))
-        # elapsed = -1
+        t = -1
     return t, profiler_output
 
 
@@ -260,6 +262,7 @@ def get_trial_total_io_read(result):
             total_io += counters['io_read'] if 'io_read' in counters else 0
     return total_io
 
+
 def video_encoding_benchmark():
     input_video = '/bigdata/wcrichto/videos/charade_short.mkv'
     num_frames = 2878 # TODO(wcrichto): automate this
@@ -361,6 +364,7 @@ def run_cmd(template, settings):
     if os.system(cmd) != 0:
         print('Bad command: {}'.format(cmd))
         exit()
+
 
 def image_video_decode_benchmark():
     input_video = '/bigdata/wcrichto/videos/charade_short.mkv'
@@ -586,7 +590,7 @@ def storage_benchmark():
     print(json.dumps(all_sizes))
 
 
-def standalone_benchmark():
+def standalone_benchmark(tests):
     output_dir = '/tmp/standalone'
     paths_file = os.path.join(output_dir, 'paths.txt')
 
@@ -610,7 +614,7 @@ def standalone_benchmark():
             for p in paths[1:]:
                 f.write('\n' + p)
 
-    def run_standalone_trial(input_type, paths_file, operation, frames):
+    def run_standalone_trial(input_type, paths_file, operation):
         print('Running standalone trial: {}, {}, {}'.format(
             input_type,
             paths_file,
@@ -638,17 +642,8 @@ def standalone_benchmark():
                 if line.startswith('TIMING: '):
                     k, s, v = line[len('TIMING: '):].partition(",")
                     timings[k] = float(v)
-        return elapsed, frames, timings
+        return elapsed, timings
 
-    tests = {
-        #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        'charade': ['/n/scanner/wcrichto.new/videos/charade_short.mkv'],
-        #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
-        # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-    }
     operations = ['histogram', 'flow', 'caffe']
 
     bmp_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.bmp"
@@ -660,30 +655,28 @@ def standalone_benchmark():
         for op in operations:
             all_results[test_name][op] = []
 
-        frames = 0
         # # bmp
-        os.system('rm -rf {}'.format(output_dir))
-        os.system('mkdir {}'.format(output_dir))
-        run_paths = []
-        for p in paths:
-            base = os.path.basename(p)
-            run_path = os.path.join(output_dir, base)
-            os.system('mkdir -p {}'.format(run_path))
-            run_cmd(bmp_template, {
-                'input': p,
-                'output': run_path
-            })
-            meta = read_meta(run_path)
-            write_meta_file(run_path, meta)
-            run_paths.append(run_path)
-            frames += meta['num_images']
-        write_paths(run_paths)
+        # os.system('rm -rf {}'.format(output_dir))
+        # os.system('mkdir {}'.format(output_dir))
+        # run_paths = []
+        # for p in paths:
+        #     base = os.path.basename(p)
+        #     run_path = os.path.join(output_dir, base)
+        #     os.system('mkdir -p {}'.format(run_path))
+        #     run_cmd(bmp_template, {
+        #         'input': p,
+        #         'output': run_path
+        #     })
+        #     meta = read_meta(run_path)
+        #     write_meta_file(run_path, meta)
+        #     run_paths.append(run_path)
+        # write_paths(run_paths)
 
-        for op in operations:
-            all_results[test_name][op].append(
-                run_standalone_trial('bmp', paths_file, op, frames))
+        # for op in operations:
+        #     all_results[test_name][op].append(
+        #         run_standalone_trial('bmp', paths_file, op))
 
-        # # jpg
+        # # # jpg
         # os.system('rm -rf {}'.format(output_dir))
         # os.system('mkdir {}'.format(output_dir))
         # run_paths = []
@@ -702,7 +695,7 @@ def standalone_benchmark():
 
         # for op in operations:
         #     all_results[test_name][op].append(
-        #         run_standalone_trial('jpg', paths_file, op, frames))
+        #         run_standalone_trial('jpg', paths_file, op))
 
         # video
         os.system('rm -rf {}'.format(output_dir))
@@ -717,42 +710,176 @@ def standalone_benchmark():
 
         for op in operations:
             all_results[test_name][op].append(
-                run_standalone_trial('mp4', paths_file, op, frames))
+                run_standalone_trial('mp4', paths_file, op))
 
     print(all_results)
     return all_results
 
 
-def standalone_graphs(results):
+def scanner_benchmark(tests):
+    db_dir = '/tmp/scanner_db'
+
+    db = scanner.Scanner()
+    db._db_path = db_dir
+    scanner_settings = {
+        'db_path': db_dir,
+        'node_count': 1,
+        'pus_per_node': 1,
+        'io_item_size': 256,
+        'work_item_size': 64,
+        'tasks_in_queue_per_pu': 3,
+        'force': True,
+        'env': {}
+    }
+    dataset_name = 'test'
+    raw_job = 'raw_job'
+    jpg_job = 'jpg_job'
+    video_job = 'base'
+
+    operations = [('histogram', 'histogram_benchmark'),
+                  ('flow', 'flow_benchmark'),
+                  ('caffe', 'caffe_benchmark')]
+
+    all_results = {}
+    for test_name, paths in tests.iteritems():
+        all_results[test_name] = {}
+        for op, _ in operations:
+            all_results[test_name][op] = []
+
+        os.system('rm -rf {}'.format(db_dir))
+        # ingest data
+        result, _ = db.ingest('video', dataset_name, paths, scanner_settings)
+        assert(result)
+
+        # pre process data into exploded raw and jpeg
+        # scanner_settings['env']['SC_ENCODING'] = 'RAW'
+        # result, _ = db.run(dataset_name, 'kaboom', raw_job, scanner_settings)
+        # assert(result)
+
+        # scanner_settings['env']['SC_ENCODING'] = 'JPEG'
+        # result, _ = db.run(dataset_name, 'kaboom', jpg_job, scanner_settings)
+        # assert(result)
+
+        # raw
+        # scanner_settings['env']['SC_JOB_NAME'] = raw_job
+        # for op, pipeline in operations:
+        #     total, prof = run_trial(dataset_name, pipeline, 'dummy',
+        #                           scanner_settings)
+        #     stats = generate_statistics(prof)
+        #     all_results[test_name][op].append((total, stats))
+
+        # # jpeg
+        # scanner_settings['env']['SC_JOB_NAME'] = jpg_job
+        # for op, pipeline in operations:
+        #     total, prof = run_trial(dataset_name, pipeline, 'dummy',
+        #                             scanner_settings)
+        #     stats = generate_statistics(prof)
+        #     all_results[test_name][op].append((total, stats))
+
+        # video
+        scanner_settings['env']['SC_JOB_NAME'] = video_job
+        for op, pipeline in operations:
+            total, prof = run_trial(dataset_name, pipeline, op,
+                                    scanner_settings)
+            stats = generate_statistics(prof)
+            all_results[test_name][op].append((total, stats))
+
+    print(all_results)
+    return all_results
+
+
+def standalone_graphs(frame_counts, results):
     plt.clf()
     plt.title("Standalone perf on Charade")
     plt.ylabel("FPS")
     plt.xlabel("Pipeline")
 
+    colors = sns.color_palette()
+
     x = np.arange(3)
     labels = ['caffe', 'flow', 'histogram']
     plt.xticks(x, labels)
 
-    results = results['charade']
-    for test_name, tests in results:
+    test_name = 'charade'
+    tests = results[test_name]
+    #for test_name, tests in results.iteritems():
+    if 1:
         ys = []
-        for label in test_types:
+        for i in range(len(tests[labels[0]])):
             y = []
-            totals, frames, timings = tests[label]
-            if label == 'flow':
-                frames /= 20.0
-            for ms in totals:
-                y.append(frames / (ms / 1000.0))
+            for label in labels:
+                print(tests)
+                frames = frame_counts[test_name]
+                sec, timings = tests[label][i]
+                if label == 'flow':
+                    frames /= 20.0
+                print(label, frames, sec, frames / sec)
+                y.append(frames / sec)
             ys.append(y)
 
+        print(ys)
         for (i, y) in enumerate(ys):
             xx = x+(i*0.3)
             plt.bar(xx, y, 0.3, align='center', color=colors[i])
             for xy in zip(xx, y):
-                plt.annotate(xy[1], xy=xy)
+                plt.annotate("{:.2f}".format(xy[1]), xy=xy)
+                print(xy)
         plt.legend(['BMP', 'JPG', 'Video'], loc='upper left')
         plt.tight_layout()
         plt.savefig('standalone_' + test_name + '.png', dpi=150)
+
+
+def comparison_graphs(frame_counts, standalone_results, scanner_results):
+    plt.clf()
+    plt.title("Microbenchmarks on 1920x1080 video")
+    plt.ylabel("FPS")
+    plt.xlabel("Pipeline")
+
+    colors = sns.color_palette()
+
+    x = np.arange(3)
+    labels = ['caffe', 'flow', 'histogram']
+    plt.xticks(x, labels)
+
+    test_name = 'charade'
+    standalone_tests = standalone_results[test_name]
+    scanner_tests = scanner_results[test_name]
+    #for test_name, tests in results.iteritems():
+    if 1:
+        ys = []
+
+        standalone_y = []
+        scanner_y = []
+        for label in labels:
+            frames = frame_counts[test_name]
+            if label == 'flow':
+                frames /= 20.0
+            sec, timings = standalone_tests[label][0]
+            if sec == -1:
+                standalone_y.append(0)
+            else:
+                standalone_y.append(frames / sec)
+
+            sec, timings = scanner_tests[label][0]
+            if sec == -1:
+                scanner_y.append(0)
+            else:
+                scanner_y.append(frames / sec)
+
+        ys.append(standalone_y)
+        ys.append(scanner_y)
+
+        print(ys)
+        for (i, y) in enumerate(ys):
+            xx = x+(i*0.3)
+            plt.bar(xx, y, 0.3, align='center', color=colors[i])
+            for xy in zip(xx, y):
+                plt.annotate("{:.2f}".format(xy[1]), xy=xy)
+                print(xy)
+        plt.legend(['Non-expert', 'Scanner', 'Hand-authored'],
+                   loc='upper left')
+        plt.tight_layout()
+        plt.savefig('comparison_' + test_name + '.png', dpi=150)
 
 
 def effective_io_rate_benchmark():
@@ -793,6 +920,7 @@ def effective_io_rate_benchmark():
     print('Effective IO Rate Trials')
     print(output_csv)
 
+
 def get_trial_total_decoded_frames(result):
     total_time, profilers = result
 
@@ -807,6 +935,7 @@ def get_trial_total_decoded_frames(result):
             total_effective_frames += (
                 c['effective_frames'] if 'effective_frames' in c else 0)
     return total_decoded_frames, total_effective_frames
+
 
 def effective_decode_rate_benchmark():
     dataset_name = 'anewhope'
@@ -890,67 +1019,6 @@ def dnn_rate_benchmark():
                            rows)
     print('DNN Rate Trials')
     print(out_csv)
-
-
-def opencv_reference_trials():
-    trial_settings = [{'video_file': 'kcam_videos_small.txt',
-                       'gpus_per_node': gpus,
-                       'batch_size': 64}
-                      for gpus in [1, 2, 4, 8]]
-    times = []
-    for settings in trial_settings:
-        t = run_opencv_trial(**settings)
-        times.append(t)
-
-    print_opencv_trial_times(
-        'OpenCV reference trials',
-        trial_settings,
-        times)
-
-
-def single_node_scaling_trials():
-    trial_settings = [{'job_name': 'single_node_scaling_trial',
-                       'dataset_name': 'kcam_30',
-                       'net_descriptor_file': 'features/alex_net.toml',
-                       'node_count': 1,
-                       'gpus_per_node': gpus,
-                       'batch_size': 256,
-                       'batches_per_work_item': 4,
-                       'tasks_in_queue_per_gpu': 4,
-                       'load_worker_per_node': workers}
-                      for gpus, workers in zip([1, 2, 4, 8], [1, 2, 4, 8])]
-    times = []
-    for settings in trial_settings:
-        t = run_trial(**settings)
-        times.append(t)
-
-    print_trial_times(
-        'Single-node scaling trials',
-        trial_settings,
-        times)
-
-
-def multi_node_scaling_trials():
-    trial_settings = [{'job_name': 'multi_node_scaling_trial',
-                       'dataset_name': 'kcam_all',
-                       'net_descriptor_file': 'features/alex_net.toml',
-                       'node_count': nodes,
-                       'gpus_per_node': gpus,
-                       'batch_size': 256,
-                       'batches_per_work_item': 4,
-                       'tasks_in_queue_per_gpu': 4,
-                       'load_workers_per_node': workers}
-                      for nodes in [1, 2, 4]
-                      for gpus, workers in zip([4, 8], [8, 16])]
-    times = []
-    for settings in trial_settings:
-        t = run_trial(**settings)
-        times.append(t)
-
-    print_trial_times(
-        'Multi-node scaling trials',
-        trial_settings,
-        times)
 
 
 nets = [
@@ -1125,14 +1193,34 @@ def graph_decode_rate_benchmark(path):
     plt.savefig('decode_rate_intel.png', dpi=150)
 
 
+def micro_comparison_driver():
+    tests = {
+        #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
+        'charade': ['/n/scanner/apoms/videos/charade_medium.mkv'],
+        #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+        #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
+        # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
+        # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+        # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
+    }
+    frame_counts = {'charade': 21579}
+    standalone_results = standalone_benchmark(tests)
+    print(standalone_results)
+    standalone_results = {'charade': {'caffe': [(148.1546459197998, {'load': 96.35, 'net': 16.31, 'save': 0.06, 'transform': 24.28, 'eval': 40.58})], 'flow': [(234.77257895469666, {'load': 0.24, 'setup': 0.19, 'save': 15.37, 'eval': 40.99})], 'histogram': [(42.13741683959961, {'load': 25.7, 'setup': 0.15, 'save': 0.04, 'eval': 6.67})]}}
+    #standalone_results = {'charade': {'caffe': [(76.31734204292297, {'load': 47101.1, 'net': 7565.63, 'save': 28.68, 'transform': 12419.58, 'eval': 19985.57})], 'flow': [(112.57583904266357, {'load': 136.91, 'setup': 192.12, 'save': 6010.22, 'eval': 19057.95})], 'histogram': [(22.20790386199951, {'load': 11844.44, 'setup': 150.87, 'save': 19.54, 'eval': 3165.65})]}}
+    #scanner_results = scanner_benchmark(tests)
+    scanner_results = {'charade': {'caffe': [(93.451617786, {'load': {'setup': '0.000009', 'task': '24.945926', 'idle': '247.417962', 'io': '24.928408'}, 'save': {'setup': '0.000008', 'task': '0.541265', 'idle': '185.607273', 'io': '0.538287'}, 'eval': {'task': '130.644244', 'evaluate': '123.318425', 'setup': '38.457329', 'evaluator_marshal': '1.812350', 'decode': '79.806572', 'idle': '201.898069', 'caffe:net': '14.832060', 'caffe:transform_input': '28.365365', 'memcpy': '1.143933'}})], 'flow': [(51.119019301, {'load': {'setup': '0.000007', 'task': '0.463885', 'idle': '43.970452', 'io': '0.413162'}, 'save': {'setup': '0.000003', 'task': '20.574623', 'idle': '80.918500', 'io': '20.574152'}, 'eval': {'task': '52.551383', 'evaluate': '51.722559', 'setup': '2.331639', 'evaluator_marshal': '0.144466', 'decode': '4.728092', 'idle': '99.795180', 'memcpy': '0.058712', 'flowcalc': '42.591227'}})], 'histogram': [(48.951459601, {'load': {'setup': '0.000120', 'task': '1.277663', 'idle': '140.050975', 'io': '1.256591'}, 'save': {'setup': '0.001416', 'task': '0.304692', 'idle': '97.275121', 'io': '0.301761'}, 'eval': {'task': '54.898705', 'evaluate': '52.389792', 'setup': '5.334408', 'histogram': '5.243467', 'decode': '46.520794', 'idle': '134.012181', 'evaluator_marshal': '1.461392', 'memcpy': '0.845152'}})]}}
+    #standalone_graphs(standalone_results)
+    comparison_graphs(frame_counts, standalone_results, scanner_results)
+
+
 def bench_main(args):
     out_dir = args.output_directory
     #effective_io_rate_benchmark()
     #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
     #storage_benchmark()
-    results = standalone_benchmark()
-    standalone_graphs(results)
+    micro_comparison_driver()
 
 
 
@@ -1144,6 +1232,7 @@ def trace_main(args):
     dataset = args.dataset
     job = args.job
     db = scanner.Scanner()
+    db._db_path = '/tmp/scanner_db'
     profilers = db.parse_profiler_files(dataset, job)
     pprint(generate_statistics(profilers))
     write_trace_file(profilers, dataset, job)

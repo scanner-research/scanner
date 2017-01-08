@@ -153,6 +153,9 @@ int main(int argc, char** argv) {
         "System configuration (# pus, batch, etc) in toml format. "
         "Explicit command line options will override file settings.")(
 
+        "db_path", po::value<std::string>(),
+        "Path to the persistent database.")(
+
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
 
         "io_item_size", po::value<int>(),
