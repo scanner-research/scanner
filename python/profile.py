@@ -36,6 +36,9 @@ OPENCV_PROGRAM_PATH = os.path.join(
 STANDALONE_PROGRAM_PATH = os.path.join(
     SCRIPT_DIR, '../build/comparison/standalone/standalone_comparison')
 
+PEAK_PROGRAM_PATH = os.path.join(
+    SCRIPT_DIR, '../build/comparison/peak/peak_comparison')
+
 DEVNULL = open(os.devnull, 'wb', 0)
 
 TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
@@ -840,6 +843,61 @@ def scanner_benchmark(tests):
     return all_results
 
 
+def peak_benchmark(test, frame_count, width, height):
+    input_video = '/tmp/scanner_db/datasets/test/data/0_data.bin'
+
+    def run_peak_trial(frames, op):
+        print('Running peak trial: {}'.format(op))
+        clear_filesystem_cache()
+        current_env = os.environ.copy()
+        start = time.time()
+        p = subprocess.Popen([
+            PEAK_PROGRAM_PATH,
+            '--video_path', input_video,
+            '--frames', str(frames),
+            '--width', str(width),
+            '--height', str(height),
+            '--operation', op
+        ], env=current_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        so, se = p.communicate()
+        rc = p.returncode
+        elapsed = time.time() - start
+        timings = {}
+        if rc != 0:
+            print('Trial FAILED after {:.3f}s'.format(elapsed))
+            print(so)
+            elapsed = -1
+        else:
+            print('Trial succeeded, took {:.3f}s'.format(elapsed))
+            for line in so.splitlines():
+                if line.startswith('TIMING: '):
+                    k, s, v = line[len('TIMING: '):].partition(",")
+                    timings[k] = float(v)
+            elapsed = timings['total']
+        return elapsed, timings
+
+    operations = ['histogram', 'flow', 'caffe']
+
+    all_results = {}
+    #for test_name, paths in tests.iteritems():
+    test_name = test
+    if 1:
+        all_results[test_name] = {}
+        for op in operations:
+            all_results[test_name][op] = []
+
+        # video
+        for op in operations:
+            frames = frame_count
+            if op == 'flow':
+                frames /= 20
+            all_results[test_name][op].append(
+                run_peak_trial(frames, op))
+
+    print(all_results)
+    return all_results
+
+
 def standalone_graphs(frame_counts, results):
     plt.clf()
     plt.title("Standalone perf on Charade")
@@ -881,7 +939,8 @@ def standalone_graphs(frame_counts, results):
         plt.savefig('standalone_' + test_name + '.png', dpi=150)
 
 
-def comparison_graphs(frame_counts, standalone_results, scanner_results):
+def comparison_graphs(frame_counts, standalone_results, scanner_results,
+                      peak_results):
     plt.clf()
     plt.title("Microbenchmarks on 1920x1080 video")
     plt.ylabel("FPS")
@@ -896,12 +955,14 @@ def comparison_graphs(frame_counts, standalone_results, scanner_results):
     test_name = 'charade'
     standalone_tests = standalone_results[test_name]
     scanner_tests = scanner_results[test_name]
+    peak_tests = peak_results[test_name]
     #for test_name, tests in results.iteritems():
     if 1:
         ys = []
 
         standalone_y = []
         scanner_y = []
+        peak_y = []
         for label in labels:
             frames = frame_counts[test_name]
             if label == 'flow':
@@ -918,16 +979,24 @@ def comparison_graphs(frame_counts, standalone_results, scanner_results):
             else:
                 scanner_y.append(frames / sec)
 
+            sec, timings = peak_tests[label][0]
+            if sec == -1:
+                peak_y.append(0)
+            else:
+                peak_y.append(frames / sec)
+
         ys.append(standalone_y)
         ys.append(scanner_y)
+        ys.append(peak_y)
 
         print(ys)
         for (i, y) in enumerate(ys):
             xx = x+(i*0.3)
             plt.bar(xx, y, 0.3, align='center', color=colors[i])
             for xy in zip(xx, y):
-                plt.annotate("{:.2f}".format(xy[1]), xy=xy)
-                print(xy)
+                xp, yp = xy
+                xp -= 0.1
+                plt.annotate("{:.2f}".format(xy[1]), xy=(xp, yp))
         plt.legend(['Non-expert', 'Scanner', 'Hand-authored'],
                    loc='upper left')
         plt.tight_layout()
@@ -1256,14 +1325,19 @@ def micro_comparison_driver():
         # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
     }
     frame_counts = {'charade': 21579}
-    standalone_results = standalone_benchmark(tests)
-    print(standalone_results)
+    frame_wh = {'charade': {'width': 1920, 'height': 1080}}
+    #standalone_results = standalone_benchmark(tests)
     standalone_results = {'charade': {'caffe': [(148.1546459197998, {'load': 96.35, 'net': 16.31, 'save': 0.06, 'transform': 24.28, 'eval': 40.58})], 'flow': [(234.77257895469666, {'load': 0.24, 'setup': 0.19, 'save': 15.37, 'eval': 40.99})], 'histogram': [(42.13741683959961, {'load': 25.7, 'setup': 0.15, 'save': 0.04, 'eval': 6.67})]}}
     #standalone_results = {'charade': {'caffe': [(76.31734204292297, {'load': 47101.1, 'net': 7565.63, 'save': 28.68, 'transform': 12419.58, 'eval': 19985.57})], 'flow': [(112.57583904266357, {'load': 136.91, 'setup': 192.12, 'save': 6010.22, 'eval': 19057.95})], 'histogram': [(22.20790386199951, {'load': 11844.44, 'setup': 150.87, 'save': 19.54, 'eval': 3165.65})]}}
     #scanner_results = scanner_benchmark(tests)
     scanner_results = {'charade': {'caffe': [(93.451617786, {'load': {'setup': '0.000009', 'task': '24.945926', 'idle': '247.417962', 'io': '24.928408'}, 'save': {'setup': '0.000008', 'task': '0.541265', 'idle': '185.607273', 'io': '0.538287'}, 'eval': {'task': '130.644244', 'evaluate': '123.318425', 'setup': '38.457329', 'evaluator_marshal': '1.812350', 'decode': '79.806572', 'idle': '201.898069', 'caffe:net': '14.832060', 'caffe:transform_input': '28.365365', 'memcpy': '1.143933'}})], 'flow': [(51.119019301, {'load': {'setup': '0.000007', 'task': '0.463885', 'idle': '43.970452', 'io': '0.413162'}, 'save': {'setup': '0.000003', 'task': '20.574623', 'idle': '80.918500', 'io': '20.574152'}, 'eval': {'task': '52.551383', 'evaluate': '51.722559', 'setup': '2.331639', 'evaluator_marshal': '0.144466', 'decode': '4.728092', 'idle': '99.795180', 'memcpy': '0.058712', 'flowcalc': '42.591227'}})], 'histogram': [(48.951459601, {'load': {'setup': '0.000120', 'task': '1.277663', 'idle': '140.050975', 'io': '1.256591'}, 'save': {'setup': '0.001416', 'task': '0.304692', 'idle': '97.275121', 'io': '0.301761'}, 'eval': {'task': '54.898705', 'evaluate': '52.389792', 'setup': '5.334408', 'histogram': '5.243467', 'decode': '46.520794', 'idle': '134.012181', 'evaluator_marshal': '1.461392', 'memcpy': '0.845152'}})]}}
+    # peak_results = peak_benchmark('charade', frame_counts['charade'],
+    #                               frame_wh['charade']['width'],
+    #                               frame_wh['charade']['height'])
     #standalone_graphs(standalone_results)
-    comparison_graphs(frame_counts, standalone_results, scanner_results)
+    peak_results = {'charade': {'caffe': [(-1, {})], 'flow': [(44.32, {'load': 0.0, 'total': 44.32, 'save': 0.0, 'eval': 42.45})], 'histogram': [(33.13, {'load': 0.0, 'total': 33.13, 'setup': 0.0, 'save': 0.0, 'eval': 6.08})]}}
+    comparison_graphs(frame_counts, standalone_results, scanner_results,
+                      peak_results)
 
 
 def bench_main(args):
@@ -1276,7 +1350,6 @@ def bench_main(args):
     # results = standalone_benchmark()
     # standalone_graphs(results)
     multi_gpu_benchmark()
-
 
 
 def graphs_main(args):
