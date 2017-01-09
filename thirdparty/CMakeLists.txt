@@ -174,7 +174,7 @@ endif()
 if (NOT BITMAPCPP_FOUND)
   ExternalProject_Add(BitmapCpp
     GIT_REPOSITORY "https://github.com/scanner-research/bitmap-cpp"
-    GIT_TAG "7b2c32128245f2dbf70eefe4facd2d8e354084be"
+    GIT_TAG "a0500e717a01e79971cb470379e2c6f343395fa7"
 
     UPDATE_COMMAND ""
 

@@ -26,7 +26,7 @@ from multiprocessing import cpu_count
 import toml
 from PIL import Image
 import numpy as np
-
+from timeit import default_timer as now
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -419,11 +419,8 @@ def multi_gpu_benchmark():
             for gpus in num_gpus:
                 scanner_settings['node_count'] = gpus
                 print('Running {}, {} GPUS'.format(pipeline, gpus))
-                t, result = run_trial(dataset_name, pipeline,
-                                      'test', scanner_settings)
-                if result is False:
-                    print('Trial failed')
-                    exit()
+                t, _ = run_trial(dataset_name, pipeline,
+                                 'test', scanner_settings)
 
                 print(t, frames/float(t))
 
@@ -447,10 +444,11 @@ def multi_gpu_benchmark():
         plt.bar(xx, y, 0.3, align='center', color=colors[i])
         for (j, xy) in enumerate(zip(xx, y)):
             speedup = xy[1] / float(ys[0][j])
-            plt.annotate('{} ({:.2f}x)'.format(int(xy[1]), speedup), xy=xy, ha='center')
+            plt.annotate('{} ({:.1f}x)'.format(int(xy[1]), speedup), xy=xy, ha='center')
 
     plt.xticks(x+0.3, labels)
     plt.legend(['{} GPUs'.format(n) for n in num_gpus], loc='upper left')
+    plt.tight_layout()
 
     plt.savefig('multigpu.png', dpi=150)
 
@@ -460,6 +458,159 @@ def run_cmd(template, settings):
     if os.system(cmd) != 0:
         print('Bad command: {}'.format(cmd))
         exit()
+
+
+def multi_node_benchmark():
+    dataset_name = 'multi_node_benchmark'
+    spark_dir = '/users/wcrichto/spark-2.1.0-bin-hadoop2.7'
+    videos_dir = '/users/wcrichto/videos/movies'
+    videos = [
+        'meanGirls.mp4',
+        'anewhope.m4v',
+        'brazil.mkv',
+        'fightClub.mp4',
+        'excalibur.mp4'
+    ]
+
+    pipelines = [
+        'histogram_benchmark',
+        'caffe_benchmark'
+    ]
+
+    node_counts = [1, 2]
+    hosts = ','.join(['h{}.sparktest.blguest'.format(i) for i in range(node_counts[-1])])
+
+    db = scanner.Scanner()
+    scanner_settings = {
+        'force': True,
+        'work_item_size': 96,
+        'io_item_size': 96,
+        'hosts': hosts,
+        'env': {
+            'SC_JOB_NAME': 'base'
+        }
+    }
+
+    result, _ = db.ingest(
+        'video',
+        dataset_name,
+        ['{}/{}'.format(videos_dir, video) for video in videos],
+        {'force': True})
+    if result is False:
+        print('Failed to ingest')
+        exit()
+
+    run_spark = '{spark_dir}/run_sparkcaffe.sh {pipeline}'
+    split_video = """
+ffmpeg -i {videos_dir}/{input} -vcodec copy -acodec copy -segment_time 8 \
+  -f segment {videos_dir}/segments/{segment_dir}/segment%03d.mp4
+"""
+
+    total_frames = 0
+
+    os.system('rm -f {}/segments/*'.format(videos_dir))
+    for video in videos:
+        segment_dir = os.path.basename(video)
+        os.system('mkdir -p {}/segments/{}'.format(videos_dir, segment_dir))
+        run_cmd(split_video, {
+            'input': video,
+            'segment_dir': segment_dir,
+            'videos_dir': videos_dir
+        })
+        total_frames += count_frames('{}/{}'.format(videos_dir, video))
+
+    all_results = {}
+    for pipeline in pipelines:
+        all_results[pipeline] = {}
+        for node_count in node_counts:
+            all_results[pipeline][node_count] = {}
+            scanner_settings['node_count'] = node_count
+
+            t, _ = run_trial(dataset_name, pipeline, 'test', scanner_settings)
+            all_results[pipeline][node_count]['scanner'] = total_frames / t
+
+            start = now()
+            run_cmd(run_spark, {
+                'spark_dir': spark_dir,
+                'pipeline': pipeline
+            })
+            t = now() - start
+            all_results[pipeline][node_count]['spark'] = total_frames / t
+
+    pprint(all_results)
+
+    all_results = {
+        'caffe_benchmark': {1: {'scanner': 367.10523986874557,
+                                    'spark': 93.16820344357546},
+                                    2: {'scanner': 580.0510210459554,
+                                        'spark': 92.63622769092578}},
+            'histogram_benchmark': {1: {'scanner': 892.6191112787498,
+                                            'spark': 208.10595095583145},
+                                            2: {'scanner': 1472.5627571211041,
+                                        'spark': 221.37386863726317}}}
+
+
+    def bar_chart():
+        plt.title("Spark vs. Scanner on 2 nodes")
+        plt.xlabel("Pipeline")
+        plt.ylabel("FPS")
+
+        labels = pipelines
+        x = np.arange(len(labels))
+        ys = [[0, 0] for _ in range(len(labels))]
+
+        for (i, pipeline) in enumerate(pipelines):
+            values = all_results[pipeline]
+            for (j, n) in enumerate(values.values()):
+                ys[j][i] = n
+
+        width = 0.3
+        colors = sns.color_palette()
+        for (i, y) in enumerate(ys):
+            xx = x + (i*width)
+            plt.bar(xx, y, width, align='center', color=colors[i])
+            for (j, xy) in enumerate(zip(xx, y)):
+                speedup = xy[1] / float(ys[0][j])
+                plt.annotate('{} ({:.1f}x)'.format(int(xy[1]), speedup), xy=xy, ha='center')
+
+        plt.xticks(x+width/2, labels)
+        plt.legend(['Spark', 'Scanner'], loc='upper left')
+        plt.tight_layout()
+
+        plt.savefig('multinode.png', dpi=150)
+
+    def line_chart():
+        for pipeline in pipelines:
+            plt.clf()
+            plt.cla()
+            plt.close()
+
+            plt.title("Spark vs. Scanner")
+            plt.xlabel("Number of nodes")
+            plt.ylabel("FPS")
+            plt.xticks(node_counts)
+
+            x = node_counts
+            values = all_results[pipeline]
+            for method in ['spark', 'scanner']:
+                y = [values[n][method] for n in node_counts]
+                plt.plot(x, y)
+                for xy in zip(x,y):
+                    val = int(xy[1])
+                    speedup = xy[1] / values[n]['spark']
+                    if xy[0] == node_counts[0]:
+                        ha = 'left'
+                    elif xy[0] == node_counts[-1]:
+                        ha = 'right'
+                    else:
+                        ha = 'center'
+                    plt.annotate('{} ({:.1f}x)'.format(int(xy[1]), speedup), xy=xy, ha=ha)
+
+            plt.tight_layout()
+            plt.legend(['Spark', 'Scanner'], loc='upper left')
+            plt.savefig('multinode_{}.png'.format(pipeline), dpi=150)
+
+    line_chart()
 
 
 def image_video_decode_benchmark():
@@ -1576,9 +1727,10 @@ def bench_main(args):
     #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
     #storage_benchmark()
-    micro_comparison_driver()
+    #micro_comparison_driver()
     # results = standalone_benchmark()
     # standalone_graphs(results)
+    multi_node_benchmark()
 
 
 def graphs_main(args):

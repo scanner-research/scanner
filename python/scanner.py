@@ -450,6 +450,7 @@ class Scanner(object):
             return opts[k] if k in opts else default
         force = gopt('force', False)
         node_count = gopt('node_count', 1)
+        hosts = gopt('hosts', None)
         pus_per_node = gopt('pus_per_node', 1)
         io_item_size = gopt('io_item_size', None)
         work_item_size = gopt('work_item_size', None)
@@ -459,15 +460,24 @@ class Scanner(object):
         db_path = gopt('db_path', None)
         custom_env = gopt('env', None)
 
-        cmd = [['mpirun',
-                '-n', str(node_count),
-                '--bind-to', 'none',
-                self._executable_path,
-                'run', dataset_name, pipeline_name, out_job_name]]
+        cmd = [[
+            'mpirun',
+            '-n', str(node_count),
+            '--bind-to', 'none']]
 
         def add_opt(name, opt):
             if opt:
                 cmd[0] += ['--' + name, str(opt)]
+
+        add_opt('host', hosts)
+        if custom_env:
+            for k, v in custom_env.iteritems():
+                cmd[0] += ['-x', '{}={}'.format(k, v)]
+
+        cmd[0] += [
+            self._executable_path,
+            'run', dataset_name, pipeline_name, out_job_name]
+
         if force:
             cmd[0].append('-f')
         add_opt('pus_per_node', pus_per_node)
