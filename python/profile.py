@@ -368,33 +368,43 @@ ffmpeg -i {input} -vf scale={scale} -c:v libx264 -x264opts \
     pprint(all_results)
 
 
+def count_frames(video):
+    cmd = """
+    ffprobe -v error -count_frames -select_streams v:0 \
+          -show_entries stream=nb_read_frames \
+          -of default=nokey=1:noprint_wrappers=1 \
+           {}
+    """
+    return int(subprocess.check_output(cmd.format(video), shell=True))
+
+
 def multi_gpu_benchmark():
     dataset_name = 'multi_gpu'
 
     videos = [
-        ('/bigdata/wcrichto/videos/meanGirls_medium.mp4', 2878)
+        '/n/scanner/wcrichto.new/videos/meanGirls.mp4'
     ]
 
     pipelines = [
         'effective_decode_rate',
         'knn',
         'histogram',
-        #'opticalflow'
+        'opticalflow'
     ]
 
-    # num_gpus = [1, 2, 3, 4]
-    num_gpus = [1]
+    num_gpus = [1, 2, 4]
 
     db = scanner.Scanner()
     scanner_settings = {
         'force': True,
-        'node_count': 1,
-        'work_item_size': 96,
+        'work_item_size': 24,
         'io_item_size': 96
     }
 
     all_results = {}
-    for (video, frames) in videos:
+    for video in videos:
+        print('Counting {}'.format(video))
+        frames = count_frames(video)
         all_results[video] = {}
 
         print('Ingesting {}'.format(video))
@@ -407,7 +417,7 @@ def multi_gpu_benchmark():
             all_results[video][pipeline] = {}
 
             for gpus in num_gpus:
-                scanner_settings['pus_per_node'] = gpus
+                scanner_settings['node_count'] = gpus
                 print('Running {}, {} GPUS'.format(pipeline, gpus))
                 t, result = run_trial(dataset_name, pipeline,
                                       'test', scanner_settings)
@@ -415,9 +425,34 @@ def multi_gpu_benchmark():
                     print('Trial failed')
                     exit()
 
+                print(t, frames/float(t))
+
                 all_results[video][pipeline][gpus] = frames / float(t)
 
-    pprint(all_results)
+    plt.title("Multi-GPU scaling in Scanner")
+    plt.xlabel("Pipeline")
+    plt.ylabel("FPS")
+
+    labels = pipelines
+    x = np.arange(len(labels))
+    ys = [[0 for _ in range(len(num_gpus))] for _ in range(len(labels))]
+
+    for (i, values) in enumerate(all_results[videos[0]].values()):
+        for (j, n) in enumerate(values.values()):
+            ys[j][i] = n
+
+    colors = sns.color_palette()
+    for (i, y) in enumerate(ys):
+        xx = x + (i*0.3)
+        plt.bar(xx, y, 0.3, align='center', color=colors[i])
+        for (j, xy) in enumerate(zip(xx, y)):
+            speedup = xy[1] / float(ys[0][j])
+            plt.annotate('{} ({:.2f}x)'.format(int(xy[1]), speedup), xy=xy, ha='center')
+
+    plt.xticks(x+0.3, labels)
+    plt.legend(['{} GPUs'.format(n) for n in num_gpus], loc='upper left')
+
+    plt.savefig('multigpu.png', dpi=150)
 
 
 def run_cmd(template, settings):
