@@ -243,6 +243,7 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
     setup_time += scanner::nano_since(setup_start);
 
     auto start_time = scanner::now();
+    video = cv::cudacodec::createVideoReader(path);
     bool done = false;
     int64_t frame = 0;
     while (!done) {
@@ -269,6 +270,8 @@ void video_histogram_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       save_time += scanner::nano_since(save_start);
       frame++;
     }
+    outfile.close();
+    printf("frame count %d\n", frame);
     TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["setup"] = setup_time;
@@ -419,6 +422,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 
     // Load the first frame
     auto start_time = scanner::now();
+    video = cv::cudacodec::createVideoReader(path);
     auto load_first = scanner::now();
     if (!video->nextFrame(inputs[0])) {
       assert(false);
@@ -454,6 +458,7 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       }
       save_time += scanner::nano_since(save_start);
     }
+    outfile.close();
     TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["setup"] = setup_time;
@@ -598,6 +603,10 @@ void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net->blob_by_name(descriptor.input_layer_names[0])};
 
+  input_blob->Reshape({BATCH_SIZE, input_blob->shape(1), input_blob->shape(2),
+          input_blob->shape(3)});
+  net->Forward();
+
   // const boost::shared_ptr<caffe::Blob<float>> output_blob{
   //   net.blob_by_name(net_descriptor.output_layer_name)};
 
@@ -692,6 +701,7 @@ void video_caffe_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       frame += batch;
       save_time += scanner::nano_since(save_start);
     }
+    outfile.close();
     TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["load"] = load_time;

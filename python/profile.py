@@ -51,7 +51,7 @@ TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
 
 
 def clear_filesystem_cache():
-    os.system('sudo /sbin/sysctl vm.drop_caches=3')
+    os.system('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"')
 
 
 def run_trial(dataset_name, pipeline_name, out_job_name, opts={}):
@@ -839,6 +839,7 @@ def storage_benchmark():
 
 def standalone_benchmark(tests):
     output_dir = '/tmp/standalone'
+    test_output_dir = '/tmp/outputs'
     paths_file = os.path.join(output_dir, 'paths.txt')
 
     def read_meta(path):
@@ -946,17 +947,21 @@ def standalone_benchmark(tests):
         #         run_standalone_trial('jpg', paths_file, op))
 
         # video
-        os.system('rm -rf {}'.format(output_dir))
-        os.system('mkdir {}'.format(output_dir))
-        run_paths = []
-        for p in paths:
-            base = os.path.basename(p)
-            run_path = os.path.join(output_dir, base)
-            os.system('cp {} {}'.format(p, run_path))
-            run_paths.append(run_path)
-        write_paths(run_paths)
 
         for op in operations:
+            os.system('rm -rf {}'.format(output_dir))
+            os.system('mkdir {}'.format(output_dir))
+
+            run_paths = []
+            for p in paths:
+                base = os.path.basename(p)
+                run_path = os.path.join(output_dir, base)
+                os.system('cp {} {}'.format(p, run_path))
+                run_paths.append(run_path)
+            write_paths(run_paths)
+
+            os.system('rm -rf {}'.format(test_output_dir))
+            os.system('mkdir -p {}'.format(test_output_dir))
             all_results[test_name][op].append(
                 run_standalone_trial('mp4', paths_file, op))
 
@@ -964,7 +969,7 @@ def standalone_benchmark(tests):
     return all_results
 
 
-def scanner_benchmark(tests):
+def scanner_benchmark(tests, wh):
     db_dir = '/tmp/scanner_db'
 
     db = scanner.Scanner()
@@ -1027,6 +1032,19 @@ def scanner_benchmark(tests):
         # video
         scanner_settings['env']['SC_JOB_NAME'] = video_job
         for op, pipeline in operations:
+            if op == 'histogram':
+                if wh[test_name]['width'] == 640:
+                    scanner_settings['io_item_size'] = 2048
+                    scanner_settings['work_item_size'] = 1024
+                else:
+                    scanner_settings['io_item_size'] = 512
+                    scanner_settings['work_item_size'] = 128
+            elif op == 'flow':
+                scanner_settings['io_item_size'] = 256
+                scanner_settings['work_item_size'] = 64
+            elif op == 'caffe':
+                scanner_settings['io_item_size'] = 256
+                scanner_settings['work_item_size'] = 64
             total, prof = run_trial(dataset_name, pipeline, op,
                                     scanner_settings)
             stats = generate_statistics(prof)
@@ -1036,10 +1054,27 @@ def scanner_benchmark(tests):
     return all_results
 
 
-def peak_benchmark(test, frame_count, width, height):
+def peak_benchmark(tests, frame_counts, wh):
+    db_dir = '/tmp/scanner_db'
     input_video = '/tmp/scanner_db/datasets/test/data/0_data.bin'
+    test_output_dir = '/tmp/outputs'
 
-    def run_peak_trial(frames, op):
+    db = scanner.Scanner()
+    db._db_path = db_dir
+    scanner_settings = {
+        'db_path': db_dir,
+        'node_count': 1,
+        'pus_per_node': 1,
+        'io_item_size': 256,
+        'work_item_size': 64,
+        'tasks_in_queue_per_pu': 3,
+        'force': True,
+        'env': {}
+    }
+    dataset_name = 'test'
+    video_job = 'base'
+
+    def run_peak_trial(frames, op, width, height):
         print('Running peak trial: {}'.format(op))
         clear_filesystem_cache()
         current_env = os.environ.copy()
@@ -1072,20 +1107,26 @@ def peak_benchmark(test, frame_count, width, height):
     operations = ['histogram', 'flow', 'caffe']
 
     all_results = {}
-    #for test_name, paths in tests.iteritems():
-    test_name = test
-    if 1:
+    for test_name, paths in tests.iteritems():
         all_results[test_name] = {}
         for op in operations:
             all_results[test_name][op] = []
 
+        os.system('rm -rf {}'.format(db_dir))
+        # ingest data
+        result, _ = db.ingest('video', dataset_name, paths, scanner_settings)
+        assert(result)
+
         # video
         for op in operations:
-            frames = frame_count
+            os.system('rm -rf {}'.format(test_output_dir))
+            os.system('mkdir -p {}'.format(test_output_dir))
+            frames = frame_counts[test_name]
             if op == 'flow':
                 frames /= 20
             all_results[test_name][op].append(
-                run_peak_trial(frames, op))
+                run_peak_trial(frames, op, wh[test_name]['width'],
+                               wh[test_name]['height']))
 
     print(all_results)
     return all_results
@@ -1101,8 +1142,8 @@ def decode_sol(tests, frame_count):
         'db_path': db_dir,
         'node_count': 1,
         'pus_per_node': 1,
-        'io_item_size': 1024,
-        'work_item_size': 128,
+        'io_item_size': 8192,
+        'work_item_size': 4096,
         'tasks_in_queue_per_pu': 4,
         'force': True,
         'env': {}
@@ -1164,6 +1205,10 @@ def decode_sol(tests, frame_count):
         # ingest data
         result, _ = db.ingest('video', dataset_name, paths, scanner_settings)
         assert(result)
+
+        if test_name == 'mean':
+            scanner_settings['io_item_size'] = 8192
+            scanner_settings['work_item_size'] = 2048
 
         # Scanner decode
         total, prof = run_trial(dataset_name, decode_pipeline, 'test',
@@ -1297,17 +1342,20 @@ def standalone_graphs(frame_counts, results):
 
 
 def comparison_graphs(test_name,
-                      frame_counts, standalone_results, scanner_results,
+                      frame_counts, wh,
+                      standalone_results, scanner_results,
                       peak_results):
     plt.clf()
-    plt.title("Microbenchmarks on 1920x800 video")
+    plt.title("Microbenchmarks on {width}x{height} video".format(
+        width=wh[test_name]['width'],
+        height=wh[test_name]['height']))
     plt.ylabel("FPS")
     plt.xlabel("Pipeline")
 
     colors = sns.color_palette()
 
     x = np.arange(3)
-    labels = ['caffe', 'flow', 'histogram']
+    labels = ['histogram', 'caffe', 'flow']
     plt.xticks(x, labels)
 
     standalone_tests = standalone_results[test_name]
@@ -1355,7 +1403,7 @@ def comparison_graphs(test_name,
                 xp -= 0.1
                 plt.annotate("{:.2f}".format(xy[1]), xy=(xp, yp))
         plt.legend(['Non-expert', 'Scanner', 'Hand-authored'],
-                   loc='upper left')
+                   loc='upper right')
         plt.tight_layout()
         plt.savefig('comparison_' + test_name + '.png', dpi=150)
 
@@ -1673,34 +1721,28 @@ def graph_decode_rate_benchmark(path):
 
 def micro_comparison_driver():
     tests = {
-        #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        #'charade': ['/n/scanner/apoms/videos/charade_medium.mkv'],
-        #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
-        'fight': ['/n/scanner/apoms/videos/fightClub_50k.mp4'],
+        #'fight': ['/n/scanner/apoms/videos/fightClub_50k.mp4'],
         #'excalibur': ['/n/scanner/apoms/videos/excalibur_50k.mp4'],
+        'mean': ['/n/scanner/apoms/videos/meanGirls_50k.mp4'],
     }
     frame_counts = {'charade': 21579,
                     'fight': 50350,
-                    'excalibur': 50100}
+                    'excalibur': 50100,
+                    'mean': 50350,
+    }
     frame_wh = {'charade': {'width': 1920, 'height': 1080},
                 'fight': {'width': 1920, 'height': 800},
-                'excalibur': {'width': 1920, 'height': 1080}}
-    t = 'fight'
+                'excalibur': {'width': 1920, 'height': 1080},
+                'mean': {'width': 640, 'height': 480},
+    }
+    t = 'mean'
     # standalone_results = standalone_benchmark(tests)
-    # scanner_results = scanner_benchmark(tests)
-    # peak_results = peak_benchmark(t, frame_counts[t],
-    #                               frame_wh[t]['width'],
-    #                               frame_wh[t]['height'])
-    # print(standalone_results)
-    # print(scanner_results)
-    # print(peak_results)
-    standalone_results = {'fight': {'caffe': [(257.01, {'load': 162.09, 'save': 0.16, 'transform': 56.68, 'eval': 94.74, 'net': 38.06, 'total': 257.01})], 'flow': [(117.21, {'load': 1.27, 'total': 117.21, 'setup': 0.23, 'save': 55.43, 'eval': 60.51})], 'histogram': [(52.57, {'load': 38.76, 'total': 52.57, 'setup': 0.14, 'save': 0.09, 'eval': 13.7})]}}
-    scanner_results = {'fight': {'caffe': [(137.108575113, {'load': {'setup': '0.000395', 'task': '6.897367', 'idle': '397.431399', 'io': '6.863604'}, 'save': {'setup': '0.000009', 'task': '0.958859', 'idle': '269.800834', 'io': '0.953071'}, 'eval': {'task': '218.017667', 'evaluate': '204.490312', 'setup': '41.859860', 'evaluator_marshal': '2.993790', 'decode': '117.142565', 'idle': '280.694488', 'caffe:net': '34.965114', 'caffe:transform_input': '51.927390', 'memcpy': '2.930448'}})], 'flow': [(72.315366847, {'load': {'setup': '0.000043', 'task': '4.139968', 'idle': '137.844597', 'io': '4.114909'}, 'save': {'setup': '0.000006', 'task': '27.182298', 'idle': '111.433524', 'io': '27.181488'}, 'eval': {'task': '74.400841', 'evaluate': '73.954871', 'setup': '1.890981', 'evaluator_marshal': '0.203315', 'decode': '6.179634', 'idle': '171.577621', 'memcpy': '0.198606', 'flowcalc': '61.209670'}})], 'histogram': [(70.882922309, {'load': {'setup': '0.000010', 'task': '0.558809', 'idle': '207.476644', 'io': '0.522676'}, 'save': {'setup': '0.000007', 'task': '0.596554', 'idle': '140.104636', 'io': '0.591316'}, 'eval': {'task': '78.248330', 'evaluate': '76.713791', 'setup': '2.377652', 'histogram': '7.796299', 'decode': '68.908860', 'idle': '200.050535', 'evaluator_marshal': '1.168046', 'memcpy': '1.108454'}})]}}
-    peak_results = {'fight': {'caffe': [(93.15, {'load': 0.0, 'save': 0.03, 'transform': 59.08, 'eval': 92.86, 'net': 33.78, 'total': 93.15})], 'flow': [(66.06, {'load': 0.0, 'total': 66.06, 'save': 0.0, 'eval': 65.92})], 'histogram': [(52.17, {'load': 0.0, 'total': 52.17, 'setup': 0.0, 'save': 0.0, 'eval': 12.71})]}}
-    comparison_graphs(t, frame_counts, standalone_results, scanner_results,
-                      peak_results)
+    # scanner_results = scanner_benchmark(tests, frame_wh)
+    # peak_results = peak_benchmark(tests, frame_counts, frame_wh)
+    # comparison_graphs(t, frame_counts, frame_wh, standalone_results,
+    #                   scanner_results, peak_results)
 
+    #decode_sol(tests, frame_counts)
     tests = {
         #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
         #'charade': ['/n/scanner/wcrichto.new/videos/charade.mkv'],
@@ -1709,16 +1751,17 @@ def micro_comparison_driver():
         # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
         # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
         # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        'fight': ['/n/scanner/wcrichto.new/videos/movies/fightClub.mp4'],
+        #'fight': ['/n/scanner/wcrichto.new/videos/movies/fightClub.mp4'],
         #'excalibur': ['/n/scanner/wrichto.new/videos/movies/excalibur.mp4'],
+        'mean': ['/n/scanner/wcrichto.new/videos/movies/meanGirls.mp4'],
     }
     frame_counts = {'charade': 163430,
                     'fight': 200158,
-                    'excalibur': 202275
+                    'excalibur': 202275,
+                    'mean': 139301
     }
     decode_sol(tests, frame_counts)
-
-    #kernel_sol(tests)
+    kernel_sol(tests)
 
 
 def bench_main(args):
@@ -1741,7 +1784,7 @@ def trace_main(args):
     dataset = args.dataset
     job = args.job
     db = scanner.Scanner()
-    #db._db_path = '/tmp/scanner_db'
+    db._db_path = '/tmp/scanner_db'
     profilers = db.parse_profiler_files(dataset, job)
     pprint(generate_statistics(profilers))
     write_trace_file(profilers, dataset, job)

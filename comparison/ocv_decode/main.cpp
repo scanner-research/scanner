@@ -53,8 +53,9 @@ void cpu_decode() {
   int width = (int)video.get(CV_CAP_PROP_FRAME_WIDTH);
   int height = (int)video.get(CV_CAP_PROP_FRAME_HEIGHT);
   assert(width != 0 && height != 0);
-
   cv::Mat input(height, width, CV_8UC3);
+  sleep(5);
+
   auto total_start = scanner::now();
   int64_t frame = 0;
   while (true) {
@@ -79,9 +80,11 @@ void gpu_decode() {
   int width = video->format().width;
   int height = video->format().height;
   assert(width != 0 && height != 0);
-
   cvc::GpuMat image(height, width, CV_8UC4);
+
+  sleep(5);
   auto total_start = scanner::now();
+  video = cv::cudacodec::createVideoReader(path);
   int64_t frame = 0;
   while (true) {
     bool valid_frame = video->nextFrame(image);
@@ -91,7 +94,9 @@ void gpu_decode() {
     assert(image.data != nullptr);
     frame++;
   }
+  TIMINGS["frames"] = frame * 1000000000;
   TIMINGS["total"] = scanner::nano_since(total_start);
+  TIMINGS["fps"] = (frame / (TIMINGS["total"] / 1000000000)) * 1000000000;
 }
 
 int main(int argc, char** argv) {

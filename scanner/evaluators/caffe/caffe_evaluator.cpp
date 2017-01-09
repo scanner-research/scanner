@@ -46,6 +46,12 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
   // Initialize our network
   net_.reset(new caffe::Net<float>(descriptor_.model_path, caffe::TEST));
   net_->CopyTrainedLayersFrom(descriptor_.model_weights_path);
+  // Initialize memory
+  const boost::shared_ptr<caffe::Blob<float>> input_blob{
+      net_->blob_by_name(descriptor_.input_layer_names[0])};
+  input_blob->Reshape({batch_size_, input_blob->shape(1), input_blob->shape(2),
+                       input_blob->shape(3)});
+  net_->Forward();
 }
 
 void CaffeEvaluator::configure(const BatchConfig& config) {

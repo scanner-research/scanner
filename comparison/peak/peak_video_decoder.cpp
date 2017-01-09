@@ -21,6 +21,7 @@
 #include "storehouse/storage_backend.h"
 
 #include <cassert>
+#include <unistd.h>
 
 #include <cuda.h>
 #include <nvcuvid.h>
@@ -32,25 +33,24 @@ PeakVideoDecoder::PeakVideoDecoder(int device_id, DeviceType output_type,
     : device_id_(device_id),
       output_type_(output_type),
       cuda_context_(cuda_context),
-      max_output_frames_(32),
-      max_mapped_frames_(8),
       streams_(max_mapped_frames_),
       parser_(nullptr),
       decoder_(nullptr),
-      frame_in_use_(max_output_frames_),
-      mapped_frames_(max_mapped_frames_, 0),
-      last_displayed_frame_(-1),
-      undisplayed_frames_(max_output_frames_, false),
-      invalid_frames_(max_output_frames_, false) {
+      frame_queue_read_pos_(0),
+      frame_queue_elements_(0),
+      last_displayed_frame_(-1) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   for (int i = 0; i < max_mapped_frames_; ++i) {
     cudaStreamCreate(&streams_[i]);
+    mapped_frames_[i] = 0;
   }
-  for (auto& r : frame_in_use_) {
-    r = false;
+  for (i32 i = 0; i < max_output_frames_; ++i) {
+    frame_in_use_[i] = false;
+    undisplayed_frames_[i] = false;
+    invalid_frames_[i] = false;
   }
 }
 
@@ -163,12 +163,18 @@ bool PeakVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
     last_displayed_frame_ = -1;
-    invalid_frames_ = undisplayed_frames_;
-    undisplayed_frames_ = std::vector<u8>(max_output_frames_, false);
-    while (discard_frame()) {
-      // Empty queue because we have a new section of frames
+    for (i32 i = 0; i < max_output_frames_; ++i) {
+      invalid_frames_[i] = undisplayed_frames_[i];
+      undisplayed_frames_[i] = false;
     }
-    // printf("discontinuity\n");
+    // Empty queue because we have a new section of frames
+    std::unique_lock<std::mutex> lock(frame_queue_mutex_);
+    while (frame_queue_elements_ > 0) {
+      const auto &dispinfo = frame_queue_[frame_queue_read_pos_];
+      frame_in_use_[dispinfo.picture_index] = false;
+      frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
+      frame_queue_elements_--;
+    }
   }
   CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = encoded_size;
@@ -196,30 +202,34 @@ bool PeakVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
-  return frame_queue_.size() > 0;
+  return frame_queue_elements_ > 0;
 }
 
 bool PeakVideoDecoder::discard_frame() {
+  std::unique_lock<std::mutex> lock(frame_queue_mutex_);
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
-  if (frame_queue_.size() > 0) {
-    CUVIDPARSERDISPINFO dispinfo;
-    frame_queue_.pop(dispinfo);
+  if (frame_queue_elements_ > 0) {
+    const auto& dispinfo = frame_queue_[frame_queue_read_pos_];
     frame_in_use_[dispinfo.picture_index] = false;
+    frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
+    frame_queue_elements_--;
   }
 
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
-  return frame_queue_.size() > 0;
+  return frame_queue_elements_ > 0;
 }
 
 bool PeakVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
+  std::unique_lock<std::mutex> lock(frame_queue_mutex_);
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
-
-  if (frame_queue_.size() > 0) {
-    CUVIDPARSERDISPINFO dispinfo;
-    frame_queue_.pop(dispinfo);
+  if (frame_queue_elements_ > 0) {
+    CUVIDPARSERDISPINFO dispinfo = frame_queue_[frame_queue_read_pos_];
+    frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
+    frame_queue_elements_--;
+    lock.unlock();
 
     CUVIDPROCPARAMS params = {};
     params.progressive_frame = dispinfo.progressive_frame;
@@ -227,15 +237,6 @@ bool PeakVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     params.top_field_first = dispinfo.top_field_first;
 
     int mapped_frame_index = dispinfo.picture_index % max_mapped_frames_;
-    if (mapped_frames_[mapped_frame_index] != 0) {
-      auto start_unmap = now();
-      CU_CHECK(cudaStreamSynchronize(streams_[mapped_frame_index]));
-      CUD_CHECK(
-          cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
-      if (profiler_) {
-        profiler_->add_interval("unmap_frame", start_unmap, now());
-      }
-    }
     auto start_map = now();
     unsigned int pitch = 0;
     CUD_CHECK(cuvidMapVideoFrame(decoder_, dispinfo.picture_index,
@@ -255,23 +256,21 @@ bool PeakVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     CUD_CHECK(
         cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
     mapped_frames_[mapped_frame_index] = 0;
+
     frame_in_use_[dispinfo.picture_index] = false;
   }
 
   CUcontext dummy;
   CUD_CHECK(cuCtxPopCurrent(&dummy));
 
-  return frame_queue_.size() > 0;
+  return frame_queue_elements_;
 }
 
 int PeakVideoDecoder::decoded_frames_buffered() {
-  return static_cast<int>(frame_queue_.size());
+  return frame_queue_elements_;
 }
 
 void PeakVideoDecoder::wait_until_frames_copied() {
-  for (int i = 0; i < max_mapped_frames_; ++i) {
-    CU_CHECK(cudaStreamSynchronize(streams_[i]));
-  }
 }
 
 int PeakVideoDecoder::cuvid_handle_video_sequence(void* opaque,
@@ -284,25 +283,36 @@ int PeakVideoDecoder::cuvid_handle_picture_decode(void* opaque,
                                                     CUVIDPICPARAMS* picparams) {
   PeakVideoDecoder& decoder = *reinterpret_cast<PeakVideoDecoder*>(opaque);
 
-  int mapped_frame_index = picparams->CurrPicIdx % decoder.max_mapped_frames_;
+  int mapped_frame_index = picparams->CurrPicIdx;
   while (decoder.frame_in_use_[picparams->CurrPicIdx]) {
+    usleep(500);
   };
+  decoder.undisplayed_frames_[picparams->CurrPicIdx] = true;
 
   CUresult result = cuvidDecodePicture(decoder.decoder_, picparams);
   CUD_CHECK(result);
-  decoder.undisplayed_frames_[picparams->CurrPicIdx] = true;
+
   return result == CUDA_SUCCESS;
 }
 
 int PeakVideoDecoder::cuvid_handle_picture_display(
     void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
   PeakVideoDecoder& decoder = *reinterpret_cast<PeakVideoDecoder*>(opaque);
-  if (decoder.invalid_frames_[dispinfo->picture_index] == false) {
-    decoder.frame_queue_.push(*dispinfo);
-    decoder.last_displayed_frame_++;
-    // printf("valid frame %d, display %d\n", decoder.last_displayed_frame_,
-    //        dispinfo->picture_index);
+  if (!decoder.invalid_frames_[dispinfo->picture_index]) {
     decoder.frame_in_use_[dispinfo->picture_index] = true;
+    while (true) {
+      std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
+      if (decoder.frame_queue_elements_ < max_output_frames_) {
+        int write_pos =
+            (decoder.frame_queue_read_pos_ + decoder.frame_queue_elements_) %
+            max_output_frames_;
+        decoder.frame_queue_[write_pos] = *dispinfo;
+        decoder.frame_queue_elements_++;
+        decoder.last_displayed_frame_++;
+        break;
+      }
+      usleep(1000);
+    }
   } else {
     decoder.invalid_frames_[dispinfo->picture_index] = false;
   }

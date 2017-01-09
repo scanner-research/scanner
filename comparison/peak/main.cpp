@@ -17,6 +17,7 @@
 
 #include "scanner/util/queue.h"
 #include "scanner/util/util.h"
+#include "scanner/util/h264.h"
 
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "caffe/blob.hpp"
@@ -64,7 +65,14 @@ struct BufferHandle {
   int elements;
 };
 
-using WorkerFn= std::function<void(int, Queue<u8*>&, Queue<BufferHandle>&)>;
+struct SaveHandle {
+  u8* buffer;
+  cudaStream_t stream;
+  int elements;
+};
+
+using WorkerFn = std::function<void(int, Queue<u8 *> &, Queue<BufferHandle> &,
+                                    Queue<SaveHandle> &, Queue<SaveHandle> &)>;
 
 const int NUM_BUFFERS = 4;
 const int BATCH_SIZE = 96;      // Batch size for network
@@ -77,14 +85,25 @@ int GPUS_PER_NODE = 1;           // GPUs to use per node
 int num_frames;
 int width;
 int height;
+size_t output_element_size;
+size_t output_buffer_size;
 
 std::map<std::string, double> TIMINGS;
 
-void decoder_feeder(int gpu_device_id, std::atomic<bool> &done,
+std::string output_path() {
+  i32 idx = 0;
+  return "/tmp/outputs/videos" + std::to_string(idx) + ".bin";
+}
+
+void decoder_feeder(int gpu_device_id, volatile bool& done,
                     u8 *encoded_data, size_t encoded_data_size,
                     VideoDecoder *decoder) {
+  double feed_time = 0;
+  double avg = 0;
   size_t encoded_data_offset = 0;
-  while (!done.load()) {
+  int64_t frame = 0;
+  while (!done) {
+    auto feed_start = scanner::now();
     i32 encoded_packet_size = 0;
     const u8 *encoded_packet = NULL;
     if (encoded_data_offset < encoded_data_size) {
@@ -95,18 +114,49 @@ void decoder_feeder(int gpu_device_id, std::atomic<bool> &done,
       encoded_data_offset += encoded_packet_size;
     }
 
+    if (frame > 100 && encoded_packet_size > 0) {
+      const u8* start_buffer = encoded_packet;
+      i32 original_size = encoded_packet_size;
+
+      while (encoded_packet_size > 0) {
+        const u8* nal_start;
+        i32 nal_size;
+        scanner::next_nal(encoded_packet, encoded_packet_size, nal_start,
+                          nal_size);
+        if (encoded_packet_size == 0) {
+          break;
+        }
+        i32 nal_type = scanner::get_nal_unit_type(nal_start);
+        if (is_vcl_nal(nal_type)) {
+          encoded_packet = nal_start -= 3;
+          encoded_packet_size = nal_size + encoded_packet_size + 3;
+          break;
+        }
+      }
+      assert(encoded_packet_size != 0);
+    }
+
     decoder->feed(encoded_packet, encoded_packet_size, false);
 
+    double t = scanner::nano_since(feed_start);
+    feed_time += t;
+    avg -= avg / 500;
+    avg += t / 500;
+    if (frame % 100 == 0) {
+      printf("frame %d, avg feed %f fps\n", frame, 1.0 / (avg / 1000000000));
+    }
+    frame++;
     if (encoded_packet_size == 0) {
       break;
     }
   }
+  TIMINGS["feed"] = feed_time;
 }
 
 void decoder_worker(int gpu_device_id, VideoDecoder *decoder,
                     Queue<u8 *> &free_buffers,
                     Queue<BufferHandle> &decoded_frames) {
-  auto video_start = now();
+  double decode_time = 0;
 
   int64_t frame_size = width * height * 3 * sizeof(u8);
   int64_t frame = 0;
@@ -115,6 +165,7 @@ void decoder_worker(int gpu_device_id, VideoDecoder *decoder,
     free_buffers.pop(buffer);
 
     int64_t buffer_frame = 0;
+    auto decode_start = scanner::now();
     while (buffer_frame < BATCH_SIZE && frame < num_frames) {
       if (decoder->decoded_frames_buffered()) {
         // New frames
@@ -125,17 +176,62 @@ void decoder_worker(int gpu_device_id, VideoDecoder *decoder,
           frame++;
           buffer_frame++;
         }
+      } else {
+        usleep(1000);
       }
     }
+    decode_time += scanner::nano_since(decode_start);
     BufferHandle h;
     h.buffer = buffer;
     h.elements = buffer_frame;
     decoded_frames.push(h);
   }
+  TIMINGS["decode"] = decode_time;
+}
+
+void save_worker(int gpu_device_id, Queue<SaveHandle> &save_buffers,
+                 Queue<SaveHandle> &free_output_buffers) {
+  int64_t frame_size = width * height * 3 * sizeof(u8);
+  int64_t frame = 0;
+  double save_time = 0;
+
+  u8* buf;
+  cudaMallocHost(&buf, output_buffer_size);
+
+  std::ofstream outfile(output_path(),
+                        std::fstream::binary | std::fstream::trunc);
+  assert(outfile.good());
+  while (true) {
+    SaveHandle handle;
+    save_buffers.pop(handle);
+
+    if (handle.buffer == nullptr) {
+      break;
+    }
+
+    // Copy data down
+    auto save_start = scanner::now();
+    cudaMemcpyAsync(buf, handle.buffer, output_element_size * handle.elements,
+                    cudaMemcpyDefault, handle.stream);
+    // Sync so we know it is done
+    cudaStreamSynchronize(handle.stream);
+    // Write out
+    outfile.write((char*)buf, output_element_size * handle.elements);
+    save_time += scanner::nano_since(save_start);
+
+    free_output_buffers.push(handle);
+  }
+  auto save_start = scanner::now();
+  outfile.close();
+  save_time += scanner::nano_since(save_start);
+  TIMINGS["save"] = save_time;
+  //cudaFreeHost(buf);
 }
 
 void video_histogram_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
-                            Queue<BufferHandle> &decoded_frames) {
+                            Queue<BufferHandle> &decoded_frames,
+                            Queue<SaveHandle> &free_output_buffers,
+                            Queue<SaveHandle> &save_buffers) {
   double setup_time = 0;
   double load_time = 0;
   double histo_time = 0;
@@ -152,9 +248,8 @@ void video_histogram_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
     planes.push_back(cvc::GpuMat(height, width, CV_8UC1));
   }
 
-  cvc::GpuMat hist = cvc::GpuMat(1, BINS, CV_32S);
-  cvc::GpuMat out_gpu = cvc::GpuMat(1, BINS * 3, CV_32S);
-  cv::Mat out = cv::Mat(1, BINS * 3, CV_32S);
+  cvc::GpuMat hist(1, BINS, CV_32S);
+  cvc::GpuMat out_gpu(1, BINS * 3, CV_32S);
 
   int64_t frame = 0;
   while (true) {
@@ -166,18 +261,27 @@ void video_histogram_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
       break;
     }
 
+    SaveHandle save_handle;
+    free_output_buffers.pop(save_handle);
+    u8* output_buffer = save_handle.buffer;
+    save_handle.elements = elements;
+
+    cvc::Stream stream = cvc::StreamAccessor::wrapStream(save_handle.stream);
     for (int i = 0; i < elements; ++i) {
       cvc::GpuMat image(height, width, CV_8UC3, buffer + i * frame_size);
       auto histo_start = scanner::now();
-      cvc::split(image, planes);
+      cvc::split(image, planes, stream);
       for (int j = 0; j < 3; ++j) {
-        cvc::histEven(planes[j], hist, BINS, 0, 256);
-        hist.copyTo(out_gpu(cv::Rect(j * BINS, 0, BINS, 1)));
+        cvc::histEven(planes[j], hist, BINS, 0, 256, stream);
+        hist.copyTo(out_gpu(cv::Rect(j * BINS, 0, BINS, 1)), stream);
       }
-      out_gpu.download(out);
+      cudaMemcpyAsync(output_buffer + i * output_element_size, out_gpu.data,
+                      output_element_size, cudaMemcpyDefault,
+                      save_handle.stream);
       histo_time += scanner::nano_since(histo_start);
     }
 
+    save_buffers.push(save_handle);
     free_buffers.push(buffer);
   }
   TIMINGS["setup"] = setup_time;
@@ -187,7 +291,9 @@ void video_histogram_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
 }
 
 void video_flow_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
-                       Queue<BufferHandle> &decoded_frames) {
+                       Queue<BufferHandle> &decoded_frames,
+                       Queue<SaveHandle> &free_output_buffers,
+                       Queue<SaveHandle> &save_buffers) {
   double load_time = 0;
   double eval_time = 0;
   double save_time = 0;
@@ -196,16 +302,10 @@ void video_flow_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
 
   int frame_size = width * height * 3 * sizeof(u8);
 
-  std::vector<cvc::GpuMat> inputs;
-  for (int i = 0; i < 2; ++i) {
-    inputs.emplace_back(height, width, CV_8UC3);
-  }
   std::vector<cvc::GpuMat> gray;
   for (int i = 0; i < 2; ++i) {
     gray.emplace_back(height, width, CV_8UC1);
   }
-  cvc::GpuMat output_flow_gpu(height, width, CV_32FC2);
-  cv::Mat output_flow(height, width, CV_32FC2);
 
   cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::FarnebackOpticalFlow::create();
 
@@ -219,24 +319,33 @@ void video_flow_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
       break;
     }
 
+    SaveHandle save_handle;
+    free_output_buffers.pop(save_handle);
+    save_handle.elements = elements;
+
+    u8* output_buffer = save_handle.buffer;
+    cvc::Stream stream = cvc::StreamAccessor::wrapStream(save_handle.stream);
+
     // Load the first frame
     auto eval_first = scanner::now();
     cvc::GpuMat image(height, width, CV_8UC3, buffer);
-    cvc::cvtColor(image, gray[0], CV_BGR2GRAY);
+    cvc::cvtColor(image, gray[0], CV_BGR2GRAY, 0, stream);
     eval_time += scanner::nano_since(eval_first);
     bool done = false;
     for (int i = 1; i < elements; ++i) {
       int curr_idx = i % 2;
       int prev_idx = (i - 1) % 2;
+      cvc::GpuMat output_flow_gpu(height, width, CV_32FC2,
+                                  output_buffer + i * output_element_size);
 
       auto eval_start = scanner::now();
       cvc::GpuMat image(height, width, CV_8UC3, buffer + i * frame_size);
-      cvc::cvtColor(image, gray[curr_idx], CV_BGR2GRAY);
-      flow->calc(gray[prev_idx], gray[curr_idx], output_flow_gpu);
-      output_flow_gpu.download(output_flow);
+      cvc::cvtColor(image, gray[curr_idx], CV_BGR2GRAY, 0, stream);
+      flow->calc(gray[prev_idx], gray[curr_idx], output_flow_gpu, stream);
       eval_time += scanner::nano_since(eval_start);
     }
 
+    save_buffers.push(save_handle);
     free_buffers.push(buffer);
   }
   TIMINGS["load"] = load_time;
@@ -312,7 +421,10 @@ void transform_halide(const NetDescriptor& descriptor_,
 }
 
 void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
-                        Queue<BufferHandle> &decoded_frames) {
+                        Queue<BufferHandle> &decoded_frames,
+                        Queue<SaveHandle> &free_output_buffers,
+                        Queue<SaveHandle> &save_buffers) {
+  double idle_time = 0;
   double load_time = 0;
   double transform_time = 0;
   double net_time = 0;
@@ -340,16 +452,19 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net->blob_by_name(descriptor.input_layer_names[0])};
 
-  input_blob->Reshape({NET_BATCH_SIZE, input_blob->shape(1), input_blob->shape(2),
-          input_blob->shape(3)});
+  input_blob->Reshape({NET_BATCH_SIZE, input_blob->shape(1),
+                       input_blob->shape(2), input_blob->shape(3)});
 
-  int net_input_width = input_blob->shape(2); // width
+  net->Forward();
+
+  int net_input_width = input_blob->shape(2);  // width
   int net_input_height = input_blob->shape(3); // height
   size_t net_input_size =
       net_input_width * net_input_height * 3 * sizeof(float);
 
   int64_t frame = 0;
   while (true) {
+    auto idle_start = scanner::now();
     BufferHandle buffer_handle;
     decoded_frames.pop(buffer_handle);
     u8* buffer = buffer_handle.buffer;
@@ -357,6 +472,16 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
     if (buffer == nullptr) {
       break;
     }
+
+    SaveHandle save_handle;
+    free_output_buffers.pop(save_handle);
+    save_handle.elements = elements;
+
+    u8* output_buffer = save_handle.buffer;
+
+    cvc::Stream stream = cvc::StreamAccessor::wrapStream(save_handle.stream);
+
+    idle_time += scanner::nano_since(idle_start);
 
     // Load the first frame
     int64_t frame = 0;
@@ -384,14 +509,19 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
       auto save_start = scanner::now();
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
         net->blob_by_name(descriptor.output_layer_names[0])};
-      output_blob->cpu_data();
-
+      cudaStreamSynchronize(0);
+      cudaMemcpyAsync(output_buffer + frame * output_element_size,
+                      output_blob->gpu_data(),
+                      output_element_size * batch, cudaMemcpyDefault,
+                      save_handle.stream);
       frame += batch;
       save_time += scanner::nano_since(save_start);
     }
 
+    save_buffers.push(save_handle);
     free_buffers.push(buffer);
   }
+  TIMINGS["idle"] = idle_time;
   TIMINGS["load"] = load_time;
   TIMINGS["transform"] = transform_time;
   TIMINGS["net"] = net_time;
@@ -450,11 +580,15 @@ int main(int argc, char** argv) {
   WorkerFn worker_fn;
   if (operation == "histogram") {
     worker_fn = video_histogram_worker;
+    output_element_size = 3 * BINS * sizeof(i32);
   } else if (operation == "flow") {
     worker_fn = video_flow_worker;
+    output_element_size = 2 * height * width * sizeof(f32);
   } else if (operation == "caffe") {
     worker_fn = video_caffe_worker;
+    output_element_size = 1000 * sizeof(f32);
   }
+  output_buffer_size = BATCH_SIZE * output_element_size;
 
   // Read in video bytes
   std::vector<u8> video_bytes;
@@ -478,27 +612,42 @@ int main(int argc, char** argv) {
   scanner::InputFormat format(width, height);
   decoder->configure(format);
 
-  std::atomic<bool> done(false);
+  volatile bool done = false;
+
+  cudaSetDevice(0);
+  // Create decoded frames buffers and output buffers
   Queue<u8*> free_buffers;
   Queue<BufferHandle> decoded_frames;
+  Queue<SaveHandle> free_output_buffers;
+  Queue<SaveHandle> save_buffers;
   for (int i = 0; i < NUM_BUFFERS; ++i) {
     u8* buffer;
     CU_CHECK(cudaMalloc((void **)&buffer,
                         BATCH_SIZE * width * height * 3 * sizeof(u8)));
     free_buffers.push(buffer);
+
+    CU_CHECK(cudaMalloc((void **)&buffer, output_buffer_size));
+    SaveHandle handle;
+    handle.buffer = buffer;
+    CU_CHECK(cudaStreamCreateWithFlags(&handle.stream, cudaStreamNonBlocking));
+    free_output_buffers.push(handle);
   }
 
   // Start up workers to process videos
-  std::thread decoder_thread(decoder_worker, 0, decoder, std::ref(free_buffers),
-                             std::ref(decoded_frames));
   std::thread evaluator_worker(worker_fn, 0, std::ref(free_buffers),
-                               std::ref(decoded_frames));
+                               std::ref(decoded_frames),
+                               std::ref(free_output_buffers),
+                               std::ref(save_buffers));
+  std::thread save_thread(save_worker, 0, std::ref(save_buffers),
+                          std::ref(free_output_buffers));
 
   // Wait to make sure everything is setup first
-  sleep(5);
+  sleep(10);
 
   // Start work by setting up feeder
   auto total_start = scanner::now();
+  std::thread decoder_thread(decoder_worker, 0, decoder, std::ref(free_buffers),
+                             std::ref(decoded_frames));
   std::thread decoder_feeder_thread(decoder_feeder, 0, std::ref(done),
                                     video_bytes.data(), video_bytes.size(),
                                     decoder);
@@ -512,6 +661,10 @@ int main(int argc, char** argv) {
   empty.buffer = nullptr;
   decoded_frames.push(empty);
   evaluator_worker.join();
+  SaveHandle em;
+  em.buffer = nullptr;
+  save_buffers.push(em);
+  save_thread.join();
 
   TIMINGS["total"] = scanner::nano_since(total_start);
 
