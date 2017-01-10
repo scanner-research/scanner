@@ -39,7 +39,7 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
       net_config_(net_config) {
   if (device_type_ == DeviceType::GPU) {
     assert(GPUS_PER_NODE > 0);
-    device_id = device_id % GPUS_PER_NODE;
+    //device_id = device_id % GPUS_PER_NODE;
     device_id_ = device_id;
   }
   set_device();
@@ -51,7 +51,7 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
       net_->blob_by_name(descriptor_.input_layer_names[0])};
   input_blob->Reshape({batch_size_, input_blob->shape(1), input_blob->shape(2),
                        input_blob->shape(3)});
-  net_->Forward();
+  //net_->Forward();
 }
 
 void CaffeEvaluator::configure(const BatchConfig& config) {
@@ -211,7 +211,10 @@ void CaffeEvaluator::set_device() {
   caffe::Caffe::set_mode(device_type_to_caffe_mode(device_type_));
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-    CU_CHECK(cudaSetDevice(device_id_));
+    // HACK(apoms): caffe does not keep track of device it was initialized
+    //  with. For example, if you call cudaSetDevice here before
+    //  Caffe::SetDevice, caffe will think the GPU did not change and not
+    //  reinit cublas. Need to patch caffe.
     caffe::Caffe::SetDevice(device_id_);
 #else
     LOG(FATAL) << "Not built with CUDA support.";
