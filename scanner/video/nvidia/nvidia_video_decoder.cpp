@@ -99,6 +99,15 @@ void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
     cuvidDestroyDecoder(decoder_);
   }
 
+  for (int i = 0; i < max_mapped_frames_; ++i) {
+    mapped_frames_[i] = 0;
+  }
+  for (i32 i = 0; i < max_output_frames_; ++i) {
+    frame_in_use_[i] = false;
+    undisplayed_frames_[i] = false;
+    invalid_frames_[i] = false;
+  }
+
   CUVIDPARSERPARAMS cuparseinfo = {};
   // cuparseinfo.CodecType = metadata.codec_type;
   cuparseinfo.CodecType = cudaVideoCodec_H264;
@@ -163,12 +172,12 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
     last_displayed_frame_ = -1;
+    // Empty queue because we have a new section of frames
+    std::unique_lock<std::mutex> lock(frame_queue_mutex_);
     for (i32 i = 0; i < max_output_frames_; ++i) {
       invalid_frames_[i] = undisplayed_frames_[i];
       undisplayed_frames_[i] = false;
     }
-    // Empty queue because we have a new section of frames
-    std::unique_lock<std::mutex> lock(frame_queue_mutex_);
     while (frame_queue_elements_ > 0) {
       const auto &dispinfo = frame_queue_[frame_queue_read_pos_];
       frame_in_use_[dispinfo.picture_index] = false;
