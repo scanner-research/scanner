@@ -18,6 +18,9 @@
 #include "scanner/metadata.pb.h"
 
 #include "scanner/util/memory.h"
+#include "scanner/util/h264.h"
+
+#include <thread>
 
 namespace scanner {
 
@@ -69,8 +72,7 @@ void DecoderEvaluator::reset() {
   for (size_t i = 0; i < video_column_idxs_.size(); ++i) {
     VideoDecoder* decoder = decoders_[i].get();
     if (decoder->decoded_frames_buffered() > 0) {
-      while (decoder->discard_frame()) {
-      };
+      while (decoder->discard_frame()) {}
     }
 
     CachedEncodedVideo& cache = cached_video_[i];
@@ -183,6 +185,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         }
       }
 
+
       i32 total_output_frames = static_cast<i32>(valid_frames.size());
       size_t& encoded_buffer_offset = cache.encoded_buffer_offset;
       i32& current_frame = cache.current_frame;
@@ -195,10 +198,61 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         if (current_frame == -1) {
           current_frame = cache.current_start_keyframe;
         }
+
+        // Start up feeder thread
+        std::atomic<bool> feeder_done(false);
+        bool saw_end_packet = false;
+        auto feeder_worker = [&]() {
+          bool seen_metadata = !discontinuity_[video_num];
+          while (!feeder_done.load()) {
+            i32 encoded_packet_size = 0;
+            const u8 *encoded_packet = NULL;
+            if (encoded_buffer_offset < encoded_buffer_size) {
+              encoded_packet_size = *reinterpret_cast<const i32 *>(
+                  encoded_buffer + encoded_buffer_offset);
+              encoded_buffer_offset += sizeof(i32);
+              encoded_packet = encoded_buffer + encoded_buffer_offset;
+              encoded_buffer_offset += encoded_packet_size;
+            }
+
+            if (seen_metadata && encoded_packet_size > 0) {
+              const u8 *start_buffer = encoded_packet;
+              i32 original_size = encoded_packet_size;
+
+              while (encoded_packet_size > 0) {
+                const u8 *nal_start;
+                i32 nal_size;
+                next_nal(encoded_packet, encoded_packet_size, nal_start,
+                         nal_size);
+                if (encoded_packet_size == 0) {
+                  break;
+                }
+                i32 nal_type = get_nal_unit_type(nal_start);
+                if (is_vcl_nal(nal_type)) {
+                  encoded_packet = nal_start -= 3;
+                  encoded_packet_size = nal_size + encoded_packet_size + 3;
+                  break;
+                }
+              }
+              assert(encoded_packet_size != 0);
+            }
+
+            decoder->feed(encoded_packet, encoded_packet_size, false);
+            seen_metadata = true;
+            // Set a discontinuity if we sent an empty packet to reset
+            // the stream next time
+            saw_end_packet = (encoded_packet_size == 0);
+            if (encoded_packet_size == 0) {
+              break;
+            }
+          }
+        };
+
+        std::thread feeder_thread;
+        bool first_through = true;
         i32 valid_index = 0;
         while (valid_index < total_output_frames) {
           auto video_start = now();
-
           if (decoder->decoded_frames_buffered() > 0) {
             // New frames
             bool more_frames = true;
@@ -218,23 +272,20 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
             }
             continue;
           }
-
-          i32 encoded_packet_size = 0;
-          const u8* encoded_packet = NULL;
-          if (encoded_buffer_offset < encoded_buffer_size) {
-            encoded_packet_size = *reinterpret_cast<const i32*>(
-                encoded_buffer + encoded_buffer_offset);
-            encoded_buffer_offset += sizeof(i32);
-            encoded_packet = encoded_buffer + encoded_buffer_offset;
-            encoded_buffer_offset += encoded_packet_size;
+          if (first_through) {
+            if (discontinuity_[video_num]) {;
+              decoder->feed(nullptr, 0, true);
+            }
+            feeder_thread = std::thread(feeder_worker);
+            first_through = false;
           }
-
-          decoder->feed(encoded_packet, encoded_packet_size,
-                        discontinuity_[video_num]);
-          // Set a discontinuity if we sent an empty packet to reset
-          // the stream next time
-          discontinuity_[video_num] = (encoded_packet_size == 0);
+          std::this_thread::yield();
         }
+        feeder_done = true;
+        if (feeder_thread.joinable()) {
+          feeder_thread.join();
+        }
+        discontinuity_[video_num] = saw_end_packet;
         // Wait on all memcpys from frames to be done
         decoder->wait_until_frames_copied();
       }

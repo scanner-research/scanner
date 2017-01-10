@@ -459,6 +459,8 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
       save_time += scanner::nano_since(save_start);
     }
     outfile.close();
+    std::fflush(NULL);
+    std::system("sync && sudo echo 3 > /proc/sys/vm/drop_caches");
     TIMINGS["total"] = scanner::nano_since(start_time);
   }
   TIMINGS["setup"] = setup_time;

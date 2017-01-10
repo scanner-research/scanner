@@ -49,6 +49,7 @@ class DecoderEvaluator : public Evaluator {
   i32 device_id_;
   VideoDecoderType decoder_type_;
   i32 num_devices_;
+
   std::vector<std::tuple<i32, i32>> video_column_idxs_;
   std::vector<size_t> frame_sizes_;
   std::vector<std::unique_ptr<VideoDecoder>> decoders_;

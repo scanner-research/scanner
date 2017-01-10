@@ -29,6 +29,7 @@ option(BUILD_UTIL_EVALUATORS "" OFF)
 option(BUILD_MEDIAN_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
 option(BUILD_COMPARISON "" OFF)
+option(ENABLE_PROFILING "" OFF)
 
 enable_testing()
 
@@ -66,6 +67,10 @@ if(NOT APPLE AND UNIX)
     "${CMAKE_SHARED_LINKER_FLAGS} -pthread -ldl -lrt")
 endif()
 
+if (ENABLE_PROFILING)
+  add_definitions(-DSCANNER_PROFILING)
+endif()
+
 ###### Optional Dependencies #######
 set(OPENCV_DESIRED_COMPONENTS)
 set(OPENCV_MAJOR_VERSION 3)
@@ -77,7 +82,6 @@ macro(add_halide_target SRC TARGET)
     include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
     include_directories("${HALIDE_INCLUDE_DIR}")
   endif()
-
 
   get_filename_component(NAME ${SRC} NAME_WE)
   set(GENERATOR ${NAME}.generator)
@@ -234,6 +238,7 @@ set(SCANNER_LIBRARIES
   "${STOREHOUSE_LIBRARIES}"
   "${JSONCPP_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
+  "-L/opt/ffmpeg-3.2.2/lib"
   "-lswscale"
   "${MPI_LIBRARIES}"
   "${STRUCK_LIBRARIES}"

@@ -44,6 +44,7 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <unistd.h>
 
 using namespace scanner;
 
@@ -88,6 +89,7 @@ int height;
 size_t output_element_size;
 size_t output_buffer_size;
 
+std::string PATH;
 std::map<std::string, double> TIMINGS;
 
 std::string output_path() {
@@ -95,23 +97,49 @@ std::string output_path() {
   return "/tmp/outputs/videos" + std::to_string(idx) + ".bin";
 }
 
-void decoder_feeder(int gpu_device_id, volatile bool& done,
-                    u8 *encoded_data, size_t encoded_data_size,
+void reader_worker(std::fstream &fs, size_t file_size, volatile bool &done,
+                   u8 *data, volatile size_t &data_length) {
+  const int read_size = 16 * 1024;
+  while (!done && fs.good()) {
+    fs.read((char*)(data + data_length), read_size);
+    data_length += fs.gcount();
+  }
+  assert(done || data_length == file_size);
+}
+
+void decoder_feeder(int gpu_device_id, volatile bool &done,
                     VideoDecoder *decoder) {
   double feed_time = 0;
   double avg = 0;
   size_t encoded_data_offset = 0;
   int64_t frame = 0;
+
+  std::fstream fs(PATH, std::fstream::in | std::fstream::binary | std::fstream::ate);
+  std::fstream::pos_type pos = fs.tellg();
+  fs.seekg(0, std::fstream::beg);
+
+  size_t data_length = 0;
+  u8* data = new u8[pos];
+
+  std::thread reader_thread(reader_worker, std::ref(fs), (size_t)pos,
+                            std::ref(done), data, std::ref(data_length));
+
   while (!done) {
     auto feed_start = scanner::now();
+    while (!(encoded_data_offset + 32 * 1024 < data_length) &&
+           data_length != pos) {
+      std::this_thread::yield();
+    }
+    // Read in video bytes
     i32 encoded_packet_size = 0;
     const u8 *encoded_packet = NULL;
-    if (encoded_data_offset < encoded_data_size) {
+    if (encoded_data_offset < data_length) {
       encoded_packet_size =
-          *reinterpret_cast<const i32 *>(encoded_data + encoded_data_offset);
+          *reinterpret_cast<const i32 *>(data + encoded_data_offset);
       encoded_data_offset += sizeof(i32);
-      encoded_packet = encoded_data + encoded_data_offset;
+      encoded_packet = data + encoded_data_offset;
       encoded_data_offset += encoded_packet_size;
+      assert(encoded_data_offset < data_length);
     }
 
     if (frame > 100 && encoded_packet_size > 0) {
@@ -150,6 +178,7 @@ void decoder_feeder(int gpu_device_id, volatile bool& done,
       break;
     }
   }
+  reader_thread.join();
   TIMINGS["feed"] = feed_time;
 }
 
@@ -487,8 +516,10 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
     int64_t frame = 0;
     while (frame < elements) {
       int batch = std::min((int)(elements - frame), (int)NET_BATCH_SIZE);
-      input_blob->Reshape({batch, input_blob->shape(1), input_blob->shape(2),
-                           input_blob->shape(3)});
+      if (batch != NET_BATCH_SIZE) {
+        input_blob->Reshape({batch, input_blob->shape(1), input_blob->shape(2),
+                input_blob->shape(3)});
+      }
       auto transform_start = scanner::now();
       for (int i = 0; i < batch; i++) {
         u8 *input = buffer + (frame + i) * frame_size;
@@ -505,11 +536,11 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
       net_time += scanner::nano_since(net_start);
       eval_time += scanner::nano_since(net_start);
 
+      save_handle.stream = 0;
       // Save outputs
       auto save_start = scanner::now();
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
         net->blob_by_name(descriptor.output_layer_names[0])};
-      cudaStreamSynchronize(0);
       cudaMemcpyAsync(output_buffer + frame * output_element_size,
                       output_blob->gpu_data(),
                       output_element_size * batch, cudaMemcpyDefault,
@@ -590,17 +621,7 @@ int main(int argc, char** argv) {
   }
   output_buffer_size = BATCH_SIZE * output_element_size;
 
-  // Read in video bytes
-  std::vector<u8> video_bytes;
-  {
-    std::fstream fs(video_path, std::fstream::in | std::fstream::binary |
-                                    std::fstream::ate);
-    std::fstream::pos_type pos = fs.tellg();
-    video_bytes.resize(pos);
-
-    fs.seekg(0, std::fstream::beg);
-    fs.read((char*)video_bytes.data(), pos);
-  }
+  PATH = video_path;
 
   // Setup decoder
   CUD_CHECK(cuInit(0));
@@ -648,9 +669,7 @@ int main(int argc, char** argv) {
   auto total_start = scanner::now();
   std::thread decoder_thread(decoder_worker, 0, decoder, std::ref(free_buffers),
                              std::ref(decoded_frames));
-  std::thread decoder_feeder_thread(decoder_feeder, 0, std::ref(done),
-                                    video_bytes.data(), video_bytes.size(),
-                                    decoder);
+  std::thread decoder_feeder_thread(decoder_feeder, 0, std::ref(done), decoder);
 
   decoder_thread.join();
   // Tell feeder the decoder thread is done
@@ -666,6 +685,7 @@ int main(int argc, char** argv) {
   save_buffers.push(em);
   save_thread.join();
 
+  sync();
   TIMINGS["total"] = scanner::nano_since(total_start);
 
   for (auto& kv : TIMINGS) {

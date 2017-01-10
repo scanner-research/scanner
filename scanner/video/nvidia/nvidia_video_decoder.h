@@ -60,8 +60,8 @@ class NVIDIAVideoDecoder : public VideoDecoder {
   int device_id_;
   DeviceType output_type_;
   CUcontext cuda_context_;
-  const int max_output_frames_;
-  const int max_mapped_frames_;
+  static const int max_output_frames_ = 32;
+  static const int max_mapped_frames_ = 8;
   std::vector<cudaStream_t> streams_;
 
   InputFormat metadata_;
@@ -69,12 +69,16 @@ class NVIDIAVideoDecoder : public VideoDecoder {
   CUvideoparser parser_;
   CUvideodecoder decoder_;
 
-  Queue<CUVIDPARSERDISPINFO> frame_queue_;
-  std::vector<u8> frame_in_use_;
-  std::vector<CUdeviceptr> mapped_frames_;
-  int last_displayed_frame_;
-  std::vector<u8> undisplayed_frames_;
-  std::vector<u8> invalid_frames_;
-  int wait_for_iframe_;
+  i32 last_displayed_frame_;
+  volatile i32 frame_in_use_[max_output_frames_];
+  volatile i32 undisplayed_frames_[max_output_frames_];
+  volatile i32 invalid_frames_[max_output_frames_];
+
+  std::mutex frame_queue_mutex_;
+  CUVIDPARSERDISPINFO frame_queue_[max_output_frames_];
+  i32 frame_queue_read_pos_;
+  i32 frame_queue_elements_;
+
+  CUdeviceptr mapped_frames_[max_mapped_frames_];
 };
 }

@@ -1,4 +1,3 @@
-
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/util/discard_evaluator.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"

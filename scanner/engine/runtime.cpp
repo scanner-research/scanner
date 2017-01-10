@@ -39,6 +39,7 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <unistd.h>
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -549,6 +550,11 @@ void run_job(JobParameters& params) {
     pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
   }
 
+#ifdef SCANNER_PROFILING
+  sleep(30);
+#endif
+  timepoint_t start_time = now();
+
   // Push work into load queues
   if (is_master(rank)) {
     // Begin distributing work on master node
@@ -744,6 +750,11 @@ void run_job(JobParameters& params) {
     }
   }
 
+  // Ensure all files are flushed
+#ifdef SCANNER_PROFILING
+  std::fflush(NULL);
+  sync();
+#endif
   // Write out total time interval
   timepoint_t end_time = now();
 
@@ -754,8 +765,12 @@ void run_job(JobParameters& params) {
   BACKOFF_FAIL(
       make_unique_write_file(storage, profiler_file_name, profiler_output));
 
-  i64 start_time_ns =
+  i64 base_time_ns =
       std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
+          .time_since_epoch()
+          .count();
+  i64 start_time_ns =
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(start_time)
           .time_since_epoch()
           .count();
   i64 end_time_ns =
