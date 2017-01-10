@@ -63,8 +63,7 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
   }
   cached_video_.resize(0);
   cached_video_.resize(video_column_idxs_.size());
-  discontinuity_.resize(0);
-  discontinuity_.resize(video_column_idxs_.size());
+  discontinuity_.assign(video_column_idxs_.size(), true);
 }
 
 void DecoderEvaluator::reset() {
