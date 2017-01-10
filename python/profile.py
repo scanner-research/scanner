@@ -382,14 +382,14 @@ def multi_gpu_benchmark():
     dataset_name = 'multi_gpu'
 
     videos = [
-        '/n/scanner/wcrichto.new/videos/meanGirls.mp4'
+        '/n/scanner/wcrichto.new/videos/movies/meanGirls.mp4',
+        '/n/scanner/wcrichto.new/videos/movies/meanGirls.mp4'
     ]
 
     pipelines = [
-        'effective_decode_rate',
-        'knn',
-        'histogram',
-        'opticalflow'
+        'caffe_benchmark',
+        'histogram_benchmark',
+        'flow_benchmark'
     ]
 
     num_gpus = [1, 2, 4]
@@ -398,33 +398,38 @@ def multi_gpu_benchmark():
     scanner_settings = {
         'force': True,
         'work_item_size': 24,
-        'io_item_size': 96
+        'io_item_size': 24,
+        'env': {
+            'SC_JOB_NAME': 'base'
+        }
     }
 
     all_results = {}
-    for video in videos:
-        print('Counting {}'.format(video))
-        frames = count_frames(video)
-        all_results[video] = {}
+    #frames = count_frames(video)
+    frames = 138000*2
+    video = videos[0]
+    all_results[video] = {}
 
-        print('Ingesting {}'.format(video))
-        result, _ = db.ingest('video', dataset_name, [video], {'force': True})
-        if result is False:
-            print('Failed to ingest')
-            exit()
+    print('Ingesting {}'.format(video))
+    result, _ = db.ingest('video', dataset_name, videos, {'force': True})
+    if result is False:
+        print('Failed to ingest')
+        exit()
 
-        for pipeline in pipelines:
-            all_results[video][pipeline] = {}
+    for pipeline in pipelines:
+        all_results[video][pipeline] = {}
 
-            for gpus in num_gpus:
-                scanner_settings['node_count'] = gpus
-                print('Running {}, {} GPUS'.format(pipeline, gpus))
-                t, _ = run_trial(dataset_name, pipeline,
-                                 'test', scanner_settings)
+        for gpus in num_gpus:
+            scanner_settings['node_count'] = gpus
+            print('Running {}, {} GPUS'.format(pipeline, gpus))
+            t, _ = run_trial(dataset_name, pipeline,
+                             'test', scanner_settings)
 
-                print(t, frames/float(t))
+            print(t, frames/float(t))
 
-                all_results[video][pipeline][gpus] = frames / float(t)
+            all_results[video][pipeline][gpus] = frames / float(t)
+
+    pprint(all_results)
 
     plt.title("Multi-GPU scaling in Scanner")
     plt.xlabel("Pipeline")
@@ -1773,7 +1778,7 @@ def bench_main(args):
     #micro_comparison_driver()
     # results = standalone_benchmark()
     # standalone_graphs(results)
-    multi_node_benchmark()
+    multi_gpu_benchmark()
 
 
 def graphs_main(args):
