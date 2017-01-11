@@ -474,20 +474,22 @@ int main(int argc, char** argv) {
     storehouse::FileInfo info;
     storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
 
-    if (result == storehouse::StoreResult::FileDoesNotExist) {
+    if (is_master(rank) &&
+        result == storehouse::StoreResult::FileDoesNotExist) {
       // Need to initialize db metadata
       std::unique_ptr<storehouse::WriteFile> meta_out_file;
       BACKOFF_FAIL(
           make_unique_write_file(storage, db_meta_path, meta_out_file));
       serialize_database_metadata(meta_out_file.get(), meta);
       BACKOFF_FAIL(meta_out_file->save());
-    } else {
-      std::unique_ptr<RandomReadFile> meta_in_file;
-      BACKOFF_FAIL(
-          make_unique_random_read_file(storage, db_meta_path, meta_in_file));
-      u64 pos = 0;
-      meta = deserialize_database_metadata(meta_in_file.get(), pos);
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::unique_ptr<RandomReadFile> meta_in_file;
+    BACKOFF_FAIL(
+        make_unique_random_read_file(storage, db_meta_path, meta_in_file));
+    u64 pos = 0;
+    meta = deserialize_database_metadata(meta_in_file.get(), pos);
   }
 
   if (cmd == "ingest") {
@@ -500,11 +502,13 @@ int main(int argc, char** argv) {
       if (force) {
         meta.remove_dataset(meta.get_dataset_id(dataset_name));
 
-        std::string db_meta_path = database_metadata_path();
-        std::unique_ptr<storehouse::WriteFile> meta_out_file;
-        make_unique_write_file(storage, db_meta_path, meta_out_file);
-        serialize_database_metadata(meta_out_file.get(), meta);
-        BACKOFF_FAIL(meta_out_file->save());
+        if (is_master(rank)) {
+          std::string db_meta_path = database_metadata_path();
+          std::unique_ptr<storehouse::WriteFile> meta_out_file;
+          make_unique_write_file(storage, db_meta_path, meta_out_file);
+          serialize_database_metadata(meta_out_file.get(), meta);
+          BACKOFF_FAIL(meta_out_file->save());
+        }
       } else {
         LOG(FATAL) << "Dataset with that name already exists.";
       }
@@ -526,7 +530,7 @@ int main(int argc, char** argv) {
     // be used to find the results for any given video frame.
 
     if (!meta.has_dataset(dataset_name)) {
-      LOG(FATAL) << "Dataset with that name does not exist.";
+      LOG(FATAL) << "Dataset " << dataset_name << " does not exist.";
     }
     i32 dataset_id = meta.get_dataset_id(dataset_name);
 
@@ -534,12 +538,13 @@ int main(int argc, char** argv) {
       if (force) {
         meta.remove_job(meta.get_job_id(dataset_id, out_job_name));
 
-        std::string db_meta_path = database_metadata_path();
-        std::unique_ptr<storehouse::WriteFile> meta_out_file;
-        make_unique_write_file(storage, db_meta_path, meta_out_file);
-        serialize_database_metadata(meta_out_file.get(), meta);
-        BACKOFF_FAIL(meta_out_file->save());
-
+        if (is_master(rank)) {
+          std::string db_meta_path = database_metadata_path();
+          std::unique_ptr<storehouse::WriteFile> meta_out_file;
+          make_unique_write_file(storage, db_meta_path, meta_out_file);
+          serialize_database_metadata(meta_out_file.get(), meta);
+          BACKOFF_FAIL(meta_out_file->save());
+        }
       } else {
         LOG(FATAL) << "Out job with name " << out_job_name << " already exists "
                    << "for dataset " << dataset_name;
@@ -572,11 +577,13 @@ int main(int argc, char** argv) {
       LOG(FATAL) << "No resource type named: " << resource_type;
     }
 
-    std::string db_meta_path = database_metadata_path();
-    std::unique_ptr<storehouse::WriteFile> meta_out_file;
-    make_unique_write_file(storage, db_meta_path, meta_out_file);
-    serialize_database_metadata(meta_out_file.get(), meta);
-    BACKOFF_FAIL(meta_out_file->save());
+    if (is_master(rank)) {
+      std::string db_meta_path = database_metadata_path();
+      std::unique_ptr<storehouse::WriteFile> meta_out_file;
+      make_unique_write_file(storage, db_meta_path, meta_out_file);
+      serialize_database_metadata(meta_out_file.get(), meta);
+      BACKOFF_FAIL(meta_out_file->save());
+    }
   } else if (cmd == "serve") {
 #ifdef HAVE_SERVER
     std::string ip = "0.0.0.0";
