@@ -18,4 +18,6 @@ if(CUDA_FOUND AND OpenCV_FOUND)
   foreach(TARGET ${HALIDE_TARGETS})
     halide_add_aot_library_dependency(kernel_sol ${TARGET})
   endforeach()
+  target_link_libraries(kernel_sol PRIVATE
+    scanner_halide)
 endif()

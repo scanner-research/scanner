@@ -10,7 +10,7 @@
 namespace scanner {
 namespace {
 
-const i32 BATCH_SIZE = 64;
+const i32 BATCH_SIZE = 96;
 PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
   benchmark_sampling(info, desc, false);
@@ -37,7 +37,8 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
       DeviceType::GPU, net_descriptor, BATCH_SIZE));
   factories.emplace_back(
       new CaffeEvaluatorFactory(device_type, net_descriptor, BATCH_SIZE));
-  factories.emplace_back(new SwizzleEvaluatorFactory(device_type, {1}, {"feature"}));
+  factories.emplace_back(
+      new SwizzleEvaluatorFactory(device_type, {1}, {"feature"}));
 
   return desc;
 }

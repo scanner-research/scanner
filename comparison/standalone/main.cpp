@@ -355,9 +355,11 @@ void image_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 
       // Save outputs
       auto save_start = scanner::now();
-      for (size_t i = 0; i < height; ++i) {
-        outfile.write((char*)output_flow.data + output_flow.step * i,
-                      width * sizeof(float) * 2);
+      if (false) {
+        for (size_t i = 0; i < height; ++i) {
+          outfile.write((char *)output_flow.data + output_flow.step * i,
+                        width * sizeof(float) * 2);
+        }
       }
       save_time += scanner::nano_since(save_start);
     }
@@ -452,9 +454,11 @@ void video_flow_worker(int gpu_device_id, Queue<int64_t>& work_items) {
 
       // Save outputs
       auto save_start = scanner::now();
-      for (size_t i = 0; i < height; ++i) {
-        outfile.write((char*)output_flow.data + output_flow.step * i,
-                      width * sizeof(float) * 2);
+      if (false) {
+        for (size_t i = 0; i < height; ++i) {
+          outfile.write((char *)output_flow.data + output_flow.step * i,
+                        width * sizeof(float) * 2);
+        }
       }
       save_time += scanner::nano_since(save_start);
     }

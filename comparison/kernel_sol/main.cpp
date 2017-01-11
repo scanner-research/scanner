@@ -22,6 +22,7 @@
 
 #include "caffe_input_transformer_gpu/caffe_input_transformer_gpu.h"
 #include "HalideRuntimeCuda.h"
+#include "scanner/engine/halide_context.h"
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -53,7 +54,7 @@ const int FLOW_WORK_REDUCTION = 20;
 const int BINS = 16;
 const int HISTO_ITERS = 50;
 const int FLOW_ITERS = 5;
-const int CAFFE_ITERS = 10;
+const int CAFFE_ITERS = 30;
 int width;
 int height;
 
@@ -88,6 +89,7 @@ void histogram(std::vector<cvc::GpuMat>& frames) {
       }
     }
   }
+  cudaDeviceSynchronize();
   TIMINGS["total"] = scanner::nano_since(total_start);
 }
 
@@ -127,6 +129,7 @@ void flow(std::vector<cvc::GpuMat>& frames) {
       flow->calc(gray[prev_idx], gray[curr_idx], output_flow_gpu);
     }
   }
+  cudaDeviceSynchronize();
   TIMINGS["total"] = scanner::nano_since(total_start);
 }
 
@@ -211,6 +214,9 @@ void caffe_fn(std::vector<cvc::GpuMat>& frames) {
 
   // Set ourselves to the correct GPU
   int gpu_device_id = 0;
+  CUcontext cuda_context;
+  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, gpu_device_id));
+  Halide::Runtime::Internal::Cuda::context = cuda_context;
   halide_set_gpu_device(gpu_device_id);
   cv::cuda::setDevice(gpu_device_id);
   CU_CHECK(cudaSetDevice(gpu_device_id));
@@ -251,6 +257,8 @@ void caffe_fn(std::vector<cvc::GpuMat>& frames) {
       frame += batch;
     }
   }
+  cudaDeviceSynchronize();
+  Halide::Runtime::Internal::Cuda::context = 0;
   TIMINGS["total"] = scanner::nano_since(start);
 }
 

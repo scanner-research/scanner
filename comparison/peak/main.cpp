@@ -92,6 +92,7 @@ size_t output_buffer_size;
 
 std::string PATH;
 std::map<std::string, double> TIMINGS;
+std::string OPERATION;
 
 std::string output_path() {
   i32 idx = 0;
@@ -246,7 +247,9 @@ void save_worker(int gpu_device_id, Queue<SaveHandle> &save_buffers,
     // Sync so we know it is done
     cudaStreamSynchronize(handle.stream);
     // Write out
-    outfile.write((char*)buf, output_element_size * handle.elements);
+    if (OPERATION != "flow") {
+      outfile.write((char*)buf, output_element_size * handle.elements);
+    }
     save_time += scanner::nano_since(save_start);
 
     free_output_buffers.push(handle);
@@ -556,6 +559,7 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
     save_buffers.push(save_handle);
     free_buffers.push(buffer);
   }
+  Halide::Runtime::Internal::Cuda::context = 0;
   TIMINGS["idle"] = idle_time;
   TIMINGS["load"] = load_time;
   TIMINGS["transform"] = transform_time;
@@ -566,7 +570,6 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
 
 int main(int argc, char** argv) {
   std::string video_path;
-  std::string operation;
   {
     po::variables_map vm;
     po::options_description desc("Allowed options");
@@ -596,7 +599,7 @@ int main(int argc, char** argv) {
 
       video_path = vm["video_path"].as<std::string>();
 
-      operation = vm["operation"].as<std::string>();
+      OPERATION = vm["operation"].as<std::string>();
 
       num_frames = vm["frames"].as<int>();
       width = vm["width"].as<int>();
@@ -613,13 +616,13 @@ int main(int argc, char** argv) {
   }
 
   WorkerFn worker_fn;
-  if (operation == "histogram") {
+  if (OPERATION == "histogram") {
     worker_fn = video_histogram_worker;
     output_element_size = 3 * BINS * sizeof(i32);
-  } else if (operation == "flow") {
+  } else if (OPERATION == "flow") {
     worker_fn = video_flow_worker;
     output_element_size = 2 * height * width * sizeof(f32);
-  } else if (operation == "caffe") {
+  } else if (OPERATION == "caffe") {
     worker_fn = video_caffe_worker;
     output_element_size = 1000 * sizeof(f32);
   }
