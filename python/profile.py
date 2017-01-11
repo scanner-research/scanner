@@ -487,7 +487,7 @@ def multi_gpu_graphs(test_name, frame_counts, frame_wh, results,
     #                                                                         6490.032394321538,
     #                                                                         12302.865537345728]}}
     operations = [('histogram', 'HIST'),
-                  ('caffe', 'CAFFE'),
+                  ('caffe', 'DNN'),
                   ('flow', 'FLOW')]
     num_gpus = [1, 2, 4]
 
@@ -498,7 +498,7 @@ def multi_gpu_graphs(test_name, frame_counts, frame_wh, results,
 
     for j, op in enumerate(ops):
         for i, time in enumerate(results[t][op]):
-                 ys[j][i] = time
+            ys[j][i] = time
 
     for i in range(len(num_gpus)):
         xx = x + (i*0.35)
@@ -529,8 +529,33 @@ def multi_gpu_graphs(test_name, frame_counts, frame_wh, results,
     ax.tick_params(axis='x', which='major', pad=15)
     sns.despine()
 
-    fig.savefig('multigpu_' + test_name + '.png', dpi=600)
-    fig.savefig('multigpu_' + test_name + '.pdf', dpi=600, transparent=True)
+    variants = ['1 GPU', '2 GPUs', '4 GPUs']
+
+    name = 'multigpu_' + test_name
+    fig.savefig(name + '.png', dpi=600)
+    fig.savefig(name + '.pdf', dpi=600, transparent=True)
+    with open(name + '_results.txt', 'w') as f:
+        f.write('Speedup\n')
+        f.write('{:10s}'.format(''))
+        for l in variants:
+            f.write('{:10s} |'.format(l))
+        f.write('\n')
+        for i, r in enumerate(ys):
+            f.write('{:10s}'.format(labels[i]))
+            for n in r:
+                f.write('{:10f} |'.format(n / r[0]))
+            f.write('\n')
+
+        f.write('\nFPS\n')
+        f.write('{:10s}'.format(''))
+        for l in variants:
+            f.write('{:10s} |'.format(l))
+        f.write('\n')
+        for i, r in enumerate(ys):
+            f.write('{:10s}'.format(labels[i]))
+            for n in r:
+                f.write('{:10f} |'.format(n))
+            f.write('\n')
     fig.clf()
 
 
@@ -1458,10 +1483,13 @@ def comparison_graphs(test_name,
     if 1:
         ys = []
 
+        standalone_fps = []
+        scanner_fps = []
+        peak_fps = []
+
         standalone_y = []
         scanner_y = []
         peak_y = []
-        peak_fps = []
         for label in ops:
             frames = frame_counts[test_name]
             if label == 'flow':
@@ -1477,14 +1505,23 @@ def comparison_graphs(test_name,
             sec, timings = standalone_tests[label][0]
             if sec == -1:
                 standalone_y.append(0)
+                standalone_fps.append(0)
             else:
                 standalone_y.append(peak_sec / sec)
+                standalone_fps.append(frames / sec)
 
             sec, timings = scanner_tests[label][0]
             if sec == -1:
                 scanner_y.append(0)
+                scanner_fps.append(0)
             else:
                 scanner_y.append(peak_sec / sec)
+                scanner_fps.append(frames / sec)
+
+        fps = []
+        fps.append(standalone_fps)
+        fps.append(scanner_fps)
+        fps.append(peak_fps)
 
         ys.append(standalone_y)
         ys.append(scanner_y)
@@ -1492,6 +1529,8 @@ def comparison_graphs(test_name,
         print(ys)
 
         x = np.arange(3) * 1.2
+
+        variants = ['Baseline', 'Scanner', 'HandOpt']
 
         colors = [NAIVE_COLOR, SCANNER_COLOR, PEAK_COLOR]
         for (i, y) in enumerate(ys):
@@ -1527,8 +1566,31 @@ def comparison_graphs(test_name,
         plt.tight_layout()
         sns.despine()
 
-        plt.savefig('comparison_' + test_name + '.png', dpi=150)
-        plt.savefig('comparison_' + test_name + '.pdf', dpi=150)
+        name = 'comparison_' + test_name
+        plt.savefig(name + '.png', dpi=150)
+        plt.savefig(name + '.pdf', dpi=150)
+        with open(name + '_results.txt', 'w') as f:
+            f.write('Speedup\n')
+            f.write('{:10s}'.format(''))
+            for l in variants:
+                f.write('{:10s} |'.format(l))
+            f.write('\n')
+            for j in range(len(ys[0])):
+                f.write('{:10s}'.format(labels[j]))
+                for n in ys:
+                    f.write('{:10f} |'.format(n[j]))
+                f.write('\n')
+
+            f.write('\nFPS\n')
+            f.write('{:10s}'.format(''))
+            for l in variants:
+                f.write('{:10s} |'.format(l))
+            f.write('\n')
+            for j in range(len(fps[0])):
+                f.write('{:10s}'.format(labels[j]))
+                for n in fps:
+                    f.write('{:10f} |'.format(n[j]))
+                f.write('\n')
         plt.clf()
 
 
@@ -1861,7 +1923,7 @@ def micro_comparison_driver():
     }
     #t = 'mean'
     t = 'fight'
-    if 1:
+    if 0:
         standalone_results = standalone_benchmark(tests)
         scanner_results = scanner_benchmark(tests, frame_wh)
         peak_results = peak_benchmark(tests, frame_counts, frame_wh)
@@ -1878,9 +1940,9 @@ def micro_comparison_driver():
     if 1:
         #1920
         t = 'fight'
-        standalone_results = {}
-        scanner_results = {}
-        peak_results = {}
+        standalone_results = {'fight': {'caffe': [(252.92, {'load': 159.73, 'save': 0.19, 'transform': 55.09, 'eval': 93.0, 'net': 37.9, 'total': 252.92})], 'flow': [(57.03, {'load': 0.19, 'total': 57.03, 'setup': 0.23, 'save': 0.0, 'eval': 56.66})], 'histogram': [(52.41, {'load': 38.72, 'total': 52.41, 'setup': 0.16, 'save': 0.09, 'eval': 13.43})]}}
+        scanner_results = {'fight': {'caffe': [(134.643764659, {'load': {'setup': '0.000313', 'task': '2.732178', 'idle': '483.639105', 'io': '2.694216'}, 'save': {'setup': '0.000012', 'task': '0.998610', 'idle': '327.472855', 'io': '0.992970'}, 'eval': {'task': '227.921991', 'evaluate': '193.274604', 'setup': '6.592625', 'evaluator_marshal': '34.380673', 'decode': '99.733381', 'idle': '421.211272', 'caffe:net': '34.503387', 'caffe:transform_input': '58.372106', 'memcpy': '34.279553'}})], 'flow': [(68.246963461, {'load': {'setup': '0.000659', 'task': '0.232119', 'idle': '258.826515', 'io': '0.198524'}, 'save': {'setup': '0.000007', 'task': '0.003803', 'idle': '194.370179', 'io': '0.003245'}, 'eval': {'task': '72.947458', 'evaluate': '68.481038', 'setup': '2.086686', 'evaluator_marshal': '4.323619', 'decode': '4.343175', 'idle': '300.531346', 'memcpy': '4.314552', 'flowcalc': '61.589261'}})], 'histogram': [(61.569025441, {'load': {'setup': '0.000008', 'task': '2.827806', 'idle': '266.692132', 'io': '2.804325'}, 'save': {'setup': '0.000006', 'task': '0.615977', 'idle': '182.132882', 'io': '0.613140'}, 'eval': {'task': '68.860379', 'evaluate': '67.389445', 'setup': '2.053393', 'histogram': '7.404950', 'decode': '59.979797', 'idle': '293.526000', 'evaluator_marshal': '1.278468', 'memcpy': '1.234116'}})]}}
+        peak_results = {'fight': {'caffe': [(117.62, {'feed': 117.3, 'load': 0.0, 'total': 117.62, 'transform': 63.25, 'decode': 117.36, 'idle': 23.6, 'eval': 97.88, 'net': 34.63, 'save': 0.48})], 'flow': [(63.29, {'feed': 53.95, 'load': 0.0, 'total': 63.29, 'decode': 3.37, 'eval': 63.06, 'save': 2.44})], 'histogram': [(52.09, {'feed': 52.06, 'load': 0.0, 'total': 52.09, 'setup': 0.0, 'decode': 52.07, 'eval': 6.43, 'save': 0.53})]}}
         comparison_graphs(t, frame_counts, frame_wh, standalone_results,
                           scanner_results, peak_results)
 
