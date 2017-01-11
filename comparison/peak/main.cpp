@@ -18,6 +18,7 @@
 #include "scanner/util/queue.h"
 #include "scanner/util/util.h"
 #include "scanner/util/h264.h"
+#include "scanner/engine/halide_context.h"
 
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "caffe/blob.hpp"
@@ -469,6 +470,9 @@ void video_caffe_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
   }
 
   // Set ourselves to the correct GPU
+  CUcontext cuda_context;
+  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, gpu_device_id));
+  Halide::Runtime::Internal::Cuda::context = cuda_context;
   halide_set_gpu_device(gpu_device_id);
   cv::cuda::setDevice(gpu_device_id);
   CU_CHECK(cudaSetDevice(gpu_device_id));

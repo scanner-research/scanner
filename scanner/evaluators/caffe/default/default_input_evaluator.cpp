@@ -16,6 +16,8 @@
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/util/memory.h"
 
+#include "scanner/engine/halide_context.h"
+
 #include "HalideRuntimeCuda.h"
 
 #ifdef HAVE_CUDA
@@ -44,6 +46,10 @@ DefaultInputEvaluator::DefaultInputEvaluator(
     net_input_width_ = -1;
     net_input_height_ = -1;
   }
+  cudaSetDevice(device_id_);
+  CUcontext cuda_context;
+  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_id));
+  Halide::Runtime::Internal::Cuda::context = cuda_context;
   halide_set_gpu_device(device_id);
 }
 
@@ -182,6 +188,8 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
   i32 input_count = input_columns[0].rows.size();
   size_t net_input_size =
       net_input_width_ * net_input_height_ * 3 * sizeof(float);
+
+  halide_set_gpu_device(device_id_);
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     output_columns[0].rows.push_back(input_columns[0].rows[i]);

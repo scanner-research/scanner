@@ -109,6 +109,8 @@ if (BUILD_VIDEO_EVALUATORS)
   #find_package(MFX)
 endif()
 
+add_library(scanner_halide scanner/engine/halide_context.cpp)
+
 if (BUILD_CAFFE_EVALUATORS)
   find_package(Caffe REQUIRED)
   add_definitions(-DHAVE_CAFFE)
@@ -313,6 +315,7 @@ macro(add_deps)
       target_include_directories(${targetName} PUBLIC
         "${PROJECT_BINARY_DIR}/generator_genfiles")
     endforeach()
+    add_dependencies(${targetName} scanner_halide)
   endif()
 endmacro()
 
@@ -332,6 +335,7 @@ if (BUILD_COMPARISON)
   add_subdirectory(comparison)
 endif()
 
+
 add_executable(scanner_server
   scanner/main.cpp
   $<TARGET_OBJECTS:engine>
@@ -350,6 +354,7 @@ add_executable(scanner_server
 if (HALIDE_FOUND)
   foreach(TARGET ${HALIDE_TARGETS})
     halide_add_aot_library_dependency(scanner_server ${TARGET})
+    target_link_libraries(scanner_server PRIVATE scanner_halide)
   endforeach()
 endif()
 

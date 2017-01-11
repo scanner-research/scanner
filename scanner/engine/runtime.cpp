@@ -623,6 +623,7 @@ void run_job(JobParameters& params) {
     }
   }
 
+  LOG(INFO) << "Node " << rank << " finished.";
   // Push sentinel work entries into queue to terminate load threads
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     LoadWorkEntry entry;
