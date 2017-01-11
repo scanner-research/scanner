@@ -49,6 +49,11 @@ DEVNULL = open(os.devnull, 'wb', 0)
 
 TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
 
+NAIVE_COLOR = '#b0b0b0'
+SCANNER_COLOR = '#F39948'
+PEAK_COLOR = '#FF7169'
+
+sns.set_style("whitegrid")
 
 def clear_filesystem_cache():
     os.system('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"')
@@ -378,84 +383,156 @@ def count_frames(video):
     return int(subprocess.check_output(cmd.format(video), shell=True))
 
 
-def multi_gpu_benchmark():
-    dataset_name = 'multi_gpu'
-
-    videos = [
-        '/n/scanner/wcrichto.new/videos/movies/meanGirls.mp4',
-        '/n/scanner/wcrichto.new/videos/movies/meanGirls.mp4'
-    ]
-
-    pipelines = [
-        'caffe_benchmark',
-        'histogram_benchmark',
-        'flow_benchmark'
-    ]
-
-    num_gpus = [1, 2, 4]
+def multi_gpu_benchmark(tests, frame_counts, frame_wh):
+    db_path = '/tmp/scanner_multi_gpu_db'
 
     db = scanner.Scanner()
     scanner_settings = {
+        'db_path': db_path,
+        'node_count': 1,
+        'pus_per_node': 1,
+        'io_item_size': 256,
+        'work_item_size': 64,
+        'tasks_in_queue_per_pu': 3,
         'force': True,
-        'work_item_size': 24,
-        'io_item_size': 24,
         'env': {
             'SC_JOB_NAME': 'base'
         }
     }
+    dataset_name = 'multi_gpu'
+    video_job = 'base'
+
+    #num_gpus = [1]
+    #num_gpus = [4]
+    num_gpus = [1, 2, 4]
+    #num_gpus = [2, 4]
+    operations = [('histogram', 'histogram_benchmark'),
+                  #('caffe', 'caffe_benchmark')]
+                  ('caffe', 'caffe_benchmark'),
+                  ('flow', 'flow_benchmark')]
+
 
     all_results = {}
-    #frames = count_frames(video)
-    frames = 138000*2
-    video = videos[0]
-    all_results[video] = {}
+    for test_name, paths in tests.iteritems():
+        all_results[test_name] = {}
+        for op, _ in operations:
+            all_results[test_name][op] = []
 
-    print('Ingesting {}'.format(video))
-    result, _ = db.ingest('video', dataset_name, videos, {'force': True})
-    if result is False:
-        print('Failed to ingest')
-        exit()
+        #frames = count_frames(video)
+        os.system('rm -rf {}'.format(db_path))
+        print('Ingesting {}'.format(paths))
+        # ingest data
+        result, _ = db.ingest('video', dataset_name, paths, scanner_settings)
+        if result is False:
+            print('Failed to ingest')
+            exit()
 
-    for pipeline in pipelines:
-        all_results[video][pipeline] = {}
+        scanner_settings['env']['SC_JOB_NAME'] = video_job
 
-        for gpus in num_gpus:
-            scanner_settings['node_count'] = gpus
-            print('Running {}, {} GPUS'.format(pipeline, gpus))
-            t, _ = run_trial(dataset_name, pipeline,
-                             'test', scanner_settings)
+        for op, pipeline in operations:
+            for gpus in num_gpus:
+                frames = frame_counts[test_name]
+                if op == 'histogram':
+                    if frame_wh[test_name]['width'] == 640:
+                        scanner_settings['io_item_size'] = 2048
+                        scanner_settings['work_item_size'] = 1024
+                    else:
+                        scanner_settings['io_item_size'] = 512
+                        scanner_settings['work_item_size'] = 128
+                elif op == 'flow':
+                    frames /= 20
+                    scanner_settings['io_item_size'] = 512
+                    scanner_settings['work_item_size'] = 64
+                elif op == 'caffe':
+                    scanner_settings['io_item_size'] = 480
+                    scanner_settings['work_item_size'] = 96
+                elif op == 'caffe_cpm2':
+                    scanner_settings['io_item_size'] = 256
+                    scanner_settings['work_item_size'] = 64
 
-            print(t, frames/float(t))
-
-            all_results[video][pipeline][gpus] = frames / float(t)
+                scanner_settings['node_count'] = gpus
+                print('Running {}, {} GPUS'.format(op, gpus))
+                t, _ = run_trial(dataset_name, pipeline,
+                                 op, scanner_settings)
+                print(t, frames / float(t))
+                all_results[test_name][op].append(float(frames) / float(t))
 
     pprint(all_results)
+    return all_results
 
-    plt.title("Multi-GPU scaling in Scanner")
-    plt.xlabel("Pipeline")
-    plt.ylabel("FPS")
 
-    labels = pipelines
-    x = np.arange(len(labels))
+def multi_gpu_graphs(test_name, frame_counts, frame_wh, results,
+                     labels_on=True):
+    #matplotlib.rcParams.update({'font.size': 22})
+    scale = 2.5
+    w = 3.33 * scale
+    h = 1.25 * scale
+    fig = plt.figure(figsize=(w, h))
+
+    if False:
+        fig.suptitle(
+            "Scanner Multi-GPU Scaling on {width}x{height} video".format(
+                width=frame_wh[test_name]['width'],
+                height=frame_wh[test_name]['height'],
+            ))
+    ax = fig.add_subplot(111)
+    if labels_on:
+        ax.set_ylabel("Speedup (over 1 GPU)")
+    ax.xaxis.grid(False)
+
+    t = test_name
+    # all_results = {'mean': {'caffe': [1074.2958445786187, 2167.455212488331, 4357.563170607772],
+    #                                   'flow': [95.75056483734716, 126.96566457146966, 127.75415013154019],
+    #                                   'histogram': [3283.778064650782,
+    #                                                                         6490.032394321538,
+    #                                                                         12302.865537345728]}}
+    operations = [('histogram', 'HIST'),
+                  ('caffe', 'CAFFE'),
+                  ('flow', 'FLOW')]
+    num_gpus = [1, 2, 4]
+
+    ops = [op for op, _ in operations]
+    labels = [l for _, l in operations]
+    x = np.arange(len(labels)) * 1.2
     ys = [[0 for _ in range(len(num_gpus))] for _ in range(len(labels))]
 
-    for (i, values) in enumerate(all_results[videos[0]].values()):
-        for (j, n) in enumerate(values.values()):
-            ys[j][i] = n
+    for j, op in enumerate(ops):
+        for i, time in enumerate(results[t][op]):
+                 ys[j][i] = time
 
-    colors = sns.color_palette()
-    for (i, y) in enumerate(ys):
-        xx = x + (i*0.3)
-        plt.bar(xx, y, 0.3, align='center', color=colors[i])
+    for i in range(len(num_gpus)):
+        xx = x + (i*0.35)
+        fps = [ys[l][i] for l, _ in enumerate(labels)]
+        y = [ys[l][i] / ys[l][0] for l, _ in enumerate(labels)]
+        ax.bar(xx, y, 0.3, align='center', color=SCANNER_COLOR,
+                    edgecolor='none')
         for (j, xy) in enumerate(zip(xx, y)):
-            speedup = xy[1] / float(ys[0][j])
-            plt.annotate('{} ({:.1f}x)'.format(int(xy[1]), speedup), xy=xy, ha='center')
+            if i == 2:
+                xyx = xy[0]
+                xyy = xy[1] + 0.1
+                if labels_on:
+                    ax.annotate('{:d}'.format(int(fps[j])),
+                                xy=(xyx, xyy), ha='center')
+            if labels_on:
+                ax.annotate("{:d}".format(num_gpus[i]), xy=(xy[0], -0.30),
+                            ha='center', annotation_clip=False)
 
-    plt.xticks(x+0.3, labels)
-    plt.legend(['{} GPUs'.format(n) for n in num_gpus], loc='upper left')
-    plt.tight_layout()
+    yt = [0, 1, 2, 3, 4]
+    ax.set_yticks(yt)
+    ax.set_yticklabels(['{:d}'.format(d) for d in yt])
+    ax.set_ylim([0, 4.2])
 
-    plt.savefig('multigpu.png', dpi=150)
+    ax.set_xticks(x+0.3)
+    ax.set_xticklabels(labels, ha='center')
+    fig.tight_layout()
+    #ax.xaxis.labelpad = 10
+    ax.tick_params(axis='x', which='major', pad=15)
+    sns.despine()
+
+    fig.savefig('multigpu_' + test_name + '.png', dpi=600)
+    fig.savefig('multigpu_' + test_name + '.pdf', dpi=600, transparent=True)
+    fig.clf()
+
 
 
 def run_cmd(template, settings):
@@ -1045,9 +1122,12 @@ def scanner_benchmark(tests, wh):
                     scanner_settings['io_item_size'] = 512
                     scanner_settings['work_item_size'] = 128
             elif op == 'flow':
+                scanner_settings['io_item_size'] = 128
+                scanner_settings['work_item_size'] = 32
+            elif op == 'caffe':
                 scanner_settings['io_item_size'] = 256
                 scanner_settings['work_item_size'] = 64
-            elif op == 'caffe':
+            elif op == 'caffe_cpm2':
                 scanner_settings['io_item_size'] = 256
                 scanner_settings['work_item_size'] = 64
             total, prof = run_trial(dataset_name, pipeline, op,
@@ -1214,6 +1294,10 @@ def decode_sol(tests, frame_count):
         if test_name == 'mean':
             scanner_settings['io_item_size'] = 8192
             scanner_settings['work_item_size'] = 2048
+        if test_name == 'fight':
+            scanner_settings['io_item_size'] = 2048
+            scanner_settings['work_item_size'] = 512
+
 
         # Scanner decode
         total, prof = run_trial(dataset_name, decode_pipeline, 'test',
@@ -1279,7 +1363,7 @@ def kernel_sol(tests):
     operations = ['histogram', 'flow', 'caffe']
     iters = {'histogram': 50,
              'flow': 5,
-             'caffe': 10}
+             'caffe': 30}
 
     all_results = {}
     for test_name, paths in tests.iteritems():
@@ -1315,7 +1399,6 @@ def standalone_graphs(frame_counts, results):
 
     x = np.arange(3)
     labels = ['caffe', 'flow', 'histogram']
-    plt.xticks(x, labels)
 
     test_name = 'charade'
     tests = results[test_name]
@@ -1344,24 +1427,29 @@ def standalone_graphs(frame_counts, results):
         plt.legend(['BMP', 'JPG', 'Video'], loc='upper left')
         plt.tight_layout()
         plt.savefig('standalone_' + test_name + '.png', dpi=150)
+        plt.savefig('standalone_' + test_name + '.pdf', dpi=150)
 
 
 def comparison_graphs(test_name,
                       frame_counts, wh,
                       standalone_results, scanner_results,
-                      peak_results):
-    plt.clf()
-    plt.title("Microbenchmarks on {width}x{height} video".format(
-        width=wh[test_name]['width'],
-        height=wh[test_name]['height']))
-    plt.ylabel("FPS")
-    plt.xlabel("Pipeline")
+                      peak_results,
+                      labels_on=True):
+    scale = 2.5
+    w = 3.33 * scale
+    h = 1.25 * scale
+    fig = plt.figure(figsize=(w, h))
+    if False:
+        fig.suptitle("Microbenchmarks on {width}x{height} video".format(
+            width=wh[test_name]['width'],
+            height=wh[test_name]['height']))
+    ax = fig.add_subplot(111)
+    if labels_on:
+        plt.ylabel("Speedup (over expert)")
+    ax.xaxis.grid(False)
 
-    colors = sns.color_palette()
-
-    x = np.arange(3)
-    labels = ['histogram', 'caffe', 'flow']
-    plt.xticks(x, labels)
+    ops = ['histogram', 'caffe', 'flow']
+    labels = ['HIST', 'DNN', 'FLOW']
 
     standalone_tests = standalone_results[test_name]
     scanner_tests = scanner_results[test_name]
@@ -1373,44 +1461,75 @@ def comparison_graphs(test_name,
         standalone_y = []
         scanner_y = []
         peak_y = []
-        for label in labels:
+        peak_fps = []
+        for label in ops:
             frames = frame_counts[test_name]
             if label == 'flow':
                 frames /= 20.0
+
+            peak_sec, timings = peak_tests[label][0]
+            if peak_sec == -1:
+                peak_fps.append(0)
+            else:
+                peak_fps.append(frames / peak_sec)
+            peak_y.append(1.0)
+
             sec, timings = standalone_tests[label][0]
             if sec == -1:
                 standalone_y.append(0)
             else:
-                standalone_y.append(frames / sec)
+                standalone_y.append(peak_sec / sec)
 
             sec, timings = scanner_tests[label][0]
             if sec == -1:
                 scanner_y.append(0)
             else:
-                scanner_y.append(frames / sec)
-
-            sec, timings = peak_tests[label][0]
-            if sec == -1:
-                peak_y.append(0)
-            else:
-                peak_y.append(frames / sec)
+                scanner_y.append(peak_sec / sec)
 
         ys.append(standalone_y)
         ys.append(scanner_y)
         ys.append(peak_y)
-
         print(ys)
+
+        x = np.arange(3) * 1.2
+
+        colors = [NAIVE_COLOR, SCANNER_COLOR, PEAK_COLOR]
         for (i, y) in enumerate(ys):
-            xx = x+(i*0.3)
-            plt.bar(xx, y, 0.3, align='center', color=colors[i])
-            for xy in zip(xx, y):
-                xp, yp = xy
-                xp -= 0.1
-                plt.annotate("{:.2f}".format(xy[1]), xy=(xp, yp))
-        plt.legend(['Non-expert', 'Scanner', 'Hand-authored'],
-                   loc='upper right')
+            xx = x+(i*0.35)
+            ax.bar(xx, y, 0.3, align='center', color=colors[i],
+                   edgecolor='none')
+            if i == 1:
+                for k, xxx in enumerate(xx):
+                    ax.annotate("{}".format(labels[k]),
+                                xy=(xxx, -0.08), annotation_clip=False,
+                                ha='center')
+            if i == 2:
+                for k, xy in enumerate(zip(xx, y)):
+                    xp, yp = xy
+                    yp += 0.05
+                    #xp += 0.1
+                    ax.annotate("{:d}".format(int(peak_fps[k])), xy=(xp, yp),
+                                ha='center')
+        if False:
+            plt.legend(['Non-expert', 'Scanner', 'Hand-authored'],
+                       loc='upper right')
+
+        ax.set_xticks(x+0.3)
+        ax.set_xticklabels(['', '', ''])
+        ax.xaxis.grid(False)
+
+        yt = [0, 0.5, 1]
+        ax.set_yticks(yt)
+        ax.set_yticklabels(['{:.1f}'.format(d) for d in yt])
+        ax.set_ylim([0, 1.1])
+
+
         plt.tight_layout()
+        sns.despine()
+
         plt.savefig('comparison_' + test_name + '.png', dpi=150)
+        plt.savefig('comparison_' + test_name + '.pdf', dpi=150)
+        plt.clf()
 
 
 def effective_io_rate_benchmark():
@@ -1726,9 +1845,9 @@ def graph_decode_rate_benchmark(path):
 
 def micro_comparison_driver():
     tests = {
-        #'fight': ['/n/scanner/apoms/videos/fightClub_50k.mp4'],
+        'fight': ['/n/scanner/apoms/videos/fightClub_50k.mp4'],
         #'excalibur': ['/n/scanner/apoms/videos/excalibur_50k.mp4'],
-        'mean': ['/n/scanner/apoms/videos/meanGirls_50k.mp4'],
+        #'mean': ['/n/scanner/apoms/videos/meanGirls_50k.mp4'],
     }
     frame_counts = {'charade': 21579,
                     'fight': 50350,
@@ -1740,33 +1859,88 @@ def micro_comparison_driver():
                 'excalibur': {'width': 1920, 'height': 1080},
                 'mean': {'width': 640, 'height': 480},
     }
-    t = 'mean'
-    # standalone_results = standalone_benchmark(tests)
-    # scanner_results = scanner_benchmark(tests, frame_wh)
-    # peak_results = peak_benchmark(tests, frame_counts, frame_wh)
-    # comparison_graphs(t, frame_counts, frame_wh, standalone_results,
-    #                   scanner_results, peak_results)
+    #t = 'mean'
+    t = 'fight'
+    if 1:
+        standalone_results = standalone_benchmark(tests)
+        scanner_results = scanner_benchmark(tests, frame_wh)
+        peak_results = peak_benchmark(tests, frame_counts, frame_wh)
+        comparison_graphs(t, frame_counts, frame_wh, standalone_results,
+                          scanner_results, peak_results)
+    if 1:
+        #640
+        t = 'mean'
+        standalone_results = {'mean': {'caffe': [(128.86, {'load': 34.5, 'save': 0.19, 'transform': 56.25, 'eval': 94.17, 'net': 37.91, 'total': 128.86})], 'flow': [(42.53, {'load': 0.13, 'total': 42.53, 'setup': 0.21, 'save': 5.44, 'eval': 17.58})], 'histogram': [(13.54, {'load': 7.05, 'total': 13.54, 'setup': 0.12, 'save': 0.05, 'eval': 6.32})]}}
+        scanner_results = {'mean': {'caffe': [(44.495288089, {'load': {'setup': '0.000009', 'task': '2.174472', 'idle': '173.748807', 'io': '2.138090'}, 'save': {'setup': '0.000008', 'task': '1.072224', 'idle': '117.011795', 'io': '1.065889'}, 'eval': {'task': '84.702374', 'evaluate': '83.057708', 'setup': '4.623244', 'evaluator_marshal': '1.427507', 'decode': '42.458139', 'idle': '146.444473', 'caffe:net': '34.756799', 'caffe:transform_input': '5.282478', 'memcpy': '1.353623'}})], 'flow': [(34.700563742, {'load': {'setup': '0.000010', 'task': '0.654652', 'idle': '83.952595', 'io': '0.641715'}, 'save': {'setup': '0.000008', 'task': '6.257866', 'idle': '62.448266', 'io': '6.257244'}, 'eval': {'task': '20.600713', 'evaluate': '20.410105', 'setup': '2.016671', 'evaluator_marshal': '0.094336', 'decode': '1.044027', 'idle': '105.924678', 'memcpy': '0.089637', 'flowcalc': '17.262241'}})], 'histogram': [(15.449293653, {'load': {'setup': '0.000007', 'task': '2.212311', 'idle': '83.767484', 'io': '2.192515'}, 'save': {'setup': '0.000008', 'task': '0.659185', 'idle': '59.795770', 'io': '0.658409'}, 'eval': {'task': '20.127624', 'evaluate': '19.132718', 'setup': '2.043204', 'histogram': '4.870099', 'decode': '14.261789', 'idle': '97.814596', 'evaluator_marshal': '0.845618', 'memcpy': '0.827516'}})]}}
+        peak_results = {'mean': {'caffe': [(41.27, {'feed': 40.9, 'load': 0.0, 'total': 41.27, 'transform': 3.28, 'decode': 40.97, 'idle': 9.04, 'eval': 37.21, 'net': 33.92, 'save': 0.34})], 'flow': [(29.91, {'feed': 15.62, 'load': 0.0, 'total': 29.91, 'decode': 0.85, 'eval': 18.21, 'save': 7.74})], 'histogram': [(12.3, {'feed': 12.25, 'load': 0.0, 'total': 12.3, 'setup': 0.0, 'decode': 12.26, 'eval': 4.11, 'save': 0.05})]}}
+        comparison_graphs(t, frame_counts, frame_wh, standalone_results,
+                          scanner_results, peak_results)
+    if 1:
+        #1920
+        t = 'fight'
+        standalone_results = {}
+        scanner_results = {}
+        peak_results = {}
+        comparison_graphs(t, frame_counts, frame_wh, standalone_results,
+                          scanner_results, peak_results)
 
     #decode_sol(tests, frame_counts)
     tests = {
-        #'charade': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        #'charade': ['/n/scanner/wcrichto.new/videos/charade.mkv'],
-        #'mean': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        #'mean': ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
-        # 'single': ['/bigdata/wcrichto/videos/charade_short.mkv'],
-        # 'many': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        # 'varying': ['/bigdata/wcrichto/videos/meanGirls_medium.mp4']
-        #'fight': ['/n/scanner/wcrichto.new/videos/movies/fightClub.mp4'],
+        #'fight': ['/n/scanner/wcrichto.new/videos/movies/private/fightClub.mp4'],
         #'excalibur': ['/n/scanner/wrichto.new/videos/movies/excalibur.mp4'],
-        'mean': ['/n/scanner/wcrichto.new/videos/movies/meanGirls.mp4'],
+        'mean': ['/n/scanner/wcrichto.new/videos/movies/private/meanGirls.mp4'],
     }
     frame_counts = {'charade': 163430,
                     'fight': 200158,
                     'excalibur': 202275,
                     'mean': 139301
     }
-    decode_sol(tests, frame_counts)
-    kernel_sol(tests)
+    if 0:
+        #decode_sol(tests, frame_counts)
+        kernel_sol(tests)
+
+
+    tests = {
+        #'fight': ['/n/scanner/wcrichto.new/videos/movies/fightClub.mp4'],
+        # 'fight': [
+        #     '/n/scanner/wcrichto.new/videos/movies/private/fightClub.mp4'
+        #     #'/n/scanner/wcrichto.new/videos/movies/private/fightClub.mp4'
+        # ],
+        #'excalibur': ['/n/scanner/wrichto.new/videos/movies/excalibur.mp4'],
+        'mean': [
+            '/n/scanner/wcrichto.new/videos/movies/private/meanGirls.mp4',
+            '/n/scanner/wcrichto.new/videos/movies/private/meanGirls.mp4'
+        ],
+    }
+    frame_counts = {'charade': 163430,
+                    'fight': 200158 * 1,
+                    'excalibur': 202275,
+                    'mean': 139301 * 2
+    }
+
+    t = 'mean'
+    if 0:
+        results = multi_gpu_benchmark(tests, frame_counts, frame_wh)
+        multi_gpu_graphs(t, frame_counts, frame_wh, results)
+
+    if 1:
+        t = 'fight'
+        all_results = {'fight': {'caffe': [450.6003510117739,
+                                                                744.8901229071761,
+                                                                1214.9085580870278],
+                                            'flow': [35.26797046326607, 65.1234304140463, 111.91821397303859],
+                                            'histogram': [817.7005547708027,
+                                                                                   1676.5330527934939,
+                                                                                   3309.0863111932586]}}
+        multi_gpu_graphs(t, frame_counts, frame_wh, all_results)
+    if 1:
+        t = 'mean'
+        results = {'mean': {'caffe': [1100.922914437792, 2188.3067699888497, 4350.245467315307],
+                           'flow': [130.15578312203905, 239.4233822453851, 355.9739890240647],
+                           'histogram': [3353.6737094160358,
+                                                                 6694.3141921293845,
+                                                                 12225.677026449643]}}
+        multi_gpu_graphs(t, frame_counts, frame_wh, results)
 
 
 def bench_main(args):
@@ -1775,10 +1949,10 @@ def bench_main(args):
     #effective_decode_rate_benchmark()
     #dnn_rate_benchmark()
     #storage_benchmark()
-    #micro_comparison_driver()
+    micro_comparison_driver()
     # results = standalone_benchmark()
     # standalone_graphs(results)
-    multi_gpu_benchmark()
+    #multi_gpu_benchmark()
 
 
 def graphs_main(args):
@@ -1789,7 +1963,8 @@ def trace_main(args):
     dataset = args.dataset
     job = args.job
     db = scanner.Scanner()
-    db._db_path = '/tmp/scanner_db'
+    db._db_path = '/tmp/scanner_multi_gpu_db'
+    #db._db_path = '/tmp/scanner_db'
     profilers = db.parse_profiler_files(dataset, job)
     pprint(generate_statistics(profilers))
     write_trace_file(profilers, dataset, job)
