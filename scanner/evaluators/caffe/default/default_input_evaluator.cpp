@@ -47,10 +47,15 @@ DefaultInputEvaluator::DefaultInputEvaluator(
     net_input_height_ = -1;
   }
   cudaSetDevice(device_id_);
-  CUcontext cuda_context;
-  CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_id));
-  Halide::Runtime::Internal::Cuda::context = cuda_context;
+  CUD_CHECK(cuDevicePrimaryCtxRetain(&context_, device_id));
+  Halide::Runtime::Internal::Cuda::context = context_;
   halide_set_gpu_device(device_id);
+}
+
+DefaultInputEvaluator::~DefaultInputEvaluator() {
+  cudaSetDevice(device_id_);
+  Halide::Runtime::Internal::Cuda::context = 0;
+  CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
 void DefaultInputEvaluator::configure(const BatchConfig& config) {

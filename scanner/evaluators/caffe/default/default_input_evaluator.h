@@ -43,6 +43,7 @@ class DefaultInputEvaluator : public Evaluator {
                         const NetDescriptor& descriptor, i32 batch_size,
                         std::vector<InputLayerBuilder> input_layer_builders,
                         const EvaluatorConfig& config);
+  ~DefaultInputEvaluator();
 
   void configure(const BatchConfig& config) override;
 
@@ -52,6 +53,7 @@ class DefaultInputEvaluator : public Evaluator {
   i32 net_input_width_;
   i32 net_input_height_;
   EvaluatorConfig eval_config_;
+  CUcontext context_;
 
  private:
   void set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size);
