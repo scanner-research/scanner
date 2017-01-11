@@ -31,6 +31,7 @@ extern "C" {
 
 #include <deque>
 #include <vector>
+#include <mutex>
 
 namespace scanner {
 
@@ -67,6 +68,7 @@ class SoftwareVideoDecoder : public VideoDecoder {
   bool reset_context_;
   SwsContext* sws_context_;
 
+  std::mutex frame_mutex_;
   std::vector<AVFrame*> frame_pool_;
   std::deque<AVFrame*> decoded_frame_queue_;
 };

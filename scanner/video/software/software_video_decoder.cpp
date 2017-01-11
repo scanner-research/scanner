@@ -123,40 +123,64 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   }
 #endif
   if (discontinuity) {
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    while (decoded_frame_queue_.size() > 0) {
+      AVFrame *frame = decoded_frame_queue_.front();
+      decoded_frame_queue_.pop_front();
+      av_frame_unref(frame);
+      frame_pool_.push_back(frame);
+    }
     avcodec_flush_buffers(cc_);
     return false;
   }
-  if (av_new_packet(&packet_, encoded_size) < 0) {
-    fprintf(stderr, "could not allocate packet for feeding into decoder\n");
-    assert(false);
+  if (encoded_size > 0) {
+    if (av_new_packet(&packet_, encoded_size) < 0) {
+      fprintf(stderr, "could not allocate packet for feeding into decoder\n");
+      assert(false);
+    }
+    memcpy(packet_.data, encoded_buffer, encoded_size);
+  } else {
+    packet_.data = NULL;
+    packet_.size = 0;
   }
-  memcpy(packet_.data, encoded_buffer, encoded_size);
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 25, 0)
   auto send_start = now();
   int error = avcodec_send_packet(cc_, &packet_);
-  if (error < 0) {
-    char err_msg[256];
-    av_strerror(error, err_msg, 256);
-    fprintf(stderr, "Error while sending packet (%d): %s\n", error, err_msg);
-    assert(false);
+  if (error != AVERROR_EOF) {
+    if (error < 0) {
+      char err_msg[256];
+      av_strerror(error, err_msg, 256);
+      fprintf(stderr, "Error while sending packet (%d): %s\n", error, err_msg);
+      assert(false);
+    }
   }
   auto send_end = now();
 
   auto received_start = now();
   bool done = false;
   while (!done) {
-    if (frame_pool_.empty()) {
-      // Create a new frame if our pool is empty
-      frame_pool_.push_back(av_frame_alloc());
+
+    AVFrame *frame;
+    {
+      std::lock_guard<std::mutex> lock(frame_mutex_);
+      if (frame_pool_.empty()) {
+        // Create a new frame if our pool is empty
+        frame_pool_.push_back(av_frame_alloc());
+      }
+      frame = frame_pool_.back();
+      frame_pool_.pop_back();
     }
-    AVFrame *frame = frame_pool_.back();
-    frame_pool_.pop_back();
 
     error = avcodec_receive_frame(cc_, frame);
+    if (error == AVERROR_EOF) {
+      break;
+    }
     if (error == 0) {
+      std::lock_guard<std::mutex> lock(frame_mutex_);
       decoded_frame_queue_.push_back(frame);
     } else if (error == AVERROR(EAGAIN)) {
       done = true;
+      std::lock_guard<std::mutex> lock(frame_mutex_);
       frame_pool_.push_back(frame);
     } else {
       char err_msg[256];
@@ -177,12 +201,16 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   int got_picture = 0;
   do {
     // Get frame from pool of allocated frames to decode video into
-    if (frame_pool_.empty()) {
-      // Create a new frame if our pool is empty
-      frame_pool_.push_back(av_frame_alloc());
+    AVFrame *frame;
+    {
+      std::lock_guard<std::mutex> lock(frame_mutex_);
+      if (frame_pool_.empty()) {
+        // Create a new frame if our pool is empty
+        frame_pool_.push_back(av_frame_alloc());
+      }
+      frame = frame_pool_.back();
+      frame_pool_.pop_back();
     }
-    AVFrame *frame = frame_pool_.back();
-    frame_pool_.pop_back();
 
     auto decode_start = now();
     int consumed_length =
@@ -205,11 +233,13 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
           fprintf(stderr, "could not clone frame\n");
           assert(false);
         }
+        std::lock_guard<std::mutex> lock(frame_mutex_);
         decoded_frame_queue_.push_back(cloned_frame);
         av_frame_unref(frame);
         frame_pool_.push_back(frame);
       } else {
         // Frame is reference counted so we can just take it directly
+        std::lock_guard<std::mutex> lock(frame_mutex_);
         decoded_frame_queue_.push_back(frame);
       }
     } else {
@@ -227,10 +257,13 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
 }
 
 bool SoftwareVideoDecoder::discard_frame() {
-  AVFrame* frame = decoded_frame_queue_.front();
-  decoded_frame_queue_.pop_front();
-  av_frame_unref(frame);
-  frame_pool_.push_back(frame);
+  {
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    AVFrame* frame = decoded_frame_queue_.front();
+    decoded_frame_queue_.pop_front();
+    av_frame_unref(frame);
+    frame_pool_.push_back(frame);
+  }
 
   return decoded_frame_queue_.size() > 0;
 }
@@ -238,8 +271,12 @@ bool SoftwareVideoDecoder::discard_frame() {
 bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   int64_t size_left = decoded_size;
 
-  AVFrame* frame = decoded_frame_queue_.front();
-  decoded_frame_queue_.pop_front();
+  AVFrame* frame;
+  {
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    frame = decoded_frame_queue_.front();
+    decoded_frame_queue_.pop_front();
+  }
 
   if (reset_context_) {
     auto get_context_start = now();
@@ -299,8 +336,11 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
 #endif
   }
 
-  av_frame_unref(frame);
-  frame_pool_.push_back(frame);
+  {
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    av_frame_unref(frame);
+    frame_pool_.push_back(frame);
+  }
 
   if (profiler_) {
     profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
