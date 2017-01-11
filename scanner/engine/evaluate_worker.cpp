@@ -48,9 +48,10 @@ void* pre_evaluate_thread(void* arg) {
     const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
 
     bool needs_configure = !(io_item.table_id == last_table_id);
-    bool needs_reset = !(io_item.item_id == last_item_id ||
-                         (io_item.table_id == last_table_id &&
-                          io_item.start_row == last_end_row));
+    bool needs_reset = needs_configure ||
+      !(io_item.item_id == last_item_id ||
+        (io_item.table_id == last_table_id &&
+         io_item.start_row == last_end_row));
     last_table_id = io_item.table_id;
     last_end_row = io_item.end_row;
     last_item_id = io_item.item_id;
