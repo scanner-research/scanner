@@ -10,6 +10,7 @@ import tempfile
 import time
 import subprocess
 import re
+import tempfile
 from pprint import pprint
 
 is_py3 = sys.version_info.major == 3
@@ -469,7 +470,12 @@ class Scanner(object):
             if opt:
                 cmd[0] += ['--' + name, str(opt)]
 
-        add_opt('host', hosts)
+        if hosts:
+            hostfile = tempfile.NamedTemporaryFile(delete=False)
+            hostfile.write("\n".join([h + " slots=1" for h in hosts]))
+            hostfile.close()
+            cmd[0] += ['-hostfile', hostfile.name]
+
         if custom_env:
             for k, v in custom_env.iteritems():
                 cmd[0] += ['-x', '{}={}'.format(k, v)]
