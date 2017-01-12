@@ -105,7 +105,7 @@ void run_job(JobParameters& params) {
   // Get metadata for all dataset items for distributing to evaluators
   std::vector<std::string> paths(dataset_meta.item_names());
 
-  std::vector<VideoMetadata> video_metadata;
+  std::map<i32, VideoMetadata> video_metadata;
   std::vector<ImageFormatGroupMetadata> image_metadata;
   std::vector<InputFormat> input_formats;
   for (size_t i = 0; i < paths.size(); ++i) {
@@ -116,9 +116,8 @@ void run_job(JobParameters& params) {
         metadata_file));
     if (dataset_meta.type() == DatasetType_Video) {
       u64 pos = 0;
-      video_metadata.push_back(
-          deserialize_video_metadata(metadata_file.get(), pos));
-      VideoMetadata& meta = video_metadata.back();
+      VideoMetadata meta = deserialize_video_metadata(metadata_file.get(), pos);
+      video_metadata.insert({meta.id(), meta});
       input_formats.emplace_back(meta.width(), meta.height());
     } else if (dataset_meta.type() == DatasetType_Image) {
       u64 pos = 0;

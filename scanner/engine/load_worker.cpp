@@ -139,7 +139,7 @@ void* load_thread(void* arg) {
         // If reading from base job and special visual data column...
         if (args.dataset.type() == DatasetType_Video) {
           // Special video column
-          const VideoMetadata& metadata = args.video_meta[sample.table_id];
+          const VideoMetadata& metadata = args.video_meta.at(sample.table_id);
           if (files.size() <= media_col_idx) {
             // Open the video file for reading
             RandomReadFile* video_file;

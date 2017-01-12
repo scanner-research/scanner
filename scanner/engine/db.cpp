@@ -278,6 +278,8 @@ const VideoDescriptor& VideoMetadata::get_descriptor() const {
   return descriptor;
 }
 
+i32 VideoMetadata::id() const { return descriptor.id(); }
+
 i32 VideoMetadata::frames() const { return descriptor.frames(); }
 
 i32 VideoMetadata::width() const { return descriptor.width(); }

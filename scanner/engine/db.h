@@ -84,6 +84,7 @@ struct VideoMetadata {
 
   const VideoDescriptor& get_descriptor() const;
 
+  i32 id() const;
   i32 frames() const;
   i32 width() const;
   i32 height() const;
