@@ -73,22 +73,22 @@ VideoIntervals slice_into_video_intervals(
   for (i64 row : rows) {
     if (row >= next_keyframe) {
       assert(end_keyframe_index < keyframe_positions.size() - 1);
-      next_keyframe = keyframe_positions[end_keyframe_index + 1];
+      next_keyframe = keyframe_positions[++end_keyframe_index];
       if (row >= next_keyframe) {
         // Skipped a keyframe, so make a new interval
-        info.keyframe_index_intervals.push_back(
-            std::make_tuple(start_keyframe_index, end_keyframe_index));
-        info.valid_frames.push_back(valid_frames);
+        if (!valid_frames.empty()) {
+          info.keyframe_index_intervals.push_back(
+              std::make_tuple(start_keyframe_index, end_keyframe_index - 1));
+          info.valid_frames.push_back(valid_frames);
+        }
 
-        end_keyframe_index = end_keyframe_index + 1;
-        while (row > keyframe_positions[end_keyframe_index]) {
+        while (row >= keyframe_positions[end_keyframe_index]) {
           end_keyframe_index++;
+          assert(end_keyframe_index < keyframe_positions.size());
         }
         valid_frames.clear();
         start_keyframe_index = end_keyframe_index - 1;
         next_keyframe = keyframe_positions[end_keyframe_index];
-      } else {
-        end_keyframe_index++;
       }
     }
     valid_frames.push_back(row);
