@@ -52,14 +52,23 @@ void* pre_evaluate_thread(void* arg) {
       !(io_item.item_id == last_item_id ||
         (io_item.table_id == last_table_id &&
          io_item.start_row == last_end_row));
+
     last_table_id = io_item.table_id;
     last_end_row = io_item.end_row;
     last_item_id = io_item.item_id;
 
     // Split up a work entry into work item size chunks
     i64 total_rows = work_entry.columns[0].rows.size();
+
+    i64 r = 0;
+    if (work_entry.needs_reset) {
+      i32 total_warmup_frames =
+          std::min((i64)args.warmup_count, io_item.start_row);
+      r = total_warmup_frames;
+    }
+
     std::vector<EvalWorkEntry> work_items;
-    for (i64 r = 0; r < total_rows; r += work_item_size) {
+    for (; r < total_rows; r += work_item_size) {
       work_items.emplace_back();
       EvalWorkEntry& entry = work_items.back();
       entry.io_item_index = work_entry.io_item_index;
