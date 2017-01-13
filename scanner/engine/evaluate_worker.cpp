@@ -61,7 +61,7 @@ void* pre_evaluate_thread(void* arg) {
     i64 total_rows = work_entry.columns[0].rows.size();
 
     i64 r = 0;
-    if (work_entry.needs_reset) {
+    if (!work_entry.needs_reset) {
       i32 total_warmup_frames =
           std::min((i64)args.warmup_count, io_item.start_row);
       r = total_warmup_frames;
