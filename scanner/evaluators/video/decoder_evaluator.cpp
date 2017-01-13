@@ -37,7 +37,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
 void DecoderEvaluator::configure(const BatchConfig& config) {
   reset();
   config_ = config;
-  for (const InputFormat& m : config.formats) {
+  for (const InputFormat &m : config.formats) {
     frame_sizes_.push_back(m.width() * m.height() * 3);
   }
   for (size_t i = 0; i < config.formats.size(); ++i) {
@@ -242,6 +242,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
             // the stream next time
             saw_end_packet = (encoded_packet_size == 0);
             if (encoded_packet_size == 0) {
+              assert(encoded_buffer_offset >= encoded_buffer_size);
               break;
             }
           }
@@ -256,6 +257,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
             // New frames
             bool more_frames = true;
             while (more_frames && valid_index < total_output_frames) {
+              assert(current_frame <= valid_frames[valid_index]);
               if (current_frame == valid_frames[valid_index]) {
                 u8* decoded_buffer = output_block + valid_index * frame_size;
                 more_frames = decoder->get_frame(decoded_buffer, frame_size);

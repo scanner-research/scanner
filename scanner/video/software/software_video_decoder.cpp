@@ -257,9 +257,9 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
 }
 
 bool SoftwareVideoDecoder::discard_frame() {
-  {
-    std::lock_guard<std::mutex> lock(frame_mutex_);
-    AVFrame* frame = decoded_frame_queue_.front();
+  std::lock_guard<std::mutex> lock(frame_mutex_);
+  if (decoded_frame_queue_.size() > 0) {
+    AVFrame *frame = decoded_frame_queue_.front();
     decoded_frame_queue_.pop_front();
     av_frame_unref(frame);
     frame_pool_.push_back(frame);
@@ -274,8 +274,12 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   AVFrame* frame;
   {
     std::lock_guard<std::mutex> lock(frame_mutex_);
-    frame = decoded_frame_queue_.front();
-    decoded_frame_queue_.pop_front();
+    if (decoded_frame_queue_.size() > 0) {
+      frame = decoded_frame_queue_.front();
+      decoded_frame_queue_.pop_front();
+    } else {
+      return false;
+    }
   }
 
   if (reset_context_) {
@@ -350,6 +354,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
 }
 
 int SoftwareVideoDecoder::decoded_frames_buffered() {
+  std::lock_guard<std::mutex> lock(frame_mutex_);
   return decoded_frame_queue_.size();
 }
 
