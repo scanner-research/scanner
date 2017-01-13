@@ -295,6 +295,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         // HACK(apoms): just always force discontinuity for now instead of
         //  properly figuring out if the previous frame was abut
         discontinuity_[video_num] = true;
+        decoder->feed(nullptr, 0, true);
 
         delete[] encoded_buffer;
         encoded_buffer = nullptr;
