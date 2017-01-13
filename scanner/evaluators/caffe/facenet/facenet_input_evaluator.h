@@ -58,13 +58,11 @@ class FacenetInputEvaluator : public Evaluator {
   std::vector<cv::cuda::GpuMat> float_input_g_;
   std::vector<cv::cuda::GpuMat> normalized_input_g_;
   std::vector<std::vector<cv::cuda::GpuMat>> input_planes_g_;
-  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_g_;
   std::vector<cv::cuda::GpuMat> planar_input_g_;
 #endif
   cv::Mat mean_mat_c_;
   cv::Mat float_input_c_;
   cv::Mat normalized_input_c_;
-  cv::Mat flipped_input_c_;
   std::vector<cv::Mat> input_planes_c_;
   cv::Mat planar_input_c_;
 };

@@ -58,7 +58,6 @@ void FacenetInputEvaluator::configure(const BatchConfig& config) {
     float_input_g_.clear();
     normalized_input_g_.clear();
     input_planes_g_.clear();
-    flipped_planes_g_.clear();
     planar_input_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
@@ -68,17 +67,13 @@ void FacenetInputEvaluator::configure(const BatchConfig& config) {
       normalized_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
       std::vector<cv::cuda::GpuMat> planes;
-      std::vector<cv::cuda::GpuMat> flipped_planes;
       for (i32 i = 0; i < 3; ++i) {
         planes.push_back(
             cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC1));
-        flipped_planes.push_back(
-            cv::cuda::GpuMat(net_input_width_, net_input_height_, CV_32FC1));
       }
       input_planes_g_.push_back(planes);
-      flipped_planes_g_.push_back(flipped_planes);
       planar_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_width_ * 3, net_input_height_, CV_32FC1));
+          cv::cuda::GpuMat(net_input_height_ * 3, net_input_width_, CV_32FC1));
     }
 #else
     LOG(FATAL) << "Not built with CUDA support.";
@@ -92,13 +87,12 @@ void FacenetInputEvaluator::configure(const BatchConfig& config) {
     float_input_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
     normalized_input_c_ =
         cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
-    flipped_input_c_ = cv::Mat(net_input_width_, net_input_height_, CV_32FC3);
     for (i32 i = 0; i < 3; ++i) {
       input_planes_c_.push_back(
-          cv::Mat(net_input_width_, net_input_height_, CV_32FC1));
+          cv::Mat(net_input_height_, net_input_width_, CV_32FC1));
     }
     planar_input_c_ =
-        cv::Mat(net_input_width_ * 3, net_input_height_, CV_32FC1);
+        cv::Mat(net_input_height_ * 3, net_input_width_, CV_32FC1);
   }
 }
 
@@ -132,29 +126,23 @@ void FacenetInputEvaluator::evaluate(const BatchedColumns& input_columns,
       // Changed from interleaved RGB to planar RGB
       cv::cuda::split(normalized_input_g_[sid], input_planes_g_[sid],
                       cv_stream);
-      cv::cuda::transpose(input_planes_g_[sid][0], flipped_planes_g_[sid][0],
-                          cv_stream);
-      cv::cuda::transpose(input_planes_g_[sid][1], flipped_planes_g_[sid][1],
-                          cv_stream);
-      cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
-                          cv_stream);
-      auto& plane1 = flipped_planes_g_[sid][0];
-      auto& plane2 = flipped_planes_g_[sid][1];
-      auto& plane3 = flipped_planes_g_[sid][2];
+      auto& plane1 = input_planes_g_[sid][0];
+      auto& plane2 = input_planes_g_[sid][1];
+      auto& plane3 = input_planes_g_[sid][2];
       auto& planar_input = planar_input_g_[sid];
       plane1.copyTo(planar_input(cv::Rect(
-          0, net_input_width_ * 0, net_input_height_, net_input_width_)));
+          0, net_input_height_ * 0, net_input_width_, net_input_height_)));
       plane2.copyTo(planar_input(cv::Rect(
-          0, net_input_width_ * 1, net_input_height_, net_input_width_)));
+          0, net_input_height_ * 1, net_input_width_, net_input_height_)));
       plane3.copyTo(planar_input(cv::Rect(
-          0, net_input_width_ * 2, net_input_height_, net_input_width_)));
-      assert(planar_input.cols == net_input_height_);
+          0, net_input_height_ * 2, net_input_width_, net_input_height_)));
+      assert(planar_input.cols == net_input_width_);
       cudaStream_t s = cv::cuda::StreamAccessor::getStream(cv_stream);
       CU_CHECK(cudaMemcpy2DAsync(
-          net_input, net_input_height_ * sizeof(float),
+          net_input, net_input_width_ * sizeof(float),
           planar_input.data, planar_input.step,
-          net_input_height_ * sizeof(float),
-          net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
+          net_input_width_ * sizeof(float),
+          net_input_height_ * 3, cudaMemcpyDeviceToDevice, s));
 
       INSERT_ROW(output_columns[1], (u8*)net_input, net_input_size);
     }
@@ -175,15 +163,14 @@ void FacenetInputEvaluator::evaluate(const BatchedColumns& input_columns,
       // Changed from interleaved RGB to planar RGB
       input_mat.convertTo(float_input_c_, CV_32FC3);
       cv::subtract(float_input_c_, mean_mat_c_, normalized_input_c_);
-      cv::transpose(normalized_input_c_, flipped_input_c_);
-      cv::split(flipped_input_c_, input_planes_c_);
+      cv::split(normalized_input_c_, input_planes_c_);
       cv::vconcat(input_planes_c_, planar_input_c_);
       assert(planar_input_c_.cols == net_input_height_);
       for (i32 r = 0; r < planar_input_c_.rows; ++r) {
         u8* mat_pos = planar_input_c_.data + r * planar_input_c_.step;
         u8* input_pos = reinterpret_cast<u8*>(
             net_input + i * (net_input_width_ * net_input_height_ * 3) +
-            r * net_input_height_);
+            r * net_input_width_);
         std::memcpy(input_pos, mat_pos, planar_input_c_.cols * sizeof(float));
       }
 

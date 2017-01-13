@@ -38,11 +38,8 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
       device_type_(device_type),
       device_id_(device_id),
       nms_type_(nms_type),
-      num_templates_(25),
       net_input_width_(224),
       net_input_height_(224),
-      cell_width_(8),
-      cell_height_(8),
       grid_width_(net_input_width_ / cell_width_),
       grid_height_(net_input_height_ / cell_height_),
       threshold_(threshold) {
@@ -61,15 +58,6 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
       templates_[t][i] = d;
     }
   }
-
-  feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_templates_,  // template probabilities
-      grid_width_ * grid_height_ * num_templates_ * 4,  // template adjustments
-  };
-  feature_vector_sizes_ = {
-      sizeof(f32) * feature_vector_lengths_[0],
-      sizeof(f32) * feature_vector_lengths_[1],
-  };
 }
 
 void FacenetParserEvaluator::configure(const BatchConfig& config) {
@@ -116,13 +104,15 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
     f32* template_adjustments =
         template_confidences + feature_vector_lengths_[0];
 
-    for (i32 t = 0; t < num_templates_; ++t) {
+    for (i32 t = min_template_idx_; t < num_templates_; ++t) {
       for (i32 xi = 0; xi < grid_width_; ++xi) {
         for (i32 yi = 0; yi < grid_height_; ++yi) {
           i32 vec_offset = xi * grid_height_ + yi;
 
           f32 confidence =
               template_confidences[t * grid_width_ * grid_height_ + vec_offset];
+          // Apply sigmoid to confidence
+          confidence = 1.0 / (1.0 + std::exp(-confidence));
 
           if (confidence < threshold_) continue;
 
@@ -169,9 +159,9 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
           bbox.set_y2(y + height / 2);
           bbox.set_score(confidence);
 
-          if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() > metadata_.width() ||
-              bbox.y2() > metadata_.height())
-            continue;
+          // if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() > metadata_.width() ||
+          //     bbox.y2() > metadata_.height())
+          //   continue;
 
           bboxes.push_back(bbox);
         }
@@ -181,10 +171,10 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
     std::vector<BoundingBox> best_bboxes;
     switch (nms_type_) {
       case NMSType::Best:
-        best_bboxes = best_nms(bboxes, 0.3);
+        best_bboxes = best_nms(bboxes, 0.1);
         break;
       case NMSType::Average:
-        best_bboxes = average_nms(bboxes, 0.3);
+        best_bboxes = average_nms(bboxes, 0.1);
         break;
       case NMSType::None:
         best_bboxes = bboxes;

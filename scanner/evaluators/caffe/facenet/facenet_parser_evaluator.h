@@ -41,11 +41,12 @@ class FacenetParserEvaluator : public Evaluator {
   i32 device_id_;
   NMSType nms_type_;
 
-  i32 num_templates_;
+  const i32 num_templates_ = 25;
+  const i32 min_template_idx_ = 4;
+  const i32 cell_width_ = 8;
+  const i32 cell_height_ = 8;
   i32 net_input_width_;
   i32 net_input_height_;
-  i32 cell_width_;
-  i32 cell_height_;
   i32 grid_width_;
   i32 grid_height_;
   std::vector<std::vector<f32>> templates_;
