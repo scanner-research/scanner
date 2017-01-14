@@ -27,6 +27,7 @@ import toml
 from PIL import Image
 import numpy as np
 from timeit import default_timer as now
+import string
 import random
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -52,9 +53,11 @@ TRACE_OUTPUT_PATH = os.path.join(SCRIPT_DIR, '{}_{}.trace')
 
 NAIVE_COLOR = '#b0b0b0'
 SCANNER_COLOR = '#F39948'
+SCANNER2_COLOR = '#E83127'
 PEAK_COLOR = '#FF7169'
+SPARK_COLOR = '#19838D'
 
-sns.set_style("whitegrid")
+sns.set_style("ticks", {'axes.grid': True})
 
 def clear_filesystem_cache():
     os.system('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"')
@@ -642,97 +645,195 @@ def run_cmd(template, settings):
 
 
 def multi_node_benchmark():
-    dataset_name = 'multi_node_benchmark'
+    dataset_name = 'multi_node_benchmark2'
     spark_dir = '/users/wcrichto/spark-2.1.0-bin-hadoop2.7'
-    videos_dir = '/users/wcrichto/videos/movies'
+
+    videos_dir = '/users/wcrichto/videos'
     videos = [
-        'meanGirls.mp4',
-        'anewhope.m4v',
-        'brazil.mkv',
-        'fightClub.mp4',
-        'excalibur.mp4'
+        'fightClub_clip.mp4',
+        # 'anewhope.m4v',
+        # 'brazil.mkv',
+        # 'fightClub.mp4',
+        # 'excalibur.mp4'
     ]
+
+    # videos_dir = '/users/wcrichto'
+    # with open('dfouhey_videos.txt') as f:
+    #     videos = [s.strip() for s in f.read().split("\n")][:1000]
 
     pipelines = [
-        'histogram_benchmark',
-        'caffe_benchmark'
+        # 'histogram_benchmark',
+       'caffe_benchmark',
+        # 'flow_benchmark'
     ]
 
-    node_counts = [1, 2]
-    hosts = ','.join(['h{}.sparktest.blguest'.format(i) for i in range(node_counts[-1])])
+    node_counts = [1, 2, 4, 8, 16]
+    hosts = ['h{}.sparkcluster.blguest.orca.pdl.cmu.edu'.format(i) for i in range(node_counts[-1])]
 
-    db = scanner.Scanner()
-    scanner_settings = {
-        'force': True,
-        'work_item_size': 96,
-        'io_item_size': 96,
-        'hosts': hosts,
-        'env': {
-            'SC_JOB_NAME': 'base'
-        }
+#     db = scanner.Scanner()
+#     scanner_settings = {
+#         'force': True,
+#         'hosts': hosts,
+#         'tasks_in_queue_per_pu': 2,
+#         'env': {
+#             'SC_JOB_NAME': 'base'
+#         }
+#     }
+
+#     # print('Ingesting...')
+#     # result, _ = db.ingest(
+#     #     'video',
+#     #     dataset_name,
+#     #     ['{}/{}'.format(videos_dir, video) for video in videos],
+#     #     {'force': True})
+#     # if result is False:
+#     #     print('Failed to ingest')
+#     #     exit()
+
+#     run_spark = '{spark_dir}/run_sparkcaffe.sh {node_count} {pipeline} {input_dir}'
+#     split_video = """
+# ffmpeg -i {videos_dir}/{input} -vcodec copy -acodec copy -segment_time 60 \
+#   -f segment {videos_dir}/segments/{segment_dir}/segment%03d.mp4
+# """
+
+#     #total_frames = 304677
+#     #total_frames = 138000 * 3
+#     #total_frames = 200352 * 2
+#     total_frames = 129600
+
+#     # print('Splitting...')
+#     # os.system('rm -rf {}/segments/*'.format(videos_dir))
+#     # for video in videos:
+#     #     segment_dir = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+#     #     os.system('mkdir -p {}/segments/{}'.format(videos_dir, segment_dir))
+#     #     run_cmd(split_video, {
+#     #         'input': video,
+#     #         'segment_dir': segment_dir,
+#     #         'videos_dir': videos_dir
+#     #     })
+#     #     # total_frames += count_frames('{}/{}'.format(videos_dir, video))
+
+#     # print('Total frames', total_frames)
+
+#     def append(result):
+#         with open("progress", "a") as f:
+#             f.write(result + "\n")
+
+#     all_results = {}
+#     for pipeline in pipelines:
+#         all_results[pipeline] = {}
+#         for node_count in node_counts:
+#             all_results[pipeline][node_count] = {}
+
+#             scanner_settings['node_count'] = node_count
+
+#             if pipeline == 'histogram_benchmark':
+#                 configs = [
+#                     ('GPU', 1, 4096, 1024),
+#                     ('CPU', 8, 1024, 128)
+#                     ]
+#             elif pipeline == 'flow_benchmark':
+#                 configs = [
+#                     # ('GPU', 1, 96, 96),
+#                     ('CPU', 16, 16, 16)
+#                     ]
+#             else:
+#                 configs = [
+#                     ('GPU', 1, 512, 256),
+#                     # ('CPU', 1, 1024, 512)
+#                     ]
+
+
+#             for (device, pus, io_item_size, work_item_size) in configs:
+#                 scanner_settings['env']['SC_DEVICE'] = device
+#                 scanner_settings['pus_per_node'] = pus
+#                 scanner_settings['io_item_size'] = io_item_size
+#                 scanner_settings['work_item_size'] = work_item_size
+#                 t, _ = run_trial(dataset_name, pipeline, 'test', scanner_settings)
+#                 all_results[pipeline][node_count]['scanner_{}'.format(device)] = \
+#                   total_frames / t
+#                 append(json.dumps(all_results))
+
+#             # start = now()
+#             # if pipeline == 'caffe_benchmark':
+#             #     spark_node_count = node_count # GPUs
+#             # else:
+#             #     spark_node_count = node_count * 16 # CPUs
+#             # run_cmd(run_spark, {
+#             #     'node_count': spark_node_count,
+#             #     'spark_dir': spark_dir,
+#             #     'pipeline': pipeline,
+#             #     'input_dir': '{}/segments'.format(videos_dir)
+#             # })
+#             # t = now() - start
+#             # all_results[pipeline][node_count]['spark'] = total_frames / t
+#             # append(json.dumps(all_results))
+
+#     pprint(all_results)
+#     exit()
+
+    all_results = json.loads("""
+{"caffe_benchmark": {"1": {"scanner_CPU": 326.5170420000147,
+                         "scanner_GPU": 387.8840370535301,
+                         "spark": 27.543828161200317},
+                     "2": {"scanner_CPU": 637.6501471607734,
+                         "scanner_GPU": 748.3447519376416,
+                         "spark": 54.10310186629111},
+                     "4": {"scanner_CPU": 1274.8431035047988,
+                         "scanner_GPU": 1498.6543110795326,
+                         "spark": 97.36459048972931},
+                     "8": {"scanner_CPU": 2503.757096120856,
+                         "scanner_GPU": 2928.385396420333,
+                         "spark": 125.10499842647118},
+                     "16": {"scanner_CPU": 4719.057511025314,
+                          "scanner_GPU": 5654.526329468247,
+                          "spark": 279.3467864501258}},
+"flow_benchmark": {"1": {"scanner_CPU": 22.54,
+                        "scanner_GPU": 27.020355722139875,
+                        "spark": 17.67208034395901},
+                    "2": {"scanner_CPU": 43.04,
+                        "scanner_GPU": 57.844015811703784,
+                        "spark": 28.582607387713928},
+                    "4": {"scanner_CPU": 88.05,
+                        "scanner_GPU": 114.46687508997496,
+                        "spark": 56.862139625037706},
+                    "8": {"scanner_CPU": 173.92,
+                        "scanner_GPU": 246.63184602361284,
+                        "spark": 108.63880660528709},
+                    "16": {"scanner_CPU": 330.19,
+                         "scanner_GPU": 422.8535881899429,
+                         "spark": 213.9296830948763}},
+  "histogram_benchmark": {
+    "1": {
+      "spark": 1287.9036926392,
+      "scanner_CPU": 990.0419956496697,
+"scanner_GPU":623.0942113207435
+    },
+    "2": {
+      "spark": 2346.2322872953,
+      "scanner_CPU": 1843.3495521903167,
+"scanner_GPU":1250.5331423300338
+    },
+    "4": {
+      "spark":4016.8520829722156,
+      "scanner_CPU":3880.2063559394037,
+"scanner_GPU":2427.7997153326205
+    },
+    "8": {
+      "spark":7366.958534590863,
+      "scanner_CPU":7154.003787826941,
+"scanner_GPU":5099.983276817758
+    },
+    "16": {
+      "spark": 11843.088280945702,
+      "scanner_CPU": 14433.693316025365,
+"scanner_GPU":9999.63192837807
     }
+  }}
+""")
 
-    result, _ = db.ingest(
-        'video',
-        dataset_name,
-        ['{}/{}'.format(videos_dir, video) for video in videos],
-        {'force': True})
-    if result is False:
-        print('Failed to ingest')
-        exit()
-
-    run_spark = '{spark_dir}/run_sparkcaffe.sh {pipeline}'
-    split_video = """
-ffmpeg -i {videos_dir}/{input} -vcodec copy -acodec copy -segment_time 8 \
-  -f segment {videos_dir}/segments/{segment_dir}/segment%03d.mp4
-"""
-
-    total_frames = 0
-
-    os.system('rm -f {}/segments/*'.format(videos_dir))
-    for video in videos:
-        segment_dir = os.path.basename(video)
-        os.system('mkdir -p {}/segments/{}'.format(videos_dir, segment_dir))
-        run_cmd(split_video, {
-            'input': video,
-            'segment_dir': segment_dir,
-            'videos_dir': videos_dir
-        })
-        total_frames += count_frames('{}/{}'.format(videos_dir, video))
-
-    all_results = {}
-    for pipeline in pipelines:
-        all_results[pipeline] = {}
-        for node_count in node_counts:
-            all_results[pipeline][node_count] = {}
-            scanner_settings['node_count'] = node_count
-
-            t, _ = run_trial(dataset_name, pipeline, 'test', scanner_settings)
-            all_results[pipeline][node_count]['scanner'] = total_frames / t
-
-            start = now()
-            run_cmd(run_spark, {
-                'spark_dir': spark_dir,
-                'pipeline': pipeline
-            })
-            t = now() - start
-            all_results[pipeline][node_count]['spark'] = total_frames / t
-
-    pprint(all_results)
-
-    all_results = {
-        'caffe_benchmark': {1: {'scanner': 367.10523986874557,
-                                    'spark': 93.16820344357546},
-                                    2: {'scanner': 580.0510210459554,
-                                        'spark': 92.63622769092578}},
-            'histogram_benchmark': {1: {'scanner': 892.6191112787498,
-                                            'spark': 208.10595095583145},
-                                            2: {'scanner': 1472.5627571211041,
-                                        'spark': 221.37386863726317}}}
-
-
-    def bar_chart():
-        plt.title("Spark vs. Scanner on 2 nodes")
+    def max_throughput_chart():
+        plt.title("Spark vs. Scanner on 16 nodes")
         plt.xlabel("Pipeline")
         plt.ylabel("FPS")
 
@@ -760,38 +861,62 @@ ffmpeg -i {videos_dir}/{input} -vcodec copy -acodec copy -segment_time 8 \
 
         plt.savefig('multinode.png', dpi=150)
 
-    def line_chart():
-        for pipeline in pipelines:
+    def scaling_chart():
+        for pipeline in all_results:
             plt.clf()
             plt.cla()
             plt.close()
 
-            plt.title("Spark vs. Scanner")
-            plt.xlabel("Number of nodes")
-            plt.ylabel("FPS")
-            plt.xticks(node_counts)
+            scale = 2.5
+            w = 1.75 * scale
+            h = 1.25 * scale
+            fig = plt.figure(figsize=(w, h))
+            ax = fig.add_subplot(111)
+
+            #plt.title("Scaling comparison for {}".format(pipeline))
+            # ax.set_xlabel("Number of nodes")
+            # ax.set_ylabel("FPS")
+            ax.set_xticks(node_counts)
+            if pipeline == 'histogram_benchmark':
+                ax.set_yticks([4000, 8000, 12000, 16000])
+                ax.set_yticklabels(['4k', '8k', '12k', '16k'])
+                ax.set_ylim([0, 16000])
+            elif pipeline == 'flow_benchmark':
+                ax.set_yticks([150, 300, 450])
+                ax.set_ylim([0, 450])
+            elif pipeline == 'caffe_benchmark':
+                ax.set_yticks([1500, 3000, 4500, 6000])
+                ax.set_yticklabels(['1.5k', '3k', '4.5k', '6k'])
+                ax.set_ylim([0, 6000])
+
+            ax.grid(b=False, axis='x')
 
             x = node_counts
             values = all_results[pipeline]
-            for method in ['spark', 'scanner']:
-                y = [values[n][method] for n in node_counts]
-                plt.plot(x, y)
-                for xy in zip(x,y):
-                    val = int(xy[1])
-                    speedup = xy[1] / values[n]['spark']
-                    if xy[0] == node_counts[0]:
-                        ha = 'left'
-                    elif xy[0] == node_counts[-1]:
-                        ha = 'right'
-                    else:
-                        ha = 'center'
-                    plt.annotate('{} ({:.1f}x)'.format(int(xy[1]), speedup), xy=xy, ha=ha)
+            for (method, color) in [
+                ('spark', SPARK_COLOR),
+                ('scanner_CPU', SCANNER2_COLOR),
+                ('scanner_GPU', SCANNER_COLOR)]:
+                y = [values[str(n)][method] for n in node_counts]
+                ax.plot(x, y, color=color)
+                # for xy in zip(x,y):
+                #     val = int(xy[1])
+                #     speedup = xy[1] / values[str(xy[0])]['spark']
+                #     if xy[0] == node_counts[0]:
+                #         ha = 'left'
+                #     elif xy[0] == node_counts[-1]:
+                #         ha = 'right'
+                #     else:
+                #         ha = 'center'
+                #     ax.annotate('{} ({:.1f}x)'.format(int(xy[1]), speedup), xy=xy, ha=ha)
 
-            plt.tight_layout()
-            plt.legend(['Spark', 'Scanner'], loc='upper left')
-            plt.savefig('multinode_{}.png'.format(pipeline), dpi=150)
+            fig.tight_layout()
+            sns.despine()
+            # fig.legend(['Spark', 'Scanner CPU', 'Scanner GPU'], loc='upper left')
+            fig.savefig('multinode_{}.png'.format(pipeline), dpi=150)
+            fig.savefig('multinode_{}.pdf'.format(pipeline), dpi=150)
 
-    line_chart()
+    scaling_chart()
 
 
 def image_video_decode_benchmark():
@@ -2089,6 +2214,7 @@ def bench_main(args):
     # results = standalone_benchmark()
     # standalone_graphs(results)
     #multi_gpu_benchmark()
+    multi_node_benchmark()
 
 
 def graphs_main(args):
@@ -2099,7 +2225,6 @@ def trace_main(args):
     dataset = args.dataset
     job = args.job
     db = scanner.Scanner()
-    db._db_path = '/tmp/scanner_multi_gpu_db'
     #db._db_path = '/tmp/scanner_db'
     profilers = db.parse_profiler_files(dataset, job)
     pprint(generate_statistics(profilers))
