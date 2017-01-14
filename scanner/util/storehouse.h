@@ -41,6 +41,9 @@ inline void write(storehouse::WriteFile* file, const std::string& s) {
 
 inline void read(storehouse::RandomReadFile* file, u8* buffer, size_t size,
                  u64& pos) {
+  LOG(INFO) << "Reading " << file->path()
+            << " (size " << size
+            << ", pos " << pos << ")";
   storehouse::StoreResult result;
   size_t size_read;
   EXP_BACKOFF(file->read(pos, size, buffer, size_read), result);

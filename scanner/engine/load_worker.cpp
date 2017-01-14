@@ -146,7 +146,7 @@ void* load_thread(void* arg) {
             BACKOFF_FAIL(storage->make_random_read_file(
                 dataset_item_data_path(
                     args.dataset.name(),
-                    args.dataset.item_names()[sample.table_id]),
+                    std::to_string(sample.table_id)),
                 video_file));
             files.push_back(video_file);
             u64 file_size;

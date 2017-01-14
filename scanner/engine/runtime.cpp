@@ -107,7 +107,7 @@ void run_job(JobParameters& params) {
 
   std::map<i32, VideoMetadata> video_metadata;
   std::vector<ImageFormatGroupMetadata> image_metadata;
-  std::vector<InputFormat> input_formats;
+  std::map<i32, InputFormat> input_formats;
   for (size_t i = 0; i < paths.size(); ++i) {
     const std::string& path = paths.at(i);
     std::unique_ptr<RandomReadFile> metadata_file;
@@ -118,13 +118,14 @@ void run_job(JobParameters& params) {
       u64 pos = 0;
       VideoMetadata meta = deserialize_video_metadata(metadata_file.get(), pos);
       video_metadata.insert({meta.id(), meta});
-      input_formats.emplace_back(meta.width(), meta.height());
+      input_formats.insert({meta.id(), InputFormat(meta.width(), meta.height())});
     } else if (dataset_meta.type() == DatasetType_Image) {
       u64 pos = 0;
       image_metadata.push_back(
           deserialize_image_format_group_metadata(metadata_file.get(), pos));
       ImageFormatGroupMetadata& meta = image_metadata.back();
-      input_formats.emplace_back(meta.width(), meta.height());
+      LOG(FATAL) << "Under construction";
+      input_formats.insert({0xdeadbeef, InputFormat(meta.width(), meta.height())});
     }
   }
 
