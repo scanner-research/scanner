@@ -32,11 +32,14 @@ namespace scanner {
 
 FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
                                                DeviceType device_type,
-                                               i32 device_id, double threshold,
+                                               i32 device_id,
+                                               f32 scale,
+                                               double threshold,
                                                NMSType nms_type)
     : eval_config_(config),
       device_type_(device_type),
       device_id_(device_id),
+      scale_(scale),
       nms_type_(nms_type),
       net_input_width_(224),
       net_input_height_(224),
@@ -47,14 +50,15 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
     LOG(FATAL) << "GPU facenet parser support not implemented yet";
   }
 
-  std::ifstream template_file{"features/caffe_facenet/facenet_templates.bin",
+  std::ifstream template_file{"features/caffe_facenet/templates.bin",
                               std::ifstream::binary};
+  LOG_IF(FATAL, !template_file.good()) << "Could not find template file.";
   templates_.resize(num_templates_, std::vector<float>(4));
   for (i32 t = 0; t < 25; ++t) {
     for (i32 i = 0; i < 4; ++i) {
-      assert(template_file.good());
-      f64 d;
-      template_file.read(reinterpret_cast<char*>(&d), sizeof(f64));
+      LOG_IF(FATAL, !template_file.good()) << "Template file not correct.";
+      f32 d;
+      template_file.read(reinterpret_cast<char*>(&d), sizeof(f32));
       templates_[t][i] = d;
     }
   }
@@ -65,10 +69,14 @@ void FacenetParserEvaluator::configure(const BatchConfig& config) {
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
 
-  net_input_width_ = metadata_.width();
-  net_input_height_ = metadata_.height();
-  grid_width_ = (net_input_width_ / cell_width_);
-  grid_height_ = (net_input_height_ / cell_height_);
+  net_input_width_ = std::floor(metadata_.width() * scale_);
+  net_input_height_ = std::floor(metadata_.height() * scale_);
+
+  net_input_width_ += (net_input_width_ % 8);
+  net_input_height_ += (net_input_height_ % 8);
+
+  grid_width_ = std::ceil(float(net_input_width_) / cell_width_);
+  grid_height_ = std::ceil(float(net_input_height_) / cell_height_);
 
   feature_vector_lengths_ = {
       grid_width_ * grid_height_ * num_templates_,  // template probabilities
@@ -80,8 +88,8 @@ void FacenetParserEvaluator::configure(const BatchConfig& config) {
   };
 }
 
-void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
-                                      BatchedColumns& output_columns) {
+void FacenetParserEvaluator::evaluate(const BatchedColumns &input_columns,
+                                      BatchedColumns &output_columns) {
   i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 feature_idx;
@@ -90,9 +98,14 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
   feature_idx = 1;
   frame_idx = 0;
 
+  std::vector<i32> valid_templates = regular_valid_templates_;
+  if (scale_ > 1.0) {
+    valid_templates = big_valid_templates_;
+  }
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
   for (i32 b = 0; b < input_count; ++b) {
+
     assert(input_columns[feature_idx].rows[b].size ==
            (feature_vector_sizes_[0] + feature_vector_sizes_[1]));
 
@@ -104,7 +117,7 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
     f32* template_adjustments =
         template_confidences + feature_vector_lengths_[0];
 
-    for (i32 t = min_template_idx_; t < num_templates_; ++t) {
+    for (i32 t : valid_templates) {
       for (i32 xi = 0; xi < grid_width_; ++xi) {
         for (i32 yi = 0; yi < grid_height_; ++yi) {
           i32 vec_offset = xi * grid_height_ + yi;
@@ -152,6 +165,8 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
               std::isnan(height) || std::isnan(x) || std::isnan(y))
             continue;
 
+          // Clamp values to border
+
           BoundingBox bbox;
           bbox.set_x1(x - width / 2);
           bbox.set_y1(y - height / 2);
@@ -188,29 +203,14 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns& input_columns,
     output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
 
-  u8* buffer = nullptr;
-  for (i32 b = 0; b < input_count; ++b) {
-    size_t size = input_columns[frame_idx].rows[b].size;
-    if (device_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-      cudaMalloc((void**)&buffer, size);
-      cudaMemcpy(buffer, input_columns[frame_idx].rows[b].buffer, size,
-                 cudaMemcpyDefault);
-#else
-      LOG(FATAL) << "Not built with CUDA support.";
-#endif
-    } else {
-      buffer = new u8[size];
-      memcpy(buffer, input_columns[frame_idx].rows[b].buffer, size);
-    }
-    output_columns[frame_idx].rows.push_back(Row{buffer, size});
-  }
+  output_columns[frame_idx].rows = input_columns[frame_idx].rows;
 }
 
 FacenetParserEvaluatorFactory::FacenetParserEvaluatorFactory(
-    DeviceType device_type, double threshold,
+    DeviceType device_type, f32 scale, double threshold,
     FacenetParserEvaluator::NMSType nms_type)
     : device_type_(device_type),
+      scale_(scale),
       threshold_(threshold),
       nms_type_(nms_type) {}
 
@@ -237,7 +237,7 @@ std::vector<std::string> FacenetParserEvaluatorFactory::get_output_columns(
 
 Evaluator* FacenetParserEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
-  return new FacenetParserEvaluator(config, device_type_, 0, threshold_,
+  return new FacenetParserEvaluator(config, device_type_, 0, scale_, threshold_,
                                     nms_type_);
 }
 }

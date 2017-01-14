@@ -30,9 +30,9 @@ namespace scanner {
 class TrackerEvaluator : public Evaluator {
  public:
   TrackerEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                   i32 device_id, i32 warmup_count);
+                   i32 device_id, i32 warmup_count, i32 max_tracks);
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const BatchConfig& config) override;
 
   void reset() override;
 
@@ -42,13 +42,14 @@ class TrackerEvaluator : public Evaluator {
  protected:
   float iou(const BoundingBox& bl, const BoundingBox& br);
 
-  const f32 IOU_THRESHOLD = 0.7;
+  const f32 IOU_THRESHOLD = 0.4;
   const f64 TRACK_SCORE_THRESHOLD = 0.1;
 
   EvaluatorConfig config_;
   DeviceType device_type_;
   i32 device_id_;
   i32 warmup_count_;
+  i32 max_tracks_;
 
   InputFormat metadata_;
 
@@ -67,16 +68,19 @@ class TrackerEvaluator : public Evaluator {
 
 class TrackerEvaluatorFactory : public EvaluatorFactory {
  public:
-  TrackerEvaluatorFactory(DeviceType device_type, i32 warmup_count);
+  TrackerEvaluatorFactory(DeviceType device_type, i32 warmup_count,
+                          i32 max_tracks);
 
   EvaluatorCapabilities get_capabilities() override;
 
-  std::vector<std::string> get_output_names() override;
+  std::vector<std::string> get_output_columns(
+      const std::vector<std::string>& input_columns) override;
 
   Evaluator* new_evaluator(const EvaluatorConfig& config) override;
 
  private:
   DeviceType device_type_;
   i32 warmup_count_;
+  i32 max_tracks_;
 };
 }  // end namespace scanner

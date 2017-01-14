@@ -33,7 +33,8 @@ namespace scanner {
 class FacenetInputEvaluator : public Evaluator {
  public:
   FacenetInputEvaluator(DeviceType device_type, i32 device_id,
-                        const NetDescriptor& descriptor, i32 batch_size);
+                        const NetDescriptor& descriptor, i32 batch_size,
+                        f32 scale);
 
   void configure(const BatchConfig& config) override;
 
@@ -46,6 +47,7 @@ class FacenetInputEvaluator : public Evaluator {
   NetDescriptor descriptor_;
   InputFormat metadata_;
 
+  f32 scale_;
   i32 batch_size_;
   i32 net_input_width_;
   i32 net_input_height_;
@@ -55,9 +57,11 @@ class FacenetInputEvaluator : public Evaluator {
   cv::cuda::GpuMat mean_mat_g_;
   std::vector<cv::cuda::Stream> streams_;
   std::vector<cv::cuda::GpuMat> frame_input_g_;
+  std::vector<cv::cuda::GpuMat> resized_input_g_;
   std::vector<cv::cuda::GpuMat> float_input_g_;
   std::vector<cv::cuda::GpuMat> normalized_input_g_;
   std::vector<std::vector<cv::cuda::GpuMat>> input_planes_g_;
+  std::vector<std::vector<cv::cuda::GpuMat>> flipped_planes_g_;
   std::vector<cv::cuda::GpuMat> planar_input_g_;
 #endif
   cv::Mat mean_mat_c_;
@@ -70,7 +74,9 @@ class FacenetInputEvaluator : public Evaluator {
 class FacenetInputEvaluatorFactory : public EvaluatorFactory {
  public:
   FacenetInputEvaluatorFactory(DeviceType device_type,
-                               const NetDescriptor& descriptor, i32 batch_size);
+                               const NetDescriptor& descriptor,
+                               i32 batch_size,
+                               f32 scale);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -83,5 +89,6 @@ class FacenetInputEvaluatorFactory : public EvaluatorFactory {
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   i32 batch_size_;
+  f32 scale_;
 };
 }

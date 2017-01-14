@@ -27,8 +27,9 @@ class FacenetParserEvaluator : public Evaluator {
  public:
   enum struct NMSType { Best, Average, None };
 
-  FacenetParserEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                         i32 device_id, double threshold, NMSType nms_type);
+  FacenetParserEvaluator(const EvaluatorConfig &config, DeviceType device_type,
+                         i32 device_id, f32 scale, double threshold,
+                         NMSType nms_type);
 
   void configure(const BatchConfig& config) override;
 
@@ -37,10 +38,14 @@ class FacenetParserEvaluator : public Evaluator {
 
  protected:
   EvaluatorConfig eval_config_;
+  f32 scale_;
   DeviceType device_type_;
   i32 device_id_;
   NMSType nms_type_;
 
+  const std::vector<i32> regular_valid_templates_ = {
+      4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 21, 22, 23, 24};
+  const std::vector<i32> big_valid_templates_ = {4, 5, 6, 7, 8, 9, 10, 11};
   const i32 num_templates_ = 25;
   const i32 min_template_idx_ = 4;
   const i32 cell_width_ = 8;
@@ -60,7 +65,8 @@ class FacenetParserEvaluator : public Evaluator {
 
 class FacenetParserEvaluatorFactory : public EvaluatorFactory {
  public:
-  FacenetParserEvaluatorFactory(DeviceType device_type, double threshold,
+  FacenetParserEvaluatorFactory(DeviceType device_type, f32 scale,
+                                double threshold,
                                 FacenetParserEvaluator::NMSType nms_type);
 
   EvaluatorCapabilities get_capabilities() override;
@@ -72,6 +78,7 @@ class FacenetParserEvaluatorFactory : public EvaluatorFactory {
 
  private:
   DeviceType device_type_;
+  f32 scale_;
   double threshold_;
   FacenetParserEvaluator::NMSType nms_type_;
 };

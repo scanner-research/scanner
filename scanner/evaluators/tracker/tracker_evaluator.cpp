@@ -27,24 +27,28 @@
 #endif
 
 #include <cmath>
+#include <thread>
 
 namespace scanner {
 
 TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type, i32 device_id,
-                                   i32 warmup_count)
+                                   i32 warmup_count,
+                                   i32 max_tracks)
     : config_(config),
       device_type_(device_type),
       device_id_(device_id),
-      warmup_count_(warmup_count) {
+      warmup_count_(warmup_count),
+      max_tracks_(max_tracks) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU tracker support not implemented yet";
   }
 }
 
-void TrackerEvaluator::configure(const InputFormat& metadata) {
+void TrackerEvaluator::configure(const BatchConfig& config) {
   LOG(INFO) << "Tracker configure";
-  metadata_ = metadata;
+  assert(config.formats.size() == 1);
+  metadata_ = config.formats[0];
 }
 
 void TrackerEvaluator::reset() {
@@ -62,6 +66,7 @@ void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
   i32 frame_idx = 0;
   i32 box_idx = 1;
 
+  printf("num tracks %d\n", tracks_.size());
   for (i32 b = 0; b < input_count; ++b) {
     std::vector<BoundingBox> all_boxes = deserialize_proto_vector<BoundingBox>(
         input_columns[box_idx].rows[b].buffer,
@@ -98,14 +103,34 @@ void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
     std::vector<BoundingBox> generated_bboxes;
     {
       u8* buffer = input_columns[frame_idx].rows[b].buffer;
+      assert(input_columns[frame_idx].rows[b].size ==
+             metadata_.height() * metadata_.width() * 3 * sizeof(u8));
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
+      std::vector<f64> scores(tracks_.size());
+      std::vector<struck::FloatRect> tracked_bboxes(tracks_.size());
+      std::vector<std::thread> tracker_threads(tracks_.size());
+      auto track_fn = [](struck::Tracker *tracker,
+                         const cv::Mat& frame,
+                         f64 &score,
+                         struck::FloatRect &tracked_bbox) {
+        tracker->Track(frame);
+        score = tracker->GetScore();
+        tracked_bbox = tracker->GetBB();
+      };
+
       for (i32 i = 0; i < (i32)tracks_.size(); ++i) {
         auto& track = tracks_[i];
         auto& tracker = track.tracker;
-        tracker->Track(frame);
-        const struck::FloatRect& tracked_bbox = tracker->GetBB();
-        f64 score = tracker->GetScore();
-
+        tracker_threads[i] =
+            std::thread(track_fn, tracker.get(), std::ref(frame),
+                        std::ref(scores[i]), std::ref(tracked_bboxes[i]));
+      }
+      for (i32 i = 0, jid = 0; i < (i32)tracks_.size(); ++i, ++jid) {
+        auto& track = tracks_[i];
+        auto& tracker = track.tracker;
+        tracker_threads[jid].join();
+        f64 score = scores[jid];
+        struck::FloatRect tracked_bbox = tracked_bboxes[jid];
         if (score < TRACK_SCORE_THRESHOLD) {
           tracks_.erase(tracks_.begin() + i);
           i--;
@@ -126,6 +151,30 @@ void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
     }
 
     // Add new detected bounding boxes to the fold
+    if (tracks_.size() + new_detected_bboxes.size() > max_tracks_) {
+      std::vector<std::tuple<f64, i32>> track_thresholds;
+      for (i32 i = 0; i < tracks_.size(); ++i) {
+        track_thresholds.push_back(
+            std::make_tuple<f64, i32>(tracks_[i].tracker->GetScore(), (i32)i));
+      }
+      std::sort(track_thresholds.begin(), track_thresholds.end(),
+                [](auto &left, auto &right) {
+                  return std::get<0>(left) < std::get<0>(right);
+                });
+      i32 num_tracks_to_remove =
+          std::min(tracks_.size(),
+                   tracks_.size() + new_detected_bboxes.size() - max_tracks_);
+      std::vector<i32> idx_to_remove;
+      for (i32 i = 0; i < num_tracks_to_remove; ++i) {
+        idx_to_remove.push_back(std::get<1>(track_thresholds[i]));
+      }
+      std::sort(idx_to_remove.begin(), idx_to_remove.end());
+      for (i32 i = 0; i < num_tracks_to_remove; ++i) {
+        i32 idx = idx_to_remove[num_tracks_to_remove - 1 - i];
+        tracks_.erase(tracks_.begin() + idx);
+      }
+    }
+    assert(tracks_.size() <= max_tracks_);
     for (BoundingBox& box : new_detected_bboxes) {
       tracks_.resize(tracks_.size() + 1);
       Track& track = tracks_.back();
@@ -146,8 +195,13 @@ void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
       assert(input_columns[frame_idx].rows[b].size ==
              metadata_.height() * metadata_.width() * 3);
       cv::Mat frame(metadata_.height(), metadata_.width(), CV_8UC3, buffer);
-      struck::FloatRect r(box.x1(), box.y1(), box.x2() - box.x1(),
-                          box.y2() - box.y1());
+
+      // Clamp values
+      float x1 = std::max(box.x1(), 0.0f);
+      float y1 = std::max(box.y1(), 0.0f);
+      float x2 = std::min(box.x2(), (f32)metadata_.width());
+      float y2 = std::min(box.y2(), (f32)metadata_.height());
+      struck::FloatRect r(x1, y1, x2 - x1, y2 - y1);
       track.tracker->Initialise(frame, r);
 
       box.set_track_id(track.id);
@@ -192,8 +246,10 @@ float TrackerEvaluator::iou(const BoundingBox& bl, const BoundingBox& br) {
 }
 
 TrackerEvaluatorFactory::TrackerEvaluatorFactory(DeviceType device_type,
-                                                 i32 warmup_count)
-    : device_type_(device_type), warmup_count_(warmup_count) {
+                                                 i32 warmup_count,
+                                                 i32 max_tracks)
+    : device_type_(device_type), warmup_count_(warmup_count),
+      max_tracks_(max_tracks) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU tracker support not implemented yet";
   }
@@ -202,17 +258,19 @@ TrackerEvaluatorFactory::TrackerEvaluatorFactory(DeviceType device_type,
 EvaluatorCapabilities TrackerEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
   caps.device_type = device_type_;
-  caps.max_devices = 1;
+  caps.max_devices = EvaluatorCapabilities::UnlimitedDevices;
   caps.warmup_size = warmup_count_;
   return caps;
 }
 
-std::vector<std::string> TrackerEvaluatorFactory::get_output_names() {
+std::vector<std::string> TrackerEvaluatorFactory::get_output_columns(
+    const std::vector<std::string> &input_columns) {
   return {"frame", "before_bboxes", "after_bboxes"};
 }
 
-Evaluator* TrackerEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
-  return new TrackerEvaluator(config, device_type_, 0, warmup_count_);
+Evaluator *
+TrackerEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+  return new TrackerEvaluator(config, device_type_, 0, warmup_count_,
+                              max_tracks_);
 }
 }
