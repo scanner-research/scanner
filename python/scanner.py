@@ -324,37 +324,89 @@ class Scanner(object):
     def get_job_result(self, dataset_name, job_name, column, fn):
         return JobResult(self, dataset_name, job_name, column, fn)
 
-    def write_output_buffers(dataset_name, job_name, ident, column, fn, video_data):
-        logging.critical('write_output_buffers is out of date. Needs fixing')
-        exit()
+    def write_job_result(self, dataset_name, job_name, column, fn, rows, data):
+        """
+        Rows and data are maps from (video_name -> list)
+        """
+        assert(len(rows) == len(data))
 
+        db_meta = self._load_db_metadata()
+
+        # Get dataset descriptor
+        dataset = dataset_metadata(dataset_name)
+        # Find dataset base frame job
+        candidate_job_ids = set()
+        for jtd in db_meta.job_to_datasets:
+            if jtd.dataset_id = dataset.id:
+                candidate_jobs.add(jtd.job_id)
+        dataset_job_id = -1
+        for job in db_meta.jobs:
+            if job.name == "base" and job.id in candidate_job_ids:
+                dataset_job_id = job.id
+
+        assert(dataset_job_id != -1)
+
+        # Setup job descriptor
         job = self._meta.JobDescriptor()
-        job.id = ident
+        job.id = db_meta.next_job_id
+        job.name = job_name
+        db_meta.next_job_id += 1
+
+        row_max = max([len(r) for r in rows.values()])
 
         col = job.columns.add()
         col.id = 0
         col.name = column
+        col.io_item_size = row_max
+        col.work_item_size = row_max
+        col.num_nodes = 0
 
-        for i, data in enumerate(video_data):
-            start = 0
-            end = len(data)
-            video = job.videos.add()
-            video.index = i
-            interval = video.intervals.add()
-            interval.start = start
-            interval.end = end
+        for vi in rows.keys():
+            row_set = rows[vi]
+            data_set = data[vi]
 
-            path = '{}/datasets/{}/jobs/{}/{}_{}_{}-{}.bin'.format(
-                self._db_path, dataset_name, job_name, str(i), column,
-                start, end)
+            # Add task per video
+            task = job.tasks.add()
+            task.table_id = int(vi)
+            task.table_name = str(vi)
 
-            with open(path, 'wb') as f:
+            # Add sample back to frame column
+            sample = task.samples.add()
+            # Find job id of base job for dataset
+            sample.job_id = dataset_job_id
+            sample.table_id = int(vi)
+            jcol = sample.columns.add()
+            jcol.id = 0
+            jcol.name = "frame"
+
+            # Write rows this corresponds to
+            for row in row_set:
+                jcol.rows.append(row)
+
+            # Mkdir
+            data_file_dir = '{}/datasets/{}/jobs/{}'.format(
+                self._db_path, dataset_name, job_name)
+            data_file_path = data_file_dir + '/{}_{}_{}.bin'.format(
+                vi, column, 0)
+            # Write data file
+            with open(data_file_path, 'wb') as f:
                 all_bytes = ""
-                for d in data:
+                for d in data_set:
                     byts = fn(d)
                     all_bytes += byts
                     f.write(struct.pack("=Q", len(byts)))
                 f.write(all_bytes)
+
+
+        meta_job = db_meta.jobs.add()
+        meta_job.id = job.id
+        meta_job.name = job.name
+
+        meta_jtd = db_meta.job_to_datasets.add()
+        meta_jtd.job_id = job.id
+        meta_jtd.dataset_id = dataset.id
+
+        write_db_metadata(db_meta)
 
         with open('{}/datasets/{}/jobs/{}/descriptor.bin'
                   .format(self._db_path, dataset_name, job_name), 'wb') as f:
