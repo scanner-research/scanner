@@ -150,17 +150,17 @@ def nms(boxes, overlapThresh):
     # integer data type
     return boxes[pick].astype("int")
 
-def visualize_frames(dataset_name, frames, boxes, output_dir):
+def visualize_frames(dataset_name, video, v_frames, nms_bboxes, output_dir):
     # Perform nms on boxes
-    bboxes = nms_bboxes['0']
+    bboxes = nms_bboxes[video]
     print(bboxes)
     # Extract frames
-    frames = [('0',  range(1000, 1100))]
+    frames = [(video, v_frames)]
     extract_frames_scanner.get_frames(dataset_name, frames,
                                       '/tmp/scanner_frames')
     image_template = '/tmp/scanner_frames/{}_{:07d}.jpg'
-    for i, frame in enumerate(range(1000, 1100)):
-        image = cv2.imread(image_template.format('0', frame))
+    for i, frame in enumerate(v_frames):
+        image = cv2.imread(image_template.format(video, frame))
         #r, image = cap.read()
         boxes = bboxes[i]
         print('Frame', frame, 'boxes', boxes)
@@ -179,6 +179,8 @@ def main():
     output_column = "base_bboxes"
     job_name_template = job_name_prefix + "_{:d}"
     output_path = 'facenet_output'
+    start_frame = 0
+    end_frame = 30
 
     #scales = [pow(2, x) for x in range(-3, 1, 1)]
     scales = [pow(2, x) for x in range(-3, 1, 1)]
@@ -195,6 +197,8 @@ def main():
         print('Running with scale', scale)
         job_name = job_name_template.format(i)
         opts['env']['SC_SCALE'] = str(scale)
+        opts['env']['SC_START_FRAME'] = str(start_frame)
+        opts['env']['SC_END_FRAME'] = str(end_frame)
         rc, t = db.run(dataset_name, 'facenet', job_name, opts)
         assert(rc == True)
         print('Time', t)
@@ -228,6 +232,10 @@ def main():
             frame_boxes = nms(frame_boxes, 0.1)
             new_boxes.append(frame_boxes)
         nms_bboxes[vi] = new_boxes
+
+    visualize_frames(dataset_name, '0',
+                     range(start_frame, end_frame),
+                     nms_bboxes, output_path)
 
 
 
