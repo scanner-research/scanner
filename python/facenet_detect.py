@@ -168,7 +168,7 @@ def visualize_frames(dataset_name, video, v_frames, nms_bboxes, output_dir):
             bbox = np.array(bbox).astype(int)
             cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]),
                           (0, 0, 255), 3)
-        file_name = vi + "_frame_" + str(frame) + ".jpg"
+        file_name = video + "_frame_" + str(frame) + ".jpg"
         file_path = os.path.join(output_dir, file_name)
         scipy.misc.toimage(image[:,:,::-1]).save(file_path)
 
