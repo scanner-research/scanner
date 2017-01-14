@@ -37,6 +37,7 @@ DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
 void DecoderEvaluator::configure(const BatchConfig& config) {
   reset();
   config_ = config;
+  frame_sizes_.clear();
   for (const InputFormat &m : config.formats) {
     frame_sizes_.push_back(m.width() * m.height() * 3);
   }

@@ -107,6 +107,8 @@ void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
     undisplayed_frames_[i] = false;
     invalid_frames_[i] = false;
   }
+  frame_queue_read_pos_ = 0;
+  frame_queue_elements_ = 0;
 
   CUVIDPARSERPARAMS cuparseinfo = {};
   // cuparseinfo.CodecType = metadata.codec_type;
