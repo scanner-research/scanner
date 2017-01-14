@@ -337,7 +337,7 @@ class Scanner(object):
         # Find dataset base frame job
         candidate_job_ids = set()
         for jtd in db_meta.job_to_datasets:
-            if jtd.dataset_id = dataset.id:
+            if jtd.dataset_id == dataset.id:
                 candidate_jobs.add(jtd.job_id)
         dataset_job_id = -1
         for job in db_meta.jobs:
@@ -509,6 +509,7 @@ class Scanner(object):
         load_workers_per_node = gopt('load_workers_per_node', None)
         save_workers_per_node = gopt('save_workers_per_node', None)
         db_path = gopt('db_path', None)
+        use_pool = gopt('use_pool', None)
         custom_env = gopt('env', None)
 
         cmd = [[
@@ -517,7 +518,7 @@ class Scanner(object):
             '--bind-to', 'none']]
 
         def add_opt(name, opt):
-            if opt:
+            if opt is not None:
                 cmd[0] += ['--' + name, str(opt)]
 
         if hosts:
@@ -543,11 +544,15 @@ class Scanner(object):
         add_opt('load_workers_per_node', load_workers_per_node)
         add_opt('save_workers_per_node', save_workers_per_node)
         add_opt('db_path', db_path)
+        add_opt('use_pool', use_pool)
         add_opt('config_file', self.config.config_path)
         current_env = os.environ.copy()
         if custom_env:
             for k, v in custom_env.iteritems():
                 current_env[k] = v
+
+        print (cmd)
+        print (custom_env)
 
         script_path = os.path.dirname(os.path.realpath(__file__))
         exec_path = os.path.join(script_path, '..')
