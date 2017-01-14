@@ -10,13 +10,10 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_desc,
-    const std::vector<DatasetItemMetadata>& item_descriptors) {
+PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
-  desc.input_columns = {"frame"};
-  desc.sampling = Sampling::SequenceGather;
-  desc.gather_sequences = {{0, {StridedInterval{18250, 19150}}}};
+  //Sampler::all_frames(info, desc);
+  Sampler::range_frames(info, desc, 1000, 1300);
 
   std::string net_descriptor_file = "features/caffe_facenet.toml";
   NetDescriptor descriptor;
@@ -24,22 +21,23 @@ PipelineDescription get_pipeline_description(
     std::ifstream net_file{net_descriptor_file};
     descriptor = descriptor_from_net_file(net_file);
   }
-  i32 batch_size = 4;
+  i32 batch_size = 3;
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
+  f32 scale = 0.5;
+  factories.emplace_back(
+      new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
   // factories.emplace_back(
-  //     new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
-  factories.emplace_back(
-      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+  //     new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new FacenetInputEvaluatorFactory(
-      DeviceType::GPU, descriptor, batch_size));
+      DeviceType::GPU, descriptor, batch_size, scale));
   factories.emplace_back(
-      new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size, true));
+      new CaffeEvaluatorFactory(DeviceType::GPU, descriptor, batch_size));
   factories.emplace_back(new FacenetParserEvaluatorFactory(
-      DeviceType::CPU, 0.8, FacenetParserEvaluator::NMSType::Average, true));
-  factories.emplace_back(new TrackerEvaluatorFactory(DeviceType::CPU, 32));
+      DeviceType::CPU, scale, 0.5, FacenetParserEvaluator::NMSType::Best));
+  factories.emplace_back(new TrackerEvaluatorFactory(DeviceType::CPU, 32, 20));
   factories.emplace_back(new SwizzleEvaluatorFactory(
       DeviceType::CPU, {1, 2}, {"base_bboxes", "tracked_bboxes"}));
 

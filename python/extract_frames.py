@@ -13,16 +13,19 @@ def extract_frames(video_paths, indices_per_video, output_directory,
                    fn=lambda x, y, z: x):
     for vi, (video_path, frame_indices) in enumerate(
             zip(video_paths, indices_per_video)):
-        #cap = cv2.VideoCapture(video_path)
+        cap = cv2.VideoCapture(video_path)
         video_name = path.splitext(path.basename(video_path))[0]
-        #for i, fi in enumerate(frame_indices):
-        #for i in range(18250):
-        #    cap.read()
-        for i, fi in enumerate(range(18250, 19150)):
-            image_path = 'imgs/205310_836_frame_{}.jpg'.format(fi)
-            #r, image = cap.read()
-            image = cv2.imread(image_path)
-            image = fn(image, vi, i)
+        print(frame_indices)
+        for i in range(1000):
+            r, image = cap.read()
+        current_frame = 0
+        for i, fi in enumerate(frame_indices):
+            while fi > current_frame:
+                r, image = cap.read()
+                current_frame += 1
+            #image_path = 'imgs/205310_836_frame_{}.jpg'.format(fi)
+            #image = cv2.imread(image_path)
+            image = fn(image, vi, current_frame)
             file_name = video_name + "_frame_" + str(fi) + ".jpg"
             file_path = path.join(output_directory, file_name)
             scipy.misc.toimage(image[:,:,::-1]).save(file_path)
@@ -42,10 +45,10 @@ def main(args):
                          for p in line.split(',')]
                         for line in f]
 
-    with open('cpm_frame_bboxes.txt', 'r') as f:
-        cpm_frame_bboxes = [[map(lambda x: int(float(x)), p.strip().split(' '))
-                             for p in (line.split(',') if len(line) > 3 else [])]
-                            for line in f]
+    # with open('cpm_frame_bboxes.txt', 'r') as f:
+    #     cpm_frame_bboxes = [[map(lambda x: int(float(x)), p.strip().split(' '))
+    #                          for p in (line.split(',') if len(line) > 3 else [])]
+    #                         for line in f]
 
     # Process into per video frame lists so we can extract sequentially
     indices_per_video = [[] for x in range(len(video_paths))]
@@ -61,16 +64,16 @@ def main(args):
     #extract_frames(video_paths, indices_per_video)
     last_index = [0]
     def draw_bboxes(image, vi, frame_candidate):
-        print(vi, frame_candidate)
         indicies = indices_per_video[vi]
+        print(vi, frame_candidate)
         if last_index[0] < len(indicies) and indicies[last_index[0]] == frame_candidate:
             for bbox in face_bboxes_per_video[vi][last_index[0]]:
                 cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]),
                               (0, 0, 255), 3)
             last_index[0] += 1
-        for bbox in cpm_frame_bboxes[frame_candidate]:
-            cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]),
-                          (0, 255, 0), 3)
+        # for bbox in cpm_frame_bboxes[frame_candidate]:
+        #     cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]),
+        #                   (0, 255, 0), 3)
         return image
 
     extract_frames(video_paths, indices_per_video, args.output_directory,

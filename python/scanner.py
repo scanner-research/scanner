@@ -273,8 +273,6 @@ class JobResult(object):
             assert(intervals is not None)
 
             frame_intervals = chunks(frames[0], item_size)
-            print([f for f in frame_intervals])
-            frame_intervals = chunks(frames[0], item_size)
 
             result = {'table': table.table_name,
                       'frames': [],
@@ -456,7 +454,7 @@ class Scanner(object):
         io_item_size = gopt('io_item_size', None)
         work_item_size = gopt('work_item_size', None)
         tasks_in_queue_per_pu = gopt('tasks_in_queue_per_pu', None)
-        load_workers_per_node = gopt('tasks_in_queue_per_pu', None)
+        load_workers_per_node = gopt('load_workers_per_node', None)
         save_workers_per_node = gopt('save_workers_per_node', None)
         db_path = gopt('db_path', None)
         custom_env = gopt('env', None)

@@ -144,11 +144,11 @@ def nms(boxes, overlapThresh):
     # integer data type
     return boxes[pick].astype("int")
 
-BOX_SCORE_THRESH = 1.5
-BOX_SCORE_CONTINUE_THRESH = 1.0
+BOX_SCORE_THRESH = 0.3
+BOX_SCORE_CONTINUE_THRESH = 0.3
 DETECT_OVERLAP_THRESH = 0.5
 TRACK_OVERLAP_THRESH = 0.1
-TRACK_SCORE_THRESH = 0.6
+TRACK_SCORE_THRESH = 0.3
 LAST_DETECTION_THRESH = 30
 TOTAL_DETECTIONS_THRESH = 5
 TRIM_AMOUNT = 1
@@ -162,6 +162,7 @@ def collate_boxes(base, tr):
     for i in range(len(base)):
         base_boxes = base[i]
         tracked_boxes = tr[i]
+        print(base_boxes)
 
         avg += len(base_boxes)
         avg += len(tracked_boxes)
@@ -248,13 +249,62 @@ def collate_boxes(base, tr):
     return gold_boxes, gold_tracks
 
 
+def facenet_boxes():
+    dataset_name = "kcam_test"
+    input_job = "face_test"
+    input_base_column = "base_bboxes"
+    meta = db.load_db_metadata()
+    base_boxes = load_bboxes(dataset_name,
+                             input_job,
+                             input_base_column).as_outputs()
+
+    video_paths = ['/n/scanner/apoms/kcam/eating_1.mp4']
+    frame_indices = []
+    frame_bboxes = []
+    avg_bboxes = 0.0
+    for vi, video_boxes in enumerate(base_boxes):
+        frames = video_boxes['frames']
+        boxes = video_boxes['buffers']
+        # Write out frames with nonzero number of boxes and their bboxes
+        for i, (fi, frame_boxes) in enumerate(zip(frames, boxes)):
+            if len(frame_boxes) == 0: continue
+            frame_indices.append((vi, fi))
+            frame_bboxes.append(frame_boxes)
+            avg_bboxes += len(frame_boxes)
+
+    avg_bboxes /= len(frame_indices)
+    print(str(len(frame_indices)), 'frames with avg of ', str(avg_bboxes),
+          'bounding boxes')
+
+    with open('video_paths.txt', 'w') as f:
+        for path in video_paths:
+            f.write(path + '\n')
+
+    with open('frame_indices.txt', 'w') as f:
+        for (vi, fi) in frame_indices:
+            f.write(str(vi) + ' ' + str(fi) + '\n')
+
+    with open('face_frame_bboxes.txt', 'w') as f:
+        for bboxes in frame_bboxes:
+            for box in bboxes:
+                for c in box[0:4]:
+                    f.write(str(c) + ' ')
+                f.seek(-1, 1)
+                f.write(',')
+            f.seek(-1, 1)
+            f.write('\n')
+
+
 def main():
-    dataset_name = "kcam_pier"
-    input_job = "facenet_18250_19150"
+    dataset_name = "kcam_test"
+    input_job = "face_test"
     input_base_column = "base_bboxes"
     input_track_column = "tracked_bboxes"
     output_job = "gold_k3"
     output_column = "base_bboxes"
+
+    facenet_boxes()
+    exit(1)
 
     #save_debug_video()
     meta = db.load_db_metadata()
@@ -301,7 +351,7 @@ def main():
     #db.write_db_metadata(meta)
 
     # Write out data to use for extracting frames in extract_frames.py
-    video_paths = ['/bigdata/apoms/benchmark/kcam/20150308_205310_836.mp4']
+    video_paths = ['/n/scanner/apoms/kcam/eating_1.mp4']
     frame_indices = []
     frame_bboxes = []
     avg_bboxes = 0.0
