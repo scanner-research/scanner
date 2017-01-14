@@ -22,8 +22,9 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
   for (i32 i = 0; i < input_count; ++i) {
     i32 proposal_count =
-        input_columns[rois_idx].rows[rois_idx].size / (BOX_SIZE * sizeof(f32));
-
+        input_columns[rois_idx].rows[i].size / (BOX_SIZE * sizeof(f32));
+    assert(rois[i].size == BOX_SIZE * sizeof(f32) * proposal_count);
+    assert(cls_prob[i].size == CLASSES * sizeof(f32) * proposal_count);
     std::vector<BoundingBox> bboxes;
     for (i32 j = 0; j < proposal_count; ++j) {
       f32* roi = (f32*)(rois[i].buffer + (j * BOX_SIZE * sizeof(f32)));

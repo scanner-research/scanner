@@ -20,12 +20,7 @@ void HistogramEvaluator::configure(const BatchConfig& config) {
   config_ = config;
   set_device();
 
-  // HACK(wcrichto): temporary image support
-  if (config_.formats.size() == 0) {
-    format_ = InputFormat(640, 480);
-  } else {
-    format_ = config_.formats[0];
-  }
+  format_ = config_.formats[0];
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -45,7 +40,7 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
   assert(input_columns.size() == 1);
   set_device();
 
-  i64 hist_size = BINS * 3 * sizeof(float);
+  size_t hist_size = BINS * 3 * sizeof(float);
   i32 input_count = (i32)input_columns[0].rows.size();
   u8* output_block = new_block_buffer({device_type_, device_id_},
                                       hist_size * input_count,
@@ -84,33 +79,26 @@ void HistogramEvaluator::evaluate(const BatchedColumns& input_columns,
     LOG(FATAL) << "Cuda not installed.";
 #endif
   } else {
+    cv::Mat tmp;
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img = bytesToImage(input_columns[0].rows[i].buffer,
                                  format_);
 
-      std::vector<cv::Mat> bgr_planes;
-      cv::split(img, bgr_planes);
-
-      cv::Mat r_hist, g_hist, b_hist;
       float range[] = {0, 256};
       const float* histRange = {range};
 
-      cv::calcHist(&bgr_planes[0], 1, 0, cv::Mat(), b_hist, 1, &BINS,
-                   &histRange);
-      cv::calcHist(&bgr_planes[1], 1, 0, cv::Mat(), g_hist, 1, &BINS,
-                   &histRange);
-      cv::calcHist(&bgr_planes[2], 1, 0, cv::Mat(), r_hist, 1, &BINS,
-                   &histRange);
+      u8* output_buf = output_block + i * hist_size;
 
-      std::vector<cv::Mat> hists = {r_hist, g_hist, b_hist};
-      cv::Mat hist;
-      cv::hconcat(hists, hist);
+      for (i32 j = 0; j < 3; ++j) {
+        int channels[] = {j};
+        cv::Mat out(BINS, 1, CV_32S, output_buf + BINS * sizeof(float));
+        cv::calcHist(&img, 1, channels, cv::Mat(),
+                     out,
+                     1, &BINS,
+                     &histRange);
+      }
 
-      u8* hist_buffer = output_block + i * hist_size;
-      assert(hist_size == hist.total() * hist.elemSize());
-      memcpy(hist_buffer, hist.data, hist_size);
-
-      output_columns[0].rows.push_back(Row{hist_buffer, hist_size});
+      output_columns[0].rows.push_back(Row{output_buf, hist_size});
     }
   }
 

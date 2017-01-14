@@ -15,13 +15,17 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   DeviceType device_type;
   VideoDecoderType decoder_type;
 
-#ifdef HAVE_CUDA
-  device_type = DeviceType::GPU;
-  decoder_type = VideoDecoderType::NVIDIA;
-#else
-  device_type = DeviceType::CPU;
-  decoder_type = VideoDecoderType::SOFTWARE;
-#endif
+  const char *DEVICE = std::getenv("SC_DEVICE");
+  std::string device{DEVICE};
+  if (device == "CPU") {
+    device_type = DeviceType::CPU;
+    decoder_type = VideoDecoderType::SOFTWARE;
+  } else if (device == "GPU") {
+    device_type = DeviceType::GPU;
+    decoder_type = VideoDecoderType::NVIDIA;
+  } else {
+    LOG(FATAL) << "Invalid SC_DEVICE type `" << device << "`";
+  }
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
@@ -29,7 +33,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   factories.emplace_back(
       new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new OpticalFlowEvaluatorFactory(device_type));
-  factories.emplace_back(new DiscardEvaluatorFactory(DeviceType::CPU));
+  factories.emplace_back(new DiscardEvaluatorFactory(device_type));
 
   return desc;
 }

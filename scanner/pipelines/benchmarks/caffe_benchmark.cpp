@@ -25,20 +25,29 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   DeviceType device_type;
   VideoDecoderType decoder_type;
 
-  device_type = DeviceType::GPU;
-  decoder_type = VideoDecoderType::NVIDIA;
+  const char *DEVICE = std::getenv("SC_DEVICE");
+  std::string device{DEVICE};
+  if (device == "CPU") {
+    device_type = DeviceType::CPU;
+    decoder_type = VideoDecoderType::SOFTWARE;
+  } else if (device == "GPU") {
+    device_type = DeviceType::GPU;
+    decoder_type = VideoDecoderType::NVIDIA;
+  } else {
+    LOG(FATAL) << "Invalid SC_DEVICE type `" << device << "`";
+  }
 
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
   factories.emplace_back(
-      new DecoderEvaluatorFactory(device_type, decoder_type));
-  factories.emplace_back(new DefaultInputEvaluatorFactory(
-      DeviceType::GPU, net_descriptor, BATCH_SIZE));
+    new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(
-      new CaffeEvaluatorFactory(device_type, net_descriptor, BATCH_SIZE));
+    new DefaultInputEvaluatorFactory(
+      device_type, net_descriptor, BATCH_SIZE));
   factories.emplace_back(
-      new SwizzleEvaluatorFactory(device_type, {1}, {"feature"}));
+    new CaffeEvaluatorFactory(DeviceType::GPU, net_descriptor, BATCH_SIZE));
+  factories.emplace_back(new SwizzleEvaluatorFactory(DeviceType::GPU, {1}, {"feature"}));
 
   return desc;
 }

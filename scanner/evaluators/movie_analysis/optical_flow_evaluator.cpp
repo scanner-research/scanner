@@ -77,6 +77,8 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
     std::vector<cvc::GpuMat> imgs_gray;
     cvc::GpuMat* initial = (cvc::GpuMat*)initial_frame_;
     if (!initial->empty()) {
+      LOG_IF(FATAL, initial->size() != inputs[0].size())
+        << "Initial frame size is not same as current work item's frame size";
       cvc::GpuMat gray;
       cvc::cvtColor(*initial, gray, CV_BGR2GRAY);
       imgs_gray.emplace_back(gray);
@@ -92,10 +94,6 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
       cvc::GpuMat gray;
       cvc::cvtColor(inputs[i], gray, CV_BGR2GRAY, 0, s);
       imgs_gray.emplace_back(gray);
-    }
-
-    for (cv::cuda::Stream& s : streams_) {
-      s.waitForCompletion();
     }
 
     cv::Ptr<cvc::DenseOpticalFlow> flow =
@@ -127,7 +125,7 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
     LOG(FATAL) << "Cuda not installed.";
 #endif  // HAVE_CUDA
   } else {
-    std::vector<cvc::GpuMat> inputs;
+    std::vector<cv::Mat> inputs;
     for (i32 i = 0; i < input_count; ++i) {
       inputs.emplace_back(
           bytesToImage(input_columns[0].rows[i].buffer, config_.formats[0]));
@@ -160,11 +158,15 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
 
     double start = CycleTimer::currentSeconds();
 
-    cv::Ptr<cv::DenseOpticalFlow> flow = cv::createOptFlow_DualTVL1();
+    // cv::Ptr<cv::DenseOpticalFlow> flow = cv::FarnebackOpticalFlow::create();
     for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
       cv::Mat output_flow(img_size, CV_32FC2);
 
-      flow->calc(imgs_gray[i], imgs_gray[i + 1], output_flow);
+      calcOpticalFlowFarneback(imgs_gray[i], imgs_gray[i+1],
+                               output_flow,
+                               0.5, 3, 15, 3, 5, 1.2, 0);
+
+      //flow->calc(imgs_gray[i], imgs_gray[i + 1], output_flow);
 
 #ifdef DEBUG_OPTICAL_FLOW
       u8* output_buf = new u8[out_buf_size];

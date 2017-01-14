@@ -65,7 +65,7 @@ void DefaultInputEvaluator::configure(const BatchConfig& config) {
 
   i32 width = metadata_.width();
   i32 height = metadata_.height();
-  if (net_input_width_ == -1) {
+  if (descriptor_.input_width == -1) {
     net_input_width_ = width;
     net_input_height_ = height;
   }
@@ -207,7 +207,11 @@ void DefaultInputEvaluator::evaluate(const BatchedColumns& input_columns,
     u8* input_buffer = input_columns[0].rows[frame].buffer;
     u8* output_buffer = output_block + frame * net_input_size;
 
-    transform_halide(input_buffer, output_buffer);
+    if (device_type_ == DeviceType::CPU) {
+      transform_caffe(input_buffer, output_buffer);
+    } else {
+      transform_halide(input_buffer, output_buffer);
+    }
 
     INSERT_ROW(output_columns[1], output_buffer, net_input_size);
   }
