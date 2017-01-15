@@ -112,12 +112,10 @@ struct COCOModelDescriptor : public ModelDescriptor {
 };
 }
 
-
-CPM2ParserEvaluator::CPM2ParserEvaluator(const EvaluatorConfig& config,
-                                       DeviceType device_type, i32 device_id)
-    : device_type_(device_type),
-      device_id_(device_id)
-{
+CPM2ParserEvaluator::CPM2ParserEvaluator(const EvaluatorConfig &config,
+                                         DeviceType device_type, i32 device_id,
+                                         f32 scale)
+    : device_type_(device_type), device_id_(device_id), scale_(scale) {
   modeldesc.reset(new MPIModelDescriptor());
   joints_.resize(max_people_ * 3 * max_num_parts_);
 }
@@ -127,16 +125,16 @@ void CPM2ParserEvaluator::configure(const BatchConfig& config) {
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
 
-  f32 scale = static_cast<f32>(box_size_) / metadata_.height();
-  // Calculate width by scaling by box size
-  resize_width_ = metadata_.width() * scale;
-  resize_height_ = metadata_.height() * scale;
+  resize_width_ = metadata_.width() * scale_;
+  resize_height_ = metadata_.height() * scale_;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
+  height_padding_ = (resize_height_ % 8) ? 8 - (resize_height_ % 8) : 0;
   padded_width_ = resize_width_ + width_padding_;
+  padded_height_ = resize_height_ + height_padding_;
 
   net_input_width_ = padded_width_;
-  net_input_height_ = box_size_;
+  net_input_height_ = padded_height_;
 
   feature_width_ = net_input_width_;
   feature_height_ = net_input_height_;
@@ -162,8 +160,6 @@ void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
   i32 input_count = (i32)input_columns[heatmap_idx].rows.size();
 
-  // Get bounding box data from output feature vector and turn it
-  // into canonical center x, center y, width, height
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU version not supported yet.";
   } else {
@@ -475,8 +471,9 @@ int CPM2ParserEvaluator::connect_limbs(
   return cnt;
 }
 
-CPM2ParserEvaluatorFactory::CPM2ParserEvaluatorFactory(DeviceType device_type)
-    : device_type_(device_type) {}
+CPM2ParserEvaluatorFactory::CPM2ParserEvaluatorFactory(DeviceType device_type,
+                                                       f32 scale)
+    : device_type_(device_type), scale_(scale) {}
 
 EvaluatorCapabilities CPM2ParserEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -495,8 +492,9 @@ std::vector<std::string> CPM2ParserEvaluatorFactory::get_output_columns(
   return {"frame", "poses"};
 }
 
-Evaluator* CPM2ParserEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
-  return new CPM2ParserEvaluator(config, device_type_, config.device_ids[0]);
+Evaluator *
+CPM2ParserEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+  return new CPM2ParserEvaluator(config, device_type_, config.device_ids[0],
+                                 scale_);
 }
 }

@@ -551,7 +551,7 @@ class Scanner(object):
             for k, v in custom_env.iteritems():
                 current_env[k] = v
 
-        print (cmd)
+        print (' '.join(cmd[0]))
         print (custom_env)
 
         script_path = os.path.dirname(os.path.realpath(__file__))

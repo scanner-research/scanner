@@ -79,6 +79,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     cpm_person_descriptor = descriptor_from_net_file(net_file);
   }
 
+  f32 scale = 0.25;
   // CPM2 uses batch size for multiple scales
   i32 batch_size = 1;
   DeviceType device_type;
@@ -94,16 +95,19 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
       desc.evaluator_factories;
 
+  using namespace std::placeholders;
+  CustomNetConfiguration net_config = std::bind(cpm2_net_config, scale, _1, _2);
+
   factories.emplace_back(
       new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   // factories.emplace_back(
   //     new DecoderEvaluatorFactory(device_type, decoder_type));
   factories.emplace_back(new CPM2InputEvaluatorFactory(
-      device_type, cpm_person_descriptor, batch_size));
+      device_type, cpm_person_descriptor, batch_size, scale));
   factories.emplace_back(new CaffeEvaluatorFactory(
-      device_type, cpm_person_descriptor, batch_size, cpm2_net_config));
+      device_type, cpm_person_descriptor, batch_size, net_config));
   factories.emplace_back(
-      new CPM2ParserEvaluatorFactory(DeviceType::CPU));
+      new CPM2ParserEvaluatorFactory(DeviceType::CPU, scale));
   factories.emplace_back(
       new SwizzleEvaluatorFactory(DeviceType::CPU, {1}, {"joint_centers"}));
 

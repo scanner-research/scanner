@@ -27,6 +27,8 @@ def get_frames(dataset, frames, directory):
     write_indices(frames)
     success, _ = db.run(dataset, 'frame_extract', 'extracted',
                         {'force': True,
+                         'io_item_size': 4096,
+                         'work_item_size': 512,
                          'pus_per_node': 1})
     if not success:
         print('Scanner failed')

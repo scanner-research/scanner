@@ -30,12 +30,14 @@
 
 namespace scanner {
 
-void cpm2_net_config(const BatchConfig& config, caffe::Net<float> *net);
+void cpm2_net_config(f32 scale, const BatchConfig &config,
+                     caffe::Net<float> *net);
 
 class CPM2InputEvaluator : public Evaluator {
  public:
   CPM2InputEvaluator(DeviceType device_type, i32 device_id,
-                     const NetDescriptor& descriptor, i32 batch_size);
+                     const NetDescriptor& descriptor, i32 batch_size,
+                     f32 scale);
 
   void configure(const BatchConfig& config) override;
 
@@ -47,13 +49,14 @@ class CPM2InputEvaluator : public Evaluator {
   i32 device_id_;
   NetDescriptor descriptor_;
   i32 batch_size_;
+  f32 scale_;
 
   i32 frame_width_;
   i32 frame_height_;
-  i32 box_size_ = 368;
   i32 resize_width_;
   i32 resize_height_;
   i32 width_padding_;
+  i32 height_padding_;
   i32 net_input_width_;
   i32 net_input_height_;
 
@@ -81,7 +84,8 @@ class CPM2InputEvaluatorFactory : public EvaluatorFactory {
  public:
   CPM2InputEvaluatorFactory(DeviceType device_type,
                             const NetDescriptor& descriptor,
-                            i32 batch_size);
+                            i32 batch_size,
+                            f32 scale);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -94,5 +98,6 @@ class CPM2InputEvaluatorFactory : public EvaluatorFactory {
   DeviceType device_type_;
   NetDescriptor net_descriptor_;
   i32 batch_size_;
+  f32 scale_;
 };
 }

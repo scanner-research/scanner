@@ -19,7 +19,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     start_frame = std::atoi(START_FRAME);
   }
   if (END_FRAME) {
-    end_frame = std::atoi(START_FRAME);
+    end_frame = std::atoi(END_FRAME);
   }
 
   PipelineDescription desc;

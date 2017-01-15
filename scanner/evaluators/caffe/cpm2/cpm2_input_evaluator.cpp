@@ -24,18 +24,19 @@
 
 namespace scanner {
 
-void cpm2_net_config(const BatchConfig& config, caffe::Net<float> *net) {
+void cpm2_net_config(f32 scale, const BatchConfig &config,
+                     caffe::Net<float> *net) {
   assert(config.formats.size() == 1);
-  const InputFormat& metadata = config.formats[0];
-  f32 scale = static_cast<f32>(368) / metadata.height();
+  const InputFormat &metadata = config.formats[0];
   // Calculate width by scaling by box size
   int resize_width = metadata.width() * scale;
   int resize_height = metadata.height() * scale;
 
   int width_padding = (resize_width % 8) ? 8 - (resize_width % 8) : 0;
+  int height_padding = (resize_height % 8) ? 8 - (resize_height % 8) : 0;
 
   int net_input_width = resize_width + width_padding;
-  int net_input_height = resize_height;
+  int net_input_height = resize_height + height_padding;
 
   caffe::ImResizeLayer<float> *resize_layer =
       (caffe::ImResizeLayer<float>*)net->layer_by_name("resize").get();
@@ -53,13 +54,14 @@ void cpm2_net_config(const BatchConfig& config, caffe::Net<float> *net) {
 
 CPM2InputEvaluator::CPM2InputEvaluator(
     DeviceType device_type, i32 device_id, const NetDescriptor& descriptor,
-    i32 batch_size)
+    i32 batch_size, f32 scale)
     : device_type_(device_type),
       device_id_(device_id),
       descriptor_(descriptor),
       batch_size_(batch_size),
       net_input_width_(368),
-      net_input_height_(368)
+      net_input_height_(368),
+      scale_(scale)
 #ifdef HAVE_CUDA
       ,
       num_cuda_streams_(32),
@@ -75,15 +77,14 @@ void CPM2InputEvaluator::configure(const BatchConfig& config) {
   frame_width_ = config.formats[0].width();
   frame_height_ = config.formats[0].height();
 
-  f32 scale = static_cast<f32>(box_size_) / frame_height_;
-  // Calculate width by scaling by box size
-  resize_width_ = frame_width_ * scale;
-  resize_height_ = frame_height_ * scale;
+  resize_width_ = frame_width_ * scale_;
+  resize_height_ = frame_height_ * scale_;
 
   width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
+  height_padding_ = (resize_height_ % 8) ? 8 - (resize_height_ % 8) : 0;
 
   net_input_width_ = resize_width_ + width_padding_;
-  net_input_height_ = resize_height_;
+  net_input_height_ = resize_height_ + height_padding_;
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -172,8 +173,9 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
                        cv::Size(resize_width_, resize_height_), 0, 0,
                        cv::INTER_CUBIC, cv_stream);
       cv::cuda::copyMakeBorder(resized_input_g_[sid], padded_input_g_[sid], 0,
-                               0, 0, width_padding_, cv::BORDER_CONSTANT,
-                               cv::Scalar(128, 128, 128), cv_stream);
+                               height_padding_, 0, width_padding_,
+                               cv::BORDER_CONSTANT, cv::Scalar(128, 128, 128),
+                               cv_stream);
       padded_input_g_[sid].convertTo(float_input_g_[sid], CV_32FC3,
                                      (1.0f / 256.0f), -0.5f, cv_stream);
       // Changed from interleaved BGR to planar RGB
@@ -252,10 +254,10 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
 }
 
 CPM2InputEvaluatorFactory::CPM2InputEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size)
-    : device_type_(device_type),
-      net_descriptor_(descriptor),
-      batch_size_(batch_size) {}
+    DeviceType device_type, const NetDescriptor &descriptor, i32 batch_size,
+    f32 scale)
+    : device_type_(device_type), net_descriptor_(descriptor),
+      batch_size_(batch_size), scale_(scale) {}
 
 EvaluatorCapabilities CPM2InputEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -277,6 +279,7 @@ std::vector<std::string> CPM2InputEvaluatorFactory::get_output_columns(
 Evaluator* CPM2InputEvaluatorFactory::new_evaluator(
     const EvaluatorConfig& config) {
   return new CPM2InputEvaluator(device_type_, config.device_ids[0],
-                                net_descriptor_, batch_size_);
+                                net_descriptor_, batch_size_,
+                                scale_);
 }
 }

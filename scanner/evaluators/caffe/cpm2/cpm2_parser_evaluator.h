@@ -29,7 +29,7 @@ class ModelDescriptor;
 class CPM2ParserEvaluator : public Evaluator {
  public:
   CPM2ParserEvaluator(const EvaluatorConfig& config, DeviceType device_type,
-                      i32 device_id);
+                      i32 device_id, f32 scale);
 
   void configure(const BatchConfig& config) override;
 
@@ -50,12 +50,14 @@ class CPM2ParserEvaluator : public Evaluator {
   std::unique_ptr<ModelDescriptor> modeldesc;
   InputFormat metadata_;
   // The maximum number of joint peaks from the nms output layer
+  f32 scale_;
   i32 cell_size_ = 8;
-  i32 box_size_ = 368;
   i32 resize_width_;
   i32 resize_height_;
   i32 width_padding_;
+  i32 height_padding_;
   i32 padded_width_;
+  i32 padded_height_;
   i32 net_input_width_;
   i32 net_input_height_;
   i32 feature_width_;
@@ -75,7 +77,7 @@ class CPM2ParserEvaluator : public Evaluator {
 
 class CPM2ParserEvaluatorFactory : public EvaluatorFactory {
  public:
-  CPM2ParserEvaluatorFactory(DeviceType device_type);
+  CPM2ParserEvaluatorFactory(DeviceType device_type, f32 scale);
 
   EvaluatorCapabilities get_capabilities() override;
 
@@ -86,5 +88,6 @@ class CPM2ParserEvaluatorFactory : public EvaluatorFactory {
 
  private:
   DeviceType device_type_;
+  f32 scale_;
 };
 }  // end namespace scanner
