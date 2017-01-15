@@ -21,6 +21,13 @@ if (BUILD_VIDEO_EVALUATORS AND
 endif()
 
 if (BUILD_VIDEO_EVALUATORS AND
+    BUILD_TRACKER_EVALUATORS AND
+    BUILD_UTIL_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    tracker_pipeline.cpp)
+endif()
+
+if (BUILD_VIDEO_EVALUATORS AND
     BUILD_CAFFE_EVALUATORS AND
     BUILD_CAFFE_INPUT_EVALUATORS AND
     BUILD_UTIL_EVALUATORS)
@@ -37,7 +44,8 @@ if (BUILD_VIDEO_EVALUATORS AND
     find_pose_pipeline.cpp)
   if (BUILD_CPM2_EVALUATORS)
     list(APPEND SOURCE_FILES
-      find_body_pipeline.cpp)
+      find_body_pipeline.cpp
+      cpm2_pipeline.cpp)
   endif()
 endif()
 
