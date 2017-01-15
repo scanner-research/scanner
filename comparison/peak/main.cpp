@@ -43,6 +43,16 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #endif
 
+extern "C" {
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include "libavutil/error.h"
+#include "libavutil/frame.h"
+#include "libavutil/imgutils.h"
+#include "libavutil/opt.h"
+#include "libswscale/swscale.h"
+}
+
 #include <iostream>
 #include <fstream>
 #include <thread>
@@ -75,11 +85,14 @@ struct SaveHandle {
   int elements;
 };
 
+using DecoderFn = std::function<void(int, Queue<std::string>&, Queue<u8*> &,
+                                     Queue<BufferHandle> &)>;
+
 using WorkerFn = std::function<void(int, Queue<u8 *> &, Queue<BufferHandle> &,
                                     Queue<SaveHandle> &, Queue<SaveHandle> &)>;
 
-const int NUM_BUFFERS = 10;
-const int BATCH_SIZE = 32;      // Batch size for network
+const int NUM_BUFFERS = 5;
+int BATCH_SIZE = 192;      // Batch size for network
 const int NET_BATCH_SIZE = 96;      // Batch size for network
 const int FLOW_WORK_REDUCTION = 20;
 const int BINS = 16;
@@ -102,6 +115,220 @@ std::string output_path() {
   i32 idx = 0;
   return "/tmp/peak_outputs/videos" + std::to_string(idx) + ".bin";
 }
+
+struct CodecState {
+  AVPacket packet;
+  AVFrame* frame;
+  AVFormatContext* format_context;
+  AVCodec* in_codec;
+  AVCodecContext* cc;
+  SwsContext* sws_context;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 34, 0)
+  AVCodecParameters* in_cc_params;
+#endif
+  i32 video_stream_index;
+  AVBitStreamFilterContext* annexb;
+};
+
+bool setup_video_codec(CodecState& state, const std::string& path) {
+  LOG(INFO) << "Setting up video codec";
+  av_init_packet(&state.packet);
+  state.frame = av_frame_alloc();
+  state.format_context = avformat_alloc_context();
+
+  avformat_open_input(&state.format_context, path.c_str(), 0, 0);
+
+  // Read file header
+  LOG(INFO) << "Opening input file to read format";
+  if (avformat_open_input(&state.format_context, NULL, NULL, NULL) < 0) {
+    LOG(ERROR) << "open input failed";
+    return false;
+  }
+  // Some formats don't have a header
+  LOG(INFO) << "Find stream info";
+  if (avformat_find_stream_info(state.format_context, NULL) < 0) {
+    LOG(ERROR) << "find stream info failed";
+    return false;
+  }
+
+  LOG(INFO) << "Dimp format";
+  av_dump_format(state.format_context, 0, NULL, 0);
+
+  // Find the best video stream in our input video
+  LOG(INFO) << "Find best stream";
+  state.video_stream_index = av_find_best_stream(
+      state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
+      -1 /* no related stream */, &state.in_codec, 0 /* flags */);
+  if (state.video_stream_index < 0) {
+    LOG(ERROR) << "could not find best stream";
+    return false;
+  }
+
+  AVStream const* const in_stream =
+      state.format_context->streams[state.video_stream_index];
+
+  LOG(INFO) << "Find decoder";
+  state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+  if (state.in_codec == NULL) {
+    LOG(FATAL) << "could not find h264 decoder";
+  }
+
+  state.cc = avcodec_alloc_context3(state.in_codec);
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 34, 0)
+  state.in_cc_params = avcodec_parameters_alloc();
+  if (avcodec_parameters_from_context(state.in_cc_params, in_stream->codec) <
+      0) {
+    LOG(ERROR) << "could not copy codec params from input stream";
+    return false;
+  }
+  if (avcodec_parameters_to_context(state.cc, state.in_cc_params) < 0) {
+    LOG(ERROR) << "could not copy codec params to in cc";
+    return false;
+  }
+#else
+  if (avcodec_copy_context(state.cc, in_stream->codec) < 0) {
+    LOG(ERROR) << "could not copy codec params to in cc";
+    return false;
+  }
+#endif
+
+  state.cc->thread_count = 16;
+  state.cc->refcounted_frames = 1;
+  if (avcodec_open2(state.cc, state.in_codec, NULL) < 0) {
+    LOG(ERROR) << "could not open codec";
+    return false;
+  }
+
+//state.annexb = av_bitstream_filter_init("h264_mp4toannexb");
+
+  return true;
+}
+
+void cleanup_video_codec(CodecState state) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 53, 0)
+  avcodec_free_context(&state.cc);
+#else
+  avcodec_close(state.cc);
+  av_freep(&state.cc);
+#endif
+  avformat_close_input(&state.format_context);
+  av_frame_free(&state.frame);
+  //av_bitstream_filter_close(state.annexb);
+}
+
+void cpu_decoder_worker(int gpu_device_id, Queue<std::string> &video_paths,
+                        Queue<u8 *> &free_buffers,
+                        Queue<BufferHandle> &decoded_frames) {
+  double decode_time = 0;
+
+  int64_t frame_size = width * height * 4 * sizeof(u8);
+  int64_t frame = 0;
+  while (true) {
+    std::string path;
+    video_paths.pop(path);
+
+    if (path == "") {
+      break;
+    }
+
+    printf("popped %s\n", path.c_str());
+    CodecState state;
+    bool success = setup_video_codec(state, path);
+    LOG_IF(FATAL, !success) << "Did not setup video codec";
+
+    int64_t frame = 0;
+    bool video_done = false;
+    while (!video_done) {
+      u8 *buffer;
+      free_buffers.pop(buffer);
+
+      int64_t buffer_frame = 0;
+      while (buffer_frame < BATCH_SIZE) {
+        auto decode_start = scanner::now();
+        int error = av_read_frame(state.format_context, &state.packet);
+        if (error == AVERROR_EOF) {
+          video_done = true;
+          break;
+        }
+        if (state.packet.stream_index != state.video_stream_index) {
+          av_packet_unref(&state.packet);
+          continue;
+        }
+
+        error = avcodec_send_packet(state.cc, &state.packet);
+        if (error != AVERROR_EOF) {
+          if (error < 0) {
+            char err_msg[256];
+            av_strerror(error, err_msg, 256);
+            fprintf(stderr, "Error while sending packet (%d): %s\n", error,
+                    err_msg);
+            LOG(FATAL) << "Error while sending packet";
+          }
+        }
+        av_packet_unref(&state.packet);
+        while (buffer_frame < BATCH_SIZE) {
+          error = avcodec_receive_frame(state.cc, state.frame);
+          if (error == AVERROR_EOF) {
+            av_frame_unref(state.frame);
+            break;
+          }
+          if (error == 0) {
+            u8* scale_buffer = buffer + buffer_frame * frame_size;
+
+            uint8_t *out_slices[4];
+            int out_linesizes[4];
+            int required_size = av_image_fill_arrays(
+                out_slices, out_linesizes, scale_buffer, AV_PIX_FMT_RGB24,
+                width, height, 1);
+
+            AVPixelFormat decoder_pixel_format = state.cc->pix_fmt;
+            if (state.sws_context == nullptr) {
+              printf("sws %d\n", decoder_pixel_format);
+              state.sws_context = sws_getContext(
+                  width, height, decoder_pixel_format, width,
+                  height, AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+            }
+            if (state.sws_context == NULL) {
+              LOG(FATAL) << "Could not get sws context";
+            }
+
+            av_frame_unref(state.frame);
+            if (sws_scale(state.sws_context, state.frame->data,
+                          state.frame->linesize, 0, state.frame->height,
+                          out_slices, out_linesizes) < 0) {
+              LOG(FATAL) << "Sws_scale failed";
+              exit(EXIT_FAILURE);
+            }
+
+            av_frame_unref(state.frame);
+            frame++;
+            buffer_frame++;
+            continue;
+          } else if (error == AVERROR(EAGAIN)) {
+            break;
+          } else {
+            char err_msg[256];
+            av_strerror(error, err_msg, 256);
+            fprintf(stderr, "Error while receiving frame (%d): %s\n", error,
+                    err_msg);
+            exit(-1);
+          }
+        }
+      }
+
+      printf("video %s, %d\n", path.c_str(), frame);
+      BufferHandle h;
+      h.buffer = buffer;
+      h.elements = buffer_frame;
+      decoded_frames.push(h);
+    }
+    cleanup_video_codec(state);
+  }
+  std::unique_lock<std::mutex> lock(TIMINGS_MUTEX);
+  TIMINGS["decode"] += decode_time;
+}
+
+
 
 void decoder_worker(int gpu_device_id,
                     Queue<std::string> &video_paths,
@@ -380,6 +607,7 @@ void video_flow_cpu_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
 
     u8* output_buffer = save_handle.buffer;
 
+    printf("elements %d\n", elements);
     // Load the first frame
     auto eval_first = scanner::now();
     cv::Mat image(height, width, CV_8UC3, buffer);
@@ -394,6 +622,7 @@ void video_flow_cpu_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
       cv::Mat image(height, width, CV_8UC3, buffer + i * frame_size);
 
       auto eval_start = scanner::now();
+      printf("curr %d, prev %d\n", curr_idx, prev_idx);
       cv::cvtColor(image, gray[curr_idx], CV_BGR2GRAY);
       flow->calc(gray[prev_idx], gray[curr_idx], output_flow);
       eval_time += scanner::nano_since(eval_start);
@@ -446,7 +675,7 @@ void video_flow_gpu_worker(int gpu_device_id, Queue<u8 *> &free_buffers,
 
     // Load the first frame
     auto eval_first = scanner::now();
-    cvc::GpuMat image(height, width, CV_8UC3, buffer);
+    cvc::GpuMat image(height, width, CV_8UC4, buffer);
     cvc::cvtColor(image, gray[0], CV_BGRA2GRAY, 0, stream);
     eval_time += scanner::nano_since(eval_first);
     bool done = false;
@@ -723,6 +952,7 @@ int main(int argc, char** argv) {
 
   bool cpu_decoder = false;
 
+  DecoderFn decoder_fn;
   WorkerFn worker_fn;
   if (OPERATION == "histogram_cpu") {
     cpu_decoder = true;
@@ -732,10 +962,12 @@ int main(int argc, char** argv) {
     worker_fn = video_histogram_gpu_worker;
     output_element_size = 3 * BINS * sizeof(i32);
   } else if (OPERATION == "flow_cpu") {
+    BATCH_SIZE = 8;      // Batch size for network
     cpu_decoder = true;
     worker_fn = video_flow_cpu_worker;
     output_element_size = 2 * height * width * sizeof(f32);
   } else if (OPERATION == "flow_gpu") {
+    BATCH_SIZE = 8;      // Batch size for network
     worker_fn = video_flow_gpu_worker;
     output_element_size = 2 * height * width * sizeof(f32);
   } else if (OPERATION == "caffe") {
@@ -747,6 +979,11 @@ int main(int argc, char** argv) {
   output_buffer_size = BATCH_SIZE * output_element_size;
 
   IS_CPU = cpu_decoder;
+  if (IS_CPU) {
+    decoder_fn = cpu_decoder_worker;
+  } else {
+    decoder_fn = decoder_worker;
+  }
 
   // Setup decoder
   CUD_CHECK(cuInit(0));
@@ -761,12 +998,18 @@ int main(int argc, char** argv) {
   Queue<SaveHandle> save_buffers;
   for (int i = 0; i < NUM_BUFFERS * std::max(decoder_count, eval_count);
        ++i) {
-    if (cpu_decoder) {
+    if (IS_CPU) {
       u8 *buffer;
       buffer = (u8*)malloc(BATCH_SIZE * width * height * 4 * sizeof(u8));
+      if (buffer == nullptr) {
+        exit(1);
+      }
       free_buffers.push(buffer);
 
       buffer = (u8*)malloc(output_buffer_size);
+      if (buffer == nullptr) {
+        exit(1);
+      }
       SaveHandle handle;
       handle.buffer = buffer;
       free_output_buffers.push(handle);
@@ -810,12 +1053,12 @@ int main(int argc, char** argv) {
   }
 
   // Wait to make sure everything is setup first
-  sleep(10);
+  sleep(5);
 
   // Start work by setting up feeder
   std::vector<std::thread> decoder_threads;
   for (i32 i = 0; i < decoder_count; ++i) {
-    decoder_threads.emplace_back(decoder_worker, 0, std::ref(video_paths),
+    decoder_threads.emplace_back(decoder_fn, 0, std::ref(video_paths),
                                  std::ref(free_buffers),
                                  std::ref(decoded_frames));
   }
