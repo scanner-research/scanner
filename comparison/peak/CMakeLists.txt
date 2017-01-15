@@ -8,6 +8,7 @@ if(CUDA_FOUND AND OpenCV_FOUND)
     peak_video_decoder.cpp
     ../../../scanner/evaluators/caffe/net_descriptor.cpp
     ${PROTO_SRCS}
+    $<TARGET_OBJECTS:video>
     $<TARGET_OBJECTS:util>)
 
   target_link_libraries(peak_comparison PRIVATE

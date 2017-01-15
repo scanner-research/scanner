@@ -29,6 +29,7 @@ import numpy as np
 from timeit import default_timer as now
 import string
 import random
+import glob
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -1199,7 +1200,8 @@ def standalone_benchmark(tests):
             elapsed = timings['total']
         return elapsed, timings
 
-    operations = ['histogram', 'flow', 'caffe']
+    operations = ['histogram_cpu', 'histogram_gpu', 'flow_cpu', 'flow_gpu',
+                  'caffe']
 
     bmp_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.bmp"
     jpg_template = "ffmpeg -i {input} -start_number 0 {output}/frame%07d.jpg"
@@ -1253,7 +1255,6 @@ def standalone_benchmark(tests):
         #         run_standalone_trial('jpg', paths_file, op))
 
         # video
-
         for op in operations:
             os.system('rm -rf {}'.format(output_dir))
             os.system('mkdir {}'.format(output_dir))
@@ -1295,9 +1296,11 @@ def scanner_benchmark(tests, wh):
     jpg_job = 'jpg_job'
     video_job = 'base'
 
-    operations = [('histogram', 'histogram_benchmark'),
-                  ('flow', 'flow_benchmark'),
-                  ('caffe', 'caffe_benchmark')]
+    operations = [('histogram_cpu', 'histogram_benchmark', 'CPU'),
+                  ('histogram_gpu', 'histogram_benchmark', 'GPU'),
+                  ('flow_cpu', 'flow_benchmark', 'CPU'),
+                  ('flow_gpu', 'flow_benchmark', 'GPU'),
+                  ('caffe', 'caffe_benchmark', 'GPU')]
 
     all_results = {}
     for test_name, paths in tests.iteritems():
@@ -1337,15 +1340,31 @@ def scanner_benchmark(tests, wh):
 
         # video
         scanner_settings['env']['SC_JOB_NAME'] = video_job
-        for op, pipeline in operations:
-            if op == 'histogram':
+        for op, pipeline, dev in operations:
+            scanner_settings['env']['SC_DEVICE'] = dev
+            scanner_settings['use_pool'] = True
+            if op == 'histogram_cpu':
+                scanner_settings['use_pool'] = False
+                scanner_settings['tasks_in_queue_per_pu'] = 2
+                if wh[test_name]['width'] == 640:
+                    scanner_settings['io_item_size'] = 2048
+                    scanner_settings['work_item_size'] = 1024
+                    scanner_settings['pus_per_node'] = 4
+                else:
+                    scanner_settings['io_item_size'] = 1024
+                    scanner_settings['work_item_size'] = 256
+                    scanner_settings['pus_per_node'] = 8
+            if op == 'histogram_gpu':
                 if wh[test_name]['width'] == 640:
                     scanner_settings['io_item_size'] = 2048
                     scanner_settings['work_item_size'] = 1024
                 else:
                     scanner_settings['io_item_size'] = 512
                     scanner_settings['work_item_size'] = 128
-            elif op == 'flow':
+            elif op == 'flow_cpu':
+                scanner_settings['io_item_size'] = 128
+                scanner_settings['work_item_size'] = 32
+            elif op == 'flow_cpu':
                 scanner_settings['io_item_size'] = 128
                 scanner_settings['work_item_size'] = 32
             elif op == 'caffe':
@@ -1365,8 +1384,7 @@ def scanner_benchmark(tests, wh):
 
 def peak_benchmark(tests, frame_counts, wh):
     db_dir = '/tmp/scanner_db'
-    input_video = '/tmp/scanner_db/datasets/test/data/0_data.bin'
-    test_output_dir = '/tmp/outputs'
+    test_output_dir = '/tmp/peak_outputs'
 
     db = scanner.Scanner()
     db._db_path = db_dir
@@ -1383,18 +1401,20 @@ def peak_benchmark(tests, frame_counts, wh):
     dataset_name = 'test'
     video_job = 'base'
 
-    def run_peak_trial(frames, op, width, height):
+    def run_peak_trial(list_path, frames, op, width, height, decoders,
+                       evaluators):
         print('Running peak trial: {}'.format(op))
         clear_filesystem_cache()
         current_env = os.environ.copy()
         start = time.time()
         p = subprocess.Popen([
             PEAK_PROGRAM_PATH,
-            '--video_path', input_video,
-            '--frames', str(frames),
+            '--video_list_path', list_path,
+            '--operation', op,
+            '--decoder_count', str(decoders),
+            '--eval_count', str(evaluators),
             '--width', str(width),
             '--height', str(height),
-            '--operation', op
         ], env=current_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         so, se = p.communicate()
         rc = p.returncode
@@ -1413,7 +1433,41 @@ def peak_benchmark(tests, frame_counts, wh):
             elapsed = timings['total']
         return elapsed, timings
 
-    operations = ['histogram', 'flow', 'caffe']
+    split_video = """ffmpeg -i {input} -vcodec copy -acodec copy -segment_time 60 -f segment {videos_dir}/segments/{segment_dir}/segment%03d.mp4"""
+
+    def split_videos(videos, videos_dir):
+        print('Splitting...')
+        os.system('rm -rf {}/segments/*'.format(videos_dir))
+
+        paths = []
+        for video in videos:
+            segment_dir = ''.join(random.choice(string.ascii_uppercase +
+                                                string.digits)
+                                  for _ in range(8))
+            os.system('mkdir -p {}/segments/{}'.format(videos_dir,
+                                                       segment_dir))
+            run_cmd(split_video, {
+                'input': video,
+                'segment_dir': segment_dir,
+                'videos_dir': videos_dir
+            })
+            files = glob.glob('{}/segments/{}/*'.format(
+                videos_dir, segment_dir))
+            print(files)
+            for f in files:
+                paths.append(f)
+            #total_frames += count_frames('{}/{}'.format(videos_dir, video))
+
+        #print('Total frames', total_frames)
+        print('num paths', len(paths))
+        return paths
+
+
+    operations = [('histogram_cpu', 8, 16),
+                  ('histogram_gpu', 1, 1),
+                  ('flow_cpu', 4, 32),
+                  ('flow_gpu', 1, 1),
+                  ('caffe', 1, 1)]
 
     all_results = {}
     for test_name, paths in tests.iteritems():
@@ -1421,21 +1475,23 @@ def peak_benchmark(tests, frame_counts, wh):
         for op in operations:
             all_results[test_name][op] = []
 
-        os.system('rm -rf {}'.format(db_dir))
         # ingest data
-        result, _ = db.ingest('video', dataset_name, paths, scanner_settings)
-        assert(result)
+        video_paths = split_videos(paths, '/tmp/peak_videos')
+        with open('/tmp/peak_videos.txt', 'w') as f:
+            for p in video_paths:
+                f.write(p + '\n')
 
         # video
-        for op in operations:
+        for op, dec, ev in operations:
             os.system('rm -rf {}'.format(test_output_dir))
             os.system('mkdir -p {}'.format(test_output_dir))
             frames = frame_counts[test_name]
             if op == 'flow':
                 frames /= 20
             all_results[test_name][op].append(
-                run_peak_trial(frames, op, wh[test_name]['width'],
-                               wh[test_name]['height']))
+                run_peak_trial('/tmp/peak_videos.txt', frames, op,
+                               wh[test_name]['width'],
+                               wh[test_name]['height'], dec, ev))
 
     print(all_results)
     return all_results
@@ -1672,8 +1728,8 @@ def comparison_graphs(test_name,
         plt.ylabel("Speedup (over expert)")
     ax.xaxis.grid(False)
 
-    ops = ['histogram', 'caffe', 'flow']
-    labels = ['HIST', 'DNN', 'FLOW']
+    ops = ['histogram_cpu', 'histogram_gpu', 'flow_cpu', 'flow_gpu', 'caffe']
+    labels = ['HISTCPU', 'HISTGPU', 'FLOWCPU', 'FLOWGPU', 'DNN']
 
     standalone_tests = standalone_results[test_name]
     scanner_tests = scanner_results[test_name]
@@ -1691,7 +1747,9 @@ def comparison_graphs(test_name,
         peak_y = []
         for label in ops:
             frames = frame_counts[test_name]
-            if label == 'flow':
+            if label == 'flow_cpu':
+                frames /= 200.0
+            if label == 'flow_gpu':
                 frames /= 20.0
 
             peak_sec, timings = peak_tests[label][0]
@@ -1727,7 +1785,7 @@ def comparison_graphs(test_name,
         ys.append(peak_y)
         print(ys)
 
-        x = np.arange(3) * 1.2
+        x = np.arange(5) * 1.2
 
         variants = ['Baseline', 'Scanner', 'HandOpt']
 
