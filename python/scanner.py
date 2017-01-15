@@ -220,6 +220,7 @@ class JobResult(object):
             pos = 0
             (num_rows,) = struct.unpack("l", contents[:8])
 
+
             i = 8
             rows = rows if len(rows) > 0 else range(num_rows)
             for fi in rows:
@@ -330,15 +331,15 @@ class Scanner(object):
         """
         assert(len(rows) == len(data))
 
-        db_meta = self._load_db_metadata()
+        db_meta = self.load_db_metadata()
 
         # Get dataset descriptor
-        dataset = dataset_metadata(dataset_name)
+        dataset = self.dataset_metadata(dataset_name)
         # Find dataset base frame job
         candidate_job_ids = set()
         for jtd in db_meta.job_to_datasets:
             if jtd.dataset_id == dataset.id:
-                candidate_jobs.add(jtd.job_id)
+                candidate_job_ids.add(jtd.job_id)
         dataset_job_id = -1
         for job in db_meta.jobs:
             if job.name == "base" and job.id in candidate_job_ids:
@@ -346,20 +347,20 @@ class Scanner(object):
 
         assert(dataset_job_id != -1)
 
+        row_max = max([len(r) for r in rows.values()])
+
         # Setup job descriptor
         job = self._meta.JobDescriptor()
         job.id = db_meta.next_job_id
         job.name = job_name
+        job.io_item_size = row_max
+        job.work_item_size = row_max
+        job.num_nodes = 0
         db_meta.next_job_id += 1
-
-        row_max = max([len(r) for r in rows.values()])
 
         col = job.columns.add()
         col.id = 0
         col.name = column
-        col.io_item_size = row_max
-        col.work_item_size = row_max
-        col.num_nodes = 0
 
         for vi in rows.keys():
             row_set = rows[vi]
@@ -381,20 +382,22 @@ class Scanner(object):
 
             # Write rows this corresponds to
             for row in row_set:
-                jcol.rows.append(row)
+                sample.rows.append(row)
 
             # Mkdir
             data_file_dir = '{}/datasets/{}/jobs/{}'.format(
                 self._db_path, dataset_name, job_name)
             data_file_path = data_file_dir + '/{}_{}_{}.bin'.format(
                 vi, column, 0)
+            os.system('mkdir -p {}'.format(data_file_dir))
             # Write data file
             with open(data_file_path, 'wb') as f:
                 all_bytes = ""
+                f.write(struct.pack("=Q", len(data_set)))
                 for d in data_set:
                     byts = fn(d)
                     all_bytes += byts
-                    f.write(struct.pack("=Q", len(byts)))
+                    f.write(struct.pack("=q", len(byts)))
                 f.write(all_bytes)
 
 
@@ -406,7 +409,7 @@ class Scanner(object):
         meta_jtd.job_id = job.id
         meta_jtd.dataset_id = dataset.id
 
-        write_db_metadata(db_meta)
+        self.write_db_metadata(db_meta)
 
         with open('{}/datasets/{}/jobs/{}/descriptor.bin'
                   .format(self._db_path, dataset_name, job_name), 'wb') as f:
@@ -509,7 +512,6 @@ class Scanner(object):
         load_workers_per_node = gopt('load_workers_per_node', None)
         save_workers_per_node = gopt('save_workers_per_node', None)
         db_path = gopt('db_path', None)
-        use_pool = gopt('use_pool', None)
         custom_env = gopt('env', None)
 
         cmd = [[
@@ -518,7 +520,7 @@ class Scanner(object):
             '--bind-to', 'none']]
 
         def add_opt(name, opt):
-            if opt is not None:
+            if opt:
                 cmd[0] += ['--' + name, str(opt)]
 
         if hosts:
@@ -544,15 +546,11 @@ class Scanner(object):
         add_opt('load_workers_per_node', load_workers_per_node)
         add_opt('save_workers_per_node', save_workers_per_node)
         add_opt('db_path', db_path)
-        add_opt('use_pool', use_pool)
         add_opt('config_file', self.config.config_path)
         current_env = os.environ.copy()
         if custom_env:
             for k, v in custom_env.iteritems():
                 current_env[k] = v
-
-        print (' '.join(cmd[0]))
-        print (custom_env)
 
         script_path = os.path.dirname(os.path.realpath(__file__))
         exec_path = os.path.join(script_path, '..')
