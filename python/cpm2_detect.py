@@ -184,7 +184,8 @@ def main():
     job_name_template = job_name_prefix + "_{:d}"
     output_path = 'cpm2_output'
     start_frame = 1500
-    end_frame = 1700
+    end_frame = 1800
+    stride = 1
 
     #scales = [pow(2, x) for x in range(-3, 1, 1)]
     base_scale = 0.51
@@ -206,6 +207,7 @@ def main():
         opts['env']['SC_SCALE'] = str(scale)
         opts['env']['SC_START_FRAME'] = str(start_frame)
         opts['env']['SC_END_FRAME'] = str(end_frame)
+        opts['env']['SC_STRIDE'] = str(stride)
         rc, t = db.run(dataset_name, 'cpm2', job_name, opts)
         assert(rc == True)
         print('Time', t)
@@ -267,7 +269,7 @@ def main():
         nms_bboxes[vi] = new_boxes
 
     visualize_frames(dataset_name, '0',
-                     range(start_frame, end_frame),
+                     range(start_frame, end_frame, stride),
                      nms_bboxes, output_path)
 
 

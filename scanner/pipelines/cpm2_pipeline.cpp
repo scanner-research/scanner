@@ -15,20 +15,25 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   char* SCALE = std::getenv("SC_SCALE");
   char* START_FRAME = std::getenv("SC_START_FRAME");
   char* END_FRAME = std::getenv("SC_END_FRAME");
+  char* STRIDE = std::getenv("SC_STRIDE");
 
   i32 start_frame = 1000;
   i32 end_frame = 3000;
+  i32 stride = 1;
   if (START_FRAME) {
     start_frame = std::atoi(START_FRAME);
   }
   if (END_FRAME) {
     end_frame = std::atoi(END_FRAME);
   }
+  if (STRIDE) {
+    stride = std::atoi(STRIDE);
+  }
 
   PipelineDescription desc;
   //Sampler::all_frames(info, desc);
   // Sampler::strided_frames(info, desc, 24);
-  Sampler::range_frames(info, desc, start_frame, end_frame);
+  Sampler::strided_range_frames(info, desc, stride, start_frame, end_frame);
 
   NetDescriptor cpm_person_descriptor;
   {
@@ -60,8 +65,8 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   using namespace std::placeholders;
   CustomNetConfiguration net_config = std::bind(cpm2_net_config, scale, _1, _2);
 
-  device_type = DeviceType::CPU;
-  decoder_type = VideoDecoderType::SOFTWARE;
+  // device_type = DeviceType::CPU;
+  // decoder_type = VideoDecoderType::SOFTWARE;
 
   factories.emplace_back(
       new DecoderEvaluatorFactory(device_type, decoder_type));
