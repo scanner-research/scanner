@@ -169,13 +169,24 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   if (discontinuity) {
+    {
+      std::unique_lock<std::mutex> lock(frame_queue_mutex_);
+      while (frame_queue_elements_ > 0) {
+        const auto &dispinfo = frame_queue_[frame_queue_read_pos_];
+        frame_in_use_[dispinfo.picture_index] = false;
+        frame_queue_read_pos_ =
+            (frame_queue_read_pos_ + 1) % max_output_frames_;
+        frame_queue_elements_--;
+      }
+    }
+
     CUVIDSOURCEDATAPACKET cupkt = {};
     cupkt.flags |= CUVID_PKT_DISCONTINUITY;
     CUD_CHECK(cuvidParseVideoData(parser_, &cupkt));
 
+    std::unique_lock<std::mutex> lock(frame_queue_mutex_);
     last_displayed_frame_ = -1;
     // Empty queue because we have a new section of frames
-    std::unique_lock<std::mutex> lock(frame_queue_mutex_);
     for (i32 i = 0; i < max_output_frames_; ++i) {
       invalid_frames_[i] = undisplayed_frames_[i];
       undisplayed_frames_[i] = false;
@@ -186,6 +197,7 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
       frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
       frame_queue_elements_--;
     }
+
     return false;
   }
   CUVIDSOURCEDATAPACKET cupkt = {};
@@ -239,6 +251,7 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
   if (frame_queue_elements_ > 0) {
     CUVIDPARSERDISPINFO dispinfo = frame_queue_[frame_queue_read_pos_];
+    printf("read pos %d\n", frame_queue_read_pos_);
     frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
     frame_queue_elements_--;
     lock.unlock();
@@ -264,11 +277,13 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     CU_CHECK(convertNV12toRGBA((const u8 *)mapped_frame, pitch, decoded_buffer,
                                metadata_.width() * 3, metadata_.width(),
                                metadata_.height(), 0));
+    CU_CHECK(cudaDeviceSynchronize());
 
     CUD_CHECK(
         cuvidUnmapVideoFrame(decoder_, mapped_frames_[mapped_frame_index]));
     mapped_frames_[mapped_frame_index] = 0;
 
+    std::unique_lock<std::mutex> lock(frame_queue_mutex_);
     frame_in_use_[dispinfo.picture_index] = false;
   }
 
@@ -299,6 +314,7 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
   while (decoder.frame_in_use_[picparams->CurrPicIdx]) {
     usleep(500);
   };
+  std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
   decoder.undisplayed_frames_[picparams->CurrPicIdx] = true;
 
   CUresult result = cuvidDecodePicture(decoder.decoder_, picparams);
@@ -311,13 +327,17 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_display(
     void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
   NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
   if (!decoder.invalid_frames_[dispinfo->picture_index]) {
-    decoder.frame_in_use_[dispinfo->picture_index] = true;
+    {
+      std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
+      decoder.frame_in_use_[dispinfo->picture_index] = true;
+    }
     while (true) {
       std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
       if (decoder.frame_queue_elements_ < max_output_frames_) {
         int write_pos =
             (decoder.frame_queue_read_pos_ + decoder.frame_queue_elements_) %
             max_output_frames_;
+        printf("write pos %d\n", write_pos);
         decoder.frame_queue_[write_pos] = *dispinfo;
         decoder.frame_queue_elements_++;
         decoder.last_displayed_frame_++;
@@ -326,8 +346,10 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_display(
       usleep(1000);
     }
   } else {
+    std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
     decoder.invalid_frames_[dispinfo->picture_index] = false;
   }
+  std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
   decoder.undisplayed_frames_[dispinfo->picture_index] = false;
   return true;
 }

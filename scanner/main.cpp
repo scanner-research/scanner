@@ -156,6 +156,9 @@ int main(int argc, char** argv) {
         "db_path", po::value<std::string>(),
         "Path to the persistent database.")(
 
+        "use_pool", po::value<bool>(),
+        "Use pool")(
+
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
 
         "io_item_size", po::value<int>(),

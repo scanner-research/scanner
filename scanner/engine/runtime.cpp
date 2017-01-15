@@ -118,7 +118,8 @@ void run_job(JobParameters& params) {
       u64 pos = 0;
       VideoMetadata meta = deserialize_video_metadata(metadata_file.get(), pos);
       video_metadata.insert({meta.id(), meta});
-      input_formats.insert({meta.id(), InputFormat(meta.width(), meta.height())});
+      input_formats.insert(
+          {meta.id(), InputFormat(meta.width(), meta.height())});
     } else if (dataset_meta.type() == DatasetType_Image) {
       u64 pos = 0;
       image_metadata.push_back(
