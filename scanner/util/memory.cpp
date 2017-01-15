@@ -74,7 +74,11 @@ public:
 
   u8* allocate(size_t size) {
     if (device_.type == DeviceType::CPU) {
-      return new u8[size];
+      try {
+        return new u8[size];
+      } catch (const std::bad_alloc& e) {
+        LOG(FATAL) << "CPU memory allocation failed: " << e.what();
+      }
     } else if (device_.type == DeviceType::GPU) {
       u8* buffer;
 #ifdef HAVE_CUDA
@@ -89,7 +93,7 @@ public:
 
   void free(u8* buffer) {
     if (device_.type == DeviceType::CPU) {
-      delete buffer;
+      delete[] buffer;
     } else if (device_.type == DeviceType::GPU) {
       CU_CHECK(cudaSetDevice(device_.id));
       CU_CHECK(cudaFree(buffer));
@@ -337,6 +341,20 @@ void init_memory_allocators(std::vector<i32> gpu_devices_ids,
   }
 #else
   assert(gpu_devices_ids.size() == 0);
+#endif
+}
+
+void destroy_memory_allocators() {
+  delete cpu_system_allocator;
+  delete cpu_block_allocator;
+
+#ifdef HAVE_CUDA
+  for (auto entry : gpu_system_allocators) {
+    delete entry.second;
+  }
+  for (auto entry : gpu_block_allocators) {
+    delete entry.second;
+  }
 #endif
 }
 

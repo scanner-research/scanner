@@ -113,6 +113,11 @@ void FacenetInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   size_t frame_size = net_input_width_ * net_input_height_ * 3;
   i32 input_count = input_columns[0].rows.size();
+  i32 net_input_size = frame_size * sizeof(f32);
+
+  u8* output_block = new_block_buffer({device_type_, device_id_},
+                                      input_count * net_input_size,
+                                      input_count);
 
   if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -123,9 +128,7 @@ void FacenetInputEvaluator::evaluate(const BatchedColumns& input_columns,
       int sid = i % num_cuda_streams_;
       cv::cuda::Stream& cv_stream = streams_[sid];
 
-      f32* net_input = nullptr;
-      i32 net_input_size = frame_size * sizeof(f32);
-      cudaMalloc((void**)&net_input, net_input_size);
+      f32* net_input = (f32*) (output_block + i * net_input_size);
 
       u8 *buffer = input_columns[0].rows[i].buffer;
       frame_input_g_[sid] = cv::cuda::GpuMat(

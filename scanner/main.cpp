@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
   // Common among sub-commands
   std::string dataset_name;  // name of dataset to create/operate on
   bool force;
-  std::string in_job_name;    
+  std::string in_job_name;
   // For ingest sub-command
   std::string dataset_type;           // type of datset to ingest
   std::string paths_file;             // paths of files to turn into dataset
@@ -457,6 +457,8 @@ int main(int argc, char** argv) {
                 << "'ingest', 'run', 'rm', or 'serve'." << std::endl;
       return 1;
     }
+
+    delete config;
   }
 
   startup(argc, argv);

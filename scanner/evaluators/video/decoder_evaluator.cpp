@@ -67,6 +67,15 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
   discontinuity_.assign(video_column_idxs_.size(), true);
 }
 
+DecoderEvaluator::~DecoderEvaluator() {
+  for (size_t i = 0; i < video_column_idxs_.size(); ++i) {
+    CachedEncodedVideo& cache = cached_video_[i];
+    if (cache.encoded_buffer) {
+      delete_buffer(CPU_DEVICE, (u8*) cache.encoded_buffer);
+    }
+  }
+}
+
 void DecoderEvaluator::reset() {
 
   for (size_t i = 0; i < video_column_idxs_.size(); ++i) {
@@ -77,7 +86,7 @@ void DecoderEvaluator::reset() {
 
     CachedEncodedVideo& cache = cached_video_[i];
     if (cache.encoded_buffer) {
-      delete[] cache.encoded_buffer;
+      delete_buffer(CPU_DEVICE, (u8*) cache.encoded_buffer);
     }
     cache.encoded_buffer = nullptr;
     cache.encoded_buffer_size = 0;
@@ -166,7 +175,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         if (encoded_buffer == nullptr) {
           if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-            u8* buffer = new u8[in_encoded_buffer_size];
+            u8* buffer = new_buffer(CPU_DEVICE, in_encoded_buffer_size);
             memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer,
                           {DeviceType::GPU, device_id_},
                           in_encoded_buffer_size);
@@ -298,7 +307,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         discontinuity_[video_num] = true;
         decoder->feed(nullptr, 0, true);
 
-        delete[] encoded_buffer;
+        delete_buffer(CPU_DEVICE, (u8*) encoded_buffer);
         encoded_buffer = nullptr;
         encoded_buffer_size = 0;
         current_start_keyframe = -1;

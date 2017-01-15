@@ -31,6 +31,8 @@ struct MemoryPoolConfig {
 void init_memory_allocators(std::vector<i32> gpu_device_ids,
                             MemoryPoolConfig config);
 
+void destroy_memory_allocators();
+
 u8* new_buffer(DeviceHandle device, size_t size);
 
 u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs);

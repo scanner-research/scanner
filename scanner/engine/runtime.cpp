@@ -827,5 +827,6 @@ void run_job(JobParameters& params) {
   BACKOFF_FAIL(profiler_output->save());
 
   delete storage;
+  destroy_memory_allocators();
 }
 }

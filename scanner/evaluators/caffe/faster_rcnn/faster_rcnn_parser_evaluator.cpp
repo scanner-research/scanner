@@ -62,8 +62,8 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
     }
 
     {
-      size_t size = best_bboxes.size() * FEATURES * sizeof(f32);
-      u8* buffer = new u8[size];
+      size_t size = std::max(best_bboxes.size() * FEATURES * sizeof(f32), (size_t) 1);
+      u8* buffer = new_buffer(CPU_DEVICE, size);
       for (i32 k = 0; k < best_bboxes.size(); ++k) {
         i32 j = best_bboxes[k].track_id();
         f32* fvec = (f32*)(fc7[i].buffer + (j * FEATURES * sizeof(f32)));

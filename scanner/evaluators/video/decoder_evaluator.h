@@ -27,6 +27,7 @@ class DecoderEvaluator : public Evaluator {
  public:
   DecoderEvaluator(const EvaluatorConfig& config, DeviceType device_type,
                    VideoDecoderType decoder_type, i32 num_devices);
+  ~DecoderEvaluator();
 
   void configure(const BatchConfig& info) override;
 
