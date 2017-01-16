@@ -60,10 +60,12 @@ void FacenetInputEvaluator::configure(const BatchConfig& config) {
                    descriptor_.mean_colors[2]));
 
     frame_input_g_.clear();
+    resized_input_g_.clear();
     float_input_g_.clear();
     normalized_input_g_.clear();
     input_planes_g_.clear();
     planar_input_g_.clear();
+    flipped_planes_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
           cv::cuda::GpuMat(metadata_.height(), metadata_.width(), CV_8UC3));
