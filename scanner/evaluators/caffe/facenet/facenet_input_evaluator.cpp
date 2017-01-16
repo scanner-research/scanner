@@ -62,6 +62,7 @@ void FacenetInputEvaluator::configure(const BatchConfig& config) {
     frame_input_g_.clear();
     resized_input_g_.clear();
     float_input_g_.clear();
+    flipped_planes_g_.clear();
     normalized_input_g_.clear();
     input_planes_g_.clear();
     planar_input_g_.clear();

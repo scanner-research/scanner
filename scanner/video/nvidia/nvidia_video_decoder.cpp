@@ -251,7 +251,6 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
   if (frame_queue_elements_ > 0) {
     CUVIDPARSERDISPINFO dispinfo = frame_queue_[frame_queue_read_pos_];
-    printf("read pos %d\n", frame_queue_read_pos_);
     frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
     frame_queue_elements_--;
     lock.unlock();
@@ -337,7 +336,6 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_display(
         int write_pos =
             (decoder.frame_queue_read_pos_ + decoder.frame_queue_elements_) %
             max_output_frames_;
-        printf("write pos %d\n", write_pos);
         decoder.frame_queue_[write_pos] = *dispinfo;
         decoder.frame_queue_elements_++;
         decoder.last_displayed_frame_++;
