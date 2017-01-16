@@ -100,7 +100,7 @@ def nms(boxes, overlapThresh):
     elif len(boxes) == 1:
         return boxes
 
-    print('nms',boxes)
+    #print('nms',boxes)
     npboxes = np.array(boxes[0])
     for box in boxes[1:]:
         npboxes = np.vstack((npboxes, box))
@@ -108,7 +108,7 @@ def nms(boxes, overlapThresh):
     # if the bounding boxes integers, convert them to floats --
     # this is important since we'll be doing a bunch of divisions
 
-    # initialize the list of picked indexes
+    # initialize the list of piiked indexes
     pick = []
 
     # grab the coordinates of the bounding boxes
@@ -157,7 +157,7 @@ def nms(boxes, overlapThresh):
 def visualize_frames(dataset_name, video, v_frames, nms_bboxes, output_dir):
     # Perform nms on boxes
     bboxes = nms_bboxes[video]
-    print(bboxes)
+    #print(bboxes)
     # Extract frames
     frames = [(video, v_frames)]
     extract_frames_scanner.get_frames(dataset_name, frames,
@@ -167,7 +167,7 @@ def visualize_frames(dataset_name, video, v_frames, nms_bboxes, output_dir):
         image = cv2.imread(image_template.format(video, frame))
         #r, image = cap.read()
         boxes = bboxes[i]
-        print('Frame', frame, 'boxes', boxes)
+        #print('Frame', frame, 'boxes', boxes)
         for bbox in boxes:
             bbox = np.array(bbox).astype(int)
             cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]),
@@ -183,15 +183,15 @@ def main():
     output_column = "base_bboxes"
     job_name_template = job_name_prefix + "_{:d}"
     output_path = 'cpm2_output'
-    start_frame = 1500
-    end_frame = 1800
-    stride = 1
+    start_frame = 0
+    end_frame = 50000
+    stride = 24
 
     #scales = [pow(2, x) for x in range(-3, 1, 1)]
     base_scale = 0.51
-    scales = np.array([0.25, 0.5, 0.75, 1.0]) * base_scale
-    #scales = np.array([0.25, 0.5]) * base_scale
-    print(scales)
+    scales = np.array([0.75, 1.0]) * base_scale
+    #scales = np.array([0.5]) * base_scale
+    #print(scales)
 
     opts = {
         'force': True,
@@ -200,26 +200,24 @@ def main():
         'pus_per_node': 1,
         'env': {}
     }
-    for i, scale in enumerate(scales):
-        print('Running with scale', scale)
-        print('Size {:.1f} x {:.1f}'.format(1280 * scale, 720 * scale))
-        job_name = job_name_template.format(i)
-        opts['env']['SC_SCALE'] = str(scale)
-        opts['env']['SC_START_FRAME'] = str(start_frame)
-        opts['env']['SC_END_FRAME'] = str(end_frame)
-        opts['env']['SC_STRIDE'] = str(stride)
-        rc, t = db.run(dataset_name, 'cpm2', job_name, opts)
-        assert(rc == True)
-        print('Time', t)
+    # for i, scale in enumerate(scales):
+    #     print('Running with scale', scale)
+    #     print('Size {:.1f} x {:.1f}'.format(1280 * scale, 720 * scale))
+    #     job_name = job_name_template.format(i)
+    #     opts['env']['SC_SCALE'] = str(scale)
+    #     opts['env']['SC_START_FRAME'] = str(start_frame)
+    #     opts['env']['SC_END_FRAME'] = str(end_frame)
+    #     opts['env']['SC_STRIDE'] = str(stride)
+    #     rc, t = db.run(dataset_name, 'cpm2', job_name, opts)
+    #     assert(rc == True)
+    #     print('Time', t)
 
     #write('Loading CPM... ')
     all_bboxes = defaultdict(list)
     for i, scale in enumerate(scales):
         job_name = job_name_template.format(i)
         cpm2_data = load_cpm2_joint_centers(dataset_name, job_name)
-        print(cpm2_data)
         _, poses_by_video = parse_cpm2_data(cpm2_data, scale)
-        print(poses_by_video)
         for vid, poses_by_frame in poses_by_video.iteritems():
             scale_bboxes = []
             frames = poses_by_frame.keys()
@@ -227,7 +225,7 @@ def main():
             for frame in frames:
                 poses = poses_by_frame[frame]
                 frame_bboxes = []
-                print('Frame', frame, 'poses', len(poses))
+                #print('Frame', frame, 'poses', len(poses))
                 for pose in poses:
                     pose = pose['pose']
                     head = pose[0:2, 0:2]
@@ -251,12 +249,7 @@ def main():
     # Collect boxes from different runs for same frame into one list
     #bboxes = all_bboxes[0]
     nms_bboxes = defaultdict(list)
-    print('keys', all_bboxes.keys())
-    print('boxes', nms_bboxes)
     for vi, boxes in all_bboxes.iteritems():
-        print(vi)
-        print(len(boxes))
-        print(len(boxes[0]))
         frames = len(boxes[0])
         runs = len(boxes)
         new_boxes = []
@@ -268,8 +261,11 @@ def main():
             new_boxes.append(frame_boxes)
         nms_bboxes[vi] = new_boxes
 
+    rows = range(start_frame, end_frame, stride)
+    rows = [0, 120, 6864, 8280, 9864, 12168, 12624, 12648, 13536, 15024, 17496, 17880, 17928, 17976, 19416, 19464, 19560, 22368, 26184, 29496, 32400, 33816, 34080, 35568, 37056, 39672, 45864, 46896, 47928, 48432]
+    nms_bboxes['0'] = [nms_bboxes['0'][i/stride] for i in rows]
     visualize_frames(dataset_name, '0',
-                     range(start_frame, end_frame, stride),
+                     rows,
                      nms_bboxes, output_path)
 
 
