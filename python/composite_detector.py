@@ -10,6 +10,7 @@ import os.path
 import scipy.misc
 from timeit import default_timer as now
 import sys
+from gold_boxes import collate_boxes
 
 db = scanner.Scanner()
 import scannerpy.evaluators.types_pb2 as types
@@ -180,7 +181,8 @@ def visualize_frames(dataset_name, video, v_frames, nms_bboxes, output_dir):
     colors = [
         (0, 0, 255),
         (0, 255, 0),
-        (255, 0, 0)
+        (255, 0, 0),
+        (0, 255, 255)
         ]
     for i, frame in enumerate(v_frames):
         image = cv2.imread(image_template.format(video, frame))
@@ -191,18 +193,19 @@ def visualize_frames(dataset_name, video, v_frames, nms_bboxes, output_dir):
             bbox = np.array(bbox).astype(int)
 
             cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]),
-                          colors[bbox[4]], 3)
+                          colors[bbox[7]], 3)
         file_name = video + "_frame_" + str(frame) + ".jpg"
         file_path = os.path.join(output_dir, file_name)
         scipy.misc.toimage(image[:,:,::-1]).save(file_path)
 
 
 def proto_to_np(bbox, index):
-    return np.array([bbox.x1, bbox.y1, bbox.x2, bbox.y2, index])
+    return np.array([bbox.x1, bbox.y1, bbox.x2, bbox.y2, bbox.score,
+                     bbox.track_id, bbox.track_score, index])
 
 
 def main():
-    dataset_name = 'kcam'
+    dataset_name = 'kcam_clip'
     job_name = 'composite_job'
     column = 'composite_bboxes'
 
@@ -211,14 +214,9 @@ def main():
         bboxes = {k: [vv for (_, vv) in v] for (k, v) in bboxes}
         return bboxes
 
-    # bboxes=  load_and_convert_bboxes('track')
-    # print bboxes
-    # visualize_frames(dataset_name, '0', range(10000, 10100), {'0':bboxes}, 'imgs')
-    # exit()
-
     start = now()
     write('Loading Facenet... ')
-    facenet_bboxes = load_and_convert_bboxes('facenet_0_25')
+    facenet_bboxes = load_and_convert_bboxes('facenet_1_0')
     for vid in facenet_bboxes:
         for i in range(len(facenet_bboxes[vid])):
             filtered = [proto_to_np(x, 0) for x in facenet_bboxes[vid][i]]
@@ -231,72 +229,130 @@ def main():
     for vid in frcnn_bboxes:
         for i in range(len(frcnn_bboxes[vid])):
             filtered = [proto_to_np(x, 1) for x in frcnn_bboxes[vid][i] if x.label == PERSON]
+            for bbox in filtered:
+                bbox[3] -= (bbox[3] - bbox[1]) * 0.66
+                xl = bbox[2] - bbox[0]
+                yl = bbox[3] - bbox[1]
+                if xl / yl > 1.7:
+                    bbox[0] += 0.25 * xl
+                    bbox[1] -= 0.25 * xl
             frcnn_bboxes[vid][i] = filtered
     write_timer(start)
 
-    start = now()
-    write('Loading CPM... ')
-    cpm_bboxes = {}
-    cpm2_data = load_cpm2_joint_centers(dataset_name, 'joints')
-    _, poses_by_video = parse_cpm2_data(cpm2_data)
-    for vid, poses_by_frame in poses_by_video.iteritems():
-        cpm_bboxes[vid] = []
-        for frame, poses in poses_by_frame.iteritems():
-            frame_bboxes = []
-            for pose in poses:
-                pose = pose['pose']
-                head = pose[0:2, 0:2]
-                axis = head[1,:] - head[0,:]
-                cross = [-axis[1], axis[0]]
-                if np.abs(LA.norm(cross)) < 0.01 : continue
-                cross /= LA.norm(cross)
-                midpoint = [(head[0,0]+head[1,0])/2.0, (head[0,1]+head[1,1])/2.0]
-                halfnorm = LA.norm(axis) / 2.0
-                pts = [head[0,:], head[1,:]]
-                pts.append(midpoint + cross * halfnorm)
-                pts.append(midpoint - cross * halfnorm)
-                pts = np.array(pts)
-                bbox = np.array([np.min(pts[:,1]), np.min(pts[:,0]),
-                                 np.max(pts[:,1]), np.max(pts[:,0]), 2])
-                frame_bboxes.append(bbox)
-            cpm_bboxes[vid].append(frame_bboxes)
-    write_timer(start)
+    # start = now()
+    # write('Loading CPM... ')
+    # cpm_bboxes = {}
+    # cpm2_data = load_cpm2_joint_centers(dataset_name, 'joints')
+    # _, poses_by_video = parse_cpm2_data(cpm2_data)
+    # for vid, poses_by_frame in poses_by_video.iteritems():
+    #     cpm_bboxes[vid] = []
+    #     for frame, poses in poses_by_frame.iteritems():
+    #         frame_bboxes = []
+    #         for pose in poses:
+    #             pose = pose['pose']
+    #             head = pose[0:2, 0:2]
+    #             axis = head[1,:] - head[0,:]
+    #             cross = [-axis[1], axis[0]]
+    #             if np.abs(LA.norm(cross)) < 0.01 : continue
+    #             cross /= LA.norm(cross)
+    #             midpoint = [(head[0,0]+head[1,0])/2.0, (head[0,1]+head[1,1])/2.0]
+    #             halfnorm = LA.norm(axis) / 2.0
+    #             pts = [head[0,:], head[1,:]]
+    #             pts.append(midpoint + cross * halfnorm)
+    #             pts.append(midpoint - cross * halfnorm)
+    #             pts = np.array(pts)
+    #             bbox = np.array([np.min(pts[:,1]), np.min(pts[:,0]),
+    #                              np.max(pts[:,1]), np.max(pts[:,0]), 2])
+    #             frame_bboxes.append(bbox)
+    #         cpm_bboxes[vid].append(frame_bboxes)
+    # write_timer(start)
 
     start = now()
     write('Voting... ')
     output_bboxes = {}
     rows = {}
-    for vid in cpm_bboxes:
+    stride = 8
+    for vid in frcnn_bboxes:
         output_bboxes[vid] = []
-        num_frames = len(cpm_bboxes[vid])
-        rows[vid] = [i * 24 for i in range(num_frames)]
+        num_frames = len(frcnn_bboxes[vid])
+        rows[vid] = list(range(num_frames * stride))
+        expected = 52542 #TODO: get this automatically
         for frame in range(num_frames):
             frame_bboxes = []
             # insert voting scheme
             frame_bboxes += frcnn_bboxes[vid][frame]
             frame_bboxes += facenet_bboxes[vid][frame]
-            frame_bboxes += cpm_bboxes[vid][frame]
+            # frame_bboxes += cpm_bboxes[vid][frame]
             # frame_bboxes = nms(frame_bboxes, 0.3)
             output_bboxes[vid].append(frame_bboxes)
+            for _ in range(stride-1):
+                output_bboxes[vid].append([])
+        rows[vid] = rows[vid][:expected]
+        output_bboxes[vid] = output_bboxes[vid][:expected]
     write_timer(start)
 
-    start = now()
-    write('Visualizing... ')
-    visualize_frames(dataset_name, '2', rows['2'], output_bboxes, 'imgs')
-    write_timer(start)
-    # def serialize(l):
-    #     output = struct.pack("=Q", len(l))
-    #     for box in l:
-    #         bbox = types.BoundingBox()
-    #         bbox.x1 = box[0]
-    #         bbox.y1 = box[1]
-    #         bbox.x2 = box[2]
-    #         bbox.y2 = box[3]
-    #         s = bbox.SerializeToString()
-    #         output += struct.pack("=i", len(s))
-    #         output += s
-    #     return output
-    # db.write_job_result(dataset_name, job_name, column, serialize, rows, output_bboxes)
+    if False:
+        # start = now()
+        # write('Visualizing... ')
+        # visualize_frames(dataset_name, '0', rows['0'][:100], output_bboxes, 'imgs')
+        # write_timer(start)
+
+        def serialize(l):
+            output = struct.pack("=Q", len(l))
+            for box in l:
+                bbox = types.BoundingBox()
+                bbox.x1 = box[0]
+                bbox.y1 = box[1]
+                bbox.x2 = box[2]
+                bbox.y2 = box[3]
+                s = bbox.SerializeToString()
+                output += struct.pack("=i", len(s))
+                output += s
+            return output
+        db.write_job_result(dataset_name, job_name, column, serialize, rows, output_bboxes)
+    else:
+        start = now()
+        write('Loading tracker boxes... ')
+        tracked_bboxes = load_and_convert_bboxes('track')
+        for vid in tracked_bboxes:
+            for i in range(len(tracked_bboxes[vid])):
+                filtered = [proto_to_np(x, 3) for x in tracked_bboxes[vid][i]]
+                tracked_bboxes[vid][i] = filtered
+        write_timer(start)
+
+        tracked_bboxes['0'] = tracked_bboxes['0'][1000:2000]
+        output_bboxes['0'] = output_bboxes['0'][1000:2000]
+
+        start = now()
+        write('Filtering bad tracks... ')
+        orig_boxes = 0
+        added_boxes = 0
+        filtered_bboxes = {}
+        for vid in tracked_bboxes:
+            filtered_bboxes[vid] = output_bboxes[vid]
+            dead_tracks = set()
+            for i, bboxes in enumerate(tracked_bboxes[vid]):
+                frame_bboxes = []
+                for bbox in bboxes:
+                    track_id = bbox[5]
+                    track_score = bbox[6]
+                    if track_score < 0.5:
+                        dead_tracks.add(track_id)
+                    elif track_id not in dead_tracks:
+                        frame_bboxes.append(bbox)
+                added_boxes += len(frame_bboxes)
+                orig_boxes += len(filtered_bboxes[vid][i])
+                filtered_bboxes[vid][i] += frame_bboxes
+        write_timer(start)
+
+        print 'Got an additional {} detections ({} original)'.format(added_boxes, orig_boxes)
+
+        start = now()
+        write('Visualizing... ')
+        visualize_frames(dataset_name, '0', range(1000, 2000), filtered_bboxes, 'imgs')
+        write_timer(start)
+
+
 
 
 if __name__ == "__main__":
