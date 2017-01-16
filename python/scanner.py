@@ -302,6 +302,14 @@ class JobResult(object):
         for d in self.as_outputs(interval):
             yield (d['table'], zip(d['frames'], d['buffers']))
 
+    def get_table_lengths(self):
+        lengths = {}
+        for table in self._job.tasks:
+            num_rows = len(table.samples[0].rows)
+            lengths[table.table_name] = num_rows
+        return lengths
+
+
 class Scanner(object):
     """ TODO(wcrichto): document me """
 
