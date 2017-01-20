@@ -1265,21 +1265,14 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
   base_job_descriptor.set_io_item_size(0);
   base_job_descriptor.set_work_item_size(0);
   base_job_descriptor.set_num_nodes(1);
-  {
-    JobDescriptor::Column* col = base_job_descriptor.add_columns();
-    col->set_id(0);
-    col->set_name(base_column_name());
-  }
+  base_job_descriptor.add_columns(base_column_name());
   for (size_t i = 0; i < ingested_video_ids.size(); ++i) {
     size_t video_id = ingested_video_ids[i];
-    JobDescriptor::Task* task = base_job_descriptor.add_tasks();
-    task->set_table_id(video_id);
+    Task* task = base_job_descriptor.add_tasks();
     task->set_table_name(std::to_string(video_id));
     // HACK(apoms): necessary because we determine number of available
     //  rows based on first table sample num rows.
-    JobDescriptor::Task::TableSample* sample = task->add_samples();
-    sample->set_job_id(-1);
-    sample->set_table_id(-1);
+    TableSample* sample = task->add_samples();
     for (i64 r = 0; r < video_frames[video_id]; ++r) {
       sample->add_rows(r);
     }

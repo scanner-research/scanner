@@ -42,10 +42,16 @@ TableInformation::TableInformation(
   for (size_t i = 0; i < sample_job_names.size(); ++i) {
     samples_.emplace_back();
     TableSample& sample = samples_.back();
-    sample.job_name = sample_job_names[i];
-    sample.table_name = sample_table_names[i];
-    sample.columns = sample_columns[i];
-    sample.rows = sample_rows[i];
+    sample.set_job_name(sample_job_names[i]);
+    sample.set_table_name(sample_table_names[i]);
+    std::copy(
+      sample.columns().begin(),
+      sample.columns().end(),
+      std::inserter(sample_columns[i], sample_columns[i].begin()));
+    std::copy(
+      sample.rows().begin(),
+      sample.rows().end(),
+      std::inserter(sample_rows[i], sample_rows[i].begin()));
   }
 }
 

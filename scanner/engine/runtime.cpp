@@ -18,6 +18,7 @@
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/db.h"
+#include "scanner/engine/rpc.grpc.pb.h"
 
 #include "scanner/evaluators/serialize.h"
 
@@ -40,6 +41,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <dlfcn.h>
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -52,6 +54,12 @@ using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
 namespace scanner {
+
+class WorkCoordinatorImpl final : public WorkCoordinator::Service {
+  grpc::Status NextIOItem(grpc::ServerContext* context, const Empty* empty, IOItem* io_item) {
+    LOG(FATAL) << "TODO";
+  }
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
@@ -136,45 +144,45 @@ void run_job(JobParameters& params) {
   for (i32 job_id : db_meta.dataset_job_ids.at(dataset_id)) {
     dataset_job_names.push_back(db_meta.job_names.at(job_id));
   }
-  PipelineDescription pipeline_description;
+  PipelineDescription pipeline_description = params.pipeline_description;
   {
     DatasetInformation info(params.dataset_name, dataset_job_names, storage);
-    pipeline_description = params.pipeline_gen_fn(info);
+    //pipeline_description = params.pipeline_gen_fn(info);
   }
 
   // Validate pipeline description and load job metadata for jobs listed in
   // pipeline description tasks
-  LOG_IF(FATAL, pipeline_description.tasks.empty())
+  LOG_IF(FATAL, pipeline_description.tasks().empty())
       << "No tasks specified for pipeline description!";
   std::map<i32, JobMetadata> job_meta;
-  for (Task& task : pipeline_description.tasks) {
-    LOG_IF(FATAL, task.samples.empty())
-        << "No samples specified for task with table name " << task.table_name
+  for (const Task& task : pipeline_description.tasks()) {
+    LOG_IF(FATAL, task.samples().empty())
+      << "No samples specified for task with table name " << task.table_name()
         << "!";
-    for (TableSample& sample : task.samples) {
-      LOG_IF(FATAL, !db_meta.has_job(dataset_id, sample.job_name))
-          << "Requested job " << sample.job_name
-          << " does not exist in dataset " << params.dataset_name << "!";
-      i32 job_id = db_meta.get_job_id(dataset_id, sample.job_name);
+    for (const TableSample& sample : task.samples()) {
+      LOG_IF(FATAL, !db_meta.has_job(dataset_id, sample.job_name()))
+        << "Requested job " << sample.job_name()
+        << " does not exist in dataset " << params.dataset_name << "!";
+      i32 job_id = db_meta.get_job_id(dataset_id, sample.job_name());
       if (job_meta.count(job_id) == 0) {
         JobDescriptor descriptor;
         std::unique_ptr<RandomReadFile> file;
         BACKOFF_FAIL(make_unique_random_read_file(
-            storage, job_descriptor_path(params.dataset_name, sample.job_name),
+            storage, job_descriptor_path(params.dataset_name, sample.job_name()),
             file));
         u64 pos = 0;
         JobDescriptor desc = deserialize_job_descriptor(file.get(), pos);
         job_meta.insert({job_id, JobMetadata(desc)});
       }
       JobMetadata& meta = job_meta.at(job_id);
-      LOG_IF(FATAL, !meta.has_table(sample.table_name))
-          << "Requested table " << sample.table_name << " does not exist in "
-          << "job " << sample.job_name << " in dataset " << params.dataset_name
-          << "!";
-      LOG_IF(FATAL, sample.columns.empty())
-          << "No columns specified for sampling from table "
-          << sample.table_name << " in job " << sample.job_name
-          << " in dataset " << params.dataset_name << "!";
+      LOG_IF(FATAL, !meta.has_table(sample.table_name()))
+        << "Requested table " << sample.table_name() << " does not exist in "
+        << "job " << sample.job_name() << " in dataset " << params.dataset_name
+        << "!";
+      LOG_IF(FATAL, sample.columns().empty())
+        << "No columns specified for sampling from table "
+        << sample.table_name() << " in job " << sample.job_name()
+        << " in dataset " << params.dataset_name << "!";
       std::set<std::string> job_columns(meta.columns().begin(),
                                         meta.columns().end());
       assert(!job_columns.empty());
@@ -182,20 +190,25 @@ void run_job(JobParameters& params) {
       for (auto it = ++job_columns.begin(); it != job_columns.end(); ++it) {
         available_columns += ", " + *it;
       }
-      for (const std::string &column : sample.columns) {
+      for (const std::string &column : sample.columns()) {
         LOG_IF(FATAL, job_columns.count(column) == 0)
-            << "Requested column " << column << " does not exist in table "
-            << sample.table_name << " in job " << sample.job_name
-            << " in dataset " << params.dataset_name << "! Available columns "
-            << "are: " << available_columns;
+          << "Requested column " << column << " does not exist in table "
+          << sample.table_name() << " in job " << sample.job_name()
+          << " in dataset " << params.dataset_name << "! Available columns "
+          << "are: " << available_columns;
       }
     }
   }
 
   // Unwrap factories into raw pointers and get capabilities
+  void* handle = dlopen(NULL, RTLD_LAZY);
+  LOG_IF(FATAL, handle == NULL) << "dlopen failed: " << dlerror();
+
   std::vector<EvaluatorFactory*> evaluator_factories;
-  for (auto& f : pipeline_description.evaluator_factories) {
-    evaluator_factories.push_back(f.get());
+  for (const std::string& f : pipeline_description.evaluator_factories()) {
+    EvaluatorFactory* (*fptr)() =
+      reinterpret_cast<EvaluatorFactory*(*)()>(dlsym(handle, f.c_str()));
+    evaluator_factories.push_back(fptr());
   }
   std::vector<EvaluatorCapabilities> evaluator_caps;
   for (EvaluatorFactory* factory : evaluator_factories) {
@@ -204,12 +217,12 @@ void run_job(JobParameters& params) {
 
   // Setup format metadata for each task
   std::map<i32, BatchConfig> format_metadata;
-  for (size_t i = 0; i < pipeline_description.tasks.size(); ++i) {
-    const auto& task = pipeline_description.tasks[i];
+  for (size_t i = 0; i < pipeline_description.tasks().size(); ++i) {
+    const auto& task = pipeline_description.tasks(i);
     BatchConfig batch_config;
-    for (const auto& sample : task.samples) {
-      if (sample.job_name == base_job_name()) {
-        i32 table_id = std::atoi(sample.table_name.c_str());
+    for (const auto& sample : task.samples()) {
+      if (sample.job_name() == base_job_name()) {
+        i32 table_id = std::atoi(sample.table_name().c_str());
         batch_config.formats.push_back(input_formats[table_id]);
       }
     }
@@ -244,11 +257,11 @@ void run_job(JobParameters& params) {
   std::vector<std::string> final_column_names;
   {
     std::vector<std::string> input_columns;
-    auto& task = pipeline_description.tasks[0];
-    for (auto& sample : task.samples) {
+    auto& task = pipeline_description.tasks(0);
+    for (auto& sample : task.samples()) {
       input_columns.insert(input_columns.end(),
-                           sample.columns.begin(),
-                           sample.columns.end());
+                           sample.columns().begin(),
+                           sample.columns().end());
     }
     for (auto factory : evaluator_factories) {
       std::vector<std::string> out_columns =
@@ -261,38 +274,33 @@ void run_job(JobParameters& params) {
   job_descriptor.set_io_item_size(io_item_size);
   job_descriptor.set_work_item_size(work_item_size);
   job_descriptor.set_num_nodes(num_nodes);
-  for (i32 i = 0; i < (i32)(pipeline_description.tasks.size()); ++i) {
+  for (i32 i = 0; i < (i32)(pipeline_description.tasks().size()); ++i) {
     // Keep track of where tasks start and end so we can try and partition
     // all items associated with a single task to the same evaluator
     item_task_delimeters.push_back(io_items.size());
 
-    Task& task = pipeline_description.tasks.at(i);
-    JobDescriptor::Task* jd_task = job_descriptor.add_tasks();
-    jd_task->set_table_id(i);
-    jd_task->set_table_name(task.table_name);
-    for (TableSample &sample : task.samples) {
-      i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name);
+    const Task& task = pipeline_description.tasks(i);
+    Task* jd_task = job_descriptor.add_tasks();
+    jd_task->set_table_name(task.table_name());
+    for (const TableSample &sample : task.samples()) {
+      i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name());
       JobMetadata& meta = job_meta.at(sample_job_id);
 
-      JobDescriptor::Task::TableSample* jd_sample = jd_task->add_samples();
-      jd_sample->set_job_id(sample_job_id);
-      i32 sample_table_id =
-          meta.table_id(sample.table_name);
-      jd_sample->set_table_id(sample_table_id);
-      for (const std::string& col : sample.columns) {
-        JobDescriptor::Column* jd_col = jd_sample->add_columns();
-        jd_col->set_id(meta.column_id(col));
-        jd_col->set_name(col);
+      TableSample* jd_sample = jd_task->add_samples();
+      jd_sample->set_job_name(sample.job_name());
+      jd_sample->set_table_name(sample.table_name());
+      for (const std::string& col : sample.columns()) {
+        jd_sample->add_columns(col);
       }
-      for (i64 r : sample.rows) {
+      for (const i64 r : sample.rows()) {
         jd_sample->add_rows(r);
       }
     }
 
     // Split up task into IOItems
-    assert(task.samples.size() > 0);
+    assert(task.samples().size() > 0);
     i64 item_id = 0;
-    i64 rows_in_task = static_cast<i64>(task.samples[0].rows.size());
+    i64 rows_in_task = static_cast<i64>(task.samples(0).rows().size());
     i64 allocated_rows = 0;
     while (allocated_rows < rows_in_task) {
       i64 rows_to_allocate =
@@ -307,21 +315,24 @@ void run_job(JobParameters& params) {
 
       LoadWorkEntry load_item;
       load_item.io_item_index = io_items.size() - 1;
-      for (TableSample &sample : task.samples) {
-        i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name);
+      for (const TableSample &sample : task.samples()) {
+        i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name());
         JobMetadata& meta = job_meta.at(sample_job_id);
-        i32 sample_table_id = meta.table_id(sample.table_name);
+        i32 sample_table_id = meta.table_id(sample.table_name());
 
         load_item.samples.emplace_back();
         LoadWorkEntry::Sample& load_sample = load_item.samples.back();
         load_sample.job_id = sample_job_id;
         load_sample.table_id = sample_table_id;
-        load_sample.columns = sample.columns;
+        load_sample.columns.insert(
+          load_sample.columns.begin(),
+          sample.columns().begin(),
+          sample.columns().end());
         i64 e = allocated_rows + rows_to_allocate;
         // Add extra frames for warmup
         i64 s = std::max(allocated_rows - warmup_size, 0L);
         for (; s < e; ++s) {
-          load_sample.rows.push_back(sample.rows[s]);
+          load_sample.rows.push_back(sample.rows(s));
         }
       }
       load_work_entries.push_back(load_item);
@@ -331,9 +342,7 @@ void run_job(JobParameters& params) {
     total_rows += rows_in_task;
   }
   for (size_t j = 0; j < final_column_names.size(); ++j) {
-    JobDescriptor_Column* column = job_descriptor.add_columns();
-    column->set_id(j);
-    column->set_name(final_column_names[j]);
+    job_descriptor.add_columns(final_column_names[j]);
   }
 
   if (is_master(rank)) {

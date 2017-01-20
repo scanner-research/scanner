@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+service WorkCoordinator {
+  rpc NextIOItem (Empty) returns (IOItem) {}
+}
+
+message Empty {}
+
+message IOItem {
+  int32 id = 1;
+}

@@ -17,70 +17,12 @@
 
 #include "scanner/eval/evaluator_factory.h"
 #include "scanner/util/common.h"
+#include "scanner/metadata.pb.h"
 
 #include <functional>
 #include <vector>
 
 namespace scanner {
-
-struct TableSample {
-  /**
-   * @brief Name of the job to select from
-   */
-  std::string job_name;
-
-  /**
-   * @brief Name of table to sample from
-   */
-  std::string table_name;
-
-  /**
-   * @brief Columns to grab from the input table
-   */
-  std::vector<std::string> columns;
-
-  /**
-   * @brief Indices of the rows to sample
-   */
-  std::vector<i64> rows;
-};
-
-struct Task {
-  /**
-   * @brief Name of the table to write the results of this task to
-   */
-  std::string table_name;
-
-  /**
-   * @brief Specifies a list of tables to sample from.
-   *
-   * If multiple tables are given, their columns will be joined together so
-   * that the first evaluator receives all of the columns from the first row
-   * specified in each TableSample, all of the columns from the second row,
-   * and so on. All TableSamples must have the same number of rows selected.
-   *
-   */
-  std::vector<TableSample> samples;
-
-  i32 resolution_downsample_factor;
-};
-
-/**
- * @brief Defines evaluators and a sampling pattern to run over a dataset.
- *
- * A pipeline is a sequence, or chain, of evaluators which execute over a stream
- * of video data. A sampling pattern can be specified that selects a subset of
- * frames from the videos in a given dataset. The chain of evaluators is
- * specified by the "evaluator_factories" variable.
- */
-struct PipelineDescription {
-  std::vector<Task> tasks;
-
-  /**
-   * @brief The chain of evaluators which will be executed over the input
-   */
-  std::vector<std::unique_ptr<EvaluatorFactory>> evaluator_factories;
-};
 
 struct TableInformation {
  public:

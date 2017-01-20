@@ -335,12 +335,12 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 JobMetadata::JobMetadata() {}
 JobMetadata::JobMetadata(const JobDescriptor &job) : job_descriptor_(job) {
   for (auto &c : job_descriptor_.columns()) {
-    columns_.push_back(c.name());
-    column_ids_.insert({c.name(), c.id()});
+    columns_.push_back(c);
+    column_ids_.insert({c, 0});
   }
   for (auto &t : job_descriptor_.tasks()) {
     table_names_.push_back(t.table_name());
-    table_ids_.insert({t.table_name(), t.table_id()});
+    table_ids_.insert({t.table_name(), 0});
   }
 }
 
@@ -388,9 +388,9 @@ i64 JobMetadata::rows_in_table(i32 table_id) const {
   i64 rows = -1;
   auto it = rows_in_table_.find(table_id);
   if (it == rows_in_table_.end()) {
-    for (const JobDescriptor::Task& task : job_descriptor_.tasks()) {
+    for (const Task& task : job_descriptor_.tasks()) {
       assert(task.samples_size() > 0);
-      const JobDescriptor::Task::TableSample& sample = task.samples(0);
+      const TableSample& sample = task.samples(0);
       rows = sample.rows_size();
       rows_in_table_.insert(std::make_pair(table_id, rows));
     }
@@ -403,9 +403,9 @@ i64 JobMetadata::rows_in_table(i32 table_id) const {
 
 i64 JobMetadata::total_rows() const {
   i64 rows = 0;
-  for (const JobDescriptor::Task& task : job_descriptor_.tasks()) {
+  for (const Task& task : job_descriptor_.tasks()) {
     assert(task.samples_size() > 0);
-    const JobDescriptor::Task::TableSample& sample = task.samples(0);
+    const TableSample& sample = task.samples(0);
     rows += sample.rows_size();
   }
   return rows;

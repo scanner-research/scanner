@@ -260,7 +260,8 @@ set(SCANNER_LIBRARIES
   "${BITMAPCPP_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
   "-ljpeg"
-  "-lz")
+  "-lz"
+  "-lgrpc++_unsecure -lgrpc -lgpr")
 
 include_directories(
   "."
@@ -299,13 +300,22 @@ endif()
 ###### Project code #######
 set(PROTO_FILES
   scanner/metadata.proto
-  scanner/evaluators/types.proto)
+  scanner/evaluators/types.proto
+  scanner/engine/rpc.proto)
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
+set(GRPC_PROTO_FILES
+  scanner/engine/rpc.proto)
+
+protobuf_generate_cpp(
+  PROTO_SRCS PROTO_HDRS OFF ${PROTO_FILES})
+
+protobuf_generate_cpp(
+  GRPC_PROTO_SRCS GRPC_PROTO_HDRS ON ${GRPC_PROTO_FILES})
 
 protobuf_generate_python(PROTO_PY ${PROTO_FILES})
 
-add_custom_target(proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY})
+add_custom_target(proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY} ${GRPC_PROTO_HDRS})
+
 
 macro(add_deps)
   add_dependencies(${targetName} proto_files)
@@ -347,6 +357,7 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:pipelines>
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}
+  ${GRPC_PROTO_SRCS}
   ${LODEPNG_SOURCES}
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})

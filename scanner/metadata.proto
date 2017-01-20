@@ -147,32 +147,31 @@ message WebTimestamps {
   repeated int64 pts_timestamps = 4 [packed=true];
 }
 
+message TableSample {
+  required int32 job_id = 1;
+  required int32 table_id = 2;
+  repeated string columns = 3;
+  repeated int64 rows = 4 [packed=true];
+}
+
+message Task {
+  required int32 table_id = 2;
+  repeated TableSample samples = 3;
+}
+
+message PipelineDescription {
+  repeated Task tasks = 1;
+  repeated string evaluator_factories = 2;
+}
+
 message JobDescriptor {
-  message Column {
-    required int32 id = 1;
-    required string name = 2;
-  }
-
-  message Task {
-    message TableSample {
-      required int32 job_id = 1;
-      required int32 table_id = 2;
-      repeated Column columns = 3;
-      repeated int64 rows = 4 [packed=true];
-    }
-
-    required int32 table_id = 1;
-    required string table_name = 2;
-    repeated TableSample samples = 3;
-  }
-
   required int32 id = 1;
   required string name = 2;
   required int32 io_item_size = 3;
   required int32 work_item_size = 4;
   required int32 num_nodes = 5;
   repeated Task tasks = 6;
-  repeated Column columns = 7;
+  repeated string columns = 7;
 }
 
 message DecodeArgs {
