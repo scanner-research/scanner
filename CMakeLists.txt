@@ -207,7 +207,6 @@ endif()
 ###### Required Dependencies #######
 find_package(SaneProtobuf REQUIRED)
 find_package(FFmpeg REQUIRED)
-find_package(MPI REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
@@ -242,7 +241,6 @@ set(SCANNER_LIBRARIES
   "${FFMPEG_LIBRARIES}"
   "-L/opt/ffmpeg-3.2.2/lib"
   "-lswscale"
-  "${MPI_LIBRARIES}"
   "${STRUCK_LIBRARIES}"
   "${OpenCV_LIBRARIES}"
   "${CAFFE_LIBRARIES}"
@@ -276,7 +274,6 @@ include_directories(
   "${BITMAPCPP_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
-  "${MPI_INCLUDE_PATH}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
   "${GOOGLETEST_INCLUDE_DIRS}")

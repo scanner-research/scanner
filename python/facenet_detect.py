@@ -180,25 +180,36 @@ def main():
     job_name_template = job_name_prefix + "_{:d}"
     output_path = 'facenet_output'
     start_frame = 0
-    end_frame = 30
+    end_frame = 5000
 
     #scales = [pow(2, x) for x in range(-3, 1, 1)]
     scales = [pow(2, x) for x in range(-3, 1, 1)]
+    batch_sizes = [32 / pow(2, x) for x in range(0, 4)]
+    #scales = [1]
+    #batch_sizes = [4]
     print(scales)
 
     opts = {
         'force': True,
-        'io_item_size': 512,
+        'io_item_size': 64,
         'work_item_size': 32,
-        'pus_per_node': 4,
+        'pus_per_node': 1,
         'env': {}
     }
-    for i, scale in enumerate(scales):
-        print('Running with scale', scale)
+    for i, (scale, batch_size) in enumerate(zip(scales, batch_sizes)):
+        print('Running with scale', scale, 'batch size', batch_size)
         job_name = job_name_template.format(i)
         opts['env']['SC_SCALE'] = str(scale)
+        opts['env']['SC_BATCH_SIZE'] = str(batch_size)
         opts['env']['SC_START_FRAME'] = str(start_frame)
         opts['env']['SC_END_FRAME'] = str(end_frame)
+        if scale == 1:
+            opts['io_item_size'] = 16
+            opts['work_item_size'] = 16
+        else:
+            opts['io_item_size'] = 64
+            opts['work_item_size'] = 32
+
         rc, t = db.run(dataset_name, 'facenet', job_name, opts)
         assert(rc == True)
         print('Time', t)

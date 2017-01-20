@@ -1308,7 +1308,6 @@ def scanner_benchmark(tests, frame_counts, wh):
                   ('histogram_cpu', 'histogram_benchmark', 'CPU'),
                   ('histogram_gpu', 'histogram_benchmark', 'GPU'),
                   ('caffe', 'caffe_benchmark', 'GPU')]
-
     all_results = {}
     for test_name, paths in tests.iteritems():
         all_results[test_name] = {}
@@ -1346,6 +1345,7 @@ def scanner_benchmark(tests, frame_counts, wh):
         #     all_results[test_name][op].append((total, stats))
 
         # video
+        stride = 30
         scanner_settings['env']['SC_JOB_NAME'] = video_job
         for op, pipeline, dev in operations:
             frames = frame_counts[test_name]
@@ -1364,7 +1364,27 @@ def scanner_benchmark(tests, frame_counts, wh):
                     scanner_settings['io_item_size'] = 1024
                     scanner_settings['work_item_size'] = 128
                     scanner_settings['pus_per_node'] = 8
-            if op == 'histogram_gpu':
+            elif op == 'histogram_cpu_strided':
+                scanner_settings['env']['SC_STRIDE'] = str(stride)
+                scanner_settings['use_pool'] = False
+                scanner_settings['tasks_in_queue_per_pu'] = 2
+                if wh[test_name]['width'] == 640:
+                    scanner_settings['io_item_size'] = 2048
+                    scanner_settings['work_item_size'] = 1024
+                    scanner_settings['pus_per_node'] = 4
+                else:
+                    scanner_settings['io_item_size'] = 1024
+                    scanner_settings['work_item_size'] = 128
+                    scanner_settings['pus_per_node'] = 4
+            elif op == 'histogram_gpu':
+                if wh[test_name]['width'] == 640:
+                    scanner_settings['io_item_size'] = 2048
+                    scanner_settings['work_item_size'] = 1024
+                else:
+                    scanner_settings['io_item_size'] = 512
+                    scanner_settings['work_item_size'] = 128
+            elif op == 'histogram_gpu_strided':
+                scanner_settings['env']['SC_STRIDE'] = str(stride)
                 if wh[test_name]['width'] == 640:
                     scanner_settings['io_item_size'] = 2048
                     scanner_settings['work_item_size'] = 1024
@@ -2186,19 +2206,22 @@ def graph_decode_rate_benchmark(path):
 def micro_comparison_driver():
     #pose_reconstruction_graphs({})
     tests = {
-        'fight': ['/n/scanner/wcrichto.new/videos/movies/private/fightClub.mp4'],
+        'kcam': ['/n/scanner/wcrichto.new/videos/kcam/20150308_205310_836.mp4'],
+        #'fight': ['/n/scanner/wcrichto.new/videos/movies/private/fightClub.mp4'],
         #'excalibur': ['/n/scanner/wrichto.new/videos/movies/excalibur.mp4'],
         #'mean': ['/n/scanner/wcrichto.new/videos/movies/private/meanGirls.mp4'],
     }
     frame_counts = {'charade': 163430,
                     'fight': 200158,
                     'excalibur': 202275,
-                    'mean': 139301
+                    'mean': 139301,
+                    'kcam': 52542,
     }
     frame_wh = {'charade': {'width': 1920, 'height': 1080},
                 'fight': {'width': 1920, 'height': 800},
                 'excalibur': {'width': 1920, 'height': 1080},
                 'mean': {'width': 640, 'height': 480},
+                'kcam': {'width': 1280, 'height': 720},
     }
     t = 'fight'
     if 0:

@@ -494,7 +494,7 @@ def write_extrinsic_params(calibration_data,
             if not ((panel_idx in calibration_data['cameras']) and
                     (camera_idx in calibration_data['cameras'][panel_idx])):
                 continue
-            ext_file = os.path.join(
+           ext_file = os.path.join(
                 top_level_path,
                 '{:02d}_{:02d}_ext.txt'.format(panel_idx, camera_idx))
             c = calibration_data['cameras'][panel_idx][camera_idx]
@@ -699,7 +699,7 @@ def draw_3d_poses(calibration_data, data_path, output_directory,
 
 
 def load_metadata(dataset_name):
-    data_path = '/bigdata/apoms/panoptic/' + dataset_name
+    data_path = '/n/scanner/apoms/panoptic/' + dataset_name
     calib_path = os.path.join(data_path,
                               'calibration_{:s}.json'.format(dataset_name))
     with open(calib_path, 'r') as f:

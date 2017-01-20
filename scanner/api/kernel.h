@@ -21,24 +21,16 @@
 #include <vector>
 
 namespace scanner {
+namespace api {
 
-struct InputFormat {
- public:
-  InputFormat() : width_(0), height_(0) {}
-  InputFormat(i32 width, i32 height) : width_(width), height_(height) {}
+bool is_frame_column(const std::string& name);
 
-  i32 width() const { return width_; }
-  i32 height() const { return height_; }
-
- private:
-  i32 width_;
-  i32 height_;
+struct FrameInfo {
+  i32 width;
+  i32 height;
 };
 
-struct BatchConfig {
-  std::vector<std::string> input_columns;
-  std::vector<InputFormat> formats;
-};
+FrameInfo get_frame_info(const std::string& name);
 
 struct Row {
   u8* buffer;
@@ -62,19 +54,18 @@ using BatchedColumns = std::vector<Column>;
  */
 class Kernel {
  public:
-  virtual ~Kernel(){};
+  static const i32 UnlimitedDevices = 0;
 
-  /**
-   * @brief Updates the evaluator when running on a new image or video.
-   *
-   * @param metadata Metadata about the frames the evaluator will receive
-   *
-   * This provides the evaluator with information about its input like
-   * dimensions.
-   */
-  virtual void configure(const BatchConfig& config) {
-    config_ = config;
+  struct Config {
+    std::vector<DeviceHandle> devices;
+    std::vector<std::string> input_columns;
+    char* kernel_args;
+    size_t kernel_args_size;
   };
+
+  Kernel(const Config& config);
+
+  virtual ~Kernel(){};
 
   /**
    * @brief Resets evaluators when about to receive non-consecutive inputs.
@@ -104,8 +95,8 @@ class Kernel {
    *
    * Number of output columns must be non-zero.
    */
-  virtual void evaluate(const BatchedColumns& input_columns,
-                        BatchedColumns& output_columns) = 0;
+  virtual void execute(const BatchedColumns &input_columns,
+                       BatchedColumns &output_columns) = 0;
 
   /**
    * Do not call this function.
@@ -118,9 +109,6 @@ class Kernel {
    * visualization. It is not guaranteed to be non-null, so check before use.
    */
   Profiler* profiler_ = nullptr;
-
-  /** configure() by default will save the metadata for use in evaluate(). */
-  BatchConfig config_;
 };
 
 #define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)
@@ -130,11 +118,47 @@ class Kernel {
 #define INSERT_ROW(column__, buffer__, size__) \
   column__.rows.push_back(Row{buffer__, size__})
 
-#define REGISTER_KERNEL(name, kernel) \
+struct KernelConfig;
+
+class KernelRegistration {
+  KernelRegistration(const KernelBuilder& builder);
+};
+
+class KernelBuilder {
+ public:
+  friend class KernelRegistration;
+
+  KernelBuilder(const std::string &name
+                    std::function<Kernel *(const KernelConfig &config)>
+                        constructor)
+      : name_(name), builder_(builder) {}
+
+  KernelBuilder& device(DeviceType device_type) {
+    device_type_ = device_type;
+    return *this;
+  };
+
+  KernelBuilder& num_devices(i32 devices) {
+    num_devices_ = devices;
+    return *this;
+  }
+
+ private:
+  std::string name;
+  std::function<Kernel *(const KernelConfig &config)> builder_;
+  DeviceType device_type_;
+  i32 num_devices_;
+};
+
+#define REGISTER_KERNEL(name, KERNEL) \
   REGISTER_KERNEL_UID(__COUNTER__, name, kernel)
 
-#define REGISTER_KERNEL_UID(uid, name, kernel) \
-  static ::scanner::KernelFactoryBuilder \
-      kernel_builder_##uid##<kernel>(name);
+#define REGISTER_KERNEL_UID(uid, name, KERNEL) \
+  static ::scanner::KernelRegistration \
+      kernel_registration_##uid## = \
+      KernelBuilder(#name, [](const KernelConfig &config) {             \
+          return new KERNEL(config);                                    \
+        })
 
+}
 }

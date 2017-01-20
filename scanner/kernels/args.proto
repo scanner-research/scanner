@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message BlurArgs {
+  int32 kernel_size = 1;
+  float sigma = 2;
+}

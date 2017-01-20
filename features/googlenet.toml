@@ -3,7 +3,7 @@
     weights = "features/googlenet/bvlc_googlenet.caffemodel"
     source = "https://github.com/BVLC/caffe/tree/master/models/bvlc_googlenet"
     input_layers = ["data"]
-    output_layers = ["pool5/7x7_s1"]
+    output_layers = ["loss3/classifier"]
     input_width = 224
     input_height = 224
     normalize = true

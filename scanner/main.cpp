@@ -45,7 +45,6 @@
 #endif
 
 #include <libgen.h>
-#include <mpi.h>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -82,7 +81,6 @@ using storehouse::RandomReadFile;
 const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 
 void startup(int argc, char** argv) {
-  MPI_Init(&argc, &argv);
   av_register_all();
   FLAGS_minloglevel = 0;
 #ifdef HAVE_CUDA
@@ -90,7 +88,7 @@ void startup(int argc, char** argv) {
 #endif
 }
 
-void shutdown() { MPI_Finalize(); }
+void shutdown() { }
 
 class Config {
  public:
@@ -463,12 +461,6 @@ int main(int argc, char** argv) {
 
   startup(argc, argv);
 
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  int num_nodes;
-  MPI_Comm_size(MPI_COMM_WORLD, &num_nodes);
-
   storehouse::StorageBackend* storage =
       storehouse::StorageBackend::make_from_config(storage_config);
 
@@ -489,7 +481,6 @@ int main(int argc, char** argv) {
       BACKOFF_FAIL(meta_out_file->save());
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
     std::unique_ptr<RandomReadFile> meta_in_file;
     BACKOFF_FAIL(
         make_unique_random_read_file(storage, db_meta_path, meta_in_file));

@@ -9,8 +9,9 @@ import caffe
 
 CRAIG_VID = '20140914_150520_697'
 KENNYWOOD_VID = '20140913_184839_517'
-VID = KENNYWOOD_VID
-VIDEO = '/disk0/kcam/' + VID
+EATING_VID = 'eating_1'
+VID = EATING_VID
+VIDEO = '/n/scanner/apoms/kcam/' + VID
 
 def extract_features(net, frame):
     frame = np.array(frame, dtype=np.float32) # u8 -> f32
@@ -106,7 +107,7 @@ def main():
                           inp.get(cv2.cv.CV_CAP_PROP_FPS),
                           (1280,720))
 
-    templates = sio.loadmat('facenet_templates.mat')
+    templates = sio.loadmat('templates.mat')
     templates = templates['templates']
 
     caffe.set_device(0)

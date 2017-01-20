@@ -12,6 +12,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   char* SCALE = std::getenv("SC_SCALE");
   char* START_FRAME = std::getenv("SC_START_FRAME");
   char* END_FRAME = std::getenv("SC_END_FRAME");
+  char* BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
 
   i32 start_frame = 1000;
   i32 end_frame = 3000;
@@ -32,7 +33,10 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     std::ifstream net_file{net_descriptor_file};
     descriptor = descriptor_from_net_file(net_file);
   }
-  i32 batch_size = 2;
+  i32 batch_size = 1;
+  if (BATCH_SIZE) {
+    batch_size = std::atoi(BATCH_SIZE);
+  }
 
   f32 scale = 0.25;
   f32 threshold = 0.5;

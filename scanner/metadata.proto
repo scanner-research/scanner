@@ -1,28 +1,23 @@
-syntax = "proto2";
+syntax = "proto3";
 
-package scanner;
+package scanner.proto;
 
+// Database metadata messages
 message DatabaseDescriptor {
-  message Dataset {
-    required int32 id = 1;
-    required string name = 2;
-  }
-
   message Job {
     required int32 id = 1;
     required string name = 2;
   }
 
-  message JobToDataset {
-    required int32 job_id = 1;
-    required int32 dataset_id = 2;
+  message Table {
+    required int32 id = 1;
+    required string name = 2;
   }
 
-  optional int32 next_dataset_id = 1;
-  optional int32 next_job_id = 2;
-  repeated Dataset datasets = 3;
-  repeated Job jobs = 4;
-  repeated JobToDataset job_to_datasets = 5;
+  optional int32 next_job_id = 1;
+  optional int32 next_table_id = 2;
+  repeated Job jobs = 3;
+  repeated Table tables = 4;
 }
 
 enum ImageEncodingType {
@@ -38,70 +33,10 @@ enum ImageColorSpace {
   RGBA = 2;
 }
 
-enum DatasetType {
-  DatasetType_Video = 0;
-  DatasetType_Image = 1;
-}
-
-message DatasetDescriptor {
-  message VideoMetadata {
-    optional int64 total_frames = 4;
-
-    /// Across video
-    // Number of frames
-    optional int32 min_frames = 5;
-    optional int32 average_frames = 6;
-    optional int32 max_frames = 7;
-
-    // Frame width
-    optional int32 min_width = 8;
-    optional int32 average_width = 9;
-    optional int32 max_width = 10;
-
-    // Frame height
-    optional int64 min_height = 11;
-    optional int64 average_height = 12;
-    optional int64 max_height = 13;
-
-    repeated string original_video_paths = 1;
-    repeated string video_names = 2;
-    repeated int32 video_ids = 14;
-  }
-
-  message ImageMetadata {
-    message FormatGroup {
-      required ImageEncodingType encoding_type = 1;
-      required ImageColorSpace color_space = 2;
-      required int32 width = 3;
-      required int32 height = 4;
-      required int32 num_images = 5;
-    }
-
-    required int64 total_images = 5;
-
-    /// Across video
-    // Frame width
-    optional int32 min_width = 8;
-    optional int32 average_width = 9;
-    optional int32 max_width = 10;
-
-    // Frame height
-    optional int64 min_height = 11;
-    optional int64 average_height = 12;
-    optional int64 max_height = 13;
-
-    repeated string original_image_paths = 1;
-    repeated int64 original_index_to_format_group = 2;
-    repeated string valid_image_paths = 3;
-    repeated FormatGroup format_groups = 4;
-    repeated int32 format_group_ids = 14;
-  }
-
-  required int32 id = 1;
-  required string name = 2;
-  required DatasetType type = 3;
-  optional VideoMetadata video_data = 4;
-  optional ImageMetadata image_data = 5;
+enum ColumnType {
+  None = 0;
+  Video = 1;
+  Image = 2;
 }
 
 message VideoDescriptor {
@@ -140,13 +75,16 @@ message ImageFormatGroupDescriptor {
   repeated int64 compressed_sizes = 6 [packed=true];
 }
 
-message WebTimestamps {
-  required int32 time_base_numerator = 1;
-  required int32 time_base_denominator = 2;
-  repeated int64 dts_timestamps = 3 [packed=true];
-  repeated int64 pts_timestamps = 4 [packed=true];
+message TableDescriptor {
+  required int32 id = 1;
+  required string name = 2;
+  repeated string column_names = 3;
+  repeated ColumnType column_types = 4;
+  required int64 num_rows = 5;
+  required int64 rows_per_file = 6;
 }
 
+// Task set messages
 message TableSample {
   required int32 job_id = 1;
   required int32 table_id = 2;
@@ -159,9 +97,20 @@ message Task {
   repeated TableSample samples = 3;
 }
 
-message PipelineDescription {
+message EvalInput {
+  required i32 evaluator_index = 1;
+  repeated string columns = 2;
+}
+
+message Evaluator {
+  required string name = 1;
+  repeated EvalInput inputs = 2;
+  required bytes kernel_args = 3;
+}
+
+message TaskSet {
   repeated Task tasks = 1;
-  repeated string evaluator_factories = 2;
+  repeated Evaluator evaluators = 2;
 }
 
 message JobDescriptor {
@@ -174,6 +123,7 @@ message JobDescriptor {
   repeated string columns = 7;
 }
 
+// Interal messages
 message DecodeArgs {
   required int64 start_keyframe = 3;
   required int64 end_keyframe = 4;

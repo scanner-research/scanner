@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/ingest.h"
+#include "scanner/api/ingest.h"
 #include "scanner/engine/db.h"
 
 #include "scanner/util/common.h"
@@ -28,8 +28,6 @@
 #include "bitmap-cpp/bitmap.h"
 
 #include <glog/logging.h>
-
-#include <mpi.h>
 
 // For video
 extern "C" {
@@ -850,13 +848,13 @@ void ingest_videos(storehouse::StorageBackend* storage,
 
     // Track the last succesfully processed dataset so we know where
     // to resume if we crash or exit early
-    write_last_processed_video(storage, dataset_name, static_cast<i32>(i));
+    //write_last_processed_video(storage, dataset_name, static_cast<i32>(i));
   }
   if (!bad_video_indices.empty()) {
     std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
     for (size_t i : bad_video_indices) {
       const std::string& bad_path = video_paths[i];
-      bad_paths_file << bad_path << std::endl;
+      bad_paths_file << i << ", " << bad_path << std::endl;
     }
     bad_paths_file.close();
   }
@@ -1219,65 +1217,9 @@ void ingest_images(storehouse::StorageBackend* storage,
   }
 }
 
-}  // end anonymous namespace
-
-void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
-            const std::string& dataset_name, const std::string& paths_file,
-            bool compute_web_metadata) {
-  i32 rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  if (!is_master(rank)) return;
-
-  LOG(INFO) << "Creating dataset " << dataset_name << "..." << std::endl;
-
-  // Read in list of paths for each item in file
-  std::vector<std::string> paths;
-  {
-    i32 video_count = 0;
-    std::fstream fs(paths_file, std::fstream::in);
-    assert(fs.good());
-    while (fs) {
-      std::string path;
-      fs >> path;
-      if (path.empty()) continue;
-      paths.push_back(path);
-    }
-  }
-
-  std::unique_ptr<storehouse::StorageBackend> storage{
-      storehouse::StorageBackend::make_from_config(storage_config)};
-
-  std::vector<size_t> ingested_video_ids;
-  std::vector<i64> video_frames;
+void write_ingest_table(storehouse::StorageBackend* storage,
+                        TableDescriptor descriptor) {
   DatasetDescriptor descriptor{};
-  if (dataset_type == DatasetType_Video) {
-    ingest_videos(storage.get(), dataset_name, paths, compute_web_metadata,
-                  descriptor, ingested_video_ids, video_frames);
-  } else if (dataset_type == DatasetType_Image) {
-    ingest_images(storage.get(), dataset_name, paths, compute_web_metadata,
-                  descriptor);
-  } else {
-    assert(false);
-  }
-
-  JobDescriptor base_job_descriptor;
-  base_job_descriptor.set_io_item_size(0);
-  base_job_descriptor.set_work_item_size(0);
-  base_job_descriptor.set_num_nodes(1);
-  base_job_descriptor.add_columns(base_column_name());
-  for (size_t i = 0; i < ingested_video_ids.size(); ++i) {
-    size_t video_id = ingested_video_ids[i];
-    Task* task = base_job_descriptor.add_tasks();
-    task->set_table_name(std::to_string(video_id));
-    // HACK(apoms): necessary because we determine number of available
-    //  rows based on first table sample num rows.
-    TableSample* sample = task->add_samples();
-    for (i64 r = 0; r < video_frames[video_id]; ++r) {
-      sample->add_rows(r);
-    }
-  }
-  base_job_descriptor.set_num_nodes(1);
 
   DatabaseMetadata meta{};
   {
@@ -1333,5 +1275,33 @@ void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
   }
 
   LOG(INFO) << "Finished creating dataset " << dataset_name << "." << std::endl;
+
 }
+
+}  // end anonymous namespace
+
+void ingest_videos(storehouse::StorageConfig *storage_config,
+                   const std::vector<std::string>& table_names,
+                   const std::vector<std::string>& paths) {
+  std::unique_ptr<storehouse::StorageBackend> storage{
+      storehouse::StorageBackend::make_from_config(storage_config)};
+
+  std::vector<size_t> ingested_video_ids;
+  std::vector<i64> video_frames;
+  for (size_t i = 0; i < table_names.size(); ++i) {
+    LOG(INFO) << "Creating video table " << table_names[i] << "..."
+              << std::endl;
+  }
+}
+
+void ingest_images(storehouse::StorageConfig *storage_config,
+                   const std::string& table_name,
+                   const std::vector<std::string>& paths) {
+  std::unique_ptr<storehouse::StorageBackend> storage{
+      storehouse::StorageBackend::make_from_config(storage_config)};
+
+  LOG(INFO) << "Creating image table " << table_name << "..." << std::endl;
+  exit(1);
+}
+
 }
