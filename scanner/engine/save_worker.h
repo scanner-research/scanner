@@ -20,6 +20,7 @@
 #include "scanner/util/queue.h"
 
 namespace scanner {
+namespace internal {
 
 struct SaveThreadArgs {
   // Uniform arguments
@@ -39,4 +40,5 @@ struct SaveThreadArgs {
 
 void* save_thread(void* arg);
 
+}
 }

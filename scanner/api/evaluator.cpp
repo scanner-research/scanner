@@ -13,19 +13,22 @@
  * limitations under the License.
  */
 
-#pragma once
-
 #include "scanner/api/evaluator.h"
+#include "scanner/engine/evaluator_info.h"
+#include "scanner/engine/evaluator_registry.h"
 
 namespace scanner {
 
-Evaluator(const std::string &name, const std::vector<EvalInput> &inputs,
-          char *args)
+Evaluator::Evaluator(const std::string &name, const std::vector<EvalInput> &inputs,
+                     char *args, size_t args_size)
     : name_(name), inputs_(inputs), args_(args) {}
 
 Evaluator* make_input_evaluator(const std::vector<std::string>& columns) {
-  return new Evaluator("Table", {EvalInput(nullptr, columns)}, nullptr, 0);
+  EvalInput eval_input = {nullptr, columns};
+  return new Evaluator("Table", {eval_input}, nullptr, 0);
 }
+
+namespace internal {
 
 EvaluatorRegistration::EvaluatorRegistration(const EvaluatorBuilder& builder) {
   const std::string &name = builder.name_;
@@ -33,6 +36,8 @@ EvaluatorRegistration::EvaluatorRegistration(const EvaluatorBuilder& builder) {
   EvaluatorInfo* info = new EvaluatorInfo(name, columns);
   EvaluatorRegistry *registry = get_evaluator_registry();
   registry->add_evaluator(name, info);
+}
+
 }
 
 }

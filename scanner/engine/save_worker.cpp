@@ -29,6 +29,8 @@ using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
 namespace scanner {
+namespace internal {
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously save result buffers
 void* save_thread(void* arg) {
@@ -167,4 +169,5 @@ void* save_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
+}
 }

@@ -15,12 +15,14 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
+#include "scanner/api/kernel.h"
+#include "scanner/api/evaluator.h"
 #include "scanner/util/common.h"
 
 #include <vector>
 
 namespace scanner {
+
 /** Information for an evaluator instance on the kinds of input it will receive.
  */
 struct KernelConfig {
@@ -28,6 +30,8 @@ struct KernelConfig {
   char* args;
   size_t args_size;
 };
+
+namespace internal {
 
 /**
  * @brief Interface for constructing evaluators at runtime.
@@ -41,8 +45,6 @@ struct KernelConfig {
  */
 class KernelFactory {
  public:
-  using KernelConstructor = std::function<Kernel*(const KernelConfig& config)>;
-
   KernelFactory(const std::string& evaluator_name,
                 DeviceType type, i32 max_devices, i32 warmup_size,
                 KernelConstructor constructor)
@@ -59,7 +61,7 @@ class KernelFactory {
 
   /* @brief Constructs a kernel to be used for processing rows of data.
    */
-  Kernel* new_instance(const EvaluatorConfig& config) {
+  Kernel* new_instance(const KernelConfig& config) {
     return constructor_(config);
   }
 
@@ -70,4 +72,6 @@ class KernelFactory {
   i32 warmup_size_;
   KernelConstructor constructor_;
 };
+
+}
 }

@@ -21,18 +21,16 @@
 #include <string>
 
 namespace scanner {
-namespace api {
 
 ///////////////////////////////////////////////////////////////////////////////
 struct JobParameters {
   storehouse::StorageConfig* storage_config;
   MemoryPoolConfig memory_pool_config;
   std::string db_path;
-  scanner::proto::TaskSet task_set;
+  proto::TaskSet task_set;
   std::string job_name;
 };
 
 void run_job(JobParameters& params);
 
-}
 }

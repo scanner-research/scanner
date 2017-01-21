@@ -15,22 +15,33 @@
 
 #pragma once
 
-#include "scanner/metadata.pb.h"
 #include "scanner/util/common.h"
+#include "scanner/util/storehouse.h"
 #include "storehouse/storage_backend.h"
 
 #include <set>
 
 namespace scanner {
+namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
-struct DatabaseMetadata {
+
+template<typename T>
+struct Metadata {
+public:
+  using Descriptor = T;
+  const Descriptor& get_descriptor() const;
+  const std::string& descriptor_path() const;
+
+protected:
+  mutable Descriptor descriptor;
+};
+
+struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
  public:
   DatabaseMetadata();
-  DatabaseMetadata(const DatabaseDescriptor& descriptor);
-
-  const DatabaseDescriptor& get_descriptor() const;
+  DatabaseMetadata(const Descriptor& descriptor);
 
   bool has_dataset(const std::string& dataset) const;
   bool has_dataset(i32 dataset_id) const;
@@ -52,37 +63,12 @@ struct DatabaseMetadata {
   std::map<i32, std::string> dataset_names;
   std::map<i32, std::set<i32>> dataset_job_ids;
   std::map<i32, std::string> job_names;
-
- private:
-  mutable DatabaseDescriptor descriptor;
 };
 
-struct DatasetMetadata {
- public:
-  DatasetMetadata();
-  DatasetMetadata(const DatasetDescriptor& descriptor);
-
-  const DatasetDescriptor& get_descriptor() const;
-
-  i32 id() const;
-  std::string name() const;
-  DatasetType type() const;
-  i32 total_rows() const;
-  i32 max_width() const;
-  i32 max_height() const;
-  std::vector<std::string> original_paths() const;
-  std::vector<std::string> item_names() const;
-
- private:
-  mutable DatasetDescriptor descriptor;
-};
-
-struct VideoMetadata {
+struct VideoMetadata : Metadata<proto::VideoDescriptor> {
  public:
   VideoMetadata();
-  VideoMetadata(const VideoDescriptor& descriptor);
-
-  const VideoDescriptor& get_descriptor() const;
+  VideoMetadata(const Descriptor& descriptor);
 
   i32 id() const;
   i32 frames() const;
@@ -90,17 +76,12 @@ struct VideoMetadata {
   i32 height() const;
   std::vector<i64> keyframe_positions() const;
   std::vector<i64> keyframe_byte_offsets() const;
-
- private:
-  mutable VideoDescriptor descriptor;
 };
 
-struct ImageFormatGroupMetadata {
+struct ImageFormatGroupMetadata : Metadata<proto::VideoDescriptor> {
  public:
   ImageFormatGroupMetadata();
-  ImageFormatGroupMetadata(const ImageFormatGroupDescriptor& descriptor);
-
-  const ImageFormatGroupDescriptor& get_descriptor() const;
+  ImageFormatGroupMetadata(const Descriptor& descriptor);
 
   i32 num_images() const;
   i32 width() const;
@@ -108,17 +89,12 @@ struct ImageFormatGroupMetadata {
   ImageEncodingType encoding_type() const;
   ImageColorSpace color_space() const;
   std::vector<i64> compressed_sizes() const;
-
- private:
-  mutable ImageFormatGroupDescriptor descriptor;
 };
 
-struct JobMetadata {
+struct JobMetadata : Metadata<proto::JobDescriptor> {
  public:
   JobMetadata();
-  JobMetadata(const JobDescriptor& job);
-
-  const JobDescriptor& get_job_descriptor() const;
+  JobMetadata(const Descriptor& job);
 
   i32 id() const;
 
@@ -144,8 +120,7 @@ struct JobMetadata {
 
   i64 total_rows() const;
 
- private:
-  mutable JobDescriptor job_descriptor_;
+private:
   std::vector<std::string> columns_;
   std::map<std::string, i32> column_ids_;
   std::vector<std::string> table_names_;
@@ -153,23 +128,12 @@ struct JobMetadata {
   mutable std::map<i32, i64> rows_in_table_;
 };
 
-template <typename T>
-void serialize_db_proto(storehouse::WriteFile* file, const T& descriptor) {
-  int size = descriptor.ByteSize();
-  std::vector<u8> data(size);
-  descriptor.SerializeToArray(data.data(), size);
-  write(file, data.data(), size);
-}
+struct TableMetadata : Metadata<proto::TableDescriptor> {
+public:
+  TableMetadata();
+  TableMetadata(const Descriptor& table);
+};
 
-template <typename T>
-T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
-  T descriptor;
-  std::vector<u8> data = storehouse::read_entire_file(file, pos);
-  descriptor.ParseFromArray(data.data(), data.size());
-  return descriptor;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// Path functions
 
 extern std::string PREFIX;
@@ -256,71 +220,60 @@ inline std::string base_column_args_name() { return "frame_args"; }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Helpers
-template <typename T, typename PathFn, typename... PathFnArgs>
-T write_db_proto(storehouse::StorageBackend *storage, T db_proto,
-                 PathFnArgs... args) {
-  const std::string path = PathFn(args...);
-  std::unique_ptr<WriteFile> output_file;
-  BACKOFF_FAIL(make_unique_write_file(storage, path, output_file));
-  serialize_db_proto(output_file.get(), db_proto);
+
+template <typename T>
+void serialize_db_proto(storehouse::WriteFile* file, const T& descriptor) {
+  int size = descriptor.ByteSize();
+  std::vector<u8> data(size);
+  descriptor.SerializeToArray(data.data(), size);
+  s_write(file, data.data(), size);
+}
+
+template <typename T>
+T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
+  T descriptor;
+  std::vector<u8> data = storehouse::read_entire_file(file, pos);
+  descriptor.ParseFromArray(data.data(), data.size());
+  return descriptor;
+}
+
+template <typename T>
+void write_db_proto(storehouse::StorageBackend *storage, T db_proto) {
+  std::unique_ptr<storehouse::WriteFile> output_file;
+  BACKOFF_FAIL(make_unique_write_file(storage, db_proto.descriptor_path(), output_file));
+  serialize_db_proto<typename T::Descriptor>(output_file.get(), db_proto.get_descriptor());
   BACKOFF_FAIL(output_file->save());
 }
 
-template <typename T, typename PathFn, typename... PathFnArgs>
-T read_db_proto(storehouse::StorageBackend* storage, PathFnArgs... args) {
-  const std::string path = PathFn(args...);
-  std::unique_ptr<RandomReadFile> db_in_file;
+template <typename T>
+T read_db_proto(storehouse::StorageBackend* storage, const std::string& path) {
+  std::unique_ptr<storehouse::RandomReadFile> db_in_file;
   BACKOFF_FAIL(
-      make_unique_random_read_file(storage, path, db_in_file));
+    make_unique_random_read_file(storage, path, db_in_file));
   u64 pos = 0;
-  return deserialize_db_proto<T>(db_in_file.get(), pos);
+  return T(deserialize_db_proto<typename T::Descriptor>(db_in_file.get(), pos));
 }
 
-using write_database_metadata =
-    read_db_proto<DatabaseMetadata, database_metadata_path()>;
+template <typename T>
+using WriteFn = void(*)(storehouse::StorageBackend *storage, T db_proto);
 
-using read_database_metadata =
-    read_db_proto<DatabaseMetadata, database_metadata_path()>;
+template <typename T>
+using ReadFn = T(*)(storehouse::StorageBackend *storage, const std::string& path);
 
-using write_table_descriptor =
-    read_db_proto<TableMetadata, table_descriptor_path()>;
+constexpr WriteFn<DatabaseMetadata> write_database_metadata =
+  write_db_proto<DatabaseMetadata>;
+constexpr ReadFn<DatabaseMetadata> read_database_metadata =
+  read_db_proto<DatabaseMetadata>;
 
-using read_table_descriptor =
-    read_db_proto<TableMetadata, table_descriptor_path()>;
+constexpr WriteFn<JobMetadata> write_job_metadata =
+  write_db_proto<JobMetadata>;
+constexpr ReadFn<JobMetadata> read_job_metadata =
+  read_db_proto<JobMetadata>;
 
-using write_job_descriptor =
-    read_db_proto<JobDescriptor, job_descriptor_path()>;
+constexpr WriteFn<TableMetadata> write_table_metadata =
+  write_db_proto<TableMetadata>;
+constexpr ReadFn<TableMetadata> read_table_metadata =
+  read_db_proto<TableMetadata>;
 
-using read_job_descriptor =
-    read_db_proto<JobDescriptor, job_descriptor_path()>;
-
-DatabaseMetadata write_database_metadata(storehouse::RandomReadFile* file,
-                                         u64& file_pos);
-
-void serialize_dataset_descriptor(storehouse::WriteFile* file,
-                                  const DatasetDescriptor& descriptor);
-
-DatasetDescriptor deserialize_dataset_descriptor(
-    storehouse::RandomReadFile* file, u64& file_pos);
-
-void serialize_video_metadata(storehouse::WriteFile* file,
-                              const VideoMetadata& metadata);
-
-VideoMetadata deserialize_video_metadata(storehouse::RandomReadFile* file,
-                                         u64& file_pos);
-
-void serialize_image_format_group_metadata(
-    storehouse::WriteFile* file, const ImageFormatGroupMetadata& metadata);
-
-ImageFormatGroupMetadata deserialize_image_format_group_metadata(
-    storehouse::RandomReadFile* file, u64& file_pos);
-
-void serialize_job_descriptor(storehouse::WriteFile* file,
-                              const JobDescriptor& descriptor);
-
-JobDescriptor deserialize_job_descriptor(storehouse::RandomReadFile* file,
-                                         u64& file_pos);
-
-
-
+}
 }

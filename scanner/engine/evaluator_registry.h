@@ -23,6 +23,7 @@
 #include <map>
 
 namespace scanner {
+namespace internal {
 
 class EvaluatorRegistry {
  public:
@@ -36,4 +37,5 @@ class EvaluatorRegistry {
 
 EvaluatorRegistry* get_evaluator_registry();
 
+}
 }

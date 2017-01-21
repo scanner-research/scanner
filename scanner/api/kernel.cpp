@@ -27,9 +27,10 @@ KernelRegistration::KernelRegistration(const KernelBuilder& builder) {
   const std::string &name = builder.name_;
   DeviceType type = builder.device_type_;
   i32 num_devices = builder.num_devices_;
-  KernelFactory::KernelConstructor constructor = builder.constructor_;
-  KernelFactory *factory = new KernelFactory(type, num_devices, 0, constructor);
-  KernelRegistry *registry = get_kernel_registry();
+  KernelConstructor constructor = builder.constructor_;
+  internal::KernelFactory *factory =
+    new internal::KernelFactory(name, type, num_devices, 0, constructor);
+  internal::KernelRegistry *registry = internal::get_kernel_registry();
   registry->add_kernel(name, factory);
 }
 

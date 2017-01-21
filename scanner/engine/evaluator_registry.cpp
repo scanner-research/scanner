@@ -16,6 +16,7 @@
 #include "scanner/engine/kernel_registry.h"
 
 namespace scanner {
+namespace internal {
 
 void EvaluatorRegistry::add_evaluator(const std::string &name,
                                       EvaluatorInfo *info) {
@@ -29,5 +30,7 @@ EvaluatorFactory* EvaluatorRegistry::get_kernel(const std::string &name) const {
 EvaluatorRegistry* get_evaluator_registry() {
   static EvaluatorRegistry* registry = new EvaluatorRegistry;
   return registry;
+}
+
 }
 }

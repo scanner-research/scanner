@@ -21,14 +21,12 @@
 #include <vector>
 
 namespace scanner {
-namespace api {
 
 struct TaskSet {
   std::vector<scanner::proto::Task> tasks;
   Evaluator* output_evaluator;
 };
 
-scanner::proto::TaskSet consume_task_set(TaskSet& task_set);
+proto::TaskSet consume_task_set(TaskSet& task_set);
 
-}
 }

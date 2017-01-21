@@ -16,6 +16,7 @@
 #include "scanner/engine/kernel_registry.h"
 
 namespace scanner {
+namespace internal {
 
 void KernelRegistry::add_kernel(const std::string &name,
                                 KernelFactory *factory) {
@@ -36,5 +37,7 @@ std::string KernelRegistry::factory_name(const std::string &name,
 KernelRegistry* get_kernel_registry() {
   static KernelRegistry* registry = new KernelRegistry;
   return registry;
+}
+
 }
 }

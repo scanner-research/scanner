@@ -5,19 +5,24 @@ package scanner.proto;
 // Database metadata messages
 message DatabaseDescriptor {
   message Job {
-    required int32 id = 1;
-    required string name = 2;
+    int32 id = 1;
+    string name = 2;
   }
 
   message Table {
-    required int32 id = 1;
-    required string name = 2;
+    int32 id = 1;
+    string name = 2;
   }
 
-  optional int32 next_job_id = 1;
-  optional int32 next_table_id = 2;
+  int32 next_job_id = 1;
+  int32 next_table_id = 2;
   repeated Job jobs = 3;
   repeated Table tables = 4;
+}
+
+enum DeviceType {
+  CPU = 0;
+  GPU = 1;
 }
 
 enum ImageEncodingType {
@@ -51,61 +56,62 @@ message VideoDescriptor {
     YUV_444 = 3;
   }
 
-  required int32 id = 1;
-  required int32 frames = 2;
-  required int32 width = 3;
-  required int32 height = 4;
+  int32 id = 1;
+  int32 frames = 2;
+  int32 width = 3;
+  int32 height = 4;
 
-  optional VideoCodecType codec_type = 5;
-  optional VideoChromaFormat chroma_format = 7;
+  VideoCodecType codec_type = 5;
+  VideoChromaFormat chroma_format = 7;
 
   repeated int64 keyframe_positions = 8 [packed=true];
   repeated int64 keyframe_timestamps = 9 [packed=true];
   repeated int64 keyframe_byte_offsets = 10 [packed=true];
-  optional bytes metadata_packets = 6;
+  bytes metadata_packets = 6;
 }
 
 message ImageFormatGroupDescriptor {
-  required int32 id = 1;
-  required ImageEncodingType encoding_type = 2;
-  required ImageColorSpace color_space = 3;
-  required int32 width = 4;
-  required int32 height = 5;
-  required int32 num_images = 7;
+  int32 id = 1;
+  ImageEncodingType encoding_type = 2;
+  ImageColorSpace color_space = 3;
+  int32 width = 4;
+  int32 height = 5;
+  int32 num_images = 7;
   repeated int64 compressed_sizes = 6 [packed=true];
 }
 
 message TableDescriptor {
-  required int32 id = 1;
-  required string name = 2;
+  int32 id = 1;
+  string name = 2;
   repeated string column_names = 3;
   repeated ColumnType column_types = 4;
-  required int64 num_rows = 5;
-  required int64 rows_per_file = 6;
+  int64 num_rows = 5;
+  int64 rows_per_file = 6;
 }
 
 // Task set messages
 message TableSample {
-  required int32 job_id = 1;
-  required int32 table_id = 2;
+  int32 job_id = 1;
+  int32 table_id = 2;
   repeated string columns = 3;
   repeated int64 rows = 4 [packed=true];
 }
 
 message Task {
-  required int32 table_id = 2;
+  int32 output_table_id = 2;
   repeated TableSample samples = 3;
 }
 
 message EvalInput {
-  required i32 evaluator_index = 1;
+  int32 evaluator_index = 1;
   repeated string columns = 2;
 }
 
 message Evaluator {
-  required string name = 1;
+  string name = 1;
   repeated EvalInput inputs = 2;
-  required bytes kernel_args = 3;
+  DeviceType device_type = 3;
+  bytes kernel_args = 4;
 }
 
 message TaskSet {
@@ -114,27 +120,27 @@ message TaskSet {
 }
 
 message JobDescriptor {
-  required int32 id = 1;
-  required string name = 2;
-  required int32 io_item_size = 3;
-  required int32 work_item_size = 4;
-  required int32 num_nodes = 5;
+  int32 id = 1;
+  string name = 2;
+  int32 io_item_size = 3;
+  int32 work_item_size = 4;
+  int32 num_nodes = 5;
   repeated Task tasks = 6;
   repeated string columns = 7;
 }
 
 // Interal messages
 message DecodeArgs {
-  required int64 start_keyframe = 3;
-  required int64 end_keyframe = 4;
-  required int64 valid_frame = 5;
+  int64 start_keyframe = 3;
+  int64 end_keyframe = 4;
+  int64 valid_frame = 5;
 }
 
 message ImageDecodeArgs {
-  required int32 warmup_count = 1;
-  required int32 rows_from_start = 2;
-  required ImageEncodingType encoding_type = 3;
-  required ImageColorSpace color_space = 4;
+  int32 warmup_count = 1;
+  int32 rows_from_start = 2;
+  ImageEncodingType encoding_type = 3;
+  ImageColorSpace color_space = 4;
   repeated int64 compressed_sizes = 5 [packed=true];
   repeated int64 valid_images = 6;
 }

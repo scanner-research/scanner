@@ -20,11 +20,12 @@
 #include "scanner/util/queue.h"
 
 namespace scanner {
+namespace internal {
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
 struct PreEvaluateThreadArgs {
   // Uniform arguments
-  const std::map<i32, BatchConfig>& metadata;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 
@@ -39,15 +40,13 @@ struct PreEvaluateThreadArgs {
 
 struct EvaluateThreadArgs {
   // Uniform arguments
-  const std::map<i32, BatchConfig>& metadata;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 
   // Per worker arguments
   int id;
-  int evaluator_group;
-  std::vector<EvaluatorFactory*> evaluator_factories;
-  std::vector<EvaluatorConfig> evaluator_configs;
+  std::vector<KernelFactory*> kernel_factories;
+  std::vector<KernelConfig> kernel_configs;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -57,7 +56,6 @@ struct EvaluateThreadArgs {
 
 struct PostEvaluateThreadArgs {
   // Uniform arguments
-  const std::map<i32, BatchConfig>& metadata;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 
@@ -76,4 +74,5 @@ void* evaluate_thread(void* arg);
 
 void* post_evaluate_thread(void* arg);
 
+}
 }

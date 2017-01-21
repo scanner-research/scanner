@@ -19,6 +19,7 @@
 #include "scanner/util/common.h"
 
 namespace scanner {
+namespace internal {
 
 struct RowIntervals {
   std::vector<i32> item_ids;
@@ -38,4 +39,5 @@ struct VideoIntervals {
 VideoIntervals slice_into_video_intervals(
     const std::vector<i64>& keyframe_positions, const std::vector<i64>& rows);
 
+}
 }

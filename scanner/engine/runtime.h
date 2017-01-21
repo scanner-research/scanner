@@ -15,9 +15,8 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
-#include "scanner/eval/evaluator_factory.h"
-#include "scanner/eval/pipeline_description.h"
+#include "scanner/api/kernel.h"
+#include "scanner/api/evaluator.h"
 #include "scanner/video/video_decoder.h"
 #include "scanner/util/memory.h"
 
@@ -26,6 +25,7 @@
 #include <string>
 
 namespace scanner {
+namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Work structs - structs used to exchange data between workers during
@@ -73,14 +73,5 @@ struct EvalWorkEntry {
   bool last_in_io_item;
 };
 
-///////////////////////////////////////////////////////////////////////////////
-struct JobParameters {
-  storehouse::StorageConfig* storage_config;
-  MemoryPoolConfig memory_pool_config;
-  std::string dataset_name;
-  PipelineDescription pipeline_description;
-  std::string out_job_name;
-};
-
-void run_job(JobParameters& params);
+}
 }

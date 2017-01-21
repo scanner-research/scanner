@@ -21,7 +21,6 @@
 #include <vector>
 
 namespace scanner {
-namespace api {
 
 bool is_frame_column(const std::string& name);
 
@@ -119,24 +118,26 @@ class Kernel {
   column__.rows.push_back(Row{buffer__, size__})
 
 struct KernelConfig;
+class KernelBuilder;
+
+using KernelConstructor = std::function<Kernel*(const KernelConfig& config)>;
 
 class KernelRegistration {
   KernelRegistration(const KernelBuilder& builder);
 };
 
 class KernelBuilder {
- public:
+public:
   friend class KernelRegistration;
 
-  KernelBuilder(const std::string &name
-                    std::function<Kernel *(const KernelConfig &config)>
-                        constructor)
-      : name_(name), builder_(builder) {}
+  KernelBuilder(const std::string &name,
+                KernelConstructor constructor)
+    : name_(name), constructor_(constructor) {}
 
   KernelBuilder& device(DeviceType device_type) {
     device_type_ = device_type;
     return *this;
-  };
+  }
 
   KernelBuilder& num_devices(i32 devices) {
     num_devices_ = devices;
@@ -144,8 +145,8 @@ class KernelBuilder {
   }
 
  private:
-  std::string name;
-  std::function<Kernel *(const KernelConfig &config)> builder_;
+  std::string name_;
+  KernelConstructor constructor_;
   DeviceType device_type_;
   i32 num_devices_;
 };
@@ -160,5 +161,4 @@ class KernelBuilder {
           return new KERNEL(config);                                    \
         })
 
-}
 }

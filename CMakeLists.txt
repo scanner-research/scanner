@@ -345,9 +345,10 @@ endif()
 
 add_executable(scanner_server
   scanner/main.cpp
+  $<TARGET_OBJECTS:api>
   $<TARGET_OBJECTS:engine>
   $<TARGET_OBJECTS:video>
-  $<TARGET_OBJECTS:eval>
+  #$<TARGET_OBJECTS:eval>
   $<TARGET_OBJECTS:evaluators>
   $<TARGET_OBJECTS:parsers>
   $<TARGET_OBJECTS:server>

@@ -35,6 +35,7 @@ using storehouse::RandomReadFile;
 using storehouse::StoreResult;
 
 namespace scanner {
+namespace internal {
 
 DatabaseMetadata::DatabaseMetadata() : next_dataset_id(0), next_job_id(0) {}
 
@@ -414,4 +415,6 @@ i64 JobMetadata::total_rows() const {
 std::string PREFIX = "";
 
 void set_database_path(std::string path) { PREFIX = path + "/"; }
+
+}
 }

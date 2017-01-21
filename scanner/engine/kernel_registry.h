@@ -23,6 +23,7 @@
 #include <map>
 
 namespace scanner {
+namespace internal {
 
 class KernelRegistry {
  public:
@@ -40,4 +41,5 @@ class KernelRegistry {
 
 KernelRegistry* get_kernel_registry();
 
+}
 }

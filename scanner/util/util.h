@@ -24,7 +24,6 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#include <mpi.h>
 #include <glog/logging.h>
 
 namespace scanner {

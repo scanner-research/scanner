@@ -16,6 +16,8 @@
 #include "scanner/engine/evaluate_worker.h"
 
 namespace scanner {
+namespace internal {
+
 void* pre_evaluate_thread(void* arg) {
   PreEvaluateThreadArgs& args = *reinterpret_cast<PreEvaluateThreadArgs*>(arg);
 
@@ -419,4 +421,5 @@ void* post_evaluate_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
+}
 }

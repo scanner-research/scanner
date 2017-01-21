@@ -16,14 +16,9 @@
 #include "scanner/api/task_set.h"
 
 namespace scanner {
-namespace api {
 
 TaskSet::TaskSet();
 
-scanner::proto::TaskSet consume_task_set(TaskSet& task_set);
+proto::TaskSet consume_task_set(TaskSet& task_set);
 
 }
-}
-
-ggkk
-scanner::proto::TaskSet consume_task_set(TaskSet& task_set);

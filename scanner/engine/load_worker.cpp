@@ -28,6 +28,8 @@ using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
 namespace scanner {
+namespace internal {
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
 std::tuple<size_t, size_t> find_keyframe_indices(
@@ -59,7 +61,7 @@ void* load_thread(void* arg) {
   auto setup_start = now();
 
   i32 rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   const i32 io_item_size = rows_per_io_item();
   const i32 work_item_size = rows_per_work_item();
@@ -194,7 +196,7 @@ void* load_thread(void* arg) {
             auto io_start = now();
 
             u64 pos = start_keyframe_byte_offset;
-            read(video_file, buffer, buffer_size, pos);
+            s_read(video_file, buffer, buffer_size, pos);
 
             args.profiler.add_interval("io", io_start, now());
             args.profiler.increment("io_read", static_cast<i64>(buffer_size));
@@ -293,7 +295,7 @@ void* load_thread(void* arg) {
           //   auto io_start = now();
 
           //   u64 pos = start_byte_offset;
-          //   read(image_file, buffer, buffer_size, pos);
+          //   s_read(image_file, buffer, buffer_size, pos);
 
           //   args.profiler.add_interval("io", io_start, now());
           //   args.profiler.increment("io_read", static_cast<i64>(buffer_size));
@@ -355,7 +357,7 @@ void* load_thread(void* arg) {
 
             // Read row sizes from work item file header
             std::vector<i64> row_sizes(num_rows);
-            read(file.get(), reinterpret_cast<u8*>(row_sizes.data()),
+            s_read(file.get(), reinterpret_cast<u8*>(row_sizes.data()),
                  row_sizes.size() * sizeof(i64), pos);
 
             // Determine start and end position of rows to read in file
@@ -372,7 +374,7 @@ void* load_thread(void* arg) {
 
             // Read chunk of file corresponding to requested rows
             pos += start_offset;
-            read(file.get(), row_data.data(), row_data.size(), pos);
+            s_read(file.get(), row_data.data(), row_data.size(), pos);
 
             // Extract individual rows and insert into output work entry
             u64 offset = 0;
@@ -409,5 +411,7 @@ void* load_thread(void* arg) {
   delete storage;
 
   THREAD_RETURN_SUCCESS();
+}
+
 }
 }

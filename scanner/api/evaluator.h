@@ -21,7 +21,6 @@
 #include <vector>
 
 namespace scanner {
-namespace api {
 
 struct EvalInput;
 
@@ -35,7 +34,7 @@ public:
 protected:
   std::string name_;
   std::vector<EvalInput> inputs_;
-  char* args;
+  char* args_;
 };
 
 struct EvalInput {
@@ -45,10 +44,12 @@ struct EvalInput {
 
 Evaluator* make_input_evaluator(const std::vector<std::string>& columns);
 
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// Implementation Details
+namespace internal {
+
+class EvaluatorBuilder;
+
 class EvaluatorRegistration {
  public:
   EvaluatorRegistration(const EvaluatorBuilder& builder);
@@ -78,4 +79,5 @@ class EvaluatorBuilder {
   static ::scanner::EvaluatorRegistration \
       evaluator_registration_##uid## = EvaluatorBuilder(#name)
 
+}
 }

@@ -3,7 +3,6 @@ set(SOURCE_FILES
   load_worker.cpp
   evaluate_worker.cpp
   save_worker.cpp
-  ingest.cpp
   sampling.cpp
   db.cpp)
 

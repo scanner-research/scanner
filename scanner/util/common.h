@@ -35,10 +35,10 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
-enum class DeviceType {
-  GPU,
-  CPU,
-};
+using proto::DeviceType;
+using proto::ImageEncodingType;
+using proto::ImageColorSpace;
+using proto::ColumnType;
 
 struct DeviceHandle {
 public:
@@ -88,11 +88,8 @@ struct StridedInterval {
   i32 stride = 1;
 };
 
-bool string_to_dataset_type(const std::string& s, DatasetType& t);
-std::string dataset_type_to_string(DatasetType d);
-
-bool string_to_image_encoding_type(const std::string& s, ImageEncodingType& t);
-std::string image_encoding_type_to_string(ImageEncodingType d);
+bool string_to_image_encoding_type(const std::string& s, proto::ImageEncodingType& t);
+std::string image_encoding_type_to_string(proto::ImageEncodingType d);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants

@@ -35,33 +35,6 @@ StridedInterval::StridedInterval(i32 start, i32 end, i32 stride)
 StridedInterval::StridedInterval(const Interval& i)
     : start(i.start), end(i.end), stride(1) {}
 
-bool string_to_dataset_type(const std::string& s, DatasetType& type) {
-  bool success = true;
-  if (s == "video") {
-    type = DatasetType_Video;
-  } else if (s == "image") {
-    type = DatasetType_Image;
-  } else {
-    success = false;
-  }
-  return success;
-}
-
-std::string dataset_type_to_string(DatasetType d) {
-  std::string s;
-  switch (d) {
-    case DatasetType_Video:
-      s = "video";
-      break;
-    case DatasetType_Image:
-      s = "image";
-      break;
-    default:
-      assert(false);
-  }
-  return s;
-}
-
 bool string_to_image_encoding_type(const std::string& s,
                                    ImageEncodingType& type) {
   bool success = true;

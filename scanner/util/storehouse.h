@@ -23,23 +23,23 @@
 
 namespace scanner {
 
-inline void write(storehouse::WriteFile* file, const u8* buffer, size_t size) {
+inline void s_write(storehouse::WriteFile* file, const u8* buffer, size_t size) {
   storehouse::StoreResult result;
   EXP_BACKOFF(file->append(size, buffer), result);
   exit_on_error(result);
 }
 
 template <typename T>
-inline void write(storehouse::WriteFile* file, const T& value) {
-  write(file, reinterpret_cast<const u8*>(&value), sizeof(T));
+inline void s_write(storehouse::WriteFile* file, const T& value) {
+  s_write(file, reinterpret_cast<const u8*>(&value), sizeof(T));
 }
 
 template <>
-inline void write(storehouse::WriteFile* file, const std::string& s) {
-  write(file, reinterpret_cast<const u8*>(s.c_str()), s.size() + 1);
+inline void s_write(storehouse::WriteFile* file, const std::string& s) {
+  s_write(file, reinterpret_cast<const u8*>(s.c_str()), s.size() + 1);
 }
 
-inline void read(storehouse::RandomReadFile* file, u8* buffer, size_t size,
+inline void s_read(storehouse::RandomReadFile* file, u8* buffer, size_t size,
                  u64& pos) {
   LOG(INFO) << "Reading " << file->path()
             << " (size " << size
@@ -55,14 +55,14 @@ inline void read(storehouse::RandomReadFile* file, u8* buffer, size_t size,
 }
 
 template <typename T>
-inline T read(storehouse::RandomReadFile* file, u64& pos) {
+inline T s_read(storehouse::RandomReadFile* file, u64& pos) {
   T var;
-  read(file, reinterpret_cast<u8*>(&var), sizeof(T), pos);
+  s_read(file, reinterpret_cast<u8*>(&var), sizeof(T), pos);
   return var;
 }
 
 template <>
-inline std::string read(storehouse::RandomReadFile* file, u64& pos) {
+inline std::string s_read(storehouse::RandomReadFile* file, u64& pos) {
   u64 curr_pos = pos;
 
   std::string var;

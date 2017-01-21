@@ -16,6 +16,7 @@
 #include "scanner/engine/sampling.h"
 
 namespace scanner {
+namespace internal {
 
 // Gets the list of work items for a sequence of rows in the job
 RowIntervals slice_into_row_intervals(const JobMetadata& job,
@@ -99,4 +100,5 @@ VideoIntervals slice_into_video_intervals(
   return info;
 }
 
+}
 }

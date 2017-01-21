@@ -20,10 +20,10 @@
 #include "scanner/util/queue.h"
 
 namespace scanner {
+namespace internal {
 
 struct LoadThreadArgs {
   // Uniform arguments
-  const DatasetMetadata& dataset;
   const std::map<i32, JobMetadata>& job_meta;
   const std::map<i32, VideoMetadata>& video_meta;
   const std::vector<ImageFormatGroupMetadata>& image_meta;
@@ -42,4 +42,5 @@ struct LoadThreadArgs {
 
 void* load_thread(void* arg);
 
+}
 }

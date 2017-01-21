@@ -15,29 +15,32 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
+#include "scanner/api/evaluator.h"
 #include "scanner/util/common.h"
 
 #include <vector>
 
 namespace scanner {
+namespace internal {
 
 class EvaluatorInfo {
 public:
   EvaluatorInfo(const std::string &name,
-                const std::vector<std::string> &output_columns);
+                const std::vector<std::string> &output_columns)
   : name_(name), output_columns_(output_columns) {}
 
-  const std::string &get_name() const {
+  const std::string& name() const {
     return name_;
   }
 
-  const std::vector<std::string>& get_output_columns() const {
+  const std::vector<std::string>& output_columns() const {
     return output_columns_;
   }
 
- private:
+private:
   std::string name_;
   std::vector<std::string> output_columns_;
 };
+
+}
 }
