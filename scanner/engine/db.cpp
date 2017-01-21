@@ -416,5 +416,18 @@ std::string PREFIX = "";
 
 void set_database_path(std::string path) { PREFIX = path + "/"; }
 
+void write_new_table(storehouse::StorageBackend *storage,
+                     DatabaseMetadata &meta,
+                     TableMetadata &table) {
+  LOG(INFO) << "Writing new table " << table.name() << "..." << std::endl;
+  TableDescriptor& table_desc = table.get_descriptor();
+  i32 table_id = meta.add_table(table.name());
+  table_desc.set_id(table_id);
+
+  write_table_metadata(table);
+  write_database_metadata(meta);
+  LOG(INFO) << "Finished writing new table " << table.name() << "."
+            << std::endl;
+}
 }
 }

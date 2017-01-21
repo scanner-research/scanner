@@ -54,47 +54,39 @@ namespace {
 
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
-struct BufferData {
-  u8* ptr;
-  size_t size;  // size left in the buffer
-
-  u8* orig_ptr;
-  size_t initial_size;
+struct FFStorehouseState {
+  std::unique_ptr<RandomReadFile> file;
+  size_t size;  // total file size
+  u64 pos;
 };
 
 // For custom AVIOContext that loads from memory
 i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
-  BufferData* bd = (BufferData*)opaque;
-  buf_size = std::min(static_cast<size_t>(buf_size), bd->size);
-  /* copy internal buffer data to buf */
-  memcpy(buf, bd->ptr, buf_size);
-  bd->ptr += buf_size;
-  bd->size -= buf_size;
-  return buf_size;
+  FFStorehouseState* fs = (FFStorehouseState*)opaque;
+  size_t size_read;
+  BACKOFF_FAIL(fs->file->read(fs->pos, buf_size, buf, size_read));
+  fs->pos += size_read;
+  return size_read;
 }
 
 i64 seek(void* opaque, i64 offset, i32 whence) {
-  BufferData* bd = (BufferData*)opaque;
-  {
-    switch (whence) {
-      case SEEK_SET:
-        bd->ptr = bd->orig_ptr + offset;
-        bd->size = bd->initial_size - offset;
-        break;
-      case SEEK_CUR:
-        bd->ptr += offset;
-        bd->size -= offset;
-        break;
-      case SEEK_END:
-        bd->ptr = bd->orig_ptr + bd->initial_size;
-        bd->size = 0;
-        break;
-      case AVSEEK_SIZE:
-        return bd->initial_size;
-        break;
-    }
-    return bd->initial_size - bd->size;
+  FFStorehouseState *fs = (FFStorehouseState *)opaque;
+  switch (whence) {
+  case SEEK_SET:
+    assert(offset >= 0);
+    fs->pos = static_cast<u64>(offset);
+    break;
+  case SEEK_CUR:
+    fs->pos += offset;
+    break;
+  case SEEK_END:
+    fs->pos = size;
+    break;
+  case AVSEEK_SIZE:
+    return fs->size;
+    break;
   }
+  return fs->size - fs->pos;
 }
 
 struct CodecState {
@@ -111,7 +103,7 @@ struct CodecState {
   AVBitStreamFilterContext* annexb;
 };
 
-bool setup_video_codec(BufferData* buffer, CodecState& state) {
+bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
   LOG(INFO) << "Setting up video codec";
   av_init_packet(&state.av_packet);
   state.picture = av_frame_alloc();
@@ -121,8 +113,8 @@ bool setup_video_codec(BufferData* buffer, CodecState& state) {
   u8* avio_context_buffer =
       static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
-      avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0,
-                         buffer, &read_packet, NULL, &seek);
+      avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
+                         &read_packet, NULL, &seek);
   state.format_context->pb = state.io_context;
 
   // Read file header
@@ -201,177 +193,15 @@ void cleanup_video_codec(CodecState state) {
   av_bitstream_filter_close(state.annexb);
 }
 
-bool read_timestamps(std::string video_path, WebTimestamps& meta) {
-  // Load the entire input
-  std::vector<u8> video_bytes;
-  {
-    // Read input from local path
-    std::ifstream file{video_path};
-
-    const size_t READ_SIZE = 1024 * 1024;
-    while (file) {
-      size_t prev_size = video_bytes.size();
-      video_bytes.resize(prev_size + READ_SIZE);
-      file.read(reinterpret_cast<char*>(video_bytes.data() + prev_size),
-                READ_SIZE);
-      size_t size_read = file.gcount();
-      if (size_read != READ_SIZE) {
-        video_bytes.resize(prev_size + size_read);
-      }
-    }
-  }
-
-  // Setup custom buffer for libavcodec so that we can read from memory instead
-  // of from a file
-  BufferData buffer;
-  buffer.ptr = reinterpret_cast<u8*>(video_bytes.data());
-  buffer.size = video_bytes.size();
-  buffer.orig_ptr = buffer.ptr;
-  buffer.initial_size = buffer.size;
-
-  CodecState state;
-  if (!setup_video_codec(&buffer, state)) {
-    return false;
-  }
-
-  AVStream const* const in_stream =
-      state.format_context->streams[state.video_stream_index];
-
-  meta.set_time_base_numerator(in_stream->time_base.num);
-  meta.set_time_base_denominator(in_stream->time_base.den);
-  std::vector<i64> pts_timestamps;
-  std::vector<i64> dts_timestamps;
-
-  bool succeeded = true;
-  i32 frame = 0;
-  while (true) {
-    // Read from format context
-    i32 err = av_read_frame(state.format_context, &state.av_packet);
-    if (err == AVERROR_EOF) {
-      av_packet_unref(&state.av_packet);
-      break;
-    } else if (err != 0) {
-      char err_msg[256];
-      av_strerror(err, err_msg, 256);
-      LOG(ERROR)
-        << "Error while decoding frame " << frame
-        << " (" << err << "): " << err_msg;
-
-      cleanup_video_codec(state);
-      return false;
-    }
-
-    if (state.av_packet.stream_index != state.video_stream_index) {
-      av_packet_unref(&state.av_packet);
-      continue;
-    }
-
-    /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
-       and this is the only method to use them because you cannot
-       know the compressed data size before analysing it.
-
-       BUT some other codecs (msmpeg4, mpeg4) are inherently frame
-       based, so you must call them with all the data for one
-       frame exactly. You must also initialize 'width' and
-       'height' before initializing them. */
-
-    /* NOTE2: some codecs allow the raw parameters (frame size,
-       sample rate) to be changed at any frame. We handle this, so
-       you should also take care of it */
-
-    /* here, we use a stream based decoder (mpeg1video), so we
-       feed decoder and see if it could decode a frame */
-
-    u8* orig_data = state.av_packet.data;
-    i32 orig_size = state.av_packet.size;
-    while (state.av_packet.size > 0) {
-      i32 got_picture = 0;
-      i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
-                                      &state.av_packet);
-      if (len < 0) {
-        char err_msg[256];
-        av_strerror(len, err_msg, 256);
-        LOG(FATAL)
-          << "Error while decoding frame " << frame
-          << " (" << len << "): " << err_msg;
-      }
-      if (got_picture) {
-        state.picture->pts = frame;
-
-        pts_timestamps.push_back(state.picture->pkt_pts);
-        dts_timestamps.push_back(state.picture->pkt_dts);
-
-        if (state.picture->key_frame == 1) {
-        }
-        // the picture is allocated by the decoder. no need to free
-        frame++;
-      }
-      state.av_packet.data += len;
-      state.av_packet.size -= len;
-    }
-    state.av_packet.data = orig_data;
-    state.av_packet.size = orig_size;
-
-    av_packet_unref(&state.av_packet);
-  }
-
-  // /* some codecs, such as MPEG, transmit the I and P frame with a
-  //    latency of one frame. You must do the following to have a
-  //    chance to get the last frame of the video */
-  state.av_packet.data = NULL;
-  state.av_packet.size = 0;
-
-  i32 got_picture;
-  do {
-    got_picture = 0;
-    i32 len = avcodec_decode_video2(state.in_cc, state.picture, &got_picture,
-                                    &state.av_packet);
-    (void)len;
-    if (got_picture) {
-      pts_timestamps.push_back(state.picture->pkt_pts);
-      dts_timestamps.push_back(state.picture->pkt_dts);
-
-      // the picture is allocated by the decoder. no need to free
-      frame++;
-    }
-  } while (got_picture);
-
-  cleanup_video_codec(state);
-
-  for (i64 ts : pts_timestamps) {
-    meta.add_pts_timestamps(ts);
-  }
-  for (i64 ts : dts_timestamps) {
-    meta.add_dts_timestamps(ts);
-  }
-
-  return true;
-}
-
-bool preprocess_video(storehouse::StorageBackend* storage,
-                      const std::string& dataset_name,
-                      const std::string& video_path,
-                      const std::string& item_name,
-                      VideoDescriptor& video_descriptor,
-                      bool compute_web_metadata) {
-  // Load the entire input
-  std::vector<u8> video_bytes;
-  {
-    // Read input from local path
-    std::unique_ptr<RandomReadFile> in_file;
-    BACKOFF_FAIL(make_unique_random_read_file(storage, video_path, in_file));
-
-    u64 pos = 0;
-    video_bytes = read_entire_file(in_file.get(), pos);
-  }
-
-  // Setup custom buffer for libavcodec so that we can read from memory instead
-  // of from a file
-  BufferData buffer;
-  buffer.ptr = reinterpret_cast<u8*>(video_bytes.data());
-  buffer.size = video_bytes.size();
-  buffer.orig_ptr = buffer.ptr;
-  buffer.initial_size = buffer.size;
+bool parse_and_write_video(storehouse::StorageBackend* storage,
+                           const std::string& table_name,
+                           const std::string& path) {
+  // Setup custom buffer for libavcodec so that we can read from a storehouse
+  // file instead of a posix file
+  FFStorehouseState file_state;
+  BACKOFF_FAIL(make_unique_random_read_file(storage, path, file_state.file));
+  BACKOFF_FAIL(file_state.file->get_size(buffer.size));
+  file_state.pos = 0;
 
   CodecState state;
   if (!setup_video_codec(&buffer, state)) {
@@ -383,8 +213,16 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   video_descriptor.set_chroma_format(VideoDescriptor::YUV_420);
   video_descriptor.set_codec_type(VideoDescriptor::H264);
 
+  // Allocate table id
+  DatabaseMetadata meta = read_database_metadata();
+  VideoDescriptor descriptor;
+
+  std::string data_path = dataset_item_data_path(dataset_name, item_name);
+  std::unique_ptr<WriteFile> demuxed_bytestream{};
+  BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream));
+
+  u64 bytestream_pos = 0;
   std::vector<u8> metadata_bytes;
-  std::vector<u8> bytestream_bytes;
   std::vector<i64> keyframe_positions;
   std::vector<i64> keyframe_timestamps;
   std::vector<i64> keyframe_byte_offsets;
@@ -476,7 +314,7 @@ bool preprocess_video(storehouse::StorageBackend* storage,
       extradata_extracted = true;
     }
 
-    i64 nal_bytestream_offset = bytestream_bytes.size();
+    i64 nal_bytestream_offset = bytestream_pos;
 
     LOG(INFO) << "new packet " << nal_bytestream_offset;
     bool insert_sps_nal = false;
@@ -548,28 +386,22 @@ bool preprocess_video(storehouse::StorageBackend* storage,
 
       // Insert metadata
       LOG(INFO) << "inserting sps and pss nals";
-      size_t prev_size = bytestream_bytes.size();
       i32 size = filtered_data_size + static_cast<i32>(sps_nal_bytes.size()) +
                  static_cast<i32>(pps_nal_bytes.size());
-      bytestream_offset =
-          prev_size + sizeof(i32) + sps_nal_bytes.size() + pps_nal_bytes.size();
-      bytestream_bytes.resize(prev_size + sizeof(i32) + size);
-      *((i32*)(bytestream_bytes.data() + prev_size)) = size;
-      memcpy(bytestream_bytes.data() + prev_size + sizeof(i32),
-             sps_nal_bytes.data(), sps_nal_bytes.size());
-      memcpy(bytestream_bytes.data() + prev_size + sizeof(i32) +
-                 sps_nal_bytes.size(),
-             pps_nal_bytes.data(), pps_nal_bytes.size());
-    } else {
-      // Append the packet to the stream
-      size_t prev_size = bytestream_bytes.size();
-      bytestream_offset = prev_size + sizeof(i32);
-      bytestream_bytes.resize(prev_size + sizeof(i32) + filtered_data_size);
-      *((i32*)(bytestream_bytes.data() + prev_size)) = filtered_data_size;
-    }
 
-    memcpy(bytestream_bytes.data() + bytestream_offset, filtered_data,
-           filtered_data_size);
+      s_write(demuxed_bytestream.get(), size);
+      s_write(demuxed_bytestream.get(), sps_nal_bytes.data(),
+              sps_nal_bytes.size());
+      s_write(demuxed_bytestream.get(), pps_nal_bytes.data(),
+              pps_nal_bytes.size());
+
+      bytestream_pos += sizeof(size) + size;
+    } else {
+      s_write(demuxed_bytestream.get(), filtered_data_size);
+      bytestream_pos += sizeof(size) + filtered_data_size;
+    }
+    // Append the packet to the stream
+    s_write(demuxed_bytestream.get(), filtered_data, filtered_data_size);
 
     free(filtered_data);
 
@@ -579,25 +411,22 @@ bool preprocess_video(storehouse::StorageBackend* storage,
   // Cleanup video decoder
   cleanup_video_codec(state);
 
-  video_descriptor.set_frames(frame);
-  video_descriptor.set_metadata_packets(metadata_bytes.data(),
-                                        metadata_bytes.size());
+  descriptor.set_frames(frame);
+  descriptor.set_metadata_packets(metadata_bytes.data(), metadata_bytes.size());
   for (i64 v : keyframe_positions) {
-    video_descriptor.add_keyframe_positions(v);
+    descriptor.add_keyframe_positions(v);
   }
   for (i64 v : keyframe_timestamps) {
-    video_descriptor.add_keyframe_timestamps(v);
+    descriptor.add_keyframe_timestamps(v);
   }
   for (i64 v : keyframe_byte_offsets) {
-    video_descriptor.add_keyframe_byte_offsets(v);
+    descriptor.add_keyframe_byte_offsets(v);
   }
 
-  const std::vector<u8>& demuxed_video_stream = bytestream_bytes;
-
-  // Write out our metadata video stream
+  // Save our metadata video stream
   {
     std::string metadata_path =
-        dataset_item_metadata_path(dataset_name, item_name);
+        table_item_video_metadata_path(item_name);
     std::unique_ptr<WriteFile> metadata_file;
     BACKOFF_FAIL(make_unique_write_file(storage, metadata_path, metadata_file));
 
@@ -606,110 +435,8 @@ bool preprocess_video(storehouse::StorageBackend* storage,
     BACKOFF_FAIL(metadata_file->save());
   }
 
-  // Write out our demuxed video stream
-  {
-    std::string data_path = dataset_item_data_path(dataset_name, item_name);
-    std::unique_ptr<WriteFile> output_file{};
-    BACKOFF_FAIL(make_unique_write_file(storage, data_path, output_file));
-
-    const size_t WRITE_SIZE = 16 * 1024;
-    u8 buffer[WRITE_SIZE];
-    size_t pos = 0;
-    while (pos != demuxed_video_stream.size()) {
-      const size_t size_to_write =
-          std::min(WRITE_SIZE, demuxed_video_stream.size() - pos);
-      StoreResult result;
-      EXP_BACKOFF(output_file->append(size_to_write,
-                                      reinterpret_cast<const u8*>(
-                                          demuxed_video_stream.data() + pos)),
-                  result);
-      assert(result == StoreResult::Success ||
-             result == StoreResult::EndOfFile);
-      pos += size_to_write;
-    }
-    BACKOFF_FAIL(output_file->save());
-  }
-
-  if (compute_web_metadata) {
-    // Create temporary file for writing ffmpeg output to
-    std::string temp_output_path;
-    FILE* fptr;
-    temp_file(&fptr, temp_output_path);
-    fclose(fptr);
-    temp_output_path += ".mp4";
-
-    // Convert to web friendly format
-    // vsync 0 needed to never drop or duplicate frames to match fps
-    // alternatively we could figure out how to make output fps same as input
-    std::string conversion_command =
-        "ffmpeg "
-        "-i " +
-        video_path +
-        " "
-        "-vsync 0 "
-        "-c:v h264 "
-        "-strict -2 "
-        "-movflags faststart " +
-        temp_output_path;
-
-    std::system(conversion_command.c_str());
-
-    // Copy the web friendly data format into database storage
-    {
-      // Read input from local path
-      std::ifstream file{temp_output_path};
-
-      // Write to database storage
-      std::string web_video_path =
-          dataset_item_video_path(dataset_name, item_name);
-      std::unique_ptr<WriteFile> output_file{};
-      BACKOFF_FAIL(
-          make_unique_write_file(storage, web_video_path, output_file));
-
-      const size_t READ_SIZE = 1024 * 1024;
-      std::vector<u8> buffer(READ_SIZE);
-      while (file) {
-        file.read(reinterpret_cast<char*>(buffer.data()), READ_SIZE);
-        size_t size_read = file.gcount();
-
-        StoreResult result;
-        EXP_BACKOFF(output_file->append(size_read,
-                                        reinterpret_cast<u8*>(buffer.data())),
-                    result);
-        assert(result == StoreResult::Success ||
-               result == StoreResult::EndOfFile);
-      }
-
-      BACKOFF_FAIL(output_file->save());
-    }
-
-    // Get timestamp info for web video
-    WebTimestamps timestamps_meta;
-    succeeded = read_timestamps(temp_output_path, timestamps_meta);
-    if (!succeeded) {
-      LOG(ERROR) << "Could not get timestamps from web data";
-      cleanup_video_codec(state);
-      return false;
-    }
-
-    LOG(INFO)
-      << "time base (" << timestamps_meta.time_base_numerator()
-      << "/" << timestamps_meta.time_base_denominator() << ")"
-      << ", orig frames " << frame
-      << ", dts size " << timestamps_meta.pts_timestamps_size();
-
-
-    {
-      // Write to database storage
-      std::string web_video_timestamp_path =
-          dataset_item_video_timestamps_path(dataset_name, item_name);
-      std::unique_ptr<WriteFile> output_file{};
-      BACKOFF_FAIL(make_unique_write_file(storage, web_video_timestamp_path,
-                                          output_file));
-
-      serialize_web_timestamps(output_file.get(), timestamps_meta);
-    }
-  }
+  // Save demuxed stream
+  BACKOFF_FAIL(demuxed_bystream->save());
 
   return succeeded;
 }
@@ -770,514 +497,312 @@ void write_last_processed_video(storehouse::StorageBackend* storage,
       file->append(sizeof(i32), reinterpret_cast<const u8*>(&file_index)));
 }
 
-void ingest_videos(storehouse::StorageBackend* storage,
-                   const std::string& dataset_name,
-                   const std::vector<std::string>& video_paths,
-                   bool compute_web_metadata, DatasetDescriptor& descriptor,
-                   std::vector<size_t>& ingested_video_ids,
-                   std::vector<i64>& num_frames) {
-  // Start from the file after the one we last processed succesfully before
-  // crashing/exiting
-
-  // TODO(apoms): It is currently invalid to recover from just the last
-  //   processed video index because then the total frames and format stats
-  //   will be miscalculated. These values should be included in the snapshot.
-  // i32 last_processed_index = read_last_processed_video(storage,
-  // dataset_name);
-  i32 last_processed_index = -1;
-
-  // Keep track of videos which we can't parse
-  i64 total_frames{};
-
-  i64 min_frames{};
-  i64 average_frames{};
-  i64 max_frames{};
-
-  i64 min_width{};
-  i64 average_width{};
-  i64 max_width{};
-
-  i64 min_height{};
-  i64 average_height{};
-  i64 max_height{};
-
-  descriptor.set_type(DatasetType_Video);
-
-  DatasetDescriptor::VideoMetadata& metadata = *descriptor.mutable_video_data();
-  std::vector<size_t> bad_video_indices;
-  std::vector<std::string> item_names;
-  for (i32 i = 0; i < video_paths.size(); ++i) {
-    item_names.push_back(std::to_string(i));
-  }
-  for (size_t i = last_processed_index + 1; i < video_paths.size(); ++i) {
-    const std::string& path = video_paths[i];
-    const std::string& item_name = item_names[i];
-
-    LOG(INFO) << "Ingesting video " << path << "..." << std::endl;
-
-    VideoDescriptor video_descriptor;
-    video_descriptor.set_id(i);
-    bool valid_video = preprocess_video(storage, dataset_name, path, item_name,
-                                        video_descriptor, compute_web_metadata);
-    if (!valid_video) {
-      LOG(WARNING) << "Failed to ingest video " << path << "! "
-                   << "Adding to bad paths file "
-                   << "(" << BAD_VIDEOS_FILE_PATH << "in current directory)."
-                   << std::endl;
-      bad_video_indices.push_back(i);
-      num_frames.push_back(0);
-    } else {
-      total_frames += video_descriptor.frames();
-      num_frames.push_back(video_descriptor.frames());
-      // We are summing into the average variables but we will divide
-      // by the number of entries at the end
-      min_frames = std::min(min_frames, (i64)video_descriptor.frames());
-      average_frames += video_descriptor.frames();
-      max_frames = std::max(max_frames, (i64)video_descriptor.frames());
-
-      min_width = std::min(min_width, (i64)video_descriptor.width());
-      average_width = video_descriptor.width();
-      max_width = std::max(max_width, (i64)video_descriptor.width());
-
-      min_height = std::min(min_height, (i64)video_descriptor.height());
-      average_height = video_descriptor.height();
-      max_height = std::max(max_height, (i64)video_descriptor.height());
-
-      LOG(INFO) << "Finished ingesting video " << path << "." << std::endl;
-    }
-
-    // Track the last succesfully processed dataset so we know where
-    // to resume if we crash or exit early
-    //write_last_processed_video(storage, dataset_name, static_cast<i32>(i));
-  }
-  if (!bad_video_indices.empty()) {
-    std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
-    for (size_t i : bad_video_indices) {
-      const std::string& bad_path = video_paths[i];
-      bad_paths_file << i << ", " << bad_path << std::endl;
-    }
-    bad_paths_file.close();
-  }
-
-  metadata.set_total_frames(total_frames);
-
-  metadata.set_min_frames(min_frames);
-  metadata.set_average_frames(average_frames);
-  metadata.set_max_frames(max_frames);
-
-  metadata.set_min_width(min_width);
-  metadata.set_average_width(average_width);
-  metadata.set_max_width(max_width);
-
-  metadata.set_min_height(min_height);
-  metadata.set_average_height(average_height);
-  metadata.set_max_height(max_height);
-
-  if (total_frames > 0) {
-    metadata.set_average_width(average_width / total_frames);
-    metadata.set_average_height(average_height / total_frames);
-  }
-
-  LOG(INFO)
-    << "max width " << max_width
-    << ",  max_height " << max_height;
-
-  // Remove bad paths
-  for (size_t i = 0; i < video_paths.size(); ++i) {
-    ingested_video_ids.push_back(i);
-  }
-  size_t num_bad_videos = bad_video_indices.size();
-  for (size_t i = 0; i < num_bad_videos; ++i) {
-    size_t bad_index = bad_video_indices[num_bad_videos - 1 - i];
-    ingested_video_ids.erase(ingested_video_ids.begin() + bad_index);
-  }
-
-  LOG_IF(FATAL, video_paths.size() == 0)
-      << "Dataset would be created with zero videos! Exiting";
-
-  for (size_t video_id : ingested_video_ids) {
-    const std::string& video_path = video_paths[video_id];
-    const std::string& item_path = item_names[video_id];
-    metadata.add_original_video_paths(video_path);
-    metadata.add_video_names(item_path);
-    metadata.add_video_ids(video_id);
-  }
-
-  // Reset last processed so that we start from scratch next time
-  // TODO(apoms): alternatively we could delete the file but apparently
-  // that was never designed into the storage interface!
-  write_last_processed_video(storage, dataset_name, -1);
-}
-
-void ingest_images(storehouse::StorageBackend* storage,
-                   const std::string& dataset_name,
-                   std::vector<std::string>& image_paths,
-                   bool compute_web_metadata, DatasetDescriptor& descriptor) {
-  i64 total_images{};
-
-  i64 min_width{};
-  i64 average_width{};
-  i64 max_width{};
-
-  i64 min_height{};
-  i64 average_height{};
-  i64 max_height{};
-
-  descriptor.set_type(DatasetType_Image);
-
-  DatasetDescriptor::ImageMetadata& metadata = *descriptor.mutable_image_data();
-  std::vector<ImageFormatGroupDescriptor> format_descriptors;
-  std::vector<std::unique_ptr<WriteFile>> output_files;
-  std::vector<size_t> image_idx_to_format_group;
-  std::vector<size_t> bad_image_indices;
-  for (size_t i = 0; i < image_paths.size(); ++i) {
-    const std::string& path = image_paths[i];
-
-    LOG(INFO) << "Ingesting image " << path << "..." << std::endl;
-
-    // Figure out file type from extension
-    ImageEncodingType image_type;
-    {
-      std::string base_name = basename_s(path);
-      std::vector<std::string> parts;
-      split(base_name, '.', parts);
-      if (parts.size() != 2) {
-        LOG(WARNING) << "File " << path << " does not have a valid name. File "
-                     << "must only have a single '.' followed by an image "
-                     << "extension. Ignoring this file.";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-      }
-      std::string extension = parts[1];
-      if (!string_to_image_encoding_type(extension, image_type)) {
-        LOG(WARNING)
-            << "File " << path << " is not an image with a supported "
-            << "type. Supported types are: jpeg, png. Ignoring this file";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-      }
-    }
-
-    // Read image data into a buffer to inspect for color space, width,
-    // and height
-    std::vector<u8> image_bytes;
-    {
-      std::unique_ptr<RandomReadFile> in_file;
-      BACKOFF_FAIL(make_unique_random_read_file(storage, path, in_file));
-      u64 pos = 0;
-      image_bytes = read_entire_file(in_file.get(), pos);
-    }
-
-    LOG(INFO) << "path " << path;
-    LOG(INFO) << "image size " << image_bytes.size() / 1024;
-    i32 image_width;
-    i32 image_height;
-    ImageColorSpace color_space;
-    switch (image_type) {
-    case ImageEncodingType::JPEG: {
-      JPEGReader reader;
-      reader.header_mem(image_bytes.data(), image_bytes.size());
-      if (reader.warnings() != "") {
-        LOG(WARNING) << "JPEG file " << path
-                     << " header could not be parsed: " << reader.warnings()
-                     << ". Ignoring.";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-      }
-      image_width = reader.width();
-      image_height = reader.height();
-      switch (reader.colorSpace()) {
-      case JPEG::COLOR_GRAYSCALE:
-        color_space = ImageColorSpace::Gray;
-        break;
-      case JPEG::COLOR_RGB:
-      case JPEG::COLOR_YCC:
-      case JPEG::COLOR_CMYK:
-      case JPEG::COLOR_YCCK:
-        color_space = ImageColorSpace::RGB;
-        break;
-      case JPEG::COLOR_UNKNOWN:
-        LOG(WARNING) << "JPEG file " << path << " is of unsupported type: "
-                     << "COLOR_UNKNOWN. Ignoring.";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-        break;
-      }
-      break;
-    }
-    case ImageEncodingType::PNG: {
-      unsigned w;
-      unsigned h;
-      LodePNGState png_state;
-      lodepng_state_init(&png_state);
-      unsigned error = lodepng_inspect(
-        &w, &h, &png_state,
-        reinterpret_cast<const unsigned char*>(image_bytes.data()),
-        image_bytes.size());
-      if (error) {
-        LOG(WARNING) << "PNG file " << path << " header could not be parsed: "
-                     << lodepng_error_text(error) << ". Ignoring";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-      }
-      image_width = w;
-      image_height = h;
-      switch (png_state.info_png.color.colortype) {
-      case LCT_GREY:
-        color_space = ImageColorSpace::Gray;
-        break;
-      case LCT_RGB:
-        color_space = ImageColorSpace::RGB;
-        break;
-      case LCT_RGBA:
-        color_space = ImageColorSpace::RGBA;
-        break;
-      case LCT_PALETTE:
-        // NOTE(apoms): We force a paletted file to RGB
-        color_space = ImageColorSpace::RGB;
-        break;
-        ;
-      case LCT_GREY_ALPHA: {
-        LOG(WARNING) << "PNG file " << path << " is of unsupported type: "
-                     << "GREY_ALPHA. Ignoring.";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-      }
-      }
-
-      lodepng_state_cleanup(&png_state);
-      break;
-    }
-    case ImageEncodingType::BMP: {
-      bitmap::BitmapMetadata metadata;
-      bitmap::DecodeResult result =
-        bitmap::bitmap_metadata(image_bytes.data(), image_bytes.size(), metadata);
-      if (result != bitmap::DecodeResult::Success) {
-        LOG(WARNING) << "BMP file " << path << " is invalid.";
-        bad_image_indices.push_back(i);
-        image_idx_to_format_group.push_back(0);
-        continue;
-      }
-      image_width = metadata.width;
-      image_height = metadata.height;
-      color_space = metadata.color_space == bitmap::ImageColorSpace::RGB ?
-        ImageColorSpace::RGB :
-        ImageColorSpace::RGBA;
-      break;
-    }
-    default:
-      assert(false);
-    }
-
-    // Check if image is of the same type as an existing set of images. If so,
-    // write to that file, otherwise create a new format group.
-    i32 format_idx = -1;
-    for (i32 i = 0; i < metadata.format_groups_size(); ++i) {
-      DatasetDescriptor::ImageMetadata::FormatGroup& group =
-          *metadata.mutable_format_groups(i);
-      if (image_type == group.encoding_type() &&
-          color_space == group.color_space() && image_width == group.width() &&
-          image_height == group.height()) {
-        format_idx = i;
-        break;
-      }
-    }
-    if (format_idx == -1) {
-      // Create new format group
-      format_descriptors.emplace_back();
-      ImageFormatGroupDescriptor& desc = format_descriptors.back();
-      DatasetDescriptor::ImageMetadata::FormatGroup& group =
-          *metadata.add_format_groups();
-      group.set_encoding_type(image_type);
-      group.set_color_space(color_space);
-      group.set_width(image_width);
-      group.set_height(image_height);
-      group.set_num_images(1);
-
-      desc.set_encoding_type(image_type);
-      desc.set_color_space(color_space);
-      desc.set_width(image_width);
-      desc.set_height(image_height);
-      desc.set_num_images(1);
-
-      format_idx = metadata.format_groups_size() - 1;
-      desc.set_id(format_idx);
-      // Create output file for writing to format group
-      WriteFile* file;
-      std::string item_path =
-          dataset_item_data_path(dataset_name, std::to_string(format_idx));
-      BACKOFF_FAIL(storage->make_write_file(item_path, file));
-      output_files.emplace_back(file);
-    } else {
-      // Add to existing format group
-      ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
-      DatasetDescriptor::ImageMetadata::FormatGroup& group =
-          *metadata.mutable_format_groups(format_idx);
-      group.set_num_images(group.num_images() + 1);
-      desc.set_num_images(desc.num_images() + 1);
-    }
-    image_idx_to_format_group.push_back(format_idx);
-
-    // Write out compressed image data
-    std::unique_ptr<WriteFile>& output_file = output_files[format_idx];
-    i64 image_size = image_bytes.size();
-    BACKOFF_FAIL(output_file->append(image_bytes));
-
-    ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
-    desc.add_compressed_sizes(image_size);
-
-    total_images++;
-
-    // We are summing into the average variables but we will divide
-    // by the number of entries at the end
-    min_width = std::min(min_width, (i64)image_width);
-    average_width += image_width;
-    max_width = std::max(max_width, (i64)image_width);
-
-    min_height = std::min(min_height, (i64)image_height);
-    average_height += image_height;
-    max_height = std::max(max_height, (i64)image_height);
-
-    LOG(INFO) << "Finished ingesting image " << path << "." << std::endl;
-  }
-
-  // Write out all image paths which failed the ingest process
-  if (!bad_image_indices.empty()) {
-    LOG(WARNING) << "Writing the path of all ill formatted images which "
-                 << "failed to ingest to " << BAD_VIDEOS_FILE_PATH << ".";
-
-    std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
-    for (size_t i : bad_image_indices) {
-      const std::string& bad_path = image_paths[i];
-      bad_paths_file << bad_path << std::endl;
-    }
-    bad_paths_file.close();
-  }
-
-  metadata.set_total_images(total_images);
-
-  metadata.set_min_width(min_width);
-  metadata.set_average_width(average_width);
-  metadata.set_max_width(max_width);
-
-  metadata.set_min_height(min_height);
-  metadata.set_average_height(average_height);
-  metadata.set_max_height(max_height);
-
-  if (total_images > 0) {
-    metadata.set_average_width(average_width / total_images);
-    metadata.set_average_height(average_height / total_images);
-  }
-
-  LOG(INFO)
-    << "max width " << max_width
-    << ",  max_height " << max_height;
-
-  for (size_t i = 0; i < image_paths.size(); ++i) {
-    const std::string& path = image_paths[i];
-    metadata.add_original_image_paths(path);
-  }
-
-  // Remove bad paths
-  size_t num_bad_images = bad_image_indices.size();
-  for (size_t i = 0; i < num_bad_images; ++i) {
-    size_t bad_index = bad_image_indices[num_bad_images - 1 - i];
-    image_paths.erase(image_paths.begin() + bad_index);
-  }
-
-  LOG_IF(FATAL, total_images == 0)
-      << "Dataset would be created with zero images! Exiting.";
-
-  for (size_t i = 0; i < image_paths.size(); ++i) {
-    const std::string& path = image_paths[i];
-    metadata.add_valid_image_paths(path);
-  }
-
-  for (size_t i = 0; i < format_descriptors.size(); ++i) {
-    // Flush image binary files
-    std::unique_ptr<WriteFile>& file = output_files[i];
-    BACKOFF_FAIL(file->save());
-
-    // Write out format descriptors for each group
-    ImageFormatGroupDescriptor& desc = format_descriptors[i];
-    std::string metadata_path =
-        dataset_item_metadata_path(dataset_name, std::to_string(i));
-    std::unique_ptr<WriteFile> metadata_file;
-    BACKOFF_FAIL(make_unique_write_file(storage, metadata_path, metadata_file));
-
-    ImageFormatGroupMetadata m{desc};
-    serialize_image_format_group_metadata(metadata_file.get(), m);
-    BACKOFF_FAIL(metadata_file->save());
-  }
-}
-
-void write_ingest_table(storehouse::StorageBackend* storage,
-                        TableDescriptor descriptor) {
-  DatasetDescriptor descriptor{};
-
-  DatabaseMetadata meta{};
-  {
-    const std::string db_meta_path = database_metadata_path();
-
-    std::unique_ptr<RandomReadFile> meta_in_file;
-    BACKOFF_FAIL(make_unique_random_read_file(storage.get(), db_meta_path,
-                                              meta_in_file));
-    u64 pos = 0;
-    meta = deserialize_database_metadata(meta_in_file.get(), pos);
-
-  }
-  i32 dataset_id = meta.add_dataset(dataset_name);
-  i32 base_job_id = meta.add_job(dataset_id, base_job_name());
-
-  descriptor.set_id(dataset_id);
-  descriptor.set_name(dataset_name);
-  base_job_descriptor.set_id(base_job_id);
-  base_job_descriptor.set_name(base_job_name());
-
-  // Write out dataset descriptor
-  {
-    const std::string dataset_file_path = dataset_descriptor_path(dataset_name);
-    std::unique_ptr<WriteFile> output_file;
-    BACKOFF_FAIL(
-        make_unique_write_file(storage.get(), dataset_file_path, output_file));
-
-    serialize_dataset_descriptor(output_file.get(), descriptor);
-    BACKOFF_FAIL(output_file->save());
-  }
-
-  // Write out base job descriptor
-  {
-    const std::string job_file_path =
-        job_descriptor_path(dataset_name, base_job_name());
-    std::unique_ptr<WriteFile> output_file;
-    BACKOFF_FAIL(
-        make_unique_write_file(storage.get(), job_file_path, output_file));
-
-    serialize_job_descriptor(output_file.get(), base_job_descriptor);
-    BACKOFF_FAIL(output_file->save());
-  }
-
-  // Add new dataset name to database metadata so we know it exists
-  {
-    const std::string db_meta_path = database_metadata_path();
-
-    std::unique_ptr<WriteFile> meta_out_file;
-    BACKOFF_FAIL(
-        make_unique_write_file(storage.get(), db_meta_path, meta_out_file));
-    serialize_database_metadata(meta_out_file.get(), meta);
-    BACKOFF_FAIL(meta_out_file->save());
-  }
-
-  LOG(INFO) << "Finished creating dataset " << dataset_name << "." << std::endl;
-
-}
-
+// void ingest_images(storehouse::StorageBackend* storage,
+//                    const std::string& table_name,
+//                    std::vector<std::string>& image_paths) {
+//   i64 total_images{};
+
+//   i64 min_width{};
+//   i64 average_width{};
+//   i64 max_width{};
+
+//   i64 min_height{};
+//   i64 average_height{};
+//   i64 max_height{};
+
+//   descriptor.set_type(DatasetType_Image);
+
+//   DatasetDescriptor::ImageMetadata& metadata = *descriptor.mutable_image_data();
+//   std::vector<ImageFormatGroupDescriptor> format_descriptors;
+//   std::vector<std::unique_ptr<WriteFile>> output_files;
+//   std::vector<size_t> image_idx_to_format_group;
+//   std::vector<size_t> bad_image_indices;
+//   for (size_t i = 0; i < image_paths.size(); ++i) {
+//     const std::string& path = image_paths[i];
+
+//     LOG(INFO) << "Ingesting image " << path << "..." << std::endl;
+
+//     // Figure out file type from extension
+//     ImageEncodingType image_type;
+//     {
+//       std::string base_name = basename_s(path);
+//       std::vector<std::string> parts;
+//       split(base_name, '.', parts);
+//       if (parts.size() != 2) {
+//         LOG(WARNING) << "File " << path << " does not have a valid name. File "
+//                      << "must only have a single '.' followed by an image "
+//                      << "extension. Ignoring this file.";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//       }
+//       std::string extension = parts[1];
+//       if (!string_to_image_encoding_type(extension, image_type)) {
+//         LOG(WARNING)
+//             << "File " << path << " is not an image with a supported "
+//             << "type. Supported types are: jpeg, png. Ignoring this file";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//       }
+//     }
+
+//     // Read image data into a buffer to inspect for color space, width,
+//     // and height
+//     std::vector<u8> image_bytes;
+//     {
+//       std::unique_ptr<RandomReadFile> in_file;
+//       BACKOFF_FAIL(make_unique_random_read_file(storage, path, in_file));
+//       u64 pos = 0;
+//       image_bytes = read_entire_file(in_file.get(), pos);
+//     }
+
+//     LOG(INFO) << "path " << path;
+//     LOG(INFO) << "image size " << image_bytes.size() / 1024;
+//     i32 image_width;
+//     i32 image_height;
+//     ImageColorSpace color_space;
+//     switch (image_type) {
+//     case ImageEncodingType::JPEG: {
+//       JPEGReader reader;
+//       reader.header_mem(image_bytes.data(), image_bytes.size());
+//       if (reader.warnings() != "") {
+//         LOG(WARNING) << "JPEG file " << path
+//                      << " header could not be parsed: " << reader.warnings()
+//                      << ". Ignoring.";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//       }
+//       image_width = reader.width();
+//       image_height = reader.height();
+//       switch (reader.colorSpace()) {
+//       case JPEG::COLOR_GRAYSCALE:
+//         color_space = ImageColorSpace::Gray;
+//         break;
+//       case JPEG::COLOR_RGB:
+//       case JPEG::COLOR_YCC:
+//       case JPEG::COLOR_CMYK:
+//       case JPEG::COLOR_YCCK:
+//         color_space = ImageColorSpace::RGB;
+//         break;
+//       case JPEG::COLOR_UNKNOWN:
+//         LOG(WARNING) << "JPEG file " << path << " is of unsupported type: "
+//                      << "COLOR_UNKNOWN. Ignoring.";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//         break;
+//       }
+//       break;
+//     }
+//     case ImageEncodingType::PNG: {
+//       unsigned w;
+//       unsigned h;
+//       LodePNGState png_state;
+//       lodepng_state_init(&png_state);
+//       unsigned error = lodepng_inspect(
+//         &w, &h, &png_state,
+//         reinterpret_cast<const unsigned char*>(image_bytes.data()),
+//         image_bytes.size());
+//       if (error) {
+//         LOG(WARNING) << "PNG file " << path << " header could not be parsed: "
+//                      << lodepng_error_text(error) << ". Ignoring";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//       }
+//       image_width = w;
+//       image_height = h;
+//       switch (png_state.info_png.color.colortype) {
+//       case LCT_GREY:
+//         color_space = ImageColorSpace::Gray;
+//         break;
+//       case LCT_RGB:
+//         color_space = ImageColorSpace::RGB;
+//         break;
+//       case LCT_RGBA:
+//         color_space = ImageColorSpace::RGBA;
+//         break;
+//       case LCT_PALETTE:
+//         // NOTE(apoms): We force a paletted file to RGB
+//         color_space = ImageColorSpace::RGB;
+//         break;
+//         ;
+//       case LCT_GREY_ALPHA: {
+//         LOG(WARNING) << "PNG file " << path << " is of unsupported type: "
+//                      << "GREY_ALPHA. Ignoring.";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//       }
+//       }
+
+//       lodepng_state_cleanup(&png_state);
+//       break;
+//     }
+//     case ImageEncodingType::BMP: {
+//       bitmap::BitmapMetadata metadata;
+//       bitmap::DecodeResult result =
+//         bitmap::bitmap_metadata(image_bytes.data(), image_bytes.size(), metadata);
+//       if (result != bitmap::DecodeResult::Success) {
+//         LOG(WARNING) << "BMP file " << path << " is invalid.";
+//         bad_image_indices.push_back(i);
+//         image_idx_to_format_group.push_back(0);
+//         continue;
+//       }
+//       image_width = metadata.width;
+//       image_height = metadata.height;
+//       color_space = metadata.color_space == bitmap::ImageColorSpace::RGB ?
+//         ImageColorSpace::RGB :
+//         ImageColorSpace::RGBA;
+//       break;
+//     }
+//     default:
+//       assert(false);
+//     }
+
+//     // Check if image is of the same type as an existing set of images. If so,
+//     // write to that file, otherwise create a new format group.
+//     i32 format_idx = -1;
+//     for (i32 i = 0; i < metadata.format_groups_size(); ++i) {
+//       DatasetDescriptor::ImageMetadata::FormatGroup& group =
+//           *metadata.mutable_format_groups(i);
+//       if (image_type == group.encoding_type() &&
+//           color_space == group.color_space() && image_width == group.width() &&
+//           image_height == group.height()) {
+//         format_idx = i;
+//         break;
+//       }
+//     }
+//     if (format_idx == -1) {
+//       // Create new format group
+//       format_descriptors.emplace_back();
+//       ImageFormatGroupDescriptor& desc = format_descriptors.back();
+//       DatasetDescriptor::ImageMetadata::FormatGroup& group =
+//           *metadata.add_format_groups();
+//       group.set_encoding_type(image_type);
+//       group.set_color_space(color_space);
+//       group.set_width(image_width);
+//       group.set_height(image_height);
+//       group.set_num_images(1);
+
+//       desc.set_encoding_type(image_type);
+//       desc.set_color_space(color_space);
+//       desc.set_width(image_width);
+//       desc.set_height(image_height);
+//       desc.set_num_images(1);
+
+//       format_idx = metadata.format_groups_size() - 1;
+//       desc.set_id(format_idx);
+//       // Create output file for writing to format group
+//       WriteFile* file;
+//       std::string item_path =
+//           dataset_item_data_path(dataset_name, std::to_string(format_idx));
+//       BACKOFF_FAIL(storage->make_write_file(item_path, file));
+//       output_files.emplace_back(file);
+//     } else {
+//       // Add to existing format group
+//       ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
+//       DatasetDescriptor::ImageMetadata::FormatGroup& group =
+//           *metadata.mutable_format_groups(format_idx);
+//       group.set_num_images(group.num_images() + 1);
+//       desc.set_num_images(desc.num_images() + 1);
+//     }
+//     image_idx_to_format_group.push_back(format_idx);
+
+//     // Write out compressed image data
+//     std::unique_ptr<WriteFile>& output_file = output_files[format_idx];
+//     i64 image_size = image_bytes.size();
+//     BACKOFF_FAIL(output_file->append(image_bytes));
+
+//     ImageFormatGroupDescriptor& desc = format_descriptors[format_idx];
+//     desc.add_compressed_sizes(image_size);
+
+//     total_images++;
+
+//     // We are summing into the average variables but we will divide
+//     // by the number of entries at the end
+//     min_width = std::min(min_width, (i64)image_width);
+//     average_width += image_width;
+//     max_width = std::max(max_width, (i64)image_width);
+
+//     min_height = std::min(min_height, (i64)image_height);
+//     average_height += image_height;
+//     max_height = std::max(max_height, (i64)image_height);
+
+//     LOG(INFO) << "Finished ingesting image " << path << "." << std::endl;
+//   }
+
+//   // Write out all image paths which failed the ingest process
+//   if (!bad_image_indices.empty()) {
+//     LOG(WARNING) << "Writing the path of all ill formatted images which "
+//                  << "failed to ingest to " << BAD_VIDEOS_FILE_PATH << ".";
+
+//     std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
+//     for (size_t i : bad_image_indices) {
+//       const std::string& bad_path = image_paths[i];
+//       bad_paths_file << bad_path << std::endl;
+//     }
+//     bad_paths_file.close();
+//   }
+
+//   metadata.set_total_images(total_images);
+
+//   metadata.set_min_width(min_width);
+//   metadata.set_average_width(average_width);
+//   metadata.set_max_width(max_width);
+
+//   metadata.set_min_height(min_height);
+//   metadata.set_average_height(average_height);
+//   metadata.set_max_height(max_height);
+
+//   if (total_images > 0) {
+//     metadata.set_average_width(average_width / total_images);
+//     metadata.set_average_height(average_height / total_images);
+//   }
+
+//   LOG(INFO)
+//     << "max width " << max_width
+//     << ",  max_height " << max_height;
+
+//   for (size_t i = 0; i < image_paths.size(); ++i) {
+//     const std::string& path = image_paths[i];
+//     metadata.add_original_image_paths(path);
+//   }
+
+//   // Remove bad paths
+//   size_t num_bad_images = bad_image_indices.size();
+//   for (size_t i = 0; i < num_bad_images; ++i) {
+//     size_t bad_index = bad_image_indices[num_bad_images - 1 - i];
+//     image_paths.erase(image_paths.begin() + bad_index);
+//   }
+
+//   LOG_IF(FATAL, total_images == 0)
+//       << "Dataset would be created with zero images! Exiting.";
+
+//   for (size_t i = 0; i < image_paths.size(); ++i) {
+//     const std::string& path = image_paths[i];
+//     metadata.add_valid_image_paths(path);
+//   }
+
+//   for (size_t i = 0; i < format_descriptors.size(); ++i) {
+//     // Flush image binary files
+//     std::unique_ptr<WriteFile>& file = output_files[i];
+//     BACKOFF_FAIL(file->save());
+
+//     // Write out format descriptors for each group
+//     ImageFormatGroupDescriptor& desc = format_descriptors[i];
+//     std::string metadata_path =
+//         dataset_item_metadata_path(dataset_name, std::to_string(i));
+//     std::unique_ptr<WriteFile> metadata_file;
+//     BACKOFF_FAIL(make_unique_write_file(storage, metadata_path, metadata_file));
+
+//     ImageFormatGroupMetadata m{desc};
+//     serialize_image_format_group_metadata(metadata_file.get(), m);
+//     BACKOFF_FAIL(metadata_file->save());
+//   }
+// }
 }  // end anonymous namespace
 
 void ingest_videos(storehouse::StorageConfig *storage_config,
@@ -1289,8 +814,24 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
   std::vector<size_t> ingested_video_ids;
   std::vector<i64> video_frames;
   for (size_t i = 0; i < table_names.size(); ++i) {
-    LOG(INFO) << "Creating video table " << table_names[i] << "..."
-              << std::endl;
+    if (!parse_and_write_video(storage.get(), table_names[i], paths[i])) {
+      // Did not ingest correctly, skip it
+      LOG(WARNING) << "Failed to ingest video " << path << "! "
+                   << "Adding to bad paths file "
+                   << "(" << BAD_VIDEOS_FILE_PATH << "in current directory)."
+                   << std::endl;
+      bad_video_indices.push_back(i);
+      num_frames.push_back(0);
+    }
+  }
+
+  if (!bad_video_indices.empty()) {
+    std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
+    for (size_t i : bad_video_indices) {
+      const std::string& bad_path = video_paths[i];
+      bad_paths_file << i << ", " << bad_path << std::endl;
+    }
+    bad_paths_file.close();
   }
 }
 
@@ -1300,8 +841,9 @@ void ingest_images(storehouse::StorageConfig *storage_config,
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
+  LOG(FATAL) << "Image ingest under construction!" << std::endl;
+
   LOG(INFO) << "Creating image table " << table_name << "..." << std::endl;
-  exit(1);
 }
 
 }

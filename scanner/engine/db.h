@@ -43,12 +43,12 @@ struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
   DatabaseMetadata();
   DatabaseMetadata(const Descriptor& descriptor);
 
-  bool has_dataset(const std::string& dataset) const;
-  bool has_dataset(i32 dataset_id) const;
-  i32 get_dataset_id(const std::string& dataset) const;
-  const std::string& get_dataset_name(i32 dataset_id) const;
-  i32 add_dataset(const std::string& dataset);
-  void remove_dataset(i32 dataset_id);
+  bool has_table(const std::string& table) const;
+  bool has_table(i32 table_id) const;
+  i32 get_table_id(const std::string& table) const;
+  const std::string& get_table_name(i32 table_id) const;
+  i32 add_table(const std::string& table);
+  void remove_table(i32 table_id);
 
   bool has_job(i32 dataset_id, const std::string& job) const;
   bool has_job(i32 job_id) const;
@@ -57,11 +57,10 @@ struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
   i32 add_job(i32 dataset_id, const std::string& job_name);
   void remove_job(i32 job_id);
 
-  // private:
-  i32 next_dataset_id;
+ private:
+  i32 next_table_id;
   i32 next_job_id;
-  std::map<i32, std::string> dataset_names;
-  std::map<i32, std::set<i32>> dataset_job_ids;
+  std::map<i32, std::string> table_names;
   std::map<i32, std::string> job_names;
 };
 
@@ -132,8 +131,15 @@ struct TableMetadata : Metadata<proto::TableDescriptor> {
 public:
   TableMetadata();
   TableMetadata(const Descriptor& table);
+
+  i32 id() const;
+
+  std::string name() const;
+
+  i64 total_rows() const;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 /// Path functions
 
 extern std::string PREFIX;
@@ -144,79 +150,51 @@ inline std::string database_metadata_path() {
   return PREFIX + "db_metadata.bin";
 }
 
-inline std::string dataset_directory(const std::string& dataset_name) {
-  return PREFIX + "datasets/" + dataset_name;
+inline std::string table_directory(i32 table_id) {
+  return PREFIX + "tables/" + std::to_string(table_id);
 }
 
-inline std::string dataset_descriptor_path(const std::string& dataset_name) {
-  return dataset_directory(dataset_name) + "/descriptor.bin";
+inline std::string table_descriptor_path(i32 table_id) {
+  return table_directory(table_id) + "/descriptor.bin";
 }
 
-inline std::string dataset_data_directory(const std::string& dataset_name) {
-  return dataset_directory(dataset_name) + "/data";
+inline std::string table_item_output_path(i32 table_id,
+                                          const std::string &column_name,
+                                          i32 item_id) {
+  return table_directory(table_id) + "/" + column_name + "_" +
+         std::to_string(item_id) + ".bin";
 }
 
-inline std::string dataset_item_data_path(const std::string& dataset_name,
-                                          const std::string& item_name) {
-  return dataset_data_directory(dataset_name) + "/" + item_name + "_data.bin";
+inline std::string
+table_item_video_metadata_path(i32 table_id, const std::string &column_name,
+                               i32 item_id) {
+  return table_directory(table_id) + "/" + column_name + "_" +
+         std::to_string(item_id) + "_video_metadata.bin";
 }
 
-inline std::string dataset_item_video_path(const std::string& dataset_name,
-                                           const std::string& item_name) {
-  return dataset_data_directory(dataset_name) + "/" + item_name + ".mp4";
+inline std::string job_directory(const std::string& job_name) {
+  return PREFIX + "jobs/" + job_name;
 }
 
-inline std::string dataset_item_video_timestamps_path(
-    const std::string& dataset_name, const std::string& item_name) {
-  return dataset_data_directory(dataset_name) + "/" + item_name +
-         "_web_timestamps.bin";
+inline std::string job_descriptor_path(const std::string& job_name) {
+  return job_directory(job_name) + "/descriptor.bin";
 }
 
-inline std::string dataset_item_metadata_path(const std::string& dataset_name,
-                                              const std::string& item_name) {
-  return dataset_data_directory(dataset_name) + "/" + item_name +
-         "_metadata.bin";
-}
-
-inline std::string job_directory(const std::string& dataset_name,
-                                 const std::string& job_name) {
-  return dataset_directory(dataset_name) + "/jobs/" + job_name;
-}
-
-inline std::string job_item_output_path(const std::string& dataset_name,
-                                        const std::string& job_name,
-                                        i32 table_id,
-                                        const std::string& column_name,
-                                        i32 work_item_index) {
-  return job_directory(dataset_name, job_name) + "/" +
-         std::to_string(table_id) + "_" + column_name + "_" +
-         std::to_string(work_item_index) + ".bin";
-}
-
-inline std::string job_descriptor_path(const std::string& dataset_name,
-                                       const std::string& job_name) {
-  return job_directory(dataset_name, job_name) + "/descriptor.bin";
-}
-
-inline std::string job_profiler_path(const std::string& dataset_name,
-                                     const std::string& job_name, i32 node) {
-  return job_directory(dataset_name, job_name) + "/profile_" +
+inline std::string job_profiler_path(const std::string& job_name, i32 node) {
+  return job_directory(job_name) + "/profile_" +
          std::to_string(node) + ".bin";
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// Constants
 
 inline i32 rows_per_io_item() { return IO_ITEM_SIZE; }
 
 inline i32 rows_per_work_item() { return WORK_ITEM_SIZE; }
 
-inline i32 base_job_id() { return 0; }
+inline std::string frame_column_name() { return "frame"; }
 
-inline std::string base_job_name() { return "base"; }
-
-inline i32 base_column_id() { return 0; }
-
-inline std::string base_column_name() { return "frame"; }
-
-inline std::string base_column_args_name() { return "frame_args"; }
+inline std::string frame_info_column_name() { return "frame_info"; }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Helpers
@@ -258,7 +236,8 @@ template <typename T>
 using WriteFn = void(*)(storehouse::StorageBackend *storage, T db_proto);
 
 template <typename T>
-using ReadFn = T(*)(storehouse::StorageBackend *storage, const std::string& path);
+using ReadFn = T(*)(storehouse::StorageBackend *storage,
+                    const std::string& path);
 
 constexpr WriteFn<DatabaseMetadata> write_database_metadata =
   write_db_proto<DatabaseMetadata>;
@@ -275,5 +254,10 @@ constexpr WriteFn<TableMetadata> write_table_metadata =
 constexpr ReadFn<TableMetadata> read_table_metadata =
   read_db_proto<TableMetadata>;
 
+///////////////////////////////////////////////////////////////////////////////
+/// Database modification helper functions
+void write_new_table(storehouse::StorageBackend *storage,
+                     const DatabaseMetadata &meta,
+                     const TableDescriptor &table);
 }
 }
