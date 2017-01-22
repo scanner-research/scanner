@@ -6,7 +6,7 @@ int main(int argc, char** argv) {
   // Initialize master and one worker
   scanner::DatabaseParameters db_params;
   db_params.storage_config = storehouse::StorageConfig::make_posix_config();
-  db_params.memory_pool_config.use_pool = false;
+  db_params.memory_pool_config.set_use_pool(false);
   db_params.db_path = "/tmp/new_scanner_db";
   scanner::ServerState master_state = scanner::start_master(db_params, false);
   scanner::ServerState worker_state =

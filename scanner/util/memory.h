@@ -23,11 +23,6 @@ namespace scanner {
 
 static const i64 DEFAULT_POOL_SIZE = 2L*1024L*1024L*1024L;
 
-struct MemoryPoolConfig {
-  bool use_pool;
-  i64 pool_size;
-};
-
 void init_memory_allocators(MemoryPoolConfig config);
 
 void destroy_memory_allocators();

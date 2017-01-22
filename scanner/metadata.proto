@@ -158,3 +158,8 @@ message LoadWorkEntry {
   int32 io_item_index = 1;
   repeated TableSample samples = 2;
 }
+
+message MemoryPoolConfig {
+  bool use_pool = 1;
+  int64 pool_size = 2;
+}

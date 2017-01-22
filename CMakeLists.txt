@@ -211,7 +211,7 @@ find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options regex REQUIRED)
+find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
 find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(CURL REQUIRED)
@@ -226,6 +226,7 @@ find_package(JPEGWrapper REQUIRED CONFIG
 find_package(LodePNG REQUIRED)
 find_package(BitmapCpp REQUIRED CONFIG
   PATHS "thirdparty/build/bin/bitmap-cpp")
+find_package(PythonLibs 2.7 EXACT REQUIRED)
 
 
 set(GTEST_INCLUDE_DIRS
@@ -347,7 +348,6 @@ if (BUILD_EXAMPLES)
 add_subdirectory(examples)
 endif()
 
-
 add_library(scanner SHARED
   $<TARGET_OBJECTS:api>
   $<TARGET_OBJECTS:engine>
@@ -364,16 +364,24 @@ add_executable(scanner_server
   scanner/main.cpp
   scanner)
 
+add_library(scanner_bindings SHARED scanner/api/python.cpp)
+set_target_properties(scanner_bindings PROPERTIES PREFIX "")
+target_include_directories(scanner_bindings PUBLIC ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(scanner_bindings PUBLIC
+  scanner
+  ${Boost_LIBRARIES}
+  ${PythonLibs_LIBRARIES})
+
 if (HALIDE_FOUND)
   foreach(TARGET ${HALIDE_TARGETS})
-    halide_add_aot_library_dependency(scanner_server ${TARGET})
+    halide_add_aot_library_dependency(scanner ${TARGET})
     target_link_libraries(scanner PRIVATE scanner_halide)
   endforeach()
 endif()
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
-  set_target_properties(scanner_server PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
-  set_property(TARGET scanner_server APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
+  set_target_properties(scanner PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
+  set_property(TARGET scanner APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
 endif()
 
 if(APPLE)

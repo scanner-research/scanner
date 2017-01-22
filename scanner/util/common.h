@@ -41,6 +41,7 @@ using proto::ImageColorSpace;
 using proto::ColumnType;
 using proto::LoadWorkEntry;
 using proto::Column;
+using proto::MemoryPoolConfig;
 
 struct DeviceHandle {
 public:

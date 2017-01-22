@@ -318,9 +318,9 @@ static std::map<i32, BlockAllocator*> gpu_block_allocators;
 void init_memory_allocators(MemoryPoolConfig config) {
   cpu_system_allocator = new SystemAllocator(CPU_DEVICE);
   Allocator* cpu_block_allocator_base = cpu_system_allocator;
-  if (config.use_pool) {
+  if (config.use_pool()) {
     cpu_block_allocator_base =
-      new PoolAllocator(CPU_DEVICE, cpu_system_allocator, config.pool_size);
+      new PoolAllocator(CPU_DEVICE, cpu_system_allocator, config.pool_size());
   }
   cpu_block_allocator = new BlockAllocator(cpu_block_allocator_base);
 
@@ -331,9 +331,9 @@ void init_memory_allocators(MemoryPoolConfig config) {
       new SystemAllocator(device);
     gpu_system_allocators[device.id] = gpu_system_allocator;
     Allocator* gpu_block_allocator_base = gpu_system_allocator;
-    if (config.use_pool) {
+    if (config.use_pool()) {
       gpu_block_allocator_base =
-        new PoolAllocator(device, gpu_system_allocator, config.pool_size);
+        new PoolAllocator(device, gpu_system_allocator, config.pool_size());
     }
     gpu_block_allocators[device.id] =
       new BlockAllocator(gpu_block_allocator_base);
