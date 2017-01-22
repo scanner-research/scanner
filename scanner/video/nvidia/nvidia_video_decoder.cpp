@@ -80,8 +80,9 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
   CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
-void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
-  metadata_ = metadata;
+void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
+  frame_width_ = metadata.width;
+  frame_height_ = metadata.height;
 
   CUcontext dummy;
 
@@ -132,8 +133,8 @@ void NVIDIAVideoDecoder::configure(const InputFormat& metadata) {
   cuinfo.ChromaFormat = cudaVideoChromaFormat_420;
   cuinfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
 
-  cuinfo.ulWidth = metadata.width();
-  cuinfo.ulHeight = metadata.height();
+  cuinfo.ulWidth = frame_width_;
+  cuinfo.ulHeight = frame_height_;
   cuinfo.ulTargetWidth = cuinfo.ulWidth;
   cuinfo.ulTargetHeight = cuinfo.ulHeight;
 
@@ -274,8 +275,8 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     }
     CUdeviceptr mapped_frame = mapped_frames_[mapped_frame_index];
     CU_CHECK(convertNV12toRGBA((const u8 *)mapped_frame, pitch, decoded_buffer,
-                               metadata_.width() * 3, metadata_.width(),
-                               metadata_.height(), 0));
+                               frame_width_ * 3, frame_width_,
+                               frame_height_, 0));
     CU_CHECK(cudaDeviceSynchronize());
 
     CUD_CHECK(

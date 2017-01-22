@@ -15,10 +15,10 @@
 
 #pragma once
 
-#include "scanner/eval/evaluator.h"
+#include "scanner/video/video_decoder.h"
+#include "scanner/api/kernel.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
-#include "scanner/video/video_decoder.h"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -35,7 +35,7 @@ class NVIDIAVideoDecoder : public VideoDecoder {
 
   ~NVIDIAVideoDecoder();
 
-  void configure(const InputFormat& metadata) override;
+  void configure(const FrameInfo& metadata) override;
 
   bool feed(const u8* encoded_buffer, size_t encoded_size,
             bool discontinuity = false) override;
@@ -64,7 +64,8 @@ class NVIDIAVideoDecoder : public VideoDecoder {
   static const int max_mapped_frames_ = 8;
   std::vector<cudaStream_t> streams_;
 
-  InputFormat metadata_;
+  i32 frame_width_;
+  i32 frame_height_;
   std::vector<char> metadata_packets_;
   CUvideoparser parser_;
   CUvideodecoder decoder_;

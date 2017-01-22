@@ -65,6 +65,8 @@ void BlurKernel::execute(const BatchedColumns &input_columns,
     }
     output_columns[0].rows.push_back(Row{output_buffer, frame_size});
   }
+  // Forward frame info
+  output_columns[1].rows = input_columns[1].rows;
 }
 
 REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});

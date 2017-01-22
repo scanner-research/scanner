@@ -45,11 +45,17 @@ class KernelFactory {
         constructor_(constructor) {}
 
   /** Describes the capabilities of the evaluators the factory produces. */
-  DeviceType get_device_type();
+  DeviceType get_device_type() const {
+    return type_;
+  }
 
-  i32 get_max_devices();
+  i32 get_max_devices() const {
+    return max_devices_;
+  }
 
-  i32 get_warmup_size();
+  i32 get_warmup_size() const {
+    return warmup_size_;
+  }
 
   /* @brief Constructs a kernel to be used for processing rows of data.
    */

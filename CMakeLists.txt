@@ -283,7 +283,6 @@ if (CUDA_FOUND)
     util_cuda
     "${CUDA_LIBRARIES}"
     "-lcuda"
-    "-lcudart"
     "-L/usr/lib/nvidia-367"
     "-lnvcuvid")
 endif()
@@ -298,6 +297,7 @@ endif()
 set(PROTO_FILES
   scanner/metadata.proto
   scanner/kernels/args.proto
+  scanner/kernels/types.proto
   scanner/engine/rpc.proto)
 
 set(GRPC_PROTO_FILES
@@ -348,7 +348,6 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:api>
   $<TARGET_OBJECTS:engine>
   #$<TARGET_OBJECTS:video>
-  #$<TARGET_OBJECTS:evaluators>
   $<TARGET_OBJECTS:kernels>
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}

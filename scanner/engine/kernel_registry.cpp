@@ -31,7 +31,7 @@ KernelFactory *KernelRegistry::get_kernel(const std::string &name,
 
 std::string KernelRegistry::factory_name(const std::string &name,
                                          DeviceType type) {
-  return name + (type == DeviceType::CPU) ? "_cpu" : "_gpu";
+  return name + ((type == DeviceType::CPU) ? "_cpu" : "_gpu");
 }
 
 KernelRegistry* get_kernel_registry() {

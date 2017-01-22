@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/kernel_registry.h"
+#include "scanner/engine/evaluator_registry.h"
 
 namespace scanner {
 namespace internal {
@@ -23,7 +23,8 @@ void EvaluatorRegistry::add_evaluator(const std::string &name,
   evaluators_.insert({name, info});
 }
 
-EvaluatorFactory* EvaluatorRegistry::get_kernel(const std::string &name) const {
+EvaluatorInfo *
+EvaluatorRegistry::get_evaluator_info(const std::string &name) const {
   return evaluators_.at(name);
 }
 

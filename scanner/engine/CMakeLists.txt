@@ -4,7 +4,9 @@ set(SOURCE_FILES
   evaluate_worker.cpp
   save_worker.cpp
   sampling.cpp
-  db.cpp)
+  db.cpp
+  kernel_registry.cpp
+  evaluator_registry.cpp)
 
 add_library(engine OBJECT
   ${SOURCE_FILES})

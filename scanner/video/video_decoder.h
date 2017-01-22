@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/api/kernel.h"
 #include "scanner/engine/db.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
@@ -47,7 +48,7 @@ class VideoDecoder {
 
   virtual ~VideoDecoder(){};
 
-  virtual void configure(const InputFormat& metadata) = 0;
+  virtual void configure(const FrameInfo& metadata) = 0;
 
   virtual bool feed(const u8* encoded_buffer, size_t encoded_size,
                     bool discontinuity = false) = 0;
