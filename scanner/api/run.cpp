@@ -29,8 +29,8 @@ namespace scanner {
 
 namespace {
 template <typename T>
-std::unique_ptr<grpc::Server> start(T& service, bool block) {
-  std::string port = "5001";
+std::unique_ptr<grpc::Server> start(T& service, const std::string& port,
+                                    bool block) {
   std::string server_address("0.0.0.0:" + port);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -46,7 +46,7 @@ std::unique_ptr<grpc::Server> start(T& service, bool block) {
 ServerState start_master(DatabaseParameters& params, bool block) {
   ServerState state;
   state.service.reset(scanner::internal::get_master_service(params));
-  state.server = start(state.service, block);
+  state.server = start(state.service, "5001", block);
   return state;
 }
 
@@ -55,14 +55,17 @@ ServerState start_worker(DatabaseParameters &params,
   ServerState state;
   state.service.reset(
       scanner::internal::get_worker_service(params, master_address));
-  state.server = start(state.service, block);
+  state.server = start(state.service, "5002", block);
   return state;
 }
 
 void new_job(JobParameters& params) {
   auto channel = grpc::CreateChannel(params.master_address,
                                      grpc::InsecureChannelCredentials());
-  assert(channel.GetState() != GRPC_CHANNEL_SHUTDOWN);
+  channel->WaitForConnected(
+      gpr_time_add(gpr_now(GPR_CLOCK_REALTIME),
+                   gpr_time_from_seconds(30, GPR_TIMESPAN)));
+  assert(channel->GetState() != GRPC_CHANNEL_SHUTDOWN);
   std::unique_ptr<proto::Master::Stub> master_ =
       proto::Master::NewStub(channel);
 
@@ -73,8 +76,9 @@ void new_job(JobParameters& params) {
   job_params.mutable_task_set()->Swap(&set);
   proto::Empty empty;
   printf("before new job\n");
-  master_->NewJob(&context, job_params, &empty);
-  printf("after new job\n");
+  grpc::Status status = master_->NewJob(&context, job_params, &empty);
+  printf("after new job, %d, %s\n", status.error_code(),
+         status.error_message().c_str());
 }
 
 }

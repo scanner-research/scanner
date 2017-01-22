@@ -510,12 +510,9 @@ private:
 
 class MasterImpl final : public proto::Master::Service {
 public:
-  MasterImpl(DatabaseParameters& params)
-    : next_io_item_to_allocate_(0),
-    num_io_items_(0),
-    db_params_(params)
-    {
-      storage_ =
+  MasterImpl(DatabaseParameters &params)
+      : next_io_item_to_allocate_(0), num_io_items_(0), db_params_(params) {
+    storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
     }
 
@@ -531,6 +528,8 @@ public:
         grpc::CreateChannel(
           worker_info->address(),
           grpc::InsecureChannelCredentials())));
+
+    return grpc::Status::OK;
   }
 
   grpc::Status NextIOItem(grpc::ServerContext* context,
@@ -549,6 +548,7 @@ public:
                       const proto::JobParameters* job_params,
                       proto::Empty* empty) {
     printf("rpc new job!\n");
+    return grpc::Status::OK;
 
     const i32 io_item_size = rows_per_io_item();
     const i32 work_item_size = rows_per_work_item();
@@ -609,6 +609,8 @@ public:
     job_descriptor.set_id(job_id);
     job_descriptor.set_name(job_params->job_name());
     write_job_metadata(storage_, job_descriptor);
+
+    return grpc::Status::OK;
   }
 
 private:
