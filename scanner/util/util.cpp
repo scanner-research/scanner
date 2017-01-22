@@ -62,14 +62,4 @@ void temp_file(FILE** fp, std::string& name) {
   name = std::string(n);
 }
 
-void MPI_CHECK(int error_code) {
-  if (error_code != MPI_SUCCESS) {
-    char error_string[512];
-    int length_of_error_string;
-
-    MPI_Error_string(error_code, error_string, &length_of_error_string);
-    LOG(FATAL) << error_string;
-  }
-}
-
 }

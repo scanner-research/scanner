@@ -94,10 +94,6 @@ inline std::vector<std::string> split(const std::string &s, char delim) {
     pthread_exit(val);               \
   } while (0);
 
-///////////////////////////////////////////////////////////////////////////////
-/// MPI utils
-inline bool is_master(int rank) { return rank == 0; }
-
 template <typename T>
 T sum(const std::vector<T>& vec) {
   T result{};
@@ -111,6 +107,4 @@ template <typename T>
 T nano_to_ms(T ns) {
   return ns / 1000000;
 }
-
-void MPI_CHECK(int error_code);
 }

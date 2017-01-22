@@ -70,13 +70,13 @@ message VideoDescriptor {
   int32 width = 5;
   int32 height = 6;
 
-  VideoCodecType codec_type = 5;
-  VideoChromaFormat chroma_format = 7;
+  VideoCodecType codec_type = 7;
+  VideoChromaFormat chroma_format = 8;
 
-  repeated int64 keyframe_positions = 8 [packed=true];
-  repeated int64 keyframe_timestamps = 9 [packed=true];
-  repeated int64 keyframe_byte_offsets = 10 [packed=true];
-  bytes metadata_packets = 6;
+  repeated int64 keyframe_positions = 9 [packed=true];
+  repeated int64 keyframe_timestamps = 10 [packed=true];
+  repeated int64 keyframe_byte_offsets = 11 [packed=true];
+  bytes metadata_packets = 12;
 }
 
 message ImageFormatGroupDescriptor {

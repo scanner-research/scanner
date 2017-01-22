@@ -27,8 +27,7 @@ namespace scanner {
  */
 struct KernelConfig {
   std::vector<std::string> input_columns;
-  char* args;
-  size_t args_size;
+  std::vector<u8> args;
 };
 
 namespace internal {

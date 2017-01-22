@@ -55,7 +55,7 @@ table_item_video_metadata_path(i32 table_id, i32 column_id, i32 item_id) {
 }
 
 inline std::string job_directory(i32 job_id) {
-  return PREFIX + "jobs/" + job_name;
+  return PREFIX + "jobs/" + std::to_string(job_id);
 }
 
 inline std::string job_descriptor_path(i32 job_id) {
@@ -72,23 +72,27 @@ inline std::string job_profiler_path(i32 job_id, i32 node) {
 /// Common persistent data structs and their serialization helpers
 
 template<typename T>
-struct Metadata {
+class Metadata {
 public:
   using Descriptor = T;
+  Metadata(const Descriptor& d) {
+    descriptor_ = d;
+  }
+
   const Descriptor& get_descriptor() const;
 
-  std::string descriptor_path() const;
+  const std::string& descriptor_path() const;
 
 protected:
   mutable Descriptor descriptor_;
 };
 
-struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
+class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
  public:
   DatabaseMetadata();
   DatabaseMetadata(const Descriptor& descriptor);
 
-  static std::string descriptor_path() const;
+  static const std::string& descriptor_path();
 
   bool has_table(const std::string& table) const;
   bool has_table(i32 table_id) const;
@@ -111,14 +115,14 @@ struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
   std::map<i32, std::string> job_names_;
 };
 
-struct VideoMetadata : Metadata<proto::VideoDescriptor> {
+class VideoMetadata : public Metadata<proto::VideoDescriptor> {
  public:
   VideoMetadata();
   VideoMetadata(const Descriptor& descriptor);
 
-  static std::string descriptor_path(i32 table_id,
-                                     i32 column_id,
-                                     i32 item_id) const;
+  static const std::string& descriptor_path(i32 table_id,
+                                           i32 column_id,
+                                           i32 item_id);
 
   i32 table_id() const;
   i32 column_id() const;
@@ -130,7 +134,7 @@ struct VideoMetadata : Metadata<proto::VideoDescriptor> {
   std::vector<i64> keyframe_byte_offsets() const;
 };
 
-struct ImageFormatGroupMetadata : Metadata<proto::VideoDescriptor> {
+class ImageFormatGroupMetadata : public Metadata<proto::VideoDescriptor> {
  public:
   ImageFormatGroupMetadata();
   ImageFormatGroupMetadata(const Descriptor& descriptor);
@@ -143,12 +147,12 @@ struct ImageFormatGroupMetadata : Metadata<proto::VideoDescriptor> {
   std::vector<i64> compressed_sizes() const;
 };
 
-struct JobMetadata : Metadata<proto::JobDescriptor> {
+class JobMetadata : public Metadata<proto::JobDescriptor> {
  public:
   JobMetadata();
   JobMetadata(const Descriptor& job);
 
-  static std::string descriptor_path(i32 job_id) const;
+  static const std::string& descriptor_path(i32 job_id);
 
   i32 id() const;
 
@@ -160,7 +164,7 @@ struct JobMetadata : Metadata<proto::JobDescriptor> {
 
   i32 num_nodes() const;
 
-  const std::vector<Column>& columns() const;
+  const std::vector<proto::Column>& columns() const;
 
   i32 column_id(const std::string& column_name) const;
 
@@ -175,19 +179,19 @@ struct JobMetadata : Metadata<proto::JobDescriptor> {
   i64 total_rows() const;
 
 private:
-  std::vector<Column> columns_;
+  std::vector<proto::Column> columns_;
   std::map<std::string, i32> column_ids_;
   std::vector<std::string> table_names_;
   std::map<std::string, i32> table_ids_;
   mutable std::map<i32, i64> rows_in_table_;
 };
 
-struct TableMetadata : Metadata<proto::TableDescriptor> {
+class TableMetadata : public Metadata<proto::TableDescriptor> {
 public:
   TableMetadata();
   TableMetadata(const Descriptor& table);
 
-  static std::string descriptor_path(i32 table_id);
+  static const std::string& descriptor_path(i32 table_id);
 
   i32 id() const;
 
@@ -197,7 +201,7 @@ public:
 
   i64 rows_per_item() const;
 
-  const std::vector<Column>& columns() const;
+  const std::vector<proto::Column>& columns() const;
 
   std::string column_name(i32 column_id) const;
 
@@ -206,7 +210,7 @@ public:
   ColumnType column_type(i32 column_id) const;
 
  private:
-  std::vector<Column> columns_;
+  std::vector<proto::Column> columns_;
 };
 
 
@@ -243,8 +247,13 @@ T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
 template <typename T>
 void write_db_proto(storehouse::StorageBackend *storage, T db_proto) {
   std::unique_ptr<storehouse::WriteFile> output_file;
-  BACKOFF_FAIL(make_unique_write_file(storage, db_proto.descriptor_path(), output_file));
-  serialize_db_proto<typename T::Descriptor>(output_file.get(), db_proto.get_descriptor());
+  BACKOFF_FAIL(
+    make_unique_write_file(
+      storage,
+      db_proto.Metadata<typename T::Descriptor>::descriptor_path(),
+      output_file));
+  serialize_db_proto<typename T::Descriptor>(
+    output_file.get(), db_proto.get_descriptor());
   BACKOFF_FAIL(output_file->save());
 }
 
@@ -288,6 +297,6 @@ constexpr ReadFn<VideoMetadata> read_video_metadata =
 /// Database modification helper functions
 void write_new_table(storehouse::StorageBackend *storage,
                      const DatabaseMetadata &meta,
-                     const TableDescriptor &table);
+                     const proto::TableDescriptor &table);
 }
 }

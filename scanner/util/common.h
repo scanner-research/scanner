@@ -39,7 +39,6 @@ using proto::DeviceType;
 using proto::ImageEncodingType;
 using proto::ImageColorSpace;
 using proto::ColumnType;
-using proto::Column;
 
 struct DeviceHandle {
 public:

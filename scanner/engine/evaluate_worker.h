@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/engine/kernel_factory.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"

@@ -42,13 +42,13 @@ void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
                             int64_t worker_num, const Profiler& profiler) {
   // Write worker header information
   // Node
-  write(file, node);
+  s_write(file, node);
   // Worker type
-  write(file, type_name);
+  s_write(file, type_name);
   // Worker tag
-  write(file, tag);
+  s_write(file, tag);
   // Worker number
-  write(file, worker_num);
+  s_write(file, worker_num);
   // Intervals
   const std::vector<scanner::Profiler::TaskRecord>& records =
       profiler.get_records();
@@ -70,32 +70,32 @@ void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
   }
   // Write out key name dictionary
   int64_t num_keys = static_cast<int64_t>(key_names.size());
-  write(file, num_keys);
+  s_write(file, num_keys);
   for (auto& kv : key_names) {
     std::string key = kv.first;
     uint8_t key_index = kv.second;
-    write(file, key);
-    write(file, key_index);
+    s_write(file, key);
+    s_write(file, key_index);
   }
   // Number of intervals
   int64_t num_records = static_cast<int64_t>(records.size());
-  write(file, num_records);
+  s_write(file, num_records);
   for (size_t j = 0; j < records.size(); j++) {
     const scanner::Profiler::TaskRecord& record = records[j];
     uint8_t key_index = key_names[record.key];
     int64_t start = record.start;
     int64_t end = record.end;
-    write(file, key_index);
-    write(file, start);
-    write(file, end);
+    s_write(file, key_index);
+    s_write(file, start);
+    s_write(file, end);
   }
-  // Write out counters
+  // S_Write out counters
   const std::map<std::string, int64_t>& counters = profiler.get_counters();
   int64_t num_counters = static_cast<int64_t>(counters.size());
-  write(file, num_counters);
+  s_write(file, num_counters);
   for (auto& kv : counters) {
-    write(file, kv.first);
-    write(file, kv.second);
+    s_write(file, kv.first);
+    s_write(file, kv.second);
   }
 }
 }
