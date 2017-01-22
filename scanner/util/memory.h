@@ -28,8 +28,7 @@ struct MemoryPoolConfig {
   i64 pool_size;
 };
 
-void init_memory_allocators(std::vector<i32> gpu_device_ids,
-                            MemoryPoolConfig config);
+void init_memory_allocators(MemoryPoolConfig config);
 
 void destroy_memory_allocators();
 

@@ -119,7 +119,8 @@ message Evaluator {
   string name = 1;
   repeated EvalInput inputs = 2;
   DeviceType device_type = 3;
-  bytes kernel_args = 4;
+  int32 device_count = 4;
+  bytes kernel_args = 5;
 }
 
 message TaskSet {
@@ -134,7 +135,7 @@ message JobDescriptor {
   int32 work_item_size = 4;
   int32 num_nodes = 5;
   repeated Task tasks = 6;
-  repeated Column columns = 7;
+  repeated string columns = 7;
 }
 
 // Interal messages
@@ -151,4 +152,9 @@ message ImageDecodeArgs {
   ImageColorSpace color_space = 4;
   repeated int64 compressed_sizes = 5 [packed=true];
   repeated int64 valid_images = 6;
+}
+
+message LoadWorkEntry {
+  int32 io_item_index = 1;
+  repeated TableSample samples = 2;
 }

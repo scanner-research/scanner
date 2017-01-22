@@ -46,22 +46,6 @@ struct WorkItem {
   i64 io_item_index;
 };
 
-struct LoadWorkEntry {
-  struct Sample {
-    // @brief which job to select tables from
-    i32 job_id;
-    // @brief which table to select rows from
-    i32 table_id;
-    // @brief the columns to read from
-    std::vector<std::string> columns;
-    // @brief the rows to read from the sampled table
-    std::vector<i64> rows;
-  };
-
-  i32 io_item_index;
-  std::vector<Sample> samples;
-};
-
 struct EvalWorkEntry {
   i32 io_item_index;
   std::vector<std::string> column_names;

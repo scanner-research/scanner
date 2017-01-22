@@ -24,7 +24,6 @@ namespace internal {
 
 struct SaveThreadArgs {
   // Uniform arguments
-  std::string dataset_name;
   std::string job_name;
   const std::vector<IOItem>& io_items;
 

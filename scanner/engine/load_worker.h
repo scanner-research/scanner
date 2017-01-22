@@ -24,9 +24,6 @@ namespace internal {
 
 struct LoadThreadArgs {
   // Uniform arguments
-  const std::map<i32, JobMetadata>& job_meta;
-  const std::map<i32, VideoMetadata>& video_meta;
-  const std::vector<ImageFormatGroupMetadata>& image_meta;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 

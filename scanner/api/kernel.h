@@ -58,8 +58,7 @@ class Kernel {
   struct Config {
     std::vector<DeviceHandle> devices;
     std::vector<std::string> input_columns;
-    char* kernel_args;
-    size_t kernel_args_size;
+    std::vector<u8> args;
   };
 
   Kernel(const Config& config);
@@ -117,10 +116,9 @@ class Kernel {
 #define INSERT_ROW(column__, buffer__, size__) \
   column__.rows.push_back(Row{buffer__, size__})
 
-struct KernelConfig;
 class KernelBuilder;
 
-using KernelConstructor = std::function<Kernel*(const KernelConfig& config)>;
+using KernelConstructor = std::function<Kernel*(const Kernel::Config& config)>;
 
 class KernelRegistration {
   KernelRegistration(const KernelBuilder& builder);
@@ -154,11 +152,11 @@ public:
 #define REGISTER_KERNEL(name, KERNEL) \
   REGISTER_KERNEL_UID(__COUNTER__, name, kernel)
 
-#define REGISTER_KERNEL_UID(uid, name, KERNEL) \
-  static ::scanner::KernelRegistration \
-      kernel_registration_##uid## = \
-      KernelBuilder(#name, [](const KernelConfig &config) {             \
-          return new KERNEL(config);                                    \
-        })
+#define REGISTER_KERNEL_UID(uid, name, KERNEL)              \
+  static ::scanner::KernelRegistration                      \
+    kernel_registration_##uid## =                           \
+    KernelBuilder(#name, [](const Kernel::Config &config) { \
+        return new KERNEL(config);                          \
+      })
 
 }

@@ -22,15 +22,13 @@
 
 namespace scanner {
 
-///////////////////////////////////////////////////////////////////////////////
-struct JobParameters {
+struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;
   MemoryPoolConfig memory_pool_config;
   std::string db_path;
-  proto::TaskSet task_set;
-  std::string job_name;
 };
 
-void run_job(JobParameters& params);
+void start_master(DatabaseParameters& params);
+void start_worker(DatabaseParameters& params, const std::string& master_address);
 
 }

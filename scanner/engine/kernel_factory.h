@@ -23,13 +23,6 @@
 
 namespace scanner {
 
-/** Information for an evaluator instance on the kinds of input it will receive.
- */
-struct KernelConfig {
-  std::vector<std::string> input_columns;
-  std::vector<u8> args;
-};
-
 namespace internal {
 
 /**
@@ -60,7 +53,7 @@ class KernelFactory {
 
   /* @brief Constructs a kernel to be used for processing rows of data.
    */
-  Kernel* new_instance(const KernelConfig& config) {
+  Kernel* new_instance(const Kernel::Config& config) {
     return constructor_(config);
   }
 

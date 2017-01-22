@@ -31,7 +31,7 @@ struct PreEvaluateThreadArgs {
   i32 warmup_count;
 
   // Per worker arguments
-  int id;
+  i32 id;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -45,9 +45,9 @@ struct EvaluateThreadArgs {
   i32 warmup_count;
 
   // Per worker arguments
-  int id;
+  i32 pu;
   std::vector<KernelFactory*> kernel_factories;
-  std::vector<KernelConfig> kernel_configs;
+  std::vector<Kernel::Config> kernel_configs;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -61,7 +61,7 @@ struct PostEvaluateThreadArgs {
   i32 warmup_count;
 
   // Per worker arguments
-  int id;
+  i32 id;
   Profiler& profiler;
 
   // Queues for communicating work
