@@ -19,8 +19,9 @@
 
 namespace scanner {
 
-Evaluator::Evaluator(const std::string &name, const std::vector<EvalInput> &inputs,
-                     char *args, size_t args_size)
+Evaluator::Evaluator(const std::string &name,
+                     const std::vector<EvalInput> &inputs, char *args,
+                     size_t args_size)
     : name_(name), inputs_(inputs), args_(args) {}
 
 Evaluator* make_input_evaluator(const std::vector<std::string>& columns) {

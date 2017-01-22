@@ -22,6 +22,7 @@ namespace scanner {
 Kernel::Kernel(const Config& config) {
 }
 
+namespace internal {
 KernelRegistration::KernelRegistration(const KernelBuilder& builder) {
 
   const std::string &name = builder.name_;
@@ -32,6 +33,7 @@ KernelRegistration::KernelRegistration(const KernelBuilder& builder) {
     new internal::KernelFactory(name, type, num_devices, 0, constructor);
   internal::KernelRegistry *registry = internal::get_kernel_registry();
   registry->add_kernel(name, factory);
+}
 }
 
 }

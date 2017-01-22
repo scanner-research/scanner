@@ -71,13 +71,13 @@ class EvaluatorBuilder {
   std::string name_;
   std::vector<std::string> output_columns_;
 };
-
-#define REGISTER_EVALUATOR(name) \
-  REGISTER_EVALUATOR_UID(__COUNTER__, name)
-
-#define REGISTER_EVALUATOR_UID(uid, name) \
-  static ::scanner::EvaluatorRegistration \
-      evaluator_registration_##uid## = EvaluatorBuilder(#name)
-
 }
+
+#define REGISTER_EVALUATOR(name__) \
+  REGISTER_EVALUATOR_UID(__COUNTER__, name__)
+
+#define REGISTER_EVALUATOR_UID(uid__, name__)                                  \
+  static ::scanner::internal::EvaluatorRegistration                            \
+      evaluator_registration_##uid__ =                                         \
+          ::scanner::internal::EvaluatorBuilder(#name__)
 }

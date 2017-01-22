@@ -14,20 +14,24 @@
  */
 
 #include "scanner/kernels/blur_kernel.h"
+#include "scanner/kernels/args.pb.h"
+
+#include "scanner/api/evaluator.h"
 
 #include <cmath>
 
 namespace scanner {
 
-BlurKernel::BlurKernel(const Kernel::Config& config) {
+BlurKernel::BlurKernel(const Kernel::Config& config)
+    : Kernel(config) {
   BlurArgs args;
-  args.ParseFromArray(config.kernel_args, config.kernel_args_size);
+  args.ParseFromArray(config.args.data(), config.args.size());
 
   kernel_size_ = args.kernel_size();
   sigma_ = args.sigma();
 
-  filter_left_ = std::ceil(kernel_size / 2.0) - 1);
-  filter_right_ = kernel_size / 2;
+  filter_left_ = std::ceil(kernel_size_ / 2.0) - 1;
+  filter_right_ = kernel_size_ / 2;
 }
 
 void BlurKernel::execute(const BatchedColumns &input_columns,
@@ -62,4 +66,9 @@ void BlurKernel::execute(const BatchedColumns &input_columns,
     output_columns[0].rows.push_back(Row{output_buffer, frame_size});
   }
 }
+
+REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});
+
+REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
+
 }

@@ -116,11 +116,16 @@ class Kernel {
 #define INSERT_ROW(column__, buffer__, size__) \
   column__.rows.push_back(Row{buffer__, size__})
 
+///////////////////////////////////////////////////////////////////////////////
+/// Implementation Details
+namespace internal {
+
 class KernelBuilder;
 
 using KernelConstructor = std::function<Kernel*(const Kernel::Config& config)>;
 
 class KernelRegistration {
+ public:
   KernelRegistration(const KernelBuilder& builder);
 };
 
@@ -149,14 +154,14 @@ public:
   i32 num_devices_;
 };
 
-#define REGISTER_KERNEL(name, KERNEL) \
-  REGISTER_KERNEL_UID(__COUNTER__, name, kernel)
+}
 
-#define REGISTER_KERNEL_UID(uid, name, KERNEL)              \
-  static ::scanner::KernelRegistration                      \
-    kernel_registration_##uid## =                           \
-    KernelBuilder(#name, [](const Kernel::Config &config) { \
-        return new KERNEL(config);                          \
+#define REGISTER_KERNEL(name__, kernel__) \
+  REGISTER_KERNEL_UID(__COUNTER__, name__, kernel__)
+
+#define REGISTER_KERNEL_UID(uid__, name__, kernel__)                           \
+  static ::scanner::internal::KernelRegistration kernel_registration_##uid__ = \
+      ::scanner::internal::KernelBuilder(#name__, [](const Kernel::Config &config) { \
+        return new kernel__(config);                                           \
       })
-
 }

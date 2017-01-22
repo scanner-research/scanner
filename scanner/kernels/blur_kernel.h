@@ -21,7 +21,7 @@ namespace scanner {
 
 class BlurKernel : public Kernel {
  public:
-  BlurKernel(Kernel::Config& config);
+  BlurKernel(const Kernel::Config& config);
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override;
@@ -35,9 +35,5 @@ class BlurKernel : public Kernel {
   i32 frame_width_;
   i32 frame_height_;
 };
-
-REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});
-
-REGISTER_KERNEL(Blur, BlurKernelCPU).device(DeviceType::CPU).num_devices(1);
 
 }

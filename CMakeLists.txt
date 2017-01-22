@@ -297,7 +297,7 @@ endif()
 ###### Project code #######
 set(PROTO_FILES
   scanner/metadata.proto
-  scanner/evaluators/types.proto
+  scanner/kernels/args.proto
   scanner/engine/rpc.proto)
 
 set(GRPC_PROTO_FILES
@@ -348,11 +348,8 @@ add_executable(scanner_server
   $<TARGET_OBJECTS:api>
   $<TARGET_OBJECTS:engine>
   #$<TARGET_OBJECTS:video>
-  #$<TARGET_OBJECTS:eval>
   #$<TARGET_OBJECTS:evaluators>
-  #$<TARGET_OBJECTS:parsers>
-  #$<TARGET_OBJECTS:server>
-  #$<TARGET_OBJECTS:pipelines>
+  $<TARGET_OBJECTS:kernels>
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}
   ${GRPC_PROTO_SRCS}
