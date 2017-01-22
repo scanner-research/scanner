@@ -15,14 +15,18 @@
 
 #pragma once
 
+#include "scanner/api/evaluator.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
+
+#include "scanner/metadata.pb.h"
 
 #include <vector>
 
 namespace scanner {
 
 struct TaskSet {
+  std::string job_name;
   std::vector<scanner::proto::Task> tasks;
   Evaluator* output_evaluator;
 };

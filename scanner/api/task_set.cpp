@@ -17,8 +17,9 @@
 
 namespace scanner {
 
-TaskSet::TaskSet();
-
-proto::TaskSet consume_task_set(TaskSet& task_set);
+proto::TaskSet consume_task_set(TaskSet& task_set) {
+  proto::TaskSet ts;
+  return ts;
+}
 
 }

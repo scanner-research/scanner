@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/api/task_set.h"
 #include "scanner/util/memory.h"
 #include "storehouse/storage_backend.h"
 
@@ -43,7 +44,8 @@ ServerState start_worker(DatabaseParameters &params,
                            bool block = true);
 
 struct JobParameters {
-  proto::TaskSet task_set;
+  std::string master_address;
+  TaskSet task_set;
 };
 
 void new_job(JobParameters& params);

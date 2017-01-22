@@ -15,7 +15,9 @@
 
 #include "scanner/api/run.h"
 #include "scanner/engine/runtime.h"
+#include "scanner/metadata.pb.h"
 #include "scanner/engine/rpc.grpc.pb.h"
+#include "scanner/engine/rpc.pb.h"
 
 #include <grpc++/server.h>
 #include <grpc++/server_builder.h>
@@ -58,6 +60,21 @@ ServerState start_worker(DatabaseParameters &params,
 }
 
 void new_job(JobParameters& params) {
+  auto channel = grpc::CreateChannel(params.master_address,
+                                     grpc::InsecureChannelCredentials());
+  assert(channel.GetState() != GRPC_CHANNEL_SHUTDOWN);
+  std::unique_ptr<proto::Master::Stub> master_ =
+      proto::Master::NewStub(channel);
+
+  grpc::ClientContext context;
+  proto::JobParameters job_params;
+  job_params.set_job_name(params.task_set.job_name);
+  proto::TaskSet set = consume_task_set(params.task_set);
+  job_params.mutable_task_set()->Swap(&set);
+  proto::Empty empty;
+  printf("before new job\n");
+  master_->NewJob(&context, job_params, &empty);
+  printf("after new job\n");
 }
 
 }
