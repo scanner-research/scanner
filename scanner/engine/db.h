@@ -75,13 +75,12 @@ template<typename T>
 class Metadata {
 public:
   using Descriptor = T;
-  Metadata(const Descriptor& d) {
-    descriptor_ = d;
-  }
+  Metadata() {}
+  Metadata(const Descriptor& d) : descriptor_(d) {}
 
-  const Descriptor& get_descriptor() const;
+  Descriptor &get_descriptor() const { return descriptor_; }
 
-  const std::string& descriptor_path() const;
+  std::string descriptor_path() const;
 
 protected:
   mutable Descriptor descriptor_;
@@ -92,7 +91,9 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
   DatabaseMetadata();
   DatabaseMetadata(const Descriptor& descriptor);
 
-  static const std::string& descriptor_path();
+  const Descriptor &get_descriptor() const;
+
+  static std::string descriptor_path();
 
   bool has_table(const std::string& table) const;
   bool has_table(i32 table_id) const;
@@ -101,9 +102,9 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
   i32 add_table(const std::string& table);
   void remove_table(i32 table_id);
 
-  bool has_job(i32 dataset_id, const std::string& job) const;
+  bool has_job(const std::string& job) const;
   bool has_job(i32 job_id) const;
-  i32 get_job_id(i32 dataset_id, const std::string& job_name) const;
+  i32 get_job_id(const std::string& job_name) const;
   const std::string& get_job_name(i32 job_id) const;
   i32 add_job(const std::string& job_name);
   void remove_job(i32 job_id);
@@ -120,9 +121,7 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
   VideoMetadata();
   VideoMetadata(const Descriptor& descriptor);
 
-  static const std::string& descriptor_path(i32 table_id,
-                                           i32 column_id,
-                                           i32 item_id);
+  static std::string descriptor_path(i32 table_id, i32 column_id, i32 item_id);
 
   i32 table_id() const;
   i32 column_id() const;
@@ -134,7 +133,7 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
   std::vector<i64> keyframe_byte_offsets() const;
 };
 
-class ImageFormatGroupMetadata : public Metadata<proto::VideoDescriptor> {
+class ImageFormatGroupMetadata : public Metadata<proto::ImageFormatGroupDescriptor> {
  public:
   ImageFormatGroupMetadata();
   ImageFormatGroupMetadata(const Descriptor& descriptor);
@@ -152,7 +151,7 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
   JobMetadata();
   JobMetadata(const Descriptor& job);
 
-  static const std::string& descriptor_path(i32 job_id);
+  static std::string descriptor_path(i32 job_id);
 
   i32 id() const;
 
@@ -168,11 +167,9 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 
   i32 column_id(const std::string& column_name) const;
 
-  const std::vector<std::string>& table_names() const;
+  const std::vector<i32>& table_ids() const;
 
-  bool has_table(const std::string& table_name) const;
-
-  i32 table_id(const std::string& table_name) const;
+  bool has_table(i32 table_id) const;
 
   i64 rows_in_table(i32 table_id) const;
 
@@ -181,8 +178,7 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 private:
   std::vector<proto::Column> columns_;
   std::map<std::string, i32> column_ids_;
-  std::vector<std::string> table_names_;
-  std::map<std::string, i32> table_ids_;
+  std::vector<i32> table_ids_;
   mutable std::map<i32, i64> rows_in_table_;
 };
 
@@ -191,7 +187,7 @@ public:
   TableMetadata();
   TableMetadata(const Descriptor& table);
 
-  static const std::string& descriptor_path(i32 table_id);
+  static std::string descriptor_path(i32 table_id);
 
   i32 id() const;
 

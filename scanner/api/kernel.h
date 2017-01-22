@@ -36,11 +36,11 @@ struct Row {
   size_t size;
 };
 
-struct Column {
+struct RowList {
   std::vector<Row> rows;
 };
 
-using BatchedColumns = std::vector<Column>;
+using BatchedColumns = std::vector<RowList>;
 
 /**
  * @brief Interface for a unit of computation in a pipeline.

@@ -566,8 +566,12 @@ public:
       evaluators.Get(evaluators.size()-1).name());
     const std::vector<std::string>& output_columns =
       output_evaluator->output_columns();
-    for (auto& col : output_columns) {
-      job_descriptor.add_columns(col);
+    for (size_t i = 0; i < output_columns.size(); ++i) {
+      auto& col_name = output_columns[i];
+      Column* col = job_descriptor.add_columns();
+      col->set_id(i);
+      col->set_name(col_name);
+      col->set_type(ColumnType::None);
     }
 
     auto& tasks = job_params->task_set().tasks();

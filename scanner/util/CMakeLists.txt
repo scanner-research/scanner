@@ -17,8 +17,11 @@ set(SOURCE_FILES
   memory.cpp
   profiler.cpp
   util.cpp
-  opencv.cpp
   bbox.cpp)
+
+if (OPENCV_FOUND)
+  list(APPEND SOURCE_FILES opencv.cpp)
+endif()
 
 add_library(util OBJECT
   ${SOURCE_FILES})

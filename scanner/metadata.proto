@@ -135,7 +135,7 @@ message JobDescriptor {
   int32 work_item_size = 4;
   int32 num_nodes = 5;
   repeated Task tasks = 6;
-  repeated string columns = 7;
+  repeated Column columns = 7;
 }
 
 // Interal messages
