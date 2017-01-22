@@ -49,7 +49,7 @@ using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
 namespace scanner {
-
+namespace internal {
 namespace {
 
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
@@ -80,7 +80,7 @@ i64 seek(void* opaque, i64 offset, i32 whence) {
     fs->pos += offset;
     break;
   case SEEK_END:
-    fs->pos = size;
+    fs->pos = fs->size;
     break;
   case AVSEEK_SIZE:
     return fs->size;
@@ -197,10 +197,11 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
                            const std::string& table_name,
                            const std::string& path) {
   // Allocate table id
-  DatabaseMetadata meta = read_database_metadata();
+  DatabaseMetadata meta =
+      read_database_metadata(storage, DatabaseMetadata::descriptor_path());
   i32 table_id = meta.add_table(table_name);
   TableMetadata table_meta;
-  TableDescriptor& table_desc = table_meta.get_descriptor();
+  proto::TableDescriptor& table_desc = table_meta.get_descriptor();
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
 
@@ -220,26 +221,26 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   // file instead of a posix file
   FFStorehouseState file_state;
   BACKOFF_FAIL(make_unique_random_read_file(storage, path, file_state.file));
-  BACKOFF_FAIL(file_state.file->get_size(buffer.size));
+  BACKOFF_FAIL(file_state.file->get_size(file_state.size));
   file_state.pos = 0;
 
   CodecState state;
-  if (!setup_video_codec(&buffer, state)) {
+  if (!setup_video_codec(&file_state, state)) {
     return false;
   }
 
   VideoMetadata video_meta;
-  VideoDescriptor& video_descriptor = video_meta.get_descriptor();
+  proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
   video_descriptor.set_table_id(table_id);
   video_descriptor.set_column_id(0);
   video_descriptor.set_item_id(0);
 
   video_descriptor.set_width(state.in_cc->width);
   video_descriptor.set_height(state.in_cc->height);
-  video_descriptor.set_chroma_format(VideoDescriptor::YUV_420);
-  video_descriptor.set_codec_type(VideoDescriptor::H264);
+  video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
+  video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
 
-  std::string data_path = dataset_item_data_path(dataset_name, item_name);
+  std::string data_path = table_item_output_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> demuxed_bytestream{};
   BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream));
 
@@ -420,7 +421,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
       bytestream_pos += sizeof(size) + size;
     } else {
       s_write(demuxed_bytestream.get(), filtered_data_size);
-      bytestream_pos += sizeof(size) + filtered_data_size;
+      bytestream_pos += sizeof(filtered_data_size) + filtered_data_size;
     }
     // Append the packet to the stream
     s_write(demuxed_bytestream.get(), filtered_data, filtered_data_size);
@@ -434,10 +435,10 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   cleanup_video_codec(state);
 
   // Save demuxed stream
-  BACKOFF_FAIL(demuxed_bystream->save());
+  BACKOFF_FAIL(demuxed_bytestream->save());
 
   table_desc.set_num_rows(frame);
-  table_desc.set_rows_per_file(frame);
+  table_desc.set_rows_per_item(frame);
   video_descriptor.set_frames(frame);
   video_descriptor.set_metadata_packets(metadata_bytes.data(), metadata_bytes.size());
 
@@ -452,71 +453,15 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   }
 
   // Save our metadata for the frame column
-  write_video_metadata(storage.get(), video_meta);
+  write_video_metadata(storage, video_meta);
 
   // Save the table descriptor
-  write_table_metadata(storage.get(), table_meta);
+  write_table_metadata(storage, table_meta);
 
   // Save the db metadata
-  write_database_metadata(storage.get(), meta);
+  write_database_metadata(storage, meta);
 
   return succeeded;
-}
-
-/* read_last_processed_video - read from persistent storage the index
- *   of the last succesfully processed video for the given dataset.
- *   Used to recover from failures midway through the ingest process.
- *
- *   @return: index of the last successfully processed video
- */
-i32 read_last_processed_video(storehouse::StorageBackend* storage,
-                              const std::string& dataset_name) {
-  StoreResult result;
-
-  const std::string last_written_path =
-      dataset_directory(dataset_name) + "/last_written.bin";
-
-  // File will not exist when first running ingest so check first
-  // and return default value if not there
-  storehouse::FileInfo info;
-  result = storage->get_file_info(last_written_path, info);
-  (void)info;
-  if (result == StoreResult::FileDoesNotExist) {
-    return -1;
-  }
-
-  std::unique_ptr<RandomReadFile> file;
-  BACKOFF_FAIL(make_unique_random_read_file(storage, last_written_path, file));
-
-  u64 pos = 0;
-  size_t size_read;
-
-  i32 last_processed_video;
-  EXP_BACKOFF(
-      file->read(pos, sizeof(i32), reinterpret_cast<u8*>(&last_processed_video),
-                 size_read),
-      result);
-  assert(result == StoreResult::Success || result == StoreResult::EndOfFile);
-  assert(size_read == sizeof(i32));
-
-  return last_processed_video;
-}
-
-/* write_last_processed_video - write to persistent storage the index
- *   of the last succesfully processed video for the given dataset.
- *   Used to recover from failures midway through the ingest process.
- *
- */
-void write_last_processed_video(storehouse::StorageBackend* storage,
-                                const std::string& dataset_name,
-                                i32 file_index) {
-  const std::string last_written_path =
-      dataset_directory(dataset_name) + "/last_written.bin";
-  std::unique_ptr<WriteFile> file;
-  BACKOFF_FAIL(make_unique_write_file(storage, last_written_path, file));
-
-  BACKOFF_FAIL(
-      file->append(sizeof(i32), reinterpret_cast<const u8*>(&file_index)));
 }
 
 // void ingest_images(storehouse::StorageBackend* storage,
@@ -826,6 +771,7 @@ void write_last_processed_video(storehouse::StorageBackend* storage,
 //   }
 // }
 }  // end anonymous namespace
+}
 
 void ingest_videos(storehouse::StorageConfig *storage_config,
                    const std::vector<std::string>& table_names,
@@ -833,25 +779,26 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
+  std::vector<std::string> bad_paths;
   std::vector<size_t> ingested_video_ids;
   std::vector<i64> video_frames;
   for (size_t i = 0; i < table_names.size(); ++i) {
-    if (!parse_and_write_video(storage.get(), table_names[i], paths[i])) {
+    if (!internal::parse_and_write_video(storage.get(), table_names[i],
+                                         paths[i])) {
       // Did not ingest correctly, skip it
-      LOG(WARNING) << "Failed to ingest video " << path << "! "
+      LOG(WARNING) << "Failed to ingest video " << paths[i] << "! "
                    << "Adding to bad paths file "
-                   << "(" << BAD_VIDEOS_FILE_PATH << "in current directory)."
-                   << std::endl;
-      bad_video_indices.push_back(i);
-      num_frames.push_back(0);
+                   << "(" << internal::BAD_VIDEOS_FILE_PATH
+                   << "in current directory)." << std::endl;
+      bad_paths.push_back(paths[i]);
     }
   }
 
-  if (!bad_video_indices.empty()) {
-    std::fstream bad_paths_file(BAD_VIDEOS_FILE_PATH, std::fstream::out);
-    for (size_t i : bad_video_indices) {
-      const std::string& bad_path = video_paths[i];
-      bad_paths_file << i << ", " << bad_path << std::endl;
+  if (!bad_paths.empty()) {
+    std::fstream bad_paths_file(internal::BAD_VIDEOS_FILE_PATH,
+                                std::fstream::out);
+    for (std::string bad_path : bad_paths) {
+      bad_paths_file << bad_path << std::endl;
     }
     bad_paths_file.close();
   }
