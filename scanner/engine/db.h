@@ -25,6 +25,50 @@ namespace scanner {
 namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Path functions
+extern std::string PREFIX;
+
+void set_database_path(std::string path);
+
+inline std::string database_metadata_path() {
+  return PREFIX + "db_metadata.bin";
+}
+
+inline std::string table_directory(i32 table_id) {
+  return PREFIX + "tables/" + std::to_string(table_id);
+}
+
+inline std::string table_descriptor_path(i32 table_id) {
+  return table_directory(table_id) + "/descriptor.bin";
+}
+
+inline std::string table_item_output_path(i32 table_id, i32 column_id,
+                                          i32 item_id) {
+  return table_directory(table_id) + "/" + std::to_string(column_id) + "_" +
+         std::to_string(item_id) + ".bin";
+}
+
+inline std::string
+table_item_video_metadata_path(i32 table_id, i32 column_id, i32 item_id) {
+  return table_directory(table_id) + "/" + std::to_string(column_id) + "_" +
+         std::to_string(item_id) + "_video_metadata.bin";
+}
+
+inline std::string job_directory(i32 job_id) {
+  return PREFIX + "jobs/" + job_name;
+}
+
+inline std::string job_descriptor_path(i32 job_id) {
+  return job_directory(job_id) + "/descriptor.bin";
+}
+
+inline std::string job_profiler_path(i32 job_id, i32 node) {
+  return job_directory(job_id) + "/profile_" +
+         std::to_string(node) + ".bin";
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
 
 template<typename T>
@@ -32,16 +76,19 @@ struct Metadata {
 public:
   using Descriptor = T;
   const Descriptor& get_descriptor() const;
-  const std::string& descriptor_path() const;
+
+  std::string descriptor_path() const;
 
 protected:
-  mutable Descriptor descriptor;
+  mutable Descriptor descriptor_;
 };
 
 struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
  public:
   DatabaseMetadata();
   DatabaseMetadata(const Descriptor& descriptor);
+
+  static std::string descriptor_path() const;
 
   bool has_table(const std::string& table) const;
   bool has_table(i32 table_id) const;
@@ -58,10 +105,10 @@ struct DatabaseMetadata : Metadata<proto::DatabaseDescriptor> {
   void remove_job(i32 job_id);
 
  private:
-  i32 next_table_id;
-  i32 next_job_id;
-  std::map<i32, std::string> table_names;
-  std::map<i32, std::string> job_names;
+  i32 next_table_id_;
+  i32 next_job_id_;
+  std::map<i32, std::string> table_names_;
+  std::map<i32, std::string> job_names_;
 };
 
 struct VideoMetadata : Metadata<proto::VideoDescriptor> {
@@ -69,7 +116,13 @@ struct VideoMetadata : Metadata<proto::VideoDescriptor> {
   VideoMetadata();
   VideoMetadata(const Descriptor& descriptor);
 
-  i32 id() const;
+  static std::string descriptor_path(i32 table_id,
+                                     i32 column_id,
+                                     i32 item_id) const;
+
+  i32 table_id() const;
+  i32 column_id() const;
+  i32 item_id() const;
   i32 frames() const;
   i32 width() const;
   i32 height() const;
@@ -95,6 +148,8 @@ struct JobMetadata : Metadata<proto::JobDescriptor> {
   JobMetadata();
   JobMetadata(const Descriptor& job);
 
+  static std::string descriptor_path(i32 job_id) const;
+
   i32 id() const;
 
   std::string name() const;
@@ -105,7 +160,7 @@ struct JobMetadata : Metadata<proto::JobDescriptor> {
 
   i32 num_nodes() const;
 
-  const std::vector<std::string>& columns() const;
+  const std::vector<Column>& columns() const;
 
   i32 column_id(const std::string& column_name) const;
 
@@ -120,7 +175,7 @@ struct JobMetadata : Metadata<proto::JobDescriptor> {
   i64 total_rows() const;
 
 private:
-  std::vector<std::string> columns_;
+  std::vector<Column> columns_;
   std::map<std::string, i32> column_ids_;
   std::vector<std::string> table_names_;
   std::map<std::string, i32> table_ids_;
@@ -132,58 +187,28 @@ public:
   TableMetadata();
   TableMetadata(const Descriptor& table);
 
+  static std::string descriptor_path(i32 table_id);
+
   i32 id() const;
 
   std::string name() const;
 
-  i64 total_rows() const;
+  i64 num_rows() const;
+
+  i64 rows_per_item() const;
+
+  const std::vector<Column>& columns() const;
+
+  std::string column_name(i32 column_id) const;
+
+  i32 column_id(const std::string& name) const;
+
+  ColumnType column_type(i32 column_id) const;
+
+ private:
+  std::vector<Column> columns_;
 };
 
-///////////////////////////////////////////////////////////////////////////////
-/// Path functions
-
-extern std::string PREFIX;
-
-void set_database_path(std::string path);
-
-inline std::string database_metadata_path() {
-  return PREFIX + "db_metadata.bin";
-}
-
-inline std::string table_directory(i32 table_id) {
-  return PREFIX + "tables/" + std::to_string(table_id);
-}
-
-inline std::string table_descriptor_path(i32 table_id) {
-  return table_directory(table_id) + "/descriptor.bin";
-}
-
-inline std::string table_item_output_path(i32 table_id,
-                                          const std::string &column_name,
-                                          i32 item_id) {
-  return table_directory(table_id) + "/" + column_name + "_" +
-         std::to_string(item_id) + ".bin";
-}
-
-inline std::string
-table_item_video_metadata_path(i32 table_id, const std::string &column_name,
-                               i32 item_id) {
-  return table_directory(table_id) + "/" + column_name + "_" +
-         std::to_string(item_id) + "_video_metadata.bin";
-}
-
-inline std::string job_directory(const std::string& job_name) {
-  return PREFIX + "jobs/" + job_name;
-}
-
-inline std::string job_descriptor_path(const std::string& job_name) {
-  return job_directory(job_name) + "/descriptor.bin";
-}
-
-inline std::string job_profiler_path(const std::string& job_name, i32 node) {
-  return job_directory(job_name) + "/profile_" +
-         std::to_string(node) + ".bin";
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Constants
@@ -253,6 +278,11 @@ constexpr WriteFn<TableMetadata> write_table_metadata =
   write_db_proto<TableMetadata>;
 constexpr ReadFn<TableMetadata> read_table_metadata =
   read_db_proto<TableMetadata>;
+
+constexpr WriteFn<VideoMetadata> write_video_metadata =
+  write_db_proto<VideoMetadata>;
+constexpr ReadFn<VideoMetadata> read_video_metadata =
+  read_db_proto<VideoMetadata>;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Database modification helper functions

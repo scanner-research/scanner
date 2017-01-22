@@ -196,6 +196,26 @@ void cleanup_video_codec(CodecState state) {
 bool parse_and_write_video(storehouse::StorageBackend* storage,
                            const std::string& table_name,
                            const std::string& path) {
+  // Allocate table id
+  DatabaseMetadata meta = read_database_metadata();
+  i32 table_id = meta.add_table(table_name);
+  TableMetadata table_meta;
+  TableDescriptor& table_desc = table_meta.get_descriptor();
+  table_desc.set_id(table_id);
+  table_desc.set_name(table_name);
+
+  {
+    Column* frame_col = table_desc.add_columns();
+    frame_col->set_name("frame");
+    frame_col->set_id(0);
+    frame_col->set_type(ColumnType::Video);
+
+    Column* frame_info_col = table_desc.add_columns();
+    frame_col->set_name("frame_info");
+    frame_col->set_id(1);
+    frame_col->set_type(ColumnType::None);
+  }
+
   // Setup custom buffer for libavcodec so that we can read from a storehouse
   // file instead of a posix file
   FFStorehouseState file_state;
@@ -208,14 +228,16 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
     return false;
   }
 
+  VideoMetadata video_meta;
+  VideoDescriptor& video_descriptor = video_meta.get_descriptor();
+  video_descriptor.set_table_id(table_id);
+  video_descriptor.set_column_id(0);
+  video_descriptor.set_item_id(0);
+
   video_descriptor.set_width(state.in_cc->width);
   video_descriptor.set_height(state.in_cc->height);
   video_descriptor.set_chroma_format(VideoDescriptor::YUV_420);
   video_descriptor.set_codec_type(VideoDescriptor::H264);
-
-  // Allocate table id
-  DatabaseMetadata meta = read_database_metadata();
-  VideoDescriptor descriptor;
 
   std::string data_path = dataset_item_data_path(dataset_name, item_name);
   std::unique_ptr<WriteFile> demuxed_bytestream{};
@@ -411,32 +433,32 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   // Cleanup video decoder
   cleanup_video_codec(state);
 
-  descriptor.set_frames(frame);
-  descriptor.set_metadata_packets(metadata_bytes.data(), metadata_bytes.size());
-  for (i64 v : keyframe_positions) {
-    descriptor.add_keyframe_positions(v);
-  }
-  for (i64 v : keyframe_timestamps) {
-    descriptor.add_keyframe_timestamps(v);
-  }
-  for (i64 v : keyframe_byte_offsets) {
-    descriptor.add_keyframe_byte_offsets(v);
-  }
-
-  // Save our metadata video stream
-  {
-    std::string metadata_path =
-        table_item_video_metadata_path(item_name);
-    std::unique_ptr<WriteFile> metadata_file;
-    BACKOFF_FAIL(make_unique_write_file(storage, metadata_path, metadata_file));
-
-    VideoMetadata m{video_descriptor};
-    serialize_video_metadata(metadata_file.get(), m);
-    BACKOFF_FAIL(metadata_file->save());
-  }
-
   // Save demuxed stream
   BACKOFF_FAIL(demuxed_bystream->save());
+
+  table_desc.set_num_rows(frame);
+  table_desc.set_rows_per_file(frame);
+  video_descriptor.set_frames(frame);
+  video_descriptor.set_metadata_packets(metadata_bytes.data(), metadata_bytes.size());
+
+  for (i64 v : keyframe_positions) {
+    video_descriptor.add_keyframe_positions(v);
+  }
+  for (i64 v : keyframe_timestamps) {
+    video_descriptor.add_keyframe_timestamps(v);
+  }
+  for (i64 v : keyframe_byte_offsets) {
+    video_descriptor.add_keyframe_byte_offsets(v);
+  }
+
+  // Save our metadata for the frame column
+  write_video_metadata(storage.get(), video_meta);
+
+  // Save the table descriptor
+  write_table_metadata(storage.get(), table_meta);
+
+  // Save the db metadata
+  write_database_metadata(storage.get(), meta);
 
   return succeeded;
 }

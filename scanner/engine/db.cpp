@@ -40,35 +40,27 @@ namespace internal {
 DatabaseMetadata::DatabaseMetadata() : next_dataset_id(0), next_job_id(0) {}
 
 DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
-    : descriptor(d),
-      next_dataset_id(d.next_dataset_id()),
-      next_job_id(d.next_job_id()) {
-  for (int i = 0; i < descriptor.datasets_size(); ++i) {
-    const DatabaseDescriptor_Dataset& dataset = descriptor.datasets(i);
-    dataset_names.insert({dataset.id(), dataset.name()});
-    dataset_job_ids[dataset.id()] = {};
+    : descriptor_(d),
+      next_dataset_id_(d.next_dataset_id()),
+      next_job_id_(d.next_job_id()) {
+  for (int i = 0; i < descriptor.tables_size(); ++i) {
+    const DatabaseDescriptor::Table& table = descriptor.tables(i);
+    table_names.insert({dataset.id(), dataset.name()});
   }
   for (int i = 0; i < descriptor.jobs_size(); ++i) {
     const DatabaseDescriptor_Job& job = descriptor.jobs(i);
     job_names.insert({job.id(), job.name()});
   }
-  for (int i = 0; i < descriptor.job_to_datasets_size(); ++i) {
-    const DatabaseDescriptor_JobToDataset& job_to_dataset =
-        descriptor.job_to_datasets(i);
-    dataset_job_ids[job_to_dataset.dataset_id()].insert(
-        job_to_dataset.job_id());
-  }
 }
 
 const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
-  descriptor.set_next_dataset_id(next_dataset_id);
+  descriptor.set_next_table_id(next_table_id);
   descriptor.set_next_job_id(next_job_id);
-  descriptor.clear_datasets();
+  descriptor.clear_tables();
   descriptor.clear_jobs();
-  descriptor.clear_job_to_datasets();
 
-  for (auto& kv : dataset_names) {
-    auto dataset = descriptor.add_datasets();
+  for (auto& kv : table_names) {
+    auto table = descriptor.add_table();
     dataset->set_id(kv.first);
     dataset->set_name(kv.second);
   }
@@ -79,34 +71,30 @@ const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
     job->set_name(kv.second);
   }
 
-  for (auto& kv : dataset_job_ids) {
-    for (i32 job_id : kv.second) {
-      auto job = descriptor.add_job_to_datasets();
-      job->set_dataset_id(kv.first);
-      job->set_job_id(job_id);
-    }
-  }
-
   return descriptor;
 }
 
-bool DatabaseMetadata::has_dataset(const std::string& dataset) const {
-  for (const auto& kv : dataset_names) {
-    if (kv.second == dataset) {
+std::string DatabaseMetadata::descriptor_path() const {
+  return database_metadata_path();
+}
+
+bool DatabaseMetadata::has_table(const std::string& table) const {
+  for (const auto& kv : table_names) {
+    if (kv.second == table) {
       return true;
     }
   }
   return false;
 }
 
-bool DatabaseMetadata::has_dataset(i32 dataset_id) const {
-  return dataset_names.count(dataset_id) > 0;
+bool DatabaseMetadata::has_table(i32 table_id) const {
+  return table_names.count(table_id) > 0;
 }
 
-i32 DatabaseMetadata::get_dataset_id(const std::string& dataset) const {
+i32 DatabaseMetadata::get_table_id(const std::string& table) const {
   i32 id = -1;
-  for (const auto& kv : dataset_names) {
-    if (kv.second == dataset) {
+  for (const auto& kv : table_names) {
+    if (kv.second == table) {
       id = kv.first;
       break;
     }
@@ -115,30 +103,24 @@ i32 DatabaseMetadata::get_dataset_id(const std::string& dataset) const {
   return id;
 }
 
-const std::string& DatabaseMetadata::get_dataset_name(i32 dataset_id) const {
-  return dataset_names.at(dataset_id);
+const std::string& DatabaseMetadata::get_table_name(i32 table_id) const {
+  return table_names.at(table_id);
 }
 
-i32 DatabaseMetadata::add_dataset(const std::string& dataset) {
-  i32 dataset_id = next_dataset_id++;
-  dataset_names[dataset_id] = dataset;
-  dataset_job_ids[dataset_id] = {};
-  return dataset_id;
+i32 DatabaseMetadata::add_table(const std::string& table) {
+  i32 table_id = next_table_id++;
+  table_names[table_id] = table;
+  return table_id;
 }
 
-void DatabaseMetadata::remove_dataset(i32 dataset_id) {
-  for (i32 job_id : dataset_job_ids.at(dataset_id)) {
-    job_names.erase(job_id);
-  }
-  assert(dataset_job_ids.count(dataset_id) > 0);
-  assert(dataset_names.count(dataset_id) > 0);
-  dataset_job_ids.erase(dataset_id);
-  dataset_names.erase(dataset_id);
+void DatabaseMetadata::remove_table(i32 table_id) {
+  assert(table_names.count(table_id) > 0);
+  table_names.erase(table_id);
 }
 
-bool DatabaseMetadata::has_job(i32 dataset_id, const std::string& job) const {
-  for (i32 job_id : dataset_job_ids.at(dataset_id)) {
-    if (job == job_names.at(job_id)) {
+bool DatabaseMetadata::has_job(const std::string& job) const {
+  for (const auto& kv : job_names) {
+    if (kv.second == job) {
       return true;
     }
   }
@@ -149,11 +131,11 @@ bool DatabaseMetadata::has_job(i32 job_id) const {
   return job_names.count(job_id) > 0;
 }
 
-i32 DatabaseMetadata::get_job_id(i32 dataset_id, const std::string& job) const {
+i32 DatabaseMetadata::get_job_id(const std::string& job) const {
   i32 job_id = -1;
-  for (i32 j_id : dataset_job_ids.at(dataset_id)) {
-    if (job == job_names.at(j_id)) {
-      job_id = j_id;
+  for (const auto& kv : job_names) {
+    if (kv.second == job) {
+      job_id = kv.first;
       break;
     }
   }
@@ -165,107 +147,15 @@ const std::string& DatabaseMetadata::get_job_name(i32 job_id) const {
   return job_names.at(job_id);
 }
 
-i32 DatabaseMetadata::add_job(i32 dataset_id, const std::string& job_name) {
+i32 DatabaseMetadata::add_job(const std::string& job_name) {
   i32 job_id = next_job_id++;
-  dataset_job_ids.at(dataset_id).insert(job_id);
   job_names[job_id] = job_name;
   return job_id;
 }
 
 void DatabaseMetadata::remove_job(i32 job_id) {
-  bool found = false;
-  for (auto& kv : dataset_job_ids) {
-    if (kv.second.count(job_id) > 0) {
-      kv.second.erase(job_id);
-      found = true;
-      break;
-    }
-  }
-  assert(found);
   assert(job_names.count(job_id) > 0);
   job_names.erase(job_id);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// DatasetMetadata
-DatasetMetadata::DatasetMetadata() {}
-
-DatasetMetadata::DatasetMetadata(const DatasetDescriptor& descriptor)
-    : descriptor(descriptor) {}
-
-const DatasetDescriptor& DatasetMetadata::get_descriptor() const {
-  return descriptor;
-}
-
-i32 DatasetMetadata::id() const { return descriptor.id(); }
-
-std::string DatasetMetadata::name() const { return descriptor.name(); }
-
-DatasetType DatasetMetadata::type() const { return descriptor.type(); }
-
-i32 DatasetMetadata::total_rows() const {
-  if (this->type() == DatasetType_Video) {
-    return descriptor.video_data().total_frames();
-  } else if (this->type() == DatasetType_Image) {
-    return descriptor.image_data().total_images();
-  } else {
-    assert(false);
-    return {};
-  }
-}
-
-i32 DatasetMetadata::max_width() const {
-  if (this->type() == DatasetType_Video) {
-    return descriptor.video_data().max_width();
-  } else if (this->type() == DatasetType_Image) {
-    return descriptor.image_data().max_width();
-  } else {
-    assert(false);
-    return {};
-  }
-}
-
-i32 DatasetMetadata::max_height() const {
-  if (this->type() == DatasetType_Video) {
-    return descriptor.video_data().max_height();
-  } else if (this->type() == DatasetType_Image) {
-    return descriptor.image_data().max_height();
-  } else {
-    assert(false);
-    return {};
-  }
-}
-
-std::vector<std::string> DatasetMetadata::original_paths() const {
-  if (this->type() == DatasetType_Video) {
-    return std::vector<std::string>(
-        descriptor.video_data().original_video_paths().begin(),
-        descriptor.video_data().original_video_paths().end());
-  } else if (this->type() == DatasetType_Image) {
-    return std::vector<std::string>(
-        descriptor.image_data().original_image_paths().begin(),
-        descriptor.image_data().original_image_paths().end());
-  } else {
-    assert(false);
-    return {};
-  }
-}
-
-std::vector<std::string> DatasetMetadata::item_names() const {
-  if (this->type() == DatasetType_Video) {
-    return std::vector<std::string>(
-        descriptor.video_data().video_names().begin(),
-        descriptor.video_data().video_names().end());
-  } else if (this->type() == DatasetType_Image) {
-    std::vector<std::string> item_names;
-    for (i32 i = 0; i < descriptor.image_data().format_groups_size(); ++i) {
-      item_names.push_back(std::to_string(i));
-    }
-    return item_names;
-  } else {
-    assert(false);
-    return {};
-  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -275,11 +165,24 @@ VideoMetadata::VideoMetadata() {}
 VideoMetadata::VideoMetadata(const VideoDescriptor& descriptor)
     : descriptor(descriptor) {}
 
+std::string VideoDescriptor::descriptor_path(i32 table_id, i32 column_id,
+                                             i32 item_id) {
+  return table_item_video_metadata_path(table_id, column_id, item_id);
+}
+
 const VideoDescriptor& VideoMetadata::get_descriptor() const {
   return descriptor;
 }
 
-i32 VideoMetadata::id() const { return descriptor.id(); }
+const VideoDescriptor& VideoMetadata::descriptor_path() const {
+  return table_item_video_metadata_path(table_id(), column_id(), item_id());
+}
+
+i32 VideoMetadata::table_id() const { return descriptor.table_id(); }
+
+i32 VideoMetadata::column_id() const { return descriptor.column_id(); }
+
+i32 VideoMetadata::item_id() const { return descriptor.item_id(); }
 
 i32 VideoMetadata::frames() const { return descriptor.frames(); }
 
@@ -334,38 +237,46 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 ///////////////////////////////////////////////////////////////////////////////
 /// JobMetadata
 JobMetadata::JobMetadata() {}
-JobMetadata::JobMetadata(const JobDescriptor &job) : job_descriptor_(job) {
-  for (auto &c : job_descriptor_.columns()) {
+JobMetadata::JobMetadata(const JobDescriptor &job) : descriptor_(job) {
+  for (auto &c : descriptor_.columns()) {
     columns_.push_back(c);
-    column_ids_.insert({c, 0});
+    column_ids_.insert({c.name(), c.id()});
   }
-  for (auto &t : job_descriptor_.tasks()) {
+  for (auto &t : descriptor_.tasks()) {
     table_names_.push_back(t.table_name());
     table_ids_.insert({t.table_name(), 0});
   }
 }
 
-const JobDescriptor& JobMetadata::get_job_descriptor() const {
-  return job_descriptor_;
+std::string JobMetadata::descriptor_path(i32 job_id) const {
+  return job_descriptor_path(job_id);
 }
 
-i32 JobMetadata::id() const { return job_descriptor_.id(); }
+const JobDescriptor& JobMetadata::get_job_descriptor() const {
+  return descriptor_;
+}
 
-std::string JobMetadata::name() const { return job_descriptor_.name(); }
+std::string JobMetadata::descriptor_path() const {
+  return job_descriptor_path(id());
+}
+
+i32 JobMetadata::id() const { return descriptor_.id(); }
+
+std::string JobMetadata::name() const { return descriptor_.name(); }
 
 i32 JobMetadata::io_item_size() const {
-  return job_descriptor_.io_item_size();
+  return descriptor_.io_item_size();
 }
 
 i32 JobMetadata::work_item_size() const {
-  return job_descriptor_.work_item_size();
+  return descriptor_.work_item_size();
 }
 
 i32 JobMetadata::num_nodes() const {
-  return job_descriptor_.num_nodes();
+  return descriptor_.num_nodes();
 }
 
-const std::vector<std::string>& JobMetadata::columns() const {
+const std::vector<Column>& JobMetadata::columns() const {
   return columns_;
 }
 
@@ -410,6 +321,70 @@ i64 JobMetadata::total_rows() const {
     rows += sample.rows_size();
   }
   return rows;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// TableMetadata
+TableMetadata::TableMetadata() {}
+TableMetadata::TableMetadata(const TableDescriptor &table) : descriptor_(table) {
+  for (auto &c : descriptor_.columns()) {
+    columns_.push_back(c);
+  }
+}
+
+std::string TableDescriptor::descriptor_path(i32 table_id) {
+  return table_descriptor(table_id);
+}
+
+const TableDescriptor& TableMetadata::get_job_descriptor() const {
+  return job_descriptor_;
+}
+
+std::string TableDescriptor::descriptor_path() {
+  return table_descriptor(id());
+}
+
+i32 TableMetadata::id() const { return descriptor_.id(); }
+
+std::string TableMetadata::name() const { return descriptor_.name(); }
+
+i32 TableMetadata::num_rows() const {
+  return descriptor_.num_rows();
+}
+
+i32 TableMetadata::rows_per_item() const {
+  return descriptor_.rows_per_item();
+}
+
+const std::vector<Column>& TableMetadata::columns() const {
+  return columns_;
+}
+
+std::string TableMetadata::column_name(i32 column_id) const {
+  for (auto &c : descriptor_.columns()) {
+    if (c.id() == column_id) {
+      return c.name();
+    }
+  }
+  LOG(FATAL) << "Column id " << column_id << " not found!";
+}
+
+i32 TableMetadata::column_id(const std::string& column_name) const {
+  for (auto &c : descriptor_.columns()) {
+    if (c.name() == column_name) {
+      return c.id();
+    }
+  }
+  LOG(FATAL) << "Column name " << column_name << " not found!";
+}
+
+ColumnType TableMetadata::column_type(i32 column_id) const {
+  for (auto &c : descriptor_.columns()) {
+    if (c.id() == column_id) {
+      return c.type();
+    }
+  }
+  LOG(FATAL) << "Column id " << column_id << " not found!";
 }
 
 std::string PREFIX = "";

@@ -44,6 +44,12 @@ enum ColumnType {
   Image = 2;
 }
 
+message Column {
+  int32 id = 1;
+  string name = 2;
+  ColumnType type = 3;
+}
+
 message VideoDescriptor {
   enum VideoCodecType {
     H264 = 0;
@@ -56,9 +62,13 @@ message VideoDescriptor {
     YUV_444 = 3;
   }
 
-  int64 frames = 2;
-  int32 width = 3;
-  int32 height = 4;
+  int32 table_id = 1;
+  int32 column_id = 2;
+  int32 item_id = 3;
+
+  int64 frames = 4;
+  int32 width = 5;
+  int32 height = 6;
 
   VideoCodecType codec_type = 5;
   VideoChromaFormat chroma_format = 7;
@@ -82,17 +92,16 @@ message ImageFormatGroupDescriptor {
 message TableDescriptor {
   int32 id = 1;
   string name = 2;
-  repeated string column_names = 3;
-  repeated ColumnType column_types = 4;
-  int64 num_rows = 5;
-  int64 rows_per_file = 6;
+  repeated Column columns = 3;
+  int64 num_rows = 4;
+  int64 rows_per_item = 5;
 }
 
 // Task set messages
 message TableSample {
   int32 job_id = 1;
   int32 table_id = 2;
-  repeated string columns = 3;
+  repeated int32 column_ids = 3;
   repeated int64 rows = 4 [packed=true];
 }
 
@@ -125,7 +134,7 @@ message JobDescriptor {
   int32 work_item_size = 4;
   int32 num_nodes = 5;
   repeated Task tasks = 6;
-  repeated string columns = 7;
+  repeated Column columns = 7;
 }
 
 // Interal messages
