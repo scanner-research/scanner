@@ -23,7 +23,7 @@
 
 namespace scanner {
 
-void ingest(storehouse::StorageConfig* storage_config, DatasetType dataset_type,
-            const std::string& dataset_name, const std::string& paths_file,
+void ingest(storehouse::StorageConfig *storage_config, DatasetType dataset_type,
+            const std::string &dataset_name, const std::string &paths_file,
             bool compute_web_metadata);
 }

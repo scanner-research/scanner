@@ -618,33 +618,16 @@ private:
   storehouse::StorageBackend* storage_;
 };
 
+
+proto::Master::Service* get_master_service(DatabaseParameters& param) {
+  return new MasterImpl(param);
 }
 
-using namespace internal;
-
-// TODO(wcrichto): these should be wrappers around one function. But...
-// how do unique_ptrs work!?!?!?
-void start_master(DatabaseParameters& params) {
-  MasterImpl service(params);
-  std::string port = "5001";
-  std::string server_address("0.0.0.0:" + port);
-  grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-  std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
-  server->Wait();
+proto::Worker::Service *get_worker_service(DatabaseParameters &param,
+                                           const std::string &master_address) {
+  return new WorkerImpl(param, master_address);
 }
 
-void start_worker(DatabaseParameters& params, const std::string& master_address) {
-  WorkerImpl service(params, master_address);
-  std::string port = "5002";
-  std::string server_address("0.0.0.0:" + port);
-  grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-  std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
-  server->Wait();
 }
-
 
 }

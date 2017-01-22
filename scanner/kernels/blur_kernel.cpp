@@ -24,7 +24,7 @@ namespace scanner {
 
 BlurKernel::BlurKernel(const Kernel::Config& config)
     : Kernel(config) {
-  BlurArgs args;
+  scanner::proto::BlurArgs args;
   args.ParseFromArray(config.args.data(), config.args.size());
 
   kernel_size_ = args.kernel_size();

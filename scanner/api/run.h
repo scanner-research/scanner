@@ -18,6 +18,9 @@
 #include "scanner/util/memory.h"
 #include "storehouse/storage_backend.h"
 
+#include <grpc++/server.h>
+#include "scanner/engine/rpc.grpc.pb.h"
+
 #include <string>
 
 namespace scanner {
@@ -28,7 +31,21 @@ struct DatabaseParameters {
   std::string db_path;
 };
 
-void start_master(DatabaseParameters& params);
-void start_worker(DatabaseParameters& params, const std::string& master_address);
+struct ServerState {
+  std::unique_ptr<grpc::Server> server;
+  std::unique_ptr<grpc::Service> service;
+};
+
+ServerState start_master(DatabaseParameters &params, bool block = true);
+
+ServerState start_worker(DatabaseParameters &params,
+                           const std::string &master_address,
+                           bool block = true);
+
+struct JobParameters {
+  proto::TaskSet task_set;
+};
+
+void new_job(JobParameters& params);
 
 }

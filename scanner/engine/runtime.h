@@ -15,12 +15,17 @@
 
 #pragma once
 
+#include "scanner/api/run.h"
 #include "scanner/api/kernel.h"
 #include "scanner/api/evaluator.h"
 #include "scanner/video/video_decoder.h"
 #include "scanner/util/memory.h"
+#include "scanner/engine/rpc.grpc.pb.h"
 
 #include "storehouse/storage_backend.h"
+
+#include <grpc++/server.h>
+#include <grpc++/server_builder.h>
 
 #include <string>
 
@@ -57,5 +62,9 @@ struct EvalWorkEntry {
   bool last_in_io_item;
 };
 
+proto::Master::Service *get_master_service(DatabaseParameters &param);
+
+proto::Worker::Service *get_worker_service(DatabaseParameters &param,
+                                           const std::string &master_address);
 }
 }

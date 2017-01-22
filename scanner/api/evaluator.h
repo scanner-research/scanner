@@ -38,7 +38,10 @@ protected:
 };
 
 struct EvalInput {
-  Evaluator* evaluator;
+  EvalInput(Evaluator *evaluator, const std::vector<std::string> &columns)
+      : evaluator(evaluator), columns(columns) {}
+
+  Evaluator *evaluator;
   std::vector<std::string> columns;
 };
 

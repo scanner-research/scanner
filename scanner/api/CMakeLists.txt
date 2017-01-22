@@ -1,6 +1,7 @@
 set(SOURCE_FILES
   kernel.cpp
   evaluator.cpp
+  run.cpp
   ingest.cpp)
 
 add_library(api OBJECT

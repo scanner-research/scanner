@@ -29,6 +29,7 @@ option(BUILD_UTIL_EVALUATORS "" OFF)
 option(BUILD_MEDIAN_EVALUATORS "" OFF)
 option(BUILD_SERVER "" OFF)
 option(BUILD_COMPARISON "" OFF)
+option(BUILD_EXAMPLES "" ON)
 option(ENABLE_PROFILING "" OFF)
 
 enable_testing()
@@ -342,9 +343,12 @@ if (BUILD_COMPARISON)
   add_subdirectory(comparison)
 endif()
 
+if (BUILD_EXAMPLES)
+add_subdirectory(examples)
+endif()
 
-add_executable(scanner_server
-  scanner/main.cpp
+
+add_library(scanner SHARED
   $<TARGET_OBJECTS:api>
   $<TARGET_OBJECTS:engine>
   #$<TARGET_OBJECTS:video>
@@ -356,10 +360,14 @@ add_executable(scanner_server
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 
+add_executable(scanner_server
+  scanner/main.cpp
+  scanner)
+
 if (HALIDE_FOUND)
   foreach(TARGET ${HALIDE_TARGETS})
     halide_add_aot_library_dependency(scanner_server ${TARGET})
-    target_link_libraries(scanner_server PRIVATE scanner_halide)
+    target_link_libraries(scanner PRIVATE scanner_halide)
   endforeach()
 endif()
 
@@ -383,7 +391,7 @@ elseif(UNIX)
   set(PLATFORM_LINK_FLAGS "-pthread -ldl -lrt")
 endif()
 
-target_link_libraries(scanner_server PUBLIC
+target_link_libraries(scanner PUBLIC
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
 
