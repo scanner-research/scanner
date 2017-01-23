@@ -64,9 +64,14 @@ struct FFStorehouseState {
 i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
   FFStorehouseState* fs = (FFStorehouseState*)opaque;
   size_t size_read;
-  BACKOFF_FAIL(fs->file->read(fs->pos, buf_size, buf, size_read));
+  storehouse::StoreResult result;
+  EXP_BACKOFF(fs->file->read(fs->pos, buf_size, buf, size_read), result);
+  if (result != storehouse::StoreResult::EndOfFile) {
+    exit_on_error(result);
+  }
+
   fs->pos += size_read;
-  return size_read;
+  return static_cast<i32>(size_read);
 }
 
 i64 seek(void* opaque, i64 offset, i32 whence) {
@@ -196,6 +201,7 @@ void cleanup_video_codec(CodecState state) {
 bool parse_and_write_video(storehouse::StorageBackend* storage,
                            const std::string& table_name,
                            const std::string& path) {
+  av_register_all();
   // Allocate table id
   DatabaseMetadata meta =
       read_database_metadata(storage, DatabaseMetadata::descriptor_path());
@@ -774,14 +780,13 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 }
 
 void ingest_videos(storehouse::StorageConfig *storage_config,
+                   const std::string& db_path,
                    const std::vector<std::string>& table_names,
                    const std::vector<std::string>& paths) {
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
   std::vector<std::string> bad_paths;
-  std::vector<size_t> ingested_video_ids;
-  std::vector<i64> video_frames;
   for (size_t i = 0; i < table_names.size(); ++i) {
     if (!internal::parse_and_write_video(storage.get(), table_names[i],
                                          paths[i])) {
@@ -805,6 +810,7 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
 }
 
 void ingest_images(storehouse::StorageConfig *storage_config,
+                   const std::string& db_path,
                    const std::string& table_name,
                    const std::vector<std::string>& paths) {
   std::unique_ptr<storehouse::StorageBackend> storage{

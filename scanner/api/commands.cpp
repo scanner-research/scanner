@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#include "scanner/api/run.h"
+#include "scanner/api/commands.h"
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/db.h"
 #include "scanner/metadata.pb.h"
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/rpc.pb.h"
@@ -41,7 +42,50 @@ std::unique_ptr<grpc::Server> start(T& service, const std::string& port,
   }
   return std::move(server);
 }
+
+bool database_exists(storehouse::StorageBackend *storage,
+                     const std::string &database_path) {
+  internal::set_database_path(database_path);
+  std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
+  storehouse::FileInfo info;
+  storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
+  return (result != storehouse::StoreResult::FileDoesNotExist);
 }
+}
+
+void create_database(storehouse::StorageConfig *storage_config,
+                     const std::string &db_path) {
+  std::unique_ptr<storehouse::StorageBackend> storage{
+      storehouse::StorageBackend::make_from_config(storage_config)};
+
+  if (database_exists(storage.get(), db_path)) {
+    LOG(WARNING) << "Can not create database. Database already exists!";
+    return;
+  }
+
+  internal::set_database_path(db_path);
+
+  internal::DatabaseMetadata meta{};
+  internal::write_database_metadata(storage.get(), meta);
+}
+
+void destroy_database(storehouse::StorageConfig *storage_config,
+                      const std::string &db_path) {
+  LOG(FATAL) << "Not implemented yet!";
+}
+
+// void ingest_videos(storehouse::StorageConfig *storage_config,
+//                    const std::string& db_path,
+//                    const std::vector<std::string>& table_names,
+//                    const std::vector<std::string>& path) {
+// }
+
+// void ingest_images(storehouse::StorageConfig *storage_config,
+//                    const std::string& db_path,
+//                    const std::string& table_names,
+//                    const std::vector<std::string>& paths) {
+// }
+
 
 ServerState start_master(DatabaseParameters& params, bool block) {
   ServerState state;

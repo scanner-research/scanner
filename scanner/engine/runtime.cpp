@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/api/run.h"
+#include "scanner/api/commands.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/evaluator_registry.h"
 #include "scanner/engine/kernel_registry.h"
@@ -547,9 +547,6 @@ public:
   grpc::Status NewJob(grpc::ServerContext* context,
                       const proto::JobParameters* job_params,
                       proto::Empty* empty) {
-    printf("rpc new job!\n");
-    return grpc::Status::OK;
-
     const i32 io_item_size = rows_per_io_item();
     const i32 work_item_size = rows_per_work_item();
 

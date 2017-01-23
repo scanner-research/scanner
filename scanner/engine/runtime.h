@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "scanner/api/run.h"
+#include "scanner/api/commands.h"
 #include "scanner/api/kernel.h"
 #include "scanner/api/evaluator.h"
 #include "scanner/video/video_decoder.h"

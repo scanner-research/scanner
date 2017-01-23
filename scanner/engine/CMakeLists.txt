@@ -1,5 +1,6 @@
 set(SOURCE_FILES
   runtime.cpp
+  ingest.cpp
   load_worker.cpp
   evaluate_worker.cpp
   save_worker.cpp

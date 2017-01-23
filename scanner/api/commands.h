@@ -25,7 +25,28 @@
 #include <string>
 
 namespace scanner {
+///////////////////////////////////////////////////////////////////////////////
+/// Database management
+void create_database(storehouse::StorageConfig *storage_config,
+                     const std::string &db_path);
 
+void destroy_database(storehouse::StorageConfig *storage_config,
+                      const std::string &db_path);
+
+///////////////////////////////////////////////////////////////////////////////
+/// Ingest
+void ingest_videos(storehouse::StorageConfig *storage_config,
+                   const std::string& db_path,
+                   const std::vector<std::string>& table_names,
+                   const std::vector<std::string>& path);
+
+void ingest_images(storehouse::StorageConfig *storage_config,
+                   const std::string& db_path,
+                   const std::string& table_name,
+                   const std::vector<std::string>& paths);
+
+///////////////////////////////////////////////////////////////////////////////
+/// Run jobs
 struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;
   MemoryPoolConfig memory_pool_config;
@@ -49,5 +70,4 @@ struct JobParameters {
 };
 
 void new_job(JobParameters& params);
-
 }

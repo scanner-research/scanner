@@ -22,12 +22,5 @@
 
 namespace scanner {
 
-void ingest_videos(storehouse::StorageConfig *storage_config,
-                   const std::vector<std::string>& table_names,
-                   const std::vector<std::string>& path);
-
-void ingest_images(storehouse::StorageConfig *storage_config,
-                   const std::string& table_names,
-                   const std::vector<std::string>& paths);
 
 }
