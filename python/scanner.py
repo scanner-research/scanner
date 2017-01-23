@@ -319,6 +319,8 @@ class Scanner(object):
         sys.path.append('{}/thirdparty/build/bin/storehouse/lib'
                         .format(self.config.scanner_path))
         from scannerpy import metadata_pb2
+        import scanner_bindings
+        self._bindings = scanner_bindings
         self._meta = metadata_pb2
         self._executable_path = (
             '{}/build/scanner_server'.format(self.config.scanner_path))
@@ -329,6 +331,10 @@ class Scanner(object):
         d = descriptor()
         d.ParseFromString(self._storage.read(path))
         return d
+
+    def get_include(self):
+        dirs = self._bindings.get_include().split(";")
+        return " ".join(["-I " + d for d in dirs])
 
     def get_job_result(self, dataset_name, job_name, column, fn):
         return JobResult(self, dataset_name, job_name, column, fn)

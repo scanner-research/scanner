@@ -572,7 +572,7 @@ public:
       Column* col = job_descriptor.add_columns();
       col->set_id(i);
       col->set_name(col_name);
-      col->set_type(ColumnType::None);
+      col->set_type(ColumnType::Other);
     }
 
     auto& tasks = job_params->task_set().tasks();

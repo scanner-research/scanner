@@ -2,6 +2,7 @@
 #include "scanner/api/run.h"
 
 #include <boost/python.hpp>
+#include <dlfcn.h>
 
 namespace scanner {
 
@@ -27,12 +28,24 @@ void start_worker_wrapper(DatabaseParameters& params,
   start_worker(params, master_address);
 }
 
+void load_evaluator(const std::string& path) {
+  void* handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  LOG_IF(FATAL, handle == NULL)
+    << "dlopen of " << path << " failed: " << dlerror();
+}
+
+const std::string get_include() {
+  return "@dirs@";
+}
+
 BOOST_PYTHON_MODULE(scanner_bindings) {
   using namespace bp;
   class_<DatabaseParameters>("DatabaseParameters", no_init);
   def("make_database_parameters", make_database_parameters);
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
+  def("load_evaluator", load_evaluator);
+  def("get_include", get_include);
 }
 
 }

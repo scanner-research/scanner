@@ -20,6 +20,9 @@ namespace internal {
 
 void EvaluatorRegistry::add_evaluator(const std::string &name,
                                       EvaluatorInfo *info) {
+  if (evaluators_.count(name) > 0) {
+    LOG(FATAL) << "Attempted to re-register evaluator " << name;
+  }
   evaluators_.insert({name, info});
 }
 

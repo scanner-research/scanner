@@ -214,7 +214,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
     Column* frame_info_col = table_desc.add_columns();
     frame_col->set_name("frame_info");
     frame_col->set_id(1);
-    frame_col->set_type(ColumnType::None);
+    frame_col->set_type(ColumnType::Other);
   }
 
   // Setup custom buffer for libavcodec so that we can read from a storehouse

@@ -39,7 +39,7 @@ enum ImageColorSpace {
 }
 
 enum ColumnType {
-  None = 0;
+  Other = 0;
   Video = 1;
   Image = 2;
 }
