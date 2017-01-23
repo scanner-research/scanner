@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/metadata.pb.h"
+#include "scanner/kernels/types.pb.h"
 #include "glog/logging.h"
 
 #include <cstdint>
@@ -42,6 +43,8 @@ using proto::ColumnType;
 using proto::LoadWorkEntry;
 using proto::Column;
 using proto::MemoryPoolConfig;
+using proto::BoundingBox;
+using proto::Point;
 
 struct DeviceHandle {
 public:

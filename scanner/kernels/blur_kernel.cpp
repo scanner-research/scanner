@@ -69,8 +69,8 @@ void BlurKernel::execute(const BatchedColumns &input_columns,
   output_columns[1].rows = input_columns[1].rows;
 }
 
-REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});
+REGISTER_EVALUATOR("Blur").outputs({"frame", "frame_info"});
 
-REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
+REGISTER_KERNEL("Blur", BlurKernel).device(DeviceType::CPU).num_devices(1);
 
 }

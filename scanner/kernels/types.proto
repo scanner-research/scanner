@@ -1,20 +1,26 @@
-syntax = "proto2";
+syntax = "proto3";
 
-package scanner;
+package scanner.proto;
+
+message Frame {
+  int64 buffer = 1;
+  int32 width = 2;
+  int32 height = 3;
+}
 
 message BoundingBox {
-  required float x1 = 1;
-  required float y1 = 2;
-  required float x2 = 3;
-  required float y2 = 4;
-  optional float score = 5 [default = 0];
-  optional int32 track_id = 6 [default = 0];
-  optional double track_score = 7 [default = 0];
-  optional int32 label = 8 [default = 0];
+  float x1 = 1;
+  float y1 = 2;
+  float x2 = 3;
+  float y2 = 4;
+  float score = 5;
+  int32 track_id = 6;
+  double track_score = 7;
+  int32 label = 8;
 }
 
 message Point {
-  required float x = 1;
-  required float y = 2;
-  optional float score = 3;
+  float x = 1;
+  float y = 2;
+  float score = 3;
 }

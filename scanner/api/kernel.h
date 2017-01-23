@@ -109,6 +109,18 @@ class Kernel {
   Profiler* profiler_ = nullptr;
 };
 
+class FrameKernel : public Kernel {
+public:
+  FrameKernel(const Config& config) : Kernel(config) {};
+
+protected:
+  std::vector<proto::Frame> get_frames(const RowList& row_list);
+  virtual void new_frame_size(){};
+
+  i32 frame_width_ = -1;
+  i32 frame_height_ = -1;
+};
+
 #define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)
 
 #define ROW_SIZE(column__, row__) (column__.rows[row__].size)
@@ -157,11 +169,14 @@ public:
 }
 
 #define REGISTER_KERNEL(name__, kernel__) \
-  REGISTER_KERNEL_UID(__COUNTER__, name__, kernel__)
+  REGISTER_KERNEL_HELPER(__COUNTER__, name__, kernel__)
+
+#define REGISTER_KERNEL_HELPER(uid__, name__, kernel__) \
+  REGISTER_KERNEL_UID(uid__, name__, kernel__)
 
 #define REGISTER_KERNEL_UID(uid__, name__, kernel__)                           \
   static ::scanner::internal::KernelRegistration kernel_registration_##uid__ = \
-      ::scanner::internal::KernelBuilder(#name__, [](const Kernel::Config &config) { \
+      ::scanner::internal::KernelBuilder(name__, [](const Kernel::Config &config) { \
         return new kernel__(config);                                           \
       })
 }
