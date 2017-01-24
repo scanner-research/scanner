@@ -206,8 +206,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   DatabaseMetadata meta =
       read_database_metadata(storage, DatabaseMetadata::descriptor_path());
   i32 table_id = meta.add_table(table_name);
-  TableMetadata table_meta;
-  proto::TableDescriptor& table_desc = table_meta.get_descriptor();
+  proto::TableDescriptor table_desc; 
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
 
@@ -218,9 +217,9 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
     frame_col->set_type(ColumnType::Video);
 
     Column* frame_info_col = table_desc.add_columns();
-    frame_col->set_name("frame_info");
-    frame_col->set_id(1);
-    frame_col->set_type(ColumnType::Other);
+    frame_info_col->set_name("frame_info");
+    frame_info_col->set_id(1);
+    frame_info_col->set_type(ColumnType::Other);
   }
 
   // Setup custom buffer for libavcodec so that we can read from a storehouse
@@ -462,7 +461,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   write_video_metadata(storage, video_meta);
 
   // Save the table descriptor
-  write_table_metadata(storage, table_meta);
+  write_table_metadata(storage, TableMetadata(table_desc));
 
   // Save the db metadata
   write_database_metadata(storage, meta);

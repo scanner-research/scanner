@@ -96,6 +96,6 @@ class EvaluatorBuilder {
 
 #define REGISTER_EVALUATOR_UID(uid__, name__)                                  \
   static ::scanner::internal::EvaluatorRegistration                            \
-      evaluator_registration_##uid__ =                                         \
+      evaluator_registration_##uid__ __attribute__((unused)) =                 \
           ::scanner::internal::EvaluatorBuilder(#name__)
 }

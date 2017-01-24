@@ -174,8 +174,8 @@ public:
   REGISTER_KERNEL_UID(uid__, name__, kernel__)
 
 #define REGISTER_KERNEL_UID(uid__, name__, kernel__)                           \
-  static ::scanner::internal::KernelRegistration kernel_registration_##uid__ = \
-      ::scanner::internal::KernelBuilder(#name__, [](const Kernel::Config &config) { \
-        return new kernel__(config);                                           \
-      })
+  static ::scanner::internal::KernelRegistration kernel_registration_##uid__   \
+      __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \
+          #name__,                                                             \
+          [](const Kernel::Config &config) { return new kernel__(config); })
 }
