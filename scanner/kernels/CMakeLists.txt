@@ -8,7 +8,8 @@ endif()
 
 if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
-    caffe_kernel.cpp)
+    caffe_kernel.cpp
+    caffe_input_kernel.cpp)
 endif()
 
 add_library(kernels OBJECT
