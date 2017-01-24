@@ -37,8 +37,6 @@ public:
     return output_columns_;
   }
 
-  const DeviceType device_type();
-
 private:
   std::string name_;
   std::vector<std::string> output_columns_;

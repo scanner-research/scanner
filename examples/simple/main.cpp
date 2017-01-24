@@ -10,8 +10,8 @@ int main(int argc, char** argv) {
   // Create database
   scanner::create_database(sc.get(), db_path);
   // Ingest video
-  scanner::ingest_videos(sc.get(), db_path, {"mean"},
-                         {"/n/scanner/apoms/videos/meanGirls_50k.mp4"});
+  // scanner::ingest_videos(sc.get(), db_path, {"mean"},
+  //                        {"/n/scanner/apoms/videos/meanGirls_50k.mp4"});
   // Initialize master and one worker
   scanner::DatabaseParameters db_params;
   db_params.storage_config = sc.get();
@@ -22,6 +22,22 @@ int main(int argc, char** argv) {
       scanner::start_worker(db_params, "localhost:5001", false);
 
   // Construct job parameters
+  scanner::JobParameters params;
+  params.master_address = "localhost:5001";
+  params.job_name = "test_job";
+
+  // Specify job tasks
+  scanner::Task task;
+  task.output_table_name = "blurred_mean";
+  scanner::TableSample sample;
+  sample.table_name = "mean";
+  sample.column_names = {"frame", "frame_info"};
+  for (int i = 0; i < 1000; ++i) {
+    sample.rows.push_back(i);
+  }
+  task.samples.push_back(sample);
+  params.task_set.tasks.push_back(task);
+
   scanner::Evaluator *input =
       scanner::make_input_evaluator({"frame", "frame_info"});
 
@@ -36,7 +52,6 @@ int main(int argc, char** argv) {
       arg_size);
 
   // Launch job
-  scanner::JobParameters params;
-  params.master_address = "localhost:5001";
+  params.task_set.output_evaluator = blur;
   scanner::new_job(params);
 }

@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "scanner/api/task_set.h"
+#include "scanner/api/evaluator.h"
 #include "scanner/util/memory.h"
 #include "storehouse/storage_backend.h"
 
@@ -46,7 +46,7 @@ void ingest_images(storehouse::StorageConfig *storage_config,
                    const std::vector<std::string>& paths);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Run jobs
+/// Node setup
 struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;
   MemoryPoolConfig memory_pool_config;
@@ -64,10 +64,75 @@ ServerState start_worker(DatabaseParameters &params,
                            const std::string &master_address,
                            bool block = true);
 
+///////////////////////////////////////////////////////////////////////////////
+/// Job submission
+struct TableSample {
+  std::string table_name;
+  std::vector<std::string> column_names;
+  std::vector<i64> rows;
+};
+
+struct Task {
+  std::string output_table_name;
+  std::vector<TableSample> samples;
+};
+
+struct TaskSet {
+  std::vector<Task> tasks;
+  Evaluator* output_evaluator;
+};
+
 struct JobParameters {
   std::string master_address;
+  std::string job_name;
   TaskSet task_set;
 };
 
 void new_job(JobParameters& params);
+
+///////////////////////////////////////////////////////////////////////////////
+/// Metadata access
+// class TableInformation {
+//  public:
+//   TableInformation(i64 rows,
+//                    const std::vector<std::string>& sample_job_names,
+//                    const std::vector<std::string>& sample_table_names,
+//                    const std::vector<std::vector<std::string>>& sample_columns,
+//                    const std::vector<std::vector<i64>>& sample_rows);
+
+//   i64 num_rows() const;
+
+//   const std::vector<TableSample>& samples() const;
+
+//  private:
+//   i64 rows_;
+//   std::vector<TableSample> samples_;
+// };
+
+// class DatabaseInformation {
+//  public:
+//   JobInformation(const std::string& dataset_name, const std::string& job_name,
+//                  storehouse::StorageBackend* storage);
+
+//   const std::vector<std::string>& table_names() const;
+
+//   const i32 table_id(const std::string& name) const;
+
+//  private:
+//   std::string dataset_name_;
+//   std::string job_name_;
+//   storehouse::StorageBackend* storage_;
+//   std::vector<std::string> table_names_;
+//   std::vector<std::string> column_names_;
+//   std::map<std::string, TableInformation> tables_;
+// };
+
+// DatabaseInformation get_database_info(storehouse::StorageConfig *storage_config,
+//                                       const std::string &db_path);
+
+// void get_table_info(storehouse::StorageConfig* storage_config,
+//                     const std::string& db_path,
+//                     const std::string& table_name);
+
+
 }

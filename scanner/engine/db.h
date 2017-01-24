@@ -95,12 +95,16 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
 
   static std::string descriptor_path();
 
+  const std::vector<std::string>& table_names() const;
+
   bool has_table(const std::string& table) const;
   bool has_table(i32 table_id) const;
   i32 get_table_id(const std::string& table) const;
   const std::string& get_table_name(i32 table_id) const;
   i32 add_table(const std::string& table);
   void remove_table(i32 table_id);
+
+  const std::vector<std::string>& job_names() const;
 
   bool has_job(const std::string& job) const;
   bool has_job(i32 job_id) const;
@@ -112,8 +116,10 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
  private:
   i32 next_table_id_;
   i32 next_job_id_;
-  std::map<i32, std::string> table_names_;
-  std::map<i32, std::string> job_names_;
+  std::vector<std::string> table_names_;
+  std::vector<std::string> job_names_;
+  std::map<i32, std::string> table_id_names_;
+  std::map<i32, std::string> job_id_names_;
 };
 
 class VideoMetadata : public Metadata<proto::VideoDescriptor> {
@@ -167,19 +173,19 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 
   i32 column_id(const std::string& column_name) const;
 
-  const std::vector<i32>& table_ids() const;
+  const std::vector<std::string>& table_names() const;
 
-  bool has_table(i32 table_id) const;
+  bool has_table(const std::string& name) const;
 
-  i64 rows_in_table(i32 table_id) const;
+  i64 rows_in_table(const std::string& name) const;
 
   i64 total_rows() const;
 
 private:
-  std::vector<proto::Column> columns_;
+  std::vector<Column> columns_;
   std::map<std::string, i32> column_ids_;
-  std::vector<i32> table_ids_;
-  mutable std::map<i32, i64> rows_in_table_;
+  std::vector<std::string> table_names_;
+  mutable std::map<std::string, i64> rows_in_table_;
 };
 
 class TableMetadata : public Metadata<proto::TableDescriptor> {

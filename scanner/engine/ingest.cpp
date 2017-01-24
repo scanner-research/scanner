@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/api/ingest.h"
+#include "scanner/api/commands.h"
 #include "scanner/engine/db.h"
 
 #include "scanner/util/common.h"

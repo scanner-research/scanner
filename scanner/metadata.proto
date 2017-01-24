@@ -99,14 +99,13 @@ message TableDescriptor {
 
 // Task set messages
 message TableSample {
-  int32 job_id = 1;
-  int32 table_id = 2;
-  repeated int32 column_ids = 3;
+  string table_name = 2;
+  repeated string column_names = 3;
   repeated int64 rows = 4 [packed=true];
 }
 
 message Task {
-  int32 output_table_id = 2;
+  string output_table_name = 2;
   repeated TableSample samples = 3;
 }
 
@@ -118,9 +117,7 @@ message EvalInput {
 message Evaluator {
   string name = 1;
   repeated EvalInput inputs = 2;
-  DeviceType device_type = 3;
-  int32 device_count = 4;
-  bytes kernel_args = 5;
+  bytes kernel_args = 3;
 }
 
 message TaskSet {
@@ -154,9 +151,15 @@ message ImageDecodeArgs {
   repeated int64 valid_images = 6;
 }
 
+message LoadSample {
+  int32 table_id = 1;
+  repeated int32 column_ids = 2;
+  repeated int64 rows = 3 [packed=true];
+}
+
 message LoadWorkEntry {
   int32 io_item_index = 1;
-  repeated TableSample samples = 2;
+  repeated LoadSample samples = 2;
 }
 
 message MemoryPoolConfig {

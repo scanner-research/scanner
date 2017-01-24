@@ -38,11 +38,10 @@ using storehouse::RandomReadFile;
 namespace scanner {
 namespace internal {
 
-void create_io_items(
-  const proto::TaskSet& task_set,
-  std::vector<IOItem>& io_items,
-  std::vector<LoadWorkEntry>& load_work_entries)
-{
+void create_io_items(const std::map<std::string, TableMetadata>& table_metas,
+                     const proto::TaskSet &task_set,
+                     std::vector<IOItem> &io_items,
+                     std::vector<LoadWorkEntry> &load_work_entries) {
   const i32 io_item_size = rows_per_io_item();
   auto& tasks = task_set.tasks();
   i32 warmup_size = 0;
@@ -64,17 +63,15 @@ void create_io_items(
       item.end_row = allocated_rows + rows_to_allocate;
       io_items.push_back(item);
 
-      LoadWorkEntry load_item;
+      proto::LoadWorkEntry load_item;
       load_item.set_io_item_index(io_items.size() - 1);
       for (auto& sample : task.samples()) {
-        i32 sample_job_id = sample.job_id();
-        i32 sample_table_id = sample.table_id();
-
-        proto::TableSample* load_sample = load_item.add_samples();
-        load_sample->set_job_id(sample_job_id);
+        const TableMetadata& t_meta = table_metas.at(sample.table_name());
+        i32 sample_table_id = t_meta.id();
+        proto::LoadSample* load_sample = load_item.add_samples();
         load_sample->set_table_id(sample_table_id);
-        for (auto col : sample.column_ids()) {
-          load_sample->add_column_ids(col);
+        for (auto col_name : sample.column_names()) {
+          load_sample->add_column_ids(t_meta.column_id(col_name));
         }
         i64 e = allocated_rows + rows_to_allocate;
         // Add extra frames for warmup
@@ -96,6 +93,8 @@ public:
   WorkerImpl(DatabaseParameters& params, std::string master_address)
     : db_params_(params)
   {
+    set_database_path(params.db_path);
+
     master_ = proto::Master::NewStub(
       grpc::CreateChannel(
         master_address,
@@ -127,6 +126,8 @@ public:
   grpc::Status NewJob(grpc::ServerContext* context,
                       const proto::JobParameters* job_params,
                       proto::Empty* empty) {
+    set_database_path(db_params_.db_path);
+
     timepoint_t base_time = now();
     const i32 work_item_size = rows_per_work_item();
     i32 warmup_size = 0;
@@ -139,8 +140,11 @@ public:
     auto& evaluators = job_params->task_set().evaluators();
     for (auto& evaluator : evaluators) {
       const std::string& name = evaluator.name();
+      EvaluatorInfo *evaluator_info =
+          evaluator_registry->get_evaluator_info(name);
+
       KernelFactory* kernel_factory =
-        kernel_registry->get_kernel(name, evaluator.device_type());
+          kernel_registry->get_kernel(name, DeviceType::CPU);
       kernel_factories.push_back(kernel_factory);
 
       Kernel::Config kernel_config;
@@ -151,7 +155,7 @@ public:
       for (auto& input : evaluator.inputs()) {
         const proto::Evaluator& input_evaluator = evaluators.Get(
           input.evaluator_index());
-        EvaluatorInfo* evaluator_info =
+        EvaluatorInfo* input_evaluator_info =
           evaluator_registry->get_evaluator_info(input_evaluator.name());
         // TODO: verify that input.columns() are all in
         // evaluator_info->output_columns()
@@ -161,13 +165,13 @@ public:
           input.columns().end());
       }
 
-      DeviceType device_type = evaluator.device_type();
+      DeviceType device_type = kernel_factory->get_device_type();
       if (device_type == DeviceType::CPU) {
         // TODO: multiple CPUs?
         kernel_config.devices.push_back(CPU_DEVICE);
       } else if (device_type == DeviceType::GPU) {
         // TODO: round robin GPUs within a node
-        for (i32 i = 0; i < evaluator.device_count(); ++i) {
+        for (i32 i = 0; i < kernel_factory->get_max_devices(); ++i) {
           i32 device_id = i % num_gpus;
           kernel_config.devices.push_back({device_type, device_id});
         }
@@ -178,9 +182,20 @@ public:
       kernel_configs.push_back(kernel_config);
     }
 
+    // Load table metadata
+    DatabaseMetadata meta =
+        read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+    std::map<std::string, TableMetadata> table_meta;
+    for (const std::string& table_name : meta.table_names()) {
+      std::string table_path =
+          TableMetadata::descriptor_path(meta.get_table_id(table_name));
+      table_meta[table_name] = read_table_metadata(storage_, table_path);
+    }
+
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
-    create_io_items(job_params->task_set(), io_items, load_work_entries);
+    create_io_items(table_meta, job_params->task_set(), io_items,
+                    load_work_entries);
 
     // Setup shared resources for distributing work to processing threads
     i64 accepted_items = 0;
@@ -506,6 +521,7 @@ private:
   DatabaseParameters db_params_;
   i32 node_id_;
   storehouse::StorageBackend* storage_;
+  std::map<std::string, TableMetadata*> table_metas_;
 };
 
 class MasterImpl final : public proto::Master::Service {
@@ -514,7 +530,8 @@ public:
       : next_io_item_to_allocate_(0), num_io_items_(0), db_params_(params) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
-    }
+    set_database_path(params.db_path);
+  }
 
   ~MasterImpl() {
     delete storage_;
@@ -523,6 +540,8 @@ public:
   grpc::Status RegisterWorker(grpc::ServerContext* context,
                               const proto::WorkerInfo* worker_info,
                               proto::Empty* empty) {
+    set_database_path(db_params_.db_path);
+
     workers_.push_back(
       proto::Worker::NewStub(
         grpc::CreateChannel(
@@ -547,6 +566,8 @@ public:
   grpc::Status NewJob(grpc::ServerContext* context,
                       const proto::JobParameters* job_params,
                       proto::Empty* empty) {
+    set_database_path(db_params_.db_path);
+
     const i32 io_item_size = rows_per_io_item();
     const i32 work_item_size = rows_per_work_item();
 
@@ -575,9 +596,41 @@ public:
     auto& tasks = job_params->task_set().tasks();
     job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
+    DatabaseMetadata meta = read_database_metadata(
+      storage_, DatabaseMetadata::descriptor_path());
+    // Create output tables
+    for (auto& task : job_params->task_set().tasks()) {
+      i32 table_id = meta.add_table(task.output_table_name());
+      proto::TableDescriptor table_desc;
+      table_desc.set_id(table_id);
+      table_desc.set_name(task.output_table_name());
+      // Set columns equal to the last evaluator's output columns
+      for (size_t i = 0; i < output_columns.size(); ++i) {
+        Column* col = table_desc.add_columns();
+        col->set_id(i);
+        col->set_name(output_columns[i]);
+        col->set_type(ColumnType::Other);
+      }
+      table_desc.set_num_rows(task.samples(0).rows().size());
+      table_desc.set_rows_per_item(io_item_size);
+      write_table_metadata(storage_, TableMetadata(table_desc));
+    }
+
+    // Write out database metadata so that workers can read it
+    write_database_metadata(storage_, meta);
+
+    // Read all table metadata
+    std::map<std::string, TableMetadata> table_meta;
+    for (const std::string& table_name : meta.table_names()) {
+      std::string table_path =
+          TableMetadata::descriptor_path(meta.get_table_id(table_name));
+      table_meta[table_name] = read_table_metadata(storage_, table_path);
+    }
+
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
-    create_io_items(job_params->task_set(), io_items, load_work_entries);
+    create_io_items(table_meta, job_params->task_set(), io_items,
+                    load_work_entries);
     num_io_items_ = io_items.size();
 
     std::vector<std::thread> requests;
@@ -596,10 +649,10 @@ public:
       r.join();
     }
 
+    // Write table metadata
+
     // Add job name into database metadata so we can look up what jobs have
     // been ran
-    DatabaseMetadata meta = read_database_metadata(
-      storage_, DatabaseMetadata::descriptor_path());
     i32 job_id = meta.add_job(job_params->job_name());
     write_database_metadata(storage_, meta);
 

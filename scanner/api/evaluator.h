@@ -31,16 +31,31 @@ public:
 
   virtual ~Evaluator(){};
 
+  const std::string& get_name() const;
+
+  const std::vector<EvalInput>& get_inputs() const;
+
+  char* get_args() const;
+
+  size_t get_args_size() const;
+
 protected:
   std::string name_;
   std::vector<EvalInput> inputs_;
   char* args_;
+  size_t args_size_;
 };
 
-struct EvalInput {
+class EvalInput {
+public:
   EvalInput(Evaluator *evaluator, const std::vector<std::string> &columns)
       : evaluator(evaluator), columns(columns) {}
 
+  Evaluator* get_evaluator() const;
+
+  const std::vector<std::string>& get_columns() const;
+
+private:
   Evaluator *evaluator;
   std::vector<std::string> columns;
 };

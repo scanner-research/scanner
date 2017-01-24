@@ -68,11 +68,13 @@ DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
       next_job_id_(d.next_job_id()) {
   for (int i = 0; i < descriptor_.tables_size(); ++i) {
     const DatabaseDescriptor::Table& table = descriptor_.tables(i);
-    table_names_.insert({table.id(), table.name()});
+    table_id_names_.insert({table.id(), table.name()});
+    table_names_.push_back(table.name());
   }
   for (int i = 0; i < descriptor_.jobs_size(); ++i) {
     const DatabaseDescriptor_Job& job = descriptor_.jobs(i);
-    job_names_.insert({job.id(), job.name()});
+    job_id_names_.insert({job.id(), job.name()});
+    job_names_.push_back(job.name());
   }
 }
 
@@ -82,13 +84,13 @@ const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
   descriptor_.clear_tables();
   descriptor_.clear_jobs();
 
-  for (auto& kv : table_names_) {
+  for (auto& kv : table_id_names_) {
     auto table = descriptor_.add_tables();
     table->set_id(kv.first);
     table->set_name(kv.second);
   }
 
-  for (auto& kv : job_names_) {
+  for (auto& kv : job_id_names_) {
     auto job = descriptor_.add_jobs();
     job->set_id(kv.first);
     job->set_name(kv.second);
@@ -101,8 +103,12 @@ std::string DatabaseMetadata::descriptor_path() {
   return database_metadata_path();
 }
 
+const std::vector<std::string>& DatabaseMetadata::table_names() const {
+  return table_names_;
+}
+
 bool DatabaseMetadata::has_table(const std::string& table) const {
-  for (const auto& kv : table_names_) {
+  for (const auto& kv : table_id_names_) {
     if (kv.second == table) {
       return true;
     }
@@ -111,12 +117,12 @@ bool DatabaseMetadata::has_table(const std::string& table) const {
 }
 
 bool DatabaseMetadata::has_table(i32 table_id) const {
-  return table_names_.count(table_id) > 0;
+  return table_id_names_.count(table_id) > 0;
 }
 
 i32 DatabaseMetadata::get_table_id(const std::string& table) const {
   i32 id = -1;
-  for (const auto& kv : table_names_) {
+  for (const auto& kv : table_id_names_) {
     if (kv.second == table) {
       id = kv.first;
       break;
@@ -127,22 +133,26 @@ i32 DatabaseMetadata::get_table_id(const std::string& table) const {
 }
 
 const std::string& DatabaseMetadata::get_table_name(i32 table_id) const {
-  return table_names_.at(table_id);
+  return table_id_names_.at(table_id);
 }
 
 i32 DatabaseMetadata::add_table(const std::string& table) {
   i32 table_id = next_table_id_++;
-  table_names_[table_id] = table;
+  table_id_names_[table_id] = table;
   return table_id;
 }
 
 void DatabaseMetadata::remove_table(i32 table_id) {
-  assert(table_names_.count(table_id) > 0);
-  table_names_.erase(table_id);
+  assert(table_id_names_.count(table_id) > 0);
+  table_id_names_.erase(table_id);
+}
+
+const std::vector<std::string>& DatabaseMetadata::job_names() const {
+  return job_names_;
 }
 
 bool DatabaseMetadata::has_job(const std::string& job) const {
-  for (const auto& kv : job_names_) {
+  for (const auto& kv : job_id_names_) {
     if (kv.second == job) {
       return true;
     }
@@ -151,12 +161,12 @@ bool DatabaseMetadata::has_job(const std::string& job) const {
 }
 
 bool DatabaseMetadata::has_job(i32 job_id) const {
-  return job_names_.count(job_id) > 0;
+  return job_id_names_.count(job_id) > 0;
 }
 
 i32 DatabaseMetadata::get_job_id(const std::string& job) const {
   i32 job_id = -1;
-  for (const auto& kv : job_names_) {
+  for (const auto& kv : job_id_names_) {
     if (kv.second == job) {
       job_id = kv.first;
       break;
@@ -167,18 +177,18 @@ i32 DatabaseMetadata::get_job_id(const std::string& job) const {
 }
 
 const std::string& DatabaseMetadata::get_job_name(i32 job_id) const {
-  return job_names_.at(job_id);
+  return job_id_names_.at(job_id);
 }
 
 i32 DatabaseMetadata::add_job(const std::string& job_name) {
   i32 job_id = next_job_id_++;
-  job_names_[job_id] = job_name;
+  job_id_names_[job_id] = job_name;
   return job_id;
 }
 
 void DatabaseMetadata::remove_job(i32 job_id) {
-  assert(job_names_.count(job_id) > 0);
-  job_names_.erase(job_id);
+  assert(job_id_names_.count(job_id) > 0);
+  job_id_names_.erase(job_id);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -253,7 +263,7 @@ JobMetadata::JobMetadata(const JobDescriptor &job) : Metadata(job) {
     column_ids_.insert({c.name(), c.id()});
   }
   for (auto &t : descriptor_.tasks()) {
-    table_ids_.push_back(t.output_table_id());
+    table_names_.push_back(t.output_table_name());
   }
 }
 
@@ -285,28 +295,28 @@ i32 JobMetadata::column_id(const std::string& column_name) const {
   column_ids_.at(column_name);
 }
 
-const std::vector<i32>& JobMetadata::table_ids() const {
-  return table_ids_;
+const std::vector<std::string>& JobMetadata::table_names() const {
+  return table_names_;
 }
 
-bool JobMetadata::has_table(i32 table_id) const {
-  for (i32 id : table_ids_) {
-    if (id == table_id) {
+bool JobMetadata::has_table(const std::string& name) const {
+  for (const std::string& n : table_names_) {
+    if (n == name) {
       return true;
     }
   }
   return false;
 }
 
-i64 JobMetadata::rows_in_table(i32 table_id) const {
+i64 JobMetadata::rows_in_table(const std::string& name) const {
   i64 rows = -1;
-  auto it = rows_in_table_.find(table_id);
+  auto it = rows_in_table_.find(name);
   if (it == rows_in_table_.end()) {
-    for (const Task& task : descriptor_.tasks()) {
+    for (const proto::Task& task : descriptor_.tasks()) {
       assert(task.samples_size() > 0);
-      const TableSample& sample = task.samples(0);
+      const proto::TableSample& sample = task.samples(0);
       rows = sample.rows_size();
-      rows_in_table_.insert(std::make_pair(table_id, rows));
+      rows_in_table_.insert(std::make_pair(name, rows));
     }
   } else {
     rows = it->second;
@@ -317,9 +327,9 @@ i64 JobMetadata::rows_in_table(i32 table_id) const {
 
 i64 JobMetadata::total_rows() const {
   i64 rows = 0;
-  for (const Task& task : descriptor_.tasks()) {
+  for (const proto::Task& task : descriptor_.tasks()) {
     assert(task.samples_size() > 0);
-    const TableSample& sample = task.samples(0);
+    const proto::TableSample& sample = task.samples(0);
     rows += sample.rows_size();
   }
   return rows;

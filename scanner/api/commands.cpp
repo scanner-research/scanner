@@ -51,6 +51,89 @@ bool database_exists(storehouse::StorageBackend *storage,
   storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
   return (result != storehouse::StoreResult::FileDoesNotExist);
 }
+
+proto::TaskSet consume_task_set(TaskSet& ts) {
+  proto::TaskSet task_set;
+  // Parse tasks
+  for (Task& t : ts.tasks) {
+    proto::Task* task = task_set.add_tasks();
+    task->set_output_table_name(t.output_table_name);
+    for (TableSample& ts : t.samples) {
+      proto::TableSample* sample = task->add_samples();
+      sample->set_table_name(ts.table_name);
+      for (std::string& s : ts.column_names) {
+        sample->add_column_names(s);
+      }
+      for (i64 r : ts.rows) {
+        sample->add_rows(r);
+      }
+    }
+  }
+  // Parse evaluators
+  std::map<Evaluator*, std::vector<Evaluator*>> edges; // parent -> child
+  std::map<Evaluator*, i32> in_edges_left; // parent -> child
+  Evaluator* start_node = nullptr;
+  {
+    // Find all edges
+    std::vector<Evaluator*> stack;
+    stack.push_back(ts.output_evaluator);
+    while (!stack.empty()) {
+      Evaluator* c = stack.back();
+      stack.pop_back();
+
+      if (c->get_name() == "Table") {
+        assert(start_node == nullptr);
+        start_node = c;
+      }
+
+      for (const EvalInput& input : c->get_inputs()) {
+        Evaluator* parent_eval = input.get_evaluator();
+        edges[parent_eval].push_back(c);
+        in_edges_left[c] += 1;
+        stack.push_back(parent_eval);
+      }
+    }
+  }
+  std::vector<Evaluator*> sorted_evaluators;
+  std::map<Evaluator*, i32> evaluator_index;
+  {
+    // Perform topological sort
+    std::vector<Evaluator *> stack;
+    stack.push_back(start_node);
+    while (!stack.empty()) {
+      Evaluator* curr = stack.back();
+      stack.pop_back();
+
+      sorted_evaluators.push_back(curr);
+      evaluator_index.insert({curr, sorted_evaluators.size() - 1});
+      for (Evaluator* child : edges.at(curr)) {
+        i32& edges_left = in_edges_left[child];
+        edges_left -= 1;
+        if (edges_left == 0) {
+          stack.push_back(child);
+        }
+      }
+    }
+  }
+  assert(sorted_evaluators.size() == in_edges_left.size());
+  // Translate sorted evaluators into serialized task set
+  for (Evaluator* eval : sorted_evaluators) {
+    proto::Evaluator* proto_eval = task_set.add_evaluators();
+    proto_eval->set_name(eval->get_name());
+    for (const EvalInput& input : eval->get_inputs()) {
+      proto::EvalInput* proto_input = proto_eval->add_inputs();
+      i32 parent_index = evaluator_index.at(input.get_evaluator());
+      proto_input->set_evaluator_index(parent_index);
+      for (const std::string& column_name : input.get_columns()) {
+        proto_input->add_columns(column_name);
+      }
+    }
+    proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
+  }
+
+  return task_set;
+}
+
 }
 
 void create_database(storehouse::StorageConfig *storage_config,
@@ -103,6 +186,14 @@ ServerState start_worker(DatabaseParameters &params,
   return state;
 }
 
+void get_database_info(const std::string& master_address) {
+}
+
+void get_table_info(const std::string& master_address,
+                    const std::string& table_name) {
+}
+
+
 void new_job(JobParameters& params) {
   auto channel = grpc::CreateChannel(params.master_address,
                                      grpc::InsecureChannelCredentials());
@@ -111,11 +202,10 @@ void new_job(JobParameters& params) {
 
   grpc::ClientContext context;
   proto::JobParameters job_params;
-  job_params.set_job_name(params.task_set.job_name);
+  job_params.set_job_name(params.job_name);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   proto::Empty empty;
-  printf("before new job\n");
   grpc::Status status = master_->NewJob(&context, job_params, &empty);
   LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
                               << status.error_message();
