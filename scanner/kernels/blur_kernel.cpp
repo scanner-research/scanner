@@ -13,30 +13,32 @@
  * limitations under the License.
  */
 
-#include "scanner/kernels/blur_kernel.h"
 #include "scanner/kernels/args.pb.h"
-
+#include "scanner/api/kernel.h"
 #include "scanner/api/evaluator.h"
 
 #include <cmath>
 
 namespace scanner {
 
-BlurKernel::BlurKernel(const Kernel::Config& config)
+class BlurKernel : public Kernel {
+public:
+  BlurKernel(const Kernel::Config& config)
     : Kernel(config) {
-  scanner::proto::BlurArgs args;
-  args.ParseFromArray(config.args.data(), config.args.size());
+    scanner::proto::BlurArgs args;
+    args.ParseFromArray(config.args.data(), config.args.size());
 
-  kernel_size_ = args.kernel_size();
-  sigma_ = args.sigma();
+    kernel_size_ = args.kernel_size();
+    sigma_ = args.sigma();
 
-  filter_left_ = std::ceil(kernel_size_ / 2.0) - 1;
-  filter_right_ = kernel_size_ / 2;
-}
+    filter_left_ = std::ceil(kernel_size_ / 2.0) - 1;
+    filter_right_ = kernel_size_ / 2;
+  }
 
-void BlurKernel::execute(const BatchedColumns &input_columns,
-                         BatchedColumns &output_columns) {
-  i32 input_count = (i32)input_columns[0].rows.size();
+
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
+      i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 width = frame_width_;
   i32 height = frame_height_;
@@ -67,10 +69,20 @@ void BlurKernel::execute(const BatchedColumns &input_columns,
   }
   // Forward frame info
   output_columns[1].rows = input_columns[1].rows;
-}
+  }
 
-REGISTER_EVALUATOR("Blur").outputs({"frame", "frame_info"});
+ private:
+  i32 kernel_size_;
+  i32 filter_left_;
+  i32 filter_right_;
+  f64 sigma_;
 
-REGISTER_KERNEL("Blur", BlurKernel).device(DeviceType::CPU).num_devices(1);
+  i32 frame_width_;
+  i32 frame_height_;
+};
+
+REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});
+
+REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 
 }

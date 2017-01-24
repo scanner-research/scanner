@@ -6,3 +6,31 @@ message BlurArgs {
   int32 kernel_size = 1;
   float sigma = 2;
 }
+
+message CaffeArgs {
+  message NetDescriptor {
+    string model_path = 1;
+    string model_weights_path = 2;
+
+    repeated string input_layer_names = 3;
+    repeated string output_layer_names = 4;
+
+    int32 input_width = 5;
+    int32 input_height = 6;
+
+    repeated float mean_colors = 7;
+    // or
+    repeated float mean_image = 8;
+    int32 mean_width = 9;
+    int32 mean_height = 10;
+
+    bool normalize = 11;
+    bool preserve_aspect_ratio = 12;
+    bool transpose = 13;
+    int32 pad_mod = 14;
+  }
+
+  NetDescriptor net_descriptor = 15;
+  string net_configuration_fn = 16;
+  int32 batch_size = 17;
+}

@@ -16,32 +16,29 @@
 #include "scanner/api/kernel.h"
 #include "scanner/engine/kernel_factory.h"
 #include "scanner/engine/kernel_registry.h"
+#include "scanner/util/memory.h"
 
 namespace scanner {
 
 Kernel::Kernel(const Config& config) {
 }
 
-std::vector<proto::Frame> FrameKernel::get_frames(const RowList& row_list) {
+void VideoKernel::check_frame_info(const DeviceHandle& device,
+                                   const RowList& row_list) {
   auto& rows = row_list.rows;
-  size_t num_rows = rows.size();
-  assert(num_rows > 0);
+  assert(rows.size() > 0);
 
-  std::vector<proto::Frame> frames;
-  frames.resize(num_rows);
+  // Assume that all the FrameInfos in the same batch are the same
+  FrameInfo frame_info;
+  memcpy_buffer((u8*) &frame_info, CPU_DEVICE,
+                rows[0].buffer, device,
+                sizeof(FrameInfo));
 
-  for (i32 i = 0; i < num_rows; ++i) {
-    frames[i].ParseFromArray(rows[i].buffer, rows[i].size);
+  if (frame_info.width != frame_info_.width ||
+      frame_info.height != frame_info_.height) {
+    frame_info_ = frame_info;
+    new_frame_info();
   }
-
-  if (frames[0].width() != frame_width_ ||
-      frames[0].height() != frame_height_) {
-    frame_width_ = frames[0].width();
-    frame_height_ = frames[0].height();
-    new_frame_size();
-  }
-
-  return frames;
 }
 
 namespace internal {

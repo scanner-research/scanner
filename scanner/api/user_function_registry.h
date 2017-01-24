@@ -15,25 +15,33 @@
 
 #pragma once
 
-#include "scanner/api/kernel.h"
+#include "scanner/util/common.h"
+
+#include <map>
 
 namespace scanner {
+namespace internal {
 
-class BlurKernel : public Kernel {
- public:
-  BlurKernel(const Kernel::Config& config);
+class UserFunctionRegistry {
+public:
+  void add_user_function(const std::string &name, const void* fn);
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override;
+  template<typename T>
+  std::function<T> get_user_function(const std::string &name);
 
- private:
-  i32 kernel_size_;
-  i32 filter_left_;
-  i32 filter_right_;
-  f64 sigma_;
+  bool has_user_function(const std::string& name);
 
-  i32 frame_width_;
-  i32 frame_height_;
+private:
+  std::map<std::string, const void*> fns_;
 };
 
+UserFunctionRegistry* get_user_function_registry();
+
+template<typename T>
+std::function<T> UserFunctionRegistry::get_user_function(const std::string &name) {
+  return fns_.at(name);
+}
+
+
+}
 }

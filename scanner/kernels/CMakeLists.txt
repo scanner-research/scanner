@@ -6,6 +6,10 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
     histogram_kernel.cpp)
 endif()
 
+if (BUILD_CAFFE_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    caffe_kernel.cpp)
+endif()
 
 add_library(kernels OBJECT
   ${SOURCE_FILES})

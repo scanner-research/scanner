@@ -109,16 +109,15 @@ class Kernel {
   Profiler* profiler_ = nullptr;
 };
 
-class FrameKernel : public Kernel {
+class VideoKernel : public Kernel {
 public:
-  FrameKernel(const Config& config) : Kernel(config) {};
+  VideoKernel(const Config& config) : Kernel(config) {};
 
 protected:
-  std::vector<proto::Frame> get_frames(const RowList& row_list);
-  virtual void new_frame_size(){};
+  void check_frame_info(const DeviceHandle& device, const RowList& row_list);
+  virtual void new_frame_info(){};
 
-  i32 frame_width_ = -1;
-  i32 frame_height_ = -1;
+  FrameInfo frame_info_;
 };
 
 #define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)
@@ -176,7 +175,7 @@ public:
 
 #define REGISTER_KERNEL_UID(uid__, name__, kernel__)                           \
   static ::scanner::internal::KernelRegistration kernel_registration_##uid__ = \
-      ::scanner::internal::KernelBuilder(name__, [](const Kernel::Config &config) { \
+      ::scanner::internal::KernelBuilder(#name__, [](const Kernel::Config &config) { \
         return new kernel__(config);                                           \
       })
 }
