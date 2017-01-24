@@ -21,9 +21,9 @@
 
 namespace scanner {
 
-class InputFormat;
+class FrameInfo;
 
-cv::Mat bytesToImage(u8* buf, const InputFormat& metadata);
+cv::Mat bytesToImage(u8* buf, const FrameInfo& metadata);
 }
 
 #ifdef HAVE_CUDA
@@ -36,7 +36,7 @@ namespace scanner {
 
 class InputFormat;
 
-cvc::GpuMat bytesToImage_gpu(u8* buf, const InputFormat& metadata);
+cvc::GpuMat bytesToImage_gpu(u8* buf, const FrameInfo& metadata);
 
 cudaError_t convertNV12toRGBA(
     const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame, int width,

@@ -84,8 +84,8 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
       if (c->get_name() == "Table") {
         assert(start_node == nullptr);
         start_node = c;
+        continue;
       }
-
       for (const EvalInput& input : c->get_inputs()) {
         Evaluator* parent_eval = input.get_evaluator();
         edges[parent_eval].push_back(c);
@@ -106,7 +106,7 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
 
       sorted_evaluators.push_back(curr);
       evaluator_index.insert({curr, sorted_evaluators.size() - 1});
-      for (Evaluator* child : edges.at(curr)) {
+      for (Evaluator* child : edges[curr]) {
         i32& edges_left = in_edges_left[child];
         edges_left -= 1;
         if (edges_left == 0) {
@@ -115,14 +115,19 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
       }
     }
   }
-  assert(sorted_evaluators.size() == in_edges_left.size());
+  assert(sorted_evaluators.size() == in_edges_left.size() + 1);
   // Translate sorted evaluators into serialized task set
   for (Evaluator* eval : sorted_evaluators) {
     proto::Evaluator* proto_eval = task_set.add_evaluators();
     proto_eval->set_name(eval->get_name());
     for (const EvalInput& input : eval->get_inputs()) {
       proto::EvalInput* proto_input = proto_eval->add_inputs();
-      i32 parent_index = evaluator_index.at(input.get_evaluator());
+      i32 parent_index;
+      if (input.get_evaluator() == nullptr) {
+        parent_index = -1;
+      } else {
+        parent_index = evaluator_index.at(input.get_evaluator());
+      }
       proto_input->set_evaluator_index(parent_index);
       for (const std::string& column_name : input.get_columns()) {
         proto_input->add_columns(column_name);

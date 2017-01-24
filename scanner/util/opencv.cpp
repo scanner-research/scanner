@@ -1,7 +1,7 @@
 #include "scanner/util/opencv.h"
 
+#include "scanner/api/kernel.h"
 #include "scanner/engine/db.h"
-#include "scanner/eval/evaluator.h"
 #include "scanner/util/image.h"
 
 #ifdef HAVE_CUDA
@@ -10,14 +10,14 @@
 
 namespace scanner {
 
-cv::Mat bytesToImage(u8* buf, const InputFormat& metadata) {
-  return cv::Mat(metadata.height(), metadata.width(), CV_8UC3, buf);
+cv::Mat bytesToImage(u8* buf, const FrameInfo& metadata) {
+  return cv::Mat(metadata.height, metadata.width, CV_8UC3, buf);
 }
 
 #ifdef HAVE_CUDA
 
-cvc::GpuMat bytesToImage_gpu(u8* buf, const InputFormat& metadata) {
-  return cvc::GpuMat(metadata.height(), metadata.width(), CV_8UC3, buf);
+cvc::GpuMat bytesToImage_gpu(u8* buf, const FrameInfo& metadata) {
+  return cvc::GpuMat(metadata.height, metadata.width, CV_8UC3, buf);
 }
 
 cudaError_t convertNV12toRGBA(const cv::cuda::GpuMat& in,
