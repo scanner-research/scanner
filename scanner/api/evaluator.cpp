@@ -50,7 +50,11 @@ const std::vector<std::string>& EvalInput::get_columns() const {
 
 Evaluator* make_input_evaluator(const std::vector<std::string>& columns) {
   EvalInput eval_input = {nullptr, columns};
-  return new Evaluator("Table", {eval_input}, nullptr, 0);
+  return new Evaluator("InputTable", {eval_input}, nullptr, 0);
+}
+
+Evaluator* make_output_evaluator(const std::vector<EvalInput>& inputs) {
+  return new Evaluator("OutputTable", inputs, nullptr, 0);
 }
 
 namespace internal {

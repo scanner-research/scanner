@@ -81,7 +81,7 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
       Evaluator* c = stack.back();
       stack.pop_back();
 
-      if (c->get_name() == "Table") {
+      if (c->get_name() == "InputTable") {
         assert(start_node == nullptr);
         start_node = c;
         continue;

@@ -109,7 +109,12 @@ public:
 
     grpc::ClientContext context;
     proto::Registration registration;
-    master_->RegisterWorker(&context, worker_info, &registration);
+    grpc::Status status =
+        master_->RegisterWorker(&context, worker_info, &registration);
+    LOG_IF(FATAL, !status.ok()) << "Worker could not contact master server ("
+                                << status.error_code()
+                                << "): " << status.error_message();
+
     node_id_ = registration.node_id();
 
     storage_ =
@@ -138,7 +143,9 @@ public:
     std::vector<Kernel::Config> kernel_configs;
     i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
     auto& evaluators = job_params->task_set().evaluators();
-    for (auto& evaluator : evaluators) {
+    assert(evaluators.Get(0).name() == "InputTable");
+    for (size_t i = 1; i < evaluators.size(); ++i) {
+      auto& evaluator = evaluators.Get(i);
       const std::string& name = evaluator.name();
       EvaluatorInfo *evaluator_info =
           evaluator_registry->get_evaluator_info(name);
@@ -155,10 +162,13 @@ public:
       for (auto& input : evaluator.inputs()) {
         const proto::Evaluator& input_evaluator = evaluators.Get(
           input.evaluator_index());
-        EvaluatorInfo* input_evaluator_info =
-          evaluator_registry->get_evaluator_info(input_evaluator.name());
-        // TODO: verify that input.columns() are all in
-        // evaluator_info->output_columns()
+        if (input_evaluator.name() == "InputTable") {
+        } else {
+          EvaluatorInfo *input_evaluator_info =
+              evaluator_registry->get_evaluator_info(input_evaluator.name());
+          // TODO: verify that input.columns() are all in
+          // evaluator_info->output_columns()
+        }
         kernel_config.input_columns.insert(
           kernel_config.input_columns.end(),
           input.columns().begin(),
@@ -539,7 +549,7 @@ public:
 
   grpc::Status RegisterWorker(grpc::ServerContext* context,
                               const proto::WorkerInfo* worker_info,
-                              proto::Empty* empty) {
+                              proto::Registration* registration) {
     set_database_path(db_params_.db_path);
 
     workers_.push_back(
@@ -547,6 +557,7 @@ public:
         grpc::CreateChannel(
           worker_info->address(),
           grpc::InsecureChannelCredentials())));
+    registration->set_node_id(workers_.size() - 1);
 
     return grpc::Status::OK;
   }
@@ -579,6 +590,7 @@ public:
     job_descriptor.set_work_item_size(work_item_size);
     job_descriptor.set_num_nodes(workers_.size());
 
+    // Get output columns from last output evaluator
     auto& evaluators = job_params->task_set().evaluators();
     EvaluatorRegistry* evaluator_registry = get_evaluator_registry();
     EvaluatorInfo* output_evaluator = evaluator_registry->get_evaluator_info(
@@ -633,22 +645,28 @@ public:
                     load_work_entries);
     num_io_items_ = io_items.size();
 
-    std::vector<std::thread> requests;
-    for (auto& worker : workers_) {
-      grpc::ClientContext context;
-      proto::Empty empty;
-      // TODO: this should probably use the grpc async stuff, but
-      // hacking around it for now
-      requests.push_back(
-        std::thread([&]() {
-            return worker->NewJob(&context, *job_params, &empty);
-          }));
+
+    grpc::CompletionQueue cq;
+    std::vector<grpc::ClientContext> client_contexts(workers_.size());
+    std::vector<std::unique_ptr<grpc::Status>> statuses(workers_.size());
+    std::vector<proto::Empty> replies(workers_.size());
+    std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Empty>>>
+        rpcs;
+    for (size_t i = 0; i < workers_.size(); ++i) {
+      auto &worker = workers_[i];
+      rpcs.emplace_back(
+          worker->AsyncNewJob(&client_contexts[i], *job_params, &cq));
+      rpcs[i]->Finish(&replies[i], statuses[i].get(), (void *)i);
     }
 
-    for (auto& r : requests) {
-      r.join();
+    for (size_t i = 0; i < workers_.size(); ++i) {
+      void *got_tag;
+      bool ok = false;
+      GPR_ASSERT(cq.Next(&got_tag, &ok));
+      GPR_ASSERT(got_tag < (void *)workers_.size());
+      printf("tag %d\n", (i64)got_tag);
+      assert(ok);
     }
-
     // Write table metadata
 
     // Add job name into database metadata so we can look up what jobs have

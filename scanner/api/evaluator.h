@@ -62,6 +62,8 @@ private:
 
 Evaluator* make_input_evaluator(const std::vector<std::string>& columns);
 
+Evaluator* make_output_evaluator(const std::vector<EvalInput>& inputs);
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Implementation Details
 namespace internal {
