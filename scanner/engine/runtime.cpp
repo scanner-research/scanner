@@ -138,13 +138,91 @@ public:
     i32 warmup_size = 0;
 
     EvaluatorRegistry* evaluator_registry = get_evaluator_registry();
+    auto& evaluators = job_params->task_set().evaluators();
+    assert(evaluators.Get(0).name() == "InputTable");
+    // Analyze evaluator DAG to determine what inputs need to be pipped along
+    // and when intermediates can be retired -- essentially liveness analysis
+    // Evaluator idx -> column name -> last used index
+    printf("Before initial\n");
+    std::map<i32, std::map<std::string, i32>> intermediates;
+    // Start off with the columns from the gathered tables
+    {
+      auto &input_evaluator = evaluators.Get(0);
+      for (const std::string &input_col : input_evaluator.inputs(0).columns()) {
+        intermediates[0].insert({input_col, 0});
+      }
+    }
+    for (size_t i = 1; i < evaluators.size(); ++i) {
+      auto &evaluator = evaluators.Get(i);
+      // For each input, update the intermediate last used index to the
+      // current index
+      for (auto &eval_input : evaluator.inputs()) {
+        i32 parent_index = eval_input.evaluator_index();
+        for (const std::string &parent_col : eval_input.columns()) {
+          intermediates.at(parent_index).at(parent_col) = i;
+        }
+      }
+      // Add this evaluator's outputs to the intermediate list
+      if (i == evaluators.size() - 1) {
+        continue;
+      }
+      const auto &evaluator_info =
+          evaluator_registry->get_evaluator_info(evaluator.name());
+      for (const auto &output_column : evaluator_info->output_columns()) {
+        intermediates[i].insert({output_column, i});
+      }
+    }
+    // The live columns at each evaluator index
+    std::vector<std::vector<std::tuple<i32, std::string>>> live_columns(
+                      evaluators.size());
+    // Indices in the live columns list that are the inputs to the current
+    // kernel. Starts from the second evalutor (index 1)
+    std::vector<std::vector<i32>> column_mapping(evaluators.size() - 1);
+    for (size_t i = 0; i < evaluators.size(); ++i) {
+      printf("evalutor %d, %s\n", i, evaluators.Get(i).name().c_str());
+      auto& columns = live_columns[i];
+      for (size_t j = 0; j <= i; ++j) {
+        for (auto &kv : intermediates.at(j)) {
+          if (kv.second > i) {
+            // Last used index is greater than current index, so still live
+            columns.push_back(
+                std::make_tuple((i32)j, kv.first));
+            printf("evaluator %d, column %s\n", j, kv.first.c_str());
+          }
+        }
+      }
+      if (i > 0) {
+        auto& prev_columns = live_columns[i - 1];
+        auto& mapping = column_mapping[i - 1];
+        auto& evaluator = evaluators.Get(i);
+        for (const auto& eval_input : evaluator.inputs()) {
+          i32 parent_index = eval_input.evaluator_index();
+          for (const std::string& col : eval_input.columns()) {
+            i32 col_index = -1;
+            printf("searching for parent %d, col %s\n", parent_index,
+                   col.c_str());
+            for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
+              const std::tuple<i32, std::string>& live_input = prev_columns[k];
+              if (parent_index == std::get<0>(live_input) &&
+                  col == std::get<1>(live_input)) {
+                col_index = k;
+                break;
+              }
+            }
+            assert(col_index != -1);
+            mapping.push_back(col_index);
+          }
+        }
+      }
+    }
+
+    // Setup kernel factories and the kernel configs that will be used
+    // to instantiate instances of the evaluator pipeline
     KernelRegistry* kernel_registry = get_kernel_registry();
     std::vector<KernelFactory*> kernel_factories;
     std::vector<Kernel::Config> kernel_configs;
     i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
-    auto& evaluators = job_params->task_set().evaluators();
-    assert(evaluators.Get(0).name() == "InputTable");
-    for (size_t i = 1; i < evaluators.size(); ++i) {
+    for (size_t i = 1; i < evaluators.size() - 1; ++i) {
       auto& evaluator = evaluators.Get(i);
       const std::string& name = evaluator.name();
       EvaluatorInfo *evaluator_info =
@@ -192,7 +270,7 @@ public:
       kernel_configs.push_back(kernel_config);
     }
 
-    // Load table metadata
+    // Load table metadata for use in constructing io items
     DatabaseMetadata meta =
         read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
     std::map<std::string, TableMetadata> table_meta;
@@ -202,6 +280,7 @@ public:
       table_meta[table_name] = read_table_metadata(storage_, table_path);
     }
 
+    // Setup identical io item list on every node
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
     create_io_items(table_meta, job_params->task_set(), io_items,
@@ -592,11 +671,19 @@ public:
 
     // Get output columns from last output evaluator
     auto& evaluators = job_params->task_set().evaluators();
-    EvaluatorRegistry* evaluator_registry = get_evaluator_registry();
-    EvaluatorInfo* output_evaluator = evaluator_registry->get_evaluator_info(
-      evaluators.Get(evaluators.size()-1).name());
-    const std::vector<std::string>& output_columns =
-      output_evaluator->output_columns();
+    // EvaluatorRegistry* evaluator_registry = get_evaluator_registry();
+    // EvaluatorInfo* output_evaluator = evaluator_registry->get_evaluator_info(
+    //   evaluators.Get(evaluators.size()-1).name());
+    // const std::vector<std::string>& output_columns =
+    //   output_evaluator->output_columns();
+    auto& last_evaluator = evaluators.Get(evaluators.size()-1);
+    assert(last_evaluator.name() == "OutputTable");
+    std::vector<std::string> output_columns;
+    for (const auto& eval_input : last_evaluator.inputs()) {
+      for (const std::string& name : eval_input.columns()) {
+        output_columns.push_back(name);
+      }
+    }
     for (size_t i = 0; i < output_columns.size(); ++i) {
       auto& col_name = output_columns[i];
       Column* col = job_descriptor.add_columns();

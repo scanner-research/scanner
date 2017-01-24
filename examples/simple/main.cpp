@@ -2,7 +2,13 @@
 #include "scanner/kernels/args.pb.h"
 #include "scanner/api/commands.h"
 
+#include <grpc/grpc_posix.h>
+
 int main(int argc, char** argv) {
+
+  grpc_use_signal(-1);
+
+
   std::string db_path = "/tmp/new_scanner_db";
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
@@ -51,7 +57,10 @@ int main(int argc, char** argv) {
       "Blur", {scanner::EvalInput(input, {"frame", "frame_info"})}, arg,
       arg_size);
 
+  scanner::Evaluator *output =
+      scanner::make_output_evaluator({scanner::EvalInput(blur, {"frame", "frame_info"})});
+
   // Launch job
-  params.task_set.output_evaluator = blur;
+  params.task_set.output_evaluator = output;
   scanner::new_job(params);
 }
