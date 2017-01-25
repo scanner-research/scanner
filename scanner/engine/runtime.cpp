@@ -181,7 +181,8 @@ public:
     for (size_t i = 0; i < evaluators.size(); ++i) {
       printf("evalutor %d, %s\n", i, evaluators.Get(i).name().c_str());
       auto& columns = live_columns[i];
-      for (size_t j = 0; j <= i; ++j) {
+      size_t max_i = (i == evaluators.size() - 1) ? i - 1 : 1;
+      for (size_t j = 0; j <= max_i; ++j) {
         for (auto &kv : intermediates.at(j)) {
           if (kv.second > i) {
             // Last used index is greater than current index, so still live

@@ -75,11 +75,13 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
   Evaluator* start_node = nullptr;
   {
     // Find all edges
+    std::set<Evaluator*> explored_nodes;
     std::vector<Evaluator*> stack;
     stack.push_back(ts.output_evaluator);
     while (!stack.empty()) {
       Evaluator* c = stack.back();
       stack.pop_back();
+      explored_nodes.insert(c);
 
       if (c->get_name() == "InputTable") {
         assert(start_node == nullptr);
@@ -90,6 +92,8 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
         Evaluator* parent_eval = input.get_evaluator();
         edges[parent_eval].push_back(c);
         in_edges_left[c] += 1;
+
+        if (explored_nodes.count(parent_eval) > 0) continue;
         stack.push_back(parent_eval);
       }
     }
