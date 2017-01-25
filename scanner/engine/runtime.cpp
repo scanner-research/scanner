@@ -175,16 +175,16 @@ public:
     // The live columns at each evaluator index
     std::vector<std::vector<std::tuple<i32, std::string>>> live_columns(
                       evaluators.size());
-    // Indices in the live columns list that are the inputs to the current
-    // kernel. Starts from the second evalutor (index 1)
-    std::vector<std::vector<i32>> column_mapping(evaluators.size() - 1);
     for (size_t i = 0; i < evaluators.size(); ++i) {
-      printf("evalutor %d, %s\n", i, evaluators.Get(i).name().c_str());
-      auto& columns = live_columns[i];
-      size_t max_i = (i == evaluators.size() - 1) ? i - 1 : 1;
+      i32 evaluator_index = i;
+      printf("evalutor %d, %s\n", evaluator_index,
+             evaluators.Get(i).name().c_str());
+      auto &columns = live_columns[i];
+      size_t max_i = std::min((size_t)(evaluators.size() - 2), i);
       for (size_t j = 0; j <= max_i; ++j) {
         for (auto &kv : intermediates.at(j)) {
-          if (kv.second > i) {
+          i32 last_used_index = kv.second;
+          if (last_used_index > evaluator_index) {
             // Last used index is greater than current index, so still live
             columns.push_back(
                 std::make_tuple((i32)j, kv.first));
@@ -192,27 +192,83 @@ public:
           }
         }
       }
-      if (i > 0) {
-        auto& prev_columns = live_columns[i - 1];
-        auto& mapping = column_mapping[i - 1];
-        auto& evaluator = evaluators.Get(i);
-        for (const auto& eval_input : evaluator.inputs()) {
-          i32 parent_index = eval_input.evaluator_index();
-          for (const std::string& col : eval_input.columns()) {
-            i32 col_index = -1;
-            printf("searching for parent %d, col %s\n", parent_index,
-                   col.c_str());
-            for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-              const std::tuple<i32, std::string>& live_input = prev_columns[k];
-              if (parent_index == std::get<0>(live_input) &&
-                  col == std::get<1>(live_input)) {
-                col_index = k;
-                break;
+    }
+    // The columns to remove for the current kernel
+    std::vector<std::vector<i32>> dead_columns(evaluators.size() - 1);
+    // Outputs from the current kernel that are not used
+    std::vector<std::vector<i32>> unused_outputs(evaluators.size() - 1);
+    // Indices in the live columns list that are the inputs to the current
+    // kernel. Starts from the second evalutor (index 1)
+    std::vector<std::vector<i32>> column_mapping(evaluators.size() - 1);
+    for (size_t i = 1; i < evaluators.size(); ++i) {
+      i32 evaluator_index = i;
+      auto &prev_columns = live_columns[i - 1];
+      auto &evaluator = evaluators.Get(evaluator_index);
+      // Determine which columns are no longer live
+      {
+        auto &unused = unused_outputs[i - 1];
+        auto &dead = dead_columns[i - 1];
+        size_t max_i = std::min((size_t)(evaluators.size() - 2), (size_t)i);
+        for (size_t j = 0; j <= max_i; ++j) {
+          i32 parent_index = j;
+          for (auto &kv : intermediates.at(j)) {
+            i32 last_used_index = kv.second;
+            if (last_used_index == evaluator_index) {
+              // Column is no longer live, so remove it.
+              const std::string &col_name = kv.first;
+              if (j == i) {
+                // This evaluator has an unused output
+                i32 col_index = -1;
+                const std::vector<std::string> &evaluator_cols =
+                    evaluator_registry->get_evaluator_info(evaluator.name())
+                        ->output_columns();
+                for (size_t k = 0; k < evaluator_cols.size(); k++) {
+                  if (col_name == evaluator_cols[k]) {
+                    col_index = k;
+                    break;
+                  }
+                }
+                assert(col_index != -1);
+                unused.push_back(col_index);
+                printf("evaluator %d, unused col %d\n", i, col_index);
+              } else {
+                // Determine where in the previous live columns list this
+                // column existed
+                i32 col_index = -1;
+                for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
+                  const std::tuple<i32, std::string> &live_input =
+                      prev_columns[k];
+                  if (parent_index == std::get<0>(live_input) &&
+                      col_name == std::get<1>(live_input)) {
+                    col_index = k;
+                    break;
+                  }
+                }
+                assert(col_index != -1);
+                dead.push_back(col_index);
+                printf("evaluator %d, dead col %d\n", i, col_index);
               }
             }
-            assert(col_index != -1);
-            mapping.push_back(col_index);
           }
+        }
+      }
+      auto &mapping = column_mapping[evaluator_index - 1];
+      for (const auto &eval_input : evaluator.inputs()) {
+        i32 parent_index = eval_input.evaluator_index();
+        for (const std::string &col : eval_input.columns()) {
+          i32 col_index = -1;
+          printf("searching for parent %d, col %s\n", parent_index,
+                 col.c_str());
+          for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
+            const std::tuple<i32, std::string> &live_input = prev_columns[k];
+            if (parent_index == std::get<0>(live_input) &&
+                col == std::get<1>(live_input)) {
+              col_index = k;
+              break;
+            }
+          }
+          assert(col_index != -1);
+          mapping.push_back(col_index);
         }
       }
     }
@@ -275,9 +331,18 @@ public:
     // Break up kernels into groups that run on the same device
     std::vector<std::vector<std::tuple<KernelFactory *, Kernel::Config>>>
         kernel_groups;
+    std::vector<std::vector<std::vector<std::tuple<i32, std::string>>>>
+        kg_live_columns;
+    std::vector<std::vector<std::vector<i32>>> kg_dead_columns;
+    std::vector<std::vector<std::vector<i32>>> kg_unused_outputs;
+    std::vector<std::vector<std::vector<i32>>> kg_column_mapping;
     if (!kernel_factories.empty()) {
       DeviceType last_device_type = kernel_factories[0]->get_device_type();
       kernel_groups.emplace_back();
+      kg_live_columns.emplace_back();
+      kg_dead_columns.emplace_back();
+      kg_unused_outputs.emplace_back();
+      kg_column_mapping.emplace_back();
       for (size_t i = 0; i < kernel_factories.size(); ++i) {
         KernelFactory* factory = kernel_factories[i];
         if (factory->get_device_type() != last_device_type) {
@@ -287,7 +352,15 @@ public:
           kernel_groups.emplace_back();
         }
         auto& group = kernel_groups.back();
+        auto& lc = kg_live_columns.back();
+        auto& dc = kg_dead_columns.back();
+        auto& uo = kg_unused_outputs.back();
+        auto& cm = kg_column_mapping.back();
         group.push_back(std::make_tuple(factory, kernel_configs[i]));
+        lc.push_back(live_columns[i + 1]);
+        dc.push_back(dead_columns[i + 1]);
+        uo.push_back(unused_outputs[i + 1]);
+        cm.push_back(column_mapping[i]);
       }
     }
     i32 num_kernel_groups = static_cast<i32>(kernel_groups.size());
@@ -362,7 +435,7 @@ public:
         Queue<EvalWorkEntry> *output_work_queue = &work_queues[0];
         pre_eval_args.emplace_back(
             PreEvaluateThreadArgs{// Uniform arguments
-                                  io_items, warmup_size,
+                                  node_id_, io_items, warmup_size,
 
                                   // Per worker arguments
                                   ki, eval_thread_profilers[0],
@@ -374,6 +447,10 @@ public:
       // Evaluate worker
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
         auto &group = kernel_groups[kg];
+        auto &lc = kg_live_columns[kg];
+        auto &dc = kg_dead_columns[kg];
+        auto &uo = kg_unused_outputs[kg];
+        auto &cm = kg_column_mapping[kg];
         std::vector<EvaluateThreadArgs> &thread_args = eval_args[kg];
         for (size_t i = 0; i < group.size(); ++i) {
           KernelFactory *factory = std::get<0>(group[i]);
@@ -401,10 +478,10 @@ public:
         // Create eval thread for passing data through neural net
         thread_args.emplace_back(EvaluateThreadArgs{
             // Uniform arguments
-            io_items, warmup_size,
+            node_id_, io_items, warmup_size,
 
             // Per worker arguments
-            ki, group, eval_thread_profilers[1],
+            ki, group, lc, dc, uo, cm, eval_thread_profilers[1],
 
             // Queues
             *input_work_queue, *output_work_queue});
@@ -416,7 +493,7 @@ public:
         Queue<EvalWorkEntry> *output_work_queue = &save_work;
         post_eval_args.emplace_back(
             PostEvaluateThreadArgs{// Uniform arguments
-                                   io_items, warmup_size,
+                                   node_id_, io_items, warmup_size,
 
                                    // Per worker arguments
                                    ki, eval_thread_profilers[2],

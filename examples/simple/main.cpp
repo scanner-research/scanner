@@ -58,8 +58,8 @@ int main(int argc, char** argv) {
       scanner::DeviceType::CPU, arg, arg_size);
 
   scanner::Evaluator *output = scanner::make_output_evaluator(
-      {scanner::EvalInput(blur, {"frame", "frame_info"}),
-       scanner::EvalInput(input, {"frame", "frame_info"})});
+      {scanner::EvalInput(blur, {"frame"}),
+       scanner::EvalInput(input, {"frame"})});
 
   // Launch job
   params.task_set.output_evaluator = output;

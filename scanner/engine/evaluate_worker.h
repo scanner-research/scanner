@@ -27,6 +27,7 @@ namespace internal {
 /// Worker thread arguments
 struct PreEvaluateThreadArgs {
   // Uniform arguments
+  i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 
@@ -41,12 +42,17 @@ struct PreEvaluateThreadArgs {
 
 struct EvaluateThreadArgs {
   // Uniform arguments
+  i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 
   // Per worker arguments
   i32 ki;
   std::vector<std::tuple<KernelFactory*, Kernel::Config>> kernel_factories;
+  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
+  std::vector<std::vector<i32>> dead_columns;
+  std::vector<std::vector<i32>> unused_outputs;
+  std::vector<std::vector<i32>> column_mapping;
   Profiler& profiler;
 
   // Queues for communicating work
@@ -56,6 +62,7 @@ struct EvaluateThreadArgs {
 
 struct PostEvaluateThreadArgs {
   // Uniform arguments
+  i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 
