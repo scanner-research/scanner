@@ -21,6 +21,14 @@
 #include <glog/logging.h>
 
 #ifdef HAVE_CUDA
+#define CUDA_PROTECT(s) (s);
+#else
+#define CUDA_PROTECT(s) {                       \
+    LOG(FATAL) << "Cuda not enabled.";          \
+  }
+#endif
+
+#ifdef HAVE_CUDA
 
 #define CU_CHECK(ans) \
   { cuAssert((ans), __FILE__, __LINE__); }

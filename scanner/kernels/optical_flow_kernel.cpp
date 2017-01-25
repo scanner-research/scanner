@@ -163,11 +163,9 @@ public:
 
 private:
   void set_device() {
-#ifdef HAVE_CUDA
-    CU_CHECK(cudaSetDevice(device_.id));
-#else
-    LOG(FATAL) << "Cuda not enabled.";
-#endif
+    CUDA_PROTECT({
+        CU_CHECK(cudaSetDevice(device_.id));
+    })
     cvc::setDevice(device_.id);
   }
 

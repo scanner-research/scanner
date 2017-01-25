@@ -350,7 +350,7 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
     for (size_t i = 0; i < num_outputs; ++i) {
       const std::string& output_layer_name = descriptor.output_layer_names(i);
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
-        net_->blob_by_name(output_layer_name)};
+          net_->blob_by_name(output_layer_name)};
       size_t output_length = output_blob->count() / batch_count;
       size_t output_size = output_length * sizeof(float);
       dest_buffers.push_back(output_block);
@@ -379,15 +379,13 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
 void CaffeKernel::set_device() {
   caffe::Caffe::set_mode(device_type_to_caffe_mode(device_.type));
   if (device_.type == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-    // HACK(apoms): caffe does not keep track of device it was initialized
-    //  with. For example, if you call cudaSetDevice here before
-    //  Caffe::SetDevice, caffe will think the GPU did not change and not
-    //  reinit cublas. Need to patch caffe.
-    caffe::Caffe::SetDevice(device_.id);
-#else
-    LOG(FATAL) << "Not built with CUDA support.";
-#endif
+    CUDA_PROTECT({
+        // HACK(apoms): caffe does not keep track of device it was initialized
+        //  with. For example, if you call cudaSetDevice here before
+        //  Caffe::SetDevice, caffe will think the GPU did not change and not
+        //  reinit cublas. Need to patch caffe.
+        caffe::Caffe::SetDevice(device_.id);
+    });
   }
 }
 
