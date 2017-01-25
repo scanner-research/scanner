@@ -124,6 +124,8 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
   for (Evaluator* eval : sorted_evaluators) {
     proto::Evaluator* proto_eval = task_set.add_evaluators();
     proto_eval->set_name(eval->get_name());
+    proto_eval->set_device_type(eval->get_device_type());
+    proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
     for (const EvalInput& input : eval->get_inputs()) {
       proto::EvalInput* proto_input = proto_eval->add_inputs();
       i32 parent_index;
@@ -137,7 +139,6 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
         proto_input->add_columns(column_name);
       }
     }
-    proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
   }
 
   return task_set;

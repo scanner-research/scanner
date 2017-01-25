@@ -222,15 +222,30 @@ public:
     KernelRegistry* kernel_registry = get_kernel_registry();
     std::vector<KernelFactory*> kernel_factories;
     std::vector<Kernel::Config> kernel_configs;
+    i32 num_cpus = (CPUS_PER_NODE != -1 ? CPUS_PER_NODE
+                                        : std::thread::hardware_concurrency());
+    assert(num_cpus > 0);
     i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
+    // TODO(apoms): automatically determine the number of GPUs if not specified
     for (size_t i = 1; i < evaluators.size() - 1; ++i) {
       auto& evaluator = evaluators.Get(i);
       const std::string& name = evaluator.name();
       EvaluatorInfo *evaluator_info =
           evaluator_registry->get_evaluator_info(name);
 
-      KernelFactory* kernel_factory =
-          kernel_registry->get_kernel(name, DeviceType::CPU);
+      DeviceType requested_device_type = evaluator.device_type();
+      LOG_IF(FATAL, requested_device_type == DeviceType::GPU && num_gpus == 0)
+          << "Scanner is configured with zero available GPUs but a GPU "
+          << "evaluator was requested! Please configure Scanner to have "
+          << "at least one GPU using the `gpu_device_ids` config option.";
+
+      LOG_IF(FATAL, !kernel_registry->has_kernel(name, requested_device_type))
+          << "Requested an instance of evaluator " << evaluator.name()
+          << " with device type "
+          << (requested_device_type == DeviceType::CPU ? "CPU" : "GPU")
+          << " but no kernel exists for that configuration.";
+      KernelFactory *kernel_factory =
+          kernel_registry->get_kernel(name, requested_device_type);
       kernel_factories.push_back(kernel_factory);
 
       Kernel::Config kernel_config;
@@ -254,23 +269,28 @@ public:
           input.columns().begin(),
           input.columns().end());
       }
-
-      DeviceType device_type = kernel_factory->get_device_type();
-      if (device_type == DeviceType::CPU) {
-        // TODO: multiple CPUs?
-        kernel_config.devices.push_back(CPU_DEVICE);
-      } else if (device_type == DeviceType::GPU) {
-        // TODO: round robin GPUs within a node
-        for (i32 i = 0; i < kernel_factory->get_max_devices(); ++i) {
-          i32 device_id = i % num_gpus;
-          kernel_config.devices.push_back({device_type, device_id});
-        }
-      } else {
-        LOG(FATAL) << "Unrecognized device type";
-      }
-
       kernel_configs.push_back(kernel_config);
     }
+
+    // Break up kernels into groups that run on the same device
+    std::vector<std::vector<std::tuple<KernelFactory *, Kernel::Config>>>
+        kernel_groups;
+    if (!kernel_factories.empty()) {
+      DeviceType last_device_type = kernel_factories[0]->get_device_type();
+      kernel_groups.emplace_back();
+      for (size_t i = 0; i < kernel_factories.size(); ++i) {
+        KernelFactory* factory = kernel_factories[i];
+        if (factory->get_device_type() != last_device_type) {
+          // Does not use the same device as previous kernel, so push into new
+          // group
+          last_device_type = factory->get_device_type();
+          kernel_groups.emplace_back();
+        }
+        auto& group = kernel_groups.back();
+        group.push_back(std::make_tuple(factory, kernel_configs[i]));
+      }
+    }
+    i32 num_kernel_groups = static_cast<i32>(kernel_groups.size());
 
     // Load table metadata for use in constructing io items
     DatabaseMetadata meta =
@@ -292,7 +312,8 @@ public:
     i64 accepted_items = 0;
     Queue<LoadWorkEntry> load_work;
     Queue<EvalWorkEntry> initial_eval_work;
-    std::vector<std::vector<Queue<EvalWorkEntry>>> eval_work(PUS_PER_NODE);
+    std::vector<std::vector<Queue<EvalWorkEntry>>> eval_work(
+        KERNEL_INSTANCES_PER_NODE);
     Queue<EvalWorkEntry> save_work;
     std::atomic<i64> retired_items{0};
 
@@ -319,71 +340,97 @@ public:
     }
 
     // Setup evaluate workers
-    std::vector<std::vector<Profiler>> eval_profilers(PUS_PER_NODE);
+    std::vector<std::vector<Profiler>> eval_profilers(
+        KERNEL_INSTANCES_PER_NODE);
     std::vector<PreEvaluateThreadArgs> pre_eval_args;
-    std::vector<EvaluateThreadArgs> eval_args;
+    std::vector<std::vector<EvaluateThreadArgs>> eval_args(
+        KERNEL_INSTANCES_PER_NODE);
     std::vector<PostEvaluateThreadArgs> post_eval_args;
 
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
-      std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
-      std::vector<Profiler>& eval_thread_profilers = eval_profilers[pu];
-      work_queues.resize(3);
-
+    i32 next_cpu_num = 0;
+    i32 next_gpu_idx = 0;
+    for (i32 ki = 0; ki < KERNEL_INSTANCES_PER_NODE; ++ki) {
+      std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[ki];
+      std::vector<Profiler> &eval_thread_profilers = eval_profilers[ki];
+      work_queues.resize(num_kernel_groups - 1 + 2); // +2 for pre/post
+      for (i32 i = 0; i < num_kernel_groups + 2; ++i) {
+        eval_thread_profilers.push_back(Profiler(base_time));
+      }
       // Pre evaluate worker
       {
-        Queue<EvalWorkEntry>* input_work_queue = &initial_eval_work;
-        Queue<EvalWorkEntry>* output_work_queue = &work_queues[0];
-        pre_eval_args.emplace_back(PreEvaluateThreadArgs{
-            // Uniform arguments
-            io_items, warmup_size,
+        Queue<EvalWorkEntry> *input_work_queue = &initial_eval_work;
+        Queue<EvalWorkEntry> *output_work_queue = &work_queues[0];
+        pre_eval_args.emplace_back(
+            PreEvaluateThreadArgs{// Uniform arguments
+                                  io_items, warmup_size,
 
-              // Per worker arguments
-              pu, eval_thread_profilers[0],
+                                  // Per worker arguments
+                                  ki, eval_thread_profilers[0],
 
-              // Queues
-              *input_work_queue, *output_work_queue});
+                                  // Queues
+                                  *input_work_queue, *output_work_queue});
       }
 
       // Evaluate worker
-      {
+      for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+        auto &group = kernel_groups[kg];
+        std::vector<EvaluateThreadArgs> &thread_args = eval_args[kg];
+        for (size_t i = 0; i < group.size(); ++i) {
+          KernelFactory *factory = std::get<0>(group[i]);
+          Kernel::Config &config = std::get<1>(group[i]);
+
+          config.devices.clear();
+          DeviceType device_type = factory->get_device_type();
+          if (device_type == DeviceType::CPU) {
+            for (i32 i = 0; i < factory->get_max_devices(); ++i) {
+              i32 device_id = next_cpu_num++ % num_cpus;
+              config.devices.push_back({device_type, device_id});
+            }
+          } else {
+            for (i32 i = 0; i < factory->get_max_devices(); ++i) {
+              i32 device_id = GPU_DEVICE_IDS[next_gpu_idx++ % num_gpus];
+              config.devices.push_back({device_type, device_id});
+            }
+          }
+        }
+
         // Input work queue
-        Queue<EvalWorkEntry>* input_work_queue = &work_queues[1];
+        Queue<EvalWorkEntry> *input_work_queue = &work_queues[kg];
         // Create new queue for output, reuse previous queue as input
-        Queue<EvalWorkEntry>* output_work_queue = &work_queues[2];
+        Queue<EvalWorkEntry> *output_work_queue = &work_queues[kg + 1];
         // Create eval thread for passing data through neural net
-        eval_args.emplace_back(EvaluateThreadArgs{
+        thread_args.emplace_back(EvaluateThreadArgs{
             // Uniform arguments
             io_items, warmup_size,
 
-              // Per worker arguments
-              pu, kernel_factories, kernel_configs,
-              eval_thread_profilers[1],
+            // Per worker arguments
+            ki, group, eval_thread_profilers[1],
 
-              // Queues
-              *input_work_queue, *output_work_queue});
+            // Queues
+            *input_work_queue, *output_work_queue});
       }
 
       // Post evaluate worker
       {
-        Queue<EvalWorkEntry>* input_work_queue = &work_queues[2];
-        Queue<EvalWorkEntry>* output_work_queue = &save_work;
-        post_eval_args.emplace_back(PostEvaluateThreadArgs{
-            // Uniform arguments
-            io_items, warmup_size,
+        Queue<EvalWorkEntry> *input_work_queue = &work_queues[2];
+        Queue<EvalWorkEntry> *output_work_queue = &save_work;
+        post_eval_args.emplace_back(
+            PostEvaluateThreadArgs{// Uniform arguments
+                                   io_items, warmup_size,
 
-              // Per worker arguments
-              pu, eval_thread_profilers[2],
+                                   // Per worker arguments
+                                   ki, eval_thread_profilers[2],
 
-              // Queues
-              *input_work_queue, *output_work_queue});
+                                   // Queues
+                                   *input_work_queue, *output_work_queue});
       }
     }
 
     // Launch eval worker threads
-    std::vector<pthread_t> pre_eval_threads(PUS_PER_NODE);
-    std::vector<pthread_t> eval_threads(PUS_PER_NODE);
-    std::vector<pthread_t> post_eval_threads(PUS_PER_NODE);
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    std::vector<pthread_t> pre_eval_threads(KERNEL_INSTANCES_PER_NODE);
+    std::vector<pthread_t> eval_threads(KERNEL_INSTANCES_PER_NODE);
+    std::vector<pthread_t> post_eval_threads(KERNEL_INSTANCES_PER_NODE);
+    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       // Pre thread
       pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
                      &pre_eval_args[pu]);
@@ -421,7 +468,7 @@ public:
     // Monitor amount of work left and request more when running low
     while (true) {
       i32 local_work = accepted_items - retired_items;
-      if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
+      if (local_work < KERNEL_INSTANCES_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
         grpc::ClientContext context;
         proto::Empty empty;
         proto::IOItem io_item;
@@ -459,13 +506,13 @@ public:
     }
 
     // Push sentinel work entries into queue to terminate eval threads
-    for (i32 i = 0; i < PUS_PER_NODE; ++i) {
+    for (i32 i = 0; i < KERNEL_INSTANCES_PER_NODE; ++i) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
       initial_eval_work.push(entry);
     }
 
-    for (i32 i = 0; i < PUS_PER_NODE; ++i) {
+    for (i32 i = 0; i < KERNEL_INSTANCES_PER_NODE; ++i) {
       // Wait until pre eval has finished
       void* result;
       i32 err = pthread_join(pre_eval_threads[i], &result);
@@ -476,12 +523,12 @@ public:
       free(result);
     }
 
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
       eval_work[pu][1].push(entry);
     }
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       // Wait until eval has finished
       void* result;
       i32 err = pthread_join(eval_threads[pu], &result);
@@ -493,12 +540,12 @@ public:
     }
 
     // Terminate post eval threads
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
       eval_work[pu][2].push(entry);
     }
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       // Wait until eval has finished
       void* result;
       i32 err = pthread_join(post_eval_threads[pu], &result);
@@ -569,11 +616,11 @@ public:
     }
 
     // Evaluate worker profilers
-    u8 eval_worker_count = PUS_PER_NODE;
+    u8 eval_worker_count = KERNEL_INSTANCES_PER_NODE;
     s_write(profiler_output.get(), eval_worker_count);
     u8 profilers_per_chain = 3;
     s_write(profiler_output.get(), profilers_per_chain);
-    for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
+    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       i32 i = pu;
       {
         std::string tag = "pre";

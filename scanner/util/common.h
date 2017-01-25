@@ -99,13 +99,13 @@ std::string image_encoding_type_to_string(proto::ImageEncodingType d);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
-extern i32 PUS_PER_NODE;           // # of available processing units per node
-extern i32 GPUS_PER_NODE;          // # of available GPUs per node
+extern i32 KERNEL_INSTANCES_PER_NODE; // # of pipelines to instantiate per node
+extern i32 CPUS_PER_NODE;          // # of available CPUs per node
+extern std::vector<i32> GPU_DEVICE_IDS;  // GPU device ids to use
 extern i64 IO_ITEM_SIZE;           // Number of rows to load and save at a time
 extern i64 WORK_ITEM_SIZE;         // Max size of a work item
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 LOAD_WORKERS_PER_NODE;  // # of worker threads loading data
 extern i32 SAVE_WORKERS_PER_NODE;  // # of worker threads loading data
-extern std::vector<i32> GPU_DEVICE_IDS;  // GPU device ids to use
 extern i32 NUM_CUDA_STREAMS;  // # of cuda streams for image processing
 }

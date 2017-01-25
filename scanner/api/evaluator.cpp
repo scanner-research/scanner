@@ -20,9 +20,10 @@
 namespace scanner {
 
 Evaluator::Evaluator(const std::string &name,
-                     const std::vector<EvalInput> &inputs, char *args,
-                     size_t args_size)
-    : name_(name), inputs_(inputs), args_(args), args_size_(args_size) {}
+                     const std::vector<EvalInput> &inputs,
+                     DeviceType device_type, char *args, size_t args_size)
+    : name_(name), inputs_(inputs), type_(device_type), args_(args),
+      args_size_(args_size) {}
 
 const std::string& Evaluator::get_name() const {
   return name_;
@@ -30,6 +31,10 @@ const std::string& Evaluator::get_name() const {
 
 const std::vector<EvalInput>& Evaluator::get_inputs() const {
   return inputs_;
+}
+
+DeviceType Evaluator::get_device_type() const {
+  return type_;
 }
 
 char* Evaluator::get_args() const {
@@ -50,11 +55,11 @@ const std::vector<std::string>& EvalInput::get_columns() const {
 
 Evaluator* make_input_evaluator(const std::vector<std::string>& columns) {
   EvalInput eval_input = {nullptr, columns};
-  return new Evaluator("InputTable", {eval_input}, nullptr, 0);
+  return new Evaluator("InputTable", {eval_input}, DeviceType::CPU);
 }
 
 Evaluator* make_output_evaluator(const std::vector<EvalInput>& inputs) {
-  return new Evaluator("OutputTable", inputs, nullptr, 0);
+  return new Evaluator("OutputTable", inputs, DeviceType::CPU);
 }
 
 namespace internal {

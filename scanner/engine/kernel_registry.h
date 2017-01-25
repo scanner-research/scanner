@@ -29,6 +29,8 @@ class KernelRegistry {
  public:
    void add_kernel(const std::string &name, KernelFactory *factory);
 
+   bool has_kernel(const std::string &name, DeviceType device_type);
+
    KernelFactory *get_kernel(const std::string &name, DeviceType device_type);
 
  protected:

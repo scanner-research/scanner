@@ -54,8 +54,8 @@ int main(int argc, char** argv) {
   char* arg = new char[arg_size];
   args.SerializeToArray(arg, arg_size);
   scanner::Evaluator *blur = new scanner::Evaluator(
-      "Blur", {scanner::EvalInput(input, {"frame", "frame_info"})}, arg,
-      arg_size);
+      "Blur", {scanner::EvalInput(input, {"frame", "frame_info"})},
+      scanner::DeviceType::CPU, arg, arg_size);
 
   scanner::Evaluator *output = scanner::make_output_evaluator(
       {scanner::EvalInput(blur, {"frame", "frame_info"}),

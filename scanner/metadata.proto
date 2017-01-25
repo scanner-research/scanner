@@ -117,7 +117,8 @@ message EvalInput {
 message Evaluator {
   string name = 1;
   repeated EvalInput inputs = 2;
-  bytes kernel_args = 3;
+  DeviceType device_type = 3;
+  bytes kernel_args = 4;
 }
 
 message TaskSet {

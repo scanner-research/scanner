@@ -27,13 +27,16 @@ struct EvalInput;
 class Evaluator {
 public:
   Evaluator(const std::string &name, const std::vector<EvalInput> &inputs,
-            char *args, size_t args_size);
+            DeviceType device_type,
+            char *args = nullptr, size_t args_size = 0);
 
   virtual ~Evaluator(){};
 
   const std::string& get_name() const;
 
   const std::vector<EvalInput>& get_inputs() const;
+
+  DeviceType get_device_type() const;
 
   char* get_args() const;
 
@@ -42,6 +45,7 @@ public:
 protected:
   std::string name_;
   std::vector<EvalInput> inputs_;
+  DeviceType type_;
   char* args_;
   size_t args_size_;
 };
