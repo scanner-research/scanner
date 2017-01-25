@@ -3,7 +3,8 @@ set(SOURCE_FILES
 
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   list(APPEND SOURCE_FILES
-    histogram_kernel.cpp)
+    histogram_kernel.cpp
+    optical_flow_kernel.cpp)
 endif()
 
 if (BUILD_CAFFE_EVALUATORS)

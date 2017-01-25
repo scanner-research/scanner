@@ -20,6 +20,8 @@
 
 #include <glog/logging.h>
 
+#ifdef HAVE_CUDA
+
 #define CU_CHECK(ans) \
   { cuAssert((ans), __FILE__, __LINE__); }
 
@@ -45,3 +47,5 @@ inline void cudAssert(CUresult code, const char *file, int line) {
                << line;
   }
 }
+
+#endif

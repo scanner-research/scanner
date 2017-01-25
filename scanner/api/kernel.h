@@ -59,6 +59,7 @@ class Kernel {
     std::vector<DeviceHandle> devices;
     std::vector<std::string> input_columns;
     std::vector<u8> args;
+    i32 work_item_size;
   };
 
   Kernel(const Config& config);

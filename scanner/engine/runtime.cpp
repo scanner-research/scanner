@@ -233,6 +233,7 @@ public:
       kernel_factories.push_back(kernel_factory);
 
       Kernel::Config kernel_config;
+      kernel_config.work_item_size = work_item_size;
       kernel_config.args = std::vector<u8>(
         evaluator.kernel_args().begin(),
         evaluator.kernel_args().end());
