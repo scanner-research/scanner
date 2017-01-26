@@ -299,21 +299,21 @@ endif()
 set(PROTO_FILES
   scanner/metadata.proto
   scanner/kernels/args.proto
-  scanner/kernels/types.proto
-  scanner/engine/rpc.proto)
+  scanner/kernels/types.proto)
 
 set(GRPC_PROTO_FILES
   scanner/engine/rpc.proto)
 
 protobuf_generate_cpp(
-  PROTO_SRCS PROTO_HDRS OFF ${PROTO_FILES})
-
+  PROTO_SRCS PROTO_HDRS OFF ${PROTO_FILES} ${GRPC_PROTO_FILES})
 protobuf_generate_cpp(
   GRPC_PROTO_SRCS GRPC_PROTO_HDRS ON ${GRPC_PROTO_FILES})
 
-protobuf_generate_python(PROTO_PY ${PROTO_FILES})
+protobuf_generate_python(PROTO_PY OFF ${PROTO_FILES})
+protobuf_generate_python(GRPC_PROTO_PY ON ${GRPC_PROTO_FILES})
 
-add_custom_target(proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY} ${GRPC_PROTO_HDRS})
+add_custom_target(proto_files DEPENDS
+  ${PROTO_HDRS} ${PROTO_PY} ${GRPC_PROTO_HDRS} ${GRPC_PROTO_PY})
 
 
 macro(add_deps)
@@ -405,24 +405,19 @@ target_link_libraries(scanner PUBLIC
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
 
-set(PYDIR ${CMAKE_CURRENT_BINARY_DIR}/scannerpy)
+set(PYDIR ${CMAKE_CURRENT_BINARY_DIR})
 
-add_custom_command(TARGET proto_files POST_BUILD
-  COMMAND rm -rf ${PYDIR})
+# add_custom_command(TARGET proto_files POST_BUILD
+#   COMMAND rm -rf ${PYDIR})
 
 # Make init files so python code can import from subdirectories
 foreach(FIL ${PROTO_FILES})
   get_filename_component(DIR_FIL ${FIL} DIRECTORY)
   get_filename_component(FIL_WE ${FIL} NAME_WE)
+  message(STATUS ${PYDIR}/${DIR_FIL})
   add_custom_command(TARGET proto_files POST_BUILD
-    COMMAND
-    ${CMAKE_COMMAND} -E
-    make_directory ${PYDIR}/${DIR_FIL} &&
-    ${CMAKE_COMMAND} -E
-    touch ${PYDIR}/${DIR_FIL}/__init__.py &&
-    ${CMAKE_COMMAND} -E
-    copy ${DIR_FIL}/${FIL_WE}_pb2.py ${PYDIR}/${DIR_FIL})
+    COMMAND ${CMAKE_COMMAND} -E touch ${PYDIR}/${DIR_FIL}/__init__.py)
 endforeach()
 
-add_custom_command(TARGET proto_files POST_BUILD
-  COMMAND mv -f ${PYDIR}/scanner/* ${PYDIR} && rm -r ${PYDIR}/scanner)
+# add_custom_command(TARGET proto_files POST_BUILD
+#   COMMAND mv -f ${PYDIR}/scanner/* ${PYDIR} && rm -r ${PYDIR}/scanner)

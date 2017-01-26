@@ -177,7 +177,7 @@ function(PROTOBUF_GENERATE_CPP SRCS HDRS USE_GRPC)
   set(${HDRS} ${${HDRS}} PARENT_SCOPE)
 endfunction()
 
-function(PROTOBUF_GENERATE_PYTHON SRCS)
+function(PROTOBUF_GENERATE_PYTHON SRCS USE_GRPC)
   if(NOT ARGN)
     message(SEND_ERROR "Error: PROTOBUF_GENERATE_PYTHON() called without any proto files")
     return()
@@ -213,14 +213,25 @@ function(PROTOBUF_GENERATE_PYTHON SRCS)
     get_filename_component(DIR_FIL ${FIL} DIRECTORY)
     get_filename_component(FIL_WE ${FIL} NAME_WE)
 
-    list(APPEND ${SRCS}
-      "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py")
-    add_custom_command(
-      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py"
-      COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE} --python_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path} ${ABS_FIL}
-      DEPENDS ${ABS_FIL} ${PROTOBUF_PROTOC_EXECUTABLE}
-      COMMENT "Running Python protocol buffer compiler on ${FIL}"
-      VERBATIM )
+    if (USE_GRPC)
+      list(APPEND ${SRCS}
+        "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py")
+      add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py"
+        COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE} --python_out ${CMAKE_CURRENT_BINARY_DIR} --plugin=protoc-gen-grpc_python=/usr/local/bin/grpc_python_plugin --grpc_python_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path}  ${ABS_FIL}
+        DEPENDS ${ABS_FIL} ${PROTOBUF_PROTOC_EXECUTABLE}
+        COMMENT "Running Python protocol buffer compiler on ${FIL}"
+        VERBATIM )
+    else()
+      list(APPEND ${SRCS}
+        "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py")
+      add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py"
+        COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE} --python_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path} ${ABS_FIL}
+        DEPENDS ${ABS_FIL} ${PROTOBUF_PROTOC_EXECUTABLE}
+        COMMENT "Running Python protocol buffer compiler on ${FIL}"
+        VERBATIM )
+    endif()
   endforeach()
 
   set(${SRCS} ${${SRCS}} PARENT_SCOPE)

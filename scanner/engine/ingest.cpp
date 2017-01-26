@@ -206,7 +206,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   DatabaseMetadata meta =
       read_database_metadata(storage, DatabaseMetadata::descriptor_path());
   i32 table_id = meta.add_table(table_name);
-  proto::TableDescriptor table_desc; 
+  proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
 
