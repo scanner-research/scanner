@@ -43,10 +43,6 @@ sample.table_name = "meangirls"
 sample.column_names.extend(["frame", "frame_info"])
 sample.rows.extend(range(1000))
 
-args = kernel_args.BlurArgs()
-args.kernel_size = 3
-args.sigma = 0.5
-
 input = task_set.evaluators.add()
 input.name = "InputTable"
 input.device_type = metadata.CPU
@@ -60,6 +56,9 @@ blur_input = blur.inputs.add()
 blur_input.evaluator_index = 0
 blur_input.columns.extend(["frame", "frame_info"])
 blur.device_type = metadata.CPU
+args = kernel_args.BlurArgs()
+args.kernel_size = 3
+args.sigma = 0.5
 blur.kernel_args = args.SerializeToString()
 
 output = task_set.evaluators.add()

@@ -167,3 +167,12 @@ message MemoryPoolConfig {
   bool use_pool = 1;
   int64 pool_size = 2;
 }
+
+message Collection {
+  repeated string tables = 3;
+}
+
+message CollectionsDescriptor {
+  repeated int64 ids = 1;
+  repeated string names = 2;
+}
