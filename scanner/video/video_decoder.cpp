@@ -29,6 +29,7 @@
 #include <cassert>
 
 namespace scanner {
+namespace internal {
 
 std::vector<VideoDecoderType> VideoDecoder::get_supported_decoder_types() {
   std::vector<VideoDecoderType> decoder_types;
@@ -54,11 +55,9 @@ bool VideoDecoder::has_decoder_type(VideoDecoderType type) {
   return false;
 }
 
-VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
-                                             int device_id,
-                                             VideoDecoderType type,
-                                             DeviceType output_type,
-                                             i32 num_devices) {
+VideoDecoder *VideoDecoder::make_from_config(DeviceHandle device_handle,
+                                             i32 num_devices,
+                                             VideoDecoderType type) {
   VideoDecoder* decoder = nullptr;
 
   switch (type) {
@@ -75,22 +74,24 @@ VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
       //   conditional includes depending on which decoders are available in
       //   order to fill in the configuration data, which is just messy.
       CUcontext cuda_context;
-      CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_id));
+      CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_handle.id));
 
-      decoder = new NVIDIAVideoDecoder(device_id, output_type, cuda_context);
+      decoder = new NVIDIAVideoDecoder(device_handle.id, device_handle.type,
+                                       cuda_context);
 #else
 #endif
       break;
     }
     case VideoDecoderType::INTEL: {
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
-      decoder = new IntelVideoDecoder(device_id, output_type);
+      decoder = new IntelVideoDecoder(device_handle.id, device_handle.type);
 #else
 #endif
       break;
     }
     case VideoDecoderType::SOFTWARE: {
-      decoder = new SoftwareVideoDecoder(device_id, output_type, num_devices);
+      decoder = new SoftwareVideoDecoder(device_handle.id, device_handle.type,
+                                         num_devices);
       break;
     }
     default: {}
@@ -100,4 +101,5 @@ VideoDecoder *VideoDecoder::make_from_config(DeviceType device_type,
 }
 
 void VideoDecoder::set_profiler(Profiler* profiler) { profiler_ = profiler; }
+}
 }

@@ -25,6 +25,7 @@
 #include <nvcuvid.h>
 
 namespace scanner {
+namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// NVIDIAVideoDecoder
@@ -82,4 +83,5 @@ class NVIDIAVideoDecoder : public VideoDecoder {
 
   CUdeviceptr mapped_frames_[max_mapped_frames_];
 };
+}
 }

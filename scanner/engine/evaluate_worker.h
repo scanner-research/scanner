@@ -33,6 +33,7 @@ struct PreEvaluateThreadArgs {
 
   // Per worker arguments
   i32 id;
+  DeviceHandle device_handle;
   Profiler& profiler;
 
   // Queues for communicating work

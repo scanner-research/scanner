@@ -351,7 +351,7 @@ endif()
 add_library(scanner SHARED
   $<TARGET_OBJECTS:api>
   $<TARGET_OBJECTS:engine>
-  #$<TARGET_OBJECTS:video>
+  $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:kernels>
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}

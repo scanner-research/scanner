@@ -429,22 +429,8 @@ public:
       for (i32 i = 0; i < num_kernel_groups + 2; ++i) {
         eval_thread_profilers.push_back(Profiler(base_time));
       }
-      // Pre evaluate worker
-      {
-        Queue<EvalWorkEntry> *input_work_queue = &initial_eval_work;
-        Queue<EvalWorkEntry> *output_work_queue = &work_queues[0];
-        pre_eval_args.emplace_back(
-            PreEvaluateThreadArgs{// Uniform arguments
-                                  node_id_, io_items, warmup_size,
-
-                                  // Per worker arguments
-                                  ki, eval_thread_profilers[0],
-
-                                  // Queues
-                                  *input_work_queue, *output_work_queue});
-      }
-
       // Evaluate worker
+      DeviceHandle first_kernel_type;
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
         auto &group = kernel_groups[kg];
         auto &lc = kg_live_columns[kg];
@@ -469,6 +455,10 @@ public:
               config.devices.push_back({device_type, device_id});
             }
           }
+          // Get the device handle for the first kernel in the pipeline
+          if (kg == 0 && i == 0) {
+            first_kernel_type = config.devices[0];
+          }
         }
 
         // Input work queue
@@ -486,6 +476,22 @@ public:
             // Queues
             *input_work_queue, *output_work_queue});
       }
+      // Pre evaluate worker
+      {
+        Queue<EvalWorkEntry> *input_work_queue = &initial_eval_work;
+        Queue<EvalWorkEntry> *output_work_queue = &work_queues[0];
+        assert(kernel_groups.size() > 0);
+        pre_eval_args.emplace_back(PreEvaluateThreadArgs{
+            // Uniform arguments
+            node_id_, io_items, warmup_size,
+
+            // Per worker arguments
+            ki, first_kernel_type, eval_thread_profilers[0],
+
+            // Queues
+            *input_work_queue, *output_work_queue});
+      }
+
 
       // Post evaluate worker
       {

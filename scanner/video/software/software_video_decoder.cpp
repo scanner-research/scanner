@@ -33,6 +33,7 @@ extern "C" {
 #include <cassert>
 
 namespace scanner {
+namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
@@ -361,4 +362,5 @@ int SoftwareVideoDecoder::decoded_frames_buffered() {
 }
 
 void SoftwareVideoDecoder::wait_until_frames_copied() {}
+}
 }

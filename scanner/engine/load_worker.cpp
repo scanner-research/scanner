@@ -109,8 +109,24 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
         static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
     u64 end_keyframe_byte_offset =
         static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
-    size_t buffer_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
 
+    i64 start_keyframe = keyframe_positions[start_keyframe_index];
+    i64 end_keyframe = keyframe_positions[end_keyframe_index];
+    std::vector<i64> all_keyframes;
+    for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
+      all_keyframes.push_back(keyframe_positions[i]);
+    }
+
+    std::vector<i64> all_keyframes_byte_offsets;
+    for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
+      printf("byte offsets %lu, diff %lu\n", start_keyframe_byte_offset,
+             keyframe_byte_offsets[i] - start_keyframe_byte_offset);
+
+      all_keyframes_byte_offsets.push_back(keyframe_byte_offsets[i] -
+                                           start_keyframe_byte_offset);
+    }
+
+    size_t buffer_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
     u8 *buffer = new_buffer(CPU_DEVICE, buffer_size);
 
     auto io_start = now();
@@ -122,8 +138,16 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
     profiler.increment("io_read", static_cast<i64>(buffer_size));
 
     proto::DecodeArgs decode_args;
+    decode_args.set_width(index_entry.width);
+    decode_args.set_height(index_entry.height);
     decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index]);
     decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index]);
+    for (i64 k : all_keyframes) {
+      decode_args.add_keyframes(k);
+    }
+    for (i64 k : all_keyframes_byte_offsets) {
+      decode_args.add_keyframe_byte_offsets(k);
+    }
     for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
       decode_args.add_valid_frames(intervals.valid_frames[i][j]);
     }
@@ -266,7 +290,9 @@ void* load_thread(void* arg) {
           table_meta, std::vector<i64>(rows.begin(), rows.end()));
       size_t num_items = intervals.item_ids.size();
       for (i32 col_id : sample.column_ids()) {
+        ColumnType column_type = ColumnType::Other;
         if (table_meta.column_type(col_id) == ColumnType::Video) {
+          column_type = ColumnType::Video;
           // video frame column
           for (size_t i = 0; i < num_items; ++i) {
             i32 item_id = intervals.item_ids[i];
@@ -317,6 +343,7 @@ void* load_thread(void* arg) {
                               eval_work_entry.columns[out_col_idx]);
           }
         }
+        eval_work_entry.column_types.push_back(column_type);
         out_col_idx++;
       }
     }

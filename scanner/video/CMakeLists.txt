@@ -1,4 +1,5 @@
 set(SOURCE_FILES
+  decoder_automata.cpp
   video_decoder.cpp)
 
 if (CUDA_FOUND)

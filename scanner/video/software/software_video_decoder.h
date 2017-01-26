@@ -34,6 +34,7 @@ extern "C" {
 #include <mutex>
 
 namespace scanner {
+namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// SoftwareVideoDecoder
@@ -74,4 +75,5 @@ class SoftwareVideoDecoder : public VideoDecoder {
   std::vector<AVFrame*> frame_pool_;
   std::deque<AVFrame*> decoded_frame_queue_;
 };
+}
 }

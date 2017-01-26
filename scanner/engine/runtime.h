@@ -56,6 +56,7 @@ struct EvalWorkEntry {
   BatchedColumns columns;
   DeviceHandle buffer_handle;
   // Below only for pre/evaluate/post workers
+  std::vector<ColumnType> column_types;
   bool needs_configure;
   bool needs_reset;
   bool last_in_io_item;

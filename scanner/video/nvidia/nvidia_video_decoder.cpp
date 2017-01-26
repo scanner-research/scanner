@@ -27,6 +27,7 @@
 #include <nvcuvid.h>
 
 namespace scanner {
+namespace internal {
 
 NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
                                        CUcontext cuda_context)
@@ -351,5 +352,6 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_display(
   std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);
   decoder.undisplayed_frames_[dispinfo->picture_index] = false;
   return true;
+}
 }
 }

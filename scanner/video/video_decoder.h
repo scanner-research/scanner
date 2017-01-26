@@ -23,6 +23,7 @@
 #include <vector>
 
 namespace scanner {
+namespace internal {
 
 class InputFormat;
 
@@ -40,11 +41,9 @@ class VideoDecoder {
 
   static bool has_decoder_type(VideoDecoderType type);
 
-  static VideoDecoder* make_from_config(DeviceType device_type,
-                                        i32 device_id,
-                                        VideoDecoderType type,
-                                        DeviceType output_type,
-                                        i32 num_devices);
+  static VideoDecoder* make_from_config(DeviceHandle device_handle,
+                                        i32 num_devices,
+                                        VideoDecoderType type);
 
   virtual ~VideoDecoder(){};
 
@@ -66,4 +65,5 @@ class VideoDecoder {
  protected:
   Profiler* profiler_ = nullptr;
 };
+}
 }
