@@ -232,8 +232,8 @@ CaffeKernel::CaffeKernel(const Kernel::Config& config)
 }
 
 void CaffeKernel::new_frame_info()  {
-  i32 frame_width = frame_info_.width;
-  i32 frame_height = frame_info_.height;
+  i32 frame_width = frame_info_.width();
+  i32 frame_height = frame_info_.height();
 
   set_device();
 
