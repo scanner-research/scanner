@@ -53,7 +53,6 @@ struct WorkItem {
 
 struct EvalWorkEntry {
   i32 io_item_index;
-  std::vector<std::string> column_names;
   BatchedColumns columns;
   DeviceHandle buffer_handle;
   // Below only for pre/evaluate/post workers

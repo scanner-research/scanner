@@ -11,13 +11,13 @@
 namespace scanner {
 
 cv::Mat bytesToImage(u8* buf, const FrameInfo& metadata) {
-  return cv::Mat(metadata.height, metadata.width, CV_8UC3, buf);
+  return cv::Mat(metadata.height(), metadata.width(), CV_8UC3, buf);
 }
 
 #ifdef HAVE_CUDA
 
 cvc::GpuMat bytesToImage_gpu(u8* buf, const FrameInfo& metadata) {
-  return cvc::GpuMat(metadata.height, metadata.width, CV_8UC3, buf);
+  return cvc::GpuMat(metadata.height(), metadata.width(), CV_8UC3, buf);
 }
 
 cudaError_t convertNV12toRGBA(const cv::cuda::GpuMat& in,

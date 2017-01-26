@@ -22,12 +22,9 @@
 
 namespace scanner {
 
-bool is_frame_column(const std::string& name);
+using proto::FrameInfo;
 
-struct FrameInfo {
-  i32 width;
-  i32 height;
-};
+bool is_frame_column(const std::string& name);
 
 FrameInfo get_frame_info(const std::string& name);
 

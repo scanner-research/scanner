@@ -138,9 +138,10 @@ message JobDescriptor {
 
 // Interal messages
 message DecodeArgs {
-  int64 start_keyframe = 3;
-  int64 end_keyframe = 4;
-  int64 valid_frame = 5;
+  int64 start_keyframe = 1;
+  int64 end_keyframe = 2;
+  repeated int64 valid_frames = 3;
+  bytes encoded_video = 4;
 }
 
 message ImageDecodeArgs {
@@ -175,4 +176,9 @@ message Collection {
 message CollectionsDescriptor {
   repeated int64 ids = 1;
   repeated string names = 2;
+}
+
+message FrameInfo {
+  int32 width = 1;
+  int32 height = 2;
 }

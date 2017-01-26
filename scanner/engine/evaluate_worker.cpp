@@ -56,7 +56,6 @@ void* pre_evaluate_thread(void* arg) {
       work_items.emplace_back();
       EvalWorkEntry& entry = work_items.back();
       entry.io_item_index = work_entry.io_item_index;
-      entry.column_names = work_entry.column_names;
       entry.buffer_handle = work_entry.buffer_handle;
       entry.needs_configure = false;
       entry.needs_reset = false;
@@ -76,7 +75,8 @@ void* pre_evaluate_thread(void* arg) {
     work_items.back().last_in_io_item = true;
 
     for (EvalWorkEntry& output_work_entry : work_items) {
-      printf("pushing item\n");
+      // Perform decoding
+
       args.output_work.push(output_work_entry);
     }
   }

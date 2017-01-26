@@ -19,12 +19,12 @@ namespace scanner {
 namespace internal {
 
 // Gets the list of work items for a sequence of rows in the job
-RowIntervals slice_into_row_intervals(const JobMetadata& job,
+RowIntervals slice_into_row_intervals(const TableMetadata& table,
                                       const std::vector<i64>& rows) {
   RowIntervals info;
-  // Analyze rows and job to determine what item ids and offsets in them to
+  // Analyze rows and table to determine what item ids and offsets in them to
   // sample from
-  i32 io_item_size = job.io_item_size();
+  i32 io_item_size = table.rows_per_item();
   auto item_from_row = [io_item_size](i64 r) -> i32 {
     return r / io_item_size;
   };

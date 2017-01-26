@@ -26,7 +26,7 @@ public:
 
     cv::Mat tmp;
     for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat img(frame_info_.height, frame_info_.width, CV_8UC3,
+      cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
                   (u8*) input_columns[0].rows[i].buffer);
 
       float range[] = {0, 256};
@@ -66,7 +66,7 @@ public:
     planes_.clear();
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
-          cvc::GpuMat(frame_info_.height, frame_info_.width, CV_8UC1));
+          cvc::GpuMat(frame_info_.height(), frame_info_.width(), CV_8UC1));
     }
   }
 
@@ -83,7 +83,7 @@ public:
       i32 sid = i % num_cuda_streams_;
       cv::cuda::Stream& s = streams_[sid];
 
-      cvc::GpuMat img(frame_info_.height, frame_info_.width, CV_8UC3,
+      cvc::GpuMat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
                       input_columns[0].rows[i].buffer);
       cvc::split(img, planes_, s);
 

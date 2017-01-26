@@ -21,8 +21,8 @@ public:
   void new_frame_info() override {
     grayscale_.resize(0);
     for (i32 i = 0; i < work_item_size_; ++i) {
-      grayscale_.emplace_back(
-        frame_info_.height, frame_info_.width, CV_8UC1);
+      grayscale_.emplace_back(frame_info_.height(), frame_info_.width(),
+                              CV_8UC1);
     }
   }
 
@@ -36,15 +36,14 @@ public:
 
     i32 input_count = (i32)input_columns[0].rows.size();
     size_t out_buf_size =
-      frame_info_.width * frame_info_.height * 2 * sizeof(float);
+        frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
 
     u8* output_block = new_block_buffer(
       device_, out_buf_size * input_count, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat input(
-        frame_info_.height, frame_info_.width, CV_8UC3,
-        input_columns[0].rows[i].buffer);
+      cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
+                    input_columns[0].rows[i].buffer);
       cv::cvtColor(input, grayscale_[i], CV_BGR2GRAY);
     }
 
@@ -54,7 +53,7 @@ public:
       cv::FarnebackOpticalFlow::create();
 
     for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat flow(frame_info_.height, frame_info_.width, CV_32FC2,
+      cv::Mat flow(frame_info_.height(), frame_info_.width(), CV_32FC2,
                    output_block + i * out_buf_size);
 
       if (i == 0) {
@@ -96,8 +95,8 @@ public:
     set_device();
     grayscale_.resize(0);
     for (i32 i = 0; i < work_item_size_; ++i) {
-      grayscale_.emplace_back(
-        frame_info_.height, frame_info_.width, CV_8UC1);
+      grayscale_.emplace_back(frame_info_.height(), frame_info_.width(),
+                              CV_8UC1);
     }
   }
 
@@ -113,17 +112,16 @@ public:
 
     i32 input_count = (i32)input_columns[0].rows.size();
     size_t out_buf_size =
-      frame_info_.width * frame_info_.height * 2 * sizeof(float);
+        frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
 
     u8* output_block = new_block_buffer(
       device_, out_buf_size * input_count, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
       i32 sid = i % num_cuda_streams_;
-      cv::cuda::Stream& s = streams_[sid];
-      cvc::GpuMat input(
-        frame_info_.height, frame_info_.width, CV_8UC3,
-        input_columns[0].rows[i].buffer);
+      cv::cuda::Stream &s = streams_[sid];
+      cvc::GpuMat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
+                        input_columns[0].rows[i].buffer);
       cvc::cvtColor(input, grayscale_[i], CV_BGR2GRAY, 0, s);
     }
 
@@ -139,8 +137,8 @@ public:
     for (i32 i = 0; i < input_count; ++i) {
       i32 sid = i % num_cuda_streams_;
       cv::cuda::Stream& s = streams_[sid];
-      cvc::GpuMat flow(frame_info_.height, frame_info_.width, CV_32FC2,
-                   output_block + i * out_buf_size);
+      cvc::GpuMat flow(frame_info_.height(), frame_info_.width(), CV_32FC2,
+                       output_block + i * out_buf_size);
 
       if (i == 0) {
         if (initial_frame_.empty()) {

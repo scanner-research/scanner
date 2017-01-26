@@ -64,6 +64,8 @@ class SoftwareVideoDecoder : public VideoDecoder {
   AVCodecContext* cc_;
 
   FrameInfo metadata_;
+  i32 frame_width_;
+  i32 frame_height_;
   std::vector<u8> conversion_buffer_;
   bool reset_context_;
   SwsContext* sws_context_;

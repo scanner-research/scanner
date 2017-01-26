@@ -24,6 +24,7 @@ namespace internal {
 
 struct LoadThreadArgs {
   // Uniform arguments
+  i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
 

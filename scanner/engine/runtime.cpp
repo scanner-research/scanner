@@ -398,14 +398,14 @@ public:
       // Create IO thread for reading and decoding data
       load_thread_args.emplace_back(LoadThreadArgs{
           // Uniform arguments
-          io_items, warmup_size,
+          node_id_, io_items, warmup_size,
 
-            // Per worker arguments
-            i, db_params_.storage_config, load_thread_profilers[i],
+          // Per worker arguments
+          i, db_params_.storage_config, load_thread_profilers[i],
 
-            // Queues
-            load_work, initial_eval_work,
-            });
+          // Queues
+          load_work, initial_eval_work,
+      });
     }
     std::vector<pthread_t> load_threads(LOAD_WORKERS_PER_NODE);
     for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {

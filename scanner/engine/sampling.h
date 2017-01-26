@@ -28,16 +28,17 @@ struct RowIntervals {
 };
 
 // Gets the list of work items for a sequence of rows in the job
-RowIntervals slice_into_row_intervals(const JobMetadata& job,
-                                      const std::vector<i64>& rows);
+RowIntervals
+slice_into_row_intervals(const TableMetadata &table,
+                         const std::vector<i64> &rows);
 
 struct VideoIntervals {
   std::vector<std::tuple<size_t, size_t>> keyframe_index_intervals;
   std::vector<std::vector<i64>> valid_frames;
 };
 
-VideoIntervals slice_into_video_intervals(
-    const std::vector<i64>& keyframe_positions, const std::vector<i64>& rows);
-
+VideoIntervals
+slice_into_video_intervals(const std::vector<i64> &keyframe_positions,
+                           const std::vector<i64> &rows);
 }
 }

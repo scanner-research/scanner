@@ -34,8 +34,8 @@ void VideoKernel::check_frame_info(const DeviceHandle& device,
                 rows[0].buffer, device,
                 sizeof(FrameInfo));
 
-  if (frame_info.width != frame_info_.width ||
-      frame_info.height != frame_info_.height) {
+  if (frame_info.width() != frame_info_.width() ||
+      frame_info.height() != frame_info_.height()) {
     frame_info_ = frame_info;
     new_frame_info();
   }
