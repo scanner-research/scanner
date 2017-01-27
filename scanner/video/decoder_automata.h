@@ -64,6 +64,7 @@ private:
   std::atomic<i32> feeder_data_idx_;
   std::atomic<size_t> feeder_buffer_offset_;
   std::atomic<i64> feeder_next_keyframe_;
+  std::atomic<bool> feeder_waiting_;
   std::mutex feeder_mutex_;
   std::condition_variable wake_feeder_;
 

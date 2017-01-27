@@ -32,7 +32,8 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
                                               decoder_type)),
       feeder_thread_(&DecoderAutomata::feeder, this),
       not_done_(true),
-      frames_retrieved_(0) {}
+      frames_retrieved_(0),
+      feeder_waiting_(false) {}
 
 DecoderAutomata::~DecoderAutomata() {
   {
@@ -48,25 +49,33 @@ DecoderAutomata::~DecoderAutomata() {
 void DecoderAutomata::initialize(
     const std::vector<proto::DecodeArgs> &encoded_data) {
   assert(!encoded_data.empty());
+  encoded_data_ = encoded_data;
   frame_size_ = encoded_data[0].width() * encoded_data[0].height() * 3;
-  next_frame_.store(encoded_data[0].start_keyframe(),
-                    std::memory_order_release);
+  current_frame_ = encoded_data[0].start_keyframe();
+  next_frame_.store(encoded_data[0].valid_frames(0), std::memory_order_release);
   retriever_data_idx_.store(0, std::memory_order_release);
   retriever_valid_idx_ = 0;
-  feeder_data_idx_.store(0, std::memory_order_release);
-  feeder_buffer_offset_.store(0, std::memory_order_release);
-  feeder_next_keyframe_.store(encoded_data[0].keyframes(1),
-                              std::memory_order_release);
-  encoded_data_ = encoded_data;
+
   FrameInfo info;
   info.set_width(encoded_data[0].width());
   info.set_height(encoded_data[0].height());
   decoder_->configure(info);
   if (frames_retrieved_ > 0) {
-    printf("reset\n");
-    decoder_->feed(nullptr, 0, false);
+    decoder_->feed(nullptr, 0, true);
     while (decoder_->discard_frame()) {
     }
+  }
+
+  {
+    std::unique_lock<std::mutex> lk(feeder_mutex_);
+    wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
+    feeder_data_idx_.store(0, std::memory_order_release);
+    feeder_buffer_offset_.store(0, std::memory_order_release);
+    feeder_next_keyframe_.store(encoded_data[0].keyframes(1),
+                                std::memory_order_release);
+    feeder_data_idx_.store(0);
+    feeder_buffer_offset_.store(0);
+    feeder_next_keyframe_.store(encoded_data[0].keyframes(1));
   }
 }
 
@@ -85,19 +94,20 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     std::unique_lock<std::mutex> lk(feeder_mutex_);
     frames_retrieved_ = 0;
     frames_to_get_ = num_frames;
+    feeder_waiting_ = false;
     wake_feeder_.notify_one();
-    printf("notify!\n");
   }
 
   while (frames_retrieved_ < frames_to_get_) {
     if (decoder_->decoded_frames_buffered() > 0) {
-      printf("has buffered frames\n");
       // New frames
       bool more_frames = true;
       while (more_frames && frames_retrieved_ < frames_to_get_) {
         const auto &valid_frames =
             encoded_data_[retriever_data_idx_].valid_frames();
         assert(current_frame_ <= valid_frames.Get(retriever_valid_idx_));
+        printf("has buffered frames, curr %d, next %d\n",
+               current_frame_, valid_frames.Get(retriever_valid_idx_));
         if (current_frame_ == valid_frames.Get(retriever_valid_idx_)) {
           u8 *decoded_buffer = buffer + frames_retrieved_ * frame_size_;
           more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
@@ -133,11 +143,14 @@ void DecoderAutomata::feeder() {
     {
       // Wait until frames are being requested
       std::unique_lock<std::mutex> lk(feeder_mutex_);
-      printf("wait\n");
-      wake_feeder_.wait(lk, [this] {
-        return frames_retrieved_ == 0 && !encoded_data_.empty() &&
-               feeder_data_idx_ < encoded_data_.size();
-      });
+      feeder_waiting_ = true;
+      wake_feeder_.notify_one();
+    }
+
+    {
+      std::unique_lock<std::mutex> lk(feeder_mutex_);
+      wake_feeder_.wait(
+          lk, [this] { return !feeder_waiting_; });
     }
 
     bool seen_metadata = false;
@@ -146,15 +159,11 @@ void DecoderAutomata::feeder() {
       //   // Jump to the next
       // }
 
+      i32 fdi = feeder_data_idx_.load(std::memory_order_acquire);
       const u8 *encoded_buffer =
-          (const u8 *)
-              encoded_data_[feeder_data_idx_.load(std::memory_order_acquire)]
-                  .mutable_encoded_video()
-                  ->data();
+          (const u8 *)encoded_data_[fdi].mutable_encoded_video()->data();
       size_t encoded_buffer_size =
-          encoded_data_[feeder_data_idx_.load(std::memory_order_acquire)]
-              .mutable_encoded_video()
-              ->size();
+          encoded_data_[fdi].mutable_encoded_video()->size();
       i32 encoded_packet_size = 0;
       const u8 *encoded_packet = NULL;
       if (feeder_buffer_offset_ < encoded_buffer_size) {
@@ -186,7 +195,6 @@ void DecoderAutomata::feeder() {
         assert(encoded_packet_size != 0);
       }
 
-      printf("feeding packet %lu, %p\n", encoded_packet_size, encoded_packet);
       fflush(stdout);
       decoder_->feed(encoded_packet, encoded_packet_size, false);
       seen_metadata = true;
@@ -196,7 +204,6 @@ void DecoderAutomata::feeder() {
         assert(feeder_buffer_offset_ >= encoded_buffer_size);
         // Reached the end of a decoded segment so wait for decoder to flush
         // before moving onto next segment
-        printf("buffered %d\n", decoder_->decoded_frames_buffered());
         while (decoder_->decoded_frames_buffered() > 0) {
           std::this_thread::yield();
         }
