@@ -30,10 +30,9 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
       decoder_type_(decoder_type),
       decoder_(VideoDecoder::make_from_config(device_handle, num_devices,
                                               decoder_type)),
-      feeder_thread_(&DecoderAutomata::feeder, this),
-      not_done_(true),
-      frames_retrieved_(0),
-      feeder_waiting_(false) {}
+      feeder_waiting_(false), not_done_(true), frames_retrieved_(0) {
+  feeder_thread_ = std::thread(&DecoderAutomata::feeder, this);
+}
 
 DecoderAutomata::~DecoderAutomata() {
   {
@@ -95,8 +94,8 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     frames_retrieved_ = 0;
     frames_to_get_ = num_frames;
     feeder_waiting_ = false;
-    wake_feeder_.notify_one();
   }
+  wake_feeder_.notify_one();
 
   while (frames_retrieved_ < frames_to_get_) {
     if (decoder_->decoded_frames_buffered() > 0) {
@@ -144,8 +143,8 @@ void DecoderAutomata::feeder() {
       // Wait until frames are being requested
       std::unique_lock<std::mutex> lk(feeder_mutex_);
       feeder_waiting_ = true;
-      wake_feeder_.notify_one();
     }
+    wake_feeder_.notify_one();
 
     {
       std::unique_lock<std::mutex> lk(feeder_mutex_);

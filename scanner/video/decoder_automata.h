@@ -47,6 +47,7 @@ private:
   i32 num_devices_;
   VideoDecoderType decoder_type_;
   std::unique_ptr<VideoDecoder> decoder_;
+  std::atomic<bool> feeder_waiting_;
   std::thread feeder_thread_;
   std::atomic<bool> not_done_;
 
@@ -64,7 +65,6 @@ private:
   std::atomic<i32> feeder_data_idx_;
   std::atomic<size_t> feeder_buffer_offset_;
   std::atomic<i64> feeder_next_keyframe_;
-  std::atomic<bool> feeder_waiting_;
   std::mutex feeder_mutex_;
   std::condition_variable wake_feeder_;
 

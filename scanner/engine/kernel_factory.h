@@ -44,6 +44,10 @@ class KernelFactory {
         type_(type), max_devices_(max_devices), warmup_size_(warmup_size),
         constructor_(constructor) {}
 
+  const std::string& get_evaluator_name() const {
+    return evaluator_name_;
+  }
+
   /** Describes the capabilities of the evaluators the factory produces. */
   DeviceType get_device_type() const {
     return type_;

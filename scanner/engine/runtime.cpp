@@ -357,9 +357,9 @@ public:
         auto& uo = kg_unused_outputs.back();
         auto& cm = kg_column_mapping.back();
         group.push_back(std::make_tuple(factory, kernel_configs[i]));
-        lc.push_back(live_columns[i + 1]);
-        dc.push_back(dead_columns[i + 1]);
-        uo.push_back(unused_outputs[i + 1]);
+        lc.push_back(live_columns[i]);
+        dc.push_back(dead_columns[i]);
+        uo.push_back(unused_outputs[i]);
         cm.push_back(column_mapping[i]);
       }
     }
@@ -471,11 +471,12 @@ public:
             node_id_, io_items, warmup_size,
 
             // Per worker arguments
-            ki, group, lc, dc, uo, cm, eval_thread_profilers[1],
+            ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[1],
 
             // Queues
             *input_work_queue, *output_work_queue});
       }
+      printf("pre evaluatoe\n");
       // Pre evaluate worker
       {
         Queue<EvalWorkEntry> *input_work_queue = &initial_eval_work;
@@ -511,15 +512,19 @@ public:
 
     // Launch eval worker threads
     std::vector<pthread_t> pre_eval_threads(KERNEL_INSTANCES_PER_NODE);
-    std::vector<pthread_t> eval_threads(KERNEL_INSTANCES_PER_NODE);
+    std::vector<std::vector<pthread_t>> eval_threads(KERNEL_INSTANCES_PER_NODE);
     std::vector<pthread_t> post_eval_threads(KERNEL_INSTANCES_PER_NODE);
     for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       // Pre thread
       pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
                      &pre_eval_args[pu]);
       // Evaluator threads
-      pthread_create(&eval_threads[pu], NULL, evaluate_thread,
-                     &eval_args[pu]);
+      std::vector<pthread_t>& threads = eval_threads[pu];
+      threads.resize(num_kernel_groups);
+      for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+        pthread_create(&threads[kg], NULL, evaluate_thread,
+                       &eval_args[pu][kg]);
+      }
       // Post threads
       pthread_create(&post_eval_threads[pu], NULL, post_evaluate_thread,
                      &post_eval_args[pu]);
@@ -606,20 +611,22 @@ public:
       free(result);
     }
 
-    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
-      EvalWorkEntry entry;
-      entry.io_item_index = -1;
-      eval_work[pu][1].push(entry);
-    }
-    for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
-      // Wait until eval has finished
-      void* result;
-      i32 err = pthread_join(eval_threads[pu], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of eval thread\n");
-        exit(EXIT_FAILURE);
+    for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+      for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
+        EvalWorkEntry entry;
+        entry.io_item_index = -1;
+        eval_work[pu][kg].push(entry);
       }
-      free(result);
+      for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
+        // Wait until eval has finished
+        void *result;
+        i32 err = pthread_join(eval_threads[pu][kg], &result);
+        if (err != 0) {
+          fprintf(stderr, "error in pthread_join of eval thread\n");
+          exit(EXIT_FAILURE);
+        }
+        free(result);
+      }
     }
 
     // Terminate post eval threads

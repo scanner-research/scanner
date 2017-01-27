@@ -1,6 +1,7 @@
 #include "scanner/engine/evaluate_worker.h"
 
 #include "scanner/video/decoder_automata.h"
+#include "scanner/engine/evaluator_registry.h"
 
 #include <thread>
 
@@ -173,7 +174,8 @@ void* pre_evaluate_thread(void* arg) {
           i64 num_rows = end - start;
           size_t frame_size = decode_args[media_col_idx][0].width() *
                               decode_args[media_col_idx][0].height() * 3;
-          u8 *buffer = new_buffer(decoder_output_handle, num_rows * frame_size);
+          u8 *buffer = new_block_buffer(decoder_output_handle,
+                                        num_rows * frame_size, num_rows);
           printf("asking for %ld frames\n", num_rows);
           decoders[media_col_idx]->get_frames(buffer, num_rows);
           for (i64 n = 0; n < num_rows; ++n) {
@@ -198,6 +200,195 @@ void* pre_evaluate_thread(void* arg) {
 
 void* evaluate_thread(void* arg) {
   EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
+
+  auto setup_start = now();
+
+  // Instantiate kernels
+  const std::vector<std::vector<i32>>& dead_columns = args.dead_columns;
+  const std::vector<std::vector<i32>>& unused_outputs = args.unused_outputs;
+  const std::vector<std::vector<i32>>& column_mapping = args.column_mapping;
+  std::vector<DeviceHandle> kernel_devices;
+  std::vector<i32> kernel_num_outputs;
+  std::vector<std::unique_ptr<Kernel>> kernels;
+  {
+    EvaluatorRegistry* registry = get_evaluator_registry();
+    printf("kernel factories %d\n", args.kernel_factories.size());
+    for (size_t i = 0; i < args.kernel_factories.size(); ++i) {
+      KernelFactory *factory = std::get<0>(args.kernel_factories[i]);
+      const Kernel::Config &config = std::get<1>(args.kernel_factories[i]);
+      kernel_devices.push_back(config.devices[0]);
+      kernel_num_outputs.push_back(
+          registry->get_evaluator_info(factory->get_evaluator_name())
+              ->output_columns()
+              .size());
+      kernels.emplace_back(factory->new_instance(config));
+    }
+  }
+  assert(kernels.size() > 0);
+  i32 num_final_output_columns = args.live_columns.back().size();
+
+  for (auto& kernel : kernels) {
+    kernel->set_profiler(&args.profiler);
+  }
+
+  args.profiler.add_interval("setup", setup_start, now());
+
+  while (true) {
+    auto idle_start = now();
+    // Wait for next work item to process
+    EvalWorkEntry work_entry;
+    args.input_work.pop(work_entry);
+
+    if (work_entry.io_item_index == -1) {
+      break;
+    }
+
+    LOG(INFO) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+              << args.kg << "): processing item "
+              << work_entry.io_item_index;
+
+    args.profiler.add_interval("idle", idle_start, now());
+
+    auto work_start = now();
+
+    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+
+    // Make the evaluator aware of the format of the data
+    if (work_entry.needs_reset) {
+      for (auto& kernel : kernels) {
+        kernel->reset();
+      }
+    }
+
+    EvalWorkEntry output_work_entry;
+    output_work_entry.io_item_index = work_entry.io_item_index;
+    output_work_entry.buffer_handle = kernel_devices.back();
+    output_work_entry.needs_configure = work_entry.needs_configure;
+    output_work_entry.needs_reset = work_entry.needs_reset;
+    output_work_entry.last_in_io_item = work_entry.last_in_io_item;
+
+    BatchedColumns& work_item_output_columns = output_work_entry.columns;
+    work_item_output_columns.resize(num_final_output_columns);
+
+    i32 current_input = 0;
+    i32 total_inputs = 0;
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      total_inputs = //io_item.end_row - io_item.start_row;
+          std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
+      printf("total inputs %d\n", total_inputs);
+    }
+    while (current_input < total_inputs) {
+      i32 batch_size =
+          std::min(total_inputs - current_input, (i32)WORK_ITEM_SIZE);
+
+      BatchedColumns side_input_columns;
+      DeviceHandle input_handle;
+      // Initialize the output buffers with the frame input because we
+      // perform a swap from output to input on each iterator to pass outputs
+      // from the previous evaluator into the input of the next one
+      BatchedColumns side_output_columns;
+      side_output_columns.resize(work_entry.columns.size());
+      for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+        i32 batch =
+            std::min(batch_size, (i32)work_entry.columns[i].rows.size());
+        assert(batch > 0);
+        side_output_columns[i].rows.insert(
+            side_output_columns[i].rows.end(),
+            work_entry.columns[i].rows.begin() + current_input,
+            work_entry.columns[i].rows.begin() + current_input + batch);
+      }
+      DeviceHandle output_handle = work_entry.buffer_handle;
+      for (size_t k = 0; k < kernels.size(); ++k) {
+        DeviceHandle current_handle = kernel_devices[k];
+        std::unique_ptr<Kernel>& kernel = kernels[k];
+        i32 num_outputs = kernel_num_outputs[k];
+
+        DeviceHandle input_handle = output_handle;
+        // Map from previous output columns to the set of input columns needed
+        // by the kernel
+        BatchedColumns input_columns;
+        for (i32 in_col_idx : column_mapping[k]) {
+          printf("in col idx %d\n", in_col_idx);
+          input_columns.push_back(side_output_columns[in_col_idx]);
+        }
+        // If current evaluator type and input buffer type differ, then move
+        // the data in the input buffer into a new buffer which has the same
+        // type as the evaluator input
+        auto copy_start = now();
+        move_if_different_address_space(args.profiler, input_handle,
+                                        current_handle, input_columns);
+        input_handle = current_handle;
+        args.profiler.add_interval("evaluator_marshal", copy_start, now());
+
+        // Setup output buffers to receive evaluator output
+        DeviceHandle output_handle = current_handle;
+        BatchedColumns output_columns;
+        output_columns.resize(num_outputs);
+
+        auto eval_start = now();
+        kernel->execute(input_columns, output_columns);
+        args.profiler.add_interval("evaluate", eval_start, now());
+        // Delete unused outputs
+        for (size_t y = 0; y < unused_outputs[k].size(); ++y) {
+          i32 unused_col_idx = unused_outputs[k][unused_outputs.size() - 1 - y];
+          printf("erasing %d\n", unused_col_idx);
+          RowList &column = output_columns[unused_col_idx];
+          for (Row &row : column.rows) {
+            u8 *buff = row.buffer;
+            delete_buffer(output_handle, buff);
+          }
+          output_columns.erase(output_columns.begin() + unused_col_idx);
+        }
+        // Verify the kernel produced the correct amount of output
+        for (size_t i = 0; i < output_columns.size(); ++i) {
+          LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
+              << "Evaluator " << k << " produced "
+              << output_columns[i].rows.size() << " output rows for column "
+              << i << ". Expected " << batch_size << " outputs.";
+        }
+        // Delete dead columns
+        for (size_t y = 0; y < dead_columns[k].size(); ++y) {
+          i32 dead_col_idx = dead_columns[k][dead_columns.size() - 1 - y];
+          printf("dead %d\n", dead_col_idx);
+          RowList &column = side_output_columns[dead_col_idx];
+          for (Row &row : column.rows) {
+            u8 *buff = row.buffer;
+            delete_buffer(output_handle, buff);
+          }
+          side_output_columns.erase(side_output_columns.begin() +
+                                    dead_col_idx);
+        }
+        // Add new output columns
+        for (const RowList& column : output_columns) {
+          side_output_columns.push_back(column);
+        }
+      }
+      assert(num_final_output_columns == side_output_columns.size());
+      for (i32 i = 0; i < num_final_output_columns; ++i) {
+        i32 num_output_rows =
+            static_cast<i32>(side_output_columns[i].rows.size());
+        work_item_output_columns[i].rows.insert(
+            work_item_output_columns[i].rows.end(),
+            side_output_columns[i].rows.begin(),
+            side_output_columns[i].rows.end());
+      }
+      current_input += batch_size;
+    }
+
+    args.profiler.add_interval("task", work_start, now());
+
+    LOG(INFO) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+              << args.kg << "): finished item "
+              << work_entry.io_item_index;
+
+    args.output_work.push(output_work_entry);
+  }
+
+  LOG(INFO) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
+            << "): thread finished";
+
+  THREAD_RETURN_SUCCESS();
+
 }
 
 void* post_evaluate_thread(void* arg) {

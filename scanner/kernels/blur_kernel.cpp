@@ -16,6 +16,7 @@
 #include "scanner/kernels/args.pb.h"
 #include "scanner/api/kernel.h"
 #include "scanner/api/evaluator.h"
+#include "scanner/util/memory.h"
 
 #include <cmath>
 
@@ -23,8 +24,7 @@ namespace scanner {
 
 class BlurKernel : public Kernel {
 public:
-  BlurKernel(const Kernel::Config& config)
-    : Kernel(config) {
+  BlurKernel(const Kernel::Config &config) : Kernel(config) {
     scanner::proto::BlurArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
 
@@ -35,43 +35,49 @@ public:
     filter_right_ = kernel_size_ / 2;
   }
 
+  void execute(const BatchedColumns &input_columns,
+               BatchedColumns &output_columns) override {
+    i32 input_count = (i32)input_columns[0].rows.size();
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
-      i32 input_count = (i32)input_columns[0].rows.size();
+    i32 width = frame_width_;
+    i32 height = frame_height_;
+    size_t frame_size = width * height * 3 * sizeof(u8);
 
-  i32 width = frame_width_;
-  i32 height = frame_height_;
-  size_t frame_size = width * height * 3 * sizeof(u8);
+    for (i32 i = 0; i < input_count; ++i) {
+      u8 *input_buffer = input_columns[0].rows[i].buffer;
+      u8 *output_buffer = new u8[frame_size];
 
-  for (i32 i = 0; i < input_count; ++i) {
-    u8* input_buffer = input_columns[0].rows[i].buffer;
-    u8* output_buffer = new u8[frame_size];
-
-    u8* frame_buffer = input_buffer;
-    u8* blurred_buffer = (output_buffer);
-    for (i32 y = filter_left_; y < height - filter_right_; ++y) {
-      for (i32 x = filter_left_; x < width - filter_right_; ++x) {
-        for (i32 c = 0; c < 3; ++c) {
-          u32 value = 0;
-          for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
-            for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
-              value += frame_buffer[(y + ry) * width * 3 + (x + rx) * 3 + c];
+      u8 *frame_buffer = input_buffer;
+      u8 *blurred_buffer = (output_buffer);
+      for (i32 y = filter_left_; y < height - filter_right_; ++y) {
+        for (i32 x = filter_left_; x < width - filter_right_; ++x) {
+          for (i32 c = 0; c < 3; ++c) {
+            u32 value = 0;
+            for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
+              for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
+                value += frame_buffer[(y + ry) * width * 3 + (x + rx) * 3 + c];
+              }
             }
+            blurred_buffer[y * width * 3 + x * 3 + c] =
+                value / ((filter_right_ + filter_left_ + 1) *
+                         (filter_right_ + filter_left_ + 1));
           }
-          blurred_buffer[y * width * 3 + x * 3 + c] =
-              value / ((filter_right_ + filter_left_ + 1) *
-                       (filter_right_ + filter_left_ + 1));
         }
       }
+      output_columns[0].rows.push_back(Row{output_buffer, frame_size});
     }
-    output_columns[0].rows.push_back(Row{output_buffer, frame_size});
-  }
-  // Forward frame info
-  output_columns[1].rows = input_columns[1].rows;
+    for (i32 i = 0; i < input_columns[1].rows.size(); ++i) {
+      Row row;
+      row.buffer = new_buffer(CPU_DEVICE, 1);
+      row.size = 1;
+      output_columns[1].rows.push_back(row);
+    }
+    // // Forward frame info
+    // for (
+    // output_columns[1].rows = input_columns[1].rows;
   }
 
- private:
+private:
   i32 kernel_size_;
   i32 filter_left_;
   i32 filter_right_;

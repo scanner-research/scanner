@@ -157,6 +157,8 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
     u8 *decode_args_buffer = new_buffer(CPU_DEVICE, size);
     decode_args.SerializeToArray(decode_args_buffer, size);
     INSERT_ROW(row_list, decode_args_buffer, size);
+
+    delete_buffer(CPU_DEVICE, buffer);
   }
 }
 

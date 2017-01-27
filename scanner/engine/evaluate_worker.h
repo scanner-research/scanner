@@ -49,10 +49,14 @@ struct EvaluateThreadArgs {
 
   // Per worker arguments
   i32 ki;
+  i32 kg;
   std::vector<std::tuple<KernelFactory*, Kernel::Config>> kernel_factories;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
+  // Discarded after kernel use
   std::vector<std::vector<i32>> dead_columns;
+  // Discarded immediately after kernel execute
   std::vector<std::vector<i32>> unused_outputs;
+  // Index in columns for inputs
   std::vector<std::vector<i32>> column_mapping;
   Profiler& profiler;
 
