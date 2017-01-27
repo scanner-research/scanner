@@ -46,6 +46,8 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
       cc_(nullptr),
       reset_context_(true),
       sws_context_(nullptr) {
+  avcodec_register_all();
+  
   if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
     LOG(FATAL) << "Unsupported output type for software decoder";
   }

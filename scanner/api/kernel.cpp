@@ -29,10 +29,13 @@ void VideoKernel::check_frame_info(const DeviceHandle& device,
   assert(rows.size() > 0);
 
   // Assume that all the FrameInfos in the same batch are the same
-  FrameInfo frame_info;
-  memcpy_buffer((u8*) &frame_info, CPU_DEVICE,
+  u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
+  memcpy_buffer((u8*)buffer, CPU_DEVICE,
                 rows[0].buffer, device,
-                sizeof(FrameInfo));
+                rows[0].size);
+  FrameInfo frame_info;
+  frame_info.ParseFromArray(buffer, rows[0].size);
+  delete_buffer(CPU_DEVICE, buffer);
 
   if (frame_info.width() != frame_info_.width() ||
       frame_info.height() != frame_info_.height()) {

@@ -73,6 +73,7 @@ VideoDecoder *VideoDecoder::make_from_config(DeviceHandle device_handle,
       //   for different decoders, the client code ends up needing to do
       //   conditional includes depending on which decoders are available in
       //   order to fill in the configuration data, which is just messy.
+      CUD_CHECK(cuInit(0));
       CUcontext cuda_context;
       CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_handle.id));
 

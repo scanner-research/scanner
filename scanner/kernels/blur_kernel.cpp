@@ -22,9 +22,9 @@
 
 namespace scanner {
 
-class BlurKernel : public Kernel {
+class BlurKernel : public VideoKernel {
 public:
-  BlurKernel(const Kernel::Config &config) : Kernel(config) {
+  BlurKernel(const Kernel::Config &config) : VideoKernel(config) {
     scanner::proto::BlurArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
 
@@ -35,12 +35,18 @@ public:
     filter_right_ = kernel_size_ / 2;
   }
 
+  void new_frame_info() {
+    frame_width_ = frame_info_.width();
+    frame_height_ = frame_info_.height();
+  }
+
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
     i32 input_count = (i32)input_columns[0].rows.size();
+    check_frame_info(CPU_DEVICE, input_columns[1]);
 
-    i32 width = 640;
-    i32 height = 480;
+    i32 width = frame_width_;
+    i32 height = frame_height_;
     size_t frame_size = width * height * 3 * sizeof(u8);
 
     for (i32 i = 0; i < input_count; ++i) {
