@@ -1,5 +1,7 @@
 #include "scanner/util/common.h"
 #include "scanner/api/commands.h"
+#include "scanner/engine/evaluator_info.h"
+#include "scanner/engine/evaluator_registry.h"
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
@@ -58,6 +60,14 @@ inline std::vector<T> to_std_vector(const py::object& iterable) {
                         py::stl_input_iterator<T>());
 }
 
+template<class T>
+py::list to_py_list(const std::vector<T>& v) {
+  py::object get_iter = py::iterator<std::vector<T> >();
+  py::object iter = get_iter(v);
+  py::list l(iter);
+  return l;
+}
+
 void ingest_videos_wrapper(
   storehouse::StorageConfig* storage_config,
   const std::string& db_path,
@@ -66,6 +76,17 @@ void ingest_videos_wrapper(
   ingest_videos(storage_config, db_path,
                 to_std_vector<std::string>(table_names),
                 to_std_vector<std::string>(paths));
+}
+
+py::list get_output_columns(const std::string& evaluator_name) {
+  internal::EvaluatorRegistry* registry = internal::get_evaluator_registry();
+  internal::EvaluatorInfo* info = registry->get_evaluator_info(evaluator_name);
+  return to_py_list(info->output_columns());
+}
+
+bool has_evaluator(const std::string& name) {
+  internal::EvaluatorRegistry* registry = internal::get_evaluator_registry();
+  return registry->has_evaluator(name);
 }
 
 BOOST_PYTHON_MODULE(scanner_bindings) {
@@ -79,6 +100,8 @@ BOOST_PYTHON_MODULE(scanner_bindings) {
   def("get_include", get_include);
   def("ingest_videos", ingest_videos_wrapper);
   def("create_database", create_database);
+  def("get_output_columns", get_output_columns);
+  def("has_evaluator", has_evaluator);
 }
 
 }

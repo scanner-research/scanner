@@ -1,23 +1,25 @@
 from scannerpy import Database, Evaluator, DeviceType
 
 db = Database()
-master = db.start_master()
-worker = db.start_worker()
+# master = db.start_master()
+# worker = db.start_worker()
 
-db.ingest_videos('meangirls', ['/bigdata/wcrichto/videos/meanGirls_short.mp4'])
+blur = db.evaluators.Blur(
+    device = DeviceType.CPU,
+    kernel_size = 3,
+    sigma = 0.5)
 
-input = Evaluator.input()
-blur = Evaluator(
-    'Blur',
-    inputs=[(input, ['frame', 'frame_info'])],
-    device=DeviceType.CPU,
-    args={
-        'kernel_size': 3,
-        'sigma': 0.5
-    })
-output = Evaluator.output([(blur, 'frame')])
+def without_collection():
+    videos = [('meangirls', '/bigdata/wcrichto/videos/meanGirls_short.mp4')]
+    for video in videos: db.ingest_video(*video)
+    table_names = list(zip(*videos)[0])
+    sampler = db.make_sampler()
+    tasks = sampler.all_frames(table_names)
+    db.run(tasks, blur)
 
-sampler = db.make_sampler()
-tasks = sampler.all_frames('meangirls')
+def with_collection():
+    collection = db.ingest_video_collection(
+        'meangirls', ['/bigdata/wcrichto/videos/meanGirls_short.mp4'])
+    db.run(collection, blur, 'meangirls_blurred')
 
-db.run(tasks, output, 'meangirls_blurred')
+with_collection()

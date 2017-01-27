@@ -26,12 +26,14 @@ namespace scanner {
 namespace internal {
 
 class EvaluatorRegistry {
- public:
-   void add_evaluator(const std::string &name, EvaluatorInfo *info);
+public:
+  void add_evaluator(const std::string &name, EvaluatorInfo *info);
 
-   EvaluatorInfo* get_evaluator_info(const std::string &name) const;
+  EvaluatorInfo* get_evaluator_info(const std::string &name) const;
 
- private:
+  bool has_evaluator(const std::string& name) const;
+
+private:
   std::map<std::string, EvaluatorInfo*> evaluators_;
 };
 

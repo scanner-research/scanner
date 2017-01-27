@@ -31,6 +31,10 @@ EvaluatorRegistry::get_evaluator_info(const std::string &name) const {
   return evaluators_.at(name);
 }
 
+bool EvaluatorRegistry::has_evaluator(const std::string &name) const {
+  return evaluators_.count(name) > 0;
+}
+
 EvaluatorRegistry* get_evaluator_registry() {
   static EvaluatorRegistry* registry = new EvaluatorRegistry;
   return registry;

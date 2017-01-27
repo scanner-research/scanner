@@ -173,7 +173,7 @@ message MemoryPoolConfig {
   int64 pool_size = 2;
 }
 
-message Collection {
+message CollectionDescriptor {
   repeated string tables = 3;
 }
 
