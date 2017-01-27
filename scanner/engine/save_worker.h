@@ -24,6 +24,7 @@ namespace internal {
 
 struct SaveThreadArgs {
   // Uniform arguments
+  i32 node_id;
   std::string job_name;
   const std::vector<IOItem>& io_items;
 

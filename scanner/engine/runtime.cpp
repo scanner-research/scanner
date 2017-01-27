@@ -48,6 +48,7 @@ void create_io_items(const std::map<std::string, TableMetadata>& table_metas,
   i32 total_rows = 0;
   for (size_t i = 0; i < tasks.size(); ++i) {
     auto& task = tasks.Get(i);
+    i32 table_id = table_metas.at(task.output_table_name()).id();
     assert(task.samples().size() > 0);
     i64 item_id = 0;
     i64 rows_in_task = static_cast<i64>(task.samples(0).rows().size());
@@ -57,7 +58,7 @@ void create_io_items(const std::map<std::string, TableMetadata>& table_metas,
         std::min((i64)io_item_size, rows_in_task - allocated_rows);
 
       IOItem item;
-      item.table_id = i;
+      item.table_id = table_id;
       item.item_id = item_id++;
       item.start_row = allocated_rows;
       item.end_row = allocated_rows + rows_to_allocate;
@@ -120,6 +121,7 @@ public:
     storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
 
+    GPU_DEVICE_IDS = {0};
     init_memory_allocators(params.memory_pool_config);
   }
 
@@ -460,6 +462,7 @@ public:
             first_kernel_type = config.devices[0];
           }
         }
+        printf("group %d\n", group.size());
 
         // Input work queue
         Queue<EvalWorkEntry> *input_work_queue = &work_queues[kg];
@@ -496,7 +499,7 @@ public:
 
       // Post evaluate worker
       {
-        Queue<EvalWorkEntry> *input_work_queue = &work_queues[2];
+        Queue<EvalWorkEntry> *input_work_queue = &work_queues.back();
         Queue<EvalWorkEntry> *output_work_queue = &save_work;
         post_eval_args.emplace_back(
             PostEvaluateThreadArgs{// Uniform arguments
@@ -536,15 +539,15 @@ public:
     std::vector<SaveThreadArgs> save_thread_args;
     for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
       // Create IO thread for reading and decoding data
-      save_thread_args.emplace_back(SaveThreadArgs{
-          // Uniform arguments
-          job_params->job_name(), io_items,
+      save_thread_args.emplace_back(
+          SaveThreadArgs{// Uniform arguments
+                         node_id_, job_params->job_name(), io_items,
 
-            // Per worker arguments
-            i, db_params_.storage_config, save_thread_profilers[i],
+                         // Per worker arguments
+                         i, db_params_.storage_config, save_thread_profilers[i],
 
-            // Queues
-            save_work, retired_items});
+                         // Queues
+                         save_work, retired_items});
     }
     std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
     for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
@@ -633,7 +636,7 @@ public:
     for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
-      eval_work[pu][2].push(entry);
+      eval_work[pu].back().push(entry);
     }
     for (i32 pu = 0; pu < KERNEL_INSTANCES_PER_NODE; ++pu) {
       // Wait until eval has finished
@@ -872,24 +875,30 @@ public:
     num_io_items_ = io_items.size();
 
 
+    printf("rpc, db path %s\n", get_database_path().c_str());
+
     grpc::CompletionQueue cq;
     std::vector<grpc::ClientContext> client_contexts(workers_.size());
-    std::vector<std::unique_ptr<grpc::Status>> statuses(workers_.size());
+    std::vector<grpc::Status> statuses(workers_.size());
     std::vector<proto::Empty> replies(workers_.size());
     std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Empty>>>
         rpcs;
+
+
+    proto::JobParameters w_job_params;
+    w_job_params.CopyFrom(*job_params);
     for (size_t i = 0; i < workers_.size(); ++i) {
       auto &worker = workers_[i];
       rpcs.emplace_back(
-          worker->AsyncNewJob(&client_contexts[i], *job_params, &cq));
-      rpcs[i]->Finish(&replies[i], statuses[i].get(), (void *)i);
+          worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
+      rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
     }
 
     for (size_t i = 0; i < workers_.size(); ++i) {
       void *got_tag;
       bool ok = false;
       GPR_ASSERT(cq.Next(&got_tag, &ok));
-      GPR_ASSERT(got_tag < (void *)workers_.size());
+      GPR_ASSERT((i64)got_tag < workers_.size());
       printf("tag %d\n", (i64)got_tag);
       assert(ok);
     }

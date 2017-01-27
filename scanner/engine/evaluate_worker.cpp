@@ -176,12 +176,10 @@ void* pre_evaluate_thread(void* arg) {
                               decode_args[media_col_idx][0].height() * 3;
           u8 *buffer = new_block_buffer(decoder_output_handle,
                                         num_rows * frame_size, num_rows);
-          printf("asking for %ld frames\n", num_rows);
           decoders[media_col_idx]->get_frames(buffer, num_rows);
           for (i64 n = 0; n < num_rows; ++n) {
             INSERT_ROW(entry.columns[c], buffer + frame_size * n, frame_size);
           }
-          printf("got %ld frames\n", num_rows);
           media_col_idx++;
         } else {
           entry.columns[c].rows =
@@ -190,11 +188,12 @@ void* pre_evaluate_thread(void* arg) {
         }
       }
       // Push entry to kernels
-      printf("pushing item\n");
       args.output_work.push(entry);
       first_item = false;
     }
   }
+  LOG(INFO) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.id
+            << "): thread finished ";
   THREAD_RETURN_SUCCESS();
 }
 
@@ -394,6 +393,68 @@ void* evaluate_thread(void* arg) {
 void* post_evaluate_thread(void* arg) {
   PostEvaluateThreadArgs& args =
       *reinterpret_cast<PostEvaluateThreadArgs*>(arg);
+
+  EvalWorkEntry buffered_entry;
+  i64 current_offset = 0;
+  while (true) {
+    auto idle_start = now();
+    // Wait for next work item to process
+    EvalWorkEntry work_entry;
+    args.input_work.pop(work_entry);
+
+    if (work_entry.io_item_index == -1) {
+      break;
+    }
+
+    LOG(INFO) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+              << "): processing item " << work_entry.io_item_index;
+
+    args.profiler.add_interval("idle", idle_start, now());
+
+    auto work_start = now();
+
+    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+
+    if (buffered_entry.columns.size() == 0) {
+      buffered_entry.io_item_index = work_entry.io_item_index;
+      buffered_entry.columns.resize(work_entry.columns.size());
+      buffered_entry.buffer_handle = work_entry.buffer_handle;
+    }
+
+    i64 num_rows = work_entry.columns[0].rows.size();
+    i32 warmup_frames;
+    if (work_entry.needs_reset) {
+      i32 total_warmup_frames =
+          std::min((i64)args.warmup_count, io_item.start_row);
+      warmup_frames = std::min(
+          num_rows, std::max(0L, total_warmup_frames - current_offset));
+    } else {
+      warmup_frames = 0;
+    }
+    current_offset += num_rows;
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      // Delete warmup frame outputs
+      for (i32 w = 0; w < warmup_frames; ++w) {
+        delete_buffer(work_entry.buffer_handle,
+                      work_entry.columns[i].rows[w].buffer);
+      }
+      // Keep non-warmup frame outputs
+      buffered_entry.columns[i].rows.insert(
+          buffered_entry.columns[i].rows.end(),
+          work_entry.columns[i].rows.begin() + warmup_frames,
+          work_entry.columns[i].rows.end());
+    }
+
+    if (work_entry.last_in_io_item) {
+      args.output_work.push(buffered_entry);
+      buffered_entry.columns.clear();
+    }
+  }
+
+  LOG(INFO) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+            << "): thread finished ";
+
+  THREAD_RETURN_SUCCESS();
 }
 
 }

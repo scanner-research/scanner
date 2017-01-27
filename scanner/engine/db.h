@@ -26,16 +26,16 @@ namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Path functions
-extern std::string PREFIX;
+const std::string& get_database_path();
 
 void set_database_path(std::string path);
 
 inline std::string database_metadata_path() {
-  return PREFIX + "db_metadata.bin";
+  return get_database_path() + "db_metadata.bin";
 }
 
 inline std::string table_directory(i32 table_id) {
-  return PREFIX + "tables/" + std::to_string(table_id);
+  return get_database_path() + "tables/" + std::to_string(table_id);
 }
 
 inline std::string table_descriptor_path(i32 table_id) {
@@ -55,7 +55,7 @@ table_item_video_metadata_path(i32 table_id, i32 column_id, i32 item_id) {
 }
 
 inline std::string job_directory(i32 job_id) {
-  return PREFIX + "jobs/" + std::to_string(job_id);
+  return get_database_path() + "jobs/" + std::to_string(job_id);
 }
 
 inline std::string job_descriptor_path(i32 job_id) {

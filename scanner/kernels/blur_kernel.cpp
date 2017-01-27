@@ -39,8 +39,8 @@ public:
                BatchedColumns &output_columns) override {
     i32 input_count = (i32)input_columns[0].rows.size();
 
-    i32 width = frame_width_;
-    i32 height = frame_height_;
+    i32 width = 640;
+    i32 height = 480;
     size_t frame_size = width * height * 3 * sizeof(u8);
 
     for (i32 i = 0; i < input_count; ++i) {

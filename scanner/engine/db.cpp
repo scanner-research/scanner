@@ -391,9 +391,24 @@ ColumnType TableMetadata::column_type(i32 column_id) const {
   LOG(FATAL) << "Column id " << column_id << " not found!";
 }
 
-std::string PREFIX = "";
+namespace {
+std::string &get_database_path_ref() {
+  static std::string prefix = "";
+  return prefix;
+}
+}
 
-void set_database_path(std::string path) { PREFIX = path + "/"; }
+const std::string& get_database_path() {
+  std::atomic_thread_fence(std::memory_order_acquire);
+  return get_database_path_ref();
+}
+
+void set_database_path(std::string path) {
+  printf("SETTING DB PATH TO %s\n", path.c_str());
+  get_database_path_ref() = path + "/";
+  std::atomic_thread_fence(std::memory_order_release);
+}
+
 
 void write_new_table(storehouse::StorageBackend *storage,
                      DatabaseMetadata &meta,
