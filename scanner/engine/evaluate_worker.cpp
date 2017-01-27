@@ -67,7 +67,7 @@ void* pre_evaluate_thread(void* arg) {
   i32 last_end_row = -1;
   i32 last_item_id = -1;
 
-  DeviceType decoder_output_type;
+  DeviceHandle decoder_output_handle;
   std::vector<std::unique_ptr<DecoderAutomata>> decoders;
   while (true) {
     auto idle_start = now();
@@ -100,7 +100,7 @@ void* pre_evaluate_thread(void* arg) {
     last_item_id = io_item.item_id;
 
     // Split up a work entry into work item size chunks
-    i64 total_rows = work_entry.columns[0].rows.size();
+    i64 total_rows = io_item.end_row - io_item.start_row;
 
     i64 r = 0;
     if (!needs_reset) {
@@ -120,11 +120,12 @@ void* pre_evaluate_thread(void* arg) {
       // the available decoders
       if (args.device_handle.type == DeviceType::GPU &&
           VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
-        decoder_output_type = DeviceType::GPU;
+        decoder_output_handle.type = DeviceType::GPU;
+        decoder_output_handle.id = args.device_handle.id;
         decoder_type = VideoDecoderType::NVIDIA;
         num_devices = 1;
       } else {
-        decoder_output_type = DeviceType::CPU;
+        decoder_output_handle = CPU_DEVICE;
         decoder_type = VideoDecoderType::SOFTWARE;
         num_devices =
             (CPUS_PER_NODE != -1 ? CPUS_PER_NODE
@@ -138,12 +139,25 @@ void* pre_evaluate_thread(void* arg) {
       }
     }
 
-    for (size_t c = 0; c < work_entry.columns.size(); ++c) {
-    }
-
+    i32 media_col_idx = 0;
+    std::vector<std::vector<proto::DecodeArgs>> decode_args;
     bool first_item = true;
     std::vector<EvalWorkEntry> work_items;
+    for (size_t c = 0; c < work_entry.columns.size(); ++c) {
+      if (work_entry.column_types[c] == ColumnType::Video) {
+        decode_args.emplace_back();
+        auto& args = decode_args.back();
+        for (Row row : work_entry.columns[c].rows) {
+          args.emplace_back();
+          proto::DecodeArgs& da = args.back();
+          da.ParseFromArray(row.buffer, row.size);
+        }
+        decoders[media_col_idx]->initialize(args);
+        media_col_idx++;
+      }
+    }
     for (; r < total_rows; r += work_item_size) {
+      media_col_idx = 0;
       EvalWorkEntry entry;
       entry.io_item_index = work_entry.io_item_index;
       entry.buffer_handle = work_entry.buffer_handle;
@@ -152,34 +166,31 @@ void* pre_evaluate_thread(void* arg) {
       entry.last_in_io_item = (r + work_item_size >= total_rows) ? true : false;
       entry.columns.resize(work_entry.columns.size());
       for (size_t c = 0; c < work_entry.columns.size(); ++c) {
+        i64 start = r;
+        i64 end = std::min(r + work_item_size, total_rows);
         if (work_entry.column_types[c] == ColumnType::Video) {
           // Perform decoding
+          i64 num_rows = end - start;
+          size_t frame_size = decode_args[media_col_idx][0].width() *
+                              decode_args[media_col_idx][0].height() * 3;
+          u8 *buffer = new_buffer(decoder_output_handle, num_rows * frame_size);
+          printf("asking for %ld frames\n", num_rows);
+          decoders[media_col_idx]->get_frames(buffer, num_rows);
+          for (i64 n = 0; n < num_rows; ++n) {
+            INSERT_ROW(entry.columns[c], buffer + frame_size * n, frame_size);
+          }
+          printf("got %ld frames\n", num_rows);
+          media_col_idx++;
         } else {
-          i64 start = std::min(r, (i64)work_entry.columns[c].rows.size());
-          i64 end = std::min(r + work_item_size,
-                             (i64)work_entry.columns[c].rows.size());
           entry.columns[c].rows =
               std::vector<Row>(work_entry.columns[c].rows.begin() + start,
                                work_entry.columns[c].rows.begin() + end);
         }
       }
-
       // Push entry to kernels
-      args.output_work.push(entry);
-
-      first_item = false;
-    }
-    assert(!work_items.empty());
-    work_items.front().needs_configure = needs_configure;
-    work_items.front().needs_reset = needs_reset;
-    work_items.back().last_in_io_item = true;
-
-    for (EvalWorkEntry& output_work_entry : work_items) {
-      // Perform decoding
-      for (size_t c = 0; c < work_entry.columns.size(); ++c) {
-      }
       printf("pushing item\n");
-
+      args.output_work.push(entry);
+      first_item = false;
     }
   }
   THREAD_RETURN_SUCCESS();

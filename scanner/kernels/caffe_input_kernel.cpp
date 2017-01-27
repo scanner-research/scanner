@@ -31,8 +31,8 @@ CaffeInputKernel::~CaffeInputKernel() {
 
 void CaffeInputKernel::new_frame_info() {
   if (args_.net_descriptor().input_width() == -1) {
-    net_input_width_ = frame_info_.width;
-    net_input_height_ = frame_info_.height;
+    net_input_width_ = frame_info_.width();
+    net_input_height_ = frame_info_.height();
   }
 }
 
@@ -66,8 +66,8 @@ void CaffeInputKernel::unset_halide_buf(buffer_t& halide_buf) {
 
 void CaffeInputKernel::transform_halide(u8* input_buffer,
                                              u8* output_buffer) {
-  i32 frame_width = frame_info_.width;
-  i32 frame_height = frame_info_.height;
+  i32 frame_width = frame_info_.width();
+  i32 frame_height = frame_info_.height();
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
@@ -113,8 +113,8 @@ void CaffeInputKernel::transform_halide(u8* input_buffer,
 
 void CaffeInputKernel::transform_caffe(u8* input_buffer,
                                        u8* output_buffer) {
-  i32 frame_width = frame_info_.width;
-  i32 frame_height = frame_info_.height;
+  i32 frame_width = frame_info_.width();
+  i32 frame_height = frame_info_.height();
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 

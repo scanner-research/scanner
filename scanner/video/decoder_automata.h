@@ -34,7 +34,7 @@ public:
                   VideoDecoderType decoder_type);
   ~DecoderAutomata();
 
-  void initialize(const std::vector<proto::DecodeArgs*>& encoded_data);
+  void initialize(const std::vector<proto::DecodeArgs>& encoded_data);
 
   void get_frames(u8* buffer, i32 num_frames);
 
@@ -52,7 +52,7 @@ private:
 
   size_t frame_size_;
   i32 current_frame_;
-  std::vector<proto::DecodeArgs*> encoded_data_;
+  std::vector<proto::DecodeArgs> encoded_data_;
 
   std::atomic<i64> next_frame_;
   std::atomic<i64> frames_retrieved_;
