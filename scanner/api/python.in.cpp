@@ -60,12 +60,14 @@ inline std::vector<T> to_std_vector(const py::object& iterable) {
                         py::stl_input_iterator<T>());
 }
 
-template<class T>
-py::list to_py_list(const std::vector<T>& v) {
-  py::object get_iter = py::iterator<std::vector<T> >();
-  py::object iter = get_iter(v);
-  py::list l(iter);
-  return l;
+template <class T>
+py::list to_py_list(std::vector<T> vector) {
+  typename std::vector<T>::iterator iter;
+  py::list list;
+  for (iter = vector.begin(); iter != vector.end(); ++iter) {
+    list.append(*iter);
+  }
+  return list;
 }
 
 void ingest_videos_wrapper(

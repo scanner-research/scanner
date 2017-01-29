@@ -7,6 +7,7 @@ service Master {
   rpc RegisterWorker (WorkerInfo) returns (Registration) {}
   rpc NextIOItem (Empty) returns (IOItem) {}
   rpc NewJob (JobParameters) returns (Empty) {}
+  rpc Ping (Empty) returns (Empty) {}
 }
 
 service Worker {

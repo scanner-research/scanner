@@ -1,8 +1,6 @@
 from scannerpy import Database, Evaluator, DeviceType
 
 db = Database()
-# master = db.start_master()
-# worker = db.start_worker()
 
 blur = db.evaluators.Blur(
     device = DeviceType.CPU,

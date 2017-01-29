@@ -7,10 +7,21 @@ import grpc
 from random import choice
 from string import ascii_uppercase
 import logging
+from collections import defaultdict
 
 class DeviceType(Enum):
     CPU = 0
     GPU = 1
+
+    @staticmethod
+    def to_proto(db, device):
+        if device == DeviceType.CPU:
+            return db._metadata_types.CPU
+        elif device == DeviceType.GPU:
+            return db._metadata_types.GPU
+        else:
+            logging.critical('Invalid device type')
+            exit()
 
 class Config(object):
     """ TODO(wcrichto): document me """
@@ -132,6 +143,19 @@ class Database:
         # Initialize gRPC channel with master server
         channel = grpc.insecure_channel(self._master_address)
         self._master = self._rpc_types.MasterStub(channel)
+        try:
+            self._master.Ping(self._rpc_types.Empty())
+        except grpc.RpcError as e:
+            status = e.code()
+            if status == grpc.StatusCode.UNAVAILABLE:
+                self._ignore1 = self.start_master()
+                self._ignore2 = self.start_worker()
+            elif status == grpc.StatusCode.OK:
+                pass
+            else:
+                logging.critical('Master ping errored with status: {}'.format(status))
+                exit()
+
 
     def start_master(self):
         return self._bindings.start_master(self._db_params)
@@ -185,29 +209,79 @@ class Database:
     def make_sampler(self):
         return Sampler(self)
 
+    def _toposort(self, evaluator):
+        edges = defaultdict(list)
+        in_edges_left = defaultdict(int)
+        start_node = None
+
+        explored_nodes = set()
+        stack = [evaluator]
+        while len(stack) > 0:
+            c = stack.pop()
+            explored_nodes.add(c)
+            if (c._name == "InputTable"):
+                start_node = c
+                continue
+            elif len(c._inputs) == 0:
+                input = Evaluator.input(self)
+                # TODO(wcrichto): determine input columns from dataset
+                c._inputs = [(input, ["frame", "frame_info"])]
+                start_node = input
+            for (parent, _) in c._inputs:
+                edges[parent].append(c)
+                in_edges_left[c] += 1
+
+                if parent not in explored_nodes:
+                    stack.append(parent)
+
+        eval_sorted = []
+        eval_index = {}
+        stack= [start_node]
+        while len(stack) > 0:
+            c = stack.pop()
+            eval_sorted.append(c)
+            eval_index[c] = len(eval_sorted) - 1
+            for child in edges[c]:
+                in_edges_left[child] -= 1
+                if in_edges_left[child] == 0:
+                    stack.append(child)
+
+        return [e.to_proto(eval_index) for e in eval_sorted]
+
     def _process_dag(self, evaluator):
+        # If evaluators are passed as a list (e.g. [transform, caffe])
+        # then hook up inputs to outputs of adjacent evaluators
         if isinstance(evaluator, list):
             for i in range(len(evaluator) - 1):
                 out_cols = self._bindings.get_output_columns(evaluator[i]._name)
                 evaluator[i+1]._inputs = [(evaluator[i], out_cols)]
             evaluator = evaluator[-1]
+
+        # If the user doesn't explicitly specify an OutputTable, assume that
+        # it's all the output columns of the last evaluator.
         if evaluator._name != "OutputTable":
-            out_cols = self._bindings.get_output_columns(evaluator._name)
-            print out_cols
-            evaluator = Evaluator.output([(evaluator, out_cols)])
-        return []
+            out_cols = self._bindings.get_output_columns(str(evaluator._name))
+            evaluator = Evaluator.output(self, [(evaluator, out_cols)])
+
+        return self._toposort(evaluator)
 
     def run(self, tasks, evaluator, output_collection=None, job_name=None):
         if isinstance(tasks, Collection):
             sampler = self.make_sampler()
             tasks = sampler.all_frames(tasks.tables())
+
         job_params = self._rpc_types.JobParameters()
+        # Generate a random job name if none given
         job_name = job_name or ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.evaluators.extend(self._process_dag(evaluator))
-        exit()
-        self._master.NewJob(job_params)
+
+        try:
+            self._master.NewJob(job_params)
+        except grpc.RpcError as e:
+            logging.critical('Job failed with error: {}'.format(e))
+            exit()
 
 
 class Sampler:
@@ -219,8 +293,8 @@ class Sampler:
         for table in videos:
             task = self._db._metadata_types.Task()
             task.output_table_name = "TODO"
-            row_count = 100 # TODO: extract this
-            column_names = ["frame", "frame_info"] # TODO: extract this
+            row_count = 100 # TODO(wcrichto): extract this
+            column_names = ["frame", "frame_info"] # TODO(wcrichto): extract this
             sample = task.samples.add()
             sample.table_name = table
             sample.column_names.extend(column_names)
@@ -243,21 +317,42 @@ class EvaluatorGenerator:
             if device is None:
                 logging.critical('Must specify device type')
                 exit()
-            return Evaluator(name, inputs, device, kwargs)
+            return Evaluator(self._db, name, inputs, device, kwargs)
         return make_evaluator
 
 
 class Evaluator:
-    def __init__(self, name, inputs, device, args):
+    def __init__(self, db, name, inputs, device, args):
+        self._db = db
         self._name = name
         self._inputs = inputs
         self._device = device
         self._args = args
 
     @classmethod
-    def input(cls):
-        return cls("InputTable", [])
+    def input(cls, db):
+        return cls(db, "InputTable", [], DeviceType.CPU, {})
 
     @classmethod
-    def output(cls, inputs):
-        return cls("OutputTable", inputs)
+    def output(cls, db, inputs):
+        return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
+
+    def to_proto(self, indices):
+        e = self._db._metadata_types.Evaluator()
+        e.name = self._name
+        for (in_eval, cols) in self._inputs:
+            inp = e.inputs.add()
+            inp.evaluator_index = indices[in_eval]
+            inp.columns.extend(cols)
+        e.device_type = DeviceType.to_proto(self._db, self._device)
+        if len(self._args) > 0:
+            proto_name = self._name + 'Args'
+            if not hasattr(self._db._arg_types, proto_name):
+                logging.critical('Missing protobuf {}'.format(proto_name))
+                exit()
+            args = getattr(self._db._arg_types, proto_name)()
+            for k, v in self._args.iteritems():
+                setattr(args, k, v)
+
+            e.kernel_args = args.SerializeToString()
+        return e

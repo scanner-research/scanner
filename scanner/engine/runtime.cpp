@@ -916,6 +916,12 @@ public:
     return grpc::Status::OK;
   }
 
+  grpc::Status Ping(grpc::ServerContext* context,
+                    const proto::Empty* empty1,
+                    proto::Empty* empty2) {
+    return grpc::Status::OK;
+  }
+
 private:
   i32 next_io_item_to_allocate_;
   i32 num_io_items_;
