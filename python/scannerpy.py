@@ -143,11 +143,14 @@ class Database:
         # Initialize gRPC channel with master server
         channel = grpc.insecure_channel(self._master_address)
         self._master = self._rpc_types.MasterStub(channel)
+
+        # Ping master and start master/worker locally if they don't exist.
         try:
             self._master.Ping(self._rpc_types.Empty())
         except grpc.RpcError as e:
             status = e.code()
             if status == grpc.StatusCode.UNAVAILABLE:
+                logging.warn("Master not started, creating temporary master/worker")
                 self._ignore1 = self.start_master()
                 self._ignore2 = self.start_worker()
             elif status == grpc.StatusCode.OK:
@@ -331,7 +334,9 @@ class Evaluator:
 
     @classmethod
     def input(cls, db):
-        return cls(db, "InputTable", [], DeviceType.CPU, {})
+        # TODO(wcrichto): allow non-frame inputs
+        return cls(db, "InputTable", [(None, ["frame", "frame_info"])],
+                   DeviceType.CPU, {})
 
     @classmethod
     def output(cls, db, inputs):
@@ -340,11 +345,15 @@ class Evaluator:
     def to_proto(self, indices):
         e = self._db._metadata_types.Evaluator()
         e.name = self._name
+
         for (in_eval, cols) in self._inputs:
             inp = e.inputs.add()
-            inp.evaluator_index = indices[in_eval]
+            idx = indices[in_eval] if in_eval is not None else -1
+            inp.evaluator_index = idx
             inp.columns.extend(cols)
+
         e.device_type = DeviceType.to_proto(self._db, self._device)
+
         if len(self._args) > 0:
             proto_name = self._name + 'Args'
             if not hasattr(self._db._arg_types, proto_name):
@@ -353,6 +362,6 @@ class Evaluator:
             args = getattr(self._db._arg_types, proto_name)()
             for k, v in self._args.iteritems():
                 setattr(args, k, v)
-
             e.kernel_args = args.SerializeToString()
+
         return e
