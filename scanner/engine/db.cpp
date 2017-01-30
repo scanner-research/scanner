@@ -69,7 +69,6 @@ DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
   for (int i = 0; i < descriptor_.tables_size(); ++i) {
     const DatabaseDescriptor::Table& table = descriptor_.tables(i);
     table_id_names_.insert({table.id(), table.name()});
-    table_names_.push_back(table.name());
   }
   for (int i = 0; i < descriptor_.jobs_size(); ++i) {
     const DatabaseDescriptor_Job& job = descriptor_.jobs(i);
@@ -103,8 +102,12 @@ std::string DatabaseMetadata::descriptor_path() {
   return database_metadata_path();
 }
 
-const std::vector<std::string>& DatabaseMetadata::table_names() const {
-  return table_names_;
+const std::vector<std::string> DatabaseMetadata::table_names() const {
+  std::vector<std::string> names;
+  for (auto& entry : table_id_names_) {
+    names.push_back(entry.second);
+  }
+  return names;
 }
 
 bool DatabaseMetadata::has_table(const std::string& table) const {
@@ -128,7 +131,7 @@ i32 DatabaseMetadata::get_table_id(const std::string& table) const {
       break;
     }
   }
-  assert(id != -1);
+  LOG_IF(FATAL, id == -1) << "Table " << table << " does not exist.";
   return id;
 }
 

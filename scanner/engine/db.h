@@ -95,7 +95,7 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
 
   static std::string descriptor_path();
 
-  const std::vector<std::string>& table_names() const;
+  const std::vector<std::string> table_names() const;
 
   bool has_table(const std::string& table) const;
   bool has_table(i32 table_id) const;

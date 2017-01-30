@@ -48,6 +48,10 @@ void create_io_items(const std::map<std::string, TableMetadata>& table_metas,
   i32 total_rows = 0;
   for (size_t i = 0; i < tasks.size(); ++i) {
     auto& task = tasks.Get(i);
+    // TODO(wcrichto): these should be returned as error messages, not LOG(FATAL)'d
+    if (table_metas.count(task.output_table_name()) == 0) {
+      LOG(FATAL) << "Output table " << task.output_table_name() << " does not exist.";
+    }
     i32 table_id = table_metas.at(task.output_table_name()).id();
     assert(task.samples().size() > 0);
     i64 item_id = 0;
@@ -67,6 +71,9 @@ void create_io_items(const std::map<std::string, TableMetadata>& table_metas,
       proto::LoadWorkEntry load_item;
       load_item.set_io_item_index(io_items.size() - 1);
       for (auto& sample : task.samples()) {
+        if (table_metas.count(sample.table_name()) == 0) {
+          LOG(FATAL) << "Requested table " << sample.table_name() << " does not exist.";
+        }
         const TableMetadata& t_meta = table_metas.at(sample.table_name());
         i32 sample_table_id = t_meta.id();
         proto::LoadSample* load_sample = load_item.add_samples();
