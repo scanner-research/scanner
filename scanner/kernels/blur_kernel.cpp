@@ -72,10 +72,14 @@ public:
       }
       output_columns[0].rows.push_back(Row{output_buffer, frame_size});
     }
+
+    std::string info_string;
+    frame_info_.SerializeToString(&info_string);
     for (i32 i = 0; i < input_columns[1].rows.size(); ++i) {
       Row row;
-      row.buffer = new_buffer(CPU_DEVICE, 1);
-      row.size = 1;
+      row.buffer = new_buffer(CPU_DEVICE, info_string.size());
+      row.size = info_string.size();
+      std::memcpy(row.buffer, info_string.data(), row.size);
       output_columns[1].rows.push_back(row);
     }
     // // Forward frame info

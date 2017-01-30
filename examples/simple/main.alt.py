@@ -7,17 +7,19 @@ blur = db.evaluators.Blur(
     kernel_size = 3,
     sigma = 0.5)
 
-def without_collection():
-    videos = [('meangirls', '/bigdata/wcrichto/videos/meanGirls_short.mp4')]
-    for video in videos: db.ingest_video(*video)
-    table_names = list(zip(*videos)[0])
-    sampler = db.make_sampler()
-    tasks = sampler.all_frames(table_names)
+def single_video():
+    video = '/bigdata/wcrichto/videos/meanGirls_short.mp4'
+    db.ingest_video(('meangirls', video))
+    sampler = db.sampler()
+    tasks = sampler.all_frames([('meangirls', 'meangirls_blurred')])
     db.run(tasks, blur)
 
-def with_collection():
-    collection = db.ingest_video_collection(
+def video_collection():
+    input_collection = db.ingest_video_collection(
         'meangirls', ['/bigdata/wcrichto/videos/meanGirls_short.mp4'])
-    db.run(collection, blur, 'meangirls_blurred')
+    # collection = db.get_collection('meangirls')
+    output_collection = db.run(input_collection, blur, 'meangirls_blurred')
+    table = output_collection.tables(0)
+    print next(table.load_frames()).shape
 
-with_collection()
+video_collection()
