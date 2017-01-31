@@ -72,19 +72,18 @@ public:
       }
       output_columns[0].rows.push_back(Row{output_buffer, frame_size});
     }
-
-    std::string info_string;
-    frame_info_.SerializeToString(&info_string);
-    for (i32 i = 0; i < input_columns[1].rows.size(); ++i) {
+    FrameInfo info;
+    info.set_width(frame_width_);
+    info.set_height(frame_height_);
+    u8 *buffer = new_block_buffer(CPU_DEVICE, info.ByteSize() * input_count,
+                                  input_count);
+    for (i32 i = 0; i < input_count; ++i) {
       Row row;
-      row.buffer = new_buffer(CPU_DEVICE, info_string.size());
-      row.size = info_string.size();
-      std::memcpy(row.buffer, info_string.data(), row.size);
+      row.buffer = buffer + i * info.ByteSize();
+      row.size = info.ByteSize();
+      info.SerializeToArray(row.buffer, row.size);
       output_columns[1].rows.push_back(row);
     }
-    // // Forward frame info
-    // for (
-    // output_columns[1].rows = input_columns[1].rows;
   }
 
 private:

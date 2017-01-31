@@ -193,7 +193,7 @@ public:
       for (size_t j = 0; j <= max_i; ++j) {
         for (auto &kv : intermediates.at(j)) {
           i32 last_used_index = kv.second;
-          if (last_used_index > evaluator_index) {
+          if (last_used_index >= evaluator_index) {
             // Last used index is greater than current index, so still live
             columns.push_back(
                 std::make_tuple((i32)j, kv.first));
@@ -685,8 +685,9 @@ public:
 
     // Execution done, write out profiler intervals for each worker
     // TODO: job_name -> job_id?
+    i32 job_id = meta.get_job_id(job_params->job_name());
     std::string profiler_file_name =
-      job_profiler_path(0xdeadbeef, node_id_);
+      job_profiler_path(job_id, node_id_);
     std::unique_ptr<WriteFile> profiler_output;
     BACKOFF_FAIL(
       make_unique_write_file(storage_, profiler_file_name, profiler_output));
@@ -864,6 +865,13 @@ public:
       write_table_metadata(storage_, TableMetadata(table_desc));
     }
 
+    // Add job name into database metadata so we can look up what jobs have
+    // been ran
+    i32 job_id = meta.add_job(job_params->job_name());
+    job_descriptor.set_id(job_id);
+    job_descriptor.set_name(job_params->job_name());
+    write_job_metadata(storage_, JobMetadata(job_descriptor));
+
     // Write out database metadata so that workers can read it
     write_database_metadata(storage_, meta);
 
@@ -910,15 +918,6 @@ public:
       assert(ok);
     }
     // Write table metadata
-
-    // Add job name into database metadata so we can look up what jobs have
-    // been ran
-    i32 job_id = meta.add_job(job_params->job_name());
-    write_database_metadata(storage_, meta);
-
-    job_descriptor.set_id(job_id);
-    job_descriptor.set_name(job_params->job_name());
-    write_job_metadata(storage_, job_descriptor);
 
     return grpc::Status::OK;
   }
