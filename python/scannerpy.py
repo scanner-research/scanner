@@ -221,12 +221,13 @@ class Database:
     def ingest_video_collection(self, collection_name, videos):
         table_names = ['{}_{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
+        collection = self.new_collection(collection_name, table_names)
         self._bindings.ingest_videos(
             self.config.storage_config,
             self._db_path,
             table_names,
             videos)
-        return self.new_collection(collection_name, table_names)
+        return collection
 
     def sampler(self):
         return Sampler(self)
@@ -315,9 +316,15 @@ class Database:
         input_is_collection = isinstance(tasks, Collection)
         if input_is_collection:
             sampler = self.sampler()
-            tables = [(t, t.replace(tasks.name(), output_collection))
-                      for t in tasks.table_names()]
-            tasks = sampler.all_frames(tables)
+            tasks = sampler.all(tasks)
+
+        # If the output should be a collection, then set the table names
+        if output_collection is not None:
+            for task in tasks:
+                new_name = '{}_{}'.format(
+                    output_collection,
+                    task.output_table_name.split('_')[-1])
+                task.output_table_name = new_name
 
         job_params = self._rpc_types.JobParameters()
         # Generate a random job name if none given
@@ -336,7 +343,7 @@ class Database:
         # Return a new collection if the input was a collection, otherwise
         # return a table list
         table_names = [task.output_table_name for task in tasks]
-        if input_is_collection:
+        if output_collection is not None:
             return self.new_collection(output_collection, table_names)
         else:
             return [self.table(t) for t in table_names]
@@ -346,17 +353,32 @@ class Sampler:
     def __init__(self, db):
         self._db = db
 
-    def all_frames(self, videos):
+    def all(self, videos):
+        return self.strided(videos, 1)
+
+    def strided(self, videos, stride):
+        # TODO: get upper bound
+        return self.strided_range(videos, 0, 100, stride)
+
+    def range(self, videos, start, end):
+        return self.strided_range(videos, start, end, 1)
+
+    def strided_range(self, videos, start, end, stride):
+        input_is_collection = isinstance(videos, Collection)
+        if input_is_collection:
+            videos = [(t, '') for t in videos.table_names()]
         tasks = []
-        for (input_table, output_table) in videos:
+        for (input_table_name, output_table_name) in videos:
             task = self._db._metadata_types.Task()
-            task.output_table_name = output_table
-            row_count = 100 # TODO(wcrichto): extract this
-            column_names = ["frame", "frame_info"] # TODO(wcrichto): extract this
+            task.output_table_name = output_table_name
+            input_table = self._db.table(input_table_name)
+            num_rows = input_table.num_rows()
+            column_names = [c.name() for c in input_table.columns()]
             sample = task.samples.add()
-            sample.table_name = input_table
+            sample.table_name = input_table_name
             sample.column_names.extend(column_names)
-            sample.rows.extend(range(row_count))
+            sample.rows.extend(
+                range(min(start, num_rows), min(end, num_rows), stride))
             tasks.append(task)
         return tasks
 
@@ -371,10 +393,7 @@ class EvaluatorGenerator:
             exit()
         def make_evaluator(**kwargs):
             inputs = kwargs.pop('inputs', [])
-            device = kwargs.pop('device', None)
-            if device is None:
-                log.critical('Must specify device type')
-                exit()
+            device = kwargs.pop('device', DeviceType.CPU)
             return Evaluator(self._db, name, inputs, device, kwargs)
         return make_evaluator
 
@@ -409,6 +428,9 @@ class Evaluator:
 
         e.device_type = DeviceType.to_proto(self._db, self._device)
 
+        # To convert arguments, we search for a protobuf with the name
+        # {Evaluator}Args (e.g. BlurArgs, HistogramArgs) in the args.proto
+        # module, and fill that in with keys from the args dict.
         if len(self._args) > 0:
             proto_name = self._name + 'Args'
             if not hasattr(self._db._arg_types, proto_name):
@@ -449,7 +471,7 @@ class Column:
     def name(self):
         return self._descriptor.name
 
-    def _load_output_file(self, item_id, rows):
+    def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
 
         contents = self._storage.read(
@@ -477,30 +499,65 @@ class Column:
         for buf_len in lens:
             buf = contents[i:i+buf_len]
             i += buf_len
-            yield buf
+            if fn is not None:
+                yield fn(buf)
+            else:
+                yield buf
 
-    def load(self):
+    def load(self, fn=None):
         table_descriptor = self._table._descriptor
         total_rows = table_descriptor.num_rows
         rows_per_item = table_descriptor.rows_per_item
 
         # Integer divide, round up
-        num_items = (total_rows + rows_per_item // 2) // rows_per_item
+        num_items = max((total_rows + rows_per_item // 2) // rows_per_item, 1)
         bufs = []
+        input_rows = self._table.rows()
+        assert len(input_rows) == total_rows
+        i = 0
         for item_id in range(num_items):
-            rows = total_rows % rows_per_item if item_id == num_items - 1 else rows_per_item
-            for output in self._load_output_file(item_id, range(rows)):
-                yield output
+            rows = total_rows % rows_per_item \
+                   if item_id == num_items - 1 else rows_per_item
+            for output in self._load_output_file(item_id, range(rows), fn):
+                yield (input_rows[i], output)
+                i += 1
 
 
 class Table:
     def __init__(self, db, descriptor):
         self._db = db
         self._descriptor = descriptor
+        job_id = self._descriptor.job_id
+        if job_id != -1:
+            self._job = self._db._load_descriptor(
+                self._db._metadata_types.JobDescriptor,
+                'jobs/{}/descriptor.bin'.format(job_id))
+            self._task = None
+            for task in self._job.tasks:
+                if task.output_table_name == self._descriptor.name:
+                    self._task = task
+            if self._task is None:
+                log.critical('Table {} not found in job {}'.format(
+                    self._descriptor.name, job_id))
+                exit()
+        else:
+            self._job = None
 
     def columns(self, index=None):
         columns = [Column(self, c) for c in self._descriptor.columns]
         return columns[index] if index is not None else columns
+
+    def num_rows(self):
+        return self._descriptor.num_rows
+
+    def rows(self):
+        if self._job is None:
+            return list(range(self.num_rows()))
+        else:
+            if len(self._task.samples) == 1:
+                return list(self._task.samples[0].rows)
+            else:
+                return list(range(self.num_rows()))
 
     # Convenience method for loading frames
     def load_frames(self, frame_col=None, frame_info_col=None):

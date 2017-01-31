@@ -28,6 +28,7 @@
 #include <grpc++/security/server_credentials.h>
 #include <grpc++/security/credentials.h>
 #include <grpc++/create_channel.h>
+#include <grpc/grpc_posix.h>
 
 #include <thread>
 
@@ -102,6 +103,11 @@ public:
     : db_params_(params)
   {
     set_database_path(params.db_path);
+
+#ifdef DEBUG
+    // Stop SIG36 from grpc when debugging
+    grpc_use_signal(-1);
+#endif
 
     master_ = proto::Master::NewStub(
       grpc::CreateChannel(
@@ -181,6 +187,7 @@ public:
         intermediates[i].insert({output_column, i});
       }
     }
+
     // The live columns at each evaluator index
     std::vector<std::vector<std::tuple<i32, std::string>>> live_columns(
                       evaluators.size());
@@ -202,6 +209,7 @@ public:
         }
       }
     }
+
     // The columns to remove for the current kernel
     std::vector<std::vector<i32>> dead_columns(evaluators.size() - 1);
     // Outputs from the current kernel that are not used
@@ -372,6 +380,7 @@ public:
         cm.push_back(column_mapping[i]);
       }
     }
+
     i32 num_kernel_groups = static_cast<i32>(kernel_groups.size());
 
     // Load table metadata for use in constructing io items
@@ -842,11 +851,19 @@ public:
       col->set_type(ColumnType::Other);
     }
 
+    DatabaseMetadata meta = read_database_metadata(
+      storage_, DatabaseMetadata::descriptor_path());
+
     auto& tasks = job_params->task_set().tasks();
     job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
-    DatabaseMetadata meta = read_database_metadata(
-      storage_, DatabaseMetadata::descriptor_path());
+    // Add job name into database metadata so we can look up what jobs have
+    // been ran
+    i32 job_id = meta.add_job(job_params->job_name());
+    job_descriptor.set_id(job_id);
+    job_descriptor.set_name(job_params->job_name());
+    write_job_metadata(storage_, JobMetadata(job_descriptor));
+
     // Create output tables
     for (auto& task : job_params->task_set().tasks()) {
       i32 table_id = meta.add_table(task.output_table_name());
@@ -862,15 +879,9 @@ public:
       }
       table_desc.set_num_rows(task.samples(0).rows().size());
       table_desc.set_rows_per_item(io_item_size);
+      table_desc.set_job_id(job_id);
       write_table_metadata(storage_, TableMetadata(table_desc));
     }
-
-    // Add job name into database metadata so we can look up what jobs have
-    // been ran
-    i32 job_id = meta.add_job(job_params->job_name());
-    job_descriptor.set_id(job_id);
-    job_descriptor.set_name(job_params->job_name());
-    write_job_metadata(storage_, JobMetadata(job_descriptor));
 
     // Write out database metadata so that workers can read it
     write_database_metadata(storage_, meta);

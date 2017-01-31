@@ -389,7 +389,7 @@ void CaffeKernel::set_device() {
   }
 }
 
-REGISTER_CAFFE_EVALUATOR(GoogleNet, "features/googlenet.toml");
-REGISTER_CAFFE_KERNELS(GoogleNet, CaffeKernel);
+// REGISTER_CAFFE_EVALUATOR(GoogleNet, "features/googlenet.toml");
+// REGISTER_CAFFE_KERNELS(GoogleNet, CaffeKernel);
 
 }

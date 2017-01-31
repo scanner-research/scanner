@@ -209,6 +209,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
+  table_desc.set_job_id(-1);
 
   {
     Column* frame_col = table_desc.add_columns();

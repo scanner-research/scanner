@@ -95,6 +95,7 @@ message TableDescriptor {
   repeated Column columns = 3;
   int64 num_rows = 4;
   int64 rows_per_item = 5;
+  int32 job_id = 6;
 }
 
 // Task set messages

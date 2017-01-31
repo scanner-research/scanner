@@ -338,6 +338,8 @@ function(add_executable targetName)
   add_deps()
 endfunction()
 
+set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG")
+
 add_subdirectory(scanner)
 
 if (BUILD_COMPARISON)
@@ -411,10 +413,9 @@ set(PYDIR ${CMAKE_CURRENT_BINARY_DIR})
 #   COMMAND rm -rf ${PYDIR})
 
 # Make init files so python code can import from subdirectories
-foreach(FIL ${PROTO_FILES})
+foreach(FIL ${PROTO_FILES} ${GRPC_PROTO_FILES})
   get_filename_component(DIR_FIL ${FIL} DIRECTORY)
   get_filename_component(FIL_WE ${FIL} NAME_WE)
-  message(STATUS ${PYDIR}/${DIR_FIL})
   add_custom_command(TARGET proto_files POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E touch ${PYDIR}/${DIR_FIL}/__init__.py)
 endforeach()

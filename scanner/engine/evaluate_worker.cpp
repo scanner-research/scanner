@@ -155,13 +155,20 @@ void* pre_evaluate_thread(void* arg) {
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
+      } else {
+        move_if_different_address_space(
+          args.profiler,
+          work_entry.buffer_handle,
+          decoder_output_handle,
+          work_entry.columns[c]);
       }
     }
+
     for (; r < total_rows; r += work_item_size) {
       media_col_idx = 0;
       EvalWorkEntry entry;
       entry.io_item_index = work_entry.io_item_index;
-      entry.buffer_handle = work_entry.buffer_handle;
+      entry.buffer_handle = decoder_output_handle;
       entry.needs_configure = first_item ? needs_configure : false;
       entry.needs_reset = first_item ? needs_reset : false;
       entry.last_in_io_item = (r + work_item_size >= total_rows) ? true : false;
@@ -224,7 +231,7 @@ void* evaluate_thread(void* arg) {
     }
   }
   assert(kernels.size() > 0);
-  i32 num_final_output_columns = args.live_columns.back().size();
+  i32 num_final_output_columns = kernel_num_outputs.back();
 
   for (auto& kernel : kernels) {
     kernel->set_profiler(&args.profiler);
@@ -316,6 +323,7 @@ void* evaluate_thread(void* arg) {
         auto copy_start = now();
         move_if_different_address_space(args.profiler, input_handle,
                                         current_handle, input_columns);
+
         input_handle = current_handle;
         args.profiler.add_interval("evaluator_marshal", copy_start, now());
 
