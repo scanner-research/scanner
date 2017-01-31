@@ -64,25 +64,26 @@ void DecoderAutomata::initialize(
   FrameInfo info;
   info.set_width(encoded_data[0].width());
   info.set_height(encoded_data[0].height());
+
+  while (decoder_->discard_frame()) {
+  }
+
+  std::unique_lock<std::mutex> lk(feeder_mutex_);
+  wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
+
   decoder_->configure(info);
   if (frames_retrieved_ > 0) {
     decoder_->feed(nullptr, 0, true);
-    while (decoder_->discard_frame()) {
-    }
   }
 
-  {
-    std::unique_lock<std::mutex> lk(feeder_mutex_);
-    wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
-    feeder_data_idx_.store(0, std::memory_order_release);
-    feeder_buffer_offset_.store(0, std::memory_order_release);
-    feeder_next_keyframe_.store(encoded_data[0].keyframes(1),
-                                std::memory_order_release);
-    feeder_data_idx_.store(0);
-    feeder_buffer_offset_.store(0);
-    feeder_next_keyframe_.store(encoded_data[0].keyframes(1));
-    std::atomic_thread_fence(std::memory_order_release);
-  }
+  feeder_data_idx_.store(0, std::memory_order_release);
+  feeder_buffer_offset_.store(0, std::memory_order_release);
+  feeder_next_keyframe_.store(encoded_data[0].keyframes(1),
+                              std::memory_order_release);
+  feeder_data_idx_.store(0);
+  feeder_buffer_offset_.store(0);
+  feeder_next_keyframe_.store(encoded_data[0].keyframes(1));
+  std::atomic_thread_fence(std::memory_order_release);
 }
 
 void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
@@ -212,7 +213,8 @@ void DecoderAutomata::feeder() {
         assert(feeder_buffer_offset_ >= encoded_buffer_size);
         // Reached the end of a decoded segment so wait for decoder to flush
         // before moving onto next segment
-        while (decoder_->decoded_frames_buffered() > 0) {
+        while (frames_retrieved_ < frames_to_get_ &&
+               decoder_->decoded_frames_buffered() > 0) {
           std::this_thread::yield();
         }
         seen_metadata = false;
