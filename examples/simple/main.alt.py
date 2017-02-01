@@ -4,7 +4,7 @@ import cv2
 
 db = Database()
 
-hist = db.evaluators.Histogram(device = DeviceType.GPU)
+hist = db.evaluators.Histogram(device = DeviceType.CPU)
 
 def parse_hist(buf):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
@@ -19,13 +19,10 @@ def single_video():
 def video_collection():
     input_collection = db.ingest_video_collection(
         'meangirls', ['/bigdata/wcrichto/videos/meanGirls_short.mp4'])
-    input_collection = db.get_collection('meangirls')
-    list(input_collection.tables(0).columns(0).load())
-    # sampler = db.sampler()
-    # strided = sampler.strided_range(input_collection, 0, 500, 1)
-    # output_collection = db.run(strided, [blur, hist], 'meangirls_hist')
-    # table = output_collection.tables(0)
-    # print [x for (x, _) in table.columns(0).load(parse_hist)]
-    # table.load_frames(frame_col, frame_info_col)
+    sampler = db.sampler()
+    strided = sampler.strided(input_collection, 2)
+    output_collection = db.run(strided, hist, 'meangirls_hist')
+    table = output_collection.tables(0)
+    print [x for (x, _) in table.columns(0).load(parse_hist)]
 
 video_collection()

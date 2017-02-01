@@ -774,7 +774,7 @@ class WorkerImpl final : public proto::Worker::Service {
 class MasterImpl final : public proto::Master::Service {
  public:
   MasterImpl(DatabaseParameters& params)
-      : next_io_item_to_allocate_(0), num_io_items_(0), db_params_(params) {
+      : db_params_(params) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
     set_database_path(params.db_path);
@@ -891,6 +891,7 @@ class MasterImpl final : public proto::Master::Service {
     std::vector<LoadWorkEntry> load_work_entries;
     create_io_items(table_meta, job_params->task_set(), io_items,
                     load_work_entries);
+    next_io_item_to_allocate_ = 0;
     num_io_items_ = io_items.size();
 
     printf("rpc, db path %s\n", get_database_path().c_str());

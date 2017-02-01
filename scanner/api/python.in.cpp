@@ -34,16 +34,17 @@ PyServerState unwrap(ServerState state) {
   return new_state;
 }
 
-PyServerState start_master_wrapper(DatabaseParameters& params) {
-  return unwrap(start_master(params, false));
+PyServerState start_master_wrapper(DatabaseParameters& params, bool block) {
+  return unwrap(start_master(params, block));
 }
 
 PyServerState start_worker_wrapper(DatabaseParameters& db_params,
                                    const std::string& worker_params_s,
-                                   const std::string& master_address) {
+                                   const std::string& master_address,
+                                   bool block) {
   proto::WorkerParameters worker_params;
   worker_params.ParseFromArray(worker_params_s.data(), worker_params_s.size());
-  return unwrap(start_worker(db_params, worker_params, master_address, false));
+  return unwrap(start_worker(db_params, worker_params, master_address, block));
 }
 
 void load_evaluator(const std::string& path) {

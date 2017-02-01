@@ -5,17 +5,16 @@ import sys
 import grpc
 import struct
 import cv2
+import importlib
+import socket
 import numpy as np
 import logging as log
+from subprocess import Popen, PIPE
 from enum import Enum
 from random import choice
 from string import ascii_uppercase
 from collections import defaultdict
 
-# TODO
-# 2. Ssh into nodes to start workers
-# 3. custom args registry
-# 6. cpu/gpus per node
 
 class DeviceType(Enum):
     CPU = 0
@@ -136,7 +135,7 @@ class Database:
         import scanner_bindings as bindings
         self._metadata_types = metadata_types
         self._rpc_types = rpc_types
-        self._arg_types = arg_types
+        self._arg_types = [arg_types]
         self._bindings = bindings
 
         # Setup database metadata
@@ -170,23 +169,6 @@ class Database:
         channel = grpc.insecure_channel(self._master_address)
         self._master = self._rpc_types.MasterStub(channel)
 
-        # Ping master and start master/worker locally if they don't exist.
-        try:
-            self._master.Ping(self._rpc_types.Empty())
-        except grpc.RpcError as e:
-            status = e.code()
-            if status == grpc.StatusCode.UNAVAILABLE:
-                log.warn("Master not started, creating temporary master/worker")
-                # If they get GC'd then the masters/workers will die, so persist
-                # them until the database object dies
-                self._ignore1 = self.start_master()
-                self._ignore2 = self.start_worker()
-            elif status == grpc.StatusCode.OK:
-                pass
-            else:
-                log.critical('Master ping errored with status: {}'.format(status))
-                exit()
-
     def get_build_flags(self):
         include_dirs = self._bindings.get_include().split(";")
         flags = '{include} -std=c++11 -fPIC -L{libdir} -lscanner'
@@ -209,13 +191,39 @@ class Database:
             self._metadata_types.DatabaseDescriptor,
             'db_metadata.bin')
 
-    def start_master(self):
-        return self._bindings.start_master(self._db_params)
+    def start_master(self, block=False):
+        return self._bindings.start_master(self._db_params, block)
 
-    def start_worker(self, master_address=None):
+    def start_worker(self, master_address=None, block=False):
         worker_params = self._bindings.default_worker_params()
+        if master_address is None:
+            master_address = self._master_address
         return self._bindings.start_worker(self._db_params, worker_params,
-                                           self._master_address)
+                                           master_address, block)
+
+    def _run_remote_cmd(self, host, cmd):
+        local_ip = socket.gethostbyname(socket.gethostname())
+        if socket.gethostbyname(host) == local_ip:
+            return Popen(cmd, shell=True)
+        else:
+            return Popen("ssh {} {}".format(host, cmd), shell=True)
+
+    def start_cluster(self, master, workers):
+        master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master(True)"'
+        worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker(\'{}:5001\', True)"' \
+                     .format(master)
+
+        master = self._run_remote_cmd(master, master_cmd)
+        workers = [self._run_remote_cmd(w, worker_cmd) for w in workers]
+        master.wait()
+
+    def load_evaluator(self, so_path, proto_path=None):
+        if proto_path is not None:
+            (proto_dir, mod_file) = os.path.split(proto_path)
+            sys.path.append(proto_dir)
+            (mod_name, _) = os.path.splitext(mod_name)
+            self._arg_types.append(importlib.import_module(mod_name))
+        self._bindings.load_evaluator(so_path)
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -304,7 +312,7 @@ class Database:
                 continue
             elif len(c._inputs) == 0:
                 input = Evaluator.input(self)
-                # TODO(wcrichto): determine input columns from dataset
+                # TODO(wcrichto): allow non-frame input
                 c._inputs = [(input, ["frame", "frame_info"])]
                 start_node = input
             for (parent, _) in c._inputs:
@@ -346,6 +354,23 @@ class Database:
         return self._toposort(evaluator)
 
     def run(self, tasks, evaluator, output_collection=None, job_name=None):
+        # Ping master and start master/worker locally if they don't exist.
+        try:
+            self._master.Ping(self._rpc_types.Empty())
+        except grpc.RpcError as e:
+            status = e.code()
+            if status == grpc.StatusCode.UNAVAILABLE:
+                log.warn("Master not started, creating temporary master/worker")
+                # If they get GC'd then the masters/workers will die, so persist
+                # them until the database object dies
+                self._ignore1 = self.start_master()
+                self._ignore2 = self.start_worker()
+            elif status == grpc.StatusCode.OK:
+                pass
+            else:
+                log.critical('Master ping errored with status: {}'.format(status))
+                exit()
+
         # If the input is a collection, assume user is running over all frames
         input_is_collection = isinstance(tasks, Collection)
         if input_is_collection:
@@ -399,27 +424,42 @@ class Sampler:
 
     def strided(self, videos, stride):
         videos = self._convert_collection(videos)
-        # TODO: get actual range
-        return self.strided_range(videos, 0, 100, stride)
-
-    def range(self, videos, start, end):
-        return self.strided_range(videos, start, end, 1)
-
-    def strided_range(self, videos, start, end, stride):
         tasks = []
-        for (input_table_name, output_table_name) in videos:
-            task = self._db._metadata_types.Task()
-            task.output_table_name = output_table_name
-            input_table = self._db.table(input_table_name)
-            num_rows = input_table.num_rows()
-            column_names = [c.name() for c in input_table.columns()]
-            sample = task.samples.add()
-            sample.table_name = input_table_name
-            sample.column_names.extend(column_names)
-            sample.rows.extend(
-                range(min(start, num_rows), min(end, num_rows), stride))
+        for video in videos:
+            table = self._db.table(video[0])
+            task = self.strided_range(video, 0, table.num_rows(), stride)
             tasks.append(task)
         return tasks
+
+    def range(self, video, start, end):
+        if isinstance(video, list) or isinstance(video, Collection):
+            log.critical('range only takes a single video')
+            exit()
+
+        return self.strided_range(video, start, end, 1)
+
+    def strided_range(self, video, start, end, stride):
+        if isinstance(video, list) or isinstance(video, Collection):
+            log.critical('strided_range only takes a single video')
+            exit()
+        if not isinstance(video, tuple):
+            log.critical("""Error: sampler input must either be a collection or \
+(input_table, output_table) pair')""")
+            exit()
+
+
+        (input_table_name, output_table_name) = video
+        task = self._db._metadata_types.Task()
+        task.output_table_name = output_table_name
+        input_table = self._db.table(input_table_name)
+        num_rows = input_table.num_rows()
+        column_names = [c.name() for c in input_table.columns()]
+        sample = task.samples.add()
+        sample.table_name = input_table_name
+        sample.column_names.extend(column_names)
+        sample.rows.extend(
+            range(min(start, num_rows), min(end, num_rows), stride))
+        return task
 
 
 class EvaluatorGenerator:
@@ -472,13 +512,16 @@ class Evaluator:
         # module, and fill that in with keys from the args dict.
         if len(self._args) > 0:
             proto_name = self._name + 'Args'
-            if not hasattr(self._db._arg_types, proto_name):
+            args_proto = None
+            for mod in self._db._arg_types:
+                if hasattr(self._db._arg_types, proto_name):
+                    args_proto = getattr(self._db._arg_types, proto_name)()
+            if args_proto is None:
                 log.critical('Missing protobuf {}'.format(proto_name))
                 exit()
-            args = getattr(self._db._arg_types, proto_name)()
             for k, v in self._args.iteritems():
-                setattr(args, k, v)
-            e.kernel_args = args.SerializeToString()
+                setattr(args_proto, k, v)
+            e.kernel_args = args_proto.SerializeToString()
 
         return e
 
@@ -514,10 +557,14 @@ class Column:
     def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
 
-        contents = self._storage.read(
-            '{}/tables/{}/{}_{}.bin'.format(
-                self._db_path, self._table._descriptor.id,
-                self._descriptor.id, item_id))
+        path = '{}/tables/{}/{}_{}.bin'.format(
+            self._db_path, self._table._descriptor.id,
+            self._descriptor.id, item_id)
+        try:
+            contents = self._storage.read(path)
+        except UserWarning:
+            log.critical('Path {} does not exist'.format(path))
+            exit()
 
         lens = []
         start_pos = None
