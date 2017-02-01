@@ -87,6 +87,7 @@ struct JobParameters {
   std::string master_address;
   std::string job_name;
   TaskSet task_set;
+  i32 kernel_instances_per_node;
 };
 
 void new_job(JobParameters& params);

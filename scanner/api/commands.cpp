@@ -227,6 +227,7 @@ void new_job(JobParameters& params) {
   grpc::ClientContext context;
   proto::JobParameters job_params;
   job_params.set_job_name(params.job_name);
+  job_params.set_kernel_instances_per_node(params.kernel_instances_per_node);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   proto::Empty empty;
