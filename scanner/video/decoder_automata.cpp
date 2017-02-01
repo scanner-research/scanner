@@ -98,6 +98,14 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
 
   auto start = now();
 
+
+  // Wait until feeder is waiting
+  {
+    // Wait until frames are being requested
+    std::unique_lock<std::mutex> lk(feeder_mutex_);
+    wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
+  }
+
   // Start up feeder thread
   {
     std::unique_lock<std::mutex> lk(feeder_mutex_);
@@ -148,6 +156,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
 
 void DecoderAutomata::feeder() {
   // printf("feeder start\n");
+  bool seeking = false;
   while (not_done_) {
     {
       // Wait until frames are being requested
@@ -162,6 +171,15 @@ void DecoderAutomata::feeder() {
           lk, [this] { return !feeder_waiting_; });
     }
     std::atomic_thread_fence(std::memory_order_acquire);
+
+
+    // Wait for
+    if (seeking) {
+      while (decoder_->decoded_frames_buffered() > 0) {
+        std::this_thread::yield();
+      }
+      seeking = false;
+    }
 
     bool seen_metadata = false;
     while (frames_retrieved_ < frames_to_get_) {
@@ -215,13 +233,10 @@ void DecoderAutomata::feeder() {
         assert(feeder_buffer_offset_ >= encoded_buffer_size);
         // Reached the end of a decoded segment so wait for decoder to flush
         // before moving onto next segment
-        while (frames_retrieved_ < frames_to_get_ &&
-               decoder_->decoded_frames_buffered() > 0) {
-          std::this_thread::yield();
-        }
         seen_metadata = false;
         feeder_data_idx_ += 1;
         feeder_buffer_offset_ = 0;
+        seeking = true;
         if (encoded_data_.size() <= feeder_data_idx_) {
           break;
         }
