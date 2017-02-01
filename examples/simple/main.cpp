@@ -25,8 +25,9 @@ int main(int argc, char** argv) {
   db_params.memory_pool_config.mutable_gpu()->set_use_pool(false);
   db_params.db_path = db_path;
   scanner::ServerState master_state = scanner::start_master(db_params, false);
+  scanner::proto::WorkerParameters worker_params = scanner::default_worker_params();
   scanner::ServerState worker_state =
-      scanner::start_worker(db_params, "localhost:5001", false);
+    scanner::start_worker(db_params, worker_params, "localhost:5001", false);
 
   // Construct job parameters
   scanner::JobParameters params;

@@ -14,17 +14,20 @@
  */
 
 #include "scanner/api/commands.h"
-#include "scanner/engine/runtime.h"
 #include "scanner/engine/db.h"
-#include "scanner/metadata.pb.h"
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/rpc.pb.h"
+#include "scanner/engine/runtime.h"
+#include "scanner/metadata.pb.h"
+#include "scanner/util/cuda.h"
 
+#include <grpc++/create_channel.h>
+#include <grpc++/security/credentials.h>
+#include <grpc++/security/server_credentials.h>
 #include <grpc++/server.h>
 #include <grpc++/server_builder.h>
-#include <grpc++/security/server_credentials.h>
-#include <grpc++/security/credentials.h>
-#include <grpc++/create_channel.h>
+
+#include <thread>
 
 namespace scanner {
 
@@ -43,8 +46,8 @@ std::unique_ptr<grpc::Server> start(T& service, const std::string& port,
   return std::move(server);
 }
 
-bool database_exists(storehouse::StorageBackend *storage,
-                     const std::string &database_path) {
+bool database_exists(storehouse::StorageBackend* storage,
+                     const std::string& database_path) {
   internal::set_database_path(database_path);
   std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
   storehouse::FileInfo info;
@@ -70,8 +73,8 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
     }
   }
   // Parse evaluators
-  std::map<Evaluator*, std::vector<Evaluator*>> edges; // parent -> child
-  std::map<Evaluator*, i32> in_edges_left; // parent -> child
+  std::map<Evaluator*, std::vector<Evaluator*>> edges;  // parent -> child
+  std::map<Evaluator*, i32> in_edges_left;              // parent -> child
   Evaluator* start_node = nullptr;
   {
     // Find all edges
@@ -102,7 +105,7 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
   std::map<Evaluator*, i32> evaluator_index;
   {
     // Perform topological sort
-    std::vector<Evaluator *> stack;
+    std::vector<Evaluator*> stack;
     stack.push_back(start_node);
     while (!stack.empty()) {
       Evaluator* curr = stack.back();
@@ -143,11 +146,10 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
 
   return task_set;
 }
-
 }
 
-void create_database(storehouse::StorageConfig *storage_config,
-                     const std::string &db_path) {
+void create_database(storehouse::StorageConfig* storage_config,
+                     const std::string& db_path) {
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
@@ -162,8 +164,8 @@ void create_database(storehouse::StorageConfig *storage_config,
   internal::write_database_metadata(storage.get(), meta);
 }
 
-void destroy_database(storehouse::StorageConfig *storage_config,
-                      const std::string &db_path) {
+void destroy_database(storehouse::StorageConfig* storage_config,
+                      const std::string& db_path) {
   LOG(FATAL) << "Not implemented yet!";
 }
 
@@ -179,6 +181,20 @@ void destroy_database(storehouse::StorageConfig *storage_config,
 //                    const std::vector<std::string>& paths) {
 // }
 
+proto::WorkerParameters default_worker_params() {
+  proto::WorkerParameters worker_params;
+  worker_params.set_num_cpus(std::thread::hardware_concurrency());
+  worker_params.set_num_load_workers(2);
+  worker_params.set_num_save_workers(2);
+#ifdef HAVE_CUDA
+  i32 gpu_count;
+  CU_CHECK(cudaGetDeviceCount(&gpu_count));
+  for (i32 i = 0; i < gpu_count; ++i) {
+    worker_params.add_gpu_ids(i);
+  }
+#endif
+  return worker_params;
+}
 
 ServerState start_master(DatabaseParameters& params, bool block) {
   ServerState state;
@@ -187,22 +203,20 @@ ServerState start_master(DatabaseParameters& params, bool block) {
   return state;
 }
 
-ServerState start_worker(DatabaseParameters &params,
-                  const std::string &master_address, bool block) {
+ServerState start_worker(DatabaseParameters& db_params,
+                         proto::WorkerParameters& worker_params,
+                         const std::string& master_address, bool block) {
   ServerState state;
-  state.service.reset(
-      scanner::internal::get_worker_service(params, master_address));
+  state.service.reset(scanner::internal::get_worker_service(
+      db_params, worker_params, master_address));
   state.server = start(state.service, "5002", block);
   return state;
 }
 
-void get_database_info(const std::string& master_address) {
-}
+void get_database_info(const std::string& master_address) {}
 
 void get_table_info(const std::string& master_address,
-                    const std::string& table_name) {
-}
-
+                    const std::string& table_name) {}
 
 void new_job(JobParameters& params) {
   auto channel = grpc::CreateChannel(params.master_address,
@@ -220,5 +234,4 @@ void new_job(JobParameters& params) {
   LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
                               << status.error_message();
 }
-
 }

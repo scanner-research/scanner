@@ -128,9 +128,7 @@ void* pre_evaluate_thread(void* arg) {
       } else {
         decoder_output_handle = CPU_DEVICE;
         decoder_type = VideoDecoderType::SOFTWARE;
-        num_devices =
-            (CPUS_PER_NODE != -1 ? CPUS_PER_NODE
-                                 : std::thread::hardware_concurrency());
+        num_devices = args.num_cpus;
       }
       for (size_t c = 0; c < work_entry.columns.size(); ++c) {
         if (work_entry.column_types[c] == ColumnType::Video) {

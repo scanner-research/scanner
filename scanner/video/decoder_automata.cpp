@@ -40,7 +40,7 @@ DecoderAutomata::~DecoderAutomata() {
     frames_retrieved_ = 0;
     while (decoder_->discard_frame()) {}
 
-    itd::unique_lock<std::mutex> lk(feeder_mutex_);
+    std::unique_lock<std::mutex> lk(feeder_mutex_);
     wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
 
     if (frames_retrieved_ > 0) {

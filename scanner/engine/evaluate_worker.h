@@ -30,6 +30,7 @@ struct PreEvaluateThreadArgs {
   i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
+  i32 num_cpus;
 
   // Per worker arguments
   i32 id;

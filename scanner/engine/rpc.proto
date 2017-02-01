@@ -27,6 +27,7 @@ message Registration {
 message JobParameters {
   string job_name = 1;
   TaskSet task_set = 2;
+  int32 kernel_instances_per_node = 3;
 }
 
 message IOItem {

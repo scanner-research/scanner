@@ -15,7 +15,6 @@ from collections import defaultdict
 # TODO
 # 2. Ssh into nodes to start workers
 # 3. custom args registry
-# 5. cpu/gpu separate memory pools, specified by free space
 # 6. cpu/gpus per node
 
 class DeviceType(Enum):
@@ -87,6 +86,13 @@ class Config(object):
                     self.master_address = 'localhost:5001'
             else:
                 self.master_address = 'localhost:5001'
+
+            if 'job' in config:
+                job = config['job']
+                if 'kernel_instances_per_node' in job:
+                    self.kernel_instances_per_node = job['kernel_instances_per_node']
+                else:
+                    self.kernel_instances_per_node = 1
 
         except KeyError as key:
             log.critical('Scanner config missing key: {}'.format(key))
@@ -207,7 +213,9 @@ class Database:
         return self._bindings.start_master(self._db_params)
 
     def start_worker(self, master_address=None):
-        return self._bindings.start_worker(self._db_params, self._master_address)
+        worker_params = self._bindings.default_worker_params()
+        return self._bindings.start_worker(self._db_params, worker_params,
+                                           self._master_address)
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -358,6 +366,7 @@ class Database:
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.evaluators.extend(self._process_dag(evaluator))
+        job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
 
         # Execute job via RPC
         try:

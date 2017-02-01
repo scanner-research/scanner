@@ -73,14 +73,9 @@ std::string image_encoding_type_to_string(ImageEncodingType t) {
   return s;
 }
 
-i32 KERNEL_INSTANCES_PER_NODE = 1;// Number of available PUs per node
-i32 CPUS_PER_NODE = -1;            // Number of available CPUs per node
-std::vector<i32> GPU_DEVICE_IDS;  // GPU device ids to use
 i64 IO_ITEM_SIZE = 64;            // Number of rows to load and save at a time
 i64 WORK_ITEM_SIZE = 8;           // Max size of a work item
 i32 TASKS_IN_QUEUE_PER_PU = 4;    // How many tasks per PU to allocate to a node
-i32 LOAD_WORKERS_PER_NODE = 2;    // Number of worker threads loading data
-i32 SAVE_WORKERS_PER_NODE = 2;    // Number of worker threads loading data
 i32 NUM_CUDA_STREAMS = 32;        // Number of cuda streams for image processing
 
 }

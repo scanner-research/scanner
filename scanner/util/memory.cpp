@@ -316,7 +316,7 @@ static std::map<i32, SystemAllocator*> gpu_system_allocators;
 static BlockAllocator* cpu_block_allocator = nullptr;
 static std::map<i32, BlockAllocator*> gpu_block_allocators;
 
-void init_memory_allocators(MemoryPoolConfig config) {
+void init_memory_allocators(MemoryPoolConfig config, std::vector<i32> gpu_device_ids) {
   cpu_system_allocator = new SystemAllocator(CPU_DEVICE);
   Allocator* cpu_block_allocator_base = cpu_system_allocator;
   if (config.cpu().use_pool()) {
@@ -334,7 +334,7 @@ void init_memory_allocators(MemoryPoolConfig config) {
   cpu_block_allocator = new BlockAllocator(cpu_block_allocator_base);
 
 #ifdef HAVE_CUDA
-  for (i32 device_id : GPU_DEVICE_IDS) {
+  for (i32 device_id : gpu_device_ids) {
     DeviceHandle device = {DeviceType::GPU, device_id};
     SystemAllocator* gpu_system_allocator =
       new SystemAllocator(device);

@@ -64,7 +64,8 @@ struct EvalWorkEntry {
 
 proto::Master::Service *get_master_service(DatabaseParameters &param);
 
-proto::Worker::Service *get_worker_service(DatabaseParameters &param,
-                                           const std::string &master_address);
+proto::Worker::Service* get_worker_service(
+    DatabaseParameters& db_params, proto::WorkerParameters& worker_params,
+    const std::string& master_address);
 }
 }

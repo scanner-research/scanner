@@ -27,22 +27,21 @@
 namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// Database management
-void create_database(storehouse::StorageConfig *storage_config,
-                     const std::string &db_path);
+void create_database(storehouse::StorageConfig* storage_config,
+                     const std::string& db_path);
 
-void destroy_database(storehouse::StorageConfig *storage_config,
-                      const std::string &db_path);
+void destroy_database(storehouse::StorageConfig* storage_config,
+                      const std::string& db_path);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Ingest
-void ingest_videos(storehouse::StorageConfig *storage_config,
+void ingest_videos(storehouse::StorageConfig* storage_config,
                    const std::string& db_path,
                    const std::vector<std::string>& table_names,
                    const std::vector<std::string>& path);
 
-void ingest_images(storehouse::StorageConfig *storage_config,
-                   const std::string& db_path,
-                   const std::string& table_name,
+void ingest_images(storehouse::StorageConfig* storage_config,
+                   const std::string& db_path, const std::string& table_name,
                    const std::vector<std::string>& paths);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,11 +57,13 @@ struct ServerState {
   std::unique_ptr<grpc::Service> service;
 };
 
-ServerState start_master(DatabaseParameters &params, bool block = true);
+proto::WorkerParameters default_worker_params();
 
-ServerState start_worker(DatabaseParameters &params,
-                           const std::string &master_address,
-                           bool block = true);
+ServerState start_master(DatabaseParameters& params, bool block = true);
+
+ServerState start_worker(DatabaseParameters& db_params,
+                         proto::WorkerParameters& worker_params,
+                         const std::string& master_address, bool block = true);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Job submission
@@ -97,7 +98,8 @@ void new_job(JobParameters& params);
 //   TableInformation(i64 rows,
 //                    const std::vector<std::string>& sample_job_names,
 //                    const std::vector<std::string>& sample_table_names,
-//                    const std::vector<std::vector<std::string>>& sample_columns,
+//                    const std::vector<std::vector<std::string>>&
+//                    sample_columns,
 //                    const std::vector<std::vector<i64>>& sample_rows);
 
 //   i64 num_rows() const;
@@ -111,7 +113,8 @@ void new_job(JobParameters& params);
 
 // class DatabaseInformation {
 //  public:
-//   JobInformation(const std::string& dataset_name, const std::string& job_name,
+//   JobInformation(const std::string& dataset_name, const std::string&
+//   job_name,
 //                  storehouse::StorageBackend* storage);
 
 //   const std::vector<std::string>& table_names() const;
@@ -127,12 +130,11 @@ void new_job(JobParameters& params);
 //   std::map<std::string, TableInformation> tables_;
 // };
 
-// DatabaseInformation get_database_info(storehouse::StorageConfig *storage_config,
+// DatabaseInformation get_database_info(storehouse::StorageConfig
+// *storage_config,
 //                                       const std::string &db_path);
 
 // void get_table_info(storehouse::StorageConfig* storage_config,
 //                     const std::string& db_path,
 //                     const std::string& table_name);
-
-
 }

@@ -23,7 +23,7 @@ namespace scanner {
 
 static const i64 DEFAULT_POOL_SIZE = 2L*1024L*1024L*1024L;
 
-void init_memory_allocators(MemoryPoolConfig config);
+void init_memory_allocators(MemoryPoolConfig config, std::vector<i32> gpu_device_ids);
 
 void destroy_memory_allocators();
 

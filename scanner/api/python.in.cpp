@@ -38,9 +38,12 @@ PyServerState start_master_wrapper(DatabaseParameters& params) {
   return unwrap(start_master(params, false));
 }
 
-PyServerState start_worker_wrapper(DatabaseParameters& params,
-                          const std::string& master_address) {
-  return unwrap(start_worker(params, master_address, false));
+PyServerState start_worker_wrapper(DatabaseParameters& db_params,
+                                   const std::string& worker_params_s,
+                                   const std::string& master_address) {
+  proto::WorkerParameters worker_params;
+  worker_params.ParseFromArray(worker_params_s.data(), worker_params_s.size());
+  return unwrap(start_worker(db_params, worker_params, master_address, false));
 }
 
 void load_evaluator(const std::string& path) {
@@ -91,6 +94,14 @@ bool has_evaluator(const std::string& name) {
   return registry->has_evaluator(name);
 }
 
+std::string default_worker_params_wrapper() {
+  proto::WorkerParameters params = default_worker_params();
+  std::string output;
+  bool success = params.SerializeToString(&output);
+  LOG_IF(FATAL, !success) << "Failed to serialize worker params";
+  return output;
+}
+
 BOOST_PYTHON_MODULE(scanner_bindings) {
   using namespace py;
   class_<DatabaseParameters>("DatabaseParameters", no_init);
@@ -104,6 +115,7 @@ BOOST_PYTHON_MODULE(scanner_bindings) {
   def("create_database", create_database);
   def("get_output_columns", get_output_columns);
   def("has_evaluator", has_evaluator);
+  def("default_worker_params", default_worker_params_wrapper);
 }
 
 }
