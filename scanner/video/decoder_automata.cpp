@@ -36,14 +36,16 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
 
 DecoderAutomata::~DecoderAutomata() {
   {
-    std::unique_lock<std::mutex> lk(feeder_mutex_);
+    frames_to_get_ = 0;
+    frames_retrieved_ = 0;
+    while (decoder_->discard_frame()) {}
+
+    itd::unique_lock<std::mutex> lk(feeder_mutex_);
+    wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
+
     if (frames_retrieved_ > 0) {
       decoder_->feed(nullptr, 0, true);
-      while (decoder_->discard_frame()) {
-      }
     }
-    frames_retrieved_ = 0;
-    frames_to_get_ = 0;
     not_done_ = false;
     feeder_waiting_ = false;
   }
@@ -168,8 +170,8 @@ void DecoderAutomata::feeder() {
       // }
 
       i32 fdi = feeder_data_idx_.load(std::memory_order_acquire);
-      const u8 *encoded_buffer =
-          (const u8 *)encoded_data_[fdi].mutable_encoded_video()->data();
+      const u8* encoded_buffer =
+          (const u8*)encoded_data_[fdi].mutable_encoded_video()->data();
       size_t encoded_buffer_size =
           encoded_data_[fdi].mutable_encoded_video()->size();
       i32 encoded_packet_size = 0;
