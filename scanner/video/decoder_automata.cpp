@@ -172,6 +172,10 @@ void DecoderAutomata::feeder() {
     }
     std::atomic_thread_fence(std::memory_order_acquire);
 
+    // Ignore requests to feed if we have alredy fed all data
+    if (encoded_data_.size() <= feeder_data_idx_) {
+      continue;
+    }
 
     // Wait for
     if (seeking) {
