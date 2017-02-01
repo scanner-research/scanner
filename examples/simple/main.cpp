@@ -9,19 +9,20 @@ int main(int argc, char** argv) {
   grpc_use_signal(-1);
 
 
-  std::string db_path = "/tmp/new_scanner_db";
+  std::string db_path = "/tmp/db";
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
 
   // Create database
   scanner::create_database(sc.get(), db_path);
   // Ingest video
-  // scanner::ingest_videos(sc.get(), db_path, {"mean"},
-  //                        {"/n/scanner/apoms/videos/meanGirls_50k.mp4"});
+  scanner::ingest_videos(sc.get(), db_path, {"mean"},
+                         {"/bigdata/wcrichto/videos/meanGirls_short.mp4"});
   // Initialize master and one worker
   scanner::DatabaseParameters db_params;
   db_params.storage_config = sc.get();
-  db_params.memory_pool_config.set_use_pool(false);
+  db_params.memory_pool_config.mutable_cpu()->set_use_pool(false);
+  db_params.memory_pool_config.mutable_gpu()->set_use_pool(false);
   db_params.db_path = db_path;
   scanner::ServerState master_state = scanner::start_master(db_params, false);
   scanner::ServerState worker_state =
@@ -38,7 +39,7 @@ int main(int argc, char** argv) {
   scanner::TableSample sample;
   sample.table_name = "mean";
   sample.column_names = {"frame", "frame_info"};
-  for (int i = 0; i < 1000; ++i) {
+  for (int i = 0; i < 100; ++i) {
     sample.rows.push_back(i);
   }
   task.samples.push_back(sample);

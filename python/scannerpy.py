@@ -4,12 +4,19 @@ import os.path
 import sys
 import grpc
 import struct
+import cv2
 import numpy as np
 import logging as log
 from enum import Enum
 from random import choice
 from string import ascii_uppercase
 from collections import defaultdict
+
+# TODO
+# 2. Ssh into nodes to start workers
+# 3. custom args registry
+# 5. cpu/gpu separate memory pools, specified by free space
+# 6. cpu/gpus per node
 
 class DeviceType(Enum):
     CPU = 0
@@ -27,8 +34,6 @@ class DeviceType(Enum):
 
 
 class Config(object):
-    """ TODO(wcrichto): document me """
-
     def __init__(self, config_path=None):
         log.basicConfig(
             level=log.DEBUG,
@@ -59,14 +64,20 @@ class Config(object):
                 exit()
 
             from scanner.metadata_pb2 import MemoryPoolConfig
-            self.memory_pool_config = MemoryPoolConfig()
+            cfg = MemoryPoolConfig()
             if 'memory_pool' in config:
                 memory_pool = config['memory_pool']
-                self.memory_pool_config.use_pool = memory_pool['use_pool']
-                if self.memory_pool_config.use_pool:
-                    self.memory_pool_config.pool_size = memory_pool['pool_size']
-            else:
-                self.memory_pool_config.use_pool = False
+                if 'cpu' in memory_pool:
+                    cfg.cpu.use_pool = memory_pool['cpu']['use_pool']
+                    if cfg.cpu.use_pool:
+                        cfg.cpu.free_space = self._parse_size_string(
+                            memory_pool['cpu']['free_space'])
+                if 'gpu' in memory_pool:
+                    cfg.gpu.use_pool = memory_pool['gpu']['use_pool']
+                    if cfg.gpu.use_pool:
+                        cfg.gpu.free_space = self._parse_size_string(
+                            memory_pool['gpu']['free_space'])
+            self.memory_pool_config = cfg
 
             if 'network' in config:
                 network = config['network']
@@ -82,6 +93,18 @@ class Config(object):
             exit()
         self.storage_config = storage_config
         self.storage = StorageBackend.make_from_config(storage_config)
+
+    def _parse_size_string(self, s):
+        (prefix, suffix) = (s[:-1], s[-1])
+        mults = {
+            'G': 1024*1024*1024,
+            'M': 1024*1024,
+            'K': 1024
+        }
+        if not suffix in mults:
+            log.critical('Invalid size suffix in "{}"'.format(s))
+            exit()
+        return int(prefix) * mults[suffix]
 
     @staticmethod
     def default_config_path():
@@ -158,9 +181,12 @@ class Database:
                 log.critical('Master ping errored with status: {}'.format(status))
                 exit()
 
-    def get_include(self):
-        dirs = self._bindings.get_include().split(";")
-        return " ".join(["-I " + d for d in dirs])
+    def get_build_flags(self):
+        include_dirs = self._bindings.get_include().split(";")
+        flags = '{include} -std=c++11 -fPIC -L{libdir} -lscanner'
+        return flags.format(
+            include=" ".join(["-I " + d for d in include_dirs]),
+            libdir='{}/build'.format(self.config.scanner_path))
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
@@ -219,7 +245,7 @@ class Database:
             [video])
 
     def ingest_video_collection(self, collection_name, videos):
-        table_names = ['{}_{:03d}'.format(collection_name, i)
+        table_names = ['{}:{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
         collection = self.new_collection(collection_name, table_names)
         self._bindings.ingest_videos(
@@ -282,7 +308,7 @@ class Database:
 
         eval_sorted = []
         eval_index = {}
-        stack= [start_node]
+        stack = [start_node]
         while len(stack) > 0:
             c = stack.pop()
             eval_sorted.append(c)
@@ -321,9 +347,9 @@ class Database:
         # If the output should be a collection, then set the table names
         if output_collection is not None:
             for task in tasks:
-                new_name = '{}_{}'.format(
+                new_name = '{}:{}'.format(
                     output_collection,
-                    task.output_table_name.split('_')[-1])
+                    task.output_table_name.split(':')[-1])
                 task.output_table_name = new_name
 
         job_params = self._rpc_types.JobParameters()
@@ -353,20 +379,24 @@ class Sampler:
     def __init__(self, db):
         self._db = db
 
+    def _convert_collection(self, videos):
+        if isinstance(videos, Collection):
+            return [(t, '') for t in videos.table_names()]
+        else:
+            return videos
+
     def all(self, videos):
         return self.strided(videos, 1)
 
     def strided(self, videos, stride):
-        # TODO: get upper bound
+        videos = self._convert_collection(videos)
+        # TODO: get actual range
         return self.strided_range(videos, 0, 100, stride)
 
     def range(self, videos, start, end):
         return self.strided_range(videos, start, end, 1)
 
     def strided_range(self, videos, start, end, stride):
-        input_is_collection = isinstance(videos, Collection)
-        if input_is_collection:
-            videos = [(t, '') for t in videos.table_names()]
         tasks = []
         for (input_table_name, output_table_name) in videos:
             task = self._db._metadata_types.Task()
@@ -465,6 +495,7 @@ class Column:
     def __init__(self, table, descriptor):
         self._table = table
         self._descriptor = descriptor
+        self._db = table._db
         self._storage = table._db.config.storage
         self._db_path = table._db.config.db_path
 
@@ -504,7 +535,7 @@ class Column:
             else:
                 yield buf
 
-    def load(self, fn=None):
+    def _load_all(self, fn=None):
         table_descriptor = self._table._descriptor
         total_rows = table_descriptor.num_rows
         rows_per_item = table_descriptor.rows_per_item
@@ -522,6 +553,20 @@ class Column:
                 yield (input_rows[i], output)
                 i += 1
 
+    def _decode_png(self, png):
+        return cv2.imdecode(np.frombuffer(png, dtype=np.dtype(np.uint8)),
+                            cv2.IMREAD_COLOR)
+
+    def load(self, fn=None):
+        # If the column is a video, then dump the requested frames to disk as PNGs
+        # and return the decoded PNGs
+        if self._descriptor.type == self._db._metadata_types.Video:
+            sampler = self._db.sampler()
+            tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
+            [out_tbl] = self._db.run(tasks, self._db.evaluators.ImageEncoder())
+            return out_tbl.columns(0).load(self._decode_png)
+        else:
+            return self._load_all(fn)
 
 class Table:
     def __init__(self, db, descriptor):
@@ -543,6 +588,9 @@ class Table:
         else:
             self._job = None
 
+    def name(self):
+        return self._descriptor.name
+
     def columns(self, index=None):
         columns = [Column(self, c) for c in self._descriptor.columns]
         return columns[index] if index is not None else columns
@@ -558,17 +606,3 @@ class Table:
                 return list(self._task.samples[0].rows)
             else:
                 return list(range(self.num_rows()))
-
-    # Convenience method for loading frames
-    def load_frames(self, frame_col=None, frame_info_col=None):
-        # Assume frame and frame_info are first and second columns, respectively
-        # if not given explicitly
-        if frame_col is None:
-            frame_col = self.columns(0)
-            frame_info_col = self.columns(1)
-        for (frame_s, frame_info_s) in zip(frame_col.load(), frame_info_col.load()):
-            frame_info = self._db._metadata_types.FrameInfo()
-            frame_info.ParseFromString(frame_info_s)
-            frame = np.frombuffer(frame_s, dtype=np.dtype(np.uint8))
-            frame.resize((frame_info.height, frame_info.width, 3))
-            yield frame

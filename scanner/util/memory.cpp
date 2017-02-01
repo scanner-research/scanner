@@ -18,6 +18,7 @@
 #include <cassert>
 #include <mutex>
 #include <sys/syscall.h>
+#include <sys/sysinfo.h>
 #include <unistd.h>
 
 #ifdef HAVE_CUDA
@@ -318,9 +319,17 @@ static std::map<i32, BlockAllocator*> gpu_block_allocators;
 void init_memory_allocators(MemoryPoolConfig config) {
   cpu_system_allocator = new SystemAllocator(CPU_DEVICE);
   Allocator* cpu_block_allocator_base = cpu_system_allocator;
-  if (config.use_pool()) {
+  if (config.cpu().use_pool()) {
+    struct sysinfo info;
+    i32 err = sysinfo(&info);
+    LOG_IF(FATAL, err < 0) << "sysinfo failed: " << strerror(errno);
+    size_t total_mem = info.totalram;
+    LOG_IF(FATAL, config.cpu().free_space() > total_mem)
+      << "Requested CPU free space (" << config.cpu().free_space() << ") "
+      << "larger than total CPU memory size ( " << total_mem << ")";
     cpu_block_allocator_base =
-      new PoolAllocator(CPU_DEVICE, cpu_system_allocator, config.pool_size());
+      new PoolAllocator(CPU_DEVICE, cpu_system_allocator,
+                        total_mem - config.cpu().free_space());
   }
   cpu_block_allocator = new BlockAllocator(cpu_block_allocator_base);
 
@@ -331,15 +340,23 @@ void init_memory_allocators(MemoryPoolConfig config) {
       new SystemAllocator(device);
     gpu_system_allocators[device.id] = gpu_system_allocator;
     Allocator* gpu_block_allocator_base = gpu_system_allocator;
-    if (config.use_pool()) {
+    if (config.gpu().use_pool()) {
+      cudaDeviceProp prop;
+      CU_CHECK(cudaGetDeviceProperties(&prop, device_id));
+      size_t total_mem = prop.totalGlobalMem;
+      LOG_IF(FATAL, config.cpu().free_space() > total_mem)
+        << "Requested GPU free space (" << config.gpu().free_space() << ") "
+        << "larger than total GPU memory size ( " << total_mem << ") "
+        << "on device " << device_id;
       gpu_block_allocator_base =
-        new PoolAllocator(device, gpu_system_allocator, config.pool_size());
+        new PoolAllocator(device, gpu_system_allocator,
+                          total_mem - config.gpu().free_space());
     }
     gpu_block_allocators[device.id] =
       new BlockAllocator(gpu_block_allocator_base);
   }
 #else
-  assert(gpu_devices_ids.size() == 0);
+  assert(GPU_DEVICE_IDS.size() == 0);
 #endif
 }
 

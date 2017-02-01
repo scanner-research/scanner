@@ -1,6 +1,11 @@
 set(SOURCE_FILES
   blur_kernel.cpp)
 
+if (BUILD_IMAGE_EVALUATORS)
+  list(APPEND SOURCE_FILES
+    image_encoder_kernel.cpp)
+endif()
+
 if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   list(APPEND SOURCE_FILES
     histogram_kernel.cpp

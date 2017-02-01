@@ -170,8 +170,13 @@ message LoadWorkEntry {
 }
 
 message MemoryPoolConfig {
-  bool use_pool = 1;
-  int64 pool_size = 2;
+  message Pool {
+    bool use_pool = 1;
+    int64 free_space = 2;
+  }
+
+  Pool cpu = 3;
+  Pool gpu = 4;
 }
 
 message CollectionDescriptor {
