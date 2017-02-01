@@ -216,7 +216,6 @@ void* evaluate_thread(void* arg) {
   std::vector<std::unique_ptr<Kernel>> kernels;
   {
     EvaluatorRegistry* registry = get_evaluator_registry();
-    printf("kernel factories %d\n", args.kernel_factories.size());
     for (size_t i = 0; i < args.kernel_factories.size(); ++i) {
       KernelFactory *factory = std::get<0>(args.kernel_factories[i]);
       const Kernel::Config &config = std::get<1>(args.kernel_factories[i]);
@@ -279,7 +278,6 @@ void* evaluate_thread(void* arg) {
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       total_inputs = //io_item.end_row - io_item.start_row;
           std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
-      printf("total inputs %d\n", total_inputs);
     }
     while (current_input < total_inputs) {
       i32 batch_size =
@@ -312,7 +310,6 @@ void* evaluate_thread(void* arg) {
         // by the kernel
         BatchedColumns input_columns;
         for (i32 in_col_idx : column_mapping[k]) {
-          printf("in col idx %d\n", in_col_idx);
           input_columns.push_back(side_output_columns[in_col_idx]);
         }
         // If current evaluator type and input buffer type differ, then move
@@ -336,7 +333,6 @@ void* evaluate_thread(void* arg) {
         // Delete unused outputs
         for (size_t y = 0; y < unused_outputs[k].size(); ++y) {
           i32 unused_col_idx = unused_outputs[k][unused_outputs.size() - 1 - y];
-          printf("erasing %d\n", unused_col_idx);
           RowList &column = output_columns[unused_col_idx];
           for (Row &row : column.rows) {
             u8 *buff = row.buffer;
@@ -354,7 +350,6 @@ void* evaluate_thread(void* arg) {
         // Delete dead columns
         for (size_t y = 0; y < dead_columns[k].size(); ++y) {
           i32 dead_col_idx = dead_columns[k][dead_columns.size() - 1 - y];
-          printf("dead %d\n", dead_col_idx);
           RowList &column = side_output_columns[dead_col_idx];
           for (Row &row : column.rows) {
             u8 *buff = row.buffer;

@@ -119,9 +119,6 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
 
     std::vector<i64> all_keyframes_byte_offsets;
     for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
-      printf("byte offsets %lu, diff %lu\n", start_keyframe_byte_offset,
-             keyframe_byte_offsets[i] - start_keyframe_byte_offset);
-
       all_keyframes_byte_offsets.push_back(keyframe_byte_offsets[i] -
                                            start_keyframe_byte_offset);
     }

@@ -151,6 +151,10 @@ class WorkerImpl final : public proto::Worker::Service {
                       proto::Empty* empty) {
     set_database_path(db_params_.db_path);
 
+    i32 kernel_instances_per_node = job_params->kernel_instances_per_node();
+    LOG_IF(FATAL, kernel_instances_per_node <= 0)
+        << "JobParameters.kernel_instances_per_node must be greater than 0.";
+
     timepoint_t base_time = now();
     const i32 work_item_size = rows_per_work_item();
     i32 warmup_size = 0;
@@ -161,7 +165,6 @@ class WorkerImpl final : public proto::Worker::Service {
     // Analyze evaluator DAG to determine what inputs need to be pipped along
     // and when intermediates can be retired -- essentially liveness analysis
     // Evaluator idx -> column name -> last used index
-    printf("Before initial\n");
     std::map<i32, std::map<std::string, i32>> intermediates;
     // Start off with the columns from the gathered tables
     {
@@ -196,8 +199,6 @@ class WorkerImpl final : public proto::Worker::Service {
         evaluators.size());
     for (size_t i = 0; i < evaluators.size(); ++i) {
       i32 evaluator_index = i;
-      printf("evalutor %d, %s\n", evaluator_index,
-             evaluators.Get(i).name().c_str());
       auto& columns = live_columns[i];
       size_t max_i = std::min((size_t)(evaluators.size() - 2), i);
       for (size_t j = 0; j <= max_i; ++j) {
@@ -206,7 +207,6 @@ class WorkerImpl final : public proto::Worker::Service {
           if (last_used_index >= evaluator_index) {
             // Last used index is greater than current index, so still live
             columns.push_back(std::make_tuple((i32)j, kv.first));
-            printf("evaluator %d, column %s\n", j, kv.first.c_str());
           }
         }
       }
@@ -249,7 +249,6 @@ class WorkerImpl final : public proto::Worker::Service {
                 }
                 assert(col_index != -1);
                 unused.push_back(col_index);
-                printf("evaluator %d, unused col %d\n", i, col_index);
               } else {
                 // Determine where in the previous live columns list this
                 // column existed
@@ -265,7 +264,6 @@ class WorkerImpl final : public proto::Worker::Service {
                 }
                 assert(col_index != -1);
                 dead.push_back(col_index);
-                printf("evaluator %d, dead col %d\n", i, col_index);
               }
             }
           }
@@ -276,8 +274,6 @@ class WorkerImpl final : public proto::Worker::Service {
         i32 parent_index = eval_input.evaluator_index();
         for (const std::string& col : eval_input.columns()) {
           i32 col_index = -1;
-          printf("searching for parent %d, col %s\n", parent_index,
-                 col.c_str());
           for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
             const std::tuple<i32, std::string>& live_input = prev_columns[k];
             if (parent_index == std::get<0>(live_input) &&
@@ -399,7 +395,6 @@ class WorkerImpl final : public proto::Worker::Service {
                     load_work_entries);
 
     // Setup shared resources for distributing work to processing threads
-    i32 kernel_instances_per_node = job_params->kernel_instances_per_node();
     i64 accepted_items = 0;
     Queue<LoadWorkEntry> load_work;
     Queue<EvalWorkEntry> initial_eval_work;
@@ -479,7 +474,6 @@ class WorkerImpl final : public proto::Worker::Service {
             first_kernel_type = config.devices[0];
           }
         }
-        printf("group %d\n", group.size());
 
         // Input work queue
         Queue<EvalWorkEntry>* input_work_queue = &work_queues[kg];
@@ -496,7 +490,6 @@ class WorkerImpl final : public proto::Worker::Service {
             // Queues
             *input_work_queue, *output_work_queue});
       }
-      printf("pre evaluatoe\n");
       // Pre evaluate worker
       {
         Queue<EvalWorkEntry>* input_work_queue = &initial_eval_work;
@@ -894,8 +887,6 @@ class MasterImpl final : public proto::Master::Service {
     next_io_item_to_allocate_ = 0;
     num_io_items_ = io_items.size();
 
-    printf("rpc, db path %s\n", get_database_path().c_str());
-
     grpc::CompletionQueue cq;
     std::vector<grpc::ClientContext> client_contexts(workers_.size());
     std::vector<grpc::Status> statuses(workers_.size());
@@ -917,7 +908,6 @@ class MasterImpl final : public proto::Master::Service {
       bool ok = false;
       GPR_ASSERT(cq.Next(&got_tag, &ok));
       GPR_ASSERT((i64)got_tag < workers_.size());
-      printf("tag %d\n", (i64)got_tag);
       assert(ok);
     }
     // Write table metadata
