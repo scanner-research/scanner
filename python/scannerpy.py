@@ -10,6 +10,7 @@ import socket
 import math
 import numpy as np
 import logging as log
+import json
 from subprocess import Popen, PIPE
 from enum import Enum
 from random import choice
@@ -409,6 +410,22 @@ class Database:
         else:
             return [self.table(t) for t in table_names]
 
+    def profiler(self, job_name):
+        db_meta = self._load_db_metadata()
+        if isinstance(job_name, basestring):
+            job_id = None
+            for job in db_meta.jobs:
+                if job.name == job_name:
+                    job_id = job.id
+                    break
+            if job_id is None:
+                log.critical('Job name {} does not exist'.format(job_name))
+                exit()
+        else:
+            job_id = job_name
+
+        return Profiler(self, job_id)
+
 
 class Sampler:
     def __init__(self, db):
@@ -663,3 +680,156 @@ class Table:
                 return list(self._task.samples[0].rows)
             else:
                 return list(range(self.num_rows()))
+
+class Profiler:
+    def __init__(self, db, job_id):
+        self._storage = db._storage
+        job = db._load_descriptor(
+            db._metadata_types.JobDescriptor,
+            'jobs/{}/descriptor.bin'.format(job_id))
+
+        self._profilers = {}
+        for n in range(job.num_nodes):
+            path = '{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n)
+            time, profs = self._parse_profiler_file(path)
+            self._profilers[n] = (time, profs)
+
+    def write_trace(self, path):
+        traces = []
+        next_tid = 0
+        for proc, (_, worker_profiler_groups) in self._profilers.iteritems():
+            for worker_type, profs in [('load', worker_profiler_groups['load']),
+                                       ('decode', worker_profiler_groups['decode']),
+                                       ('eval', worker_profiler_groups['eval']),
+                                       ('save', worker_profiler_groups['save'])]:
+                for i, prof in enumerate(profs):
+                    tid = next_tid
+                    next_tid += 1
+                    worker_num = prof['worker_num']
+                    tag = prof['worker_tag']
+                    traces.append({
+                        'name': 'thread_name',
+                        'ph': 'M',
+                        'pid': proc,
+                        'tid': tid,
+                        'args': {
+                            'name': '{}_{:02d}_{:02d}'.format(
+                                worker_type, proc, worker_num) + (
+                                    "_" + str(tag) if tag else "")
+                        }})
+                    for interval in prof['intervals']:
+                        traces.append({
+                            'name': interval[0],
+                            'cat': worker_type,
+                            'ph': 'X',
+                            'ts': interval[1] / 1000,  # ns to microseconds
+                            'dur': (interval[2] - interval[1]) / 1000,
+                            'pid': proc,
+                            'tid': tid,
+                            'args': {}
+                        })
+        with open(path, 'w') as f:
+            f.write(json.dumps(traces))
+
+
+    def _read_advance(self, fmt, buf, offset):
+        new_offset = offset + struct.calcsize(fmt)
+        return struct.unpack_from(fmt, buf, offset), new_offset
+
+    def _unpack_string(self, buf, offset):
+        s = ''
+        while True:
+            t, offset = self._read_advance('B', buf, offset)
+            c = t[0]
+            if c == 0:
+                break
+            s += str(chr(c))
+        return s, offset
+
+    def _parse_profiler_output(self, bytes_buffer, offset):
+        # Node
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        node = t[0]
+        # Worker type name
+        worker_type, offset = self._unpack_string(bytes_buffer, offset)
+        # Worker tag
+        worker_tag, offset = self._unpack_string(bytes_buffer, offset)
+        # Worker number
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        worker_num = t[0]
+        # Number of keys
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        num_keys = t[0]
+        # Key dictionary encoding
+        key_dictionary = {}
+        for i in range(num_keys):
+            key_name, offset = self._unpack_string(bytes_buffer, offset)
+            t, offset = self._read_advance('B', bytes_buffer, offset)
+            key_index = t[0]
+            key_dictionary[key_index] = key_name
+        # Intervals
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        num_intervals = t[0]
+        intervals = []
+        for i in range(num_intervals):
+            # Key index
+            t, offset = self._read_advance('B', bytes_buffer, offset)
+            key_index = t[0]
+            t, offset = self._read_advance('q', bytes_buffer, offset)
+            start = t[0]
+            t, offset = self._read_advance('q', bytes_buffer, offset)
+            end = t[0]
+            intervals.append((key_dictionary[key_index], start, end))
+        # Counters
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        num_counters = t[0]
+        counters = {}
+        for i in range(num_counters):
+            # Counter name
+            counter_name, offset = self._unpack_string(bytes_buffer, offset)
+            # Counter value
+            t, offset = self._read_advance('q', bytes_buffer, offset)
+            counter_value = t[0]
+            counters[counter_name] = counter_value
+
+        return {
+            'node': node,
+            'worker_type': worker_type,
+            'worker_tag': worker_tag,
+            'worker_num': worker_num,
+            'intervals': intervals,
+            'counters': counters
+        }, offset
+
+    def _parse_profiler_file(self, profiler_path):
+        bytes_buffer = self._storage.read(profiler_path)
+        offset = 0
+        # Read start and end time intervals
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        start_time = t[0]
+        t, offset = self._read_advance('q', bytes_buffer, offset)
+        end_time = t[0]
+        # Profilers
+        profilers = defaultdict(list)
+        # Load worker profilers
+        t, offset = self._read_advance('B', bytes_buffer, offset)
+        num_load_workers = t[0]
+        for i in range(num_load_workers):
+            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
+        # Eval worker profilers
+        t, offset = self._read_advance('B', bytes_buffer, offset)
+        num_eval_workers = t[0]
+        t, offset = self._read_advance('B', bytes_buffer, offset)
+        groups_per_chain = t[0]
+        for pu in range(num_eval_workers):
+            for fg in range(groups_per_chain):
+                prof, offset = self._parse_profiler_output(bytes_buffer, offset)
+                profilers[prof['worker_type']].append(prof)
+        # Save worker profilers
+        t, offset = self._read_advance('B', bytes_buffer, offset)
+        num_save_workers = t[0]
+        for i in range(num_save_workers):
+            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
+        return (start_time, end_time), profilers

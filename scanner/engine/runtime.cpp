@@ -28,6 +28,7 @@
 #include <grpc++/security/server_credentials.h>
 #include <grpc++/server.h>
 #include <grpc++/server_builder.h>
+#include <grpc/support/log.h>
 #include <grpc/grpc_posix.h>
 
 #include <thread>
@@ -126,9 +127,9 @@ class WorkerImpl final : public proto::Worker::Service {
     proto::Registration registration;
     grpc::Status status =
         master_->RegisterWorker(&context, worker_info, &registration);
-    LOG_IF(FATAL, !status.ok()) << "Worker could not contact master server ("
-                                << status.error_code()
-                                << "): " << status.error_message();
+    LOG_IF(FATAL, !status.ok())
+      << "Worker could not contact master server at " << master_address
+      << " (" << status.error_code() << "): " << status.error_message();
 
     node_id_ = registration.node_id();
 
@@ -572,6 +573,7 @@ class WorkerImpl final : public proto::Worker::Service {
         grpc::ClientContext context;
         proto::Empty empty;
         proto::IOItem io_item;
+
         master_->NextIOItem(&context, empty, &io_item);
 
         i32 next_item = io_item.item_id();
@@ -792,6 +794,11 @@ class MasterImpl final : public proto::Master::Service {
     if (next_io_item_to_allocate_ < num_io_items_) {
       io_item->set_item_id(next_io_item_to_allocate_);
       ++next_io_item_to_allocate_;
+      i32 items_left = num_io_items_ - next_io_item_to_allocate_;
+      if (items_left % 10 == 0) {
+        printf("IO items remaining: %d\n", items_left);
+        fflush(stdout);
+      }
     } else {
       io_item->set_item_id(-1);
     }

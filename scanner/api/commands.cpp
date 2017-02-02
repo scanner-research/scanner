@@ -40,6 +40,7 @@ std::unique_ptr<grpc::Server> start(T& service, const std::string& port,
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
   std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
+  LOG_IF(FATAL, server.get() == nullptr) << "Failed to start server";
   if (block) {
     server->Wait();
   }

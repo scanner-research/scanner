@@ -61,6 +61,7 @@ public:
     {}
 
   void new_frame_info() override {
+    set_device();
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
     planes_.clear();
@@ -72,6 +73,7 @@ public:
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
+    set_device();
     check_frame_info(device_, input_columns[1]);
 
     size_t hist_size = BINS * 3 * sizeof(float);
