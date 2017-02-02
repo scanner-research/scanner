@@ -53,9 +53,17 @@ void load_evaluator(const std::string& path) {
     << "dlopen of " << path << " failed: " << dlerror();
 }
 
-const std::string get_include() {
+std::string get_include() {
   // This variable is filled in at compile time by CMake.
   return "@dirs@";
+}
+
+std::string other_flags() {
+#ifdef HAVE_CUDA
+  return "-DHAVE_CUDA";
+#else
+  return "";
+#endif
 }
 
 template <typename T>
@@ -112,6 +120,7 @@ BOOST_PYTHON_MODULE(scanner_bindings) {
   def("start_worker", start_worker_wrapper);
   def("load_evaluator", load_evaluator);
   def("get_include", get_include);
+  def("other_flags", other_flags);
   def("ingest_videos", ingest_videos_wrapper);
   def("create_database", create_database);
   def("get_output_columns", get_output_columns);

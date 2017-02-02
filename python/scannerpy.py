@@ -205,15 +205,22 @@ class Database:
         """
         Gets the g++ build flags for compiling custom evaluators.
 
+        For example, to compile a custom kernel:
+        \code{.sh}
+        export SCANNER_FLAGS=`python -c "import scannerpy as sp; print(sp.Database().get_build_flags())"`
+        g++ mykernel.cpp -o mylib.so `echo $SCANNER_FLAGS`
+        \endcode
+
         Returns:
            A flag string.
         """
 
         include_dirs = self._bindings.get_include().split(";")
-        flags = '{include} -std=c++11 -fPIC -L{libdir} -lscanner'
+        flags = '{include} -std=c++11 -fPIC -shared -L{libdir} -lscanner {other}'
         return flags.format(
             include=" ".join(["-I " + d for d in include_dirs]),
-            libdir='{}/build'.format(self.config.scanner_path))
+            libdir='{}/build'.format(self.config.scanner_path),
+            other=self._bindings.other_flags())
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
