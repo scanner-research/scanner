@@ -22,11 +22,6 @@
 
 #include "storehouse/storage_backend.h"
 
-// For image ingest
-#include "jpegwrapper/JPEGReader.h"
-#include "lodepng/lodepng.h"
-#include "bitmap-cpp/bitmap.h"
-
 #include <glog/logging.h>
 
 // For video

@@ -218,14 +218,7 @@ find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
   PATHS "thirdparty/build/bin/storehouse")
-find_package(GoogleTest REQUIRED)
 find_package(TinyToml REQUIRED)
-find_package(JsonCpp REQUIRED)
-find_package(JPEGWrapper REQUIRED CONFIG
-  PATHS "thirdparty/build/bin/jpegwrapper")
-find_package(LodePNG REQUIRED)
-find_package(BitmapCpp REQUIRED CONFIG
-  PATHS "thirdparty/build/bin/bitmap-cpp")
 find_package(PythonLibs 2.7 EXACT REQUIRED)
 
 
@@ -239,7 +232,6 @@ set(GTEST_LIB_MAIN
 set(SCANNER_LIBRARIES
   "${PROTOBUF_LIBRARY}"
   "${STOREHOUSE_LIBRARIES}"
-  "${JSONCPP_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
   "-L/opt/ffmpeg-3.2.2/lib"
   "-lswscale"
@@ -256,8 +248,6 @@ set(SCANNER_LIBRARIES
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
-  "${JPEGWRAPPER_LIBRARIES}"
-  "${BITMAPCPP_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
   "-ljpeg"
   "-lz"
@@ -269,16 +259,11 @@ include_directories(
   "${PROTOBUF_INCLUDE_DIRS}"
   "${FFMPEG_INCLUDE_DIR}"
   "${TINYTOML_INCLUDE_DIR}"
-  "${JSONCPP_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
-  "${JPEGWRAPPER_INCLUDE_DIRS}"
-  "${LODEPNG_INCLUDE_DIRS}"
-  "${BITMAPCPP_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
-  "${LIBLZMA_INCLUDE_DIRS}"
-  "${GOOGLETEST_INCLUDE_DIRS}")
+  "${LIBLZMA_INCLUDE_DIRS}")
 
 if (CUDA_FOUND)
   list(APPEND SCANNER_LIBRARIES
@@ -358,7 +343,6 @@ add_library(scanner SHARED
   $<TARGET_OBJECTS:util>
   ${PROTO_SRCS}
   ${GRPC_PROTO_SRCS}
-  ${LODEPNG_SOURCES}
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 
@@ -409,9 +393,6 @@ target_link_libraries(scanner PUBLIC
 
 set(PYDIR ${CMAKE_CURRENT_BINARY_DIR})
 
-# add_custom_command(TARGET proto_files POST_BUILD
-#   COMMAND rm -rf ${PYDIR})
-
 # Make init files so python code can import from subdirectories
 foreach(FIL ${PROTO_FILES} ${GRPC_PROTO_FILES})
   get_filename_component(DIR_FIL ${FIL} DIRECTORY)
@@ -419,6 +400,3 @@ foreach(FIL ${PROTO_FILES} ${GRPC_PROTO_FILES})
   add_custom_command(TARGET proto_files POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E touch ${PYDIR}/${DIR_FIL}/__init__.py)
 endforeach()
-
-# add_custom_command(TARGET proto_files POST_BUILD
-#   COMMAND mv -f ${PYDIR}/scanner/* ${PYDIR} && rm -r ${PYDIR}/scanner)

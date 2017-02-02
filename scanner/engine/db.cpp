@@ -15,7 +15,6 @@
 
 #include "scanner/engine/db.h"
 #include "scanner/engine/runtime.h"
-#include "scanner/util/jsoncpp.h"
 #include "scanner/util/storehouse.h"
 #include "scanner/util/util.h"
 #include "storehouse/storage_backend.h"
