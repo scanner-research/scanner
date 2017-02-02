@@ -534,7 +534,7 @@ class WorkerImpl final : public proto::Worker::Service {
       std::vector<pthread_t>& threads = eval_threads[pu];
       threads.resize(num_kernel_groups);
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-        pthread_create(&threads[kg], NULL, evaluate_thread, &eval_args[pu][kg]);
+        pthread_create(&threads[kg], NULL, evaluate_thread, &eval_args[kg][pu]);
       }
       // Post threads
       pthread_create(&post_eval_threads[pu], NULL, post_evaluate_thread,

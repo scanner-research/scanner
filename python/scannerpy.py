@@ -7,6 +7,7 @@ import struct
 import cv2
 import importlib
 import socket
+import math
 import numpy as np
 import logging as log
 from subprocess import Popen, PIPE
@@ -597,7 +598,7 @@ class Column:
         rows_per_item = table_descriptor.rows_per_item
 
         # Integer divide, round up
-        num_items = max((total_rows + rows_per_item // 2) // rows_per_item, 1)
+        num_items = int(math.ceil(total_rows / float(rows_per_item)))
         bufs = []
         input_rows = self._table.rows()
         assert len(input_rows) == total_rows
