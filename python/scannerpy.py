@@ -1,3 +1,7 @@
+"""
+Python bindings for Scanner.
+"""
+
 import toml
 import os
 import os.path
@@ -19,6 +23,7 @@ from collections import defaultdict
 
 
 class DeviceType(Enum):
+    """ Enum for specifying where an Evaluator should run. """
     CPU = 0
     GPU = 1
 
@@ -127,7 +132,28 @@ class Config(object):
 
 
 class Database:
+    """
+    Entrypoint for all Scanner operations.
+
+    Attributes:
+        config: The Config object for the database.
+        evaluators: An EvaluatorGenerator object for computation creation.
+    """
+
     def __init__(self, config_path=None):
+        """
+        Initializes a Scanner database.
+
+        This will create a database at the `db_path` specified in the config
+        if none exists.
+
+        Kwargs:
+            config_path: Path to a Scanner configuration TOML, by default
+                         assumed to be `~/.scanner.toml`.
+
+        Returns:
+            A database instance.
+        """
         self.config = Config(config_path)
 
         # Load all protobuf types
@@ -148,6 +174,10 @@ class Database:
             self.config.storage_config,
             self.config.memory_pool_config.SerializeToString(),
             self._db_path)
+
+        """
+        Test
+        """
         self.evaluators = EvaluatorGenerator(self)
 
         # Initialize database if it does not exist
@@ -172,6 +202,13 @@ class Database:
         self._master = self._rpc_types.MasterStub(channel)
 
     def get_build_flags(self):
+        """
+        Gets the g++ build flags for compiling custom evaluators.
+
+        Returns:
+           A flag string.
+        """
+
         include_dirs = self._bindings.get_include().split(";")
         flags = '{include} -std=c++11 -fPIC -L{libdir} -lscanner'
         return flags.format(
@@ -194,9 +231,40 @@ class Database:
             'db_metadata.bin')
 
     def start_master(self, block=False):
+        """
+        Starts a master server on the current node.
+
+        Scanner clusters require one master server to coordinate computation.
+        If the returned value falls out of scope and is garbage collected,
+        the server will exit, so make sure to bind the result to a variable.
+
+        Kwargs:
+            block: Whether to block on the master creation call.
+
+        Returns:
+            An opaque handle to the master.
+        """
+
         return self._bindings.start_master(self._db_params, block)
 
     def start_worker(self, master_address=None, block=False):
+        """
+        Starts a worker on the current node.
+
+        Each node can have one or many workers (multiple workers can be used
+        to run multiple kernels per node that require process isolation). If the
+        returned value falls out of scope and is garbage collected, the server
+        will exit, so make sure to bind the result to a variable. The master must
+        be started before the worker is created.
+
+        Kwargs:
+            master_address: Address and port of the master node.
+            block: Whether to block on the worker creation call.
+
+        Returns:
+            An opaque handle to the worker.
+        """
+
         worker_params = self._bindings.default_worker_params()
         if master_address is None:
             master_address = self._master_address
@@ -211,6 +279,15 @@ class Database:
             return Popen("ssh {} {}".format(host, cmd), shell=True)
 
     def start_cluster(self, master, workers):
+        """
+        Convenience method for starting a Scanner cluster.
+
+        This should be run as a background/tmux/etc. script.
+
+        Args:
+            master: ssh-able address of the master node.
+            workers: list of ssh-able addresses of the worker nodes.
+        """
         master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master(True)"'
         worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker(\'{}:5001\', True)"' \
                      .format(master)
@@ -218,8 +295,24 @@ class Database:
         master = self._run_remote_cmd(master, master_cmd)
         workers = [self._run_remote_cmd(w, worker_cmd) for w in workers]
         master.wait()
+        for worker in workers:
+            worker.wait()
 
     def load_evaluator(self, so_path, proto_path=None):
+        """
+        Loads a custom evaluator into the Scanner runtime.
+
+        By convention, if the evaluator requires arguments from Python, it must
+        have a protobuf message called <EvaluatorName>Args, e.g. BlurArgs or
+        HistogramArgs, and the path to that protobuf should be provided.
+
+        Args:
+            so_path: Path to the custom evaluator's shared object file.
+
+        Kwargs:
+            proto_path: Path to the custom evaluator's arguments protobuf
+                        if one exists.
+        """
         if proto_path is not None:
             (proto_dir, mod_file) = os.path.split(proto_path)
             sys.path.append(proto_dir)
@@ -231,6 +324,16 @@ class Database:
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
 
     def new_collection(self, collection_name, table_names):
+        """
+        Creates a new Collection from a list of tables.
+
+        Args:
+            collection_name: String name of the collection to create.
+            table_names: List of table name strings to put in the collection.
+
+        Returns:
+            The new Collection object.
+        """
         if collection_name in self._collections.names:
             log.critical('Collection with name {} already exists' \
                              .format(collection_name))
@@ -247,22 +350,37 @@ class Database:
 
         return self.get_collection(collection_name)
 
-    def get_collection(self, name):
-        index = self._collections.names[:].index(name)
-        id = self._collections.ids[index]
-        collection = self._load_descriptor(
-            self._metadata_types.CollectionDescriptor,
-            'pydb/collection_{}.bin'.format(index))
-        return Collection(self, name, collection)
 
     def ingest_video(self, table_name, video):
+        """
+        Creates a Table from a video.
+
+        Args:
+            table_name: String name of the Table to create.
+            video: Path to the video.
+
+        Returns:
+            The newly created Table object.
+        """
+
         self._bindings.ingest_videos(
             self.config.storage_config,
             self._db_path,
             [table_name],
             [video])
+        return self.table(table_name)
 
     def ingest_video_collection(self, collection_name, videos):
+        """
+        Creates a Collection from a list of videos.
+
+        Args:
+            collection_name: String name of the Collection to create.
+            videos: List of video paths.
+
+        Returns:
+            The newly created Collection object.
+        """
         table_names = ['{}:{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
         collection = self.new_collection(collection_name, table_names)
@@ -273,23 +391,28 @@ class Database:
             videos)
         return collection
 
-    def sampler(self):
-        return Sampler(self)
+    def collection(self, name):
+        index = self._collections.names[:].index(name)
+        id = self._collections.ids[index]
+        collection = self._load_descriptor(
+            self._metadata_types.CollectionDescriptor,
+            'pydb/collection_{}.bin'.format(index))
+        return Collection(self, name, collection)
 
-    def table(self, table_name):
+    def table(self, name):
         db_meta = self._load_db_metadata()
 
-        if isinstance(table_name, basestring):
+        if isinstance(name, basestring):
             table_id = None
             for table in db_meta.tables:
-                if table.name == table_name:
+                if table.name == name:
                     table_id = table.id
                     break
             if table_id is None:
-                log.critical('Table with name {} not found'.format(table_name))
+                log.critical('Table with name {} not found'.format(name))
                 exit()
-        elif isinstance(table_name, int):
-            table_id = table_name
+        elif isinstance(name, int):
+            table_id = name
         else:
             log.critical('Invalid table identifier')
             exit()
@@ -298,6 +421,25 @@ class Database:
             self._metadata_types.TableDescriptor,
             'tables/{}/descriptor.bin'.format(table_id))
         return Table(self, descriptor)
+
+    def sampler(self):
+        return Sampler(self)
+
+    def profiler(self, job_name):
+        db_meta = self._load_db_metadata()
+        if isinstance(job_name, basestring):
+            job_id = None
+            for job in db_meta.jobs:
+                if job.name == job_name:
+                    job_id = job.id
+                    break
+            if job_id is None:
+                log.critical('Job name {} does not exist'.format(job_name))
+                exit()
+        else:
+            job_id = job_name
+
+        return Profiler(self, job_id)
 
     def _toposort(self, evaluator):
         edges = defaultdict(list)
@@ -356,6 +498,29 @@ class Database:
         return self._toposort(evaluator)
 
     def run(self, tasks, evaluator, output_collection=None, job_name=None):
+        """
+        Runs a computation over a set of inputs.
+
+        Args:
+            tasks: The set of inputs to run the computation on. If tasks is a
+                   Collection, then the computation is run on all frames of all
+                   tables in the collection. Otherwise, tasks should be generated
+                   by the Sampler.
+            evaluator: The computation to run. Evaluator is either a list of
+                   evaluators to run in sequence, or a DAG with the output node
+                   passed in as the argument.
+
+        Kwargs:
+            output_collection: If this is not None, then a new collection with
+                               this name will be created for all the output
+                               tables.
+            job_name: An optional name to assign the job. It will be randomly
+                      generated if none is given.
+
+        Returns:
+            Either the output Collection is output_collection is specified
+            or a list of Table objects.
+        """
         # Ping master and start master/worker locally if they don't exist.
         try:
             self._master.Ping(self._rpc_types.Empty())
@@ -410,24 +575,14 @@ class Database:
         else:
             return [self.table(t) for t in table_names]
 
-    def profiler(self, job_name):
-        db_meta = self._load_db_metadata()
-        if isinstance(job_name, basestring):
-            job_id = None
-            for job in db_meta.jobs:
-                if job.name == job_name:
-                    job_id = job.id
-                    break
-            if job_id is None:
-                log.critical('Job name {} does not exist'.format(job_name))
-                exit()
-        else:
-            job_id = job_name
-
-        return Profiler(self, job_id)
 
 
 class Sampler:
+    """
+    Utility for specifying which frames of a video (or which rows of a table)
+    to run a computation over.
+    """
+
     def __init__(self, db):
         self._db = db
 
@@ -465,7 +620,6 @@ class Sampler:
 (input_table, output_table) pair')""")
             exit()
 
-
         (input_table_name, output_table_name) = video
         task = self._db._metadata_types.Task()
         task.output_table_name = output_table_name
@@ -481,6 +635,14 @@ class Sampler:
 
 
 class EvaluatorGenerator:
+    """
+    Creates Evaluator instances to define a computation.
+
+    When a particular evaluator is requested from the generator, e.g.
+    `db.evaluators.Histogram`, the generator does a dynamic lookup for the
+    evaluator in a C++ registry.
+    """
+
     def __init__(self, db):
         self._db = db
 
@@ -545,6 +707,10 @@ class Evaluator:
 
 
 class Collection:
+    """
+    A set of Table objects.
+    """
+
     def __init__(self, db, name, descriptor):
         self._db = db
         self._name = name
@@ -562,6 +728,10 @@ class Collection:
 
 
 class Column:
+    """
+    A column of a Table.
+    """
+
     def __init__(self, table, descriptor):
         self._table = table
         self._descriptor = descriptor
@@ -632,6 +802,19 @@ class Column:
                             cv2.IMREAD_COLOR)
 
     def load(self, fn=None):
+        """
+        Loads the results of a Scanner computation into Python.
+
+        Kwargs:
+            fn: Optional function to apply to the binary blobs as they are read
+                in.
+
+        Returns:
+            Generator that yields either a numpy array for frame columns or
+            a binary blob for non-frame columns (optionally processed by the
+            `fn`).
+        """
+
         # If the column is a video, then dump the requested frames to disk as PNGs
         # and return the decoded PNGs
         if self._descriptor.type == self._db._metadata_types.Video:
@@ -643,6 +826,11 @@ class Column:
             return self._load_all(fn)
 
 class Table:
+    """
+    A table in a Database.
+
+    Can be part of many Collection objects.
+    """
     def __init__(self, db, descriptor):
         self._db = db
         self._descriptor = descriptor
@@ -682,6 +870,10 @@ class Table:
                 return list(range(self.num_rows()))
 
 class Profiler:
+    """
+    Contains profiling information about Scanner jobs.
+    """
+
     def __init__(self, db, job_id):
         self._storage = db._storage
         job = db._load_descriptor(
@@ -695,6 +887,16 @@ class Profiler:
             self._profilers[n] = (time, profs)
 
     def write_trace(self, path):
+        """
+        Generates a trace file in Chrome format.
+
+        To visualize the trace, visit [chrome://tracing](chrome://tracing) in
+        Google Chrome and click "Load" in the top left to load the trace.
+
+        Args:
+            path: Output path to write the trace.
+        """
+
         traces = []
         next_tid = 0
         for proc, (_, worker_profiler_groups) in self._profilers.iteritems():
@@ -731,6 +933,24 @@ class Profiler:
         with open(path, 'w') as f:
             f.write(json.dumps(traces))
 
+    def _convert_time(self, d):
+        def convert(t):
+            return '{:2f}'.format(t / 1.0e9)
+        return {k: self._convert_time(v) if isinstance(v, dict) else convert(v) \
+                for (k, v) in d.iteritems()}
+
+    def statistics(self):
+        totals = {}
+        for _, profiler in self._profilers.values():
+            for kind in profiler:
+                if not kind in totals: totals[kind] = {}
+                for thread in profiler[kind]:
+                    for (key, start, end) in thread['intervals']:
+                        if not key in totals[kind]: totals[kind][key] = 0
+                        totals[kind][key] += end-start
+
+        readable_totals = self._convert_time(totals)
+        return readable_totals
 
     def _read_advance(self, fmt, buf, offset):
         new_offset = offset + struct.calcsize(fmt)
