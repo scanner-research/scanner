@@ -46,6 +46,14 @@ class Config(object):
         config = self.load_config(self.config_path)
         try:
             self.scanner_path = config['scanner_path']
+
+            if not os.path.isdir(self.scanner_path) or \
+               not os.path.isdir(self.scanner_path + '/build') or \
+               not os.path.isdir(self.scanner_path + '/scanner'):
+                raise ScannerException("""Invalid Scanner directory. Make sure \
+scanner_path in {} is correct and that Scanner is built correctly.""" \
+                                       .format(self.scanner_path))
+
             sys.path.append('{}/build'.format(self.scanner_path))
             sys.path.append('{}/thirdparty/build/bin/storehouse/lib'
                             .format(self.scanner_path))
@@ -394,7 +402,7 @@ class Database:
             [video])
         return self.table(table_name)
 
-    def ingest_video_collection(self, collection_name, videos):
+    def ingest_video_collection(self, collection_name, videos, force=False):
         """
         Creates a Collection from a list of videos.
 
@@ -402,12 +410,15 @@ class Database:
             collection_name: String name of the Collection to create.
             videos: List of video paths.
 
+        Kwargs:
+            force: TODO(wcrichto)
+
         Returns:
             The newly created Collection object.
         """
         table_names = ['{}:{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
-        collection = self.new_collection(collection_name, table_names)
+        collection = self.new_collection(collection_name, table_names, force)
         self._bindings.ingest_videos(
             self.config.storage_config,
             self._db_path,
@@ -739,7 +750,7 @@ class Evaluator:
         if len(self._args) > 0:
             proto_name = self._name + 'Args' \
                          if self._proto is None else self._proto + 'Args'
-            args_proto = self._db.proto(proto_name)()
+            args_proto = getattr(self._db.protobufs, proto_name)()
             for k, v in self._args.iteritems():
                 try:
                     setattr(args_proto, k, v)
