@@ -94,6 +94,8 @@ void ingest_videos_wrapper(
 
 py::list get_output_columns(const std::string& evaluator_name) {
   internal::EvaluatorRegistry* registry = internal::get_evaluator_registry();
+  LOG_IF(FATAL, !registry->has_evaluator(evaluator_name))
+    << "Evaluator " << evaluator_name << " does not exist.";
   internal::EvaluatorInfo* info = registry->get_evaluator_info(evaluator_name);
   return to_py_list(info->output_columns());
 }

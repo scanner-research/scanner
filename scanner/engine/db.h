@@ -30,6 +30,10 @@ const std::string& get_database_path();
 
 void set_database_path(std::string path);
 
+const std::string get_scanner_path();
+
+void set_scanner_path(std::string path);
+
 inline std::string database_metadata_path() {
   return get_database_path() + "db_metadata.bin";
 }

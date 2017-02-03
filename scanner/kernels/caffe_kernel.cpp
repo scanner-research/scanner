@@ -1,4 +1,5 @@
 #include "scanner/kernels/caffe_kernel.h"
+#include "scanner/engine/db.h"
 #include "toml/toml.h"
 #include "caffe/blob.hpp"
 #include "caffe/proto/caffe.pb.h"
@@ -282,7 +283,7 @@ void CaffeKernel::new_frame_info()  {
 
 void CaffeKernel::execute(const BatchedColumns& input_columns,
                           BatchedColumns& output_columns) {
-  check_frame_info(device_, input_columns[0]);
+  check_frame_info(device_, input_columns[1]);
   set_device();
 
   auto& descriptor = args_.net_descriptor();
@@ -389,7 +390,7 @@ void CaffeKernel::set_device() {
   }
 }
 
-// REGISTER_CAFFE_EVALUATOR(GoogleNet, "features/googlenet.toml");
-// REGISTER_CAFFE_KERNELS(GoogleNet, CaffeKernel);
+REGISTER_CAFFE_EVALUATOR(GoogleNet, internal::get_scanner_path()+"/features/googlenet.toml");
+REGISTER_CAFFE_KERNELS(GoogleNet, CaffeKernel);
 
 }

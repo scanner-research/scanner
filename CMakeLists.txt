@@ -221,7 +221,6 @@ find_package(Storehouse REQUIRED CONFIG
 find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
 
-
 set(GTEST_INCLUDE_DIRS
   "${GLOBAL_OUTPUT_PATH}/googletest/include")
 set(GTEST_LIBRARIES
@@ -300,7 +299,6 @@ protobuf_generate_python(GRPC_PROTO_PY ON ${GRPC_PROTO_FILES})
 add_custom_target(proto_files DEPENDS
   ${PROTO_HDRS} ${PROTO_PY} ${GRPC_PROTO_HDRS} ${GRPC_PROTO_PY})
 
-
 macro(add_deps)
   add_dependencies(${targetName} proto_files)
   if (HALIDE_FOUND)
@@ -350,6 +348,8 @@ add_executable(scanner_server
   scanner/main.cpp
   scanner)
 
+configure_file(scanner/engine/db.in.cpp scanner/engine/db.cpp)
+
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 configure_file(scanner/engine/python.in.cpp scanner/engine/python.cpp)
 add_library(scanner_bindings SHARED scanner/engine/python.cpp)
@@ -371,6 +371,7 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set_target_properties(scanner PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
   set_property(TARGET scanner APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
 endif()
+
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS

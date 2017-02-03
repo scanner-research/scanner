@@ -33,6 +33,9 @@ void CaffeInputKernel::new_frame_info() {
   if (args_.net_descriptor().input_width() == -1) {
     net_input_width_ = frame_info_.width();
     net_input_height_ = frame_info_.height();
+  } else {
+    net_input_width_ = args_.net_descriptor().input_width();
+    net_input_height_ = args_.net_descriptor().input_height();
   }
 }
 
