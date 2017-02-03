@@ -90,21 +90,17 @@ scanner_path in {} is correct and that Scanner is built correctly.""" \
                             memory_pool['gpu']['free_space'])
             self.memory_pool_config = cfg
 
+            self.master_address = 'localhost:5001'
             if 'network' in config:
                 network = config['network']
                 if 'master_address' in network:
                     self.master_address = network['master_address']
-                else:
-                    self.master_address = 'localhost:5001'
-            else:
-                self.master_address = 'localhost:5001'
 
+            self.kernel_instances_per_node = 1
             if 'job' in config:
                 job = config['job']
                 if 'kernel_instances_per_node' in job:
                     self.kernel_instances_per_node = job['kernel_instances_per_node']
-                else:
-                    self.kernel_instances_per_node = 1
 
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))

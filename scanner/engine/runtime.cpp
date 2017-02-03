@@ -205,7 +205,7 @@ class WorkerImpl final : public proto::Worker::Service {
       for (size_t j = 0; j <= max_i; ++j) {
         for (auto& kv : intermediates.at(j)) {
           i32 last_used_index = kv.second;
-          if (last_used_index >= evaluator_index) {
+          if (last_used_index > evaluator_index) {
             // Last used index is greater than current index, so still live
             columns.push_back(std::make_tuple((i32)j, kv.first));
           }
@@ -457,28 +457,35 @@ class WorkerImpl final : public proto::Worker::Service {
         auto& uo = kg_unused_outputs[kg];
         auto& cm = kg_column_mapping[kg];
         std::vector<EvaluateThreadArgs>& thread_args = eval_args[kg];
-        for (size_t i = 0; i < group.size(); ++i) {
-          KernelFactory* factory = std::get<0>(group[i]);
-          Kernel::Config& config = std::get<1>(group[i]);
-
-          config.devices.clear();
+        // HACK(apoms): we assume all evaluators in a kernel group use the
+        //   same number of devices for now.
+        //for (size_t i = 0; i < group.size(); ++i) {
+          KernelFactory* factory = std::get<0>(group[0]);
           DeviceType device_type = factory->get_device_type();
           if (device_type == DeviceType::CPU) {
             for (i32 i = 0; i < factory->get_max_devices(); ++i) {
               i32 device_id = next_cpu_num++ % num_cpus;
-              config.devices.push_back({device_type, device_id});
+              for (size_t i = 0; i < group.size(); ++i) {
+                Kernel::Config& config = std::get<1>(group[i]);
+                config.devices.clear();
+                config.devices.push_back({device_type, device_id});
+              }
             }
           } else {
             for (i32 i = 0; i < factory->get_max_devices(); ++i) {
               i32 device_id = gpu_device_ids_[next_gpu_idx++ % num_gpus];
-              config.devices.push_back({device_type, device_id});
+              for (size_t i = 0; i < group.size(); ++i) {
+                Kernel::Config& config = std::get<1>(group[i]);
+                config.devices.clear();
+                config.devices.push_back({device_type, device_id});
+              }
             }
           }
           // Get the device handle for the first kernel in the pipeline
-          if (kg == 0 && i == 0) {
-            first_kernel_type = config.devices[0];
+          if (kg == 0) {
+            first_kernel_type = std::get<1>(group[0]).devices[0];
           }
-        }
+          //}
 
         // Input work queue
         Queue<EvalWorkEntry>* input_work_queue = &work_queues[kg];

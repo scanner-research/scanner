@@ -227,8 +227,8 @@ CaffeKernel::CaffeKernel(const Kernel::Config& config)
   // Initialize memory
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
     net_->blob_by_name(descriptor.input_layer_names(0))};
-  input_blob->Reshape({args_.batch_size(), input_blob->shape(1), input_blob->shape(2),
-        input_blob->shape(3)});
+  input_blob->Reshape({args_.batch_size(), input_blob->shape(1),
+                       input_blob->shape(2), input_blob->shape(3)});
 
   size_t intended_output = descriptor.output_layer_names().size();
   size_t actual_output = config.output_columns.size();
@@ -290,7 +290,7 @@ void CaffeKernel::new_frame_info()  {
 
 void CaffeKernel::execute(const BatchedColumns& input_columns,
                           BatchedColumns& output_columns) {
-  check_frame_info(device_, input_columns[1]);
+  check_frame_info(device_, input_columns.back());
   set_device();
 
   auto& descriptor = args_.net_descriptor();
@@ -303,9 +303,6 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
   size_t num_outputs = descriptor.output_layer_names().size();
   i32 input_count = (i32)input_columns[0].rows.size();
   i32 out_col_idx = 0;
-  // forward the frame
-  output_columns[out_col_idx].rows = input_columns[1].rows;
-  out_col_idx++;
   i32 batch_size = args_.batch_size();
   for (i32 frame = 0; frame < input_count; frame += batch_size) {
     i32 batch_count = std::min(input_count - frame, batch_size);
@@ -326,9 +323,9 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       size_t offset = 0;
       for (i32 j = 0; j < batch_count; ++j) {
         memcpy_buffer((u8*)net_input_buffer + offset, device_,
-                      input_columns[i + 2].rows[frame + j].buffer, device_,
-                      input_columns[i + 2].rows[frame + j].size);
-        offset += input_columns[i + 2].rows[frame + j].size;
+                      input_columns[i].rows[frame + j].buffer, device_,
+                      input_columns[i].rows[frame + j].size);
+        offset += input_columns[i].rows[frame + j].size;
       }
     }
 
@@ -375,12 +372,6 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
     }
 
     memcpy_vec(dest_buffers, device_, src_buffers, device_, sizes);
-  }
-  out_col_idx += num_outputs;
-  for (size_t col_idx = input_blobs.size() + 1; col_idx < input_columns.size();
-       ++col_idx) {
-    output_columns[out_col_idx].rows = input_columns[col_idx].rows;
-    out_col_idx++;
   }
 }
 

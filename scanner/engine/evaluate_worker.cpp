@@ -350,7 +350,7 @@ void* evaluate_thread(void* arg) {
         }
         // Delete dead columns
         for (size_t y = 0; y < dead_columns[k].size(); ++y) {
-          i32 dead_col_idx = dead_columns[k][dead_columns.size() - 1 - y];
+          i32 dead_col_idx = dead_columns[k][dead_columns[k].size() - 1 - y];
           RowList &column = side_output_columns[dead_col_idx];
           for (Row &row : column.rows) {
             u8 *buff = row.buffer;

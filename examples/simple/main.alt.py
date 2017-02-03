@@ -5,8 +5,7 @@ import cv2
 db = Database()
 
 # hist = db.evaluators.Histogram(device = DeviceType.GPU)
-descriptor = NetDescriptor.from_file(
-    db, '/home/wcrichto/scanner/features/googlenet.toml')
+descriptor = NetDescriptor.from_file(db, 'features/googlenet.toml')
 caffe_args = {
     'device': DeviceType.GPU,
     'net_descriptor': descriptor.as_proto(),
@@ -32,7 +31,7 @@ def single_video():
 
 def video_collection():
     input_collection = db.ingest_video_collection(
-        'meangirls', ['/bigdata/wcrichto/videos/meanGirls_short.mp4'],
+        'meangirls', ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
         force=True)
     input_collection = db.collection('meangirls')
     sampler = db.sampler()
