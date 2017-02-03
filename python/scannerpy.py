@@ -355,7 +355,7 @@ class Database:
         collection.tables.extend(table_names)
         self._save_descriptor(collection, 'pydb/collection_{}.bin'.format(new_id))
 
-        return self.get_collection(collection_name)
+        return self.collection(collection_name)
 
 
     def ingest_video(self, table_name, video):
@@ -492,7 +492,11 @@ class Database:
         # then hook up inputs to outputs of adjacent evaluators
         if isinstance(evaluator, list):
             for i in range(len(evaluator) - 1):
-                out_cols = self._bindings.get_output_columns(evaluator[i]._name)
+                if len(evaluator[i+1]._inputs) > 0: continue
+                if evaluator[i]._name == "InputTable":
+                    out_cols = ["frame", "frame_info"]
+                else:
+                    out_cols = self._bindings.get_output_columns(evaluator[i]._name)
                 evaluator[i+1]._inputs = [(evaluator[i], out_cols)]
             evaluator = evaluator[-1]
 
@@ -566,6 +570,9 @@ class Database:
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.evaluators.extend(self._process_dag(evaluator))
         job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
+
+        print job_params.task_set.evaluators
+        exit()
 
         # Execute job via RPC
         try:
@@ -654,33 +661,40 @@ class EvaluatorGenerator:
         self._db = db
 
     def __getattr__(self, name):
+        if name == 'Input':
+            return lambda: Evaluator.input(self._db)
+        elif name == 'Output':
+            return lambda inputs: Evaluator.output(self._db, inputs)
+
         if not self._db._bindings.has_evaluator(name):
             log.critical('Evaluator {} does not exist'.format(name))
             exit()
         def make_evaluator(**kwargs):
             inputs = kwargs.pop('inputs', [])
             device = kwargs.pop('device', DeviceType.CPU)
-            return Evaluator(self._db, name, inputs, device, kwargs)
+            proto = kwargs.pop('proto', None)
+            return Evaluator(self._db, name, inputs, device, proto, kwargs)
         return make_evaluator
 
 
 class Evaluator:
-    def __init__(self, db, name, inputs, device, args):
+    def __init__(self, db, name, inputs, device, proto, args):
         self._db = db
         self._name = name
         self._inputs = inputs
         self._device = device
         self._args = args
+        self._proto = proto
 
     @classmethod
     def input(cls, db):
         # TODO(wcrichto): allow non-frame inputs
         return cls(db, "InputTable", [(None, ["frame", "frame_info"])],
-                   DeviceType.CPU, {})
+                   DeviceType.CPU, None, {})
 
     @classmethod
     def output(cls, db, inputs):
-        return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
+        return cls(db, "OutputTable", inputs, DeviceType.CPU, None, {})
 
     def to_proto(self, indices):
         e = self._db._metadata_types.Evaluator()
@@ -698,17 +712,23 @@ class Evaluator:
         # {Evaluator}Args (e.g. BlurArgs, HistogramArgs) in the args.proto
         # module, and fill that in with keys from the args dict.
         if len(self._args) > 0:
-            proto_name = self._name + 'Args'
+            proto_name = self._name + 'Args' \
+                         if self._proto is None else self._proto + 'Args'
             args_proto = None
             for mod in self._db._arg_types:
-                if hasattr(self._db._arg_types, proto_name):
-                    args_proto = getattr(self._db._arg_types, proto_name)()
+                if hasattr(mod, proto_name):
+                    args_proto = getattr(mod, proto_name)()
             if args_proto is None:
                 log.critical('Missing protobuf {}'.format(proto_name))
                 exit()
             for k, v in self._args.iteritems():
-                setattr(args_proto, k, v)
-            e.kernel_args = args_proto.SerializeToString()
+                try:
+                    setattr(args_proto, k, v)
+                except AttributeError:
+                    # If the attribute is a nested proto, we can't assign directly,
+                    # so copy from the value.
+                    getattr(args_proto, k).CopyFrom(v)
+                e.kernel_args = args_proto.SerializeToString()
 
         return e
 
@@ -1060,3 +1080,49 @@ class Profiler:
             prof, offset = self._parse_profiler_output(bytes_buffer, offset)
             profilers[prof['worker_type']].append(prof)
         return (start_time, end_time), profilers
+
+class NetDescriptor:
+    def __init__(self, db):
+        self._descriptor = db._arg_types[0].NetDescriptor()
+
+    def _val(self, dct, key, default):
+        if key in dct:
+            return dct[key]
+        else:
+            return default
+
+    @classmethod
+    def from_file(cls, db, path):
+        self = cls(db)
+        with open(path) as f:
+            args = toml.loads(f.read())
+
+        d = self._descriptor
+        net = args['net']
+        d.model_path = net['model']
+        d.model_weights_path = net['weights']
+        d.input_layer_names.extend(net['input_layers'])
+        d.output_layer_names.extend(net['output_layers'])
+        d.input_width = self._val(net, 'input_width', -1)
+        d.input_height = self._val(net, 'input_height', -1)
+        d.normalize = self._val(net, 'normalize', False)
+        d.preserve_aspect_ratio = self._val(net, 'preserve_aspect_ratio', False)
+        d.transpose = self._val(net, 'tranpose', False)
+        d.pad_mod = self._val(net, 'pad_mod', -1)
+
+        mean = args['mean-image']
+        if 'colors' in mean:
+            order = net['input']['channel_ordering']
+            for color in order:
+                d.mean_colors.append(mean['colors'][color])
+        elif 'image' in mean:
+            d.mean_width = mean['width']
+            d.mean_height = mean['height']
+            # TODO: load mean binaryproto
+            log.critical('TODO')
+            exit()
+
+        return self
+
+    def as_proto(self):
+        return self._descriptor
