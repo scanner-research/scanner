@@ -34,8 +34,7 @@ class DeviceType(Enum):
         elif device == DeviceType.GPU:
             return db._metadata_types.GPU
         else:
-            log.critical('Invalid device type')
-            exit()
+            raise ScannerException('Invalid device type')
 
 
 class Config(object):
@@ -65,8 +64,7 @@ class Config(object):
                     key,
                     storage['bucket'].encode('latin-1'))
             else:
-                log.critical('Unsupported storage type {}'.format(storage_type))
-                exit()
+                raise ScannerException('Unsupported storage type {}'.format(storage_type))
 
             from scanner.metadata_pb2 import MemoryPoolConfig
             cfg = MemoryPoolConfig()
@@ -101,8 +99,7 @@ class Config(object):
                     self.kernel_instances_per_node = 1
 
         except KeyError as key:
-            log.critical('Scanner config missing key: {}'.format(key))
-            exit()
+            raise ScannerException('Scanner config missing key: {}'.format(key))
         self.storage_config = storage_config
         self.storage = StorageBackend.make_from_config(storage_config)
 
@@ -114,8 +111,7 @@ class Config(object):
             'K': 1024
         }
         if not suffix in mults:
-            log.critical('Invalid size suffix in "{}"'.format(s))
-            exit()
+            raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
 
     @staticmethod
@@ -127,8 +123,10 @@ class Config(object):
             with open(path, 'r') as f:
                 return toml.loads(f.read())
         except IOError:
-            log.critical('Error: you need to setup your Scanner config. Run `python scripts/setup.py`.')
-            exit()
+            raise ScannerException('You need to setup your Scanner config. Run `python scripts/setup.py`.')
+
+
+class ScannerException(Exception): pass
 
 
 class Database:
@@ -138,6 +136,7 @@ class Database:
     Attributes:
         config: The Config object for the database.
         evaluators: An EvaluatorGenerator object for computation creation.
+        protobufs: TODO(wcrichto)
     """
 
     def __init__(self, config_path=None):
@@ -175,10 +174,8 @@ class Database:
             self.config.memory_pool_config.SerializeToString(),
             self._db_path)
 
-        """
-        Test
-        """
         self.evaluators = EvaluatorGenerator(self)
+        self.protobufs = ProtobufGenerator(self)
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
@@ -189,8 +186,9 @@ class Database:
             self._update_collections()
 
         if not os.path.isdir(pydb_path):
-            log.critical('Scanner database at {} was not made via Python'.format(self._db_path))
-            exit()
+            raise ScannerException(
+                'Scanner database at {} was not made via Python' \
+                .format(self._db_path))
 
         # Load database descriptors from disk
         self._collections = self._load_descriptor(
@@ -330,7 +328,19 @@ class Database:
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
 
-    def new_collection(self, collection_name, table_names):
+    def delete_collection(self, collection_name):
+        if not collection_name in self._collections.names:
+            raise ScannerException('Collection with name {} does not exist' \
+                                   .format(collection_name))
+
+        index = self._collections.names[:].index(collection_name)
+        id = self._collections.ids[index]
+        del self._collections.names[index]
+        del self._collections.ids[index]
+
+        os.remove('{}/pydb/collection_{}.bin'.format(self._db_path, id))
+
+    def new_collection(self, collection_name, table_names, force=False):
         """
         Creates a new Collection from a list of tables.
 
@@ -338,13 +348,20 @@ class Database:
             collection_name: String name of the collection to create.
             table_names: List of table name strings to put in the collection.
 
+        Kwargs:
+            force: TODO(wcrichto)
+
         Returns:
             The new Collection object.
         """
+
         if collection_name in self._collections.names:
-            log.critical('Collection with name {} already exists' \
-                             .format(collection_name))
-            exit()
+            if force:
+                self.delete_collection(collection_name)
+            else:
+                raise ScannerException(
+                    'Collection with name {} already exists' \
+                    .format(collection_name))
 
         last_id = self._collections.ids[-1] if len(self._collections.ids) > 0 else -1
         new_id = last_id + 1
@@ -398,6 +415,9 @@ class Database:
             videos)
         return collection
 
+    def has_collection(self, name):
+        return name in self._collections.names
+
     def collection(self, name):
         index = self._collections.names[:].index(name)
         id = self._collections.ids[index]
@@ -416,13 +436,11 @@ class Database:
                     table_id = table.id
                     break
             if table_id is None:
-                log.critical('Table with name {} not found'.format(name))
-                exit()
+                raise ScannerException('Table with name {} not found'.format(name))
         elif isinstance(name, int):
             table_id = name
         else:
-            log.critical('Invalid table identifier')
-            exit()
+            raise ScannerException('Invalid table identifier')
 
         descriptor = self._load_descriptor(
             self._metadata_types.TableDescriptor,
@@ -441,8 +459,7 @@ class Database:
                     job_id = job.id
                     break
             if job_id is None:
-                log.critical('Job name {} does not exist'.format(job_name))
-                exit()
+                raise ScannerException('Job name {} does not exist'.format(job_name))
         else:
             job_id = job_name
 
@@ -508,7 +525,7 @@ class Database:
 
         return self._toposort(evaluator)
 
-    def run(self, tasks, evaluator, output_collection=None, job_name=None):
+    def run(self, tasks, evaluator, output_collection=None, job_name=None, force=False):
         """
         Runs a computation over a set of inputs.
 
@@ -527,6 +544,7 @@ class Database:
                                tables.
             job_name: An optional name to assign the job. It will be randomly
                       generated if none is given.
+            force: TODO(wcrichto)
 
         Returns:
             Either the output Collection is output_collection is specified
@@ -546,8 +564,8 @@ class Database:
             elif status == grpc.StatusCode.OK:
                 pass
             else:
-                log.critical('Master ping errored with status: {}'.format(status))
-                exit()
+                raise ScannerException('Master ping errored with status: {}' \
+                                   .format(status))
 
         # If the input is a collection, assume user is running over all frames
         input_is_collection = isinstance(tasks, Collection)
@@ -557,6 +575,10 @@ class Database:
 
         # If the output should be a collection, then set the table names
         if output_collection is not None:
+            if self.has_collection(output_collection) and not force:
+                raise ScannerException(
+                    'Collection with name {} already exists' \
+                    .format(output_collection))
             for task in tasks:
                 new_name = '{}:{}'.format(
                     output_collection,
@@ -575,14 +597,13 @@ class Database:
         try:
             self._master.NewJob(job_params)
         except grpc.RpcError as e:
-            log.critical('Job failed with error: {}'.format(e))
-            exit()
+            raise ScannerException('Job failed with error: {}'.format(e))
 
         # Return a new collection if the input was a collection, otherwise
         # return a table list
         table_names = [task.output_table_name for task in tasks]
         if output_collection is not None:
-            return self.new_collection(output_collection, table_names)
+            return self.new_collection(output_collection, table_names, force)
         else:
             return [self.table(t) for t in table_names]
 
@@ -617,19 +638,16 @@ class Sampler:
 
     def range(self, video, start, end):
         if isinstance(video, list) or isinstance(video, Collection):
-            log.critical('range only takes a single video')
-            exit()
+            raise ScannerException('Sampler.range only takes a single video')
 
         return self.strided_range(video, start, end, 1)
 
     def strided_range(self, video, start, end, stride):
         if isinstance(video, list) or isinstance(video, Collection):
-            log.critical('strided_range only takes a single video')
-            exit()
+            raise ScannerException('Sampler.strided_range only takes a single video')
         if not isinstance(video, tuple):
-            log.critical("""Error: sampler input must either be a collection or \
-(input_table, output_table) pair')""")
-            exit()
+            raise ScannerException("""Error: sampler input must either be a collection \
+or (input_table, output_table) pair')""")
 
         (input_table_name, output_table_name) = video
         task = self._db._metadata_types.Task()
@@ -643,6 +661,17 @@ class Sampler:
         sample.rows.extend(
             range(min(start, num_rows), min(end, num_rows), stride))
         return task
+
+
+class ProtobufGenerator:
+    def __init__(self, db):
+        self._db = db
+
+    def __getattr__(self, name):
+        for mod in self._db._arg_types:
+            if hasattr(mod, name):
+                return getattr(mod, name)
+        raise ScannerException('No protobuf with name {}'.format(name))
 
 
 class EvaluatorGenerator:
@@ -664,8 +693,7 @@ class EvaluatorGenerator:
             return lambda inputs: Evaluator.output(self._db, inputs)
 
         if not self._db._bindings.has_evaluator(name):
-            log.critical('Evaluator {} does not exist'.format(name))
-            exit()
+            raise ScannerException('Evaluator {} does not exist'.format(name))
         def make_evaluator(**kwargs):
             inputs = kwargs.pop('inputs', [])
             device = kwargs.pop('device', DeviceType.CPU)
@@ -711,13 +739,7 @@ class Evaluator:
         if len(self._args) > 0:
             proto_name = self._name + 'Args' \
                          if self._proto is None else self._proto + 'Args'
-            args_proto = None
-            for mod in self._db._arg_types:
-                if hasattr(mod, proto_name):
-                    args_proto = getattr(mod, proto_name)()
-            if args_proto is None:
-                log.critical('Missing protobuf {}'.format(proto_name))
-                exit()
+            args_proto = self._db.proto(proto_name)()
             for k, v in self._args.iteritems():
                 try:
                     setattr(args_proto, k, v)
@@ -775,8 +797,7 @@ class Column:
         try:
             contents = self._storage.read(path)
         except UserWarning:
-            log.critical('Path {} does not exist'.format(path))
-            exit()
+            raise ScannerException('Path {} does not exist'.format(path))
 
         lens = []
         start_pos = None
@@ -868,9 +889,8 @@ class Table:
                 if task.output_table_name == self._descriptor.name:
                     self._task = task
             if self._task is None:
-                log.critical('Table {} not found in job {}'.format(
-                    self._descriptor.name, job_id))
-                exit()
+                raise ScannerException('Table {} not found in job {}' \
+                                   .format(self._descriptor.name, job_id))
         else:
             self._job = None
 
@@ -1116,8 +1136,7 @@ class NetDescriptor:
             d.mean_width = mean['width']
             d.mean_height = mean['height']
             # TODO: load mean binaryproto
-            log.critical('TODO')
-            exit()
+            raise ScannerException('TODO')
 
         return self
 
