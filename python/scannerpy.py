@@ -571,9 +571,6 @@ class Database:
         job_params.task_set.evaluators.extend(self._process_dag(evaluator))
         job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
 
-        print job_params.task_set.evaluators
-        exit()
-
         # Execute job via RPC
         try:
             self._master.NewJob(job_params)
