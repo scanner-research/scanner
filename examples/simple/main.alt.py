@@ -5,10 +5,10 @@ import cv2
 db = Database()
 
 # hist = db.evaluators.Histogram(device = DeviceType.GPU)
-descriptor = NetDescriptor.from_file(db, '/h/wcrichto/scanner/features/googlenet.toml')
+descriptor = NetDescriptor.from_file(
+    db, '/home/wcrichto/scanner/features/googlenet.toml')
 caffe_args = {
     'device': DeviceType.GPU,
-    'proto': 'Caffe',
     'net_descriptor': descriptor.as_proto(),
     'batch_size': 96
 }
@@ -16,7 +16,7 @@ table_input = db.evaluators.Input()
 caffe_input = db.evaluators.CaffeInput(
     inputs=[(table_input, ["frame", "frame_info"])],
     **caffe_args)
-caffe = db.evaluators.GoogleNet(
+caffe = db.evaluators.Caffe(
     inputs=[(caffe_input, ["caffe_frame"]), (table_input, ["frame_info"])],
     **caffe_args)
 
@@ -32,7 +32,8 @@ def single_video():
 
 def video_collection():
     input_collection = db.ingest_video_collection(
-        'meangirls', ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'])
+        'meangirls', ['/bigdata/wcrichto/videos/meanGirls_short.mp4'],
+        force=True)
     input_collection = db.collection('meangirls')
     sampler = db.sampler()
     strided = sampler.strided(input_collection, 1)

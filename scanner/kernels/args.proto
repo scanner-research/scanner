@@ -29,6 +29,11 @@ message NetDescriptor {
   int32 pad_mod = 14;
 }
 
+message CaffeInputArgs {
+  NetDescriptor net_descriptor = 1;
+  int32 batch_size = 2;
+}
+
 message CaffeArgs {
   NetDescriptor net_descriptor = 1;
   int32 batch_size = 2;

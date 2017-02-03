@@ -33,7 +33,7 @@ protected:
   void transform_caffe(u8* input_buffer, u8* output_buffer);
 
   DeviceHandle device_;
-  proto::CaffeArgs args_;
+  proto::CaffeInputArgs args_;
   i32 net_input_width_;
   i32 net_input_height_;
   CUcontext context_;

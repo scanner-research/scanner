@@ -323,6 +323,10 @@ class WorkerImpl final : public proto::Worker::Service {
       kernel_config.work_item_size = work_item_size;
       kernel_config.args = std::vector<u8>(evaluator.kernel_args().begin(),
                                            evaluator.kernel_args().end());
+      const std::vector<std::string>& output_columns =
+        evaluator_info->output_columns();
+      kernel_config.output_columns = std::vector<std::string>(
+        output_columns.begin(), output_columns.end());
 
       for (auto& input : evaluator.inputs()) {
         const proto::Evaluator& input_evaluator =

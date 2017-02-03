@@ -310,6 +310,7 @@ void* evaluate_thread(void* arg) {
         // by the kernel
         BatchedColumns input_columns;
         for (i32 in_col_idx : column_mapping[k]) {
+          assert(in_col_idx < side_output_columns.size());
           input_columns.push_back(side_output_columns[in_col_idx]);
         }
         // If current evaluator type and input buffer type differ, then move

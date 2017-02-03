@@ -31,30 +31,4 @@ protected:
 
 proto::NetDescriptor descriptor_from_net_file(const std::string& path);
 
-template<typename T>
-std::vector<T> repeatedptrfield_to_vector(
-  const google::protobuf::RepeatedPtrField<T> ptrfield) {
-  std::vector<T> vec;
-  for (auto& el : ptrfield) {
-    vec.push_back(el);
-  }
-  return vec;
-}
-
-#define REGISTER_CAFFE_EVALUATOR(net__, desc__)       \
-  REGISTER_CAFFE_EVALUATOR_HELPER(__COUNTER__, net__, desc__)
-
-#define REGISTER_CAFFE_EVALUATOR_HELPER(uid__, net__, desc__) \
-  REGISTER_CAFFE_EVALUATOR_UID(uid__, net__, desc__)
-
-#define REGISTER_CAFFE_EVALUATOR_UID(uid__, net__, desc__)    \
-  static ::scanner::proto::NetDescriptor net_descriptor_##uid__ =       \
-    descriptor_from_net_file(desc__);                                   \
-  REGISTER_EVALUATOR(net__).outputs(                                    \
-    repeatedptrfield_to_vector(net_descriptor_##uid__.output_layer_names())); \
-
-#define REGISTER_CAFFE_KERNELS(net__, kernel__)                                  \
-  REGISTER_KERNEL(net__, kernel__).device(DeviceType::CPU).num_devices(1); \
-  REGISTER_KERNEL(net__, kernel__).device(DeviceType::GPU).num_devices(1);
-
 }

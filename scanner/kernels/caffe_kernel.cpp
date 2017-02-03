@@ -230,6 +230,13 @@ CaffeKernel::CaffeKernel(const Kernel::Config& config)
   input_blob->Reshape({args_.batch_size(), input_blob->shape(1), input_blob->shape(2),
         input_blob->shape(3)});
 
+  size_t intended_output = descriptor.output_layer_names().size();
+  size_t actual_output = config.output_columns.size();
+  LOG_IF(FATAL, intended_output != actual_output)
+    << "# output columns in net descriptor (" << intended_output << ") "
+    << "does not match number of output columns registered for evaluator "
+    << "(" << actual_output << "). If you have multiple net outputs, you must "
+    << "registry your own evaluator using the CaffeKernel.";
 }
 
 void CaffeKernel::new_frame_info()  {
@@ -390,7 +397,8 @@ void CaffeKernel::set_device() {
   }
 }
 
-REGISTER_CAFFE_EVALUATOR(GoogleNet, internal::get_scanner_path()+"/features/googlenet.toml");
-REGISTER_CAFFE_KERNELS(GoogleNet, CaffeKernel);
+REGISTER_EVALUATOR(Caffe).outputs({"caffe_output"});
+REGISTER_KERNEL(Caffe, CaffeKernel).device(DeviceType::CPU).num_devices(1);
+REGISTER_KERNEL(Caffe, CaffeKernel).device(DeviceType::GPU).num_devices(1);
 
 }
