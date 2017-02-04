@@ -50,24 +50,6 @@ inline double nano_since(timepoint_t then) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Path utils
-inline std::string dirname_s(const std::string& path) {
-  char* path_copy = strdup(path.c_str());
-  char* dir = dirname(path_copy);
-  return std::string(dir);
-}
-
-inline std::string basename_s(const std::string& path) {
-  char* path_copy = strdup(path.c_str());
-  char* base = basename(path_copy);
-  return std::string(base);
-}
-
-int mkdir_p(const char* path, mode_t mode);
-
-void temp_file(FILE** file, std::string& name);
-
-///////////////////////////////////////////////////////////////////////////////
 /// String processing
 inline void split(const std::string &s, char delim,
                   std::vector<std::string> &elems) {

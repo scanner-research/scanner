@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
+option(BUILD_TESTS "" ON)
 option(BUILD_VIDEO_EVALUATORS "" ON)
 option(BUILD_IMAGE_EVALUATORS "" OFF)
 option(BUILD_IMAGE_PROCESSING_EVALUATORS "" ON)
@@ -32,7 +33,9 @@ option(BUILD_COMPARISON "" OFF)
 option(BUILD_EXAMPLES "" ON)
 option(ENABLE_PROFILING "" OFF)
 
-enable_testing()
+if (BUILD_TESTS)
+  enable_testing()
+endif()
 
 ###### Setup #########
 # Verify C++11 support
@@ -52,6 +55,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 set(GLOBAL_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(THIRDPARTY_SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty")
+set(THIRDPARTY_OUTPUT_PATH "${THIRDPARTY_SOURCE_DIR}/build/bin")
 
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type selected, defaulting to Release")
@@ -222,11 +226,11 @@ find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
 
 set(GTEST_INCLUDE_DIRS
-  "${GLOBAL_OUTPUT_PATH}/googletest/include")
+  "${THIRDPARTY_OUTPUT_PATH}/googletest/include")
 set(GTEST_LIBRARIES
-  "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest.a")
+  "${THIRDPARTY_OUTPUT_PATH}/googletest/lib/libgtest.a")
 set(GTEST_LIB_MAIN
-  "${GLOBAL_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
+  "${THIRDPARTY_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
 set(SCANNER_LIBRARIES
   "${PROTOBUF_LIBRARY}"
@@ -263,6 +267,11 @@ include_directories(
   "${Boost_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}")
+
+if (BUILD_TESTS)
+  message("${GTEST_INCLUDE_DIRS}" )
+  include_directories("${GTEST_INCLUDE_DIRS}")
+endif()
 
 if (CUDA_FOUND)
   list(APPEND SCANNER_LIBRARIES
