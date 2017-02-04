@@ -269,7 +269,6 @@ include_directories(
   "${LIBLZMA_INCLUDE_DIRS}")
 
 if (BUILD_TESTS)
-  message("${GTEST_INCLUDE_DIRS}" )
   include_directories("${GTEST_INCLUDE_DIRS}")
 endif()
 

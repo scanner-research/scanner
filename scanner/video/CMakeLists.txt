@@ -20,6 +20,9 @@ list(APPEND SOURCE_FILES
 add_library(video OBJECT
   ${SOURCE_FILES})
 
+set_source_files_properties(${PROTO_SRCS} ${GRPC_PROTO_SRCS} PROPERTIES
+  GENERATED TRUE)
+
 add_executable(DecoderAutomataTest decoder_automata_test.cpp
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:util>
