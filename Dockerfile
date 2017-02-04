@@ -5,11 +5,12 @@ ADD . /opt/scanner
 WORKDIR /opt/scanner
 RUN cd thirdparty && mkdir build && cd build && \
     cmake -D CMAKE_BUILD_TYPE=Release .. && \
-    make
+    make -j
 RUN mkdir build && cd build && \
     cmake -D BUILD_CAFFE_EVALUATORS=ON \
           -D BUILD_CAFFE_INPUT_EVALUATORS=ON \
           -D BUILD_UTIL_EVALUATORS=ON \
+          -D BUILD_TESTS=ON \
           .. && \
-    make
+    make -j
 RUN mv .scanner.example.toml /root/.scanner.toml
