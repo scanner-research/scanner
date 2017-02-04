@@ -12,7 +12,7 @@ include(FindPackageHandleStandardArgs)
 set(EIGEN_ROOT_DIR "" CACHE PATH "Folder contains Eigen")
 
 if (NOT "$ENV{Eigen_DIR}" STREQUAL "")
-  set(EIGEN_ROOT_DIR $ENV{Eigen_DIR})
+  set(EIGEN_ROOT_DIR $ENV{Eigen_DIR} CACHE PATH "Folder contains Eigen" FORCE)
 endif()
 
 # We are testing only a couple of files in the include directories

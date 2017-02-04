@@ -5,7 +5,8 @@
 set(HALIDE_ROOT_DIR "" CACHE PATH "Folder contains Halide")
 
 if (NOT "$ENV{Halide_DIR}" STREQUAL "")
-  set(HALIDE_ROOT_DIR $ENV{Halide_DIR})
+  set(HALIDE_ROOT_DIR $ENV{Halide_DIR} CACHE PATH "Folder contains Halide"
+    FORCE)
 endif()
 
 find_library(HALIDE_LIBRARIES
