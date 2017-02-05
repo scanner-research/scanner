@@ -2,21 +2,35 @@
 #include "scanner/kernels/args.pb.h"
 #include "scanner/kernels/caffe_kernel.h"
 #include "scanner/api/commands.h"
+#include "scanner/util/fs.h"
 
 #include <grpc/grpc_posix.h>
+
+namespace {
+std::string download_video(const std::string& video_url) {
+  std::string local_video_path;
+  scanner::temp_file(local_video_path);
+  scanner::download(video_url, local_video_path);
+  return local_video_path;
+}
+}
 
 int main(int argc, char** argv) {
   grpc_use_signal(-1);
 
-  std::string db_path = "/tmp/test_db";
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
+
+  std::string db_path;
+  scanner::temp_dir(db_path);
+
+  std::string video_path = download_video(
+      "https://storage.googleapis.com/scanner-data/test/short_video.mp4");
 
   // Create database
   scanner::create_database(sc.get(), db_path);
   // Ingest video
-  scanner::ingest_videos(sc.get(), db_path, {"mean"},
-                         {"/n/scanner/wcrichto.new/videos/meanGirls_short.mp4"});
+  scanner::ingest_videos(sc.get(), db_path, {"mean"}, {video_path});
   // Initialize master and one worker
   scanner::DatabaseParameters db_params;
   db_params.storage_config = sc.get();
@@ -28,7 +42,6 @@ int main(int argc, char** argv) {
   scanner::ServerState worker_state =
       scanner::start_worker(db_params, worker_params, "localhost:5001", false);
 
-  printf("after start workers\n");
   // Construct job parameters
   scanner::JobParameters params;
   params.master_address = "localhost:5001";

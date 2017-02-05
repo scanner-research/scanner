@@ -22,7 +22,7 @@
 
 namespace scanner {
 namespace internal {
-
+namespace {
 struct TestVideoInfo {
   TestVideoInfo(i32 w, i32 h, const std::string &u, const std::string& m)
       : width(w), height(h), data_url(u), metadata_url(m) {}
@@ -50,6 +50,7 @@ std::string download_video_meta(const TestVideoInfo& info) {
   temp_file(local_path);
   download(info.metadata_url, local_path);
   return local_path;
+}
 }
 
 TEST(DecoderAutomata, GetAllFrames) {

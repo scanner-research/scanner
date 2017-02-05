@@ -46,7 +46,7 @@ void temp_file(FILE** file, std::string& name);
 
 void temp_file(std::string& name);
 
-void temp_dir(FILE** file, std::string& name);
+void temp_dir(std::string& name);
 
 void download(const std::string& url, const std::string& local_path);
 
