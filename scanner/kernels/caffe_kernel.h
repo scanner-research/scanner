@@ -15,6 +15,9 @@
 
 namespace scanner {
 
+using CustomNetConfiguration = void (*)(const FrameInfo &frame_info,
+                                        caffe::Net<float> *net);
+
 class CaffeKernel : public VideoKernel {
 public:
   CaffeKernel(const Kernel::Config& config);
@@ -23,10 +26,13 @@ public:
                BatchedColumns& output_columns) override;
   void set_device();
 
+  virtual void net_config() {}
+
 protected:
   DeviceHandle device_;
   proto::CaffeArgs args_;
   std::unique_ptr<caffe::Net<float>> net_;
+  CustomNetConfiguration net_config_;
 };
 
 proto::NetDescriptor descriptor_from_net_file(const std::string& path);

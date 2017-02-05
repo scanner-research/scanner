@@ -88,6 +88,8 @@ struct JobParameters {
   std::string job_name;
   TaskSet task_set;
   i32 kernel_instances_per_node;
+  i64 io_item_size;
+  i64 work_item_size;
 };
 
 void new_job(JobParameters& params);

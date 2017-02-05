@@ -20,15 +20,16 @@ endif()
 if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
     caffe_kernel.cpp
-    caffe_input_kernel.cpp
     caffe_kernel_cpu.cpp
+    caffe_input_kernel.cpp
     caffe_input_kernel_cpu.cpp
     facenet_output_kernel_cpu.cpp)
   if (BUILD_CUDA)
     list(APPEND SOURCE_FILES
       caffe_kernel_gpu.cpp
       caffe_input_kernel_gpu.cpp
-      facenet_input_kernel_gpu.cpp)
+      facenet_input_kernel_gpu.cpp
+      facenet_kernel.cpp)
   endif()
 endif()
 

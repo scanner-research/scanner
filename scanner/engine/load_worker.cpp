@@ -219,8 +219,8 @@ void *load_thread(void *arg) {
 
   auto setup_start = now();
 
-  const i32 io_item_size = rows_per_io_item();
-  const i32 work_item_size = rows_per_work_item();
+  const i32 io_item_size = args.job_params->io_item_size();
+  const i32 work_item_size = args.job_params->work_item_size();
 
   // Setup a distinct storage backend for each IO thread
   storehouse::StorageBackend *storage =

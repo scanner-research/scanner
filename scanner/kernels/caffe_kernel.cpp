@@ -1,11 +1,12 @@
 #include "scanner/kernels/caffe_kernel.h"
+#include "scanner/engine/db.h"
+
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
 #include "caffe/net.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/db.hpp"
 #include "caffe/util/io.hpp"
-#include "scanner/engine/db.h"
 #include "toml/toml.h"
 
 namespace scanner {
@@ -14,9 +15,6 @@ using caffe::Blob;
 using caffe::BlobProto;
 using caffe::Caffe;
 using caffe::Net;
-
-using CustomNetConfiguration = void (*)(const FrameInfo &frame_info,
-                                        caffe::Net<float> *net);
 
 caffe::Caffe::Brew device_type_to_caffe_mode(DeviceType type) {
   caffe::Caffe::Brew caffe_type;
@@ -255,6 +253,7 @@ void CaffeKernel::new_frame_info() {
                          input_blob->shape(2), input_blob->shape(3)});
   }
 
+
   i32 width, height;
   if (descriptor.transpose()) {
     width = frame_height;
@@ -287,6 +286,8 @@ void CaffeKernel::new_frame_info() {
 
   input_blob->Reshape(
       {input_blob->shape(0), input_blob->shape(1), height, width});
+
+  net_config();
 }
 
 void CaffeKernel::execute(const BatchedColumns &input_columns,

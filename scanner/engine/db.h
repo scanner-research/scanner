@@ -223,10 +223,6 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 /// Constants
 
-inline i32 rows_per_io_item() { return IO_ITEM_SIZE; }
-
-inline i32 rows_per_work_item() { return WORK_ITEM_SIZE; }
-
 inline std::string frame_column_name() { return "frame"; }
 
 inline std::string frame_info_column_name() { return "frame_info"; }

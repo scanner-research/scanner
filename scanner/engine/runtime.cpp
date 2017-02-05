@@ -40,11 +40,13 @@ using storehouse::RandomReadFile;
 namespace scanner {
 namespace internal {
 
-void create_io_items(const std::map<std::string, TableMetadata> &table_metas,
-                     const proto::TaskSet &task_set,
-                     std::vector<IOItem> &io_items,
-                     std::vector<LoadWorkEntry> &load_work_entries) {
-  const i32 io_item_size = rows_per_io_item();
+void create_io_items(
+  const proto::JobParameters* job_params,
+  const std::map<std::string, TableMetadata> &table_metas,
+  const proto::TaskSet &task_set,
+  std::vector<IOItem> &io_items,
+  std::vector<LoadWorkEntry> &load_work_entries) {
+  const i32 io_item_size = job_params->io_item_size();
   auto &tasks = task_set.tasks();
   i32 warmup_size = 0;
   i32 total_rows = 0;
@@ -157,7 +159,7 @@ public:
         << "JobParameters.kernel_instances_per_node must be greater than 0.";
 
     timepoint_t base_time = now();
-    const i32 work_item_size = rows_per_work_item();
+    const i32 work_item_size = job_params->work_item_size();
     i32 warmup_size = 0;
 
     EvaluatorRegistry *evaluator_registry = get_evaluator_registry();
@@ -400,7 +402,7 @@ public:
     // Setup identical io item list on every node
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
-    create_io_items(table_meta, job_params->task_set(), io_items,
+    create_io_items(job_params, table_meta, job_params->task_set(), io_items,
                     load_work_entries);
 
     // Setup shared resources for distributing work to processing threads
@@ -421,7 +423,7 @@ public:
       // Create IO thread for reading and decoding data
       load_thread_args.emplace_back(LoadThreadArgs{
           // Uniform arguments
-          node_id_, io_items, warmup_size,
+          node_id_, io_items, warmup_size, job_params,
 
           // Per worker arguments
           i, db_params_.storage_config, load_thread_profilers[i],
@@ -498,7 +500,7 @@ public:
         // Create eval thread for passing data through neural net
         thread_args.emplace_back(EvaluateThreadArgs{
             // Uniform arguments
-            node_id_, io_items, warmup_size,
+            node_id_, io_items, warmup_size, job_params,
 
             // Per worker arguments
             ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg+1],
@@ -513,7 +515,7 @@ public:
         assert(kernel_groups.size() > 0);
         pre_eval_args.emplace_back(PreEvaluateThreadArgs{
             // Uniform arguments
-            node_id_, io_items, warmup_size, num_cpus,
+            node_id_, io_items, warmup_size, num_cpus, job_params,
 
             // Per worker arguments
               ki, first_kernel_type, eval_thread_profilers.front(),
@@ -824,8 +826,8 @@ public:
                       proto::Empty *empty) {
     set_database_path(db_params_.db_path);
 
-    const i32 io_item_size = rows_per_io_item();
-    const i32 work_item_size = rows_per_work_item();
+    const i32 io_item_size = job_params->io_item_size();
+    const i32 work_item_size = job_params->work_item_size();
 
     i32 warmup_size = 0;
     i32 total_rows = 0;
@@ -903,7 +905,7 @@ public:
 
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
-    create_io_items(table_meta, job_params->task_set(), io_items,
+    create_io_items(job_params, table_meta, job_params->task_set(), io_items,
                     load_work_entries);
     next_io_item_to_allocate_ = 0;
     num_io_items_ = io_items.size();

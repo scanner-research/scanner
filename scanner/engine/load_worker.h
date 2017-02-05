@@ -27,6 +27,7 @@ struct LoadThreadArgs {
   i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
+  const proto::JobParameters* job_params;
 
   // Per worker arguments
   int id;

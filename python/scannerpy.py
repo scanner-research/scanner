@@ -101,6 +101,14 @@ scanner_path in {} is correct and that Scanner is built correctly.""" \
                 job = config['job']
                 if 'kernel_instances_per_node' in job:
                     self.kernel_instances_per_node = job['kernel_instances_per_node']
+                if 'io_item_size' in job:
+                    self.io_item_size = job['io_item_size']
+                else:
+                    self.io_item_size = 1000
+                if 'work_item_size' in job:
+                    self.work_item_size = job['work_item_size']
+                else:
+                    self.work_item_size = 250
 
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))
@@ -178,6 +186,7 @@ class Database:
             self.config.storage_config,
             self.config.memory_pool_config.SerializeToString(),
             self._db_path)
+        self._cached_db_metadata = None
 
         self.evaluators = EvaluatorGenerator(self)
         self.protobufs = ProtobufGenerator(self)
@@ -236,9 +245,12 @@ class Database:
             descriptor.SerializeToString())
 
     def _load_db_metadata(self):
-        return self._load_descriptor(
-            self._metadata_types.DatabaseDescriptor,
-            'db_metadata.bin')
+        if self._cached_db_metadata is None:
+            desc = self._load_descriptor(
+                self._metadata_types.DatabaseDescriptor,
+                'db_metadata.bin')
+            self._cached_db_metadata = desc
+        return self._cached_db_metadata
 
     def start_master(self, block=False):
         """
@@ -286,6 +298,7 @@ class Database:
         if socket.gethostbyname(host) == local_ip:
             return Popen(cmd, shell=True)
         else:
+            print "ssh {} {}".format(host, cmd)
             return Popen("ssh {} {}".format(host, cmd), shell=True)
 
     def start_cluster(self, master, workers):
@@ -399,6 +412,7 @@ class Database:
             self._db_path,
             [table_name],
             [video])
+        self._cached_db_metadata = None
         return self.table(table_name)
 
     def ingest_video_collection(self, collection_name, videos, force=False):
@@ -423,6 +437,7 @@ class Database:
             self._db_path,
             table_names,
             videos)
+        self._cached_db_metadata = None
         return collection
 
     def has_collection(self, name):
@@ -435,6 +450,13 @@ class Database:
             self._metadata_types.CollectionDescriptor,
             'pydb/collection_{}.bin'.format(id))
         return Collection(self, name, collection)
+
+    def has_table(self, name):
+        db_meta = self._load_db_metadata()
+        for table in db_meta.tables:
+            if table.name == name:
+                return True
+        return False
 
     def table(self, name):
         db_meta = self._load_db_metadata()
@@ -560,22 +582,6 @@ class Database:
             Either the output Collection is output_collection is specified
             or a list of Table objects.
         """
-        # Ping master and start master/worker locally if they don't exist.
-        try:
-            self._master.Ping(self._rpc_types.Empty())
-        except grpc.RpcError as e:
-            status = e.code()
-            if status == grpc.StatusCode.UNAVAILABLE:
-                log.warn("Master not started, creating temporary master/worker")
-                # If they get GC'd then the masters/workers will die, so persist
-                # them until the database object dies
-                self._ignore1 = self.start_master()
-                self._ignore2 = self.start_worker()
-            elif status == grpc.StatusCode.OK:
-                pass
-            else:
-                raise ScannerException('Master ping errored with status: {}' \
-                                   .format(status))
 
         # If the input is a collection, assume user is running over all frames
         input_is_collection = isinstance(tasks, Collection)
@@ -602,12 +608,33 @@ class Database:
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.evaluators.extend(self._process_dag(evaluator))
         job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
+        job_params.io_item_size = self.config.io_item_size
+        job_params.work_item_size = self.config.work_item_size
+
+        # Ping master and start master/worker locally if they don't exist.
+        try:
+            self._master.Ping(self._rpc_types.Empty())
+        except grpc.RpcError as e:
+            status = e.code()
+            if status == grpc.StatusCode.UNAVAILABLE:
+                log.warn("Master not started, creating temporary master/worker")
+                # If they get GC'd then the masters/workers will die, so persist
+                # them until the database object dies
+                self._ignore1 = self.start_master()
+                self._ignore2 = self.start_worker()
+            elif status == grpc.StatusCode.OK:
+                pass
+            else:
+                raise ScannerException('Master ping errored with status: {}' \
+                                   .format(status))
 
         # Execute job via RPC
         try:
             self._master.NewJob(job_params)
         except grpc.RpcError as e:
             raise ScannerException('Job failed with error: {}'.format(e))
+
+        self._cached_db_metadata = None
 
         db_meta = self._load_db_metadata();
         job_id = None
@@ -889,7 +916,8 @@ class Column:
         if self._descriptor.type == self._db._metadata_types.Video:
             sampler = self._db.sampler()
             tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
-            [out_tbl] = self._db.run(tasks, self._db.evaluators.ImageEncoder())
+            [out_tbl] = self._db.run(tasks, self._db.evaluators.ImageEncoder(),
+                                     force=True)
             return out_tbl.columns(0).load(self._decode_png)
         else:
             return self._load_all(fn)

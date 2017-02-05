@@ -391,7 +391,7 @@ const std::string &get_database_path() {
 }
 
 void set_database_path(std::string path) {
-  printf("SETTING DB PATH TO %s\n", path.c_str());
+  LOG(INFO) << "Setting DB path to " << path;
   get_database_path_ref() = path + "/";
   std::atomic_thread_fence(std::memory_order_release);
 }

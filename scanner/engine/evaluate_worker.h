@@ -36,6 +36,7 @@ struct PreEvaluateThreadArgs {
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
   i32 num_cpus;
+  const proto::JobParameters* job_params;
 
   // Per worker arguments
   i32 id;
@@ -52,6 +53,7 @@ struct EvaluateThreadArgs {
   i32 node_id;
   const std::vector<IOItem>& io_items;
   i32 warmup_count;
+  const proto::JobParameters* job_params;
 
   // Per worker arguments
   i32 ki;

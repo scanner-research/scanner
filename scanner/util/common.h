@@ -99,8 +99,6 @@ std::string image_encoding_type_to_string(proto::ImageEncodingType d);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
-extern i64 IO_ITEM_SIZE;           // Number of rows to load and save at a time
-extern i64 WORK_ITEM_SIZE;         // Max size of a work item
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 NUM_CUDA_STREAMS;  // # of cuda streams for image processing
 }

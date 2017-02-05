@@ -61,7 +61,7 @@ void move_if_different_address_space(Profiler &profiler,
 void *pre_evaluate_thread(void *arg) {
   PreEvaluateThreadArgs &args = *reinterpret_cast<PreEvaluateThreadArgs *>(arg);
 
-  i64 work_item_size = rows_per_work_item();
+  i64 work_item_size = args.job_params->work_item_size();
 
   i32 last_table_id = -1;
   i32 last_end_row = -1;
@@ -274,7 +274,7 @@ void *evaluate_thread(void *arg) {
     }
     while (current_input < total_inputs) {
       i32 batch_size =
-          std::min(total_inputs - current_input, (i32)WORK_ITEM_SIZE);
+        std::min(total_inputs - current_input, args.job_params->work_item_size());
 
       BatchedColumns side_input_columns;
       DeviceHandle input_handle;

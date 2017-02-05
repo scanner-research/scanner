@@ -23,7 +23,7 @@ UserFunctionRegistry* get_user_function_registry();
 
 template<typename T>
 T UserFunctionRegistry::get_user_function(const std::string &name) {
-  return (T) fns_.at(name);
+  return reinterpret_cast<T>(fns_.at(name));
 }
 
 namespace internal {
