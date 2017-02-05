@@ -115,7 +115,9 @@ if (BUILD_VIDEO_EVALUATORS)
   #find_package(MFX)
 endif()
 
-add_library(scanner_halide scanner/engine/halide_context.cpp)
+if (CUDA_FOUND)
+  add_library(scanner_halide scanner/engine/halide_context.cpp)
+endif()
 
 if (BUILD_CAFFE_EVALUATORS)
   find_package(Caffe REQUIRED)
