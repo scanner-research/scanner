@@ -27,9 +27,9 @@ using storehouse::RandomReadFile;
 namespace scanner {
 namespace internal {
 namespace {
-std::tuple<size_t, size_t> find_keyframe_indices(
-    i32 start_frame, i32 end_frame,
-    const std::vector<i64>& keyframe_positions) {
+std::tuple<size_t, size_t>
+find_keyframe_indices(i32 start_frame, i32 end_frame,
+                      const std::vector<i64> &keyframe_positions) {
   size_t start_keyframe_index = std::numeric_limits<size_t>::max();
   for (size_t i = 1; i < keyframe_positions.size(); ++i) {
     if (keyframe_positions[i] > start_frame) {
@@ -211,11 +211,11 @@ void read_other_column(storehouse::StorageBackend *storage, i32 table_id,
     offset += buffer_size;
   }
   assert(valid_idx == valid_offsets.size());
-  }
+}
 }
 
-void* load_thread(void* arg) {
-  LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
+void *load_thread(void *arg) {
+  LoadThreadArgs &args = *reinterpret_cast<LoadThreadArgs *>(arg);
 
   auto setup_start = now();
 
@@ -223,7 +223,7 @@ void* load_thread(void* arg) {
   const i32 work_item_size = rows_per_work_item();
 
   // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend* storage =
+  storehouse::StorageBackend *storage =
       storehouse::StorageBackend::make_from_config(args.storage_config);
 
   // Caching table metadata
@@ -251,8 +251,8 @@ void* load_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[load_work_entry.io_item_index()];
-    const auto& samples = load_work_entry.samples();
+    const IOItem &io_item = args.io_items[load_work_entry.io_item_index()];
+    const auto &samples = load_work_entry.samples();
 
     if (io_item.table_id != last_table_id) {
       // Not from the same task so clear cached data
@@ -274,16 +274,16 @@ void* load_thread(void* arg) {
 
     i32 media_col_idx = 0;
     i32 out_col_idx = 0;
-    for (const proto::LoadSample& sample : samples) {
+    for (const proto::LoadSample &sample : samples) {
       i32 table_id = sample.table_id();
-      const google::protobuf::RepeatedField<i64>& rows = sample.rows();
+      const google::protobuf::RepeatedField<i64> &rows = sample.rows();
       auto it = table_metadata.find(table_id);
       if (it == table_metadata.end()) {
         table_metadata[table_id] = read_table_metadata(
             storage, TableMetadata::descriptor_path(table_id));
         it = table_metadata.find(table_id);
       }
-      const TableMetadata& table_meta = it->second;
+      const TableMetadata &table_meta = it->second;
 
       RowIntervals intervals = slice_into_row_intervals(
           table_meta, std::vector<i64>(rows.begin(), rows.end()));
@@ -359,8 +359,6 @@ void* load_thread(void* arg) {
   delete storage;
 
   THREAD_RETURN_SUCCESS();
-
 }
-
 }
 }

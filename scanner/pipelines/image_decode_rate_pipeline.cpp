@@ -6,13 +6,13 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_meta,
-    const std::vector<DatasetItemMetadata>& item_metas) {
+PipelineDescription
+get_pipeline_description(const DatasetMetadata &dataset_meta,
+                         const std::vector<DatasetItemMetadata> &item_metas) {
   PipelineDescription desc;
   desc.input_columns = {"frame"};
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(new ImageDecoderEvaluatorFactory(DeviceType::CPU));

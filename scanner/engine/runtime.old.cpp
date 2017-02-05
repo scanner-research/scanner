@@ -14,11 +14,11 @@
  */
 
 #include "scanner/engine/runtime.h"
-#include "scanner/engine/save_worker.h"
+#include "scanner/engine/db.h"
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/load_worker.h"
-#include "scanner/engine/db.h"
 #include "scanner/engine/rpc.grpc.pb.h"
+#include "scanner/engine/save_worker.h"
 
 #include "scanner/evaluators/serialize.h"
 
@@ -33,19 +33,19 @@
 
 #include <glog/logging.h>
 
-#include <libgen.h>
-#include <pthread.h>
 #include <atomic>
 #include <cstdlib>
+#include <dlfcn.h>
+#include <libgen.h>
+#include <pthread.h>
 #include <string>
 #include <thread>
 #include <unistd.h>
-#include <dlfcn.h>
 
 #ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-#include "scanner/util/cuda.h"
 #endif
 
 using storehouse::StoreResult;
@@ -55,16 +55,17 @@ using storehouse::RandomReadFile;
 namespace scanner {
 
 class WorkCoordinatorImpl final : public WorkCoordinator::Service {
-  grpc::Status NextIOItem(grpc::ServerContext* context, const Empty* empty, IOItem* io_item) {
+  grpc::Status NextIOItem(grpc::ServerContext *context, const Empty *empty,
+                          IOItem *io_item) {
     LOG(FATAL) << "TODO";
   }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 /// run_job
-void run_job(JobParameters& params) {
-  storehouse::StorageBackend* storage =
-    storehouse::StorageBackend::make_from_config(params.storage_config);
+void run_job(JobParameters &params) {
+  storehouse::StorageBackend *storage =
+      storehouse::StorageBackend::make_from_config(params.storage_config);
 
   i32 rank;
   // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -116,7 +117,7 @@ void run_job(JobParameters& params) {
   std::vector<ImageFormatGroupMetadata> image_metadata;
   std::map<i32, InputFormat> input_formats;
   for (size_t i = 0; i < paths.size(); ++i) {
-    const std::string& path = paths.at(i);
+    const std::string &path = paths.at(i);
     std::unique_ptr<RandomReadFile> metadata_file;
     BACKOFF_FAIL(make_unique_random_read_file(
         storage, dataset_item_metadata_path(params.dataset_name, path),
@@ -131,9 +132,10 @@ void run_job(JobParameters& params) {
       u64 pos = 0;
       image_metadata.push_back(
           deserialize_image_format_group_metadata(metadata_file.get(), pos));
-      ImageFormatGroupMetadata& meta = image_metadata.back();
+      ImageFormatGroupMetadata &meta = image_metadata.back();
       LOG(FATAL) << "Under construction";
-      input_formats.insert({0xdeadbeef, InputFormat(meta.width(), meta.height())});
+      input_formats.insert(
+          {0xdeadbeef, InputFormat(meta.width(), meta.height())});
     }
   }
 
@@ -146,7 +148,7 @@ void run_job(JobParameters& params) {
   PipelineDescription pipeline_description = params.pipeline_description;
   {
     DatasetInformation info(params.dataset_name, dataset_job_names, storage);
-    //pipeline_description = params.pipeline_gen_fn(info);
+    // pipeline_description = params.pipeline_gen_fn(info);
   }
 
   // Validate pipeline description and load job metadata for jobs listed in
@@ -154,34 +156,34 @@ void run_job(JobParameters& params) {
   LOG_IF(FATAL, pipeline_description.tasks().empty())
       << "No tasks specified for pipeline description!";
   std::map<i32, JobMetadata> job_meta;
-  for (const Task& task : pipeline_description.tasks()) {
+  for (const Task &task : pipeline_description.tasks()) {
     LOG_IF(FATAL, task.samples().empty())
-      << "No samples specified for task with table name " << task.table_name()
+        << "No samples specified for task with table name " << task.table_name()
         << "!";
-    for (const TableSample& sample : task.samples()) {
+    for (const TableSample &sample : task.samples()) {
       LOG_IF(FATAL, !db_meta.has_job(dataset_id, sample.job_name()))
-        << "Requested job " << sample.job_name()
-        << " does not exist in dataset " << params.dataset_name << "!";
+          << "Requested job " << sample.job_name()
+          << " does not exist in dataset " << params.dataset_name << "!";
       i32 job_id = db_meta.get_job_id(dataset_id, sample.job_name());
       if (job_meta.count(job_id) == 0) {
         JobDescriptor descriptor;
         std::unique_ptr<RandomReadFile> file;
         BACKOFF_FAIL(make_unique_random_read_file(
-            storage, job_descriptor_path(params.dataset_name, sample.job_name()),
-            file));
+            storage,
+            job_descriptor_path(params.dataset_name, sample.job_name()), file));
         u64 pos = 0;
         JobDescriptor desc = deserialize_job_descriptor(file.get(), pos);
         job_meta.insert({job_id, JobMetadata(desc)});
       }
-      JobMetadata& meta = job_meta.at(job_id);
+      JobMetadata &meta = job_meta.at(job_id);
       LOG_IF(FATAL, !meta.has_table(sample.table_name()))
-        << "Requested table " << sample.table_name() << " does not exist in "
-        << "job " << sample.job_name() << " in dataset " << params.dataset_name
-        << "!";
+          << "Requested table " << sample.table_name() << " does not exist in "
+          << "job " << sample.job_name() << " in dataset "
+          << params.dataset_name << "!";
       LOG_IF(FATAL, sample.columns().empty())
-        << "No columns specified for sampling from table "
-        << sample.table_name() << " in job " << sample.job_name()
-        << " in dataset " << params.dataset_name << "!";
+          << "No columns specified for sampling from table "
+          << sample.table_name() << " in job " << sample.job_name()
+          << " in dataset " << params.dataset_name << "!";
       std::set<std::string> job_columns(meta.columns().begin(),
                                         meta.columns().end());
       assert(!job_columns.empty());
@@ -191,35 +193,35 @@ void run_job(JobParameters& params) {
       }
       for (const std::string &column : sample.columns()) {
         LOG_IF(FATAL, job_columns.count(column) == 0)
-          << "Requested column " << column << " does not exist in table "
-          << sample.table_name() << " in job " << sample.job_name()
-          << " in dataset " << params.dataset_name << "! Available columns "
-          << "are: " << available_columns;
+            << "Requested column " << column << " does not exist in table "
+            << sample.table_name() << " in job " << sample.job_name()
+            << " in dataset " << params.dataset_name << "! Available columns "
+            << "are: " << available_columns;
       }
     }
   }
 
   // Unwrap factories into raw pointers and get capabilities
-  void* handle = dlopen(NULL, RTLD_LAZY);
+  void *handle = dlopen(NULL, RTLD_LAZY);
   LOG_IF(FATAL, handle == NULL) << "dlopen failed: " << dlerror();
 
-  std::vector<EvaluatorFactory*> evaluator_factories;
-  for (const std::string& f : pipeline_description.evaluator_factories()) {
-    EvaluatorFactory* (*fptr)() =
-      reinterpret_cast<EvaluatorFactory*(*)()>(dlsym(handle, f.c_str()));
+  std::vector<EvaluatorFactory *> evaluator_factories;
+  for (const std::string &f : pipeline_description.evaluator_factories()) {
+    EvaluatorFactory *(*fptr)() =
+        reinterpret_cast<EvaluatorFactory *(*)()>(dlsym(handle, f.c_str()));
     evaluator_factories.push_back(fptr());
   }
   std::vector<EvaluatorCapabilities> evaluator_caps;
-  for (EvaluatorFactory* factory : evaluator_factories) {
+  for (EvaluatorFactory *factory : evaluator_factories) {
     evaluator_caps.push_back(factory->get_capabilities());
   }
 
   // Setup format metadata for each task
   std::map<i32, BatchConfig> format_metadata;
   for (size_t i = 0; i < pipeline_description.tasks().size(); ++i) {
-    const auto& task = pipeline_description.tasks(i);
+    const auto &task = pipeline_description.tasks(i);
     BatchConfig batch_config;
-    for (const auto& sample : task.samples()) {
+    for (const auto &sample : task.samples()) {
       if (sample.job_name() == base_job_name()) {
         i32 table_id = std::atoi(sample.table_name().c_str());
         batch_config.formats.push_back(input_formats[table_id]);
@@ -243,7 +245,7 @@ void run_job(JobParameters& params) {
 
   // Only calculate the warmup for video datasets
   if (dataset_meta.type() == DatasetType_Video) {
-    for (EvaluatorCapabilities& caps : evaluator_caps) {
+    for (EvaluatorCapabilities &caps : evaluator_caps) {
       warmup_size = std::max(warmup_size, caps.warmup_size);
     }
   }
@@ -256,10 +258,9 @@ void run_job(JobParameters& params) {
   std::vector<std::string> final_column_names;
   {
     std::vector<std::string> input_columns;
-    auto& task = pipeline_description.tasks(0);
-    for (auto& sample : task.samples()) {
-      input_columns.insert(input_columns.end(),
-                           sample.columns().begin(),
+    auto &task = pipeline_description.tasks(0);
+    for (auto &sample : task.samples()) {
+      input_columns.insert(input_columns.end(), sample.columns().begin(),
                            sample.columns().end());
     }
     for (auto factory : evaluator_factories) {
@@ -278,17 +279,17 @@ void run_job(JobParameters& params) {
     // all items associated with a single task to the same evaluator
     item_task_delimeters.push_back(io_items.size());
 
-    const Task& task = pipeline_description.tasks(i);
-    Task* jd_task = job_descriptor.add_tasks();
+    const Task &task = pipeline_description.tasks(i);
+    Task *jd_task = job_descriptor.add_tasks();
     jd_task->set_table_name(task.table_name());
     for (const TableSample &sample : task.samples()) {
       i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name());
-      JobMetadata& meta = job_meta.at(sample_job_id);
+      JobMetadata &meta = job_meta.at(sample_job_id);
 
-      TableSample* jd_sample = jd_task->add_samples();
+      TableSample *jd_sample = jd_task->add_samples();
       jd_sample->set_job_name(sample.job_name());
       jd_sample->set_table_name(sample.table_name());
-      for (const std::string& col : sample.columns()) {
+      for (const std::string &col : sample.columns()) {
         jd_sample->add_columns(col);
       }
       for (const i64 r : sample.rows()) {
@@ -316,17 +317,16 @@ void run_job(JobParameters& params) {
       load_item.io_item_index = io_items.size() - 1;
       for (const TableSample &sample : task.samples()) {
         i32 sample_job_id = db_meta.get_job_id(dataset_id, sample.job_name());
-        JobMetadata& meta = job_meta.at(sample_job_id);
+        JobMetadata &meta = job_meta.at(sample_job_id);
         i32 sample_table_id = meta.table_id(sample.table_name());
 
         load_item.samples.emplace_back();
-        LoadWorkEntry::Sample& load_sample = load_item.samples.back();
+        LoadWorkEntry::Sample &load_sample = load_item.samples.back();
         load_sample.job_id = sample_job_id;
         load_sample.table_id = sample_table_id;
-        load_sample.columns.insert(
-          load_sample.columns.begin(),
-          sample.columns().begin(),
-          sample.columns().end());
+        load_sample.columns.insert(load_sample.columns.begin(),
+                                   sample.columns().begin(),
+                                   sample.columns().end());
         i64 e = allocated_rows + rows_to_allocate;
         // Add extra frames for warmup
         i64 s = std::max(allocated_rows - warmup_size, 0L);
@@ -365,8 +365,8 @@ void run_job(JobParameters& params) {
     // Create IO thread for reading and decoding data
     load_thread_args.emplace_back(LoadThreadArgs{
         // Uniform arguments
-        dataset_meta, job_meta, video_metadata, image_metadata,
-        io_items, warmup_size,
+        dataset_meta, job_meta, video_metadata, image_metadata, io_items,
+        warmup_size,
 
         // Per worker arguments
         i, params.storage_config, load_thread_profilers[i],
@@ -385,7 +385,7 @@ void run_job(JobParameters& params) {
   // Initialize factory groups which determine which evaluators run in the
   // same thread. Evaluators running in different threads should be using
   // different physical resources
-  std::vector<std::vector<EvaluatorFactory*>> factory_groups;
+  std::vector<std::vector<EvaluatorFactory *>> factory_groups;
   if (evaluator_caps.size() == 1) {
     factory_groups.push_back({evaluator_factories.front()});
   } else if (evaluator_caps.size() == 2 &&
@@ -396,7 +396,7 @@ void run_job(JobParameters& params) {
   } else {
     i32 evaluator_offset_start = 0;
     i32 evaluator_offset_end = static_cast<i32>(evaluator_factories.size() - 1);
-    std::vector<EvaluatorFactory*> main_factories;
+    std::vector<EvaluatorFactory *> main_factories;
     if (evaluator_caps.front().can_overlap) {
       factory_groups.push_back({evaluator_factories.front()});
       evaluator_offset_start++;
@@ -424,9 +424,9 @@ void run_job(JobParameters& params) {
   i32 num_gpus = static_cast<i32>(GPU_DEVICE_IDS.size());
   std::set<i32> gpu_device_ids;
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
-    std::vector<Queue<EvalWorkEntry>>& work_queues = eval_work[pu];
-    std::vector<Profiler>& eval_thread_profilers = eval_chain_profilers[pu];
-    std::vector<EvaluateThreadArgs>& eval_thread_args = eval_chain_args[pu];
+    std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[pu];
+    std::vector<Profiler> &eval_thread_profilers = eval_chain_profilers[pu];
+    std::vector<EvaluateThreadArgs> &eval_thread_args = eval_chain_args[pu];
     work_queues.resize(factory_groups_per_chain - 1 + 2 /* for pre/post */);
     // Setup profilers and thread args
     for (i32 fg = 0; fg < factory_groups_per_chain + 2 /* for pre/post */;
@@ -435,17 +435,17 @@ void run_job(JobParameters& params) {
     }
     // Pre evaluate worker
     {
-      Queue<EvalWorkEntry>* input_work_queue = &initial_eval_work;
-      Queue<EvalWorkEntry>* output_work_queue = &work_queues[0];
-      pre_eval_args.emplace_back(PreEvaluateThreadArgs{
-          // Uniform arguments
-          format_metadata, io_items, warmup_size,
+      Queue<EvalWorkEntry> *input_work_queue = &initial_eval_work;
+      Queue<EvalWorkEntry> *output_work_queue = &work_queues[0];
+      pre_eval_args.emplace_back(
+          PreEvaluateThreadArgs{// Uniform arguments
+                                format_metadata, io_items, warmup_size,
 
-          // Per worker arguments
-          pu, eval_thread_profilers.front(),
+                                // Per worker arguments
+                                pu, eval_thread_profilers.front(),
 
-          // Queues
-          *input_work_queue, *output_work_queue});
+                                // Queues
+                                *input_work_queue, *output_work_queue});
     }
 
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
@@ -464,7 +464,8 @@ void run_job(JobParameters& params) {
         if (evaluator_device_type == DeviceType::GPU) {
           LOG_IF(FATAL, num_gpus == 0)
               << "Scanner is configured with zero available GPUs but a GPU "
-              << "evaluator was reque(PUS_PER_NODE)sted! Please configure Scanner to have "
+              << "evaluator was reque(PUS_PER_NODE)sted! Please configure "
+                 "Scanner to have "
               << "at least one GPU using the `gpu_device_ids` config option.";
 
           // If we have more than one MPI process on a single machine, then
@@ -482,34 +483,34 @@ void run_job(JobParameters& params) {
         eval_configs.push_back(eval_config);
       }
       // Input work queue
-      Queue<EvalWorkEntry>* input_work_queue = &work_queues[fg];
+      Queue<EvalWorkEntry> *input_work_queue = &work_queues[fg];
       // Create new queue for output, reuse previous queue as input
-      Queue<EvalWorkEntry>* output_work_queue = &work_queues[fg + 1];
+      Queue<EvalWorkEntry> *output_work_queue = &work_queues[fg + 1];
       // Create eval thread for passing data through neural net
-      eval_thread_args.emplace_back(EvaluateThreadArgs{
-          // Uniform arguments
-          format_metadata, io_items, warmup_size,
+      eval_thread_args.emplace_back(
+          EvaluateThreadArgs{// Uniform arguments
+                             format_metadata, io_items, warmup_size,
 
-          // Per worker arguments
-          pu, fg, factory_groups[fg], eval_configs,
-          eval_thread_profilers[fg + 1],
+                             // Per worker arguments
+                             pu, fg, factory_groups[fg], eval_configs,
+                             eval_thread_profilers[fg + 1],
 
-          // Queues
-          *input_work_queue, *output_work_queue});
+                             // Queues
+                             *input_work_queue, *output_work_queue});
     }
     // Post evaluate worker
     {
-      Queue<EvalWorkEntry>* input_work_queue = &work_queues.back();
-      Queue<EvalWorkEntry>* output_work_queue = &save_work;
-      post_eval_args.emplace_back(PostEvaluateThreadArgs{
-          // Uniform arguments
-          format_metadata, io_items, warmup_size,
+      Queue<EvalWorkEntry> *input_work_queue = &work_queues.back();
+      Queue<EvalWorkEntry> *output_work_queue = &save_work;
+      post_eval_args.emplace_back(
+          PostEvaluateThreadArgs{// Uniform arguments
+                                 format_metadata, io_items, warmup_size,
 
-          // Per worker arguments
-          pu, eval_thread_profilers.back(),
+                                 // Per worker arguments
+                                 pu, eval_thread_profilers.back(),
 
-          // Queues
-          *input_work_queue, *output_work_queue});
+                                 // Queues
+                                 *input_work_queue, *output_work_queue});
     }
   }
 
@@ -527,7 +528,7 @@ void run_job(JobParameters& params) {
     pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
                    &pre_eval_args[pu]);
     // Evaluator threads
-    std::vector<pthread_t>& eval_threads = eval_chain_threads[pu];
+    std::vector<pthread_t> &eval_threads = eval_chain_threads[pu];
     eval_threads.resize(factory_groups_per_chain);
     for (i32 fg = 0; fg < factory_groups_per_chain; ++fg) {
       pthread_create(&eval_threads[fg], NULL, evaluate_thread,
@@ -544,15 +545,15 @@ void run_job(JobParameters& params) {
   std::vector<SaveThreadArgs> save_thread_args;
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     // Create IO thread for reading and decoding data
-    save_thread_args.emplace_back(SaveThreadArgs{
-        // Uniform arguments
-        params.dataset_name, params.out_job_name, io_items,
+    save_thread_args.emplace_back(
+        SaveThreadArgs{// Uniform arguments
+                       params.dataset_name, params.out_job_name, io_items,
 
-        // Per worker arguments
-        i, params.storage_config, save_thread_profilers[i],
+                       // Per worker arguments
+                       i, params.storage_config, save_thread_profilers[i],
 
-        // Queues
-        save_work, retired_items});
+                       // Queues
+                       save_work, retired_items});
   }
   std::vector<pthread_t> save_threads(SAVE_WORKERS_PER_NODE);
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
@@ -573,15 +574,15 @@ void run_job(JobParameters& params) {
       // Check if we need to allocate work to our own processing thread
       i32 local_work = accepted_items - retired_items;
       if (local_work < PUS_PER_NODE * TASKS_IN_QUEUE_PER_PU) {
-        LoadWorkEntry& entry = load_work_entries[next_io_item_to_allocate++];
+        LoadWorkEntry &entry = load_work_entries[next_io_item_to_allocate++];
         load_work.push(entry);
 
         accepted_items++;
         if ((static_cast<i32>(io_items.size()) - next_io_item_to_allocate) %
                 10 ==
             0) {
-          printf("Work items left: %d\n", static_cast<i32>(io_items.size()) -
-                                              next_io_item_to_allocate);
+          printf("Work items left: %d\n",
+                 static_cast<i32>(io_items.size()) - next_io_item_to_allocate);
           fflush(stdout);
         }
         continue;
@@ -593,7 +594,8 @@ void run_job(JobParameters& params) {
         // MPI_Recv(&more_work, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
         //          MPI_COMM_WORLD, &status);
         i32 next_item = next_io_item_to_allocate++;
-        // MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+        // MPI_Send(&next_item, 1, MPI_INT, status.MPI_SOURCE, 0,
+        // MPI_COMM_WORLD);
         std::this_thread::yield();
       }
     }
@@ -623,7 +625,7 @@ void run_job(JobParameters& params) {
           // No more work left
           break;
         } else {
-          LoadWorkEntry& entry = load_work_entries[next_item];
+          LoadWorkEntry &entry = load_work_entries[next_item];
           load_work.push(entry);
           accepted_items++;
         }
@@ -642,7 +644,7 @@ void run_job(JobParameters& params) {
 
   for (i32 i = 0; i < LOAD_WORKERS_PER_NODE; ++i) {
     // Wait until load has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(load_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of load thread\n");
@@ -660,7 +662,7 @@ void run_job(JobParameters& params) {
 
   for (i32 i = 0; i < PUS_PER_NODE; ++i) {
     // Wait until pre eval has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(pre_eval_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of pre eval thread\n");
@@ -677,7 +679,7 @@ void run_job(JobParameters& params) {
     }
     for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
       // Wait until eval has finished
-      void* result;
+      void *result;
       i32 err = pthread_join(eval_chain_threads[pu][fg], &result);
       if (err != 0) {
         fprintf(stderr, "error in pthread_join of eval thread\n");
@@ -694,7 +696,7 @@ void run_job(JobParameters& params) {
   }
   for (i32 pu = 0; pu < PUS_PER_NODE; ++pu) {
     // Wait until eval has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(post_eval_threads[pu], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of post eval thread\n");
@@ -712,7 +714,7 @@ void run_job(JobParameters& params) {
 
   for (i32 i = 0; i < SAVE_WORKERS_PER_NODE; ++i) {
     // Wait until eval has finished
-    void* result;
+    void *result;
     i32 err = pthread_join(save_threads[i], &result);
     if (err != 0) {
       fprintf(stderr, "error in pthread_join of save thread\n");
@@ -760,7 +762,7 @@ void run_job(JobParameters& params) {
     }
   }
 
-  // Ensure all files are flushed
+// Ensure all files are flushed
 #ifdef SCANNER_PROFILING
   std::fflush(NULL);
   sync();

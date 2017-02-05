@@ -19,8 +19,8 @@ namespace scanner {
 namespace internal {
 
 // Gets the list of work items for a sequence of rows in the job
-RowIntervals slice_into_row_intervals(const TableMetadata& table,
-                                      const std::vector<i64>& rows) {
+RowIntervals slice_into_row_intervals(const TableMetadata &table,
+                                      const std::vector<i64> &rows) {
   RowIntervals info;
   // Analyze rows and table to determine what item ids and offsets in them to
   // sample from
@@ -62,9 +62,9 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
   return info;
 }
 
-VideoIntervals slice_into_video_intervals(
-    const std::vector<i64>& keyframe_positions,
-    const std::vector<i64>& rows) {
+VideoIntervals
+slice_into_video_intervals(const std::vector<i64> &keyframe_positions,
+                           const std::vector<i64> &rows) {
   VideoIntervals info;
   assert(keyframe_positions.size() >= 2);
   size_t start_keyframe_index = 0;
@@ -99,6 +99,5 @@ VideoIntervals slice_into_video_intervals(
   info.valid_frames.push_back(valid_frames);
   return info;
 }
-
 }
 }

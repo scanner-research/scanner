@@ -26,6 +26,7 @@ set(THIRDPARTY_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
 find_package(TinyToml)
 find_package(Storehouse CONFIG)
 find_package(Struck CONFIG)
+find_package(GoogleTest)
 
 if (NOT TINYTOML_FOUND)
   ExternalProject_Add(TinyToml
@@ -93,4 +94,21 @@ if (NOT STRUCK_FOUND)
     CMAKE_CACHE_ARGS ""
 
     INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/struck")
+endif()
+
+if (NOT GOOGLETEST_FOUND)
+  ExternalProject_Add(GoogleTest
+    GIT_REPOSITORY "https://github.com/google/googletest"
+    GIT_TAG 0a439623f75c029912728d80cb7f1b8b48739ca4
+
+    UPDATE_COMMAND ""
+
+    SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/googletest"
+
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${GLOBAL_OUTPUT_PATH}/googletest
+    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+
+    INSTALL_DIR "${GLOBAL_OUTPUT_PATH}/googletest"
+    )
 endif()

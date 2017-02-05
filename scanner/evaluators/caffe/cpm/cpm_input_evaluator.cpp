@@ -26,21 +26,18 @@
 namespace scanner {
 
 CPMInputEvaluator::CPMInputEvaluator(DeviceType device_type, i32 device_id,
-                                     const NetDescriptor& descriptor,
+                                     const NetDescriptor &descriptor,
                                      i32 batch_size)
-    : device_type_(device_type),
-      device_id_(device_id),
-      descriptor_(descriptor),
+    : device_type_(device_type), device_id_(device_id), descriptor_(descriptor),
       batch_size_(batch_size)
 #ifdef HAVE_CUDA
       ,
-      num_cuda_streams_(32),
-      streams_(num_cuda_streams_)
+      num_cuda_streams_(32), streams_(num_cuda_streams_)
 #endif
 {
 }
 
-void CPMInputEvaluator::configure(const BatchConfig& config) {
+void CPMInputEvaluator::configure(const BatchConfig &config) {
   config_ = config;
 
   assert(config.formats.size() == 1);
@@ -111,10 +108,10 @@ void CPMInputEvaluator::configure(const BatchConfig& config) {
 #endif
   } else {
     LOG(FATAL) << "CPU not implemented yet.";
-    mean_mat_c_ = cv::Mat(
-        net_input_height_, net_input_width_, CV_32FC3,
-        cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
-                   descriptor_.mean_colors[2]));
+    mean_mat_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3,
+                          cv::Scalar(descriptor_.mean_colors[0],
+                                     descriptor_.mean_colors[1],
+                                     descriptor_.mean_colors[2]));
 
     float_input_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
     normalized_input_c_ =
@@ -129,8 +126,8 @@ void CPMInputEvaluator::configure(const BatchConfig& config) {
   }
 }
 
-void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
-                                 BatchedColumns& output_columns) {
+void CPMInputEvaluator::evaluate(const BatchedColumns &input_columns,
+                                 BatchedColumns &output_columns) {
   auto eval_start = now();
 
   size_t frame_size = net_input_width_ * net_input_height_ * 3;
@@ -144,15 +141,14 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
     i32 sid = 0;
     for (i32 i = 0; i < input_count; ++i) {
-      u8* buffer = input_columns[0].rows[i].buffer;
-      assert(input_columns[0].rows[i].size ==
-             frame_height_ * frame_width_ * 3);
+      u8 *buffer = input_columns[0].rows[i].buffer;
+      assert(input_columns[0].rows[i].size == frame_height_ * frame_width_ * 3);
 
-      cv::cuda::Stream& cv_stream = streams_[sid];
+      cv::cuda::Stream &cv_stream = streams_[sid];
       cudaStream_t cuda_s = cv::cuda::StreamAccessor::getStream(cv_stream);
 
-      frame_input_g_[sid] = cv::cuda::GpuMat(
-          frame_height_, frame_width_, CV_8UC3, buffer);
+      frame_input_g_[sid] =
+          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3, buffer);
       cv::cuda::cvtColor(frame_input_g_[sid], bgr_input_g_[sid],
                          cv::COLOR_RGB2BGR, 0, cv_stream);
       cv::cuda::resize(bgr_input_g_[sid], resized_input_g_[sid],
@@ -164,20 +160,20 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
       std::vector<scanner::Point> center_points;
       {
-        u8* center_points_buffer = input_columns[1].rows[i].buffer;
+        u8 *center_points_buffer = input_columns[1].rows[i].buffer;
         size_t center_points_size = input_columns[1].rows[i].size;
-        u8* cpu_buffer = new u8[center_points_size];
+        u8 *cpu_buffer = new u8[center_points_size];
         memcpy_buffer(cpu_buffer, CPU_DEVICE, center_points_buffer,
                       {device_type_, device_id_}, center_points_size);
         center_points = deserialize_proto_vector<scanner::Point>(
             cpu_buffer, center_points_size);
         delete[] cpu_buffer;
       }
-      for (const scanner::Point& pt : center_points) {
+      for (const scanner::Point &pt : center_points) {
         i32 net_input_size =
             (frame_size + (net_input_width_ * net_input_height_)) * sizeof(f32);
-        f32* net_input = nullptr;
-        CU_CHECK(cudaMalloc((void**)&net_input, net_input_size));
+        f32 *net_input = nullptr;
+        CU_CHECK(cudaMalloc((void **)&net_input, net_input_size));
 
         // Get center location
         f32 center_x = pt.x();
@@ -208,10 +204,10 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
                                         (1.0f / 256.0f), -0.5f, cv_stream);
         // Changed from interleaved BGR to planar RGB
         cv::cuda::split(float_input_g_[sid], input_planes_g_[sid], cv_stream);
-        auto& plane1 = input_planes_g_[sid][0];
-        auto& plane2 = input_planes_g_[sid][1];
-        auto& plane3 = input_planes_g_[sid][2];
-        auto& planar_input = planar_input_g_[sid];
+        auto &plane1 = input_planes_g_[sid][0];
+        auto &plane2 = input_planes_g_[sid][1];
+        auto &plane3 = input_planes_g_[sid][2];
+        auto &planar_input = planar_input_g_[sid];
         planar_input.setTo(cv::Scalar(0.0f, 0.0f, 0.0f), cv_stream);
         plane1.copyTo(
             planar_input(cv::Rect(0, net_input_height_ * 0, net_input_width_,
@@ -236,12 +232,12 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
             planar_input.step, net_input_width_ * sizeof(float),
             net_input_height_ * 4, cudaMemcpyDeviceToDevice, cuda_s));
 
-        output_columns[0].rows.push_back(Row{(u8*)net_input, net_input_size});
+        output_columns[0].rows.push_back(Row{(u8 *)net_input, net_input_size});
       }
       sid += 1;
       sid %= num_cuda_streams_;
     }
-    for (cv::cuda::Stream& s : streams_) {
+    for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
     }
 #else
@@ -298,9 +294,8 @@ void CPMInputEvaluator::evaluate(const BatchedColumns& input_columns,
 }
 
 CPMInputEvaluatorFactory::CPMInputEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size)
-    : device_type_(device_type),
-      net_descriptor_(descriptor),
+    DeviceType device_type, const NetDescriptor &descriptor, i32 batch_size)
+    : device_type_(device_type), net_descriptor_(descriptor),
       batch_size_(batch_size) {}
 
 EvaluatorCapabilities CPMInputEvaluatorFactory::get_capabilities() {
@@ -316,15 +311,15 @@ EvaluatorCapabilities CPMInputEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> CPMInputEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   std::vector<std::string> output_columns = {"frame", "net_input"};
   output_columns.insert(output_columns.end(), input_columns.begin() + 1,
                         input_columns.end());
   return output_columns;
 }
 
-Evaluator* CPMInputEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+CPMInputEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new CPMInputEvaluator(device_type_, config.device_ids[0],
                                net_descriptor_, batch_size_);
 }

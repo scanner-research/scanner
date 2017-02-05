@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "scanner/kernels/args.pb.h"
-#include "scanner/api/kernel.h"
 #include "scanner/api/evaluator.h"
+#include "scanner/api/kernel.h"
+#include "scanner/kernels/args.pb.h"
 #include "scanner/util/memory.h"
 
 #include <cmath>
@@ -99,5 +99,4 @@ private:
 REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});
 
 REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
-
 }

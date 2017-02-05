@@ -2,8 +2,8 @@
 #include "scanner/evaluators/caffe/caffe_evaluator.h"
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
-#include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/evaluators/util/swizzle_evaluator.h"
+#include "scanner/evaluators/video/decoder_evaluator.h"
 
 #include "scanner/pipelines/benchmarks/sampling.h"
 
@@ -11,7 +11,7 @@ namespace scanner {
 namespace {
 
 const i32 BATCH_SIZE = 96;
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
   benchmark_sampling(info, desc, false);
 
@@ -37,17 +37,17 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     LOG(FATAL) << "Invalid SC_DEVICE type `" << device << "`";
   }
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(
-    new DecoderEvaluatorFactory(device_type, decoder_type));
-  factories.emplace_back(
-    new DefaultInputEvaluatorFactory(
+      new DecoderEvaluatorFactory(device_type, decoder_type));
+  factories.emplace_back(new DefaultInputEvaluatorFactory(
       device_type, net_descriptor, BATCH_SIZE));
   factories.emplace_back(
-    new CaffeEvaluatorFactory(DeviceType::GPU, net_descriptor, BATCH_SIZE));
-  factories.emplace_back(new SwizzleEvaluatorFactory(DeviceType::GPU, {1}, {"feature"}));
+      new CaffeEvaluatorFactory(DeviceType::GPU, net_descriptor, BATCH_SIZE));
+  factories.emplace_back(
+      new SwizzleEvaluatorFactory(DeviceType::GPU, {1}, {"feature"}));
 
   return desc;
 }

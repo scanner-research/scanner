@@ -10,9 +10,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
-  //Sampler::all_frames(info, desc);
+  // Sampler::all_frames(info, desc);
   Sampler::range_frames(info, desc, 1000, 1300);
 
   std::string net_descriptor_file = "features/caffe_facenet.toml";
@@ -23,14 +23,15 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   }
   i32 batch_size = 3;
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   f32 scale = 0.5;
   factories.emplace_back(
       new DecoderEvaluatorFactory(DeviceType::GPU, VideoDecoderType::NVIDIA));
   // factories.emplace_back(
-  //     new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+  //     new DecoderEvaluatorFactory(DeviceType::CPU,
+  //     VideoDecoderType::SOFTWARE));
   factories.emplace_back(new FacenetInputEvaluatorFactory(
       DeviceType::GPU, descriptor, batch_size, scale));
   factories.emplace_back(

@@ -10,8 +10,8 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
-  const char* JOB_NAME = std::getenv("SC_JOB_NAME");
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
+  const char *JOB_NAME = std::getenv("SC_JOB_NAME");
   std::string job_name(JOB_NAME);
 
   PipelineDescription desc;
@@ -36,7 +36,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(

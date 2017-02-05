@@ -180,7 +180,8 @@ message MemoryPoolConfig {
 }
 
 message CollectionDescriptor {
-  repeated string tables = 3;
+  repeated string tables = 1;
+  int32 job_id = 2;
 }
 
 message CollectionsDescriptor {

@@ -6,7 +6,7 @@ namespace scanner {
 
 EncoderEvaluator::EncoderEvaluator(EvaluatorConfig config) {}
 
-void EncoderEvaluator::configure(const BatchConfig& config) {
+void EncoderEvaluator::configure(const BatchConfig &config) {
   config_ = config;
 
   assert(config.formats.size() == 1);
@@ -14,8 +14,8 @@ void EncoderEvaluator::configure(const BatchConfig& config) {
   frame_height_ = config.formats[0].height();
 }
 
-void EncoderEvaluator::evaluate(const BatchedColumns& input_columns,
-                                BatchedColumns& output_columns) {
+void EncoderEvaluator::evaluate(const BatchedColumns &input_columns,
+                                BatchedColumns &output_columns) {
   auto start = now();
   // OpenCV 2.4.x apparently can't encode H.264 videos
   std::string ext;
@@ -34,18 +34,18 @@ void EncoderEvaluator::evaluate(const BatchedColumns& input_columns,
   std::string path = std::string(templt) + ext;
   {
     cv::VideoWriter writer(path, fourcc,
-                           24.0,  // TODO: get this from metadata
+                           24.0, // TODO: get this from metadata
                            cv::Size(frame_width_, frame_height_));
 
-    for (const Row& r : input_columns[0].rows) {
-      auto& buf = r.buffer;
+    for (const Row &r : input_columns[0].rows) {
+      auto &buf = r.buffer;
       cv::Mat img = bytesToImage(buf, config_.formats[0]);
       cv::cvtColor(img, img, CV_BGR2RGB);
       writer.write(img);
     }
   }
 
-  FILE* f = fopen(path.c_str(), "rb");
+  FILE *f = fopen(path.c_str(), "rb");
   if (f == NULL) {
     LOG(FATAL) << "Encoder could not find " << path;
   }
@@ -57,7 +57,7 @@ void EncoderEvaluator::evaluate(const BatchedColumns& input_columns,
     LOG(FATAL) << "Encoder seek failed";
   }
 
-  u8* buf = new u8[fsize];
+  u8 *buf = new u8[fsize];
   if (fread(buf, fsize, 1, f) != fsize) {
     LOG(FATAL) << "Encoder failed to read " << fsize << " bytes from " << path;
   }
@@ -87,12 +87,12 @@ EvaluatorCapabilities EncoderEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> EncoderEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"video"};
 }
 
-Evaluator* EncoderEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+EncoderEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new EncoderEvaluator(config);
 }
 }

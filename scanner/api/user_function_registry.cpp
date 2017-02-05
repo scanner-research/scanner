@@ -18,20 +18,18 @@
 namespace scanner {
 namespace internal {
 
-void UserFunctionRegistry::add_user_function(
-  const std::string &name,
-  const void* fn) {
+void UserFunctionRegistry::add_user_function(const std::string &name,
+                                             const void *fn) {
   fns_.insert({name, fn});
 }
 
-bool UserFunctionRegistry::has_user_function(const std::string& name) {
+bool UserFunctionRegistry::has_user_function(const std::string &name) {
   return fns_.count(name) > 0;
 }
 
-UserFunctionRegistry* get_user_function_registry() {
-  static UserFunctionRegistry* registry = new UserFunctionRegistry;
+UserFunctionRegistry *get_user_function_registry() {
+  static UserFunctionRegistry *registry = new UserFunctionRegistry;
   return registry;
 }
-
 }
 }

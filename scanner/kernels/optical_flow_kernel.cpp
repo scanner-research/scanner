@@ -1,9 +1,9 @@
-#include "scanner/api/kernel.h"
 #include "scanner/api/evaluator.h"
-#include "scanner/util/opencv.h"
-#include "scanner/util/memory.h"
-#include "scanner/util/cycle_timer.h"
+#include "scanner/api/kernel.h"
 #include "scanner/util/cuda.h"
+#include "scanner/util/cycle_timer.h"
+#include "scanner/util/memory.h"
+#include "scanner/util/opencv.h"
 
 #include <opencv2/video.hpp>
 
@@ -11,10 +11,9 @@ namespace scanner {
 
 class OpticalFlowKernelCPU : public VideoKernel {
 public:
-  OpticalFlowKernelCPU(const Kernel::Config& config)
-    : VideoKernel(config),
-      device_(config.devices[0]),
-      work_item_size_(config.work_item_size) {
+  OpticalFlowKernelCPU(const Kernel::Config &config)
+      : VideoKernel(config), device_(config.devices[0]),
+        work_item_size_(config.work_item_size) {
     flow_finder_ = cv::FarnebackOpticalFlow::create();
   }
 
@@ -26,20 +25,18 @@ public:
     }
   }
 
-  void reset() override {
-    initial_frame_ = cv::Mat();
-  }
+  void reset() override { initial_frame_ = cv::Mat(); }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedColumns &input_columns,
+               BatchedColumns &output_columns) override {
     check_frame_info(device_, input_columns[1]);
 
     i32 input_count = (i32)input_columns[0].rows.size();
     size_t out_buf_size =
         frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
 
-    u8* output_block = new_block_buffer(
-      device_, out_buf_size * input_count, input_count);
+    u8 *output_block =
+        new_block_buffer(device_, out_buf_size * input_count, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
@@ -50,7 +47,7 @@ public:
     double start = CycleTimer::currentSeconds();
 
     cv::Ptr<cv::DenseOpticalFlow> flow_finder =
-      cv::FarnebackOpticalFlow::create();
+        cv::FarnebackOpticalFlow::create();
 
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat flow(frame_info_.height(), frame_info_.width(), CV_32FC2,
@@ -64,7 +61,7 @@ public:
           flow_finder_->calc(initial_frame_, grayscale_[0], flow);
         }
       } else {
-        flow_finder_->calc(grayscale_[i-1], grayscale_[i], flow);
+        flow_finder_->calc(grayscale_[i - 1], grayscale_[i], flow);
       }
 
       output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
@@ -81,12 +78,10 @@ private:
 
 class OpticalFlowKernelGPU : public VideoKernel {
 public:
-  OpticalFlowKernelGPU(const Kernel::Config& config)
-    : VideoKernel(config),
-      device_(config.devices[0]),
-      work_item_size_(config.work_item_size),
-      num_cuda_streams_(4),
-      streams_(num_cuda_streams_) {
+  OpticalFlowKernelGPU(const Kernel::Config &config)
+      : VideoKernel(config), device_(config.devices[0]),
+        work_item_size_(config.work_item_size), num_cuda_streams_(4),
+        streams_(num_cuda_streams_) {
     set_device();
     flow_finder_ = cvc::FarnebackOpticalFlow::create();
   }
@@ -105,8 +100,8 @@ public:
     initial_frame_ = cvc::GpuMat();
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedColumns &input_columns,
+               BatchedColumns &output_columns) override {
     set_device();
     check_frame_info(device_, input_columns[1]);
 
@@ -114,8 +109,8 @@ public:
     size_t out_buf_size =
         frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
 
-    u8* output_block = new_block_buffer(
-      device_, out_buf_size * input_count, input_count);
+    u8 *output_block =
+        new_block_buffer(device_, out_buf_size * input_count, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
       i32 sid = i % num_cuda_streams_;
@@ -125,18 +120,18 @@ public:
       cvc::cvtColor(input, grayscale_[i], CV_BGR2GRAY, 0, s);
     }
 
-    for (cv::cuda::Stream& s : streams_) {
+    for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
     }
 
     double start = CycleTimer::currentSeconds();
 
     cv::Ptr<cvc::DenseOpticalFlow> flow_finder =
-      cvc::FarnebackOpticalFlow::create();
+        cvc::FarnebackOpticalFlow::create();
 
     for (i32 i = 0; i < input_count; ++i) {
       i32 sid = i % num_cuda_streams_;
-      cv::cuda::Stream& s = streams_[sid];
+      cv::cuda::Stream &s = streams_[sid];
       cvc::GpuMat flow(frame_info_.height(), frame_info_.width(), CV_32FC2,
                        output_block + i * out_buf_size);
 
@@ -148,22 +143,20 @@ public:
           flow_finder_->calc(initial_frame_, grayscale_[0], flow, s);
         }
       } else {
-        flow_finder_->calc(grayscale_[i-1], grayscale_[i], flow, s);
+        flow_finder_->calc(grayscale_[i - 1], grayscale_[i], flow, s);
       }
 
       output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
     }
 
-    for (cv::cuda::Stream& s : streams_) {
+    for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
     }
   }
 
 private:
   void set_device() {
-    CUDA_PROTECT({
-        CU_CHECK(cudaSetDevice(device_.id));
-    })
+    CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id)); })
     cvc::setDevice(device_.id);
   }
 
@@ -178,11 +171,11 @@ private:
 
 REGISTER_EVALUATOR(OpticalFlow).outputs({"flow"});
 
-REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU) \
+REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
     .device(DeviceType::CPU)
     .num_devices(1);
 
-REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelGPU) \
+REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelGPU)
     .device(DeviceType::GPU)
     .num_devices(1);
 }

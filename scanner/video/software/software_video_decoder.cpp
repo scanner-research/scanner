@@ -40,14 +40,10 @@ namespace internal {
 SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
                                            DeviceType output_type,
                                            i32 thread_count)
-    : device_id_(device_id),
-      output_type_(output_type),
-      codec_(nullptr),
-      cc_(nullptr),
-      reset_context_(true),
-      sws_context_(nullptr) {
+    : device_id_(device_id), output_type_(output_type), codec_(nullptr),
+      cc_(nullptr), reset_context_(true), sws_context_(nullptr) {
   avcodec_register_all();
-  
+
   if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
     LOG(FATAL) << "Unsupported output type for software decoder";
   }
@@ -81,27 +77,27 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   avcodec_close(cc_);
   av_freep(&cc_);
 #endif
-  for (AVFrame* frame : frame_pool_) {
+  for (AVFrame *frame : frame_pool_) {
     av_frame_free(&frame);
   }
-  for (AVFrame* frame : decoded_frame_queue_) {
+  for (AVFrame *frame : decoded_frame_queue_) {
     av_frame_free(&frame);
   }
 }
 
-void SoftwareVideoDecoder::configure(const FrameInfo& metadata) {
+void SoftwareVideoDecoder::configure(const FrameInfo &metadata) {
   metadata_ = metadata;
   frame_width_ = metadata_.width();
   frame_height_ = metadata_.height();
   reset_context_ = true;
 
-  int required_size = av_image_get_buffer_size(
-      AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
+  int required_size = av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame_width_,
+                                               frame_height_, 1);
 
   conversion_buffer_.resize(required_size);
 }
 
-bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
+bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
                                 bool discontinuity) {
 // Debug read packets
 #if 0
@@ -198,10 +194,10 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   if (profiler_) {
     profiler_->add_interval("ffmpeg:send_packet", send_start, send_end);
     profiler_->add_interval("ffmpeg:receive_frame", received_start,
-                           received_end);
+                            received_end);
   }
 #else
-  uint8_t* orig_data = packet_.data;
+  uint8_t *orig_data = packet_.data;
   int orig_size = packet_.size;
   int got_picture = 0;
   do {
@@ -273,10 +269,10 @@ bool SoftwareVideoDecoder::discard_frame() {
   return decoded_frame_queue_.size() > 0;
 }
 
-bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
+bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
   int64_t size_left = decoded_size;
 
-  AVFrame* frame;
+  AVFrame *frame;
   {
     std::lock_guard<std::mutex> lock(frame_mutex_);
     if (decoded_frame_queue_.size() > 0) {
@@ -290,10 +286,10 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   if (reset_context_) {
     auto get_context_start = now();
     AVPixelFormat decoder_pixel_format = cc_->pix_fmt;
-    sws_context_ = sws_getCachedContext(
-        sws_context_, frame_width_, frame_height_,
-        decoder_pixel_format, frame_width_, frame_height_,
-        AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+    sws_context_ =
+        sws_getCachedContext(sws_context_, frame_width_, frame_height_,
+                             decoder_pixel_format, frame_width_, frame_height_,
+                             AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
     reset_context_ = false;
     auto get_context_end = now();
     if (profiler_) {
@@ -307,19 +303,18 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     exit(EXIT_FAILURE);
   }
 
-
-  u8* scale_buffer = nullptr;
+  u8 *scale_buffer = nullptr;
   if (output_type_ == DeviceType::GPU) {
     scale_buffer = conversion_buffer_.data();
   } else if (output_type_ == DeviceType::CPU) {
     scale_buffer = decoded_buffer;
   }
 
-  uint8_t* out_slices[4];
+  uint8_t *out_slices[4];
   int out_linesizes[4];
-  int required_size = av_image_fill_arrays(
-      out_slices, out_linesizes, scale_buffer, AV_PIX_FMT_RGB24,
-      frame_width_, frame_height_, 1);
+  int required_size =
+      av_image_fill_arrays(out_slices, out_linesizes, scale_buffer,
+                           AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
   if (required_size < 0) {
     fprintf(stderr, "Error in av_image_fill_arrays\n");
     exit(EXIT_FAILURE);

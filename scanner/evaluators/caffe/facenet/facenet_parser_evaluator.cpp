@@ -30,22 +30,15 @@
 
 namespace scanner {
 
-FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
+FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig &config,
                                                DeviceType device_type,
-                                               i32 device_id,
-                                               f32 scale,
+                                               i32 device_id, f32 scale,
                                                double threshold,
                                                NMSType nms_type)
-    : eval_config_(config),
-      device_type_(device_type),
-      device_id_(device_id),
-      scale_(scale),
-      nms_type_(nms_type),
-      net_input_width_(224),
-      net_input_height_(224),
-      grid_width_(net_input_width_ / cell_width_),
-      grid_height_(net_input_height_ / cell_height_),
-      threshold_(threshold) {
+    : eval_config_(config), device_type_(device_type), device_id_(device_id),
+      scale_(scale), nms_type_(nms_type), net_input_width_(224),
+      net_input_height_(224), grid_width_(net_input_width_ / cell_width_),
+      grid_height_(net_input_height_ / cell_height_), threshold_(threshold) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU facenet parser support not implemented yet";
   }
@@ -58,13 +51,13 @@ FacenetParserEvaluator::FacenetParserEvaluator(const EvaluatorConfig& config,
     for (i32 i = 0; i < 4; ++i) {
       LOG_IF(FATAL, !template_file.good()) << "Template file not correct.";
       f32 d;
-      template_file.read(reinterpret_cast<char*>(&d), sizeof(f32));
+      template_file.read(reinterpret_cast<char *>(&d), sizeof(f32));
       templates_[t][i] = d;
     }
   }
 }
 
-void FacenetParserEvaluator::configure(const BatchConfig& config) {
+void FacenetParserEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
@@ -79,8 +72,8 @@ void FacenetParserEvaluator::configure(const BatchConfig& config) {
   grid_height_ = std::ceil(float(net_input_height_) / cell_height_);
 
   feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_templates_,  // template probabilities
-      grid_width_ * grid_height_ * num_templates_ * 4,  // template adjustments
+      grid_width_ * grid_height_ * num_templates_,     // template probabilities
+      grid_width_ * grid_height_ * num_templates_ * 4, // template adjustments
   };
   feature_vector_sizes_ = {
       sizeof(f32) * feature_vector_lengths_[0],
@@ -112,9 +105,9 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns &input_columns,
     std::vector<BoundingBox> bboxes;
     // Track confidence per pixel for each category so we can calculate
     // uncertainty across the frame
-    f32* template_confidences =
-        reinterpret_cast<f32*>(input_columns[feature_idx].rows[b].buffer);
-    f32* template_adjustments =
+    f32 *template_confidences =
+        reinterpret_cast<f32 *>(input_columns[feature_idx].rows[b].buffer);
+    f32 *template_adjustments =
         template_confidences + feature_vector_lengths_[0];
 
     for (i32 t : valid_templates) {
@@ -127,7 +120,8 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns &input_columns,
           // Apply sigmoid to confidence
           confidence = 1.0 / (1.0 + std::exp(-confidence));
 
-          if (confidence < threshold_) continue;
+          if (confidence < threshold_)
+            continue;
 
           f32 x = xi * cell_width_ - 2;
           f32 y = yi * cell_height_ - 2;
@@ -174,7 +168,8 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns &input_columns,
           bbox.set_y2(y + height / 2);
           bbox.set_score(confidence);
 
-          // if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() > metadata_.width() ||
+          // if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() > metadata_.width()
+          // ||
           //     bbox.y2() > metadata_.height())
           //   continue;
 
@@ -185,20 +180,20 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns &input_columns,
 
     std::vector<BoundingBox> best_bboxes;
     switch (nms_type_) {
-      case NMSType::Best:
-        best_bboxes = best_nms(bboxes, 0.1);
-        break;
-      case NMSType::Average:
-        best_bboxes = average_nms(bboxes, 0.1);
-        break;
-      case NMSType::None:
-        best_bboxes = bboxes;
-        break;
+    case NMSType::Best:
+      best_bboxes = best_nms(bboxes, 0.1);
+      break;
+    case NMSType::Average:
+      best_bboxes = average_nms(bboxes, 0.1);
+      break;
+    case NMSType::None:
+      best_bboxes = bboxes;
+      break;
     }
 
     // Assume size of a bounding box is the same size as all bounding boxes
     size_t size;
-    u8* buffer;
+    u8 *buffer;
     serialize_bbox_vector(best_bboxes, buffer, size);
     output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
@@ -209,9 +204,7 @@ void FacenetParserEvaluator::evaluate(const BatchedColumns &input_columns,
 FacenetParserEvaluatorFactory::FacenetParserEvaluatorFactory(
     DeviceType device_type, f32 scale, double threshold,
     FacenetParserEvaluator::NMSType nms_type)
-    : device_type_(device_type),
-      scale_(scale),
-      threshold_(threshold),
+    : device_type_(device_type), scale_(scale), threshold_(threshold),
       nms_type_(nms_type) {}
 
 EvaluatorCapabilities FacenetParserEvaluatorFactory::get_capabilities() {
@@ -228,15 +221,15 @@ EvaluatorCapabilities FacenetParserEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> FacenetParserEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   std::vector<std::string> output_names;
   output_names.push_back("frame");
   output_names.push_back("bboxes");
   return output_names;
 }
 
-Evaluator* FacenetParserEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+FacenetParserEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new FacenetParserEvaluator(config, device_type_, 0, scale_, threshold_,
                                     nms_type_);
 }

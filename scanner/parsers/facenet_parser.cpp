@@ -21,14 +21,10 @@
 namespace scanner {
 
 FacenetParser::FacenetParser(double threshold)
-    : num_templates_(25),
-      net_input_width_(224),
-      net_input_height_(224),
-      cell_width_(8),
-      cell_height_(8),
+    : num_templates_(25), net_input_width_(224), net_input_height_(224),
+      cell_width_(8), cell_height_(8),
       grid_width_(net_input_width_ / cell_width_),
-      grid_height_(net_input_height_ / cell_height_),
-      threshold_(threshold) {
+      grid_height_(net_input_height_ / cell_height_), threshold_(threshold) {
   {
     std::ifstream template_file{"features/caffe_facenet/facenet_templates.bin",
                                 std::ifstream::binary};
@@ -37,15 +33,15 @@ FacenetParser::FacenetParser(double threshold)
       for (i32 i = 0; i < 4; ++i) {
         assert(template_file.good());
         f64 d;
-        template_file.read(reinterpret_cast<char*>(&d), sizeof(f64));
+        template_file.read(reinterpret_cast<char *>(&d), sizeof(f64));
         templates_[t][i] = d;
       }
     }
   }
 
   feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_templates_,  // template probabilities
-      grid_width_ * grid_height_ * num_templates_ * 4,  // template adjustments
+      grid_width_ * grid_height_ * num_templates_,     // template probabilities
+      grid_width_ * grid_height_ * num_templates_ * 4, // template adjustments
   };
   feature_vector_sizes_ = {
       sizeof(f32) * feature_vector_lengths_[0],
@@ -57,7 +53,7 @@ std::vector<std::string> FacenetParser::get_output_names() {
   return {"score_final"};
 }
 
-void FacenetParser::configure(const VideoMetadata& metadata) {
+void FacenetParser::configure(const VideoMetadata &metadata) {
   metadata_ = metadata;
 
   net_input_width_ = metadata_.width();
@@ -66,8 +62,8 @@ void FacenetParser::configure(const VideoMetadata& metadata) {
   grid_height_ = (net_input_height_ / cell_height_);
 
   feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_templates_,  // template probabilities
-      grid_width_ * grid_height_ * num_templates_ * 4,  // template adjustments
+      grid_width_ * grid_height_ * num_templates_,     // template probabilities
+      grid_width_ * grid_height_ * num_templates_ * 4, // template adjustments
   };
   feature_vector_sizes_ = {
       sizeof(f32) * feature_vector_lengths_[0],
@@ -75,15 +71,15 @@ void FacenetParser::configure(const VideoMetadata& metadata) {
   };
 }
 
-void FacenetParser::parse_output(const std::vector<u8*>& output,
-                                 const std::vector<i64>& output_size,
-                                 folly::dynamic& parsed_results) {
+void FacenetParser::parse_output(const std::vector<u8 *> &output,
+                                 const std::vector<i64> &output_size,
+                                 folly::dynamic &parsed_results) {
   // Track confidence per pixel for each category so we can calculate
   // uncertainty across the frame
   assert(output_size[0] ==
          (feature_vector_sizes_[0] + feature_vector_sizes_[1]));
-  f32* template_confidences = reinterpret_cast<f32*>(output[0]);
-  f32* template_adjustments = template_confidences + feature_vector_lengths_[0];
+  f32 *template_confidences = reinterpret_cast<f32 *>(output[0]);
+  f32 *template_adjustments = template_confidences + feature_vector_lengths_[0];
 
   // Get bounding box data from output feature vector and turn it
   // into canonical center x, center y, width, height
@@ -96,7 +92,8 @@ void FacenetParser::parse_output(const std::vector<u8*>& output,
         f32 confidence =
             template_confidences[t * grid_width_ * grid_height_ + vec_offset];
 
-        if (confidence < threshold_) continue;
+        if (confidence < threshold_)
+          continue;
 
         f32 x = xi * cell_width_ - 2;
         f32 y = yi * cell_height_ - 2;
@@ -130,7 +127,8 @@ void FacenetParser::parse_output(const std::vector<u8*>& output,
         width = (width / net_input_width_) * metadata_.width();
         height = (height / net_input_height_) * metadata_.height();
 
-        if (width < 0 || height < 0) continue;
+        if (width < 0 || height < 0)
+          continue;
 
         Box bbox;
         bbox.x1 = x - width / 2;
@@ -146,7 +144,7 @@ void FacenetParser::parse_output(const std::vector<u8*>& output,
   std::vector<Box> best_boxes = nms(bboxes, 0.3);
 
   folly::dynamic out_bboxes = folly::dynamic::array();
-  for (auto& b : best_boxes) {
+  for (auto &b : best_boxes) {
     folly::dynamic bbox = folly::dynamic::object();
     f32 width = b.x2 - b.x1;
     f32 height = b.y2 - b.y1;
@@ -180,12 +178,14 @@ std::vector<FacenetParser::Box> FacenetParser::nms(std::vector<Box> boxes,
     std::pair<f32, i32> entry = q.top();
     q.pop();
     i32 c_idx = entry.second;
-    if (!valid[c_idx]) continue;
+    if (!valid[c_idx])
+      continue;
 
     best.push_back(c_idx);
 
     for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-      if (!valid[i]) continue;
+      if (!valid[i])
+        continue;
 
       f32 x1 = std::max(boxes[c_idx].x1, boxes[i].x1);
       f32 y1 = std::max(boxes[c_idx].y1, boxes[i].y1);

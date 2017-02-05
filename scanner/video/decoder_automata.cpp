@@ -16,8 +16,8 @@
 #include "scanner/video/decoder_automata.h"
 #include "scanner/metadata.pb.h"
 
-#include "scanner/util/memory.h"
 #include "scanner/util/h264.h"
+#include "scanner/util/memory.h"
 
 #include <thread>
 
@@ -38,7 +38,8 @@ DecoderAutomata::~DecoderAutomata() {
   {
     frames_to_get_ = 0;
     frames_retrieved_ = 0;
-    while (decoder_->discard_frame()) {}
+    while (decoder_->discard_frame()) {
+    }
 
     std::unique_lock<std::mutex> lk(feeder_mutex_);
     wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
@@ -88,7 +89,7 @@ void DecoderAutomata::initialize(
   std::atomic_thread_fence(std::memory_order_release);
 }
 
-void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
+void DecoderAutomata::get_frames(u8 *buffer, i32 num_frames) {
   i64 total_frames_decoded = 0;
   i64 total_frames_used = 0;
 
@@ -97,7 +98,6 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
   // profiler_->increment("decoded_frames", total_frames_decoded);
 
   auto start = now();
-
 
   // Wait until feeder is waiting
   {
@@ -167,8 +167,7 @@ void DecoderAutomata::feeder() {
 
     {
       std::unique_lock<std::mutex> lk(feeder_mutex_);
-      wake_feeder_.wait(
-          lk, [this] { return !feeder_waiting_; });
+      wake_feeder_.wait(lk, [this] { return !feeder_waiting_; });
     }
     std::atomic_thread_fence(std::memory_order_acquire);
 
@@ -192,8 +191,8 @@ void DecoderAutomata::feeder() {
       // }
 
       i32 fdi = feeder_data_idx_.load(std::memory_order_acquire);
-      const u8* encoded_buffer =
-          (const u8*)encoded_data_[fdi].mutable_encoded_video()->data();
+      const u8 *encoded_buffer =
+          (const u8 *)encoded_data_[fdi].mutable_encoded_video()->data();
       size_t encoded_buffer_size =
           encoded_data_[fdi].mutable_encoded_video()->size();
       i32 encoded_packet_size = 0;
@@ -252,6 +251,5 @@ void DecoderAutomata::feeder() {
     }
   }
 }
-
 }
 }

@@ -18,8 +18,8 @@
 namespace scanner {
 namespace internal {
 
-void* pre_evaluate_thread(void* arg) {
-  PreEvaluateThreadArgs& args = *reinterpret_cast<PreEvaluateThreadArgs*>(arg);
+void *pre_evaluate_thread(void *arg) {
+  PreEvaluateThreadArgs &args = *reinterpret_cast<PreEvaluateThreadArgs *>(arg);
 
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -46,14 +46,14 @@ void* pre_evaluate_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
-    const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
+    const BatchConfig &batch_config = args.metadata.at(io_item.table_id);
 
     bool needs_configure = !(io_item.table_id == last_table_id);
     bool needs_reset = needs_configure ||
-      !(io_item.item_id == last_item_id ||
-        (io_item.table_id == last_table_id &&
-         io_item.start_row == last_end_row));
+                       !(io_item.item_id == last_item_id ||
+                         (io_item.table_id == last_table_id &&
+                          io_item.start_row == last_end_row));
 
     last_table_id = io_item.table_id;
     last_end_row = io_item.end_row;
@@ -72,7 +72,7 @@ void* pre_evaluate_thread(void* arg) {
     std::vector<EvalWorkEntry> work_items;
     for (; r < total_rows; r += work_item_size) {
       work_items.emplace_back();
-      EvalWorkEntry& entry = work_items.back();
+      EvalWorkEntry &entry = work_items.back();
       entry.io_item_index = work_entry.io_item_index;
       entry.column_names = work_entry.column_names;
       entry.buffer_handle = work_entry.buffer_handle;
@@ -93,7 +93,7 @@ void* pre_evaluate_thread(void* arg) {
     work_items.front().needs_reset = needs_reset;
     work_items.back().last_in_io_item = true;
 
-    for (EvalWorkEntry& output_work_entry : work_items) {
+    for (EvalWorkEntry &output_work_entry : work_items) {
       args.output_work.push(output_work_entry);
     }
   }
@@ -101,8 +101,8 @@ void* pre_evaluate_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
-void* evaluate_thread(void* arg) {
-  EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
+void *evaluate_thread(void *arg) {
+  EvaluateThreadArgs &args = *reinterpret_cast<EvaluateThreadArgs *>(arg);
 
   auto setup_start = now();
 
@@ -114,8 +114,8 @@ void* evaluate_thread(void* arg) {
   std::vector<std::unique_ptr<Evaluator>> evaluators;
 
   for (size_t i = 0; i < args.evaluator_factories.size(); ++i) {
-    EvaluatorFactory* factory = args.evaluator_factories[i];
-    const EvaluatorConfig& config = args.evaluator_configs[i];
+    EvaluatorFactory *factory = args.evaluator_factories[i];
+    const EvaluatorConfig &config = args.evaluator_configs[i];
     evaluator_caps.push_back(factory->get_capabilities());
     evaluators.emplace_back(factory->new_evaluator(config));
   }
@@ -123,7 +123,7 @@ void* evaluate_thread(void* arg) {
   i32 last_evaluator_device_id = args.evaluator_configs.back().device_ids[0];
   DeviceType last_evaluator_device_type = evaluator_caps.back().device_type;
 
-  for (auto& evaluator : evaluators) {
+  for (auto &evaluator : evaluators) {
     evaluator->set_profiler(&args.profiler);
   }
 
@@ -155,8 +155,8 @@ void* evaluate_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
-    const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
+    const BatchConfig &batch_config = args.metadata.at(io_item.table_id);
 
     // Make the evaluator aware of the format of the data
     if (work_entry.needs_configure) {
@@ -167,8 +167,8 @@ void* evaluate_thread(void* arg) {
       BatchConfig bc = batch_config;
       bc.input_columns = work_entry.column_names;
       for (size_t i = 0; i < evaluators.size(); ++i) {
-        auto& evaluator = evaluators[i];
-        EvaluatorFactory* factory = args.evaluator_factories[i];
+        auto &evaluator = evaluators[i];
+        EvaluatorFactory *factory = args.evaluator_factories[i];
 
         evaluator->configure(bc);
 
@@ -181,7 +181,7 @@ void* evaluate_thread(void* arg) {
       last_evaluator_num_columns = num_evaluator_outputs.back();
     }
     if (work_entry.needs_reset) {
-      for (auto& evaluator : evaluators) {
+      for (auto &evaluator : evaluators) {
         evaluator->reset();
       }
     }
@@ -196,7 +196,7 @@ void* evaluate_thread(void* arg) {
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
     output_work_entry.column_names = evaluator_output_columns.back();
 
-    BatchedColumns& work_item_output_columns = output_work_entry.columns;
+    BatchedColumns &work_item_output_columns = output_work_entry.columns;
     work_item_output_columns.resize(last_evaluator_num_columns);
 
     i32 current_input = 0;
@@ -229,18 +229,18 @@ void* evaluate_thread(void* arg) {
       }
       DeviceHandle output_handle = work_entry.buffer_handle;
       for (size_t e = 0; e < evaluators.size(); ++e) {
-        EvaluatorCapabilities& caps = evaluator_caps[e];
+        EvaluatorCapabilities &caps = evaluator_caps[e];
         i32 device_id = args.evaluator_configs[e].device_ids[0];
         DeviceHandle current_handle = {caps.device_type, device_id};
-        std::unique_ptr<Evaluator>& evaluator = evaluators[e];
+        std::unique_ptr<Evaluator> &evaluator = evaluators[e];
         i32 num_outputs = num_evaluator_outputs[e];
 
-        // LOG(INFO) << e << " " << input_handle << " " << output_handle << " " << current_handle;
+        // LOG(INFO) << e << " " << input_handle << " " << output_handle << " "
+        // << current_handle;
 
         input_names.swap(output_names);
         input_columns.swap(output_columns);
         input_handle = output_handle;
-
 
         i32 num_inputs = input_columns.size();
         // If current evaluator type and input buffer type differ, then move
@@ -249,18 +249,17 @@ void* evaluate_thread(void* arg) {
         auto copy_start = now();
         if (!current_handle.is_same_address_space(input_handle)) {
           for (i32 i = 0; i < num_inputs; ++i) {
-            std::vector<u8*> dest_buffers, src_buffers;
+            std::vector<u8 *> dest_buffers, src_buffers;
             std::vector<size_t> sizes;
 
-            Column& column = input_columns[i];
+            Column &column = input_columns[i];
             size_t total_size = 0;
             for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
               total_size += column.rows[b].size;
             }
 
             if (column.rows.size() > 0) {
-              u8* block = new_block_buffer(current_handle,
-                                           total_size,
+              u8 *block = new_block_buffer(current_handle, total_size,
                                            column.rows.size());
               for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
                 size_t size = column.rows[b].size;
@@ -271,8 +270,8 @@ void* evaluate_thread(void* arg) {
               }
 
               auto memcpy_start = now();
-              memcpy_vec(dest_buffers, current_handle,
-                         src_buffers, input_handle, sizes);
+              memcpy_vec(dest_buffers, current_handle, src_buffers,
+                         input_handle, sizes);
               args.profiler.add_interval("memcpy", memcpy_start, now());
 
               auto delete_start = now();
@@ -310,18 +309,18 @@ void* evaluate_thread(void* arg) {
         // Allow passing input buffers through to an evaluator output
         // by tracking the pointers and comparing the output pointers
         // for equality
-        std::set<u8*> all_output_buffers_set;
-        for (Column& column : output_columns) {
-          for (Row& row : column.rows) {
+        std::set<u8 *> all_output_buffers_set;
+        for (Column &column : output_columns) {
+          for (Row &row : column.rows) {
             all_output_buffers_set.insert(row.buffer);
           }
         }
 
         // Delete input buffers after they are used
         for (size_t i = 0; i < num_inputs; ++i) {
-          Column& column = input_columns[i];
-          for (Row& row : column.rows) {
-            u8* buff = row.buffer;
+          Column &column = input_columns[i];
+          for (Row &row : column.rows) {
+            u8 *buff = row.buffer;
             if (all_output_buffers_set.count(buff) == 0) {
               delete_buffer(input_handle, buff);
             }
@@ -352,9 +351,9 @@ void* evaluate_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
-void* post_evaluate_thread(void* arg) {
-  PostEvaluateThreadArgs& args =
-      *reinterpret_cast<PostEvaluateThreadArgs*>(arg);
+void *post_evaluate_thread(void *arg) {
+  PostEvaluateThreadArgs &args =
+      *reinterpret_cast<PostEvaluateThreadArgs *>(arg);
 
   i32 rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -378,8 +377,8 @@ void* post_evaluate_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
-    const BatchConfig& batch_config = args.metadata.at(io_item.table_id);
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
+    const BatchConfig &batch_config = args.metadata.at(io_item.table_id);
 
     if (buffered_entry.columns.size() == 0) {
       buffered_entry.columns.resize(work_entry.columns.size());
@@ -393,8 +392,8 @@ void* post_evaluate_thread(void* arg) {
     if (work_entry.needs_reset) {
       i32 total_warmup_frames =
           std::min((i64)args.warmup_count, io_item.start_row);
-      warmup_frames =
-          std::min(num_rows, std::max(0L, total_warmup_frames - current_offset));
+      warmup_frames = std::min(
+          num_rows, std::max(0L, total_warmup_frames - current_offset));
     } else {
       warmup_frames = 0;
     }
@@ -420,6 +419,5 @@ void* post_evaluate_thread(void* arg) {
   }
   THREAD_RETURN_SUCCESS();
 }
-
 }
 }

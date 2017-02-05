@@ -9,16 +9,17 @@ namespace scanner {
 #define BOX_SIZE 5
 #define FEATURES 4096
 
-void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
-                                         BatchedColumns& output_columns) {
+void FasterRCNNParserEvaluator::evaluate(const BatchedColumns &input_columns,
+                                         BatchedColumns &output_columns) {
   assert(input_columns.size() == 4);
 
   i32 input_count = input_columns[0].rows.size();
   i32 cls_prob_idx = 1;
   i32 rois_idx = 2;
   i32 fc7_idx = 3;
-  const std::vector<Row>&cls_prob = input_columns[cls_prob_idx].rows,
-        &rois = input_columns[rois_idx].rows, &fc7 = input_columns[fc7_idx].rows;
+  const std::vector<Row> &cls_prob = input_columns[cls_prob_idx].rows,
+                         &rois = input_columns[rois_idx].rows,
+                         &fc7 = input_columns[fc7_idx].rows;
 
   for (i32 i = 0; i < input_count; ++i) {
     i32 proposal_count =
@@ -27,7 +28,7 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
     assert(cls_prob[i].size == CLASSES * sizeof(f32) * proposal_count);
     std::vector<BoundingBox> bboxes;
     for (i32 j = 0; j < proposal_count; ++j) {
-      f32* roi = (f32*)(rois[i].buffer + (j * BOX_SIZE * sizeof(f32)));
+      f32 *roi = (f32 *)(rois[i].buffer + (j * BOX_SIZE * sizeof(f32)));
       f32 x1 = roi[1], y1 = roi[2], x2 = roi[3], y2 = roi[4];
 
       BoundingBox bbox;
@@ -39,7 +40,7 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
       f32 max_score;
       // Start at cls = 1 to skip background
       for (i32 cls = 1; cls < CLASSES; ++cls) {
-        f32* scores = (f32*)(cls_prob[i].buffer + (j * CLASSES * sizeof(f32)));
+        f32 *scores = (f32 *)(cls_prob[i].buffer + (j * CLASSES * sizeof(f32)));
         f32 score = scores[cls];
         if (score > SCORE_THRESHOLD) {
           bbox.set_score(score);
@@ -56,17 +57,18 @@ void FasterRCNNParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
     {
       size_t size;
-      u8* buffer;
+      u8 *buffer;
       serialize_bbox_vector(best_bboxes, buffer, size);
       output_columns[0].rows.push_back(Row{buffer, size});
     }
 
     {
-      size_t size = std::max(best_bboxes.size() * FEATURES * sizeof(f32), (size_t) 1);
-      u8* buffer = new_buffer(CPU_DEVICE, size);
+      size_t size =
+          std::max(best_bboxes.size() * FEATURES * sizeof(f32), (size_t)1);
+      u8 *buffer = new_buffer(CPU_DEVICE, size);
       for (i32 k = 0; k < best_bboxes.size(); ++k) {
         i32 j = best_bboxes[k].track_id();
-        f32* fvec = (f32*)(fc7[i].buffer + (j * FEATURES * sizeof(f32)));
+        f32 *fvec = (f32 *)(fc7[i].buffer + (j * FEATURES * sizeof(f32)));
         std::memcpy(buffer + (k * FEATURES * sizeof(f32)), fvec,
                     FEATURES * sizeof(f32));
       }
@@ -84,12 +86,12 @@ EvaluatorCapabilities FasterRCNNParserEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> FasterRCNNParserEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_column) {
+    const std::vector<std::string> &input_column) {
   return {"bboxes", "fc7"};
 }
 
-Evaluator* FasterRCNNParserEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+FasterRCNNParserEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new FasterRCNNParserEvaluator;
 }
 }

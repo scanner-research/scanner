@@ -33,8 +33,8 @@ namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously save result buffers
-void* save_thread(void* arg) {
-  SaveThreadArgs& args = *reinterpret_cast<SaveThreadArgs*>(arg);
+void *save_thread(void *arg) {
+  SaveThreadArgs &args = *reinterpret_cast<SaveThreadArgs *>(arg);
 
   auto setup_start = now();
 
@@ -42,7 +42,7 @@ void* save_thread(void* arg) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend* storage =
+  storehouse::StorageBackend *storage =
       storehouse::StorageBackend::make_from_config(args.storage_config);
 
   args.profiler.add_interval("setup", setup_start, now());
@@ -64,7 +64,7 @@ void* save_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
 
     // Write out each output layer to an individual data file
     for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
@@ -76,7 +76,7 @@ void* save_thread(void* arg) {
 
       auto io_start = now();
 
-      WriteFile* output_file = nullptr;
+      WriteFile *output_file = nullptr;
       {
         StoreResult result;
         BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
@@ -87,21 +87,21 @@ void* save_thread(void* arg) {
       }
 
       if (!work_entry.buffer_handle.is_same_address_space(CPU_DEVICE)) {
-        std::vector<u8*> dest_buffers, src_buffers;
+        std::vector<u8 *> dest_buffers, src_buffers;
         std::vector<size_t> sizes;
         size_t total_size = 0;
         for (i32 f = 0; f < num_rows; ++f) {
-          Row& row = work_entry.columns[out_idx].rows[f];
+          Row &row = work_entry.columns[out_idx].rows[f];
           total_size += row.size;
         }
 
         if (num_rows > 0) {
-          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
+          u8 *output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
           for (i32 f = 0; f < num_rows; ++f) {
-            Row& row = work_entry.columns[out_idx].rows[f];
+            Row &row = work_entry.columns[out_idx].rows[f];
             size_t size = row.size;
-            u8* src_buffer = row.buffer;
-            u8* dest_buffer = output_block;
+            u8 *src_buffer = row.buffer;
+            u8 *dest_buffer = output_block;
 
             dest_buffers.push_back(dest_buffer);
             src_buffers.push_back(src_buffer);
@@ -132,7 +132,7 @@ void* save_thread(void* arg) {
       // Write actual output data
       for (size_t i = 0; i < num_rows; ++i) {
         i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-        u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
+        u8 *buffer = work_entry.columns[out_idx].rows[i].buffer;
         write(output_file, buffer, buffer_size);
         size_written += buffer_size;
       }
@@ -142,8 +142,7 @@ void* save_thread(void* arg) {
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
       for (size_t i = 0; i < num_rows; ++i) {
-        delete_buffer(CPU_DEVICE,
-                      work_entry.columns[out_idx].rows[i].buffer);
+        delete_buffer(CPU_DEVICE, work_entry.columns[out_idx].rows[i].buffer);
       }
 
       delete output_file;
@@ -168,6 +167,5 @@ void* save_thread(void* arg) {
 
   THREAD_RETURN_SUCCESS();
 }
-
 }
 }

@@ -1,7 +1,7 @@
-#include "scanner/util/common.h"
 #include "scanner/api/commands.h"
 #include "scanner/engine/evaluator_info.h"
 #include "scanner/engine/evaluator_registry.h"
+#include "scanner/util/common.h"
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
@@ -11,13 +11,13 @@ namespace scanner {
 
 namespace py = boost::python;
 
-DatabaseParameters make_database_parameters(
-  storehouse::StorageConfig* storage_config,
-  std::string memory_config_serialized,
-  std::string db_path) {
+DatabaseParameters
+make_database_parameters(storehouse::StorageConfig *storage_config,
+                         std::string memory_config_serialized,
+                         std::string db_path) {
   MemoryPoolConfig memory_config;
-  memory_config.ParseFromArray(
-    memory_config_serialized.data(), memory_config_serialized.size());
+  memory_config.ParseFromArray(memory_config_serialized.data(),
+                               memory_config_serialized.size());
   DatabaseParameters params = {storage_config, memory_config, db_path};
   return params;
 }
@@ -34,23 +34,23 @@ PyServerState unwrap(ServerState state) {
   return new_state;
 }
 
-PyServerState start_master_wrapper(DatabaseParameters& params, bool block) {
+PyServerState start_master_wrapper(DatabaseParameters &params, bool block) {
   return unwrap(start_master(params, block));
 }
 
-PyServerState start_worker_wrapper(DatabaseParameters& db_params,
-                                   const std::string& worker_params_s,
-                                   const std::string& master_address,
+PyServerState start_worker_wrapper(DatabaseParameters &db_params,
+                                   const std::string &worker_params_s,
+                                   const std::string &master_address,
                                    bool block) {
   proto::WorkerParameters worker_params;
   worker_params.ParseFromArray(worker_params_s.data(), worker_params_s.size());
   return unwrap(start_worker(db_params, worker_params, master_address, block));
 }
 
-void load_evaluator(const std::string& path) {
-  void* handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-  LOG_IF(FATAL, handle == NULL)
-    << "dlopen of " << path << " failed: " << dlerror();
+void load_evaluator(const std::string &path) {
+  void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  LOG_IF(FATAL, handle == NULL) << "dlopen of " << path
+                                << " failed: " << dlerror();
 }
 
 std::string get_include() {
@@ -67,13 +67,12 @@ std::string other_flags() {
 }
 
 template <typename T>
-inline std::vector<T> to_std_vector(const py::object& iterable) {
+inline std::vector<T> to_std_vector(const py::object &iterable) {
   return std::vector<T>(py::stl_input_iterator<T>(iterable),
                         py::stl_input_iterator<T>());
 }
 
-template <class T>
-py::list to_py_list(std::vector<T> vector) {
+template <class T> py::list to_py_list(std::vector<T> vector) {
   typename std::vector<T>::iterator iter;
   py::list list;
   for (iter = vector.begin(); iter != vector.end(); ++iter) {
@@ -82,26 +81,24 @@ py::list to_py_list(std::vector<T> vector) {
   return list;
 }
 
-void ingest_videos_wrapper(
-  storehouse::StorageConfig* storage_config,
-  const std::string& db_path,
-  const py::list table_names,
-  const py::list paths) {
+void ingest_videos_wrapper(storehouse::StorageConfig *storage_config,
+                           const std::string &db_path,
+                           const py::list table_names, const py::list paths) {
   ingest_videos(storage_config, db_path,
                 to_std_vector<std::string>(table_names),
                 to_std_vector<std::string>(paths));
 }
 
-py::list get_output_columns(const std::string& evaluator_name) {
-  internal::EvaluatorRegistry* registry = internal::get_evaluator_registry();
+py::list get_output_columns(const std::string &evaluator_name) {
+  internal::EvaluatorRegistry *registry = internal::get_evaluator_registry();
   LOG_IF(FATAL, !registry->has_evaluator(evaluator_name))
-    << "Evaluator " << evaluator_name << " does not exist.";
-  internal::EvaluatorInfo* info = registry->get_evaluator_info(evaluator_name);
+      << "Evaluator " << evaluator_name << " does not exist.";
+  internal::EvaluatorInfo *info = registry->get_evaluator_info(evaluator_name);
   return to_py_list(info->output_columns());
 }
 
-bool has_evaluator(const std::string& name) {
-  internal::EvaluatorRegistry* registry = internal::get_evaluator_registry();
+bool has_evaluator(const std::string &name) {
+  internal::EvaluatorRegistry *registry = internal::get_evaluator_registry();
   return registry->has_evaluator(name);
 }
 
@@ -129,5 +126,4 @@ BOOST_PYTHON_MODULE(scanner_bindings) {
   def("has_evaluator", has_evaluator);
   def("default_worker_params", default_worker_params_wrapper);
 }
-
 }

@@ -1,17 +1,17 @@
 #include "scanner/engine/evaluate_worker.h"
 
-#include "scanner/video/decoder_automata.h"
 #include "scanner/engine/evaluator_registry.h"
+#include "scanner/video/decoder_automata.h"
 
 #include <thread>
 
 namespace scanner {
 namespace internal {
 namespace {
-void move_if_different_address_space(Profiler& profiler,
+void move_if_different_address_space(Profiler &profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     RowList& column) {
+                                     RowList &column) {
   if (!current_handle.is_same_address_space(target_handle)) {
     std::vector<u8 *> dest_buffers, src_buffers;
     std::vector<size_t> sizes;
@@ -46,21 +46,20 @@ void move_if_different_address_space(Profiler& profiler,
   }
 }
 
-void move_if_different_address_space(Profiler& profiler,
+void move_if_different_address_space(Profiler &profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     BatchedColumns& columns) {
+                                     BatchedColumns &columns) {
   for (i32 i = 0; i < (i32)columns.size(); ++i) {
     RowList &column = columns[i];
     move_if_different_address_space(profiler, current_handle, target_handle,
                                     column);
   }
 }
-
 }
 
-void* pre_evaluate_thread(void* arg) {
-  PreEvaluateThreadArgs& args = *reinterpret_cast<PreEvaluateThreadArgs*>(arg);
+void *pre_evaluate_thread(void *arg) {
+  PreEvaluateThreadArgs &args = *reinterpret_cast<PreEvaluateThreadArgs *>(arg);
 
   i64 work_item_size = rows_per_work_item();
 
@@ -88,13 +87,13 @@ void* pre_evaluate_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
 
     bool needs_configure = !(io_item.table_id == last_table_id);
     bool needs_reset = needs_configure ||
-      !(io_item.item_id == last_item_id ||
-        (io_item.table_id == last_table_id &&
-         io_item.start_row == last_end_row));
+                       !(io_item.item_id == last_item_id ||
+                         (io_item.table_id == last_table_id &&
+                          io_item.start_row == last_end_row));
 
     last_table_id = io_item.table_id;
     last_end_row = io_item.end_row;
@@ -145,20 +144,18 @@ void* pre_evaluate_thread(void* arg) {
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video) {
         decode_args.emplace_back();
-        auto& args = decode_args.back();
+        auto &args = decode_args.back();
         for (Row row : work_entry.columns[c].rows) {
           args.emplace_back();
-          proto::DecodeArgs& da = args.back();
+          proto::DecodeArgs &da = args.back();
           da.ParseFromArray(row.buffer, row.size);
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
       } else {
-        move_if_different_address_space(
-          args.profiler,
-          work_entry.buffer_handle,
-          decoder_output_handle,
-          work_entry.columns[c]);
+        move_if_different_address_space(args.profiler, work_entry.buffer_handle,
+                                        decoder_output_handle,
+                                        work_entry.columns[c]);
       }
     }
 
@@ -202,20 +199,20 @@ void* pre_evaluate_thread(void* arg) {
   THREAD_RETURN_SUCCESS();
 }
 
-void* evaluate_thread(void* arg) {
-  EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
+void *evaluate_thread(void *arg) {
+  EvaluateThreadArgs &args = *reinterpret_cast<EvaluateThreadArgs *>(arg);
 
   auto setup_start = now();
 
   // Instantiate kernels
-  const std::vector<std::vector<i32>>& dead_columns = args.dead_columns;
-  const std::vector<std::vector<i32>>& unused_outputs = args.unused_outputs;
-  const std::vector<std::vector<i32>>& column_mapping = args.column_mapping;
+  const std::vector<std::vector<i32>> &dead_columns = args.dead_columns;
+  const std::vector<std::vector<i32>> &unused_outputs = args.unused_outputs;
+  const std::vector<std::vector<i32>> &column_mapping = args.column_mapping;
   std::vector<DeviceHandle> kernel_devices;
   std::vector<i32> kernel_num_outputs;
   std::vector<std::unique_ptr<Kernel>> kernels;
   {
-    EvaluatorRegistry* registry = get_evaluator_registry();
+    EvaluatorRegistry *registry = get_evaluator_registry();
     for (size_t i = 0; i < args.kernel_factories.size(); ++i) {
       KernelFactory *factory = std::get<0>(args.kernel_factories[i]);
       const Kernel::Config &config = std::get<1>(args.kernel_factories[i]);
@@ -230,7 +227,7 @@ void* evaluate_thread(void* arg) {
   assert(kernels.size() > 0);
   i32 num_final_output_columns = kernel_num_outputs.back();
 
-  for (auto& kernel : kernels) {
+  for (auto &kernel : kernels) {
     kernel->set_profiler(&args.profiler);
   }
 
@@ -247,18 +244,17 @@ void* evaluate_thread(void* arg) {
     }
 
     LOG(INFO) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
-              << args.kg << "): processing item "
-              << work_entry.io_item_index;
+              << args.kg << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
 
     // Make the evaluator aware of the format of the data
     if (work_entry.needs_reset) {
-      for (auto& kernel : kernels) {
+      for (auto &kernel : kernels) {
         kernel->reset();
       }
     }
@@ -270,13 +266,13 @@ void* evaluate_thread(void* arg) {
     output_work_entry.needs_reset = work_entry.needs_reset;
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
 
-    BatchedColumns& work_item_output_columns = output_work_entry.columns;
+    BatchedColumns &work_item_output_columns = output_work_entry.columns;
     work_item_output_columns.resize(num_final_output_columns);
 
     i32 current_input = 0;
     i32 total_inputs = 0;
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-      total_inputs = //io_item.end_row - io_item.start_row;
+      total_inputs = // io_item.end_row - io_item.start_row;
           std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
     }
     while (current_input < total_inputs) {
@@ -302,7 +298,7 @@ void* evaluate_thread(void* arg) {
       DeviceHandle output_handle = work_entry.buffer_handle;
       for (size_t k = 0; k < kernels.size(); ++k) {
         DeviceHandle current_handle = kernel_devices[k];
-        std::unique_ptr<Kernel>& kernel = kernels[k];
+        std::unique_ptr<Kernel> &kernel = kernels[k];
         i32 num_outputs = kernel_num_outputs[k];
 
         DeviceHandle input_handle = output_handle;
@@ -356,11 +352,10 @@ void* evaluate_thread(void* arg) {
             u8 *buff = row.buffer;
             delete_buffer(output_handle, buff);
           }
-          side_output_columns.erase(side_output_columns.begin() +
-                                    dead_col_idx);
+          side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
         }
         // Add new output columns
-        for (const RowList& column : output_columns) {
+        for (const RowList &column : output_columns) {
           side_output_columns.push_back(column);
         }
       }
@@ -379,8 +374,7 @@ void* evaluate_thread(void* arg) {
     args.profiler.add_interval("task", work_start, now());
 
     LOG(INFO) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
-              << args.kg << "): finished item "
-              << work_entry.io_item_index;
+              << args.kg << "): finished item " << work_entry.io_item_index;
 
     args.output_work.push(output_work_entry);
   }
@@ -389,12 +383,11 @@ void* evaluate_thread(void* arg) {
             << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
-
 }
 
-void* post_evaluate_thread(void* arg) {
-  PostEvaluateThreadArgs& args =
-      *reinterpret_cast<PostEvaluateThreadArgs*>(arg);
+void *post_evaluate_thread(void *arg) {
+  PostEvaluateThreadArgs &args =
+      *reinterpret_cast<PostEvaluateThreadArgs *>(arg);
 
   EvalWorkEntry buffered_entry;
   i64 current_offset = 0;
@@ -415,7 +408,7 @@ void* post_evaluate_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[work_entry.io_item_index];
+    const IOItem &io_item = args.io_items[work_entry.io_item_index];
 
     if (buffered_entry.columns.size() == 0) {
       buffered_entry.io_item_index = work_entry.io_item_index;
@@ -458,6 +451,5 @@ void* post_evaluate_thread(void* arg) {
 
   THREAD_RETURN_SUCCESS();
 }
-
 }
 }

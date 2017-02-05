@@ -1,6 +1,6 @@
-#include "scanner/eval/pipeline_description.h"
 #include "scanner/eval/evaluator.h"
 #include "scanner/eval/evaluator_factory.h"
+#include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/util/opencv.h"
 
@@ -10,18 +10,20 @@ namespace scanner {
 
 template <typename Scalar, typename Vector, typename Container,
           typename distFunction>
-void geometric_median(const Container& X, Vector& geo_median,
+void geometric_median(const Container &X, Vector &geo_median,
                       distFunction distance, int iterations = 10) {
   size_t dim = geo_median.size();
   size_t N = X.size();
-  if (N < 3) return;
+  if (N < 3)
+    return;
 
   // initial guess
   std::vector<Vector> A(2.0, (X[0] + X[1]) / Scalar(2.0));
 
   for (int it = 0; it < iterations; it++) {
     Vector numerator;
-    for (size_t i = 0; i < dim; i++) numerator[i] = 0.;
+    for (size_t i = 0; i < dim; i++)
+      numerator[i] = 0.;
     Scalar denominator = 0.;
 
     int t = it % 2;
@@ -42,19 +44,19 @@ void geometric_median(const Container& X, Vector& geo_median,
 }
 
 class MedianEvaluator : public Evaluator {
- public:
+public:
   MedianEvaluator(DeviceType device_type, i32 device_id)
       : device_type_(device_type), device_id_(device_id) {}
 
   ~MedianEvaluator() {}
 
-  void evaluate(const BatchedColumns& input_columns,
-                BatchedColumns& output_columns) {
+  void evaluate(const BatchedColumns &input_columns,
+                BatchedColumns &output_columns) {
     i32 input_count = (i32)input_columns[0].rows.size();
     i32 out_size = 3 * sizeof(u8);
 
     struct distFunction {
-      double operator()(const Eigen::Vector3d& a, const Eigen::Vector3d& b) {
+      double operator()(const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
         return (a - b).lpNorm<2>();
       }
     };
@@ -76,7 +78,7 @@ class MedianEvaluator : public Evaluator {
       geometric_median<float>(X, median, distFunction());
       // LOG(INFO) << X.size() << " " << median;
 
-      u8* out_buffer = new u8[out_size];
+      u8 *out_buffer = new u8[out_size];
       for (i32 j = 0; j < 3; ++j) {
         out_buffer[j] = (u8)median[j];
       }
@@ -85,13 +87,13 @@ class MedianEvaluator : public Evaluator {
     }
   }
 
- private:
+private:
   DeviceType device_type_;
   i32 device_id_;
 };
 
 class MedianEvaluatorFactory : public EvaluatorFactory {
- public:
+public:
   MedianEvaluatorFactory(DeviceType device_type) : device_type_(device_type) {}
 
   EvaluatorCapabilities get_capabilities() {
@@ -104,18 +106,18 @@ class MedianEvaluatorFactory : public EvaluatorFactory {
 
   std::vector<std::string> get_output_names() { return {"median"}; }
 
-  Evaluator* new_evaluator(const EvaluatorConfig& config) {
+  Evaluator *new_evaluator(const EvaluatorConfig &config) {
     return new MedianEvaluator(device_type_, config.device_ids[0]);
   }
 
- private:
+private:
   DeviceType device_type_;
 };
 
 namespace {
-PipelineDescription get_pipeline_description(
-    const DatasetMetadata& dataset_meta,
-    const std::vector<DatasetItemMetadata>& item_metas) {
+PipelineDescription
+get_pipeline_description(const DatasetMetadata &dataset_meta,
+                         const std::vector<DatasetItemMetadata> &item_metas) {
   PipelineDescription desc;
   desc.input_columns = {"frame"};
 
@@ -130,7 +132,7 @@ PipelineDescription get_pipeline_description(
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(

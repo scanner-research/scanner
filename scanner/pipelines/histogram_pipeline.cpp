@@ -4,7 +4,7 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
   Sampler::all_frames(info, desc);
 
@@ -19,11 +19,11 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(
-    new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
+      new DecoderEvaluatorFactory(DeviceType::CPU, VideoDecoderType::SOFTWARE));
   factories.emplace_back(new HistogramEvaluatorFactory(device_type));
 
   return desc;

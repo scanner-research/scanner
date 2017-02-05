@@ -30,15 +30,14 @@
 namespace scanner {
 
 CPMPersonParserEvaluator::CPMPersonParserEvaluator(
-    const EvaluatorConfig& config, DeviceType device_type, i32 device_id)
-    : device_type_(device_type),
-      device_id_(device_id) {
+    const EvaluatorConfig &config, DeviceType device_type, i32 device_id)
+    : device_type_(device_type), device_id_(device_id) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU CPM person parser support not implemented yet";
   }
 }
 
-void CPMPersonParserEvaluator::configure(const BatchConfig& config) {
+void CPMPersonParserEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
@@ -61,8 +60,8 @@ void CPMPersonParserEvaluator::configure(const BatchConfig& config) {
   max_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC1);
 }
 
-void CPMPersonParserEvaluator::evaluate(const BatchedColumns& input_columns,
-                                        BatchedColumns& output_columns) {
+void CPMPersonParserEvaluator::evaluate(const BatchedColumns &input_columns,
+                                        BatchedColumns &output_columns) {
   i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 frame_idx = 0;
@@ -97,7 +96,7 @@ void CPMPersonParserEvaluator::evaluate(const BatchedColumns& input_columns,
     }
     // Assume size of a bounding box is the same size as all bounding boxes
     size_t size;
-    u8* buffer;
+    u8 *buffer;
     serialize_proto_vector(centers, buffer, size);
     output_columns[feature_idx].rows.push_back(Row{buffer, size});
   }
@@ -125,15 +124,15 @@ EvaluatorCapabilities CPMPersonParserEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> CPMPersonParserEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   std::vector<std::string> output_names;
   output_names.push_back("frame");
   output_names.push_back("centers");
   return output_names;
 }
 
-Evaluator* CPMPersonParserEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+CPMPersonParserEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new CPMPersonParserEvaluator(config, device_type_,
                                       config.device_ids[0]);
 }

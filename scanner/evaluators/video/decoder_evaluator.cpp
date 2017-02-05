@@ -17,24 +17,21 @@
 #include "scanner/evaluators/serialize.h"
 #include "scanner/metadata.pb.h"
 
-#include "scanner/util/memory.h"
 #include "scanner/util/h264.h"
+#include "scanner/util/memory.h"
 
 #include <thread>
 
 namespace scanner {
 
-DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig& config,
+DecoderEvaluator::DecoderEvaluator(const EvaluatorConfig &config,
                                    DeviceType device_type,
                                    VideoDecoderType decoder_type,
                                    i32 num_devices)
-    : device_type_(device_type),
-      device_id_(config.device_ids[0]),
-      decoder_type_(decoder_type),
-      num_devices_(num_devices) {
-}
+    : device_type_(device_type), device_id_(config.device_ids[0]),
+      decoder_type_(decoder_type), num_devices_(num_devices) {}
 
-void DecoderEvaluator::configure(const BatchConfig& config) {
+void DecoderEvaluator::configure(const BatchConfig &config) {
   reset();
   config_ = config;
   frame_sizes_.clear();
@@ -43,7 +40,7 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
   }
   for (size_t i = 0; i < config.formats.size(); ++i) {
     if (decoders_.size() <= i) {
-      VideoDecoder* decoder = VideoDecoder::make_from_config(
+      VideoDecoder *decoder = VideoDecoder::make_from_config(
           device_type_, device_id_, decoder_type_, device_type_, num_devices_);
       assert(decoder);
       decoders_.emplace_back(decoder);
@@ -69,9 +66,9 @@ void DecoderEvaluator::configure(const BatchConfig& config) {
 
 DecoderEvaluator::~DecoderEvaluator() {
   for (size_t i = 0; i < video_column_idxs_.size(); ++i) {
-    CachedEncodedVideo& cache = cached_video_[i];
+    CachedEncodedVideo &cache = cached_video_[i];
     if (cache.encoded_buffer) {
-      delete_buffer(CPU_DEVICE, (u8*) cache.encoded_buffer);
+      delete_buffer(CPU_DEVICE, (u8 *)cache.encoded_buffer);
     }
   }
 }
@@ -79,14 +76,15 @@ DecoderEvaluator::~DecoderEvaluator() {
 void DecoderEvaluator::reset() {
 
   for (size_t i = 0; i < video_column_idxs_.size(); ++i) {
-    VideoDecoder* decoder = decoders_[i].get();
+    VideoDecoder *decoder = decoders_[i].get();
     if (decoder->decoded_frames_buffered() > 0) {
-      while (decoder->discard_frame()) {}
+      while (decoder->discard_frame()) {
+      }
     }
 
-    CachedEncodedVideo& cache = cached_video_[i];
+    CachedEncodedVideo &cache = cached_video_[i];
     if (cache.encoded_buffer) {
-      delete_buffer(CPU_DEVICE, (u8*) cache.encoded_buffer);
+      delete_buffer(CPU_DEVICE, (u8 *)cache.encoded_buffer);
     }
     cache.encoded_buffer = nullptr;
     cache.encoded_buffer_size = 0;
@@ -98,8 +96,8 @@ void DecoderEvaluator::reset() {
   }
 }
 
-void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
-                                BatchedColumns& output_columns) {
+void DecoderEvaluator::evaluate(const BatchedColumns &input_columns,
+                                BatchedColumns &output_columns) {
   assert(input_columns.size() ==
          video_column_idxs_.size() * 2 + regular_column_idxs_.size());
 
@@ -112,40 +110,40 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
   for (std::tuple<i32, i32> idxs : video_column_idxs_) {
     assert(video_num < frame_sizes_.size());
     size_t frame_size = frame_sizes_.at(video_num);
-    VideoDecoder* decoder = decoders_.at(video_num).get();
+    VideoDecoder *decoder = decoders_.at(video_num).get();
     i64 frames_passed = 0;
 
     i32 col_idx;
     i32 out_col_idx;
     std::tie(col_idx, out_col_idx) = idxs;
 
-    const Column& frame_col = input_columns[col_idx];
-    const Column& args_col = input_columns[col_idx + 1];
+    const Column &frame_col = input_columns[col_idx];
+    const Column &args_col = input_columns[col_idx + 1];
     size_t num_inputs = frame_col.rows.size();
 
     // We cache the encoded video because work items in an io item
     // expect previous rows to have given the encoded buffer
-    CachedEncodedVideo& cache = cached_video_[video_num];
+    CachedEncodedVideo &cache = cached_video_[video_num];
     size_t current_input = 0;
     while (current_input < num_inputs) {
-      const u8*& encoded_buffer = cache.encoded_buffer;
-      size_t& encoded_buffer_size = cache.encoded_buffer_size;
-      i64& current_start_keyframe = cache.current_start_keyframe;
-      i64& current_end_keyframe = cache.current_end_keyframe;
+      const u8 *&encoded_buffer = cache.encoded_buffer;
+      size_t &encoded_buffer_size = cache.encoded_buffer_size;
+      i64 &current_start_keyframe = cache.current_start_keyframe;
+      i64 &current_end_keyframe = cache.current_end_keyframe;
       std::vector<i64> valid_frames;
 
       bool clear_cache = false;
       for (; current_input < num_inputs; current_input++) {
-        const u8* in_encoded_buffer = frame_col.rows[current_input].buffer;
+        const u8 *in_encoded_buffer = frame_col.rows[current_input].buffer;
         size_t in_encoded_buffer_size = frame_col.rows[current_input].size;
 
-        u8* decode_args_buffer = args_col.rows[current_input].buffer;
+        u8 *decode_args_buffer = args_col.rows[current_input].buffer;
         size_t decode_args_buffer_size = args_col.rows[current_input].size;
 
         DecodeArgs args;
         if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-          u8* buffer = new u8[decode_args_buffer_size];
+          u8 *buffer = new u8[decode_args_buffer_size];
           memcpy_buffer(buffer, CPU_DEVICE, decode_args_buffer,
                         {DeviceType::GPU, device_id_}, decode_args_buffer_size);
           args = deserialize_decode_args(buffer, decode_args_buffer_size);
@@ -175,7 +173,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         if (encoded_buffer == nullptr) {
           if (device_type_ == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-            u8* buffer = new_buffer(CPU_DEVICE, in_encoded_buffer_size);
+            u8 *buffer = new_buffer(CPU_DEVICE, in_encoded_buffer_size);
             memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer,
                           {DeviceType::GPU, device_id_},
                           in_encoded_buffer_size);
@@ -185,7 +183,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
 #endif
           } else {
             // Need to copy because we cache it
-            u8* buffer = new u8[in_encoded_buffer_size];
+            u8 *buffer = new u8[in_encoded_buffer_size];
             memcpy_buffer(buffer, CPU_DEVICE, in_encoded_buffer, CPU_DEVICE,
                           in_encoded_buffer_size);
             encoded_buffer = buffer;
@@ -194,13 +192,12 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         }
       }
 
-
       i32 total_output_frames = static_cast<i32>(valid_frames.size());
-      size_t& encoded_buffer_offset = cache.encoded_buffer_offset;
-      i32& current_frame = cache.current_frame;
+      size_t &encoded_buffer_offset = cache.encoded_buffer_offset;
+      i32 &current_frame = cache.current_frame;
       // May have switched buffer since last evaluation
       if (total_output_frames > 0) {
-        u8* output_block = new_block_buffer({device_type_, device_id_},
+        u8 *output_block = new_block_buffer({device_type_, device_id_},
                                             total_output_frames * frame_size,
                                             total_output_frames);
 
@@ -269,7 +266,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
             while (more_frames && valid_index < total_output_frames) {
               assert(current_frame <= valid_frames[valid_index]);
               if (current_frame == valid_frames[valid_index]) {
-                u8* decoded_buffer = output_block + valid_index * frame_size;
+                u8 *decoded_buffer = output_block + valid_index * frame_size;
                 more_frames = decoder->get_frame(decoded_buffer, frame_size);
                 output_columns[out_col_idx].rows.push_back(
                     Row{decoded_buffer, frame_size});
@@ -284,7 +281,8 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
             continue;
           }
           if (first_through) {
-            if (discontinuity_[video_num]) {;
+            if (discontinuity_[video_num]) {
+              ;
               decoder->feed(nullptr, 0, true);
             }
             feeder_thread = std::thread(feeder_worker);
@@ -307,7 +305,7 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
         discontinuity_[video_num] = true;
         decoder->feed(nullptr, 0, true);
 
-        delete_buffer(CPU_DEVICE, (u8*) encoded_buffer);
+        delete_buffer(CPU_DEVICE, (u8 *)encoded_buffer);
         encoded_buffer = nullptr;
         encoded_buffer_size = 0;
         current_start_keyframe = -1;
@@ -328,44 +326,44 @@ void DecoderEvaluator::evaluate(const BatchedColumns& input_columns,
     output_columns[out_col_idx].rows.insert(
         output_columns[out_col_idx].rows.end(),
         input_columns[col_idx].rows.begin(), input_columns[col_idx].rows.end());
+  }
+
+  if (profiler_) {
+    profiler_->add_interval("decode", start, now());
+    profiler_->increment("effective_frames", total_frames_used);
+    profiler_->increment("decoded_frames", total_frames_decoded);
+  }
+}
+
+DecoderEvaluatorFactory::DecoderEvaluatorFactory(DeviceType device_type,
+                                                 VideoDecoderType decoder_type)
+    : device_type_(device_type), decoder_type_(decoder_type) {
+  num_devices_ = device_type_ == DeviceType::GPU ? 1 : 8;
+}
+
+EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
+  EvaluatorCapabilities caps;
+  caps.device_type = device_type_;
+  caps.max_devices = num_devices_;
+  caps.warmup_size = 0;
+  caps.can_overlap = true;
+  return caps;
+}
+
+std::vector<std::string> DecoderEvaluatorFactory::get_output_columns(
+    const std::vector<std::string> &input_columns) {
+  std::vector<std::string> output_columns;
+  for (const std::string &col : input_columns) {
+    if (col != base_column_args_name()) {
+      output_columns.push_back(col);
     }
-
-    if (profiler_) {
-      profiler_->add_interval("decode", start, now());
-      profiler_->increment("effective_frames", total_frames_used);
-      profiler_->increment("decoded_frames", total_frames_decoded);
-    }
   }
+  return output_columns;
+}
 
-  DecoderEvaluatorFactory::DecoderEvaluatorFactory(
-      DeviceType device_type, VideoDecoderType decoder_type)
-      : device_type_(device_type), decoder_type_(decoder_type) {
-    num_devices_ = device_type_ == DeviceType::GPU ? 1 : 8;
-  }
-
-  EvaluatorCapabilities DecoderEvaluatorFactory::get_capabilities() {
-    EvaluatorCapabilities caps;
-    caps.device_type = device_type_;
-    caps.max_devices = num_devices_;
-    caps.warmup_size = 0;
-    caps.can_overlap = true;
-    return caps;
-  }
-
-  std::vector<std::string> DecoderEvaluatorFactory::get_output_columns(
-      const std::vector<std::string>& input_columns) {
-    std::vector<std::string> output_columns;
-    for (const std::string& col : input_columns) {
-      if (col != base_column_args_name()) {
-        output_columns.push_back(col);
-      }
-    }
-    return output_columns;
-  }
-
-  Evaluator* DecoderEvaluatorFactory::new_evaluator(
-      const EvaluatorConfig& config) {
-    return new DecoderEvaluator(config, device_type_, decoder_type_,
-                                num_devices_);
-  }
+Evaluator *
+DecoderEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
+  return new DecoderEvaluator(config, device_type_, decoder_type_,
+                              num_devices_);
+}
 }

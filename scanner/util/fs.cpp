@@ -13,11 +13,11 @@
 namespace scanner {
 // Stolen from
 // https://gist.github.com/JonathonReinhart/8c0d90191c38af2dcadb102c4e202950
-int mkdir_p(const char* path, mode_t mode) {
+int mkdir_p(const char *path, mode_t mode) {
   /* Adapted from http://stackoverflow.com/a/2336245/119527 */
   const size_t len = strlen(path);
   char _path[PATH_MAX];
-  char* p;
+  char *p;
 
   errno = 0;
 
@@ -40,7 +40,8 @@ int mkdir_p(const char* path, mode_t mode) {
           return -1;
         }
         if (mkdir(_path, mode) != 0) {
-          if (errno != EEXIST) return -1;
+          if (errno != EEXIST)
+            return -1;
         }
       }
 
@@ -49,13 +50,14 @@ int mkdir_p(const char* path, mode_t mode) {
   }
 
   if (mkdir(_path, mode) != 0) {
-    if (errno != EEXIST) return -1;
+    if (errno != EEXIST)
+      return -1;
   }
 
   return 0;
 }
 
-void temp_file(FILE** fp, std::string& name) {
+void temp_file(FILE **fp, std::string &name) {
   char n[] = "/tmp/scannerXXXXXX";
   int fd = mkstemp(n);
   *fp = fdopen(fd, "wb+");

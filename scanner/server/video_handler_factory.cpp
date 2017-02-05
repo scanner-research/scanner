@@ -29,17 +29,18 @@ using storehouse::StoreResult;
 namespace scanner {
 
 VideoHandlerFactory::VideoHandlerFactory(
-    storehouse::StorageConfig* storage_config)
+    storehouse::StorageConfig *storage_config)
     : storage_config_(storage_config) {}
 
-void VideoHandlerFactory::onServerStart(folly::EventBase* evb) noexcept {
+void VideoHandlerFactory::onServerStart(folly::EventBase *evb) noexcept {
   stats_.reset(new VideoHandlerStats);
 }
 
 void VideoHandlerFactory::onServerStop() noexcept { stats_.reset(); }
 
-proxygen::RequestHandler* VideoHandlerFactory::onRequest(
-    proxygen::RequestHandler*, proxygen::HTTPMessage*) noexcept {
+proxygen::RequestHandler *
+VideoHandlerFactory::onRequest(proxygen::RequestHandler *,
+                               proxygen::HTTPMessage *) noexcept {
   return new VideoHandler(stats_.get(), storage_config_);
 }
 }

@@ -30,12 +30,12 @@ namespace scanner {
 
 //////////////////////////////////////////////////////////////////////
 /// NetDescriptor
-NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
+NetDescriptor descriptor_from_net_file(std::ifstream &net_file) {
   toml::ParseResult pr = toml::parse(net_file);
   if (!pr.valid()) {
     LOG(FATAL) << pr.errorReason;
   }
-  const toml::Value& root = pr.value;
+  const toml::Value &root = pr.value;
 
   NetDescriptor descriptor;
 
@@ -88,10 +88,10 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
 
   descriptor.model_path = model_path->as<std::string>();
   descriptor.model_weights_path = weights_path->as<std::string>();
-  for (const toml::Value& v : input_layers->as<toml::Array>()) {
+  for (const toml::Value &v : input_layers->as<toml::Array>()) {
     descriptor.input_layer_names.push_back(v.as<std::string>());
   }
-  for (const toml::Value& v : output_layers->as<toml::Array>()) {
+  for (const toml::Value &v : output_layers->as<toml::Array>()) {
     descriptor.output_layer_names.push_back(v.as<std::string>());
   }
 
@@ -170,8 +170,8 @@ NetDescriptor descriptor_from_net_file(std::ifstream& net_file) {
     float green = mean_green->as<double>();
     float red = mean_red->as<double>();
 
-    std::vector<float>& mean_colors = descriptor.mean_colors;
-    for (const toml::Value& v : channel_ordering->as<toml::Array>()) {
+    std::vector<float> &mean_colors = descriptor.mean_colors;
+    for (const toml::Value &v : channel_ordering->as<toml::Array>()) {
       std::string color = v.as<std::string>();
       if (color == "red") {
         mean_colors.push_back(red);
@@ -225,16 +225,16 @@ caffe::Caffe::Brew device_type_to_caffe_mode(DeviceType type) {
   caffe::Caffe::Brew caffe_type;
 
   switch (type) {
-    case DeviceType::GPU:
-      caffe_type = caffe::Caffe::GPU;
-      break;
-    case DeviceType::CPU:
-      caffe_type = caffe::Caffe::CPU;
-      break;
-    default:
-      // TODO(apoms): error message
-      exit(EXIT_FAILURE);
-      break;
+  case DeviceType::GPU:
+    caffe_type = caffe::Caffe::GPU;
+    break;
+  case DeviceType::CPU:
+    caffe_type = caffe::Caffe::CPU;
+    break;
+  default:
+    // TODO(apoms): error message
+    exit(EXIT_FAILURE);
+    break;
   }
 
   return caffe_type;

@@ -163,10 +163,11 @@ class Database:
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
         import scanner.kernels.args_pb2 as arg_types
+        import scanner.kernels.types_pb2 as misc_types
         import scanner_bindings as bindings
         self._metadata_types = metadata_types
         self._rpc_types = rpc_types
-        self._arg_types = [arg_types]
+        self._arg_types = [arg_types, misc_types]
         self._bindings = bindings
 
         # Setup database metadata
@@ -344,7 +345,7 @@ class Database:
 
         os.remove('{}/pydb/collection_{}.bin'.format(self._db_path, id))
 
-    def new_collection(self, collection_name, table_names, force=False):
+    def new_collection(self, collection_name, table_names, force=False, job_id=None):
         """
         Creates a new Collection from a list of tables.
 
@@ -354,6 +355,7 @@ class Database:
 
         Kwargs:
             force: TODO(wcrichto)
+            job_id: TODO(wcrichto)
 
         Returns:
             The new Collection object.
@@ -374,6 +376,7 @@ class Database:
         self._update_collections()
         collection = self._metadata_types.CollectionDescriptor()
         collection.tables.extend(table_names)
+        collection.job_id = -1 if job_id is None else job_id
         self._save_descriptor(collection, 'pydb/collection_{}.bin'.format(new_id))
 
         return self.collection(collection_name)
@@ -606,11 +609,19 @@ class Database:
         except grpc.RpcError as e:
             raise ScannerException('Job failed with error: {}'.format(e))
 
+        db_meta = self._load_db_metadata();
+        job_id = None
+        for job in db_meta.jobs:
+            if job.name == job_name:
+                job_id = job.id
+        if job_id is None:
+            raise ScannerException('Internal error, job id not found after run')
+
         # Return a new collection if the input was a collection, otherwise
         # return a table list
         table_names = [task.output_table_name for task in tasks]
         if output_collection is not None:
-            return self.new_collection(output_collection, table_names, force)
+            return self.new_collection(output_collection, table_names, force, job_id)
         else:
             return [self.table(t) for t in table_names]
 
@@ -704,29 +715,29 @@ class EvaluatorGenerator:
         def make_evaluator(**kwargs):
             inputs = kwargs.pop('inputs', [])
             device = kwargs.pop('device', DeviceType.CPU)
-            proto = kwargs.pop('proto', None)
-            return Evaluator(self._db, name, inputs, device, proto, kwargs)
+            args = kwargs.pop('args', None)
+            return Evaluator(self._db, name, inputs, device,
+                             kwargs if args is None else args)
         return make_evaluator
 
 
 class Evaluator:
-    def __init__(self, db, name, inputs, device, proto, args):
+    def __init__(self, db, name, inputs, device, args):
         self._db = db
         self._name = name
         self._inputs = inputs
         self._device = device
         self._args = args
-        self._proto = proto
 
     @classmethod
     def input(cls, db):
         # TODO(wcrichto): allow non-frame inputs
         return cls(db, "InputTable", [(None, ["frame", "frame_info"])],
-                   DeviceType.CPU, None, {})
+                   DeviceType.CPU, {})
 
     @classmethod
     def output(cls, db, inputs):
-        return cls(db, "OutputTable", inputs, DeviceType.CPU, None, {})
+        return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
 
     def to_proto(self, indices):
         e = self._db._metadata_types.Evaluator()
@@ -740,21 +751,24 @@ class Evaluator:
 
         e.device_type = DeviceType.to_proto(self._db, self._device)
 
-        # To convert arguments, we search for a protobuf with the name
-        # {Evaluator}Args (e.g. BlurArgs, HistogramArgs) in the args.proto
-        # module, and fill that in with keys from the args dict.
-        if len(self._args) > 0:
-            proto_name = self._name + 'Args' \
-                         if self._proto is None else self._proto + 'Args'
-            args_proto = getattr(self._db.protobufs, proto_name)()
-            for k, v in self._args.iteritems():
-                try:
-                    setattr(args_proto, k, v)
-                except AttributeError:
-                    # If the attribute is a nested proto, we can't assign directly,
-                    # so copy from the value.
-                    getattr(args_proto, k).CopyFrom(v)
-                e.kernel_args = args_proto.SerializeToString()
+        if isinstance(self._args, dict):
+            # To convert an arguments dict, we search for a protobuf with the
+            # name {Evaluator}Args (e.g. BlurArgs, HistogramArgs) in the
+            # args.proto module, and fill that in with keys from the args dict.
+            if len(self._args) > 0:
+                proto_name = self._name + 'Args'
+                args_proto = getattr(self._db.protobufs, proto_name)()
+                for k, v in self._args.iteritems():
+                    try:
+                        setattr(args_proto, k, v)
+                    except AttributeError:
+                        # If the attribute is a nested proto, we can't assign directly,
+                        # so copy from the value.
+                        getattr(args_proto, k).CopyFrom(v)
+                    e.kernel_args = args_proto.SerializeToString()
+        else:
+            # If arguments are a protobuf object, serialize it directly
+            e.kernel_args = self._args.SerializeToString()
 
         return e
 
@@ -778,6 +792,9 @@ class Collection:
     def tables(self, index=None):
         tables = [self._db.table(t) for t in self._descriptor.tables]
         return tables[index] if index is not None else tables
+
+    def profiler(self):
+        return self._db.profiler(self._descriptor.job_id)
 
 
 class Column:
@@ -1107,7 +1124,7 @@ class Profiler:
 
 class NetDescriptor:
     def __init__(self, db):
-        self._descriptor = db._arg_types[0].NetDescriptor()
+        self._descriptor = db.protobufs.NetDescriptor()
 
     def _val(self, dct, key, default):
         if key in dct:

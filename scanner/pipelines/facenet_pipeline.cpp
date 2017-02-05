@@ -8,11 +8,11 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
-  char* SCALE = std::getenv("SC_SCALE");
-  char* START_FRAME = std::getenv("SC_START_FRAME");
-  char* END_FRAME = std::getenv("SC_END_FRAME");
-  char* BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
+  char *SCALE = std::getenv("SC_SCALE");
+  char *START_FRAME = std::getenv("SC_START_FRAME");
+  char *END_FRAME = std::getenv("SC_END_FRAME");
+  char *BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
 
   i32 start_frame = 1000;
   i32 end_frame = 3000;
@@ -24,7 +24,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   }
 
   PipelineDescription desc;
-  //Sampler::all_frames(info, desc);
+  // Sampler::all_frames(info, desc);
   Sampler::range_frames(info, desc, start_frame, end_frame);
 
   std::string net_descriptor_file = "features/caffe_facenet.toml";
@@ -45,24 +45,24 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     scale = std::atof(SCALE);
   }
 
-  auto facenet_net_config =
-      [scale](const BatchConfig &config, caffe::Net<float> *net) {
-        assert(config.formats.size() == 1);
-        const InputFormat &metadata = config.formats[0];
-        // Calculate width by scaling by box size
-        int resize_width = metadata.width() * scale;
-        int resize_height = metadata.height() * scale;
+  auto facenet_net_config = [scale](const BatchConfig &config,
+                                    caffe::Net<float> *net) {
+    assert(config.formats.size() == 1);
+    const InputFormat &metadata = config.formats[0];
+    // Calculate width by scaling by box size
+    int resize_width = metadata.width() * scale;
+    int resize_height = metadata.height() * scale;
 
-        resize_width += (resize_width % 8);
-        resize_height += (resize_height % 8);
+    resize_width += (resize_width % 8);
+    resize_height += (resize_height % 8);
 
-        int net_input_width = resize_height;
-        int net_input_height = resize_width;
+    int net_input_width = resize_height;
+    int net_input_height = resize_width;
 
-        const boost::shared_ptr<caffe::Blob<float>> input_blob{
-            net->blob_by_name("data")};
-        input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-                             net_input_height, net_input_width});
+    const boost::shared_ptr<caffe::Blob<float>> input_blob{
+        net->blob_by_name("data")};
+    input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
+                         net_input_height, net_input_width});
   };
 
   std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
@@ -77,8 +77,10 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   factories.emplace_back(
       new FacenetParserEvaluatorFactory(DeviceType::CPU, scale, threshold,
                                         FacenetParserEvaluator::NMSType::Best));
-  factories.emplace_back(new SwizzleEvaluatorFactory(
-      DeviceType::CPU, {1}, {"base_bboxes",}));
+  factories.emplace_back(new SwizzleEvaluatorFactory(DeviceType::CPU, {1},
+                                                     {
+                                                         "base_bboxes",
+                                                     }));
 
   return desc;
 }

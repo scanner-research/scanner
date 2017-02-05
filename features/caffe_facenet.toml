@@ -1,6 +1,6 @@
 [net]
-    model = "features/caffe_facenet/facenet_deploy.prototxt"
-    weights = "features/caffe_facenet/facenet_deploy.caffemodel"
+    model = "/h/wcrichto/scanner/features/caffe_facenet/facenet_deploy.prototxt"
+    weights = "/h/wcrichto/scanner/features/caffe_facenet/facenet_deploy.caffemodel"
     input_layers = ["data"]
     output_layers = ["score_final"]
 
@@ -9,11 +9,11 @@
             "batch",
             "channel",
             "height",
-            "width",
+            "width"
         ]
         channel_ordering = [
-            "red"
-            "green"
+            "red",
+            "green",
             "blue"
         ]
 

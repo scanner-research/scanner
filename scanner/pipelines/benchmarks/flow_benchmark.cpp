@@ -1,14 +1,14 @@
 #include "scanner/eval/pipeline_description.h"
 #include "scanner/evaluators/movie_analysis/optical_flow_evaluator.h"
-#include "scanner/evaluators/video/decoder_evaluator.h"
-#include "scanner/evaluators/util/swizzle_evaluator.h"
 #include "scanner/evaluators/util/discard_evaluator.h"
+#include "scanner/evaluators/util/swizzle_evaluator.h"
+#include "scanner/evaluators/video/decoder_evaluator.h"
 
 #include "scanner/pipelines/benchmarks/sampling.h"
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
   benchmark_sampling(info, desc, true);
 
@@ -27,7 +27,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     LOG(FATAL) << "Invalid SC_DEVICE type `" << device << "`";
   }
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(

@@ -24,7 +24,7 @@ std::map<std::tuple<i32, i32>, i32> get_panel_cam_to_idx_mapping() {
   return mapping;
 }
 
-void split(const std::string& s, char delim, std::vector<std::string>& elems) {
+void split(const std::string &s, char delim, std::vector<std::string> &elems) {
   std::stringstream ss;
   ss.str(s);
   std::string item;
@@ -33,10 +33,10 @@ void split(const std::string& s, char delim, std::vector<std::string>& elems) {
   }
 }
 
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
-  const char* CAMERAS = std::getenv("SC_CAMERAS");
-  const char* START_FRAME = std::getenv("SC_START_FRAME");
-  const char* END_FRAME = std::getenv("SC_END_FRAME");
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
+  const char *CAMERAS = std::getenv("SC_CAMERAS");
+  const char *START_FRAME = std::getenv("SC_START_FRAME");
+  const char *END_FRAME = std::getenv("SC_END_FRAME");
 
   auto mapping = get_panel_cam_to_idx_mapping();
   std::vector<i32> camera_idxs;
@@ -44,7 +44,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
     std::string cams(CAMERAS);
     std::vector<std::string> cam_strs;
     split(cams, ',', cam_strs);
-    for (const std::string& cam_str : cam_strs) {
+    for (const std::string &cam_str : cam_strs) {
       std::vector<std::string> panel_and_cam;
       split(cam_str, ':', panel_and_cam);
       i32 panel = atoi(panel_and_cam[0].c_str());
@@ -59,10 +59,10 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
   for (i32 idx : camera_idxs) {
     desc.tasks.emplace_back();
-    Task& task = desc.tasks.back();
+    Task &task = desc.tasks.back();
     task.table_name = std::to_string(idx);
     task.samples.emplace_back();
-    TableSample& sample = task.samples.back();
+    TableSample &sample = task.samples.back();
     sample.job_name = base_job_name();
     sample.table_name = std::to_string(idx);
     sample.columns = {base_column_name()};
@@ -70,7 +70,6 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
       sample.rows.push_back(r);
     }
   }
-
 
   NetDescriptor cpm_person_descriptor;
   {
@@ -92,7 +91,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   using namespace std::placeholders;

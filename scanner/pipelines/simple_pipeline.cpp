@@ -5,14 +5,14 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
   Sampler::strided_frames(info, desc, 2);
 
-  Evaluator* input = make_input_evaluator({"frame", "frame_info"});
+  Evaluator *input = make_input_evaluator({"frame", "frame_info"});
 
   BlurArgs args;
-  char* serialized_args;
+  char *serialized_args;
   size_t serialized_args_size;
   Evaluator *blur =
       new Evaluator("Blur", {EvalInput(input, {"frame", "frame_info"})},

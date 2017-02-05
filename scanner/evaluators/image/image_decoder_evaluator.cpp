@@ -23,24 +23,23 @@
 
 namespace scanner {
 
-ImageDecoderEvaluator::ImageDecoderEvaluator(const EvaluatorConfig& config,
+ImageDecoderEvaluator::ImageDecoderEvaluator(const EvaluatorConfig &config,
                                              DeviceType device_type)
     : device_type_(device_type), device_id_(config.device_ids[0]) {}
 
-void ImageDecoderEvaluator::evaluate(const BatchedColumns& input_columns,
-                                     BatchedColumns& output_columns) {
+void ImageDecoderEvaluator::evaluate(const BatchedColumns &input_columns,
+                                     BatchedColumns &output_columns) {
   i32 width = 640;
   i32 height = 480;
   size_t image_size = width * height * 3;
   size_t num_inputs = input_columns.empty() ? 0 : input_columns[0].rows.size();
-  u8* output_block = new_block_buffer({device_type_, device_id_},
-                                      image_size * num_inputs,
-                                      num_inputs);
+  u8 *output_block = new_block_buffer({device_type_, device_id_},
+                                      image_size * num_inputs, num_inputs);
 
   for (size_t i = 0; i < num_inputs; ++i) {
     size_t input_size = input_columns[0].rows[i].size;
     cv::Mat input(input_size, 1, CV_8U, input_columns[0].rows[i].buffer);
-    u8* output_buf = output_block + i * image_size;
+    u8 *output_buf = output_block + i * image_size;
     cv::Mat output(height, width, CV_8UC3, output_buf);
     cv::imdecode(input, cv::IMREAD_COLOR, &output);
     output_columns[0].rows.push_back(Row{output_buf, image_size});
@@ -61,12 +60,12 @@ EvaluatorCapabilities ImageDecoderEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> ImageDecoderEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"frame"};
 }
 
-Evaluator* ImageDecoderEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+ImageDecoderEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new ImageDecoderEvaluator(config, device_type_);
 }
 }

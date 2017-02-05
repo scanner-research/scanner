@@ -25,12 +25,12 @@
 namespace scanner {
 struct ModelDescriptor {
   virtual ~ModelDescriptor() {}
-  virtual const std::string& get_part_name(int n)=0;
-  virtual int num_parts()=0;
-  virtual int num_limb_seq()=0;
-  virtual const int *get_limb_seq()=0;
-  virtual const int *get_map_idx()=0;
-  virtual const std::string name()=0;
+  virtual const std::string &get_part_name(int n) = 0;
+  virtual int num_parts() = 0;
+  virtual int num_limb_seq() = 0;
+  virtual const int *get_limb_seq() = 0;
+  virtual const int *get_map_idx() = 0;
+  virtual const std::string name() = 0;
 };
 namespace {
 
@@ -43,12 +43,11 @@ struct ColumnCompare {
 
 struct MPIModelDescriptor : public ModelDescriptor {
   std::map<int, std::string> part2name;
-  const int limbSeq[28] = {
-    0,1, 1,2, 2,3, 3,4, 1,5, 5,6, 6,7, 1,14, 14,11, 11,12, 12,13, 14,8, 8,9,
-    9,10};
-  const int mapIdx[28] = {
-    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 38, 39,
-    40, 41, 42, 43, 32, 33, 34, 35, 36, 37};
+  const int limbSeq[28] = {0, 1,  1,  2,  2,  3,  3,  4,  1,  5, 5, 6, 6, 7,
+                           1, 14, 14, 11, 11, 12, 12, 13, 14, 8, 8, 9, 9, 10};
+  const int mapIdx[28] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                          26, 27, 28, 29, 30, 31, 38, 39, 40, 41,
+                          42, 43, 32, 33, 34, 35, 36, 37};
   virtual int num_parts() { return 15; }
   virtual int num_limb_seq() { return 14; }
   virtual const int *get_limb_seq() { return limbSeq; }
@@ -76,14 +75,14 @@ struct MPIModelDescriptor : public ModelDescriptor {
 
 struct COCOModelDescriptor : public ModelDescriptor {
   std::map<int, std::string> part2name;
-  int limbSeq[38] = {
-    1,2,   1,5,   2,3,   3,4,   5,6,   6,7,   1,8,   8,9,
-    9,10, 1,11,  11,12, 12,13,  1,0,   0,14, 14,16, 0,15, 15,17, 2,16, 5,17};
-  int mapIdx[38] = {
-    31,32, 39,40, 33,34, 35,36, 41,42, 43,44, 19,20, 21,22, 23,24, 25,26,
-    27,28, 29,30, 47,48, 49,50, 53,54, 51,52, 55,56, 37,38, 45,46};
+  int limbSeq[38] = {1, 2,  1,  5,  2,  3,  3,  4,  5,  6,  6,  7, 1,
+                     8, 8,  9,  9,  10, 1,  11, 11, 12, 12, 13, 1, 0,
+                     0, 14, 14, 16, 0,  15, 15, 17, 2,  16, 5,  17};
+  int mapIdx[38] = {31, 32, 39, 40, 33, 34, 35, 36, 41, 42, 43, 44, 19,
+                    20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 47, 48,
+                    49, 50, 53, 54, 51, 52, 55, 56, 37, 38, 45, 46};
   virtual int num_parts() { return 18; }
-  virtual int num_limb_seq() { return 38/2; }
+  virtual int num_limb_seq() { return 38 / 2; }
   virtual const int *get_limb_seq() { return limbSeq; }
   virtual const int *get_map_idx() { return mapIdx; }
   virtual const std::string name() { return "COCO_18"; }
@@ -101,14 +100,11 @@ struct COCOModelDescriptor : public ModelDescriptor {
       int lb = limbSeq[2 * l + 1];
       int ma = mapIdx[2 * l + 0];
       int mb = mapIdx[2 * l + 1];
-      part2name[ma] = part2name[la]+"->"+part2name[lb]+"(X)";
-      part2name[mb] = part2name[la]+"->"+part2name[lb]+"(Y)";
+      part2name[ma] = part2name[la] + "->" + part2name[lb] + "(X)";
+      part2name[mb] = part2name[la] + "->" + part2name[lb] + "(Y)";
     }
-
   }
-  virtual const std::string& get_part_name(int n) {
-    return part2name.at(n);
-  }
+  virtual const std::string &get_part_name(int n) { return part2name.at(n); }
 };
 }
 
@@ -120,7 +116,7 @@ CPM2ParserEvaluator::CPM2ParserEvaluator(const EvaluatorConfig &config,
   joints_.resize(max_people_ * 3 * max_num_parts_);
 }
 
-void CPM2ParserEvaluator::configure(const BatchConfig& config) {
+void CPM2ParserEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
@@ -149,8 +145,8 @@ void CPM2ParserEvaluator::configure(const BatchConfig& config) {
   }
 }
 
-void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
-                                   BatchedColumns& output_columns) {
+void CPM2ParserEvaluator::evaluate(const BatchedColumns &input_columns,
+                                   BatchedColumns &output_columns) {
   i32 frame_idx = 0;
   i32 heatmap_idx;
   i32 joints_idx;
@@ -166,12 +162,12 @@ void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
     for (i32 b = 0; b < input_count; ++b) {
       assert(input_columns[heatmap_idx].rows[b].size ==
              feature_width_ * feature_height_ * feature_channels_ *
-             sizeof(f32));
+                 sizeof(f32));
 
-      float* heatmap =
-          reinterpret_cast<float*>(input_columns[heatmap_idx].rows[b].buffer);
-      float* peaks =
-          reinterpret_cast<float*>(input_columns[joints_idx].rows[b].buffer);
+      float *heatmap =
+          reinterpret_cast<float *>(input_columns[heatmap_idx].rows[b].buffer);
+      float *peaks =
+          reinterpret_cast<float *>(input_columns[joints_idx].rows[b].buffer);
 
       std::vector<std::vector<double>> subset;
       std::vector<std::vector<std::vector<double>>> connection;
@@ -180,7 +176,7 @@ void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
       std::vector<std::vector<scanner::Point>> bodies(count);
       for (int p = 0; p < count; ++p) {
-        std::vector<scanner::Point>& body_joints = bodies[p];
+        std::vector<scanner::Point> &body_joints = bodies[p];
         for (i32 j = 0; j < num_joints_; ++j) {
           int offset = p * num_joints_ * 3 + j * 3;
           float score = joints_[offset + 2];
@@ -203,8 +199,7 @@ void CPM2ParserEvaluator::evaluate(const BatchedColumns& input_columns,
 
   i32 num_frames = static_cast<i32>(output_columns[frame_idx].rows.size());
   for (i32 b = 0; b < num_frames; ++b) {
-    output_columns[frame_idx].rows.push_back(
-        input_columns[frame_idx].rows[b]);
+    output_columns[frame_idx].rows.push_back(input_columns[frame_idx].rows[b]);
   }
 }
 
@@ -239,8 +234,7 @@ int CPM2ParserEvaluator::connect_limbs(
     // float* score_mid = heatmap_pointer + mapIdx[k] * INIT_PERSON_NET_HEIGHT *
     // INIT_PERSON_NET_WIDTH;
     const float *map_x =
-        heatmap_pointer +
-        mapIdx[2 * k] * net_input_height_ * net_input_width_;
+        heatmap_pointer + mapIdx[2 * k] * net_input_height_ * net_input_width_;
     const float *map_y =
         heatmap_pointer +
         mapIdx[2 * k + 1] * net_input_height_ * net_input_width_;
@@ -383,7 +377,7 @@ int CPM2ParserEvaluator::connect_limbs(
     // connection.push_back(connection_k);
 
     //** cluster all the joints candidates into subset based on the part
-    //connection
+    // connection
     // initialize first body part connection 15&16
     // cout << connection_k.size() << endl;
     if (k == 0) {
@@ -488,7 +482,7 @@ EvaluatorCapabilities CPM2ParserEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> CPM2ParserEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"frame", "poses"};
 }
 

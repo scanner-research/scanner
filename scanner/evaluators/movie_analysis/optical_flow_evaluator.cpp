@@ -1,18 +1,18 @@
 #include "optical_flow_evaluator.h"
 
-#include <cstring>
-#include <opencv2/video.hpp>
 #include "scanner/util/cycle_timer.h"
 #include "scanner/util/memory.h"
+#include <cstring>
+#include <opencv2/video.hpp>
 
 namespace scanner {
 
-OpticalFlowEvaluator::OpticalFlowEvaluator(DeviceType device_type, i32 device_id)
-  : device_type_(device_type), device_id_(device_id), initial_frame_(nullptr)
+OpticalFlowEvaluator::OpticalFlowEvaluator(DeviceType device_type,
+                                           i32 device_id)
+    : device_type_(device_type), device_id_(device_id), initial_frame_(nullptr)
 #ifdef HAVE_CUDA
-  ,
-    num_cuda_streams_(4),
-    streams_(num_cuda_streams_)
+      ,
+      num_cuda_streams_(4), streams_(num_cuda_streams_)
 #endif
 {
   set_device();
@@ -32,9 +32,9 @@ OpticalFlowEvaluator::~OpticalFlowEvaluator() {
   set_device();
   if (initial_frame_ != nullptr) {
     if (device_type_ == DeviceType::GPU) {
-      delete ((cvc::GpuMat*)initial_frame_);
+      delete ((cvc::GpuMat *)initial_frame_);
     } else {
-      delete ((cv::Mat*)initial_frame_);
+      delete ((cv::Mat *)initial_frame_);
     }
   }
 }
@@ -43,26 +43,25 @@ void OpticalFlowEvaluator::reset() {
   set_device();
   if (device_type_ == DeviceType::GPU) {
     if (initial_frame_ != nullptr) {
-      delete ((cvc::GpuMat*)initial_frame_);
+      delete ((cvc::GpuMat *)initial_frame_);
     }
-    initial_frame_ = (void*)new cvc::GpuMat();
+    initial_frame_ = (void *)new cvc::GpuMat();
   } else {
     if (initial_frame_ != nullptr) {
-      delete ((cv::Mat*)initial_frame_);
+      delete ((cv::Mat *)initial_frame_);
     }
-    initial_frame_ = (void*)new cv::Mat();
+    initial_frame_ = (void *)new cv::Mat();
   }
 }
 
-void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
-                                    BatchedColumns& output_columns) {
+void OpticalFlowEvaluator::evaluate(const BatchedColumns &input_columns,
+                                    BatchedColumns &output_columns) {
   i32 input_count = (i32)input_columns[0].rows.size();
-  size_t out_buf_size =
-    config_.formats[0].width() * config_.formats[0].height() * 2 * sizeof(float);
+  size_t out_buf_size = config_.formats[0].width() *
+                        config_.formats[0].height() * 2 * sizeof(float);
 
-  u8* output_block = new_block_buffer({device_type_, device_id_},
-                                      out_buf_size * input_count,
-                                      input_count);
+  u8 *output_block = new_block_buffer({device_type_, device_id_},
+                                      out_buf_size * input_count, input_count);
 
   set_device();
 
@@ -70,15 +69,15 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
 #ifdef HAVE_CUDA
     std::vector<cvc::GpuMat> inputs;
     for (i32 i = 0; i < input_count; ++i) {
-      inputs.emplace_back(
-          bytesToImage_gpu(input_columns[0].rows[i].buffer, config_.formats[0]));
+      inputs.emplace_back(bytesToImage_gpu(input_columns[0].rows[i].buffer,
+                                           config_.formats[0]));
     }
 
     std::vector<cvc::GpuMat> imgs_gray;
-    cvc::GpuMat* initial = (cvc::GpuMat*)initial_frame_;
+    cvc::GpuMat *initial = (cvc::GpuMat *)initial_frame_;
     if (!initial->empty()) {
       LOG_IF(FATAL, initial->size() != inputs[0].size())
-        << "Initial frame size is not same as current work item's frame size";
+          << "Initial frame size is not same as current work item's frame size";
       cvc::GpuMat gray;
       cvc::cvtColor(*initial, gray, CV_BGR2GRAY);
       imgs_gray.emplace_back(gray);
@@ -90,25 +89,25 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
 
     for (i32 i = 0; i < inputs.size(); ++i) {
       i32 sid = i % num_cuda_streams_;
-      cv::cuda::Stream& s = streams_[sid];
+      cv::cuda::Stream &s = streams_[sid];
       cvc::GpuMat gray;
       cvc::cvtColor(inputs[i], gray, CV_BGR2GRAY, 0, s);
       imgs_gray.emplace_back(gray);
     }
 
-    cv::Ptr<cvc::DenseOpticalFlow> flow =
-      cvc::FarnebackOpticalFlow::create();
-      //cvc::OpticalFlowDual_TVL1::create();
+    cv::Ptr<cvc::DenseOpticalFlow> flow = cvc::FarnebackOpticalFlow::create();
+    // cvc::OpticalFlowDual_TVL1::create();
 
     for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
-      u8* output_buf = output_block + i * out_buf_size;
-      cvc::GpuMat output_flow_gpu(
-        config_.formats[0].height(), config_.formats[0].width(), CV_32FC2, output_buf);
+      u8 *output_buf = output_block + i * out_buf_size;
+      cvc::GpuMat output_flow_gpu(config_.formats[0].height(),
+                                  config_.formats[0].width(), CV_32FC2,
+                                  output_buf);
       i32 sid = i % num_cuda_streams_;
-      cv::cuda::Stream& s = streams_[sid];
+      cv::cuda::Stream &s = streams_[sid];
 
       auto start = now();
-      flow->calc(imgs_gray[i], imgs_gray[i+1], output_flow_gpu, s);
+      flow->calc(imgs_gray[i], imgs_gray[i + 1], output_flow_gpu, s);
       if (profiler_) {
         profiler_->add_interval("flowcalc", start, now());
       }
@@ -116,14 +115,14 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
       output_columns[0].rows.push_back(Row{output_buf, out_buf_size});
     }
 
-    for (cv::cuda::Stream& s : streams_) {
+    for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
     }
 
     inputs[inputs.size() - 1].copyTo(*initial);
 #else
     LOG(FATAL) << "Cuda not installed.";
-#endif  // HAVE_CUDA
+#endif // HAVE_CUDA
   } else {
     std::vector<cv::Mat> inputs;
     for (i32 i = 0; i < input_count; ++i) {
@@ -139,18 +138,18 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
 #endif
 
     std::vector<cv::Mat> imgs_gray;
-    cv::Mat* initial = (cv::Mat*)initial_frame_;
+    cv::Mat *initial = (cv::Mat *)initial_frame_;
     if (!initial->empty()) {
       cv::Mat gray;
       cv::cvtColor(*initial, gray, CV_BGR2GRAY);
       imgs_gray.emplace_back(gray);
     } else {
-      u8* out_buf = new u8[out_buf_size];
+      u8 *out_buf = new u8[out_buf_size];
       std::memset(out_buf, 0, out_buf_size);
       output_columns[0].rows.push_back(Row{out_buf, out_buf_size});
     }
 
-    for (auto& input : inputs) {
+    for (auto &input : inputs) {
       cv::Mat gray;
       cv::cvtColor(input, gray, CV_BGR2GRAY);
       imgs_gray.emplace_back(gray);
@@ -162,14 +161,13 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
     for (i32 i = 0; i < imgs_gray.size() - 1; ++i) {
       cv::Mat output_flow(img_size, CV_32FC2);
 
-      calcOpticalFlowFarneback(imgs_gray[i], imgs_gray[i+1],
-                               output_flow,
-                               0.5, 3, 15, 3, 5, 1.2, 0);
+      calcOpticalFlowFarneback(imgs_gray[i], imgs_gray[i + 1], output_flow, 0.5,
+                               3, 15, 3, 5, 1.2, 0);
 
-      //flow->calc(imgs_gray[i], imgs_gray[i + 1], output_flow);
+// flow->calc(imgs_gray[i], imgs_gray[i + 1], output_flow);
 
 #ifdef DEBUG_OPTICAL_FLOW
-      u8* output_buf = new u8[out_buf_size];
+      u8 *output_buf = new u8[out_buf_size];
       cv::Mat heatmap(img_size, CV_8UC3, output_buf);
       for (int x = 0; x < output_flow.rows; ++x) {
         for (int y = 0; y < output_flow.cols; ++y) {
@@ -180,7 +178,7 @@ void OpticalFlowEvaluator::evaluate(const BatchedColumns& input_columns,
         }
       }
 #else
-      u8* output_buf = new u8[out_buf_size];
+      u8 *output_buf = new u8[out_buf_size];
       std::memcpy(output_buf, output_flow.data, out_buf_size);
 #endif
 
@@ -212,13 +210,12 @@ EvaluatorCapabilities OpticalFlowEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> OpticalFlowEvaluatorFactory::get_output_columns(
-  const std::vector<std::string>& input_columns)
-{
+    const std::vector<std::string> &input_columns) {
   return {"opticalflow"};
 }
 
-Evaluator* OpticalFlowEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+OpticalFlowEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new OpticalFlowEvaluator(device_type_, config.device_ids[0]);
 }
 }

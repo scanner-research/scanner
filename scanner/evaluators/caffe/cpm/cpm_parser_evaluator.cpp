@@ -24,19 +24,17 @@
 
 namespace scanner {
 
-CPMParserEvaluator::CPMParserEvaluator(const EvaluatorConfig& config,
+CPMParserEvaluator::CPMParserEvaluator(const EvaluatorConfig &config,
                                        DeviceType device_type, i32 device_id)
-    : device_type_(device_type),
-      device_id_(device_id)
+    : device_type_(device_type), device_id_(device_id)
 #ifdef HAVE_CUDA
       ,
-      num_cuda_streams_(32),
-      streams_(num_cuda_streams_)
+      num_cuda_streams_(32), streams_(num_cuda_streams_)
 #endif
 {
 }
 
-void CPMParserEvaluator::configure(const BatchConfig& config) {
+void CPMParserEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
@@ -79,8 +77,8 @@ void CPMParserEvaluator::configure(const BatchConfig& config) {
   }
 }
 
-void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
-                                  BatchedColumns& output_columns) {
+void CPMParserEvaluator::evaluate(const BatchedColumns &input_columns,
+                                  BatchedColumns &output_columns) {
   i32 frame_idx = 0;
   i32 feature_idx;
   assert(input_columns.size() >= 2);
@@ -95,10 +93,10 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
     cv::cuda::setDevice(device_id_);
     cudaSetDevice(device_id_);
 
-    i32* min_max_locs =
-        (i32*)malloc(input_count * feature_channels_ * 2 * sizeof(int));
-    f32* min_max_values =
-        (f32*)malloc(input_count * feature_channels_ * 2 * sizeof(float));
+    i32 *min_max_locs =
+        (i32 *)malloc(input_count * feature_channels_ * 2 * sizeof(int));
+    f32 *min_max_values =
+        (f32 *)malloc(input_count * feature_channels_ * 2 * sizeof(float));
 
     for (i32 b = 0; b < input_count; ++b) {
       assert(input_columns[feature_idx].rows[b].size ==
@@ -108,7 +106,7 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
       for (i32 i = 0; i < feature_channels_; ++i) {
         i32 offset = b * feature_channels_ + i;
         i32 sid = offset % num_cuda_streams_;
-        cv::cuda::Stream& s = streams_[sid];
+        cv::cuda::Stream &s = streams_[sid];
 
         frame_input_g_[sid] = cv::cuda::GpuMat(
             feature_height_, feature_width_, CV_32FC1,
@@ -124,7 +122,7 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
         cv::cuda::findMinMaxLoc(resized_g_[sid], vals, locs, cv::Mat(), s);
       }
     }
-    for (cv::cuda::Stream& s : streams_) {
+    for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
     }
 
@@ -145,14 +143,14 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
       }
 
       size_t size;
-      u8* buffer;
+      u8 *buffer;
       serialize_proto_vector(pts, buffer, size);
 
       // cv::cuda::Stream& s = streams_[sid];
       // cudaStream_t cuda_s = cv::cuda::StreamAccessor::getStream(cv_stream);
 
-      u8* gpu_buffer;
-      CU_CHECK(cudaMalloc((void**)&gpu_buffer, size));
+      u8 *gpu_buffer;
+      CU_CHECK(cudaMalloc((void **)&gpu_buffer, size));
       cudaMemcpy(gpu_buffer, buffer, size, cudaMemcpyDefault);
       delete[] buffer;
       output_columns[feature_idx].rows.push_back(Row{gpu_buffer, size});
@@ -185,7 +183,7 @@ void CPMParserEvaluator::evaluate(const BatchedColumns& input_columns,
       }
 
       size_t size;
-      u8* buffer;
+      u8 *buffer;
       serialize_proto_vector(pts, buffer, size);
       output_columns[feature_idx].rows.push_back(Row{buffer, size});
     }
@@ -213,15 +211,15 @@ EvaluatorCapabilities CPMParserEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> CPMParserEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   std::vector<std::string> output_names;
   output_names.push_back("frame");
   output_names.push_back("centers");
   return output_names;
 }
 
-Evaluator* CPMParserEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+CPMParserEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new CPMParserEvaluator(config, device_type_, config.device_ids[0]);
 }
 }

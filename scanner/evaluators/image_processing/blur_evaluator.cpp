@@ -20,20 +20,18 @@
 namespace scanner {
 
 BlurEvaluator::BlurEvaluator(EvaluatorConfig config, i32 kernel_size, f64 sigma)
-    : kernel_size_(kernel_size),
-      filter_left_(std::ceil(kernel_size / 2.0) - 1),
-      filter_right_(kernel_size / 2),
-      sigma_(sigma) {}
+    : kernel_size_(kernel_size), filter_left_(std::ceil(kernel_size / 2.0) - 1),
+      filter_right_(kernel_size / 2), sigma_(sigma) {}
 
-void BlurEvaluator::configure(const BatchConfig& config) {
+void BlurEvaluator::configure(const BatchConfig &config) {
   config_ = config;
-  //assert(config.formats.size() == 1);
+  // assert(config.formats.size() == 1);
   frame_width_ = config.formats[0].width();
   frame_height_ = config.formats[0].height();
 }
 
-void BlurEvaluator::evaluate(const BatchedColumns& input_columns,
-                             BatchedColumns& output_columns) {
+void BlurEvaluator::evaluate(const BatchedColumns &input_columns,
+                             BatchedColumns &output_columns) {
   i32 input_count = (i32)input_columns[0].rows.size();
 
   i32 width = frame_width_;
@@ -41,11 +39,11 @@ void BlurEvaluator::evaluate(const BatchedColumns& input_columns,
   size_t frame_size = width * height * 3 * sizeof(u8);
 
   for (i32 i = 0; i < input_count; ++i) {
-    u8* input_buffer = input_columns[0].rows[i].buffer;
-    u8* output_buffer = new u8[frame_size];
+    u8 *input_buffer = input_columns[0].rows[i].buffer;
+    u8 *output_buffer = new u8[frame_size];
 
-    u8* frame_buffer = input_buffer;
-    u8* blurred_buffer = (output_buffer);
+    u8 *frame_buffer = input_buffer;
+    u8 *blurred_buffer = (output_buffer);
     for (i32 y = filter_left_; y < height - filter_right_; ++y) {
       for (i32 x = filter_left_; x < width - filter_right_; ++x) {
         for (i32 c = 0; c < 3; ++c) {
@@ -77,11 +75,11 @@ EvaluatorCapabilities BlurEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> BlurEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"image"};
 }
 
-Evaluator* BlurEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
+Evaluator *BlurEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new BlurEvaluator(config, kernel_size_, sigma_);
 }
 }

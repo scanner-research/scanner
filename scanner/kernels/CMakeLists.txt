@@ -15,7 +15,9 @@ endif()
 if (BUILD_CAFFE_EVALUATORS)
   list(APPEND SOURCE_FILES
     caffe_kernel.cpp
-    caffe_input_kernel.cpp)
+    caffe_input_kernel.cpp
+    facenet_input_kernel.cpp
+    facenet_output_kernel.cpp)
 endif()
 
 add_library(kernels OBJECT

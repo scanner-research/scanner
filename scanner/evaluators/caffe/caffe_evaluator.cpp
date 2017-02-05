@@ -28,18 +28,15 @@
 
 namespace scanner {
 
-CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
+CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig &config,
                                DeviceType device_type, i32 device_id,
-                               const NetDescriptor& descriptor, i32 batch_size,
+                               const NetDescriptor &descriptor, i32 batch_size,
                                CustomNetConfiguration net_config)
-    : device_type_(device_type),
-      device_id_(device_id),
-      descriptor_(descriptor),
-      batch_size_(batch_size),
-      net_config_(net_config) {
+    : device_type_(device_type), device_id_(device_id), descriptor_(descriptor),
+      batch_size_(batch_size), net_config_(net_config) {
   if (device_type_ == DeviceType::GPU) {
     assert(GPUS_PER_NODE > 0);
-    //device_id = device_id % GPUS_PER_NODE;
+    // device_id = device_id % GPUS_PER_NODE;
     device_id_ = device_id;
   }
   set_device();
@@ -51,10 +48,10 @@ CaffeEvaluator::CaffeEvaluator(const EvaluatorConfig& config,
       net_->blob_by_name(descriptor_.input_layer_names[0])};
   input_blob->Reshape({batch_size_, input_blob->shape(1), input_blob->shape(2),
                        input_blob->shape(3)});
-  //net_->Forward();
+  // net_->Forward();
 }
 
-void CaffeEvaluator::configure(const BatchConfig& config) {
+void CaffeEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
   frame_width = config.formats[0].width();
@@ -108,12 +105,12 @@ void CaffeEvaluator::configure(const BatchConfig& config) {
   }
 }
 
-void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
-                              BatchedColumns& output_columns) {
+void CaffeEvaluator::evaluate(const BatchedColumns &input_columns,
+                              BatchedColumns &output_columns) {
   set_device();
 
   std::vector<boost::shared_ptr<caffe::Blob<float>>> input_blobs;
-  for (std::string& name : descriptor_.input_layer_names) {
+  for (std::string &name : descriptor_.input_layer_names) {
     input_blobs.emplace_back(net_->blob_by_name(name));
   }
   assert(input_blobs.size() > 0);
@@ -133,7 +130,7 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
     }
 
     for (i32 i = 0; i < input_blobs.size(); ++i) {
-      f32* net_input_buffer = nullptr;
+      f32 *net_input_buffer = nullptr;
       if (device_type_ == DeviceType::GPU) {
         net_input_buffer = input_blobs[i]->mutable_gpu_data();
       } else {
@@ -142,7 +139,7 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
 
       size_t offset = 0;
       for (i32 j = 0; j < batch_count; ++j) {
-        memcpy_buffer((u8*)net_input_buffer + offset,
+        memcpy_buffer((u8 *)net_input_buffer + offset,
                       {device_type_, device_id_},
                       input_columns[i + 1].rows[frame + j].buffer,
                       {device_type_, device_id_},
@@ -163,7 +160,7 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
     size_t total_size = 0;
     i32 total_rows = num_outputs * batch_count;
     for (size_t i = 0; i < num_outputs; ++i) {
-      const std::string& output_layer_name = descriptor_.output_layer_names[i];
+      const std::string &output_layer_name = descriptor_.output_layer_names[i];
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
       size_t output_length = output_blob->count() / batch_count;
@@ -171,32 +168,30 @@ void CaffeEvaluator::evaluate(const BatchedColumns& input_columns,
       total_size += output_size * batch_count;
     }
 
-    u8* output_block =
+    u8 *output_block =
         new_block_buffer({device_type_, device_id_}, total_size, total_rows);
-    std::vector<u8*> dest_buffers, src_buffers;
+    std::vector<u8 *> dest_buffers, src_buffers;
     std::vector<size_t> sizes;
     for (size_t i = 0; i < num_outputs; ++i) {
-      const std::string& output_layer_name = descriptor_.output_layer_names[i];
+      const std::string &output_layer_name = descriptor_.output_layer_names[i];
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
       size_t output_length = output_blob->count() / batch_count;
       size_t output_size = output_length * sizeof(float);
       dest_buffers.push_back(output_block);
-      src_buffers.push_back(
-        (u8*) (device_type_ == DeviceType::CPU
-               ? output_blob->cpu_data()
-               : output_blob->gpu_data()));
+      src_buffers.push_back((u8 *)(device_type_ == DeviceType::CPU
+                                       ? output_blob->cpu_data()
+                                       : output_blob->gpu_data()));
       sizes.push_back(output_size * batch_count);
       for (i32 b = 0; b < batch_count; b++) {
         output_columns[out_col_idx + i].rows.push_back(
-          Row{output_block, output_size});
+            Row{output_block, output_size});
         output_block += output_size;
       }
     }
 
-    memcpy_vec(dest_buffers, {device_type_, device_id_},
-               src_buffers, {device_type_, device_id_},
-               sizes);
+    memcpy_vec(dest_buffers, {device_type_, device_id_}, src_buffers,
+               {device_type_, device_id_}, sizes);
   }
   out_col_idx += num_outputs;
   for (size_t col_idx = input_blobs.size() + 1; col_idx < input_columns.size();
@@ -223,12 +218,10 @@ void CaffeEvaluator::set_device() {
 }
 
 CaffeEvaluatorFactory::CaffeEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor& net_descriptor, i32 batch_size,
+    DeviceType device_type, const NetDescriptor &net_descriptor, i32 batch_size,
     CustomNetConfiguration net_config)
-    : device_type_(device_type),
-      net_descriptor_(net_descriptor),
-      batch_size_(batch_size),
-      net_config_(net_config) {}
+    : device_type_(device_type), net_descriptor_(net_descriptor),
+      batch_size_(batch_size), net_config_(net_config) {}
 
 EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
   EvaluatorCapabilities caps;
@@ -243,23 +236,23 @@ EvaluatorCapabilities CaffeEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> CaffeEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   assert(input_columns.size() >= net_descriptor_.input_layer_names.size());
 
-  const std::vector<std::string>& layer_names =
+  const std::vector<std::string> &layer_names =
       net_descriptor_.output_layer_names;
   std::vector<std::string> output_names = {"frame"};
   output_names.insert(output_names.end(), layer_names.begin(),
                       layer_names.end());
-  output_names.insert(
-      output_names.end(),
-      input_columns.begin() + net_descriptor_.input_layer_names.size() + 1,
-      input_columns.end());
+  output_names.insert(output_names.end(),
+                      input_columns.begin() +
+                          net_descriptor_.input_layer_names.size() + 1,
+                      input_columns.end());
 
   return output_names;
 }
 
-Evaluator* CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
+Evaluator *CaffeEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new CaffeEvaluator(config, device_type_, config.device_ids[0],
                             net_descriptor_, batch_size_, net_config_);
 }

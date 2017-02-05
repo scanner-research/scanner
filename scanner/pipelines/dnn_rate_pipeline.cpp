@@ -8,9 +8,9 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
-  const char* NET = std::getenv("SC_NET");
-  const char* BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
+  const char *NET = std::getenv("SC_NET");
+  const char *BATCH_SIZE = std::getenv("SC_BATCH_SIZE");
 
   std::string net_descriptor_file = std::string(NET);
   i32 batch_size = std::atoi(BATCH_SIZE);
@@ -24,7 +24,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   PipelineDescription desc;
   Sampler::all_frames(info, desc);
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(

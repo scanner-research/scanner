@@ -32,9 +32,9 @@ namespace internal {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Thread to asynchronously load video
-std::tuple<size_t, size_t> find_keyframe_indices(
-    i32 start_frame, i32 end_frame,
-    const std::vector<i64>& keyframe_positions) {
+std::tuple<size_t, size_t>
+find_keyframe_indices(i32 start_frame, i32 end_frame,
+                      const std::vector<i64> &keyframe_positions) {
   size_t start_keyframe_index = std::numeric_limits<size_t>::max();
   for (size_t i = 1; i < keyframe_positions.size(); ++i) {
     if (keyframe_positions[i] > start_frame) {
@@ -55,8 +55,8 @@ std::tuple<size_t, size_t> find_keyframe_indices(
   return std::make_tuple(start_keyframe_index, end_keyframe_index);
 }
 
-void* load_thread(void* arg) {
-  LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
+void *load_thread(void *arg) {
+  LoadThreadArgs &args = *reinterpret_cast<LoadThreadArgs *>(arg);
 
   auto setup_start = now();
 
@@ -67,12 +67,12 @@ void* load_thread(void* arg) {
   const i32 work_item_size = rows_per_work_item();
 
   // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend* storage =
+  storehouse::StorageBackend *storage =
       storehouse::StorageBackend::make_from_config(args.storage_config);
 
   // To ammortize opening files
   i32 last_table_id = -1;
-  std::vector<RandomReadFile*> files;
+  std::vector<RandomReadFile *> files;
   std::vector<u64> file_sizes;
   std::vector<std::vector<i64>> all_keyframe_positions;
   std::vector<std::vector<i64>> all_keyframe_byte_offsets;
@@ -97,8 +97,8 @@ void* load_thread(void* arg) {
 
     auto work_start = now();
 
-    const IOItem& io_item = args.io_items[load_work_entry.io_item_index];
-    const std::vector<LoadWorkEntry::Sample>& samples = load_work_entry.samples;
+    const IOItem &io_item = args.io_items[load_work_entry.io_item_index];
+    const std::vector<LoadWorkEntry::Sample> &samples = load_work_entry.samples;
 
     if (io_item.table_id != last_table_id) {
       // Not from the same task so clear cached data
@@ -120,7 +120,7 @@ void* load_thread(void* arg) {
     // Aggregate all sample columns so we know the tuple size
     assert(!samples.empty());
     for (size_t i = 0; i < samples.size(); ++i) {
-      for (const std::string& c : samples[i].columns) {
+      for (const std::string &c : samples[i].columns) {
         eval_work_entry.column_names.push_back(c);
         if (c == base_column_name()) {
           eval_work_entry.column_names.push_back(base_column_args_name());
@@ -133,22 +133,21 @@ void* load_thread(void* arg) {
 
     i32 media_col_idx = 0;
     i32 col_idx = 0;
-    for (const LoadWorkEntry::Sample& sample : samples) {
-      const std::vector<i64>& rows = sample.rows;
-      const JobMetadata& job = args.job_meta.at(sample.job_id);
+    for (const LoadWorkEntry::Sample &sample : samples) {
+      const std::vector<i64> &rows = sample.rows;
+      const JobMetadata &job = args.job_meta.at(sample.job_id);
       if (job.name() == base_job_name() &&
           sample.columns[0] == base_column_name()) {
         // If reading from base job and special visual data column...
         if (args.dataset.type() == DatasetType_Video) {
           // Special video column
-          const VideoMetadata& metadata = args.video_meta.at(sample.table_id);
+          const VideoMetadata &metadata = args.video_meta.at(sample.table_id);
           if (files.size() <= media_col_idx) {
             // Open the video file for reading
-            RandomReadFile* video_file;
+            RandomReadFile *video_file;
             BACKOFF_FAIL(storage->make_random_read_file(
-                dataset_item_data_path(
-                    args.dataset.name(),
-                    std::to_string(sample.table_id)),
+                dataset_item_data_path(args.dataset.name(),
+                                       std::to_string(sample.table_id)),
                 video_file));
             files.push_back(video_file);
             u64 file_size;
@@ -163,11 +162,11 @@ void* load_thread(void* arg) {
             all_keyframe_positions.back().push_back(metadata.frames());
             all_keyframe_byte_offsets.back().push_back(file_size);
           }
-          RandomReadFile* video_file = files.at(media_col_idx);
+          RandomReadFile *video_file = files.at(media_col_idx);
           u64 file_size = file_sizes.at(media_col_idx);
-          std::vector<i64>& keyframe_positions =
+          std::vector<i64> &keyframe_positions =
               all_keyframe_positions[media_col_idx];
-          std::vector<i64>& keyframe_byte_offsets =
+          std::vector<i64> &keyframe_byte_offsets =
               all_keyframe_byte_offsets[media_col_idx];
 
           // Read the bytes from the file that correspond to the sequences of
@@ -191,7 +190,7 @@ void* load_thread(void* arg) {
             size_t buffer_size =
                 end_keyframe_byte_offset - start_keyframe_byte_offset;
 
-            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+            u8 *buffer = new_buffer(CPU_DEVICE, buffer_size);
 
             auto io_start = now();
 
@@ -205,14 +204,14 @@ void* load_thread(void* arg) {
             i64 first_non_warmup_index =
                 static_cast<i64>(rows.size()) - num_non_warmup_frames;
             for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
-              u8* b = nullptr;
+              u8 *b = nullptr;
               size_t size = 0;
               if (j == 0) {
                 // Encoded buffer
                 b = buffer;
                 size = buffer_size;
               } else if (j == first_non_warmup_index) {
-                u8* non_warmup_buffer = new_buffer(CPU_DEVICE, buffer_size);
+                u8 *non_warmup_buffer = new_buffer(CPU_DEVICE, buffer_size);
                 memcpy(non_warmup_buffer, buffer, buffer_size);
                 b = non_warmup_buffer;
                 size = buffer_size;
@@ -230,7 +229,7 @@ void* load_thread(void* arg) {
                   keyframe_positions[end_keyframe_index]);
               decode_args.set_valid_frame(intervals.valid_frames[i][j]);
 
-              u8* decode_args_buffer = nullptr;
+              u8 *decode_args_buffer = nullptr;
               serialize_decode_args(decode_args, decode_args_buffer, size);
 
               INSERT_ROW(eval_work_entry.columns[col_idx + 1],
@@ -272,7 +271,8 @@ void* load_thread(void* arg) {
 
           // // Read the bytes from the file that correspond to the sequences
           // // of images we are interested in decoding.
-          // JobMetadata::FrameLocations locations = args.in_job.frame_locations(
+          // JobMetadata::FrameLocations locations =
+          // args.in_job.frame_locations(
           //     args.sampling, work_item.video_index, load_work_entry);
           // std::vector<Interval>& intervals = locations.intervals;
           // std::vector<ImageDecodeArgs>& dargs = locations.image_args;
@@ -298,10 +298,12 @@ void* load_thread(void* arg) {
           //   s_read(image_file, buffer, buffer_size, pos);
 
           //   args.profiler.add_interval("io", io_start, now());
-          //   args.profiler.increment("io_read", static_cast<i64>(buffer_size));
+          //   args.profiler.increment("io_read",
+          //   static_cast<i64>(buffer_size));
 
           //   // Encoded buffer
-          //   INSERT_ROW(eval_work_entry.columns[out_col], buffer, buffer_size);
+          //   INSERT_ROW(eval_work_entry.columns[out_col], buffer,
+          //   buffer_size);
 
           //   // Decode args
           //   ImageDecodeArgs& decode_args = dargs[i];
@@ -316,9 +318,11 @@ void* load_thread(void* arg) {
 
           //   u8* decode_args_buffer = nullptr;
           //   size_t size;
-          //   serialize_image_decode_args(decode_args, decode_args_buffer, size);
+          //   serialize_image_decode_args(decode_args, decode_args_buffer,
+          //   size);
 
-          //   INSERT_ROW(eval_work_entry.columns[out_col + 1], decode_args_buffer,
+          //   INSERT_ROW(eval_work_entry.columns[out_col + 1],
+          //   decode_args_buffer,
           //              size);
           // }
           // Jump over the next output column because we wrote two columns for
@@ -332,13 +336,13 @@ void* load_thread(void* arg) {
         // Regular column load
         RowIntervals intervals = slice_into_row_intervals(job, rows);
         size_t num_items = intervals.item_ids.size();
-        for (const std::string& column_name : sample.columns) {
+        for (const std::string &column_name : sample.columns) {
           for (size_t i = 0; i < num_items; ++i) {
             i32 item_id = intervals.item_ids[i];
             i64 item_start;
             i64 item_end;
             std::tie(item_start, item_end) = intervals.item_intervals[i];
-            const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
+            const std::vector<i64> &valid_offsets = intervals.valid_offsets[i];
 
             std::unique_ptr<RandomReadFile> file;
             StoreResult result;
@@ -357,8 +361,8 @@ void* load_thread(void* arg) {
 
             // Read row sizes from work item file header
             std::vector<i64> row_sizes(num_rows);
-            s_read(file.get(), reinterpret_cast<u8*>(row_sizes.data()),
-                 row_sizes.size() * sizeof(i64), pos);
+            s_read(file.get(), reinterpret_cast<u8 *>(row_sizes.data()),
+                   row_sizes.size() * sizeof(i64), pos);
 
             // Determine start and end position of rows to read in file
             u64 start_offset = 0;
@@ -382,7 +386,7 @@ void* load_thread(void* arg) {
             for (i32 i = item_start; i < item_end; ++i) {
               size_t buffer_size = static_cast<size_t>(row_sizes[i]);
               if (i == valid_offsets[valid_idx]) {
-                u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+                u8 *buffer = new_buffer(CPU_DEVICE, buffer_size);
                 memcpy(buffer, row_data.data() + offset, buffer_size);
                 INSERT_ROW(eval_work_entry.columns[col_idx], buffer,
                            buffer_size);
@@ -412,6 +416,5 @@ void* load_thread(void* arg) {
 
   THREAD_RETURN_SUCCESS();
 }
-
 }
 }

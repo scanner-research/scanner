@@ -218,6 +218,7 @@ find_package(BZip2 REQUIRED)
 find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
 find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
+find_package(GoogleTest REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG

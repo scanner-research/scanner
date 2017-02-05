@@ -33,7 +33,7 @@ namespace scanner {
 
 namespace {
 template <typename T>
-std::unique_ptr<grpc::Server> start(T& service, const std::string& port,
+std::unique_ptr<grpc::Server> start(T &service, const std::string &port,
                                     bool block) {
   std::string server_address("0.0.0.0:" + port);
   grpc::ServerBuilder builder;
@@ -47,8 +47,8 @@ std::unique_ptr<grpc::Server> start(T& service, const std::string& port,
   return std::move(server);
 }
 
-bool database_exists(storehouse::StorageBackend* storage,
-                     const std::string& database_path) {
+bool database_exists(storehouse::StorageBackend *storage,
+                     const std::string &database_path) {
   internal::set_database_path(database_path);
   std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
   storehouse::FileInfo info;
@@ -56,16 +56,16 @@ bool database_exists(storehouse::StorageBackend* storage,
   return (result != storehouse::StoreResult::FileDoesNotExist);
 }
 
-proto::TaskSet consume_task_set(TaskSet& ts) {
+proto::TaskSet consume_task_set(TaskSet &ts) {
   proto::TaskSet task_set;
   // Parse tasks
-  for (Task& t : ts.tasks) {
-    proto::Task* task = task_set.add_tasks();
+  for (Task &t : ts.tasks) {
+    proto::Task *task = task_set.add_tasks();
     task->set_output_table_name(t.output_table_name);
-    for (TableSample& ts : t.samples) {
-      proto::TableSample* sample = task->add_samples();
+    for (TableSample &ts : t.samples) {
+      proto::TableSample *sample = task->add_samples();
       sample->set_table_name(ts.table_name);
-      for (std::string& s : ts.column_names) {
+      for (std::string &s : ts.column_names) {
         sample->add_column_names(s);
       }
       for (i64 r : ts.rows) {
@@ -74,16 +74,16 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
     }
   }
   // Parse evaluators
-  std::map<Evaluator*, std::vector<Evaluator*>> edges;  // parent -> child
-  std::map<Evaluator*, i32> in_edges_left;              // parent -> child
-  Evaluator* start_node = nullptr;
+  std::map<Evaluator *, std::vector<Evaluator *>> edges; // parent -> child
+  std::map<Evaluator *, i32> in_edges_left;              // parent -> child
+  Evaluator *start_node = nullptr;
   {
     // Find all edges
-    std::set<Evaluator*> explored_nodes;
-    std::vector<Evaluator*> stack;
+    std::set<Evaluator *> explored_nodes;
+    std::vector<Evaluator *> stack;
     stack.push_back(ts.output_evaluator);
     while (!stack.empty()) {
-      Evaluator* c = stack.back();
+      Evaluator *c = stack.back();
       stack.pop_back();
       explored_nodes.insert(c);
 
@@ -92,30 +92,31 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
         start_node = c;
         continue;
       }
-      for (const EvalInput& input : c->get_inputs()) {
-        Evaluator* parent_eval = input.get_evaluator();
+      for (const EvalInput &input : c->get_inputs()) {
+        Evaluator *parent_eval = input.get_evaluator();
         edges[parent_eval].push_back(c);
         in_edges_left[c] += 1;
 
-        if (explored_nodes.count(parent_eval) > 0) continue;
+        if (explored_nodes.count(parent_eval) > 0)
+          continue;
         stack.push_back(parent_eval);
       }
     }
   }
-  std::vector<Evaluator*> sorted_evaluators;
-  std::map<Evaluator*, i32> evaluator_index;
+  std::vector<Evaluator *> sorted_evaluators;
+  std::map<Evaluator *, i32> evaluator_index;
   {
     // Perform topological sort
-    std::vector<Evaluator*> stack;
+    std::vector<Evaluator *> stack;
     stack.push_back(start_node);
     while (!stack.empty()) {
-      Evaluator* curr = stack.back();
+      Evaluator *curr = stack.back();
       stack.pop_back();
 
       sorted_evaluators.push_back(curr);
       evaluator_index.insert({curr, sorted_evaluators.size() - 1});
-      for (Evaluator* child : edges[curr]) {
-        i32& edges_left = in_edges_left[child];
+      for (Evaluator *child : edges[curr]) {
+        i32 &edges_left = in_edges_left[child];
         edges_left -= 1;
         if (edges_left == 0) {
           stack.push_back(child);
@@ -125,13 +126,13 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
   }
   assert(sorted_evaluators.size() == in_edges_left.size() + 1);
   // Translate sorted evaluators into serialized task set
-  for (Evaluator* eval : sorted_evaluators) {
-    proto::Evaluator* proto_eval = task_set.add_evaluators();
+  for (Evaluator *eval : sorted_evaluators) {
+    proto::Evaluator *proto_eval = task_set.add_evaluators();
     proto_eval->set_name(eval->get_name());
     proto_eval->set_device_type(eval->get_device_type());
     proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
-    for (const EvalInput& input : eval->get_inputs()) {
-      proto::EvalInput* proto_input = proto_eval->add_inputs();
+    for (const EvalInput &input : eval->get_inputs()) {
+      proto::EvalInput *proto_input = proto_eval->add_inputs();
       i32 parent_index;
       if (input.get_evaluator() == nullptr) {
         parent_index = -1;
@@ -139,7 +140,7 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
         parent_index = evaluator_index.at(input.get_evaluator());
       }
       proto_input->set_evaluator_index(parent_index);
-      for (const std::string& column_name : input.get_columns()) {
+      for (const std::string &column_name : input.get_columns()) {
         proto_input->add_columns(column_name);
       }
     }
@@ -149,8 +150,8 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
 }
 }
 
-void create_database(storehouse::StorageConfig* storage_config,
-                     const std::string& db_path) {
+void create_database(storehouse::StorageConfig *storage_config,
+                     const std::string &db_path) {
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
@@ -165,8 +166,8 @@ void create_database(storehouse::StorageConfig* storage_config,
   internal::write_database_metadata(storage.get(), meta);
 }
 
-void destroy_database(storehouse::StorageConfig* storage_config,
-                      const std::string& db_path) {
+void destroy_database(storehouse::StorageConfig *storage_config,
+                      const std::string &db_path) {
   LOG(FATAL) << "Not implemented yet!";
 }
 
@@ -197,16 +198,16 @@ proto::WorkerParameters default_worker_params() {
   return worker_params;
 }
 
-ServerState start_master(DatabaseParameters& params, bool block) {
+ServerState start_master(DatabaseParameters &params, bool block) {
   ServerState state;
   state.service.reset(scanner::internal::get_master_service(params));
   state.server = start(state.service, "5001", block);
   return state;
 }
 
-ServerState start_worker(DatabaseParameters& db_params,
-                         proto::WorkerParameters& worker_params,
-                         const std::string& master_address, bool block) {
+ServerState start_worker(DatabaseParameters &db_params,
+                         proto::WorkerParameters &worker_params,
+                         const std::string &master_address, bool block) {
   ServerState state;
   state.service.reset(scanner::internal::get_worker_service(
       db_params, worker_params, master_address));
@@ -214,12 +215,12 @@ ServerState start_worker(DatabaseParameters& db_params,
   return state;
 }
 
-void get_database_info(const std::string& master_address) {}
+void get_database_info(const std::string &master_address) {}
 
-void get_table_info(const std::string& master_address,
-                    const std::string& table_name) {}
+void get_table_info(const std::string &master_address,
+                    const std::string &table_name) {}
 
-void new_job(JobParameters& params) {
+void new_job(JobParameters &params) {
   auto channel = grpc::CreateChannel(params.master_address,
                                      grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =

@@ -35,9 +35,9 @@ YoloParser::YoloParser(double threshold) : threshold_(threshold) {
   num_bboxes_ = 2;
 
   feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_categories_,  // category confidences
-      grid_width_ * grid_height_ * num_bboxes_,      // objectness
-      grid_width_ * grid_height_ * num_bboxes_ * 4   // bbox attributes
+      grid_width_ * grid_height_ * num_categories_, // category confidences
+      grid_width_ * grid_height_ * num_bboxes_,     // objectness
+      grid_width_ * grid_height_ * num_bboxes_ * 4  // bbox attributes
   };
   feature_vector_sizes_ = {
       sizeof(f32) * feature_vector_lengths_[0],
@@ -48,20 +48,20 @@ YoloParser::YoloParser(double threshold) : threshold_(threshold) {
 
 std::vector<std::string> YoloParser::get_output_names() { return {"result"}; }
 
-void YoloParser::configure(const VideoMetadata& metadata) {}
+void YoloParser::configure(const VideoMetadata &metadata) {}
 
-void YoloParser::parse_output(const std::vector<u8*>& output,
-                              const std::vector<i64>& output_size,
-                              folly::dynamic& parsed_results) {
+void YoloParser::parse_output(const std::vector<u8 *> &output,
+                              const std::vector<i64> &output_size,
+                              folly::dynamic &parsed_results) {
   // Track confidence per pixel for each category so we can calculate
   // uncertainty across the frame
   assert(output_size[0] ==
          (feature_vector_sizes_[0] + feature_vector_sizes_[1] +
           feature_vector_sizes_[2]));
-  f32* category_confidences_vector = reinterpret_cast<f32*>(output[0]);
-  f32* objectness_vector =
+  f32 *category_confidences_vector = reinterpret_cast<f32 *>(output[0]);
+  f32 *objectness_vector =
       category_confidences_vector + feature_vector_lengths_[0];
-  f32* bbox_vector = objectness_vector += feature_vector_lengths_[1];
+  f32 *bbox_vector = objectness_vector += feature_vector_lengths_[1];
 
   std::vector<f32> pixel_confidences(
       input_height_ * input_width_ * num_categories_, 0.0f);
@@ -95,7 +95,8 @@ void YoloParser::parse_output(const std::vector<u8*>& output,
                      category_confidences_vector[vec_offset + c];
           category_probabilities[c] = prob;
 
-          if (prob < threshold_) continue;
+          if (prob < threshold_)
+            continue;
 
           for (i32 bbox_y = std::max(y - height / 2, 0.0f);
                bbox_y < std::min(y + height / 2, (f32)input_height_);
@@ -103,7 +104,7 @@ void YoloParser::parse_output(const std::vector<u8*>& output,
             for (i32 bbox_x = std::max(x - width / 2, 0.0f);
                  bbox_x < std::min(x + width / 2, (f32)input_width_);
                  ++bbox_x) {
-              f32& max_confidence =
+              f32 &max_confidence =
                   pixel_confidences[bbox_y * input_width_ +
                                     bbox_x * num_categories_ + c];
               if (prob > max_confidence) {
@@ -112,7 +113,8 @@ void YoloParser::parse_output(const std::vector<u8*>& output,
             }
           }
 
-          if (width < 0 || height < 0) continue;
+          if (width < 0 || height < 0)
+            continue;
 
           bbox["category"] = c;
           bbox["x"] = x;
@@ -136,7 +138,7 @@ void YoloParser::parse_output(const std::vector<u8*>& output,
       f32 max1 = std::numeric_limits<f32>::lowest();
       f32 max2 = std::numeric_limits<f32>::lowest();
       for (i32 c = 0; c < num_categories_; ++c) {
-        const f32& confidence =
+        const f32 &confidence =
             pixel_confidences[yi * input_width_ + xi * num_categories_ + c];
         if (confidence > max1) {
           max2 = max1;

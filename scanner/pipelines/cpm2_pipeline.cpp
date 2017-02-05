@@ -11,11 +11,11 @@
 namespace scanner {
 namespace {
 
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
-  char* SCALE = std::getenv("SC_SCALE");
-  char* START_FRAME = std::getenv("SC_START_FRAME");
-  char* END_FRAME = std::getenv("SC_END_FRAME");
-  char* STRIDE = std::getenv("SC_STRIDE");
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
+  char *SCALE = std::getenv("SC_SCALE");
+  char *START_FRAME = std::getenv("SC_START_FRAME");
+  char *END_FRAME = std::getenv("SC_END_FRAME");
+  char *STRIDE = std::getenv("SC_STRIDE");
 
   i32 start_frame = 1000;
   i32 end_frame = 3000;
@@ -31,7 +31,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   }
 
   PipelineDescription desc;
-  //Sampler::all_frames(info, desc);
+  // Sampler::all_frames(info, desc);
   // Sampler::strided_frames(info, desc, 24);
   Sampler::strided_range_frames(info, desc, stride, start_frame, end_frame);
 
@@ -59,7 +59,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   using namespace std::placeholders;

@@ -14,8 +14,8 @@
  */
 
 #include "scanner/evaluators/caffe/cpm2/cpm2_input_evaluator.h"
-#include "scanner/util/memory.h"
 #include "caffe/layers/imresize_layer.hpp"
+#include "scanner/util/memory.h"
 
 #ifdef HAVE_CUDA
 #include <opencv2/cudaimgproc.hpp>
@@ -39,7 +39,7 @@ void cpm2_net_config(f32 scale, const BatchConfig &config,
   int net_input_height = resize_height + height_padding;
 
   caffe::ImResizeLayer<float> *resize_layer =
-      (caffe::ImResizeLayer<float>*)net->layer_by_name("resize").get();
+      (caffe::ImResizeLayer<float> *)net->layer_by_name("resize").get();
 
   resize_layer->SetStartScale(1);
   resize_layer->SetScaleGap(0.1);
@@ -47,30 +47,24 @@ void cpm2_net_config(f32 scale, const BatchConfig &config,
 
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net->blob_by_name("image")};
-  input_blob->Reshape(
-      {input_blob->shape(0), input_blob->shape(1),
-            net_input_height, net_input_width});
+  input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
+                       net_input_height, net_input_width});
 }
 
-CPM2InputEvaluator::CPM2InputEvaluator(
-    DeviceType device_type, i32 device_id, const NetDescriptor& descriptor,
-    i32 batch_size, f32 scale)
-    : device_type_(device_type),
-      device_id_(device_id),
-      descriptor_(descriptor),
-      batch_size_(batch_size),
-      net_input_width_(368),
-      net_input_height_(368),
+CPM2InputEvaluator::CPM2InputEvaluator(DeviceType device_type, i32 device_id,
+                                       const NetDescriptor &descriptor,
+                                       i32 batch_size, f32 scale)
+    : device_type_(device_type), device_id_(device_id), descriptor_(descriptor),
+      batch_size_(batch_size), net_input_width_(368), net_input_height_(368),
       scale_(scale)
 #ifdef HAVE_CUDA
       ,
-      num_cuda_streams_(32),
-      streams_(num_cuda_streams_)
+      num_cuda_streams_(32), streams_(num_cuda_streams_)
 #endif
 {
 }
 
-void CPM2InputEvaluator::configure(const BatchConfig& config) {
+void CPM2InputEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
 
@@ -124,10 +118,10 @@ void CPM2InputEvaluator::configure(const BatchConfig& config) {
 #endif
   } else {
     LOG(FATAL) << "CPU not implemented yet.";
-    mean_mat_c_ = cv::Mat(
-        net_input_height_, net_input_width_, CV_32FC3,
-        cv::Scalar(descriptor_.mean_colors[0], descriptor_.mean_colors[1],
-                   descriptor_.mean_colors[2]));
+    mean_mat_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3,
+                          cv::Scalar(descriptor_.mean_colors[0],
+                                     descriptor_.mean_colors[1],
+                                     descriptor_.mean_colors[2]));
 
     float_input_c_ = cv::Mat(net_input_height_, net_input_width_, CV_32FC3);
     normalized_input_c_ =
@@ -142,8 +136,8 @@ void CPM2InputEvaluator::configure(const BatchConfig& config) {
   }
 }
 
-void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
-                                       BatchedColumns& output_columns) {
+void CPM2InputEvaluator::evaluate(const BatchedColumns &input_columns,
+                                  BatchedColumns &output_columns) {
   auto eval_start = now();
 
   size_t frame_size = net_input_width_ * net_input_height_ * 3;
@@ -155,18 +149,17 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
     streams_.resize(num_cuda_streams_);
 
     for (i32 i = 0; i < input_count; ++i) {
-      f32* net_input = nullptr;
+      f32 *net_input = nullptr;
       i32 net_input_size = frame_size * sizeof(f32);
-      cudaMalloc((void**)&net_input, net_input_size);
+      cudaMalloc((void **)&net_input, net_input_size);
 
       int sid = i % num_cuda_streams_;
-      cv::cuda::Stream& cv_stream = streams_[sid];
+      cv::cuda::Stream &cv_stream = streams_[sid];
 
-      u8* buffer = input_columns[0].rows[i].buffer;
-      assert(input_columns[0].rows[i].size ==
-             frame_height_ * frame_width_ * 3);
-      frame_input_g_[sid] = cv::cuda::GpuMat(
-          frame_height_, frame_width_, CV_8UC3, buffer);
+      u8 *buffer = input_columns[0].rows[i].buffer;
+      assert(input_columns[0].rows[i].size == frame_height_ * frame_width_ * 3);
+      frame_input_g_[sid] =
+          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3, buffer);
       cv::cuda::cvtColor(frame_input_g_[sid], bgr_input_g_[sid],
                          cv::COLOR_RGB2BGR, 0, cv_stream);
       cv::cuda::resize(bgr_input_g_[sid], resized_input_g_[sid],
@@ -180,10 +173,10 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
                                      (1.0f / 256.0f), -0.5f, cv_stream);
       // Changed from interleaved BGR to planar RGB
       cv::cuda::split(float_input_g_[sid], input_planes_g_[sid], cv_stream);
-      auto& plane1 = input_planes_g_[sid][0];
-      auto& plane2 = input_planes_g_[sid][1];
-      auto& plane3 = input_planes_g_[sid][2];
-      auto& planar_input = planar_input_g_[sid];
+      auto &plane1 = input_planes_g_[sid][0];
+      auto &plane2 = input_planes_g_[sid][1];
+      auto &plane3 = input_planes_g_[sid][2];
+      auto &planar_input = planar_input_g_[sid];
       plane1.copyTo(planar_input(cv::Rect(
           0, net_input_height_ * 0, net_input_width_, net_input_height_)));
       plane2.copyTo(planar_input(cv::Rect(
@@ -197,9 +190,9 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
           planar_input.step, net_input_width_ * sizeof(float),
           net_input_height_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      output_columns[1].rows.push_back(Row{(u8*)net_input, net_input_size});
+      output_columns[1].rows.push_back(Row{(u8 *)net_input, net_input_size});
     }
-    for (cv::cuda::Stream& s : streams_) {
+    for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
     }
 #else
@@ -241,7 +234,7 @@ void CPM2InputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     size_t size = input_columns[0].rows[i].size;
-    u8* buffer = new_buffer({device_type_, device_id_}, size);
+    u8 *buffer = new_buffer({device_type_, device_id_}, size);
     memcpy_buffer(buffer, {device_type_, device_id_},
                   input_columns[0].rows[i].buffer, {device_type_, device_id_},
                   size);
@@ -272,14 +265,13 @@ EvaluatorCapabilities CPM2InputEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> CPM2InputEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"frame", "net_input"};
 }
 
-Evaluator* CPM2InputEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+CPM2InputEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new CPM2InputEvaluator(device_type_, config.device_ids[0],
-                                net_descriptor_, batch_size_,
-                                scale_);
+                                net_descriptor_, batch_size_, scale_);
 }
 }

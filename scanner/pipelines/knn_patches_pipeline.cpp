@@ -7,7 +7,7 @@
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
   Sampler::strided_frames(info, desc, 8);
 
@@ -19,7 +19,7 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   }
   i32 batch_size = 1;
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   DeviceType device_type;
@@ -33,12 +33,12 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  auto im_info_builder = [=](u8*& buffer, size_t& size,
-                             const InputFormat& metadata) {
+  auto im_info_builder = [=](u8 *&buffer, size_t &size,
+                             const InputFormat &metadata) {
 
     size = 3 * sizeof(f32);
     buffer = new u8[size];
-    f32* blob = (f32*)buffer;
+    f32 *blob = (f32 *)buffer;
     *(blob + 0) = metadata.height();
     *(blob + 1) = metadata.width();
     *(blob + 2) = 1.0;

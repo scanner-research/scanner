@@ -22,28 +22,28 @@
 
 namespace scanner {
 
-BBoxParser::BBoxParser(const std::vector<std::string>& column_names)
+BBoxParser::BBoxParser(const std::vector<std::string> &column_names)
     : column_names_(column_names) {}
 
 std::vector<std::string> BBoxParser::get_output_names() {
   return column_names_;
 }
 
-void BBoxParser::configure(const VideoMetadata& metadata) {
+void BBoxParser::configure(const VideoMetadata &metadata) {
   metadata_ = metadata;
 }
 
-void BBoxParser::parse_output(const std::vector<u8*>& output,
-                              const std::vector<i64>& output_size,
-                              folly::dynamic& parsed_results) {
+void BBoxParser::parse_output(const std::vector<u8 *> &output,
+                              const std::vector<i64> &output_size,
+                              folly::dynamic &parsed_results) {
   size_t column_count = column_names_.size();
   for (size_t i = 0; i < column_count; ++i) {
-    u8* buf = output[i];
+    u8 *buf = output[i];
     std::vector<BoundingBox> boxes =
         deserialize_proto_vector<BoundingBox>(buf, output_size[i]);
 
     folly::dynamic out_bboxes = folly::dynamic::array();
-    for (auto& b : boxes) {
+    for (auto &b : boxes) {
       folly::dynamic bbox = folly::dynamic::object();
       f32 width = b.x2() - b.x1();
       f32 height = b.y2() - b.y1();

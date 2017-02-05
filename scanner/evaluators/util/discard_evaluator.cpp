@@ -20,16 +20,16 @@
 
 namespace scanner {
 
-DiscardEvaluator::DiscardEvaluator(const EvaluatorConfig& config,
+DiscardEvaluator::DiscardEvaluator(const EvaluatorConfig &config,
                                    DeviceType device_type, i32 device_id)
     : config_(config), device_type_(device_type), device_id_(device_id) {}
 
-void DiscardEvaluator::evaluate(const BatchedColumns& input_columns,
-                                BatchedColumns& output_columns) {
+void DiscardEvaluator::evaluate(const BatchedColumns &input_columns,
+                                BatchedColumns &output_columns) {
   i32 input_count = static_cast<i32>(input_columns[0].rows.size());
   for (i32 i = 0; i < input_count; ++i) {
     output_columns[0].rows.push_back(
-      Row{new_buffer({device_type_, device_id_}, 1), 1});
+        Row{new_buffer({device_type_, device_id_}, 1), 1});
   }
 }
 
@@ -45,12 +45,12 @@ EvaluatorCapabilities DiscardEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> DiscardEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"discard"};
 }
 
-Evaluator* DiscardEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+DiscardEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new DiscardEvaluator(config, device_type_, config.device_ids[0]);
 }
 }

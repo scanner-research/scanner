@@ -22,14 +22,12 @@
 namespace scanner {
 
 YoloInputEvaluator::YoloInputEvaluator(DeviceType device_type, i32 device_id,
-                                       const NetDescriptor& descriptor,
+                                       const NetDescriptor &descriptor,
                                        i32 batch_size)
-    : device_type_(device_type),
-      device_id_(device_id),
-      descriptor_(descriptor),
+    : device_type_(device_type), device_id_(device_id), descriptor_(descriptor),
       batch_size_(batch_size) {
   // Resize into
-  std::vector<float>& mean_colors = descriptor_.mean_colors;
+  std::vector<float> &mean_colors = descriptor_.mean_colors;
   cv::Mat unsized_mean_mat(
       NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1,
       cv::Scalar((mean_colors[0] + mean_colors[1] + mean_colors[2]) / 3.0));
@@ -51,14 +49,14 @@ YoloInputEvaluator::YoloInputEvaluator(DeviceType device_type, i32 device_id,
   normalized_input = cv::Mat(NET_INPUT_HEIGHT * 3, NET_INPUT_WIDTH, CV_32FC1);
 }
 
-void YoloInputEvaluator::configure(const BatchConfig& config) {
+void YoloInputEvaluator::configure(const BatchConfig &config) {
   config_ = config;
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
 }
 
-void YoloInputEvaluator::evaluate(const BatchedColumns& input_columns,
-                                  BatchedColumns& output_columns) {
+void YoloInputEvaluator::evaluate(const BatchedColumns &input_columns,
+                                  BatchedColumns &output_columns) {
   auto eval_start = now();
 
   size_t frame_size = NET_INPUT_WIDTH * NET_INPUT_HEIGHT * 3 * sizeof(float);
@@ -69,14 +67,14 @@ void YoloInputEvaluator::evaluate(const BatchedColumns& input_columns,
   } else {
     for (i32 frame = 0; frame < input_count; frame += batch_size_) {
       i32 batch_count = std::min(input_count - frame, batch_size_);
-      u8* net_input = new u8[frame_size * batch_count];
+      u8 *net_input = new u8[frame_size * batch_count];
 
       i32 frame_width = metadata_.width();
       i32 frame_height = metadata_.height();
 
       std::vector<cv::Mat> input_mats;
       for (i32 i = 0; i < batch_count; ++i) {
-        u8* buffer = input_columns[0].rows[frame + i].buffer;
+        u8 *buffer = input_columns[0].rows[frame + i].buffer;
         cv::Mat input_mat(frame_height, frame_width, CV_8UC3, buffer);
 
         cv::Mat resized, bgr;
@@ -99,7 +97,7 @@ void YoloInputEvaluator::evaluate(const BatchedColumns& input_columns,
       std::memcpy(net_input, blob.cpu_data(), frame_size * batch_count);
 
       output_columns[0].rows.push_back(
-          Row{(u8*)net_input, frame_size * batch_count});
+          Row{(u8 *)net_input, frame_size * batch_count});
     }
 
     i32 num_batches = output_columns[0].rows.size();
@@ -110,7 +108,7 @@ void YoloInputEvaluator::evaluate(const BatchedColumns& input_columns,
 
   for (i32 i = 0; i < input_columns[0].rows.size(); ++i) {
     size_t size = input_columns[0].rows[i].size;
-    u8* buffer = new_buffer({device_type_, device_id_}, size);
+    u8 *buffer = new_buffer({device_type_, device_id_}, size);
     memcpy_buffer(buffer, {device_type_, device_id_},
                   input_columns[0].rows[i].buffer, {device_type_, device_id_},
                   size);
@@ -123,9 +121,8 @@ void YoloInputEvaluator::evaluate(const BatchedColumns& input_columns,
 }
 
 YoloInputEvaluatorFactory::YoloInputEvaluatorFactory(
-    DeviceType device_type, const NetDescriptor& descriptor, i32 batch_size)
-    : device_type_(device_type),
-      net_descriptor_(descriptor),
+    DeviceType device_type, const NetDescriptor &descriptor, i32 batch_size)
+    : device_type_(device_type), net_descriptor_(descriptor),
       batch_size_(batch_size) {}
 
 EvaluatorCapabilities YoloInputEvaluatorFactory::get_capabilities() {
@@ -141,12 +138,12 @@ EvaluatorCapabilities YoloInputEvaluatorFactory::get_capabilities() {
 }
 
 std::vector<std::string> YoloInputEvaluatorFactory::get_output_columns(
-    const std::vector<std::string>& input_columns) {
+    const std::vector<std::string> &input_columns) {
   return {"frame", "net_input"};
 }
 
-Evaluator* YoloInputEvaluatorFactory::new_evaluator(
-    const EvaluatorConfig& config) {
+Evaluator *
+YoloInputEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new YoloInputEvaluator(device_type_, config.device_ids[0],
                                 net_descriptor_, batch_size_);
 }

@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "scanner/evaluators/types.pb.h"
+#include "scanner/kernels/types.pb.h"
 #include "scanner/util/memory.h"
 
 #include <cstddef>
@@ -122,30 +122,30 @@ inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
   serialize_proto_vector(bboxes, buffer, size);
 }
 
-inline void serialize_decode_args(const DecodeArgs& args, u8*& buffer,
-                                  size_t& size) {
-  size = args.ByteSize();
-  buffer = new_buffer(CPU_DEVICE, size);
-  args.SerializeToArray(buffer, size);
-}
+// inline void serialize_decode_args(const DecodeArgs& args, u8*& buffer,
+//                                   size_t& size) {
+//   size = args.ByteSize();
+//   buffer = new_buffer(CPU_DEVICE, size);
+//   args.SerializeToArray(buffer, size);
+// }
 
-inline DecodeArgs deserialize_decode_args(const u8* buffer, size_t size) {
-  DecodeArgs args;
-  args.ParseFromArray(buffer, size);
-  return args;
-}
+// inline DecodeArgs deserialize_decode_args(const u8* buffer, size_t size) {
+//   DecodeArgs args;
+//   args.ParseFromArray(buffer, size);
+//   return args;
+// }
 
-inline void serialize_image_decode_args(const ImageDecodeArgs& args,
-                                        u8*& buffer, size_t& size) {
-  size = args.ByteSize();
-  buffer = new_buffer(CPU_DEVICE, size);
-  args.SerializeToArray(buffer, size);
-}
+// inline void serialize_image_decode_args(const ImageDecodeArgs& args,
+//                                         u8*& buffer, size_t& size) {
+//   size = args.ByteSize();
+//   buffer = new_buffer(CPU_DEVICE, size);
+//   args.SerializeToArray(buffer, size);
+// }
 
-inline ImageDecodeArgs deserialize_image_decode_args(const u8* buffer,
-                                                     size_t size) {
-  ImageDecodeArgs args;
-  args.ParseFromArray(buffer, size);
-  return args;
-}
+// inline ImageDecodeArgs deserialize_image_decode_args(const u8* buffer,
+//                                                      size_t size) {
+//   ImageDecodeArgs args;
+//   args.ParseFromArray(buffer, size);
+//   return args;
+// }
 }

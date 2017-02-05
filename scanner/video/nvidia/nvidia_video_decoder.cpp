@@ -31,15 +31,10 @@ namespace internal {
 
 NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
                                        CUcontext cuda_context)
-    : device_id_(device_id),
-      output_type_(output_type),
-      cuda_context_(cuda_context),
-      streams_(max_mapped_frames_),
-      parser_(nullptr),
-      decoder_(nullptr),
-      frame_queue_read_pos_(0),
-      frame_queue_elements_(0),
-      last_displayed_frame_(-1) {
+    : device_id_(device_id), output_type_(output_type),
+      cuda_context_(cuda_context), streams_(max_mapped_frames_),
+      parser_(nullptr), decoder_(nullptr), frame_queue_read_pos_(0),
+      frame_queue_elements_(0), last_displayed_frame_(-1) {
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
@@ -81,7 +76,7 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
   CUD_CHECK(cuDevicePrimaryCtxRelease(device_id_));
 }
 
-void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
+void NVIDIAVideoDecoder::configure(const FrameInfo &metadata) {
   frame_width_ = metadata.width();
   frame_height_ = metadata.height();
 
@@ -157,16 +152,16 @@ void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
   size_t pos = 0;
   while (pos < metadata_packets_.size()) {
     int encoded_packet_size =
-        *reinterpret_cast<int*>(metadata_packets_.data() + pos);
+        *reinterpret_cast<int *>(metadata_packets_.data() + pos);
     pos += sizeof(int);
-    u8* encoded_packet = (u8*)(metadata_packets_.data() + pos);
+    u8 *encoded_packet = (u8 *)(metadata_packets_.data() + pos);
     pos += encoded_packet_size;
 
     feed(encoded_packet, encoded_packet_size);
   }
 }
 
-bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
+bool NVIDIAVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
                               bool discontinuity) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
@@ -204,7 +199,7 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   }
   CUVIDSOURCEDATAPACKET cupkt = {};
   cupkt.payload_size = encoded_size;
-  cupkt.payload = reinterpret_cast<const uint8_t*>(encoded_buffer);
+  cupkt.payload = reinterpret_cast<const uint8_t *>(encoded_buffer);
   if (encoded_size == 0) {
     cupkt.flags |= CUVID_PKT_ENDOFSTREAM;
   }
@@ -216,9 +211,9 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     size_t pos = 0;
     while (pos < metadata_packets_.size()) {
       int encoded_packet_size =
-          *reinterpret_cast<int*>(metadata_packets_.data() + pos);
+          *reinterpret_cast<int *>(metadata_packets_.data() + pos);
       pos += sizeof(int);
-      u8* encoded_packet = (u8*)(metadata_packets_.data() + pos);
+      u8 *encoded_packet = (u8 *)(metadata_packets_.data() + pos);
       pos += encoded_packet_size;
 
       feed(encoded_packet, encoded_packet_size);
@@ -236,7 +231,7 @@ bool NVIDIAVideoDecoder::discard_frame() {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
 
   if (frame_queue_elements_ > 0) {
-    const auto& dispinfo = frame_queue_[frame_queue_read_pos_];
+    const auto &dispinfo = frame_queue_[frame_queue_read_pos_];
     frame_in_use_[dispinfo.picture_index] = false;
     frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;
     frame_queue_elements_--;
@@ -248,7 +243,7 @@ bool NVIDIAVideoDecoder::discard_frame() {
   return frame_queue_elements_ > 0;
 }
 
-bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
+bool NVIDIAVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
   std::unique_lock<std::mutex> lock(frame_queue_mutex_);
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
   if (frame_queue_elements_ > 0) {
@@ -276,8 +271,8 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     }
     CUdeviceptr mapped_frame = mapped_frames_[mapped_frame_index];
     CU_CHECK(convertNV12toRGBA((const u8 *)mapped_frame, pitch, decoded_buffer,
-                               frame_width_ * 3, frame_width_,
-                               frame_height_, 0));
+                               frame_width_ * 3, frame_width_, frame_height_,
+                               0));
     CU_CHECK(cudaDeviceSynchronize());
 
     CUD_CHECK(
@@ -298,18 +293,17 @@ int NVIDIAVideoDecoder::decoded_frames_buffered() {
   return frame_queue_elements_;
 }
 
-void NVIDIAVideoDecoder::wait_until_frames_copied() {
-}
+void NVIDIAVideoDecoder::wait_until_frames_copied() {}
 
-int NVIDIAVideoDecoder::cuvid_handle_video_sequence(void* opaque,
-                                                    CUVIDEOFORMAT* format) {
-  NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
+int NVIDIAVideoDecoder::cuvid_handle_video_sequence(void *opaque,
+                                                    CUVIDEOFORMAT *format) {
+  NVIDIAVideoDecoder &decoder = *reinterpret_cast<NVIDIAVideoDecoder *>(opaque);
   return 1;
 }
 
-int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
-                                                    CUVIDPICPARAMS* picparams) {
-  NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
+int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void *opaque,
+                                                    CUVIDPICPARAMS *picparams) {
+  NVIDIAVideoDecoder &decoder = *reinterpret_cast<NVIDIAVideoDecoder *>(opaque);
 
   int mapped_frame_index = picparams->CurrPicIdx;
   while (decoder.frame_in_use_[picparams->CurrPicIdx]) {
@@ -325,8 +319,8 @@ int NVIDIAVideoDecoder::cuvid_handle_picture_decode(void* opaque,
 }
 
 int NVIDIAVideoDecoder::cuvid_handle_picture_display(
-    void* opaque, CUVIDPARSERDISPINFO* dispinfo) {
-  NVIDIAVideoDecoder& decoder = *reinterpret_cast<NVIDIAVideoDecoder*>(opaque);
+    void *opaque, CUVIDPARSERDISPINFO *dispinfo) {
+  NVIDIAVideoDecoder &decoder = *reinterpret_cast<NVIDIAVideoDecoder *>(opaque);
   if (!decoder.invalid_frames_[dispinfo->picture_index]) {
     {
       std::unique_lock<std::mutex> lock(decoder.frame_queue_mutex_);

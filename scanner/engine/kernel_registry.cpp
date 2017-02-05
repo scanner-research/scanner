@@ -24,8 +24,7 @@ void KernelRegistry::add_kernel(const std::string &name,
   factories_.insert({factory_name(name, type), factory});
 }
 
-bool KernelRegistry::has_kernel(const std::string &name,
-                                DeviceType type) {
+bool KernelRegistry::has_kernel(const std::string &name, DeviceType type) {
   return factories_.count(factory_name(name, type)) > 0;
 }
 
@@ -39,10 +38,9 @@ std::string KernelRegistry::factory_name(const std::string &name,
   return name + ((type == DeviceType::CPU) ? "_cpu" : "_gpu");
 }
 
-KernelRegistry* get_kernel_registry() {
-  static KernelRegistry* registry = new KernelRegistry;
+KernelRegistry *get_kernel_registry() {
+  static KernelRegistry *registry = new KernelRegistry;
   return registry;
 }
-
 }
 }

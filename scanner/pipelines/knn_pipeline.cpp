@@ -3,12 +3,12 @@
 #include "scanner/evaluators/caffe/default/default_input_evaluator.h"
 #include "scanner/evaluators/caffe/net_descriptor.h"
 #include "scanner/evaluators/util/discard_evaluator.h"
-#include "scanner/evaluators/video/decoder_evaluator.h"
 #include "scanner/evaluators/util/swizzle_evaluator.h"
+#include "scanner/evaluators/video/decoder_evaluator.h"
 
 namespace scanner {
 namespace {
-PipelineDescription get_pipeline_description(const DatasetInformation& info) {
+PipelineDescription get_pipeline_description(const DatasetInformation &info) {
   PipelineDescription desc;
   Sampler::all_frames(info, desc);
   // desc.sampling = Sampling::Strided;
@@ -37,13 +37,13 @@ PipelineDescription get_pipeline_description(const DatasetInformation& info) {
   decoder_type = VideoDecoderType::SOFTWARE;
 #endif
 
-  std::vector<std::unique_ptr<EvaluatorFactory>>& factories =
+  std::vector<std::unique_ptr<EvaluatorFactory>> &factories =
       desc.evaluator_factories;
 
   factories.emplace_back(
       new DecoderEvaluatorFactory(device_type, decoder_type));
-  factories.emplace_back(new DefaultInputEvaluatorFactory(
-      device_type, descriptor, batch_size));
+  factories.emplace_back(
+      new DefaultInputEvaluatorFactory(device_type, descriptor, batch_size));
   factories.emplace_back(
       new CaffeEvaluatorFactory(device_type, descriptor, batch_size));
   factories.emplace_back(new DiscardEvaluatorFactory(device_type));

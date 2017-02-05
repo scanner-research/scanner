@@ -34,24 +34,24 @@ MovieEvaluator::MovieEvaluator(EvaluatorConfig config, DeviceType device_type,
   }
 }
 
-void MovieEvaluator::configure(const InputFormat& metadata) {
+void MovieEvaluator::configure(const InputFormat &metadata) {
   this->metadata = metadata;
-  for (auto& entry : evaluators) {
+  for (auto &entry : evaluators) {
     entry.second->configure(metadata);
   }
 }
 
 void MovieEvaluator::reset() {
-  for (auto& entry : evaluators) {
+  for (auto &entry : evaluators) {
     entry.second->reset_wrapper();
   }
 }
 
 void MovieEvaluator::evaluate(
-    const std::vector<std::vector<u8*>>& input_buffers,
-    const std::vector<std::vector<size_t>>& input_sizes,
-    std::vector<std::vector<u8*>>& output_buffers,
-    std::vector<std::vector<size_t>>& output_sizes) {
+    const std::vector<std::vector<u8 *>> &input_buffers,
+    const std::vector<std::vector<size_t>> &input_sizes,
+    std::vector<std::vector<u8 *>> &output_buffers,
+    std::vector<std::vector<size_t>> &output_sizes) {
   std::vector<Mat> imgs;
   for (i32 i = 0; i < input_buffers[0].size(); ++i) {
 #ifdef HAVE_CUDA
@@ -96,7 +96,7 @@ std::vector<std::string> MovieEvaluatorFactory::get_output_names() {
   return outputs_;
 }
 
-Evaluator* MovieEvaluatorFactory::new_evaluator(const EvaluatorConfig& config) {
+Evaluator *MovieEvaluatorFactory::new_evaluator(const EvaluatorConfig &config) {
   return new MovieEvaluator(config, device_type_, outputs_);
 }
 }

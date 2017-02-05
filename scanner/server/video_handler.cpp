@@ -36,9 +36,9 @@
 
 #include <boost/regex.hpp>
 
-#include <unistd.h>
 #include <fstream>
 #include <map>
+#include <unistd.h>
 
 namespace pg = proxygen;
 
@@ -52,7 +52,7 @@ namespace scanner {
 
 namespace {
 
-DatabaseMetadata read_database_metadata(StorageBackend* storage) {
+DatabaseMetadata read_database_metadata(StorageBackend *storage) {
   const std::string db_meta_path = database_metadata_path();
   std::unique_ptr<RandomReadFile> file;
   make_unique_random_read_file(storage, db_meta_path, file);
@@ -61,8 +61,8 @@ DatabaseMetadata read_database_metadata(StorageBackend* storage) {
   return deserialize_database_metadata(file.get(), pos);
 }
 
-DatasetDescriptor read_dataset_descriptor(StorageBackend* storage,
-                                          const std::string& dataset_name) {
+DatasetDescriptor read_dataset_descriptor(StorageBackend *storage,
+                                          const std::string &dataset_name) {
   const std::string dataset_path = dataset_descriptor_path(dataset_name);
   std::unique_ptr<RandomReadFile> file;
   make_unique_random_read_file(storage, dataset_path, file);
@@ -71,9 +71,9 @@ DatasetDescriptor read_dataset_descriptor(StorageBackend* storage,
   return deserialize_dataset_descriptor(file.get(), pos);
 }
 
-VideoMetadata read_video_metadata(StorageBackend* storage,
-                                  const std::string& dataset_name,
-                                  const std::string& item_name) {
+VideoMetadata read_video_metadata(StorageBackend *storage,
+                                  const std::string &dataset_name,
+                                  const std::string &item_name) {
   std::string metadata_path =
       dataset_item_metadata_path(dataset_name, item_name);
   std::unique_ptr<RandomReadFile> file;
@@ -83,9 +83,9 @@ VideoMetadata read_video_metadata(StorageBackend* storage,
   return deserialize_video_metadata(file.get(), pos);
 }
 
-WebTimestamps read_web_timestamps(StorageBackend* storage,
-                                  const std::string& dataset_name,
-                                  const std::string& item_name) {
+WebTimestamps read_web_timestamps(StorageBackend *storage,
+                                  const std::string &dataset_name,
+                                  const std::string &item_name) {
   const std::string metadata_path =
       dataset_item_video_timestamps_path(dataset_name, item_name);
   std::unique_ptr<RandomReadFile> file;
@@ -95,9 +95,9 @@ WebTimestamps read_web_timestamps(StorageBackend* storage,
   return deserialize_web_timestamps(file.get(), pos);
 }
 
-JobDescriptor read_job_descriptor(StorageBackend* storage,
-                                  const std::string& dataset_name,
-                                  const std::string& job_name) {
+JobDescriptor read_job_descriptor(StorageBackend *storage,
+                                  const std::string &dataset_name,
+                                  const std::string &job_name) {
   const std::string job_path = job_descriptor_path(dataset_name, job_name);
   std::unique_ptr<RandomReadFile> file;
   make_unique_random_read_file(storage, job_path, file);
@@ -107,7 +107,7 @@ JobDescriptor read_job_descriptor(StorageBackend* storage,
 }
 }
 
-VideoHandler::VideoHandler(VideoHandlerStats* stats, StorageConfig* config)
+VideoHandler::VideoHandler(VideoHandlerStats *stats, StorageConfig *config)
     : stats_(stats), storage_(StorageBackend::make_from_config(config)) {}
 
 void VideoHandler::onRequest(
@@ -127,7 +127,7 @@ void VideoHandler::onBody(std::unique_ptr<folly::IOBuf> body) noexcept {
 }
 
 void VideoHandler::onEOM() noexcept {
-  const pg::HTTPHeaders& headers = message_->getHeaders();
+  const pg::HTTPHeaders &headers = message_->getHeaders();
 
   std::string path = message_->getPath();
   if (path == "/") {
@@ -170,14 +170,14 @@ void VideoHandler::onError(pg::ProxygenError err) noexcept {
   delete this;
 }
 
-void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
-                                   const std::string& path,
-                                   pg::ResponseBuilder& response) {
+void VideoHandler::handle_datasets(const DatabaseMetadata &meta,
+                                   const std::string &path,
+                                   pg::ResponseBuilder &response) {
   bool bad = false;
   boost::smatch match_result;
   if (path.empty()) {
     folly::dynamic json = folly::dynamic::array();
-    for (const auto& kv : meta.dataset_names) {
+    for (const auto &kv : meta.dataset_names) {
       DatasetMetadata dataset_meta =
           read_dataset_descriptor(storage_.get(), kv.second);
 
@@ -186,7 +186,7 @@ void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
       dataset_info["name"] = kv.second;
       dataset_info["total_frames"] = dataset_meta.total_frames();
       folly::dynamic video_names = folly::dynamic::array();
-      for (const std::string& path : dataset_meta.original_paths()) {
+      for (const std::string &path : dataset_meta.original_paths()) {
         video_names.push_back(path);
       }
       dataset_info["video_names"] = video_names;
@@ -227,13 +227,13 @@ void VideoHandler::handle_datasets(const DatabaseMetadata& meta,
   }
 }
 
-void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
-                               const std::string& path,
-                               pg::ResponseBuilder& response) {
+void VideoHandler::handle_jobs(const DatabaseMetadata &meta, i32 dataset_id,
+                               const std::string &path,
+                               pg::ResponseBuilder &response) {
   static const boost::regex features_regex("^/features/([[:digit:]]+)");
 
-  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
-  const std::set<i32>& job_ids = meta.dataset_job_ids.at(dataset_id);
+  const std::string &dataset_name = meta.dataset_names.at(dataset_id);
+  const std::set<i32> &job_ids = meta.dataset_job_ids.at(dataset_id);
 
   boost::smatch match_result;
   if (boost::regex_search(path, match_result, id_regex)) {
@@ -245,7 +245,7 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
       return;
     }
     if (suffix.empty()) {
-      const std::string& job_name = meta.job_names.at(job_id);
+      const std::string &job_name = meta.job_names.at(job_id);
       JobDescriptor job_descriptor =
           read_job_descriptor(storage_.get(), dataset_name, job_name);
 
@@ -277,7 +277,7 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
     folly::dynamic json = folly::dynamic::array();
 
     for (i32 job_id : job_ids) {
-      const std::string& job_name = meta.job_names.at(job_id);
+      const std::string &job_name = meta.job_names.at(job_id);
       JobDescriptor job_descriptor =
           read_job_descriptor(storage_.get(), dataset_name, job_name);
 
@@ -301,10 +301,10 @@ void VideoHandler::handle_jobs(const DatabaseMetadata& meta, i32 dataset_id,
   }
 }
 
-void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
+void VideoHandler::handle_features(const DatabaseMetadata &meta, i32 dataset_id,
                                    i32 job_id, i32 video_id,
-                                   const std::string& path,
-                                   pg::ResponseBuilder& response) {
+                                   const std::string &path,
+                                   pg::ResponseBuilder &response) {
   if (!(message_->hasQueryParam("start") && message_->hasQueryParam("end") &&
         message_->hasQueryParam("columns"))) {
     response.status(400, "Bad Request");
@@ -317,7 +317,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
 
   std::vector<std::string> columns = split(columns_string, ',');
 
-  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
+  const std::string &dataset_name = meta.dataset_names.at(dataset_id);
   DatasetMetadata dataset_meta{
       read_dataset_descriptor(storage_.get(), dataset_name)};
 
@@ -334,9 +334,9 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   // if (message_->has("sampling_filter")) {
   // }
 
-  BBoxParser* parser = new BBoxParser(columns);
+  BBoxParser *parser = new BBoxParser(columns);
 
-  const std::string& job_name = meta.job_names.at(job_id);
+  const std::string &job_name = meta.job_names.at(job_id);
   std::string item_name = dataset_meta.item_names().at(video_id);
 
   VideoMetadata item_meta =
@@ -387,7 +387,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
         }
       }
       assert(i != locations.work_items.size());
-      const auto& interval = locations.work_item_intervals[i];
+      const auto &interval = locations.work_item_intervals[i];
 
       i64 start = interval.start + i * job_meta.work_item_size();
       i64 end = interval.end + i * job_meta.work_item_size();
@@ -404,9 +404,9 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
         std::unique_ptr<RandomReadFile> file;
         make_unique_random_read_file(storage_.get(), output_path, file);
 
-        u64 pos = sizeof(u64);  // skip past number of rows
+        u64 pos = sizeof(u64); // skip past number of rows
         output_buffers_item_sizes[output_index].resize(end - start);
-        read(file.get(), (u8*)output_buffers_item_sizes[output_index].data(),
+        read(file.get(), (u8 *)output_buffers_item_sizes[output_index].data(),
              (end - start) * sizeof(i64), pos);
 
         size_t size_left = 0;
@@ -421,7 +421,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
         }
 
         output_buffers[output_index].resize(size_left);
-        read(file.get(), (u8*)output_buffers[output_index].data(), size_left,
+        read(file.get(), (u8 *)output_buffers[output_index].data(), size_left,
              pos);
         output_buffers_pos[output_index] = 0;
       }
@@ -432,7 +432,7 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
     }
 
     // Extract row of feature vectors from output buffers
-    std::vector<u8*> output(output_names.size());
+    std::vector<u8 *> output(output_names.size());
     std::vector<i64> output_sizes(output_names.size());
     for (size_t output_idx = 0; output_idx < output_names.size();
          ++output_idx) {
@@ -464,16 +464,16 @@ void VideoHandler::handle_features(const DatabaseMetadata& meta, i32 dataset_id,
   response.status(200, "OK").body(body);
 }
 
-void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
-                                 const std::string& path,
-                                 pg::ResponseBuilder& response) {
-  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
+void VideoHandler::handle_videos(const DatabaseMetadata &meta, i32 dataset_id,
+                                 const std::string &path,
+                                 pg::ResponseBuilder &response) {
+  const std::string &dataset_name = meta.dataset_names.at(dataset_id);
   DatasetMetadata dataset_meta(
       read_dataset_descriptor(storage_.get(), dataset_name));
 
   auto item_to_json = [](
-      i32 item_id, const std::string& video_name, const std::string& media_path,
-      const VideoMetadata& item, const WebTimestamps& ts) -> folly::dynamic {
+      i32 item_id, const std::string &video_name, const std::string &media_path,
+      const VideoMetadata &item, const WebTimestamps &ts) -> folly::dynamic {
     folly::dynamic meta = folly::dynamic::object;
     meta["id"] = item_id;
     meta["name"] = video_name;
@@ -500,8 +500,8 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
     } else {
       folly::dynamic json = folly::dynamic::object;
 
-      const std::string& video_name = dataset_meta.item_names()[video_id];
-      const std::string& media_path = "datasets/" + std::to_string(dataset_id) +
+      const std::string &video_name = dataset_meta.item_names()[video_id];
+      const std::string &media_path = "datasets/" + std::to_string(dataset_id) +
                                       "/media/" + video_name + ".mp4";
 
       VideoMetadata item =
@@ -516,8 +516,8 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
     // Requesting all videos metadata
     json = folly::dynamic::array();
     i32 video_id = 0;
-    for (const std::string& video_name : dataset_meta.item_names()) {
-      const std::string& media_path = "datasets/" + std::to_string(dataset_id) +
+    for (const std::string &video_name : dataset_meta.item_names()) {
+      const std::string &media_path = "datasets/" + std::to_string(dataset_id) +
                                       "/media/" + video_name + ".mp4";
 
       VideoMetadata item =
@@ -537,12 +537,12 @@ void VideoHandler::handle_videos(const DatabaseMetadata& meta, i32 dataset_id,
   response.status(200, "OK").body(body);
 }
 
-void VideoHandler::handle_media(const DatabaseMetadata& meta, i32 dataset_id,
-                                const std::string& media_path,
-                                const std::string& path,
-                                pg::ResponseBuilder& response) {
-  const pg::HTTPHeaders& headers = message_->getHeaders();
-  const std::string& dataset_name = meta.dataset_names.at(dataset_id);
+void VideoHandler::handle_media(const DatabaseMetadata &meta, i32 dataset_id,
+                                const std::string &media_path,
+                                const std::string &path,
+                                pg::ResponseBuilder &response) {
+  const pg::HTTPHeaders &headers = message_->getHeaders();
+  const std::string &dataset_name = meta.dataset_names.at(dataset_id);
   DatasetDescriptor dataset_descriptor =
       read_dataset_descriptor(storage_.get(), dataset_name);
 
@@ -565,7 +565,7 @@ void VideoHandler::handle_media(const DatabaseMetadata& meta, i32 dataset_id,
   if (headers.exists(pg::HTTP_HEADER_RANGE)) {
     static boost::regex range_regex("^bytes=([0-9]*)-([0-9]*)");
 
-    const std::string& range_str =
+    const std::string &range_str =
         headers.getSingleOrEmpty(pg::HTTP_HEADER_RANGE);
 
     boost::smatch match_result;

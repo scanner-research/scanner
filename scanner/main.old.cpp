@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/runtime.h"
 #include "scanner/engine/ingest.h"
+#include "scanner/engine/runtime.h"
 #include "scanner/eval/pipeline_description.h"
 
 #include "scanner/util/common.h"
@@ -40,14 +40,14 @@
 #include <boost/program_options/variables_map.hpp>
 
 #ifdef HAVE_CUDA
-#include <cuda.h>
 #include "scanner/util/cuda.h"
+#include <cuda.h>
 #endif
 
-#include <libgen.h>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <libgen.h>
 #include <string>
 
 // For setting up libav*
@@ -80,7 +80,7 @@ using storehouse::RandomReadFile;
 
 const std::string CONFIG_DEFAULT_PATH = "%s/.scanner.toml";
 
-void startup(int argc, char** argv) {
+void startup(int argc, char **argv) {
   av_register_all();
   FLAGS_minloglevel = 0;
 #ifdef HAVE_CUDA
@@ -88,10 +88,10 @@ void startup(int argc, char** argv) {
 #endif
 }
 
-void shutdown() { }
+void shutdown() {}
 
 class Config {
- public:
+public:
   Config(po::variables_map vm, toml::ParseResult pr, bool has_toml)
       : vm(vm), pr(pr), has_toml(has_toml) {}
 
@@ -100,8 +100,7 @@ class Config {
            (has_toml && pr.value.find(prefix + "." + key) != nullptr);
   }
 
-  template <typename T>
-  T get(std::string prefix, std::string key) {
+  template <typename T> T get(std::string prefix, std::string key) {
     if (vm.count(key)) {
       return vm[key].as<T>();
     } else if (has_toml) {
@@ -111,31 +110,31 @@ class Config {
     }
   }
 
- private:
+private:
   po::variables_map vm;
   toml::ParseResult pr;
   bool has_toml;
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   // Variables for holding parsed command line arguments
 
-  std::string cmd;  // sub-command to execute
+  std::string cmd; // sub-command to execute
   // Common among sub-commands
-  std::string dataset_name;  // name of dataset to create/operate on
+  std::string dataset_name; // name of dataset to create/operate on
   bool force;
   std::string in_job_name;
   // For ingest sub-command
-  std::string dataset_type;           // type of datset to ingest
-  std::string paths_file;             // paths of files to turn into dataset
-  bool compute_web_metadata = false;  // whether to compute metadata on ingest
+  std::string dataset_type;          // type of datset to ingest
+  std::string paths_file;            // paths of files to turn into dataset
+  bool compute_web_metadata = false; // whether to compute metadata on ingest
   // For run sub-command
-  std::string pipeline_name;  // name of pipeline to run
-  std::string out_job_name;   // name of job to refer to after run
+  std::string pipeline_name; // name of pipeline to run
+  std::string out_job_name;  // name of job to refer to after run
   // For rm sub-command
-  std::string resource_type;  // dataset or job
-  std::string resource_name;  // name of resource to rm
-  storehouse::StorageConfig* storage_config;
+  std::string resource_type; // dataset or job
+  std::string resource_name; // name of resource to rm
+  storehouse::StorageConfig *storage_config;
   MemoryPoolConfig memory_pool_config;
   {
     po::variables_map vm;
@@ -154,8 +153,7 @@ int main(int argc, char** argv) {
         "db_path", po::value<std::string>(),
         "Path to the persistent database.")(
 
-        "use_pool", po::value<bool>(),
-        "Use pool")(
+        "use_pool", po::value<bool>(), "Use pool")(
 
         "pus_per_node", po::value<int>(), "Number of PUs per node")(
 
@@ -198,7 +196,7 @@ int main(int argc, char** argv) {
       opts = po::collect_unrecognized(parsed.options, po::include_positional);
       opts.erase(opts.begin());
 
-    } catch (const po::required_option& e) {
+    } catch (const po::required_option &e) {
       if (vm.count("help")) {
         std::cout << main_desc << std::endl;
         return 1;
@@ -207,7 +205,7 @@ int main(int argc, char** argv) {
       }
     }
 
-    Config* config;
+    Config *config;
     char path[256];
     snprintf(path, 256, CONFIG_DEFAULT_PATH.c_str(), getenv("HOME"));
     std::string config_path = vm.count("config_file")
@@ -263,9 +261,11 @@ int main(int argc, char** argv) {
     set_database_path(db_path);
 
     if (config->has("memory_pool", "use_pool")) {
-      memory_pool_config.use_pool = config->get<bool>("memory_pool", "use_pool");
+      memory_pool_config.use_pool =
+          config->get<bool>("memory_pool", "use_pool");
       if (config->has("memory_pool", "pool_size")) {
-        memory_pool_config.pool_size = config->get<i64>("memory_pool", "pool_size");
+        memory_pool_config.pool_size =
+            config->get<i64>("memory_pool", "pool_size");
       } else {
         memory_pool_config.pool_size = DEFAULT_POOL_SIZE;
       }
@@ -330,7 +330,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << ingest_desc << std::endl;
           return 1;
@@ -372,7 +372,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << run_desc << std::endl;
           return 1;
@@ -407,7 +407,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << rm_desc << std::endl;
           return 1;
@@ -436,7 +436,7 @@ int main(int argc, char** argv) {
                       .run(),
                   vm);
         po::notify(vm);
-      } catch (const po::required_option& e) {
+      } catch (const po::required_option &e) {
         if (vm.count("help")) {
           std::cout << serve_desc << std::endl;
           return 1;
@@ -461,7 +461,7 @@ int main(int argc, char** argv) {
 
   startup(argc, argv);
 
-  storehouse::StorageBackend* storage =
+  storehouse::StorageBackend *storage =
       storehouse::StorageBackend::make_from_config(storage_config);
 
   // Setup db metadata if it does not exist yet
