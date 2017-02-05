@@ -26,7 +26,7 @@ endif()
 add_library(util OBJECT
   ${SOURCE_FILES})
 
-if (CUDA_FOUND)
+if (BUILD_CUDA)
   cuda_add_library(util_cuda
     image.cu)
 endif()

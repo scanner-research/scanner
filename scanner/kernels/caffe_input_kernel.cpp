@@ -1,11 +1,13 @@
 #include "scanner/kernels/caffe_input_kernel.h"
-#include "scanner/engine/halide_context.h"
 #include "scanner/util/memory.h"
 
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
 
+#ifdef HAVE_CUDA
 #include "HalideRuntimeCuda.h"
+#include "scanner/engine/halide_context.h"
+#endif
 
 namespace scanner {
 
@@ -13,20 +15,20 @@ CaffeInputKernel::CaffeInputKernel(const Kernel::Config &config)
     : VideoKernel(config), device_(config.devices[0]) {
   args_.ParseFromArray(config.args.data(), config.args.size());
   if (device_.type == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-    CUD_CHECK(cuDevicePrimaryCtxRetain(&context_, device_.id));
-    Halide::Runtime::Internal::Cuda::context = context_;
-    halide_set_gpu_device(device_.id);
-#else
-    LOG(FATAL) << "Cuda not enabled.";
-#endif
+    CUDA_PROTECT({
+      CUD_CHECK(cuDevicePrimaryCtxRetain(&context_, device_.id));
+      Halide::Runtime::Internal::Cuda::context = context_;
+      halide_set_gpu_device(device_.id);
+    });
   }
 }
 
 CaffeInputKernel::~CaffeInputKernel() {
-  cudaSetDevice(device_.id);
-  Halide::Runtime::Internal::Cuda::context = 0;
-  CUD_CHECK(cuDevicePrimaryCtxRelease(device_.id));
+  CUDA_PROTECT({
+    cudaSetDevice(device_.id);
+    Halide::Runtime::Internal::Cuda::context = 0;
+    CUD_CHECK(cuDevicePrimaryCtxRelease(device_.id));
+  });
 }
 
 void CaffeInputKernel::new_frame_info() {
@@ -42,20 +44,22 @@ void CaffeInputKernel::new_frame_info() {
 void CaffeInputKernel::set_halide_buf(buffer_t &halide_buf, u8 *buf,
                                       size_t size) {
   if (device_.type == DeviceType::GPU) {
-    halide_buf.dev = (uintptr_t) nullptr;
+    CUDA_PROTECT({
+      halide_buf.dev = (uintptr_t) nullptr;
 
-    // "You likely want to set the dev_dirty flag for correctness. (It will
-    // not matter if all the code runs on the GPU.)"
-    halide_buf.dev_dirty = true;
+      // "You likely want to set the dev_dirty flag for correctness. (It will
+      // not matter if all the code runs on the GPU.)"
+      halide_buf.dev_dirty = true;
 
-    i32 err = halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
-    LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
+      i32 err =
+          halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
+      LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
 
-    // "You'll need to set the host field of the buffer_t structs to
-    // something other than nullptr as that is used to indicate bounds query
-    // calls" - Zalman Stern
-    halide_buf.host = (u8 *)0xdeadbeef;
-
+      // "You'll need to set the host field of the buffer_t structs to
+      // something other than nullptr as that is used to indicate bounds query
+      // calls" - Zalman Stern
+      halide_buf.host = (u8 *)0xdeadbeef;
+      });
   } else {
     halide_buf.host = buf;
   }
@@ -63,7 +67,7 @@ void CaffeInputKernel::set_halide_buf(buffer_t &halide_buf, u8 *buf,
 
 void CaffeInputKernel::unset_halide_buf(buffer_t &halide_buf) {
   if (device_.type == DeviceType::GPU) {
-    halide_cuda_detach_device_ptr(nullptr, &halide_buf);
+    CUDA_PROTECT({ halide_cuda_detach_device_ptr(nullptr, &halide_buf); });
   }
 }
 
@@ -99,8 +103,12 @@ void CaffeInputKernel::transform_halide(u8 *input_buffer, u8 *output_buffer) {
   output_buf.extent[2] = 3;
   output_buf.elem_size = 4;
 
-  auto func = device_.type == DeviceType::GPU ? caffe_input_transformer_gpu
-                                              : caffe_input_transformer_cpu;
+  decltype(caffe_input_transformer_cpu)* func;
+  if (device_.type == DeviceType::GPU) {
+    CUDA_PROTECT({ func = caffe_input_transformer_gpu; });
+  } else {
+    func = caffe_input_transformer_cpu;
+  }
   auto descriptor = args_.net_descriptor();
   int error =
       func(&input_buf, frame_width, frame_height, net_input_width_,
@@ -177,9 +185,11 @@ void CaffeInputKernel::execute(const BatchedColumns &input_columns,
 }
 
 void CaffeInputKernel::set_device() {
-  cv::cuda::setDevice(device_.id);
-  CU_CHECK(cudaSetDevice(device_.id));
-  halide_set_gpu_device(device_.id);
+  CUDA_PROTECT({
+    cv::cuda::setDevice(device_.id);
+    CU_CHECK(cudaSetDevice(device_.id));
+    halide_set_gpu_device(device_.id);
+  });
 }
 
 REGISTER_EVALUATOR(CaffeInput).outputs({"caffe_frame"});

@@ -2,7 +2,7 @@ set(SOURCE_FILES
   decoder_automata.cpp
   video_decoder.cpp)
 
-if (CUDA_FOUND)
+if (BUILD_CUDA)
   add_definitions(-DHAVE_NVIDIA_VIDEO_HARDWARE)
   list(APPEND SOURCE_FILES
     nvidia/nvidia_video_decoder.cpp)

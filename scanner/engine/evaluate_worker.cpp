@@ -262,7 +262,8 @@ void *evaluate_thread(void *arg) {
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
 
     BatchedColumns &work_item_output_columns = output_work_entry.columns;
-    std::vector<DeviceHandle> &work_item_output_handles = output_work_entry.column_handles;
+    std::vector<DeviceHandle> &work_item_output_handles =
+        output_work_entry.column_handles;
     i32 num_final_output_columns = 0;
 
     i32 current_input = 0;

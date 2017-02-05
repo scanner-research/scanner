@@ -333,7 +333,7 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
     auto net_start = now();
     net_->ForwardPrefilled();
     if (profiler_) {
-      cudaDeviceSynchronize();
+      CUDA_PROTECT({ cudaDeviceSynchronize(); });
       profiler_->add_interval("caffe:net", net_start, now());
     }
 
@@ -387,7 +387,4 @@ void CaffeKernel::set_device() {
   }
 }
 
-REGISTER_EVALUATOR(Caffe).outputs({"caffe_output"});
-REGISTER_KERNEL(Caffe, CaffeKernel).device(DeviceType::CPU).num_devices(1);
-REGISTER_KERNEL(Caffe, CaffeKernel).device(DeviceType::GPU).num_devices(1);
 }

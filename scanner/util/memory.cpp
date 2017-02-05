@@ -14,6 +14,7 @@
  */
 
 #include "scanner/util/memory.h"
+#include "scanner/util/cuda.h"
 
 #include <cassert>
 #include <mutex>
@@ -22,7 +23,6 @@
 #include <unistd.h>
 
 #ifdef HAVE_CUDA
-#include "scanner/util/cuda.h"
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #endif
@@ -85,12 +85,10 @@ public:
       }
     } else if (device_.type == DeviceType::GPU) {
       u8 *buffer;
-#ifdef HAVE_CUDA
-      CU_CHECK(cudaSetDevice(device_.id));
-      CU_CHECK(cudaMalloc((void **)&buffer, size));
-#else
-      LOG(FATAL) << "Cuda not enabled.";
-#endif
+      CUDA_PROTECT({
+        CU_CHECK(cudaSetDevice(device_.id));
+        CU_CHECK(cudaMalloc((void **)&buffer, size));
+      })
       return buffer;
     }
   }
@@ -99,8 +97,10 @@ public:
     if (device_.type == DeviceType::CPU) {
       delete[] buffer;
     } else if (device_.type == DeviceType::GPU) {
-      CU_CHECK(cudaSetDevice(device_.id));
-      CU_CHECK(cudaFree(buffer));
+      CUDA_PROTECT({
+        CU_CHECK(cudaSetDevice(device_.id));
+        CU_CHECK(cudaFree(buffer));
+      });
     }
   }
 
@@ -353,8 +353,6 @@ void init_memory_allocators(MemoryPoolConfig config,
     gpu_block_allocators[device.id] =
         new BlockAllocator(gpu_block_allocator_base);
   }
-#else
-  assert(GPU_DEVICE_IDS.size() == 0);
 #endif
 }
 
@@ -376,9 +374,7 @@ SystemAllocator *system_allocator_for_device(DeviceHandle device) {
   if (device.type == DeviceType::CPU) {
     return cpu_system_allocator;
   } else if (device.type == DeviceType::GPU) {
-#ifndef HAVE_CUDA
-    LOG(FATAL) << "Cuda not enabled";
-#endif
+    CUDA_PROTECT({/* dummy to trigger cuda check */});
     return gpu_system_allocators.at(device.id);
   } else {
     LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
@@ -389,9 +385,7 @@ BlockAllocator *block_allocator_for_device(DeviceHandle device) {
   if (device.type == DeviceType::CPU) {
     return cpu_block_allocator;
   } else if (device.type == DeviceType::GPU) {
-#ifndef HAVE_CUDA
-    LOG(FATAL) << "Cuda not enabled";
-#endif
+    CUDA_PROTECT({/* dummy to trigger cuda check */});
     return gpu_block_allocators.at(device.id);
   } else {
     LOG(FATAL) << "Tried to allocate buffer of unsupported device type";
@@ -432,8 +426,8 @@ void memcpy_buffer(u8 *dest_buffer, DeviceHandle dest_device,
   CU_CHECK(cudaSetDevice(src_device.id));
   CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
 #else
-  assert(dest_type == DeviceType::CPU);
-  assert(dest_type == src_type);
+  assert(dest_device.type == DeviceType::CPU);
+  assert(dest_device.type == src_device.type);
   memcpy(dest_buffer, src_buffer, size);
 #endif
 }
@@ -493,9 +487,9 @@ void memcpy_vec(std::vector<u8 *> dest_buffers, DeviceHandle dest_device,
     for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
       cudaStreamSynchronize(streams[i]);
     }
+  }
 #else
   LOG(FATAL) << "Cuda not installed";
 #endif
-  }
 }
 }

@@ -6,7 +6,9 @@
 #include "scanner/util/opencv.h"
 #include "scanner/util/cuda.h"
 
+#ifdef HAVE_CUDA
 #include "caffe_input_transformer_gpu/caffe_input_transformer_gpu.h"
+#endif
 #include "caffe_input_transformer_cpu/caffe_input_transformer_cpu.h"
 
 namespace scanner {
@@ -36,7 +38,9 @@ protected:
   proto::CaffeInputArgs args_;
   i32 net_input_width_;
   i32 net_input_height_;
+#ifdef HAVE_CUDA
   CUcontext context_;
+#endif
 };
 
 }

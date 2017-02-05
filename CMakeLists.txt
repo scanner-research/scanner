@@ -115,7 +115,7 @@ if (BUILD_VIDEO_EVALUATORS)
   #find_package(MFX)
 endif()
 
-if (CUDA_FOUND)
+if (BUILD_CUDA)
   add_library(scanner_halide scanner/engine/halide_context.cpp)
 endif()
 
@@ -124,17 +124,19 @@ if (BUILD_CAFFE_EVALUATORS)
   add_definitions(-DHAVE_CAFFE)
   include_directories(${CAFFE_INCLUDE_DIRS})
 
-  if (NOT CUDA_FOUND)
+  if (NOT BUILD_CUDA)
     add_definitions(-DCPU_ONLY)
   endif()
 
   add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_cpu.cpp host)
-  add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_gpu.cpp cuda)
+  if (BUILD_CUDA)
+    add_halide_target(scanner/evaluators/caffe/default/caffe_input_transformer_gpu.cpp cuda)
+  endif()
 
   if (BUILD_CAFFE_INPUT_EVALUATORS)
     # Requires opencv3
     list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
-    if (CUDA_FOUND)
+    if (BUILD_CUDA)
       list(APPEND OPENCV_DESIRED_COMPONENTS
         cudawarping cudaimgproc cudafilters cudaarithm)
     endif()
@@ -172,7 +174,7 @@ if (BUILD_MOVIE_ANALYSIS_EVALUATORS)
   set(OFDIS_DIR /homes/wcrichto/OF_DIS)
   if (OPENCV_MAJOR_VERSION EQUAL 3)
       list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video)
-      if (CUDA_FOUND)
+      if (BUILD_CUDA)
           list(APPEND OPENCV_DESIRED_COMPONENTS cudaoptflow cudacodec)
       endif()
   else()
@@ -276,7 +278,7 @@ if (BUILD_TESTS)
   include_directories("${GTEST_INCLUDE_DIRS}")
 endif()
 
-if (CUDA_FOUND)
+if (BUILD_CUDA)
   list(APPEND SCANNER_LIBRARIES
     util_cuda
     "${CUDA_LIBRARIES}"
@@ -319,7 +321,9 @@ macro(add_deps)
       target_include_directories(${targetName} PUBLIC
         "${PROJECT_BINARY_DIR}/generator_genfiles")
     endforeach()
-    add_dependencies(${targetName} scanner_halide)
+    if (BUILD_CUDA)
+      add_dependencies(${targetName} scanner_halide)
+    endif()
   endif()
 endmacro()
 
@@ -375,7 +379,9 @@ target_link_libraries(scanner_bindings PUBLIC
 if (HALIDE_FOUND)
   foreach(TARGET ${HALIDE_TARGETS})
     halide_add_aot_library_dependency(scanner ${TARGET})
-    target_link_libraries(scanner PRIVATE scanner_halide)
+    if (BUILD_CUDA)
+      target_link_libraries(scanner PRIVATE scanner_halide)
+    endif()
   endforeach()
 endif()
 

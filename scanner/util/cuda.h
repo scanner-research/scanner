@@ -15,8 +15,10 @@
 
 #pragma once
 
+#ifdef HAVE_CUDA
 #include <cuda.h>
 #include <cuda_runtime_api.h>
+#endif
 
 #include <glog/logging.h>
 
