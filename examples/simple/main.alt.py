@@ -4,7 +4,6 @@ import cv2
 
 db = Database()
 
-# hist = db.evaluators.Histogram(device = DeviceType.GPU)
 descriptor = NetDescriptor.from_file(db, 'features/caffe_facenet.toml')
 caffe_args = db.protobufs.CaffeArgs()
 caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())

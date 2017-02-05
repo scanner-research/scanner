@@ -221,8 +221,17 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   // Setup custom buffer for libavcodec so that we can read from a storehouse
   // file instead of a posix file
   FFStorehouseState file_state;
-  BACKOFF_FAIL(make_unique_random_read_file(storage, path, file_state.file));
-  BACKOFF_FAIL(file_state.file->get_size(file_state.size));
+  StoreResult result;
+  EXP_BACKOFF(make_unique_random_read_file(storage, path, file_state.file), result);
+  if (result != StoreResult::Success) {
+    return false;
+  }
+
+  EXP_BACKOFF(file_state.file->get_size(file_state.size), result);
+  if (result != StoreResult::Success) {
+    return false;
+  }
+
   file_state.pos = 0;
 
   CodecState state;

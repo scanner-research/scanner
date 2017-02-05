@@ -16,6 +16,19 @@ public:
 
     scale_ = args.scale();
     threshold_ = args.threshold();
+
+    std::ifstream template_file{"features/caffe_facenet/templates.bin",
+        std::ifstream::binary};
+    LOG_IF(FATAL, !template_file.good()) << "Could not find template file.";
+    templates_.resize(num_templates_, std::vector<float>(4));
+    for (i32 t = 0; t < 25; ++t) {
+      for (i32 i = 0; i < 4; ++i) {
+        LOG_IF(FATAL, !template_file.good()) << "Template file not correct.";
+        f32 d;
+        template_file.read(reinterpret_cast<char *>(&d), sizeof(f32));
+        templates_[t][i] = d;
+      }
+    }
   }
 
   void new_frame_info() override {
