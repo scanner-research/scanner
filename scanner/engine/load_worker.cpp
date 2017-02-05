@@ -270,7 +270,6 @@ void *load_thread(void *arg) {
       num_columns += samples.Get(i).column_ids_size();
     }
     eval_work_entry.columns.resize(num_columns);
-    eval_work_entry.buffer_handle = CPU_DEVICE;
 
     i32 media_col_idx = 0;
     i32 out_col_idx = 0;
@@ -343,6 +342,7 @@ void *load_thread(void *arg) {
           }
         }
         eval_work_entry.column_types.push_back(column_type);
+        eval_work_entry.column_handles.push_back(CPU_DEVICE);
         out_col_idx++;
       }
     }

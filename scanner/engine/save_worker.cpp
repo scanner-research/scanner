@@ -79,7 +79,8 @@ void *save_thread(void *arg) {
         LOG(FATAL) << "Output layer's row vector has wrong length";
       }
 
-      if (!work_entry.buffer_handle.is_same_address_space(CPU_DEVICE)) {
+      if (!work_entry.column_handles[out_idx].is_same_address_space(
+              CPU_DEVICE)) {
         std::vector<u8 *> dest_buffers, src_buffers;
         std::vector<size_t> sizes;
         size_t total_size = 0;
@@ -104,10 +105,10 @@ void *save_thread(void *arg) {
           }
 
           memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
-                     work_entry.buffer_handle, sizes);
+                     work_entry.column_handles[out_idx], sizes);
 
           for (i32 f = 0; f < num_rows; ++f) {
-            delete_buffer(work_entry.buffer_handle, src_buffers[f]);
+            delete_buffer(work_entry.column_handles[out_idx] , src_buffers[f]);
             work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
           }
         }

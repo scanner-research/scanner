@@ -38,9 +38,9 @@ def single_video():
     [table] = db.run(tasks, hist)
 
 def video_collection():
-    # input_collection = db.ingest_video_collection(
-    #     'meangirls', ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
-    #     force=True)
+    input_collection = db.ingest_video_collection(
+        'meangirls', ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
+        force=True)
     input_collection = db.collection('meangirls')
     sampler = db.sampler()
     strided = sampler.strided(input_collection, 1)

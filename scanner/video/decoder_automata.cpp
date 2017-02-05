@@ -89,7 +89,7 @@ void DecoderAutomata::initialize(
   std::atomic_thread_fence(std::memory_order_release);
 }
 
-void DecoderAutomata::get_frames(u8 *buffer, i32 num_frames) {
+void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
   i64 total_frames_decoded = 0;
   i64 total_frames_used = 0;
 

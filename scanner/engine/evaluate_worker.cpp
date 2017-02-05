@@ -45,6 +45,7 @@ void move_if_different_address_space(Profiler &profiler,
     }
   }
 }
+}
 
 void move_if_different_address_space(Profiler &profiler,
                                      DeviceHandle current_handle,
@@ -55,7 +56,6 @@ void move_if_different_address_space(Profiler &profiler,
     move_if_different_address_space(profiler, current_handle, target_handle,
                                     column);
   }
-}
 }
 
 void *pre_evaluate_thread(void *arg) {
@@ -152,10 +152,6 @@ void *pre_evaluate_thread(void *arg) {
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
-      } else {
-        move_if_different_address_space(args.profiler, work_entry.buffer_handle,
-                                        decoder_output_handle,
-                                        work_entry.columns[c]);
       }
     }
 
@@ -163,7 +159,6 @@ void *pre_evaluate_thread(void *arg) {
       media_col_idx = 0;
       EvalWorkEntry entry;
       entry.io_item_index = work_entry.io_item_index;
-      entry.buffer_handle = decoder_output_handle;
       entry.needs_configure = first_item ? needs_configure : false;
       entry.needs_reset = first_item ? needs_reset : false;
       entry.last_in_io_item = (r + work_item_size >= total_rows) ? true : false;
@@ -182,11 +177,13 @@ void *pre_evaluate_thread(void *arg) {
           for (i64 n = 0; n < num_rows; ++n) {
             INSERT_ROW(entry.columns[c], buffer + frame_size * n, frame_size);
           }
+          entry.column_handles.push_back(decoder_output_handle);
           media_col_idx++;
         } else {
           entry.columns[c].rows =
               std::vector<Row>(work_entry.columns[c].rows.begin() + start,
                                work_entry.columns[c].rows.begin() + end);
+          entry.column_handles.push_back(work_entry.column_handles[c]);
         }
       }
       // Push entry to kernels
@@ -225,7 +222,6 @@ void *evaluate_thread(void *arg) {
     }
   }
   assert(kernels.size() > 0);
-  i32 num_final_output_columns = kernel_num_outputs.back();
 
   for (auto &kernel : kernels) {
     kernel->set_profiler(&args.profiler);
@@ -261,13 +257,13 @@ void *evaluate_thread(void *arg) {
 
     EvalWorkEntry output_work_entry;
     output_work_entry.io_item_index = work_entry.io_item_index;
-    output_work_entry.buffer_handle = kernel_devices.back();
     output_work_entry.needs_configure = work_entry.needs_configure;
     output_work_entry.needs_reset = work_entry.needs_reset;
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
 
     BatchedColumns &work_item_output_columns = output_work_entry.columns;
-    work_item_output_columns.resize(num_final_output_columns);
+    std::vector<DeviceHandle> &work_item_output_handles = output_work_entry.column_handles;
+    i32 num_final_output_columns = 0;
 
     i32 current_input = 0;
     i32 total_inputs = 0;
@@ -284,6 +280,7 @@ void *evaluate_thread(void *arg) {
       // Initialize the output buffers with the frame input because we
       // perform a swap from output to input on each iterator to pass outputs
       // from the previous evaluator into the input of the next one
+      std::vector<DeviceHandle> side_output_handles = work_entry.column_handles;
       BatchedColumns side_output_columns;
       side_output_columns.resize(work_entry.columns.size());
       for (size_t i = 0; i < work_entry.columns.size(); ++i) {
@@ -295,29 +292,31 @@ void *evaluate_thread(void *arg) {
             work_entry.columns[i].rows.begin() + current_input,
             work_entry.columns[i].rows.begin() + current_input + batch);
       }
-      DeviceHandle output_handle = work_entry.buffer_handle;
       for (size_t k = 0; k < kernels.size(); ++k) {
         DeviceHandle current_handle = kernel_devices[k];
         std::unique_ptr<Kernel> &kernel = kernels[k];
         i32 num_outputs = kernel_num_outputs[k];
 
-        DeviceHandle input_handle = output_handle;
         // Map from previous output columns to the set of input columns needed
         // by the kernel
         BatchedColumns input_columns;
         for (i32 in_col_idx : column_mapping[k]) {
           assert(in_col_idx < side_output_columns.size());
+
+          // If current evaluator type and input buffer type differ, then move
+          // the data in the input buffer into a new buffer which has the same
+          // type as the evaluator input
+          auto copy_start = now();
+          move_if_different_address_space(
+              args.profiler, side_output_handles[in_col_idx], current_handle,
+              side_output_columns[in_col_idx]);
+          side_output_handles[in_col_idx] = current_handle;
+
+          input_handle = current_handle;
+          args.profiler.add_interval("evaluator_marshal", copy_start, now());
+
           input_columns.push_back(side_output_columns[in_col_idx]);
         }
-        // If current evaluator type and input buffer type differ, then move
-        // the data in the input buffer into a new buffer which has the same
-        // type as the evaluator input
-        auto copy_start = now();
-        move_if_different_address_space(args.profiler, input_handle,
-                                        current_handle, input_columns);
-
-        input_handle = current_handle;
-        args.profiler.add_interval("evaluator_marshal", copy_start, now());
 
         // Setup output buffers to receive evaluator output
         DeviceHandle output_handle = current_handle;
@@ -333,7 +332,7 @@ void *evaluate_thread(void *arg) {
           RowList &column = output_columns[unused_col_idx];
           for (Row &row : column.rows) {
             u8 *buff = row.buffer;
-            delete_buffer(output_handle, buff);
+            delete_buffer(current_handle, buff);
           }
           output_columns.erase(output_columns.begin() + unused_col_idx);
         }
@@ -350,14 +349,21 @@ void *evaluate_thread(void *arg) {
           RowList &column = side_output_columns[dead_col_idx];
           for (Row &row : column.rows) {
             u8 *buff = row.buffer;
-            delete_buffer(output_handle, buff);
+            delete_buffer(side_output_handles[dead_col_idx], buff);
           }
           side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
+          side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
         }
         // Add new output columns
         for (const RowList &column : output_columns) {
           side_output_columns.push_back(column);
+          side_output_handles.push_back(current_handle);
         }
+      }
+      if (work_item_output_columns.size() == 0) {
+        num_final_output_columns = side_output_columns.size();
+        work_item_output_columns.resize(side_output_columns.size());
+        work_item_output_handles = side_output_handles;
       }
       assert(num_final_output_columns == side_output_columns.size());
       for (i32 i = 0; i < num_final_output_columns; ++i) {
@@ -413,7 +419,7 @@ void *post_evaluate_thread(void *arg) {
     if (buffered_entry.columns.size() == 0) {
       buffered_entry.io_item_index = work_entry.io_item_index;
       buffered_entry.columns.resize(work_entry.columns.size());
-      buffered_entry.buffer_handle = work_entry.buffer_handle;
+      buffered_entry.column_handles = work_entry.column_handles;
     }
 
     i64 num_rows = work_entry.columns[0].rows.size();
@@ -430,7 +436,7 @@ void *post_evaluate_thread(void *arg) {
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       // Delete warmup frame outputs
       for (i32 w = 0; w < warmup_frames; ++w) {
-        delete_buffer(work_entry.buffer_handle,
+        delete_buffer(work_entry.column_handles[i],
                       work_entry.columns[i].rows[w].buffer);
       }
       // Keep non-warmup frame outputs
