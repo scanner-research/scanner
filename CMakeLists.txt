@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 project(Scanner)
 
 ###### Config options #####
+option(BUILD_CUDA "" ON)
 option(BUILD_TESTS "" ON)
 option(BUILD_VIDEO_EVALUATORS "" ON)
 option(BUILD_IMAGE_EVALUATORS "" OFF)
@@ -98,8 +99,8 @@ macro(add_halide_target SRC TARGET)
   list(APPEND HALIDE_TARGETS ${NAME})
 endmacro()
 
-find_package(CUDA)
-if (CUDA_FOUND)
+if (BUILD_CUDA)
+  find_package(CUDA REQUIRED)
   add_definitions(-DHAVE_CUDA)
   include_directories(${CUDA_INCLUDE_DIRS})
   if(COMPILER_SUPPORTS_CXX1Y)

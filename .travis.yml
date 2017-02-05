@@ -25,7 +25,7 @@ install:
 - sudo apt-get install doxygen
 
 script:
-- docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "cd /opt/scanner/build && make test"
+- docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "cd /opt/scanner/build_cpu && make test"
 
 after_success:
 - ./scripts/publish-docker.sh

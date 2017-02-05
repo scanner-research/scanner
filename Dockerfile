@@ -13,4 +13,12 @@ RUN mkdir build && cd build && \
           -D BUILD_TESTS=ON \
           .. && \
     make
+RUN mkdir build_cpu && cd build_cpu && \
+    cmake -D BUILD_CAFFE_EVALUATORS=ON \
+          -D BUILD_CAFFE_INPUT_EVALUATORS=ON \
+          -D BUILD_UTIL_EVALUATORS=ON \
+          -D BUILD_TESTS=ON \
+          -D BUILD_CUDA=OFF \
+          .. && \
+    make
 RUN mv .scanner.example.toml /root/.scanner.toml
