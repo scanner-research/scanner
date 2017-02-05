@@ -433,7 +433,7 @@ class Database:
         id = self._collections.ids[index]
         collection = self._load_descriptor(
             self._metadata_types.CollectionDescriptor,
-            'pydb/collection_{}.bin'.format(index))
+            'pydb/collection_{}.bin'.format(id))
         return Collection(self, name, collection)
 
     def table(self, name):
