@@ -346,7 +346,11 @@ if (BUILD_COMPARISON)
 endif()
 
 if (BUILD_EXAMPLES)
-add_subdirectory(examples)
+  add_subdirectory(examples)
+endif()
+
+if (BUILD_TESTS)
+  add_subdirectory(tests)
 endif()
 
 add_library(scanner SHARED

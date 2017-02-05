@@ -192,13 +192,4 @@ void CaffeInputKernel::set_device() {
   });
 }
 
-REGISTER_EVALUATOR(CaffeInput).outputs({"caffe_frame"});
-
-REGISTER_KERNEL(CaffeInput, CaffeInputKernel)
-    .device(DeviceType::CPU)
-    .num_devices(1);
-
-REGISTER_KERNEL(CaffeInput, CaffeInputKernel)
-    .device(DeviceType::GPU)
-    .num_devices(1);
 }
