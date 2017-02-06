@@ -1,8 +1,3 @@
-"""
-Python bindings for Scanner.
-"""
-
-import toml
 import os
 import os.path
 import sys
@@ -12,128 +7,15 @@ import cv2
 import importlib
 import socket
 import math
-import numpy as np
-import logging as log
-import json
 from subprocess import Popen, PIPE
-from enum import Enum
 from random import choice
 from string import ascii_uppercase
 from collections import defaultdict
 
-
-class DeviceType(Enum):
-    """ Enum for specifying where an Evaluator should run. """
-    CPU = 0
-    GPU = 1
-
-    @staticmethod
-    def to_proto(db, device):
-        if device == DeviceType.CPU:
-            return db._metadata_types.CPU
-        elif device == DeviceType.GPU:
-            return db._metadata_types.GPU
-        else:
-            raise ScannerException('Invalid device type')
-
-
-class Config(object):
-    def __init__(self, config_path=None):
-        log.basicConfig(
-            level=log.DEBUG,
-            format='%(levelname)7s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
-        self.config_path = config_path or self.default_config_path()
-        config = self.load_config(self.config_path)
-        try:
-            self.scanner_path = config['scanner_path']
-
-            if not os.path.isdir(self.scanner_path) or \
-               not os.path.isdir(self.scanner_path + '/build') or \
-               not os.path.isdir(self.scanner_path + '/scanner'):
-                raise ScannerException("""Invalid Scanner directory. Make sure \
-scanner_path in {} is correct and that Scanner is built correctly.""" \
-                                       .format(self.scanner_path))
-
-            sys.path.append('{}/build'.format(self.scanner_path))
-            sys.path.append('{}/thirdparty/build/bin/storehouse/lib'
-                            .format(self.scanner_path))
-
-            from storehousepy import StorageConfig, StorageBackend
-            storage = config['storage']
-            storage_type = storage['type']
-            self.db_path = str(storage['db_path'])
-            if storage_type == 'posix':
-                storage_config = StorageConfig.make_posix_config()
-            elif storage_type == 'gcs':
-                with open(storage['key_path']) as f:
-                    key = f.read()
-                storage_config = StorageConfig.make_gcs_config(
-                    storage['cert_path'].encode('latin-1'),
-                    key,
-                    storage['bucket'].encode('latin-1'))
-            else:
-                raise ScannerException('Unsupported storage type {}'.format(storage_type))
-
-            from scanner.metadata_pb2 import MemoryPoolConfig
-            cfg = MemoryPoolConfig()
-            if 'memory_pool' in config:
-                memory_pool = config['memory_pool']
-                if 'cpu' in memory_pool:
-                    cfg.cpu.use_pool = memory_pool['cpu']['use_pool']
-                    if cfg.cpu.use_pool:
-                        cfg.cpu.free_space = self._parse_size_string(
-                            memory_pool['cpu']['free_space'])
-                if 'gpu' in memory_pool:
-                    cfg.gpu.use_pool = memory_pool['gpu']['use_pool']
-                    if cfg.gpu.use_pool:
-                        cfg.gpu.free_space = self._parse_size_string(
-                            memory_pool['gpu']['free_space'])
-            self.memory_pool_config = cfg
-
-            self.master_address = 'localhost:5001'
-            if 'network' in config:
-                network = config['network']
-                if 'master_address' in network:
-                    self.master_address = network['master_address']
-
-            self.kernel_instances_per_node = 1
-            self.work_item_size = 250
-            self.io_item_size = 1000
-            if 'job' in config:
-                job = config['job']
-                if 'kernel_instances_per_node' in job:
-                    self.kernel_instances_per_node = job['kernel_instances_per_node']
-
-        except KeyError as key:
-            raise ScannerException('Scanner config missing key: {}'.format(key))
-        self.storage_config = storage_config
-        self.storage = StorageBackend.make_from_config(storage_config)
-
-    def _parse_size_string(self, s):
-        (prefix, suffix) = (s[:-1], s[-1])
-        mults = {
-            'G': 1024*1024*1024,
-            'M': 1024*1024,
-            'K': 1024
-        }
-        if not suffix in mults:
-            raise ScannerException('Invalid size suffix in "{}"'.format(s))
-        return int(prefix) * mults[suffix]
-
-    @staticmethod
-    def default_config_path():
-        return '{}/.scanner.toml'.format(os.path.expanduser('~'))
-
-    def load_config(self, path):
-        try:
-            with open(path, 'r') as f:
-                return toml.loads(f.read())
-        except IOError:
-            raise ScannerException('You need to setup your Scanner config. Run `python scripts/setup.py`.')
-
-
-class ScannerException(Exception): pass
-
+from common import *
+from profiler import Profiler
+from config import Config
+from evaluator import EvaluatorGenerator
 
 class Database:
     """
@@ -698,61 +580,6 @@ class Database:
             return [self.table(t) for t in table_names]
 
 
-
-class Sampler:
-    """
-    Utility for specifying which frames of a video (or which rows of a table)
-    to run a computation over.
-    """
-
-    def __init__(self, db):
-        self._db = db
-
-    def _convert_collection(self, videos):
-        if isinstance(videos, Collection):
-            return [(t, '') for t in videos.table_names()]
-        else:
-            return videos
-
-    def all(self, videos):
-        return self.strided(videos, 1)
-
-    def strided(self, videos, stride):
-        videos = self._convert_collection(videos)
-        tasks = []
-        for video in videos:
-            table = self._db.table(video[0])
-            task = self.strided_range(video, 0, table.num_rows(), stride)
-            tasks.append(task)
-        return tasks
-
-    def range(self, video, start, end):
-        if isinstance(video, list) or isinstance(video, Collection):
-            raise ScannerException('Sampler.range only takes a single video')
-
-        return self.strided_range(video, start, end, 1)
-
-    def strided_range(self, video, start, end, stride):
-        if isinstance(video, list) or isinstance(video, Collection):
-            raise ScannerException('Sampler.strided_range only takes a single video')
-        if not isinstance(video, tuple):
-            raise ScannerException("""Error: sampler input must either be a collection \
-or (input_table, output_table) pair')""")
-
-        (input_table_name, output_table_name) = video
-        task = self._db._metadata_types.Task()
-        task.output_table_name = output_table_name
-        input_table = self._db.table(input_table_name)
-        num_rows = input_table.num_rows()
-        column_names = [c.name() for c in input_table.columns()]
-        sample = task.samples.add()
-        sample.table_name = input_table_name
-        sample.column_names.extend(column_names)
-        sample.rows.extend(
-            range(min(start, num_rows), min(end, num_rows), stride))
-        return task
-
-
 class ProtobufGenerator:
     def __init__(self, db):
         self._db = db
@@ -762,87 +589,6 @@ class ProtobufGenerator:
             if hasattr(mod, name):
                 return getattr(mod, name)
         raise ScannerException('No protobuf with name {}'.format(name))
-
-
-class EvaluatorGenerator:
-    """
-    Creates Evaluator instances to define a computation.
-
-    When a particular evaluator is requested from the generator, e.g.
-    `db.evaluators.Histogram`, the generator does a dynamic lookup for the
-    evaluator in a C++ registry.
-    """
-
-    def __init__(self, db):
-        self._db = db
-
-    def __getattr__(self, name):
-        if name == 'Input':
-            return lambda: Evaluator.input(self._db)
-        elif name == 'Output':
-            return lambda inputs: Evaluator.output(self._db, inputs)
-
-        if not self._db._bindings.has_evaluator(name):
-            raise ScannerException('Evaluator {} does not exist'.format(name))
-        def make_evaluator(**kwargs):
-            inputs = kwargs.pop('inputs', [])
-            device = kwargs.pop('device', DeviceType.CPU)
-            args = kwargs.pop('args', None)
-            return Evaluator(self._db, name, inputs, device,
-                             kwargs if args is None else args)
-        return make_evaluator
-
-
-class Evaluator:
-    def __init__(self, db, name, inputs, device, args):
-        self._db = db
-        self._name = name
-        self._inputs = inputs
-        self._device = device
-        self._args = args
-
-    @classmethod
-    def input(cls, db):
-        # TODO(wcrichto): allow non-frame inputs
-        return cls(db, "InputTable", [(None, ["frame", "frame_info"])],
-                   DeviceType.CPU, {})
-
-    @classmethod
-    def output(cls, db, inputs):
-        return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
-
-    def to_proto(self, indices):
-        e = self._db._metadata_types.Evaluator()
-        e.name = self._name
-
-        for (in_eval, cols) in self._inputs:
-            inp = e.inputs.add()
-            idx = indices[in_eval] if in_eval is not None else -1
-            inp.evaluator_index = idx
-            inp.columns.extend(cols)
-
-        e.device_type = DeviceType.to_proto(self._db, self._device)
-
-        if isinstance(self._args, dict):
-            # To convert an arguments dict, we search for a protobuf with the
-            # name {Evaluator}Args (e.g. BlurArgs, HistogramArgs) in the
-            # args.proto module, and fill that in with keys from the args dict.
-            if len(self._args) > 0:
-                proto_name = self._name + 'Args'
-                args_proto = getattr(self._db.protobufs, proto_name)()
-                for k, v in self._args.iteritems():
-                    try:
-                        setattr(args_proto, k, v)
-                    except AttributeError:
-                        # If the attribute is a nested proto, we can't assign directly,
-                        # so copy from the value.
-                        getattr(args_proto, k).CopyFrom(v)
-                    e.kernel_args = args_proto.SerializeToString()
-        else:
-            # If arguments are a protobuf object, serialize it directly
-            e.kernel_args = self._args.SerializeToString()
-
-        return e
 
 
 class Collection:
@@ -867,6 +613,53 @@ class Collection:
 
     def profiler(self):
         return self._db.profiler(self._descriptor.job_id)
+
+
+class Table:
+    """
+    A table in a Database.
+
+    Can be part of many Collection objects.
+    """
+    def __init__(self, db, descriptor):
+        self._db = db
+        self._descriptor = descriptor
+        job_id = self._descriptor.job_id
+        if job_id != -1:
+            self._job = self._db._load_descriptor(
+                self._db._metadata_types.JobDescriptor,
+                'jobs/{}/descriptor.bin'.format(job_id))
+            self._task = None
+            for task in self._job.tasks:
+                if task.output_table_name == self._descriptor.name:
+                    self._task = task
+            if self._task is None:
+                raise ScannerException('Table {} not found in job {}' \
+                                   .format(self._descriptor.name, job_id))
+        else:
+            self._job = None
+
+    def id(self):
+        return self._descriptor.id
+
+    def name(self):
+        return self._descriptor.name
+
+    def columns(self, index=None):
+        columns = [Column(self, c) for c in self._descriptor.columns]
+        return columns[index] if index is not None else columns
+
+    def num_rows(self):
+        return self._descriptor.num_rows
+
+    def rows(self):
+        if self._job is None:
+            return list(range(self.num_rows()))
+        else:
+            if len(self._task.samples) == 1:
+                return list(self._task.samples[0].rows)
+            else:
+                return list(range(self.num_rows()))
 
 
 class Column:
@@ -966,286 +759,3 @@ class Column:
             return out_tbl.columns(0).load(self._decode_png)
         else:
             return self._load_all(fn)
-
-class Table:
-    """
-    A table in a Database.
-
-    Can be part of many Collection objects.
-    """
-    def __init__(self, db, descriptor):
-        self._db = db
-        self._descriptor = descriptor
-        job_id = self._descriptor.job_id
-        if job_id != -1:
-            self._job = self._db._load_descriptor(
-                self._db._metadata_types.JobDescriptor,
-                'jobs/{}/descriptor.bin'.format(job_id))
-            self._task = None
-            for task in self._job.tasks:
-                if task.output_table_name == self._descriptor.name:
-                    self._task = task
-            if self._task is None:
-                raise ScannerException('Table {} not found in job {}' \
-                                   .format(self._descriptor.name, job_id))
-        else:
-            self._job = None
-
-    def id(self):
-        return self._descriptor.id
-
-    def name(self):
-        return self._descriptor.name
-
-    def columns(self, index=None):
-        columns = [Column(self, c) for c in self._descriptor.columns]
-        return columns[index] if index is not None else columns
-
-    def num_rows(self):
-        return self._descriptor.num_rows
-
-    def rows(self):
-        if self._job is None:
-            return list(range(self.num_rows()))
-        else:
-            if len(self._task.samples) == 1:
-                return list(self._task.samples[0].rows)
-            else:
-                return list(range(self.num_rows()))
-
-class Profiler:
-    """
-    Contains profiling information about Scanner jobs.
-    """
-
-    def __init__(self, db, job_id):
-        self._storage = db._storage
-        job = db._load_descriptor(
-            db._metadata_types.JobDescriptor,
-            'jobs/{}/descriptor.bin'.format(job_id))
-
-        self._profilers = {}
-        for n in range(job.num_nodes):
-            path = '{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n)
-            time, profs = self._parse_profiler_file(path)
-            self._profilers[n] = (time, profs)
-
-    def write_trace(self, path):
-        """
-        Generates a trace file in Chrome format.
-
-        To visualize the trace, visit [chrome://tracing](chrome://tracing) in
-        Google Chrome and click "Load" in the top left to load the trace.
-
-        Args:
-            path: Output path to write the trace.
-        """
-
-        # https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html
-        colors = {
-            'idle': 'grey'
-        }
-        traces = []
-        next_tid = 0
-        for proc, (_, worker_profiler_groups) in self._profilers.iteritems():
-            for worker_type, profs in [('load', worker_profiler_groups['load']),
-                                       ('decode', worker_profiler_groups['decode']),
-                                       ('eval', worker_profiler_groups['eval']),
-                                       ('save', worker_profiler_groups['save'])]:
-                for i, prof in enumerate(profs):
-                    tid = next_tid
-                    next_tid += 1
-                    worker_num = prof['worker_num']
-                    tag = prof['worker_tag']
-                    traces.append({
-                        'name': 'thread_name',
-                        'ph': 'M',
-                        'pid': proc,
-                        'tid': tid,
-                        'args': {
-                            'name': '{}_{:02d}_{:02d}'.format(
-                                worker_type, proc, worker_num) + (
-                                    "_" + str(tag) if tag else "")
-                        }})
-                    for interval in prof['intervals']:
-                        trace = {
-                            'name': interval[0],
-                            'cat': worker_type,
-                            'ph': 'X',
-                            'ts': interval[1] / 1000,  # ns to microseconds
-                            'dur': (interval[2] - interval[1]) / 1000,
-                            'pid': proc,
-                            'tid': tid,
-                            'args': {}
-                        }
-                        if interval[0] in colors:
-                            trace['cname'] = colors[interval[0]]
-                        traces.append(trace)
-        with open(path, 'w') as f:
-            f.write(json.dumps(traces))
-
-    def _convert_time(self, d):
-        def convert(t):
-            return '{:2f}'.format(t / 1.0e9)
-        return {k: self._convert_time(v) if isinstance(v, dict) else convert(v) \
-                for (k, v) in d.iteritems()}
-
-    def statistics(self):
-        totals = {}
-        for _, profiler in self._profilers.values():
-            for kind in profiler:
-                if not kind in totals: totals[kind] = {}
-                for thread in profiler[kind]:
-                    for (key, start, end) in thread['intervals']:
-                        if not key in totals[kind]: totals[kind][key] = 0
-                        totals[kind][key] += end-start
-
-        readable_totals = self._convert_time(totals)
-        return readable_totals
-
-    def _read_advance(self, fmt, buf, offset):
-        new_offset = offset + struct.calcsize(fmt)
-        return struct.unpack_from(fmt, buf, offset), new_offset
-
-    def _unpack_string(self, buf, offset):
-        s = ''
-        while True:
-            t, offset = self._read_advance('B', buf, offset)
-            c = t[0]
-            if c == 0:
-                break
-            s += str(chr(c))
-        return s, offset
-
-    def _parse_profiler_output(self, bytes_buffer, offset):
-        # Node
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        node = t[0]
-        # Worker type name
-        worker_type, offset = self._unpack_string(bytes_buffer, offset)
-        # Worker tag
-        worker_tag, offset = self._unpack_string(bytes_buffer, offset)
-        # Worker number
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        worker_num = t[0]
-        # Number of keys
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        num_keys = t[0]
-        # Key dictionary encoding
-        key_dictionary = {}
-        for i in range(num_keys):
-            key_name, offset = self._unpack_string(bytes_buffer, offset)
-            t, offset = self._read_advance('B', bytes_buffer, offset)
-            key_index = t[0]
-            key_dictionary[key_index] = key_name
-        # Intervals
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        num_intervals = t[0]
-        intervals = []
-        for i in range(num_intervals):
-            # Key index
-            t, offset = self._read_advance('B', bytes_buffer, offset)
-            key_index = t[0]
-            t, offset = self._read_advance('q', bytes_buffer, offset)
-            start = t[0]
-            t, offset = self._read_advance('q', bytes_buffer, offset)
-            end = t[0]
-            intervals.append((key_dictionary[key_index], start, end))
-        # Counters
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        num_counters = t[0]
-        counters = {}
-        for i in range(num_counters):
-            # Counter name
-            counter_name, offset = self._unpack_string(bytes_buffer, offset)
-            # Counter value
-            t, offset = self._read_advance('q', bytes_buffer, offset)
-            counter_value = t[0]
-            counters[counter_name] = counter_value
-
-        return {
-            'node': node,
-            'worker_type': worker_type,
-            'worker_tag': worker_tag,
-            'worker_num': worker_num,
-            'intervals': intervals,
-            'counters': counters
-        }, offset
-
-    def _parse_profiler_file(self, profiler_path):
-        bytes_buffer = self._storage.read(profiler_path)
-        offset = 0
-        # Read start and end time intervals
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        start_time = t[0]
-        t, offset = self._read_advance('q', bytes_buffer, offset)
-        end_time = t[0]
-        # Profilers
-        profilers = defaultdict(list)
-        # Load worker profilers
-        t, offset = self._read_advance('B', bytes_buffer, offset)
-        num_load_workers = t[0]
-        for i in range(num_load_workers):
-            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
-            profilers[prof['worker_type']].append(prof)
-        # Eval worker profilers
-        t, offset = self._read_advance('B', bytes_buffer, offset)
-        num_eval_workers = t[0]
-        t, offset = self._read_advance('B', bytes_buffer, offset)
-        groups_per_chain = t[0]
-        for pu in range(num_eval_workers):
-            for fg in range(groups_per_chain):
-                prof, offset = self._parse_profiler_output(bytes_buffer, offset)
-                profilers[prof['worker_type']].append(prof)
-        # Save worker profilers
-        t, offset = self._read_advance('B', bytes_buffer, offset)
-        num_save_workers = t[0]
-        for i in range(num_save_workers):
-            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
-            profilers[prof['worker_type']].append(prof)
-        return (start_time, end_time), profilers
-
-class NetDescriptor:
-    def __init__(self, db):
-        self._descriptor = db.protobufs.NetDescriptor()
-
-    def _val(self, dct, key, default):
-        if key in dct:
-            return dct[key]
-        else:
-            return default
-
-    @classmethod
-    def from_file(cls, db, path):
-        self = cls(db)
-        with open(path) as f:
-            args = toml.loads(f.read())
-
-        d = self._descriptor
-        net = args['net']
-        d.model_path = net['model']
-        d.model_weights_path = net['weights']
-        d.input_layer_names.extend(net['input_layers'])
-        d.output_layer_names.extend(net['output_layers'])
-        d.input_width = self._val(net, 'input_width', -1)
-        d.input_height = self._val(net, 'input_height', -1)
-        d.normalize = self._val(net, 'normalize', False)
-        d.preserve_aspect_ratio = self._val(net, 'preserve_aspect_ratio', False)
-        d.transpose = self._val(net, 'tranpose', False)
-        d.pad_mod = self._val(net, 'pad_mod', -1)
-
-        mean = args['mean-image']
-        if 'colors' in mean:
-            order = net['input']['channel_ordering']
-            for color in order:
-                d.mean_colors.append(mean['colors'][color])
-        elif 'image' in mean:
-            d.mean_width = mean['width']
-            d.mean_height = mean['height']
-            # TODO: load mean binaryproto
-            raise ScannerException('TODO')
-
-        return self
-
-    def as_proto(self):
-        return self._descriptor
