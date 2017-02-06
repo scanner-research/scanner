@@ -1,4 +1,4 @@
-from scannerpy import Database, Evaluator, DeviceType, NetDescriptor
+from scannerpy import Database, DeviceType, NetDescriptor
 from functools import partial
 import numpy as np
 import cv2
@@ -56,7 +56,8 @@ def single_video():
 
 def video_collection():
     input_collection = db.ingest_video_collection(
-        'meangirls', ['/n/scanner/wcrichto.new/videos/meanGirls_medium.mp4'],
+        'meangirls',
+        ['/n/scanner/wcrichto.new/videos/meanGirls_medium.mp4'],
         force=True)
     input_collection = db.collection('meangirls')
     sampler = db.sampler()
