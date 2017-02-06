@@ -803,7 +803,6 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
     videos_allocated = std::min((size_t)videos_allocated, table_names.size());
     i32 end = videos_allocated;
     ingest_threads.emplace_back([&, start, end]() {
-        printf("%d, %d\n", start, end);
       for (i32 i = start; i < end; ++i) {
         if (!internal::parse_and_write_video(storage.get(), table_names[i],
                                              table_ids[i], paths[i])) {

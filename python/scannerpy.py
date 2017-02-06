@@ -103,10 +103,6 @@ scanner_path in {} is correct and that Scanner is built correctly.""" \
                 job = config['job']
                 if 'kernel_instances_per_node' in job:
                     self.kernel_instances_per_node = job['kernel_instances_per_node']
-                if 'io_item_size' in job:
-                    self.io_item_size = job['io_item_size']
-                if 'work_item_size' in job:
-                    self.work_item_size = job['work_item_size']
 
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))
@@ -207,10 +203,6 @@ class Database:
             self._metadata_types.CollectionsDescriptor,
             'pydb/descriptor.bin')
 
-        # Initialize gRPC channel with master server
-        channel = grpc.insecure_channel(self._master_address)
-        self._master = self._rpc_types.MasterStub(channel)
-
     def get_build_flags(self):
         """
         Gets the g++ build flags for compiling custom evaluators.
@@ -249,6 +241,10 @@ class Database:
                 'db_metadata.bin')
             self._cached_db_metadata = desc
         return self._cached_db_metadata
+
+    def _connect_to_master(self):
+        channel = grpc.insecure_channel(self._master_address)
+        self._master = self._rpc_types.MasterStub(channel)
 
     def start_master(self, block=False):
         """
@@ -393,23 +389,35 @@ class Database:
         return self.collection(collection_name)
 
 
-    def ingest_video(self, table_name, video):
+    def ingest_videos(self, videos, force=False):
         """
         Creates a Table from a video.
 
         Args:
-            table_name: String name of the Table to create.
-            video: Path to the video.
+            videos: TODO(wcrichto)
+
+
+        Kwargs:
+            force: TODO(wcrichto)
 
         Returns:
             The newly created Table object.
         """
 
+        [table_names, paths] = zip(*videos)
+        for table_name in table_names:
+            if self.has_table(table_name):
+                if force is True:
+                    self.delete_table(table_name)
+                else:
+                    raise ScannerException(
+                        'Attempted to ingest over existing table {}' \
+                        .format(table_name))
         self._bindings.ingest_videos(
             self.config.storage_config,
             self._db_path,
-            [table_name],
-            [video])
+            list(table_names),
+            list(paths))
         self._cached_db_metadata = None
         return self.table(table_name)
 
@@ -430,6 +438,14 @@ class Database:
         table_names = ['{}:{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
         collection = self.new_collection(collection_name, table_names, force)
+        for table in table_names:
+            if self.has_table(table):
+                if force is True:
+                    self.delete_table(table)
+                else:
+                    raise ScannerException(
+                        'Attempted to ingest over existing table {}' \
+                        .format(table))
         self._bindings.ingest_videos(
             self.config.storage_config,
             self._db_path,
@@ -456,6 +472,16 @@ class Database:
                 return True
         return False
 
+    def delete_table(self, name):
+        table = self.table(name)
+        db_meta = self._load_db_metadata()
+        for i, t in enumerate(db_meta.tables):
+            if t.id == table.id():
+                del db_meta.tables[i]
+                self._save_descriptor(db_meta, 'db_metadata.bin')
+                return
+        assert False
+
     def table(self, name):
         db_meta = self._load_db_metadata()
 
@@ -467,6 +493,10 @@ class Database:
                     break
             if table_id is None:
                 raise ScannerException('Table with name {} not found'.format(name))
+            for table in db_meta.tables:
+                if table.name == name and table.id != table_id:
+                    raise ScannerException(
+                        'Internal error: multiple tables with same name')
         elif isinstance(name, int):
             table_id = name
         else:
@@ -555,7 +585,8 @@ class Database:
 
         return self._toposort(evaluator)
 
-    def run(self, tasks, evaluator, output_collection=None, job_name=None, force=False):
+    def run(self, tasks, evaluator, output_collection=None, job_name=None,
+            force=False, io_item_size=1000, work_item_size=250):
         """
         Runs a computation over a set of inputs.
 
@@ -599,6 +630,14 @@ class Database:
                     task.output_table_name.split(':')[-1])
                 task.output_table_name = new_name
 
+        for task in tasks:
+            if self.has_table(task.output_table_name):
+                if force:
+                    self.delete_table(task.output_table_name)
+                else:
+                    raise ScannerException('Job would overwrite existing table {}' \
+                                           .format(task.output_table_name))
+
         job_params = self._rpc_types.JobParameters()
         # Generate a random job name if none given
         job_name = job_name or ''.join(choice(ascii_uppercase) for _ in range(12))
@@ -606,8 +645,11 @@ class Database:
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.evaluators.extend(self._process_dag(evaluator))
         job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
-        job_params.io_item_size = self.config.io_item_size
-        job_params.work_item_size = self.config.work_item_size
+        job_params.io_item_size = io_item_size
+        job_params.work_item_size = work_item_size
+
+        # Initialize gRPC channel with master server
+        self._connect_to_master()
 
         # Ping master and start master/worker locally if they don't exist.
         try:
@@ -615,11 +657,16 @@ class Database:
         except grpc.RpcError as e:
             status = e.code()
             if status == grpc.StatusCode.UNAVAILABLE:
-                log.warn("Master not started, creating temporary master/worker")
+                log.info("Master not started, creating temporary master/worker...")
                 # If they get GC'd then the masters/workers will die, so persist
                 # them until the database object dies
                 self._ignore1 = self.start_master()
                 self._ignore2 = self.start_worker()
+                log.info("Temporary master/worker started")
+
+                # If we don't reconnect to master, there's a 5-10 sec delay for
+                # for original connection to reboot
+                self._connect_to_master()
             elif status == grpc.StatusCode.OK:
                 pass
             else:
@@ -944,6 +991,9 @@ class Table:
         else:
             self._job = None
 
+    def id(self):
+        return self._descriptor.id
+
     def name(self):
         return self._descriptor.name
 
@@ -991,6 +1041,10 @@ class Profiler:
             path: Output path to write the trace.
         """
 
+        # https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html
+        colors = {
+            'idle': 'grey'
+        }
         traces = []
         next_tid = 0
         for proc, (_, worker_profiler_groups) in self._profilers.iteritems():
@@ -1014,7 +1068,7 @@ class Profiler:
                                     "_" + str(tag) if tag else "")
                         }})
                     for interval in prof['intervals']:
-                        traces.append({
+                        trace = {
                             'name': interval[0],
                             'cat': worker_type,
                             'ph': 'X',
@@ -1023,7 +1077,10 @@ class Profiler:
                             'pid': proc,
                             'tid': tid,
                             'args': {}
-                        })
+                        }
+                        if interval[0] in colors:
+                            trace['cname'] = colors[interval[0]]
+                        traces.append(trace)
         with open(path, 'w') as f:
             f.write(json.dumps(traces))
 

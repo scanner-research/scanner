@@ -112,8 +112,10 @@ void *pre_evaluate_thread(void *arg) {
     if (needs_configure) {
       decoders.clear();
     }
+
     // Setup decoders if they have not been initialized yet
     if (decoders.empty()) {
+      auto init_start = now();
       VideoDecoderType decoder_type;
       i32 num_devices;
       // Select a decoder type based on the type of the first evaluator and
@@ -135,12 +137,14 @@ void *pre_evaluate_thread(void *arg) {
                                                     num_devices, decoder_type));
         }
       }
+      args.profiler.add_interval("init", init_start, now());
     }
 
     i32 media_col_idx = 0;
     std::vector<std::vector<proto::DecodeArgs>> decode_args;
     bool first_item = true;
     std::vector<EvalWorkEntry> work_items;
+    auto setup_start = now();
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video) {
         decode_args.emplace_back();
@@ -154,7 +158,10 @@ void *pre_evaluate_thread(void *arg) {
         media_col_idx++;
       }
     }
+    args.profiler.add_interval("setup", setup_start, now());
 
+
+    auto decode_start = now();
     for (; r < total_rows; r += work_item_size) {
       media_col_idx = 0;
       EvalWorkEntry entry;
@@ -190,7 +197,9 @@ void *pre_evaluate_thread(void *arg) {
       args.output_work.push(entry);
       first_item = false;
     }
+    args.profiler.add_interval("decode", decode_start, now());
   }
+
   LOG(INFO) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): thread finished ";
   THREAD_RETURN_SUCCESS();
