@@ -2,6 +2,7 @@ import struct
 import json
 from common import *
 
+
 def read_advance(fmt, buf, offset):
     new_offset = offset + struct.calcsize(fmt)
     return struct.unpack_from(fmt, buf, offset), new_offset
@@ -92,17 +93,19 @@ class Profiler:
     def _convert_time(self, d):
         def convert(t):
             return '{:2f}'.format(t / 1.0e9)
-        return {k: self._convert_time(v) if isinstance(v, dict) else convert(v) \
+        return {k: self._convert_time(v) if isinstance(v, dict) else convert(v)
                 for (k, v) in d.iteritems()}
 
     def statistics(self):
         totals = {}
         for _, profiler in self._profilers.values():
             for kind in profiler:
-                if not kind in totals: totals[kind] = {}
+                if kind not in totals:
+                    totals[kind] = {}
                 for thread in profiler[kind]:
                     for (key, start, end) in thread['intervals']:
-                        if not key in totals[kind]: totals[kind][key] = 0
+                        if key not in totals[kind]:
+                            totals[kind][key] = 0
                         totals[kind][key] += end-start
 
         readable_totals = self._convert_time(totals)

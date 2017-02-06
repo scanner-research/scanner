@@ -1,6 +1,7 @@
 from common import *
 from column import Column
 
+
 class Table:
     """
     A table in a Database.
@@ -20,8 +21,8 @@ class Table:
                 if task.output_table_name == self._descriptor.name:
                     self._task = task
             if self._task is None:
-                raise ScannerException('Table {} not found in job {}' \
-                                   .format(self._descriptor.name, job_id))
+                raise ScannerException('Table {} not found in job {}'
+                                       .format(self._descriptor.name, job_id))
         else:
             self._job = None
 

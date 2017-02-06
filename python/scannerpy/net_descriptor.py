@@ -1,6 +1,7 @@
 from common import *
 import toml
 
+
 class NetDescriptor:
     def __init__(self, db):
         self._descriptor = db.protobufs.NetDescriptor()

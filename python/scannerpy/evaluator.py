@@ -1,5 +1,6 @@
 from common import *
 
+
 class EvaluatorGenerator:
     """
     Creates Evaluator instances to define a computation.
@@ -20,6 +21,7 @@ class EvaluatorGenerator:
 
         if not self._db._bindings.has_evaluator(name):
             raise ScannerException('Evaluator {} does not exist'.format(name))
+
         def make_evaluator(**kwargs):
             inputs = kwargs.pop('inputs', [])
             device = kwargs.pop('device', DeviceType.CPU)
@@ -70,8 +72,8 @@ class Evaluator:
                     try:
                         setattr(args_proto, k, v)
                     except AttributeError:
-                        # If the attribute is a nested proto, we can't assign directly,
-                        # so copy from the value.
+                        # If the attribute is a nested proto, we can't assign
+                        # directly, so copy from the value.
                         getattr(args_proto, k).CopyFrom(v)
                     e.kernel_args = args_proto.SerializeToString()
         else:

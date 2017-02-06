@@ -3,7 +3,10 @@ import numpy as np
 import enum
 from collections import defaultdict
 
-class ScannerException(Exception): pass
+
+class ScannerException(Exception):
+    pass
+
 
 class DeviceType(enum.Enum):
     """ Enum for specifying where an Evaluator should run. """

@@ -18,6 +18,7 @@ from collection import Collection
 from table import Table
 from column import Column
 
+
 class Database:
     """
     Entrypoint for all Scanner operations.
@@ -78,7 +79,7 @@ class Database:
 
         if not os.path.isdir(pydb_path):
             raise ScannerException(
-                'Scanner database at {} was not made via Python' \
+                'Scanner database at {} was not made via Python'
                 .format(self._db_path))
 
         # Load database descriptors from disk
@@ -224,8 +225,8 @@ class Database:
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
 
     def delete_collection(self, collection_name):
-        if not collection_name in self._collections.names:
-            raise ScannerException('Collection with name {} does not exist' \
+        if collection_name not in self._collections.names:
+            raise ScannerException('Collection with name {} does not exist'
                                    .format(collection_name))
 
         index = self._collections.names[:].index(collection_name)
@@ -256,7 +257,7 @@ class Database:
                 self.delete_collection(collection_name)
             else:
                 raise ScannerException(
-                    'Collection with name {} already exists' \
+                    'Collection with name {} already exists'
                     .format(collection_name))
 
         last_id = self._collections.ids[-1] if len(self._collections.ids) > 0 else -1
@@ -270,7 +271,6 @@ class Database:
         self._save_descriptor(collection, 'pydb/collection_{}.bin'.format(new_id))
 
         return self.collection(collection_name)
-
 
     def ingest_videos(self, videos, force=False):
         """
@@ -294,7 +294,7 @@ class Database:
                     self.delete_table(table_name)
                 else:
                     raise ScannerException(
-                        'Attempted to ingest over existing table {}' \
+                        'Attempted to ingest over existing table {}'
                         .format(table_name))
         self._bindings.ingest_videos(
             self.config.storage_config,
@@ -327,7 +327,7 @@ class Database:
                     self.delete_table(table)
                 else:
                     raise ScannerException(
-                        'Attempted to ingest over existing table {}' \
+                        'Attempted to ingest over existing table {}'
                         .format(table))
         self._bindings.ingest_videos(
             self.config.storage_config,
@@ -452,7 +452,8 @@ class Database:
         # then hook up inputs to outputs of adjacent evaluators
         if isinstance(evaluator, list):
             for i in range(len(evaluator) - 1):
-                if len(evaluator[i+1]._inputs) > 0: continue
+                if len(evaluator[i+1]._inputs) > 0:
+                    continue
                 if evaluator[i]._name == "InputTable":
                     out_cols = ["frame", "frame_info"]
                 else:
@@ -505,7 +506,7 @@ class Database:
         if output_collection is not None:
             if self.has_collection(output_collection) and not force:
                 raise ScannerException(
-                    'Collection with name {} already exists' \
+                    'Collection with name {} already exists'
                     .format(output_collection))
             for task in tasks:
                 new_name = '{}:{}'.format(
@@ -518,7 +519,7 @@ class Database:
                 if force:
                     self.delete_table(task.output_table_name)
                 else:
-                    raise ScannerException('Job would overwrite existing table {}' \
+                    raise ScannerException('Job would overwrite existing table {}'
                                            .format(task.output_table_name))
 
         job_params = self._rpc_types.JobParameters()
@@ -553,8 +554,8 @@ class Database:
             elif status == grpc.StatusCode.OK:
                 pass
             else:
-                raise ScannerException('Master ping errored with status: {}' \
-                                   .format(status))
+                raise ScannerException('Master ping errored with status: {}'
+                                       .format(status))
 
         # Execute job via RPC
         try:
@@ -564,7 +565,7 @@ class Database:
 
         self._cached_db_metadata = None
 
-        db_meta = self._load_db_metadata();
+        db_meta = self._load_db_metadata()
         job_id = None
         for job in db_meta.jobs:
             if job.name == job_name:

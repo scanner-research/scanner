@@ -1,5 +1,6 @@
 from common import *
 
+
 class Collection:
     """
     A set of Table objects.

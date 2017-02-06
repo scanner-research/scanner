@@ -2,6 +2,7 @@ import struct
 import cv2
 from common import *
 
+
 class Column:
     """
     A column of a Table.
@@ -89,8 +90,8 @@ class Column:
             `fn`).
         """
 
-        # If the column is a video, then dump the requested frames to disk as PNGs
-        # and return the decoded PNGs
+        # If the column is a video, then dump the requested frames to disk as
+        # PNGs and return the decoded PNGs
         if self._descriptor.type == self._db._metadata_types.Video:
             sampler = self._db.sampler()
             tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])

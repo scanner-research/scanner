@@ -3,6 +3,7 @@ import toml
 import sys
 from common import *
 
+
 class Config(object):
     def __init__(self, config_path=None):
         log.basicConfig(
@@ -17,7 +18,7 @@ class Config(object):
                not os.path.isdir(self.scanner_path + '/build') or \
                not os.path.isdir(self.scanner_path + '/scanner'):
                 raise ScannerException("""Invalid Scanner directory. Make sure \
-scanner_path in {} is correct and that Scanner is built correctly.""" \
+scanner_path in {} is correct and that Scanner is built correctly."""
                                        .format(self.scanner_path))
 
             sys.path.append('{}/build'.format(self.scanner_path))
@@ -82,7 +83,7 @@ scanner_path in {} is correct and that Scanner is built correctly.""" \
             'M': 1024*1024,
             'K': 1024
         }
-        if not suffix in mults:
+        if suffix not in mults:
             raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
 
@@ -95,4 +96,5 @@ scanner_path in {} is correct and that Scanner is built correctly.""" \
             with open(path, 'r') as f:
                 return toml.loads(f.read())
         except IOError:
-            raise ScannerException('You need to setup your Scanner config. Run `python scripts/setup.py`.')
+            raise ScannerException('You need to setup your Scanner config. '
+                                   'Run `python scripts/setup.py`.')

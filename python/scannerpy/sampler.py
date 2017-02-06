@@ -1,6 +1,7 @@
 from common import *
 from collection import Collection
 
+
 class Sampler:
     """
     Utility for specifying which frames of a video (or which rows of a table)
