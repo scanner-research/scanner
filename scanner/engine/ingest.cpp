@@ -23,6 +23,7 @@
 #include "storehouse/storage_backend.h"
 
 #include <glog/logging.h>
+#include <thread>
 
 // For video
 extern "C" {
@@ -195,12 +196,8 @@ void cleanup_video_codec(CodecState state) {
 
 bool parse_and_write_video(storehouse::StorageBackend *storage,
                            const std::string &table_name,
+                           i32 table_id,
                            const std::string &path) {
-  av_register_all();
-  // Allocate table id
-  DatabaseMetadata meta =
-      read_database_metadata(storage, DatabaseMetadata::descriptor_path());
-  i32 table_id = meta.add_table(table_name);
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
@@ -458,9 +455,6 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   // Save the table descriptor
   write_table_metadata(storage, TableMetadata(table_desc));
-
-  // Save the db metadata
-  write_database_metadata(storage, meta);
 
   return succeeded;
 }
@@ -786,23 +780,54 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
                    const std::vector<std::string> &table_names,
                    const std::vector<std::string> &paths) {
   internal::set_database_path(db_path);
+  av_register_all();
 
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
 
+  internal::DatabaseMetadata meta = internal::read_database_metadata(
+      storage.get(), internal::DatabaseMetadata::descriptor_path());
+  std::vector<i32> table_ids;
+  for (size_t i = 0; i < table_names.size(); ++i) {
+    table_ids.push_back(meta.add_table(table_names[i]));
+  }
+  std::vector<bool> bad_videos(table_names.size(), false);
+  std::vector<std::thread> ingest_threads;
+  i32 num_threads = std::thread::hardware_concurrency();
+  i32 videos_allocated = 0;
+  for (i32 t = 0; t < num_threads; ++t) {
+    i32 to_allocate =
+        (table_names.size() - videos_allocated) / (num_threads - t);
+    i32 start = videos_allocated;
+    videos_allocated += to_allocate;
+    videos_allocated = std::min((size_t)videos_allocated, table_names.size());
+    i32 end = videos_allocated;
+    ingest_threads.emplace_back([&, start, end]() {
+        printf("%d, %d\n", start, end);
+      for (i32 i = start; i < end; ++i) {
+        if (!internal::parse_and_write_video(storage.get(), table_names[i],
+                                             table_ids[i], paths[i])) {
+          // Did not ingest correctly, skip it
+          bad_videos[i] = true;
+        }
+      }
+    });
+  }
+  for (i32 t = 0; t < num_threads; ++t) {
+    ingest_threads[t].join();
+  }
+
   std::vector<std::string> bad_paths;
   for (size_t i = 0; i < table_names.size(); ++i) {
-    if (!internal::parse_and_write_video(storage.get(), table_names[i],
-                                         paths[i])) {
-      // Did not ingest correctly, skip it
+    if (bad_videos[i]) {
       LOG(WARNING) << "Failed to ingest video " << paths[i] << "! "
                    << "Adding to bad paths file "
                    << "(" << internal::BAD_VIDEOS_FILE_PATH
                    << "in current directory)." << std::endl;
       bad_paths.push_back(paths[i]);
+      meta.remove_table(table_ids[i]);
     }
   }
-
   if (!bad_paths.empty()) {
     std::fstream bad_paths_file(internal::BAD_VIDEOS_FILE_PATH,
                                 std::fstream::out);
@@ -811,6 +836,9 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
     }
     bad_paths_file.close();
   }
+
+  // Save the db metadata
+  internal::write_database_metadata(storage.get(), meta);
 }
 
 void ingest_images(storehouse::StorageConfig *storage_config,
