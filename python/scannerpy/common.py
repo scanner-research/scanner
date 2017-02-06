@@ -1,6 +1,7 @@
 import logging as log
 import numpy as np
 import enum
+from collections import defaultdict
 
 class ScannerException(Exception): pass
 

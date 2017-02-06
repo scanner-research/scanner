@@ -1,4 +1,5 @@
 from common import *
+from collection import Collection
 
 class Sampler:
     """
