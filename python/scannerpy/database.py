@@ -4,7 +4,6 @@ import sys
 import grpc
 import importlib
 import socket
-import math
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
