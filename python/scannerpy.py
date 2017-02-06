@@ -97,18 +97,16 @@ scanner_path in {} is correct and that Scanner is built correctly.""" \
                     self.master_address = network['master_address']
 
             self.kernel_instances_per_node = 1
+            self.work_item_size = 250
+            self.io_item_size = 1000
             if 'job' in config:
                 job = config['job']
                 if 'kernel_instances_per_node' in job:
                     self.kernel_instances_per_node = job['kernel_instances_per_node']
                 if 'io_item_size' in job:
                     self.io_item_size = job['io_item_size']
-                else:
-                    self.io_item_size = 1000
                 if 'work_item_size' in job:
                     self.work_item_size = job['work_item_size']
-                else:
-                    self.work_item_size = 250
 
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))
