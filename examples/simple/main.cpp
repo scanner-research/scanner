@@ -34,6 +34,8 @@ int main(int argc, char** argv) {
   params.master_address = "localhost:5001";
   params.job_name = "test_job";
   params.kernel_instances_per_node = 1;
+  params.io_item_size = 100;
+  params.work_item_size = 25;
 
   // Specify job tasks
   scanner::Task task;

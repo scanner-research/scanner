@@ -230,6 +230,8 @@ void new_job(JobParameters &params) {
   proto::JobParameters job_params;
   job_params.set_job_name(params.job_name);
   job_params.set_kernel_instances_per_node(params.kernel_instances_per_node);
+  job_params.set_io_item_size(params.io_item_size);
+  job_params.set_work_item_size(params.work_item_size);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   proto::Empty empty;
