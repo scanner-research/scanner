@@ -266,7 +266,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   bool saw_pps_nal = false;
   std::vector<u8> sps_nal_bytes;
   std::vector<u8> pps_nal_bytes;
+  bool redundant_pic_flag = false;
+  i32 log2_max_frame_num = 0;
 
+  i32 num_non_ref_frames = 0;
   i32 avcodec_frame = 0;
   while (true) {
     // Read from format context
@@ -343,6 +346,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     i64 nal_bytestream_offset = bytestream_pos;
 
     LOG(INFO) << "new packet " << nal_bytestream_offset;
+    bool packet_has_frame = false;
     bool insert_sps_nal = false;
     // Parse NAL unit
     const u8 *nal_parse = filtered_data;
@@ -357,6 +361,9 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       LOG(INFO) << "frame " << frame << ", nal size " << nal_size
                 << ", nal_ref_idc " << nal_ref_idc << ", nal unit "
                 << nal_unit_type;
+      if (nal_ref_idc == 0) {
+        num_non_ref_frames += 1;
+      }
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
           LOG(INFO) << "in meta sequence " << nal_bytestream_offset;
@@ -374,23 +381,45 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         saw_sps_nal = true;
         sps_nal_bytes.insert(sps_nal_bytes.end(), nal_start - 3,
                              nal_start + nal_size + 3);
-        i32 offset = 32;
-        i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
-        LOG(INFO) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
+        i32 offset = 8;
+        GetBitsState gb;
+        gb.buffer = nal_start;
+        gb.offset = offset;
+        SPS sps = parse_sps(gb);
+        i32 sps_id = sps.sps_id;
+        log2_max_frame_num = sps.log2_max_frame_num;
+        LOG(INFO) << "Last SPS NAL (" << sps_id << ", " << offset << ", "
+                  << sps.log2_max_frame_num << ")"
                   << " seen at frame " << frame;
       }
       if (nal_unit_type == 8) {
-        i32 offset = 8;
-        i32 pps_id = parse_exp_golomb(nal_start, nal_size, offset);
-        i32 sps_id = parse_exp_golomb(nal_start, nal_size, offset);
+        GetBitsState gb;
+        gb.buffer = nal_start;
+        gb.offset = 8;
+        PPS pps = parse_pps(gb);
+        redundant_pic_flag = pps.redundant_pic_cnt_present_flag;
         saw_pps_nal = true;
         pps_nal_bytes.insert(pps_nal_bytes.end(), nal_start - 3,
                              nal_start + nal_size + 3);
-        LOG(INFO) << "PPS id " << pps_id << ", SPS id " << sps_id << ", frame "
+        LOG(INFO) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
+                  << ", redundant " << redundant_pic_flag << ", frame "
                   << frame;
       }
-      if (is_vcl_nal(nal_unit_type)) {
+      if (is_vcl_nal(nal_unit_type) && !packet_has_frame) {
+        GetBitsState gb;
+        gb.buffer = nal_start;
+        gb.offset = 8;
+        // first_mb_in_slice
+        get_ue_golomb(gb);
+        // slice_type
+        get_ue_golomb(gb);
+        // pic_parameter_set_id
+        get_ue_golomb(gb);
+        // frame num
+        u32 frame_num = get_bits(gb, log2_max_frame_num);
+        LOG(INFO) << "frame num " << frame_num;
         frame++;
+        //packet_has_frame = true;
       }
     }
     size_t bytestream_offset;
@@ -455,6 +484,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   // Save the table descriptor
   write_table_metadata(storage, TableMetadata(table_desc));
+
+  printf("num non ref frame %d\n", num_non_ref_frames);
 
   return succeeded;
 }
