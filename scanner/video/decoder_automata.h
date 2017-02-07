@@ -51,6 +51,7 @@ private:
   std::thread feeder_thread_;
   std::atomic<bool> not_done_;
 
+  FrameInfo info_;
   size_t frame_size_;
   i32 current_frame_;
   std::vector<proto::DecodeArgs> encoded_data_;

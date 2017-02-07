@@ -74,9 +74,12 @@ void DecoderAutomata::initialize(
   std::unique_lock<std::mutex> lk(feeder_mutex_);
   wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
 
-  decoder_->configure(info);
-  if (frames_retrieved_ > 0) {
-    decoder_->feed(nullptr, 0, true);
+  if (info_.width() != info.width()
+      || info_.height() != info.height()) {
+    decoder_->configure(info);
+    if (frames_retrieved_ > 0) {
+      decoder_->feed(nullptr, 0, true);
+    }
   }
 
   feeder_data_idx_.store(0, std::memory_order_release);
@@ -86,6 +89,7 @@ void DecoderAutomata::initialize(
   feeder_data_idx_.store(0);
   feeder_buffer_offset_.store(0);
   feeder_next_keyframe_.store(encoded_data[0].keyframes(1));
+  info_ = info;
   std::atomic_thread_fence(std::memory_order_release);
 }
 
@@ -156,6 +160,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
 
 void DecoderAutomata::feeder() {
   // printf("feeder start\n");
+  i64 total_frames_fed = 0;
   bool seeking = false;
   while (not_done_) {
     {
@@ -184,11 +189,17 @@ void DecoderAutomata::feeder() {
       seeking = false;
     }
 
+    i32 frames_fed = 0;
     bool seen_metadata = false;
     while (frames_retrieved_ < frames_to_get_) {
       // if (next_frame_ > feeder_next_keyframe_) {
       //   // Jump to the next
       // }
+      while (frames_retrieved_ < frames_to_get_ &&
+            decoder_->decoded_frames_buffered() > 0) {
+        std::this_thread::yield();
+      }
+      frames_fed++;
 
       i32 fdi = feeder_data_idx_.load(std::memory_order_acquire);
       const u8 *encoded_buffer =
@@ -228,7 +239,6 @@ void DecoderAutomata::feeder() {
         assert(encoded_packet_size != 0);
       }
 
-      fflush(stdout);
       decoder_->feed(encoded_packet, encoded_packet_size, false);
       // Set a discontinuity if we sent an empty packet to reset
       // the stream next time
