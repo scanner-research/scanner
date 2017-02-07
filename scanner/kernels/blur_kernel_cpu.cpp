@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/kernels/args.pb.h"
 #include "scanner/util/memory.h"
@@ -96,7 +96,7 @@ private:
   i32 frame_height_;
 };
 
-REGISTER_EVALUATOR(Blur).outputs({"frame", "frame_info"});
+REGISTER_OP(Blur).outputs({"frame", "frame_info"});
 
 REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 }

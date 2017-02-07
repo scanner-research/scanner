@@ -1,7 +1,7 @@
 #pragma once
 
 #include "scanner/kernels/args.pb.h"
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"

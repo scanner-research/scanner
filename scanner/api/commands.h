@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/util/memory.h"
 #include "storehouse/storage_backend.h"
 
@@ -80,7 +80,7 @@ struct Task {
 
 struct TaskSet {
   std::vector<Task> tasks;
-  Evaluator* output_evaluator;
+  Op* output_op;
 };
 
 struct JobParameters {

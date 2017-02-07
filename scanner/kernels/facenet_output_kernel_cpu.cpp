@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/opencv.h"
 #include "scanner/util/bbox.h"
@@ -177,7 +177,7 @@ private:
   double threshold_;
 };
 
-REGISTER_EVALUATOR(FacenetOutput).outputs({"bboxes"});
+REGISTER_OP(FacenetOutput).outputs({"bboxes"});
 REGISTER_KERNEL(FacenetOutput, FacenetOutputKernel)
     .device(DeviceType::CPU)
     .num_devices(1);

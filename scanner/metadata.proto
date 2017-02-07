@@ -110,21 +110,21 @@ message Task {
   repeated TableSample samples = 3;
 }
 
-message EvalInput {
-  int32 evaluator_index = 1;
+message OpInput {
+  int32 op_index = 1;
   repeated string columns = 2;
 }
 
-message Evaluator {
+message Op {
   string name = 1;
-  repeated EvalInput inputs = 2;
+  repeated OpInput inputs = 2;
   DeviceType device_type = 3;
   bytes kernel_args = 4;
 }
 
 message TaskSet {
   repeated Task tasks = 1;
-  repeated Evaluator evaluators = 2;
+  repeated Op ops = 2;
 }
 
 message JobDescriptor {

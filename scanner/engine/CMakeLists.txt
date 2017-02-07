@@ -7,7 +7,7 @@ set(SOURCE_FILES
   sampling.cpp
   db.cpp
   kernel_registry.cpp
-  evaluator_registry.cpp)
+  op_registry.cpp)
 
 add_library(engine OBJECT
   ${SOURCE_FILES})

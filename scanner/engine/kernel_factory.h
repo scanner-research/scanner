@@ -16,7 +16,7 @@
 #pragma once
 
 #include "scanner/api/kernel.h"
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/util/common.h"
 
 #include <vector>
@@ -26,29 +26,29 @@ namespace scanner {
 namespace internal {
 
 /**
- * @brief Interface for constructing evaluators at runtime.
+ * @brief Interface for constructing ops at runtime.
  *
- * Scanner pipelines are composed of a sequence of evaluator factories. A single
- * job may use any number of a given evaluator, so the EvaluatorFactory allows
- * the user to capture configuration information about the evaluator (e.g. batch
+ * Scanner pipelines are composed of a sequence of op factories. A single
+ * job may use any number of a given op, so the OpFactory allows
+ * the user to capture configuration information about the op (e.g. batch
  * size of a neural net, device type) and pass that information to each new
- * evaluator instance. The EvaluatorFactory also provides metadata about
- * the inputs and outputs from the evaluator it produces.
+ * op instance. The OpFactory also provides metadata about
+ * the inputs and outputs from the op it produces.
  */
 class KernelFactory {
  public:
-  KernelFactory(const std::string& evaluator_name,
+  KernelFactory(const std::string& op_name,
                 DeviceType type, i32 max_devices, i32 warmup_size,
                 KernelConstructor constructor)
-      : evaluator_name_(evaluator_name),
+      : op_name_(op_name),
         type_(type), max_devices_(max_devices), warmup_size_(warmup_size),
         constructor_(constructor) {}
 
-  const std::string& get_evaluator_name() const {
-    return evaluator_name_;
+  const std::string& get_op_name() const {
+    return op_name_;
   }
 
-  /** Describes the capabilities of the evaluators the factory produces. */
+  /** Describes the capabilities of the ops the factory produces. */
   DeviceType get_device_type() const {
     return type_;
   }
@@ -68,7 +68,7 @@ class KernelFactory {
   }
 
  private:
-  std::string evaluator_name_;
+  std::string op_name_;
   DeviceType type_;
   i32 max_devices_;
   i32 warmup_size_;

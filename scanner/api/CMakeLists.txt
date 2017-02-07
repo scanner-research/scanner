@@ -1,6 +1,6 @@
 set(SOURCE_FILES
   kernel.cpp
-  evaluator.cpp
+  op.cpp
   commands.cpp
   user_function.cpp)
 

@@ -1,6 +1,6 @@
 #include "scanner/api/commands.h"
-#include "scanner/engine/evaluator_info.h"
-#include "scanner/engine/evaluator_registry.h"
+#include "scanner/engine/op_info.h"
+#include "scanner/engine/op_registry.h"
 #include "scanner/util/common.h"
 
 #include <boost/python.hpp>
@@ -47,7 +47,7 @@ PyServerState start_worker_wrapper(DatabaseParameters &db_params,
   return unwrap(start_worker(db_params, worker_params, master_address, block));
 }
 
-void load_evaluator(const std::string &path) {
+void load_op(const std::string &path) {
   void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == NULL) << "dlopen of " << path
                                 << " failed: " << dlerror();
@@ -89,17 +89,17 @@ void ingest_videos_wrapper(storehouse::StorageConfig *storage_config,
                 to_std_vector<std::string>(paths));
 }
 
-py::list get_output_columns(const std::string &evaluator_name) {
-  internal::EvaluatorRegistry *registry = internal::get_evaluator_registry();
-  LOG_IF(FATAL, !registry->has_evaluator(evaluator_name))
-      << "Evaluator " << evaluator_name << " does not exist.";
-  internal::EvaluatorInfo *info = registry->get_evaluator_info(evaluator_name);
+py::list get_output_columns(const std::string &op_name) {
+  internal::OpRegistry *registry = internal::get_op_registry();
+  LOG_IF(FATAL, !registry->has_op(op_name))
+      << "Op " << op_name << " does not exist.";
+  internal::OpInfo *info = registry->get_op_info(op_name);
   return to_py_list(info->output_columns());
 }
 
-bool has_evaluator(const std::string &name) {
-  internal::EvaluatorRegistry *registry = internal::get_evaluator_registry();
-  return registry->has_evaluator(name);
+bool has_op(const std::string &name) {
+  internal::OpRegistry *registry = internal::get_op_registry();
+  return registry->has_op(name);
 }
 
 std::string default_worker_params_wrapper() {
@@ -117,13 +117,13 @@ BOOST_PYTHON_MODULE(scanner_bindings) {
   def("make_database_parameters", make_database_parameters);
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
-  def("load_evaluator", load_evaluator);
+  def("load_op", load_op);
   def("get_include", get_include);
   def("other_flags", other_flags);
   def("ingest_videos", ingest_videos_wrapper);
   def("create_database", create_database);
   def("get_output_columns", get_output_columns);
-  def("has_evaluator", has_evaluator);
+  def("has_op", has_op);
   def("default_worker_params", default_worker_params_wrapper);
 }
 }

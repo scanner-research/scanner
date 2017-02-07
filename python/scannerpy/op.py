@@ -1,13 +1,13 @@
 from common import *
 
 
-class EvaluatorGenerator:
+class OpGenerator:
     """
-    Creates Evaluator instances to define a computation.
+    Creates Op instances to define a computation.
 
-    When a particular evaluator is requested from the generator, e.g.
-    `db.evaluators.Histogram`, the generator does a dynamic lookup for the
-    evaluator in a C++ registry.
+    When a particular op is requested from the generator, e.g.
+    `db.ops.Histogram`, the generator does a dynamic lookup for the
+    op in a C++ registry.
     """
 
     def __init__(self, db):
@@ -15,23 +15,23 @@ class EvaluatorGenerator:
 
     def __getattr__(self, name):
         if name == 'Input':
-            return lambda: Evaluator.input(self._db)
+            return lambda: Op.input(self._db)
         elif name == 'Output':
-            return lambda inputs: Evaluator.output(self._db, inputs)
+            return lambda inputs: Op.output(self._db, inputs)
 
-        if not self._db._bindings.has_evaluator(name):
-            raise ScannerException('Evaluator {} does not exist'.format(name))
+        if not self._db._bindings.has_op(name):
+            raise ScannerException('Op {} does not exist'.format(name))
 
-        def make_evaluator(**kwargs):
+        def make_op(**kwargs):
             inputs = kwargs.pop('inputs', [])
             device = kwargs.pop('device', DeviceType.CPU)
             args = kwargs.pop('args', None)
-            return Evaluator(self._db, name, inputs, device,
+            return Op(self._db, name, inputs, device,
                              kwargs if args is None else args)
-        return make_evaluator
+        return make_op
 
 
-class Evaluator:
+class Op:
     def __init__(self, db, name, inputs, device, args):
         self._db = db
         self._name = name
@@ -50,20 +50,20 @@ class Evaluator:
         return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
 
     def to_proto(self, indices):
-        e = self._db._metadata_types.Evaluator()
+        e = self._db._metadata_types.Op()
         e.name = self._name
 
         for (in_eval, cols) in self._inputs:
             inp = e.inputs.add()
             idx = indices[in_eval] if in_eval is not None else -1
-            inp.evaluator_index = idx
+            inp.op_index = idx
             inp.columns.extend(cols)
 
         e.device_type = DeviceType.to_proto(self._db, self._device)
 
         if isinstance(self._args, dict):
             # To convert an arguments dict, we search for a protobuf with the
-            # name {Evaluator}Args (e.g. BlurArgs, HistogramArgs) in the
+            # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
             # args.proto module, and fill that in with keys from the args dict.
             if len(self._args) > 0:
                 proto_name = self._name + 'Args'

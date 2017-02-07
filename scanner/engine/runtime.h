@@ -17,7 +17,7 @@
 
 #include "scanner/api/commands.h"
 #include "scanner/api/kernel.h"
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/video/video_decoder.h"
 #include "scanner/util/memory.h"
 #include "scanner/engine/rpc.grpc.pb.h"

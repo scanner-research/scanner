@@ -96,7 +96,7 @@ class Column:
         if self._descriptor.type == self._db._metadata_types.Video:
             sampler = self._db.sampler()
             tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
-            [out_tbl] = self._db.run(tasks, self._db.evaluators.ImageEncoder(),
+            [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
                                      force=True)
             return out_tbl.columns(0).load(self._decode_png)
         else:

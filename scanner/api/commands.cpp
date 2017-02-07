@@ -73,17 +73,17 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
       }
     }
   }
-  // Parse evaluators
-  std::map<Evaluator *, std::vector<Evaluator *>> edges; // parent -> child
-  std::map<Evaluator *, i32> in_edges_left;              // parent -> child
-  Evaluator *start_node = nullptr;
+  // Parse ops
+  std::map<Op *, std::vector<Op *>> edges; // parent -> child
+  std::map<Op *, i32> in_edges_left;              // parent -> child
+  Op *start_node = nullptr;
   {
     // Find all edges
-    std::set<Evaluator *> explored_nodes;
-    std::vector<Evaluator *> stack;
-    stack.push_back(ts.output_evaluator);
+    std::set<Op *> explored_nodes;
+    std::vector<Op *> stack;
+    stack.push_back(ts.output_op);
     while (!stack.empty()) {
-      Evaluator *c = stack.back();
+      Op *c = stack.back();
       stack.pop_back();
       explored_nodes.insert(c);
 
@@ -92,8 +92,8 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
         start_node = c;
         continue;
       }
-      for (const EvalInput &input : c->get_inputs()) {
-        Evaluator *parent_eval = input.get_evaluator();
+      for (const OpInput &input : c->get_inputs()) {
+        Op *parent_eval = input.get_op();
         edges[parent_eval].push_back(c);
         in_edges_left[c] += 1;
 
@@ -103,19 +103,19 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
       }
     }
   }
-  std::vector<Evaluator *> sorted_evaluators;
-  std::map<Evaluator *, i32> evaluator_index;
+  std::vector<Op *> sorted_ops;
+  std::map<Op *, i32> op_index;
   {
     // Perform topological sort
-    std::vector<Evaluator *> stack;
+    std::vector<Op *> stack;
     stack.push_back(start_node);
     while (!stack.empty()) {
-      Evaluator *curr = stack.back();
+      Op *curr = stack.back();
       stack.pop_back();
 
-      sorted_evaluators.push_back(curr);
-      evaluator_index.insert({curr, sorted_evaluators.size() - 1});
-      for (Evaluator *child : edges[curr]) {
+      sorted_ops.push_back(curr);
+      op_index.insert({curr, sorted_ops.size() - 1});
+      for (Op *child : edges[curr]) {
         i32 &edges_left = in_edges_left[child];
         edges_left -= 1;
         if (edges_left == 0) {
@@ -124,22 +124,22 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
       }
     }
   }
-  assert(sorted_evaluators.size() == in_edges_left.size() + 1);
-  // Translate sorted evaluators into serialized task set
-  for (Evaluator *eval : sorted_evaluators) {
-    proto::Evaluator *proto_eval = task_set.add_evaluators();
+  assert(sorted_ops.size() == in_edges_left.size() + 1);
+  // Translate sorted ops into serialized task set
+  for (Op *eval : sorted_ops) {
+    proto::Op *proto_eval = task_set.add_ops();
     proto_eval->set_name(eval->get_name());
     proto_eval->set_device_type(eval->get_device_type());
     proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
-    for (const EvalInput &input : eval->get_inputs()) {
-      proto::EvalInput *proto_input = proto_eval->add_inputs();
+    for (const OpInput &input : eval->get_inputs()) {
+      proto::OpInput *proto_input = proto_eval->add_inputs();
       i32 parent_index;
-      if (input.get_evaluator() == nullptr) {
+      if (input.get_op() == nullptr) {
         parent_index = -1;
       } else {
-        parent_index = evaluator_index.at(input.get_evaluator());
+        parent_index = op_index.at(input.get_op());
       }
-      proto_input->set_evaluator_index(parent_index);
+      proto_input->set_op_index(parent_index);
       for (const std::string &column_name : input.get_columns()) {
         proto_input->add_columns(column_name);
       }

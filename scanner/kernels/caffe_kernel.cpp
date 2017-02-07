@@ -232,10 +232,10 @@ CaffeKernel::CaffeKernel(const Kernel::Config &config)
   size_t actual_output = config.output_columns.size();
   LOG_IF(FATAL, intended_output != actual_output)
       << "# output columns in net descriptor (" << intended_output << ") "
-      << "does not match number of output columns registered for evaluator "
+      << "does not match number of output columns registered for op "
       << "(" << actual_output
       << "). If you have multiple net outputs, you must "
-      << "registry your own evaluator using the CaffeKernel.";
+      << "registry your own op using the CaffeKernel.";
 }
 
 void CaffeKernel::new_frame_info() {

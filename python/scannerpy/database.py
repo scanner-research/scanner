@@ -11,7 +11,7 @@ from string import ascii_uppercase
 from common import *
 from profiler import Profiler
 from config import Config
-from evaluator import EvaluatorGenerator, Evaluator
+from op import OpGenerator, Op
 from sampler import Sampler
 from collection import Collection
 from table import Table
@@ -24,7 +24,7 @@ class Database:
 
     Attributes:
         config: The Config object for the database.
-        evaluators: An EvaluatorGenerator object for computation creation.
+        ops: An OpGenerator object for computation creation.
         protobufs: TODO(wcrichto)
     """
 
@@ -65,7 +65,7 @@ class Database:
             self._db_path)
         self._cached_db_metadata = None
 
-        self.evaluators = EvaluatorGenerator(self)
+        self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self)
 
         # Initialize database if it does not exist
@@ -88,7 +88,7 @@ class Database:
 
     def get_build_flags(self):
         """
-        Gets the g++ build flags for compiling custom evaluators.
+        Gets the g++ build flags for compiling custom ops.
 
         For example, to compile a custom kernel:
         \code{.sh}
@@ -198,19 +198,19 @@ class Database:
         for worker in workers:
             worker.wait()
 
-    def load_evaluator(self, so_path, proto_path=None):
+    def load_op(self, so_path, proto_path=None):
         """
-        Loads a custom evaluator into the Scanner runtime.
+        Loads a custom op into the Scanner runtime.
 
-        By convention, if the evaluator requires arguments from Python, it must
-        have a protobuf message called <EvaluatorName>Args, e.g. BlurArgs or
+        By convention, if the op requires arguments from Python, it must
+        have a protobuf message called <OpName>Args, e.g. BlurArgs or
         HistogramArgs, and the path to that protobuf should be provided.
 
         Args:
-            so_path: Path to the custom evaluator's shared object file.
+            so_path: Path to the custom op's shared object file.
 
         Kwargs:
-            proto_path: Path to the custom evaluator's arguments protobuf
+            proto_path: Path to the custom op's arguments protobuf
                         if one exists.
         """
         if proto_path is not None:
@@ -218,7 +218,7 @@ class Database:
             sys.path.append(proto_dir)
             (mod_name, _) = os.path.splitext(mod_name)
             self._arg_types.append(importlib.import_module(mod_name))
-        self._bindings.load_evaluator(so_path)
+        self._bindings.load_op(so_path)
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -378,7 +378,7 @@ class Database:
             for table in db_meta.tables:
                 if table.name == name and table.id != table_id:
                     raise ScannerException(
-                        'Internal error: multiple tables with same name')
+                        'Internal error: multiple tables with same name: {}'.format(name))
         elif isinstance(name, int):
             table_id = name
         else:
@@ -407,13 +407,13 @@ class Database:
 
         return Profiler(self, job_id)
 
-    def _toposort(self, evaluator):
+    def _toposort(self, op):
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
         start_node = None
 
         explored_nodes = set()
-        stack = [evaluator]
+        stack = [op]
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
@@ -421,7 +421,7 @@ class Database:
                 start_node = c
                 continue
             elif len(c._inputs) == 0:
-                input = Evaluator.input(self)
+                input = Op.input(self)
                 # TODO(wcrichto): allow non-frame input
                 c._inputs = [(input, ["frame", "frame_info"])]
                 start_node = input
@@ -446,29 +446,29 @@ class Database:
 
         return [e.to_proto(eval_index) for e in eval_sorted]
 
-    def _process_dag(self, evaluator):
-        # If evaluators are passed as a list (e.g. [transform, caffe])
-        # then hook up inputs to outputs of adjacent evaluators
-        if isinstance(evaluator, list):
-            for i in range(len(evaluator) - 1):
-                if len(evaluator[i+1]._inputs) > 0:
+    def _process_dag(self, op):
+        # If ops are passed as a list (e.g. [transform, caffe])
+        # then hook up inputs to outputs of adjacent ops
+        if isinstance(op, list):
+            for i in range(len(op) - 1):
+                if len(op[i+1]._inputs) > 0:
                     continue
-                if evaluator[i]._name == "InputTable":
+                if op[i]._name == "InputTable":
                     out_cols = ["frame", "frame_info"]
                 else:
-                    out_cols = self._bindings.get_output_columns(evaluator[i]._name)
-                evaluator[i+1]._inputs = [(evaluator[i], out_cols)]
-            evaluator = evaluator[-1]
+                    out_cols = self._bindings.get_output_columns(op[i]._name)
+                op[i+1]._inputs = [(op[i], out_cols)]
+            op = op[-1]
 
         # If the user doesn't explicitly specify an OutputTable, assume that
-        # it's all the output columns of the last evaluator.
-        if evaluator._name != "OutputTable":
-            out_cols = self._bindings.get_output_columns(str(evaluator._name))
-            evaluator = Evaluator.output(self, [(evaluator, out_cols)])
+        # it's all the output columns of the last op.
+        if op._name != "OutputTable":
+            out_cols = self._bindings.get_output_columns(str(op._name))
+            op = Op.output(self, [(op, out_cols)])
 
-        return self._toposort(evaluator)
+        return self._toposort(op)
 
-    def run(self, tasks, evaluator, output_collection=None, job_name=None,
+    def run(self, tasks, op, output_collection=None, job_name=None,
             force=False, io_item_size=1000, work_item_size=250):
         """
         Runs a computation over a set of inputs.
@@ -478,8 +478,8 @@ class Database:
                    Collection, then the computation is run on all frames of all
                    tables in the collection. Otherwise, tasks should be generated
                    by the Sampler.
-            evaluator: The computation to run. Evaluator is either a list of
-                   evaluators to run in sequence, or a DAG with the output node
+            op: The computation to run. Op is either a list of
+                   ops to run in sequence, or a DAG with the output node
                    passed in as the argument.
 
         Kwargs:
@@ -526,7 +526,7 @@ class Database:
         job_name = job_name or ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
-        job_params.task_set.evaluators.extend(self._process_dag(evaluator))
+        job_params.task_set.ops.extend(self._process_dag(op))
         job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
         job_params.io_item_size = io_item_size
         job_params.work_item_size = work_item_size
@@ -570,7 +570,7 @@ class Database:
             if job.name == job_name:
                 job_id = job.id
         if job_id is None:
-            raise ScannerException('Internal error, job id not found after run')
+            raise ScannerException('Internal error: job id not found after run')
 
         # Return a new collection if the input was a collection, otherwise
         # return a table list

@@ -13,34 +13,31 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include "scanner/api/evaluator.h"
-#include "scanner/util/common.h"
-
-#include <vector>
+#include "scanner/engine/op_registry.h"
 
 namespace scanner {
 namespace internal {
 
-class EvaluatorInfo {
-public:
-  EvaluatorInfo(const std::string &name,
-                const std::vector<std::string> &output_columns)
-  : name_(name), output_columns_(output_columns) {}
-
-  const std::string& name() const {
-    return name_;
+void OpRegistry::add_op(const std::string &name,
+                                      OpInfo *info) {
+  if (ops_.count(name) > 0) {
+    LOG(FATAL) << "Attempted to re-register op " << name;
   }
+  ops_.insert({name, info});
+}
 
-  const std::vector<std::string>& output_columns() const {
-    return output_columns_;
-  }
+OpInfo *
+OpRegistry::get_op_info(const std::string &name) const {
+  return ops_.at(name);
+}
 
-private:
-  std::string name_;
-  std::vector<std::string> output_columns_;
-};
+bool OpRegistry::has_op(const std::string &name) const {
+  return ops_.count(name) > 0;
+}
 
+OpRegistry *get_op_registry() {
+  static OpRegistry *registry = new OpRegistry;
+  return registry;
+}
 }
 }

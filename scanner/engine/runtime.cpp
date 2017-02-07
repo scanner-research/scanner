@@ -17,7 +17,7 @@
 #include "scanner/api/commands.h"
 #include "scanner/engine/db.h"
 #include "scanner/engine/evaluate_worker.h"
-#include "scanner/engine/evaluator_registry.h"
+#include "scanner/engine/op_registry.h"
 #include "scanner/engine/kernel_registry.h"
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/rpc.grpc.pb.h"
@@ -162,52 +162,52 @@ public:
     const i32 work_item_size = job_params->work_item_size();
     i32 warmup_size = 0;
 
-    EvaluatorRegistry *evaluator_registry = get_evaluator_registry();
-    auto &evaluators = job_params->task_set().evaluators();
-    assert(evaluators.Get(0).name() == "InputTable");
-    // Analyze evaluator DAG to determine what inputs need to be pipped along
+    OpRegistry *op_registry = get_op_registry();
+    auto &ops = job_params->task_set().ops();
+    assert(ops.Get(0).name() == "InputTable");
+    // Analyze op DAG to determine what inputs need to be pipped along
     // and when intermediates can be retired -- essentially liveness analysis
-    // Evaluator idx -> column name -> last used index
+    // Op idx -> column name -> last used index
     std::map<i32, std::map<std::string, i32>> intermediates;
     // Start off with the columns from the gathered tables
     {
-      auto &input_evaluator = evaluators.Get(0);
-      for (const std::string &input_col : input_evaluator.inputs(0).columns()) {
+      auto &input_op = ops.Get(0);
+      for (const std::string &input_col : input_op.inputs(0).columns()) {
         intermediates[0].insert({input_col, 0});
       }
     }
-    for (size_t i = 1; i < evaluators.size(); ++i) {
-      auto &evaluator = evaluators.Get(i);
+    for (size_t i = 1; i < ops.size(); ++i) {
+      auto &op = ops.Get(i);
       // For each input, update the intermediate last used index to the
       // current index
-      for (auto &eval_input : evaluator.inputs()) {
-        i32 parent_index = eval_input.evaluator_index();
+      for (auto &eval_input : op.inputs()) {
+        i32 parent_index = eval_input.op_index();
         for (const std::string &parent_col : eval_input.columns()) {
           intermediates.at(parent_index).at(parent_col) = i;
         }
       }
-      // Add this evaluator's outputs to the intermediate list
-      if (i == evaluators.size() - 1) {
+      // Add this op's outputs to the intermediate list
+      if (i == ops.size() - 1) {
         continue;
       }
-      const auto &evaluator_info =
-          evaluator_registry->get_evaluator_info(evaluator.name());
-      for (const auto &output_column : evaluator_info->output_columns()) {
+      const auto &op_info =
+          op_registry->get_op_info(op.name());
+      for (const auto &output_column : op_info->output_columns()) {
         intermediates[i].insert({output_column, i});
       }
     }
 
-    // The live columns at each evaluator index
+    // The live columns at each op index
     std::vector<std::vector<std::tuple<i32, std::string>>> live_columns(
-        evaluators.size());
-    for (size_t i = 0; i < evaluators.size(); ++i) {
-      i32 evaluator_index = i;
+        ops.size());
+    for (size_t i = 0; i < ops.size(); ++i) {
+      i32 op_index = i;
       auto &columns = live_columns[i];
-      size_t max_i = std::min((size_t)(evaluators.size() - 2), i);
+      size_t max_i = std::min((size_t)(ops.size() - 2), i);
       for (size_t j = 0; j <= max_i; ++j) {
         for (auto &kv : intermediates.at(j)) {
           i32 last_used_index = kv.second;
-          if (last_used_index > evaluator_index) {
+          if (last_used_index > op_index) {
             // Last used index is greater than current index, so still live
             columns.push_back(std::make_tuple((i32)j, kv.first));
           }
@@ -216,36 +216,36 @@ public:
     }
 
     // The columns to remove for the current kernel
-    std::vector<std::vector<i32>> dead_columns(evaluators.size() - 1);
+    std::vector<std::vector<i32>> dead_columns(ops.size() - 1);
     // Outputs from the current kernel that are not used
-    std::vector<std::vector<i32>> unused_outputs(evaluators.size() - 1);
+    std::vector<std::vector<i32>> unused_outputs(ops.size() - 1);
     // Indices in the live columns list that are the inputs to the current
     // kernel. Starts from the second evalutor (index 1)
-    std::vector<std::vector<i32>> column_mapping(evaluators.size() - 1);
-    for (size_t i = 1; i < evaluators.size(); ++i) {
-      i32 evaluator_index = i;
+    std::vector<std::vector<i32>> column_mapping(ops.size() - 1);
+    for (size_t i = 1; i < ops.size(); ++i) {
+      i32 op_index = i;
       auto &prev_columns = live_columns[i - 1];
-      auto &evaluator = evaluators.Get(evaluator_index);
+      auto &op = ops.Get(op_index);
       // Determine which columns are no longer live
       {
         auto &unused = unused_outputs[i - 1];
         auto &dead = dead_columns[i - 1];
-        size_t max_i = std::min((size_t)(evaluators.size() - 2), (size_t)i);
+        size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
         for (size_t j = 0; j <= max_i; ++j) {
           i32 parent_index = j;
           for (auto &kv : intermediates.at(j)) {
             i32 last_used_index = kv.second;
-            if (last_used_index == evaluator_index) {
+            if (last_used_index == op_index) {
               // Column is no longer live, so remove it.
               const std::string &col_name = kv.first;
               if (j == i) {
-                // This evaluator has an unused output
+                // This op has an unused output
                 i32 col_index = -1;
-                const std::vector<std::string> &evaluator_cols =
-                    evaluator_registry->get_evaluator_info(evaluator.name())
+                const std::vector<std::string> &op_cols =
+                    op_registry->get_op_info(op.name())
                         ->output_columns();
-                for (size_t k = 0; k < evaluator_cols.size(); k++) {
-                  if (col_name == evaluator_cols[k]) {
+                for (size_t k = 0; k < op_cols.size(); k++) {
+                  if (col_name == op_cols[k]) {
                     col_index = k;
                     break;
                   }
@@ -272,9 +272,9 @@ public:
           }
         }
       }
-      auto &mapping = column_mapping[evaluator_index - 1];
-      for (const auto &eval_input : evaluator.inputs()) {
-        i32 parent_index = eval_input.evaluator_index();
+      auto &mapping = column_mapping[op_index - 1];
+      for (const auto &eval_input : op.inputs()) {
+        i32 parent_index = eval_input.op_index();
         for (const std::string &col : eval_input.columns()) {
           i32 col_index = -1;
           for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
@@ -292,7 +292,7 @@ public:
     }
 
     // Setup kernel factories and the kernel configs that will be used
-    // to instantiate instances of the evaluator pipeline
+    // to instantiate instances of the op pipeline
     KernelRegistry *kernel_registry = get_kernel_registry();
     std::vector<KernelFactory *> kernel_factories;
     std::vector<Kernel::Config> kernel_configs;
@@ -300,20 +300,20 @@ public:
     assert(num_cpus > 0);
 
     i32 num_gpus = static_cast<i32>(gpu_device_ids_.size());
-    for (size_t i = 1; i < evaluators.size() - 1; ++i) {
-      auto &evaluator = evaluators.Get(i);
-      const std::string &name = evaluator.name();
-      EvaluatorInfo *evaluator_info =
-          evaluator_registry->get_evaluator_info(name);
+    for (size_t i = 1; i < ops.size() - 1; ++i) {
+      auto &op = ops.Get(i);
+      const std::string &name = op.name();
+      OpInfo *op_info =
+          op_registry->get_op_info(name);
 
-      DeviceType requested_device_type = evaluator.device_type();
+      DeviceType requested_device_type = op.device_type();
       LOG_IF(FATAL, requested_device_type == DeviceType::GPU && num_gpus == 0)
           << "Scanner is configured with zero available GPUs but a GPU "
-          << "evaluator was requested! Please configure Scanner to have "
+          << "op was requested! Please configure Scanner to have "
           << "at least one GPU using the `gpu_ids` config option.";
 
       LOG_IF(FATAL, !kernel_registry->has_kernel(name, requested_device_type))
-          << "Requested an instance of evaluator " << evaluator.name()
+          << "Requested an instance of op " << op.name()
           << " with device type "
           << (requested_device_type == DeviceType::CPU ? "CPU" : "GPU")
           << " but no kernel exists for that configuration.";
@@ -323,22 +323,22 @@ public:
 
       Kernel::Config kernel_config;
       kernel_config.work_item_size = work_item_size;
-      kernel_config.args = std::vector<u8>(evaluator.kernel_args().begin(),
-                                           evaluator.kernel_args().end());
+      kernel_config.args = std::vector<u8>(op.kernel_args().begin(),
+                                           op.kernel_args().end());
       const std::vector<std::string> &output_columns =
-          evaluator_info->output_columns();
+          op_info->output_columns();
       kernel_config.output_columns = std::vector<std::string>(
           output_columns.begin(), output_columns.end());
 
-      for (auto &input : evaluator.inputs()) {
-        const proto::Evaluator &input_evaluator =
-            evaluators.Get(input.evaluator_index());
-        if (input_evaluator.name() == "InputTable") {
+      for (auto &input : op.inputs()) {
+        const proto::Op &input_op =
+            ops.Get(input.op_index());
+        if (input_op.name() == "InputTable") {
         } else {
-          EvaluatorInfo *input_evaluator_info =
-              evaluator_registry->get_evaluator_info(input_evaluator.name());
+          OpInfo *input_op_info =
+              op_registry->get_op_info(input_op.name());
           // TODO: verify that input.columns() are all in
-          // evaluator_info->output_columns()
+          // op_info->output_columns()
         }
         kernel_config.input_columns.insert(kernel_config.input_columns.end(),
                                            input.columns().begin(),
@@ -464,7 +464,7 @@ public:
         auto &uo = kg_unused_outputs[kg];
         auto &cm = kg_column_mapping[kg];
         std::vector<EvaluateThreadArgs> &thread_args = eval_args[ki];
-        // HACK(apoms): we assume all evaluators in a kernel group use the
+        // HACK(apoms): we assume all ops in a kernel group use the
         //   same number of devices for now.
         // for (size_t i = 0; i < group.size(); ++i) {
         KernelFactory *factory = std::get<0>(group[0]);
@@ -548,7 +548,7 @@ public:
       // Pre thread
       pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
                      &pre_eval_args[pu]);
-      // Evaluator threads
+      // Op threads
       std::vector<pthread_t> &threads = eval_threads[pu];
       threads.resize(num_kernel_groups);
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
@@ -837,17 +837,17 @@ public:
     job_descriptor.set_work_item_size(work_item_size);
     job_descriptor.set_num_nodes(workers_.size());
 
-    // Get output columns from last output evaluator
-    auto &evaluators = job_params->task_set().evaluators();
-    // EvaluatorRegistry* evaluator_registry = get_evaluator_registry();
-    // EvaluatorInfo* output_evaluator = evaluator_registry->get_evaluator_info(
-    //   evaluators.Get(evaluators.size()-1).name());
+    // Get output columns from last output op
+    auto &ops = job_params->task_set().ops();
+    // OpRegistry* op_registry = get_op_registry();
+    // OpInfo* output_op = op_registry->get_op_info(
+    //   ops.Get(ops.size()-1).name());
     // const std::vector<std::string>& output_columns =
-    //   output_evaluator->output_columns();
-    auto &last_evaluator = evaluators.Get(evaluators.size() - 1);
-    assert(last_evaluator.name() == "OutputTable");
+    //   output_op->output_columns();
+    auto &last_op = ops.Get(ops.size() - 1);
+    assert(last_op.name() == "OutputTable");
     std::vector<std::string> output_columns;
-    for (const auto &eval_input : last_evaluator.inputs()) {
+    for (const auto &eval_input : last_op.inputs()) {
       for (const std::string &name : eval_input.columns()) {
         output_columns.push_back(name);
       }
@@ -879,7 +879,7 @@ public:
       proto::TableDescriptor table_desc;
       table_desc.set_id(table_id);
       table_desc.set_name(task.output_table_name());
-      // Set columns equal to the last evaluator's output columns
+      // Set columns equal to the last op's output columns
       for (size_t i = 0; i < output_columns.size(); ++i) {
         Column *col = table_desc.add_columns();
         col->set_id(i);

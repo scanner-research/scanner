@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/kernels/args.pb.h"
 #include "scanner/kernels/caffe_kernel.h"
 #include "scanner/api/commands.h"
@@ -70,17 +70,17 @@ int main(int argc, char** argv) {
   char* blur_args_buff = new char[blur_args_size];
   blur_args.SerializeToArray(blur_args_buff, blur_args_size);
 
-  scanner::Evaluator *input =
-      scanner::make_input_evaluator({"frame", "frame_info"});
+  scanner::Op *input =
+      scanner::make_input_op({"frame", "frame_info"});
 
-  scanner::Evaluator *blur = new scanner::Evaluator(
-      "Blur", {scanner::EvalInput(input, {"frame", "frame_info"})},
+  scanner::Op *blur = new scanner::Op(
+      "Blur", {scanner::OpInput(input, {"frame", "frame_info"})},
       scanner::DeviceType::CPU, blur_args_buff, blur_args_size);
 
-  scanner::Evaluator *output = scanner::make_output_evaluator(
-      {scanner::EvalInput(blur, {"frame", "frame_info"})});
+  scanner::Op *output = scanner::make_output_op(
+      {scanner::OpInput(blur, {"frame", "frame_info"})});
 
   // Launch job
-  params.task_set.output_evaluator = output;
+  params.task_set.output_op = output;
   scanner::new_job(params);
 }

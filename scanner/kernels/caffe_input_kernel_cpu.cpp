@@ -2,7 +2,7 @@
 
 namespace scanner {
 
-REGISTER_EVALUATOR(CaffeInput).outputs({"caffe_frame"});
+REGISTER_OP(CaffeInput).outputs({"caffe_frame"});
 
 REGISTER_KERNEL(CaffeInput, CaffeInputKernel)
     .device(DeviceType::CPU)

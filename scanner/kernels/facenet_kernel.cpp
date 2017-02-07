@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/kernels/caffe_kernel.h"
 
 namespace scanner {
@@ -41,7 +41,7 @@ private:
   f32 scale_;
 };
 
-REGISTER_EVALUATOR(Facenet).outputs({"caffe_output"});
+REGISTER_OP(Facenet).outputs({"caffe_output"});
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::GPU).num_devices(1);
 

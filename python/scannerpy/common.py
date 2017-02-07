@@ -9,7 +9,7 @@ class ScannerException(Exception):
 
 
 class DeviceType(enum.Enum):
-    """ Enum for specifying where an Evaluator should run. """
+    """ Enum for specifying where an Op should run. """
     CPU = 0
     GPU = 1
 

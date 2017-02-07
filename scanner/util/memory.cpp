@@ -46,7 +46,7 @@ namespace scanner {
 //    whole
 //    GPU.
 //
-// 3. Block allocations allow evaluators to allocate a single block of memory
+// 3. Block allocations allow ops to allocate a single block of memory
 // for
 //    their returned rows instead of allocating individually for each row. This
 //    again reduces the number of cudaMallocs if not using a memory pool.

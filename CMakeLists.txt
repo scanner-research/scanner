@@ -364,10 +364,6 @@ add_library(scanner SHARED
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 
-add_executable(scanner_server
-  scanner/main.cpp
-  scanner)
-
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 configure_file(scanner/engine/python.in.cpp scanner/engine/python.cpp)
 add_library(scanner_bindings SHARED scanner/engine/python.cpp)

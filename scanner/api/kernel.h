@@ -45,7 +45,7 @@ using BatchedColumns = std::vector<RowList>;
  * Kernels form the core of Scanner's interface. They are essentially
  * functions that take rows of inputs and produce an equal number rows of
  * outputs. Kernels are stateful operators that get reset when provided
- * non-contiguous batches of input. See KernelFactory for how an evaluator
+ * non-contiguous batches of input. See KernelFactory for how an op
  * defines what hardware it can use for its computation.
  */
 class Kernel {
@@ -65,30 +65,30 @@ class Kernel {
   virtual ~Kernel(){};
 
   /**
-   * @brief Resets evaluators when about to receive non-consecutive inputs.
+   * @brief Resets ops when about to receive non-consecutive inputs.
    *
-   * Scanner tries to run evaluators on consecutive blocks of inputs to
+   * Scanner tries to run ops on consecutive blocks of inputs to
    * maximize the accuracy of stateful algorithms like video trackers.
-   * However, when the runtime provides an evaluator with a non-consecutive
+   * However, when the runtime provides an op with a non-consecutive
    * input (because of work imbalance or other reasons), it will call reset
-   * to allow the evaluator to reset its state.
+   * to allow the op to reset its state.
    */
   virtual void reset(){};
 
   /**
-   * @brief Runs the evaluator on input rows and produces equal number of
+   * @brief Runs the op on input rows and produces equal number of
    *        output rows.
    *
    * @param input_columns
    *        vector of columns, where each column is a vector of inputs and each
    *        input is a byte array
    * @param output_columns
-   *        evaluator output, each column must have same length as the number of
+   *        op output, each column must have same length as the number of
    *        input rows
    *
    * Evaluate gets run on batches of inputs. At the beginning of a pipeline this
    * is raw RGB images from the input images/videos, and after that the input
-   * becomes whatever was returned by the previous evaluator.
+   * becomes whatever was returned by the previous op.
    *
    * Number of output columns must be non-zero.
    */
@@ -102,7 +102,7 @@ class Kernel {
 
  protected:
   /**
-   * The profiler allows an evaluator to save profiling data for later
+   * The profiler allows an op to save profiling data for later
    * visualization. It is not guaranteed to be non-null, so check before use.
    */
   Profiler* profiler_ = nullptr;

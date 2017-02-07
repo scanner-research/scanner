@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/kernels/args.pb.h"
 #include "scanner/util/opencv.h"
@@ -173,7 +173,7 @@ private:
 #endif
 };
 
-REGISTER_EVALUATOR(FacenetInput).outputs({"caffe_frame"});
+REGISTER_OP(FacenetInput).outputs({"caffe_frame"});
 REGISTER_KERNEL(FacenetInput, FacenetInputKernel).device(DeviceType::GPU).num_devices(1);
 
 }

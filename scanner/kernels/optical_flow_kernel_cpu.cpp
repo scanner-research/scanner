@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/cycle_timer.h"
 #include "scanner/util/memory.h"
@@ -75,7 +75,7 @@ private:
   i32 work_item_size_;
 };
 
-REGISTER_EVALUATOR(OpticalFlow).outputs({"flow"});
+REGISTER_OP(OpticalFlow).outputs({"flow"});
 
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
     .device(DeviceType::CPU)

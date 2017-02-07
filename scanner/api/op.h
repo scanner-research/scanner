@@ -22,19 +22,19 @@
 
 namespace scanner {
 
-struct EvalInput;
+struct OpInput;
 
-class Evaluator {
+class Op {
 public:
-  Evaluator(const std::string &name, const std::vector<EvalInput> &inputs,
+  Op(const std::string &name, const std::vector<OpInput> &inputs,
             DeviceType device_type,
             char *args = nullptr, size_t args_size = 0);
 
-  virtual ~Evaluator(){};
+  virtual ~Op(){};
 
   const std::string& get_name() const;
 
-  const std::vector<EvalInput>& get_inputs() const;
+  const std::vector<OpInput>& get_inputs() const;
 
   DeviceType get_device_type() const;
 
@@ -44,49 +44,49 @@ public:
 
 protected:
   std::string name_;
-  std::vector<EvalInput> inputs_;
+  std::vector<OpInput> inputs_;
   DeviceType type_;
   char* args_;
   size_t args_size_;
 };
 
-class EvalInput {
+class OpInput {
 public:
-  EvalInput(Evaluator *evaluator, const std::vector<std::string> &columns)
-      : evaluator(evaluator), columns(columns) {}
+  OpInput(Op *op, const std::vector<std::string> &columns)
+      : op(op), columns(columns) {}
 
-  Evaluator* get_evaluator() const;
+  Op* get_op() const;
 
   const std::vector<std::string>& get_columns() const;
 
 private:
-  Evaluator *evaluator;
+  Op *op;
   std::vector<std::string> columns;
 };
 
-Evaluator* make_input_evaluator(const std::vector<std::string>& columns);
+Op* make_input_op(const std::vector<std::string>& columns);
 
-Evaluator* make_output_evaluator(const std::vector<EvalInput>& inputs);
+Op* make_output_op(const std::vector<OpInput>& inputs);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Implementation Details
 namespace internal {
 
-class EvaluatorBuilder;
+class OpBuilder;
 
-class EvaluatorRegistration {
+class OpRegistration {
  public:
-  EvaluatorRegistration(const EvaluatorBuilder& builder);
+  OpRegistration(const OpBuilder& builder);
 };
 
-class EvaluatorBuilder {
+class OpBuilder {
  public:
-  friend class EvaluatorRegistration;
+  friend class OpRegistration;
 
-  EvaluatorBuilder(const std::string &name)
+  OpBuilder(const std::string &name)
       : name_(name) {}
 
-  EvaluatorBuilder& outputs(const std::vector<std::string>& columns) {
+  OpBuilder& outputs(const std::vector<std::string>& columns) {
     output_columns_ = columns;
     return *this;
   }
@@ -97,11 +97,11 @@ class EvaluatorBuilder {
 };
 }
 
-#define REGISTER_EVALUATOR(name__) \
-  REGISTER_EVALUATOR_UID(__COUNTER__, name__)
+#define REGISTER_OP(name__) \
+  REGISTER_OP_UID(__COUNTER__, name__)
 
-#define REGISTER_EVALUATOR_UID(uid__, name__)                                  \
-  static ::scanner::internal::EvaluatorRegistration                            \
-      evaluator_registration_##uid__ __attribute__((unused)) =                 \
-          ::scanner::internal::EvaluatorBuilder(#name__)
+#define REGISTER_OP_UID(uid__, name__)                                  \
+  static ::scanner::internal::OpRegistration                            \
+      op_registration_##uid__ __attribute__((unused)) =                 \
+          ::scanner::internal::OpBuilder(#name__)
 }

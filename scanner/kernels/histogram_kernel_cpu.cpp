@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
@@ -48,7 +48,7 @@ private:
   DeviceHandle device_;
 };
 
-REGISTER_EVALUATOR(Histogram).outputs({"histogram"});
+REGISTER_OP(Histogram).outputs({"histogram"});
 
 REGISTER_KERNEL(Histogram, HistogramKernelCPU)
     .device(DeviceType::CPU)

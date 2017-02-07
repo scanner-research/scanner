@@ -1,6 +1,6 @@
 #include "scanner/engine/evaluate_worker.h"
 
-#include "scanner/engine/evaluator_registry.h"
+#include "scanner/engine/op_registry.h"
 #include "scanner/video/decoder_automata.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -120,7 +120,7 @@ void *pre_evaluate_thread(void *arg) {
       auto init_start = now();
       VideoDecoderType decoder_type;
       i32 num_devices;
-      // Select a decoder type based on the type of the first evaluator and
+      // Select a decoder type based on the type of the first op and
       // the available decoders
       if (args.device_handle.type == DeviceType::GPU &&
           VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
@@ -224,13 +224,13 @@ void *evaluate_thread(void *arg) {
   std::vector<i32> kernel_num_outputs;
   std::vector<std::unique_ptr<Kernel>> kernels;
   {
-    EvaluatorRegistry *registry = get_evaluator_registry();
+    OpRegistry *registry = get_op_registry();
     for (size_t i = 0; i < args.kernel_factories.size(); ++i) {
       KernelFactory *factory = std::get<0>(args.kernel_factories[i]);
       const Kernel::Config &config = std::get<1>(args.kernel_factories[i]);
       kernel_devices.push_back(config.devices[0]);
       kernel_num_outputs.push_back(
-          registry->get_evaluator_info(factory->get_evaluator_name())
+          registry->get_op_info(factory->get_op_name())
               ->output_columns()
               .size());
       kernels.emplace_back(factory->new_instance(config));
@@ -263,7 +263,7 @@ void *evaluate_thread(void *arg) {
 
     const IOItem &io_item = args.io_items[work_entry.io_item_index];
 
-    // Make the evaluator aware of the format of the data
+    // Make the op aware of the format of the data
     if (work_entry.needs_reset) {
       for (auto &kernel : kernels) {
         kernel->reset();
@@ -295,7 +295,7 @@ void *evaluate_thread(void *arg) {
       DeviceHandle input_handle;
       // Initialize the output buffers with the frame input because we
       // perform a swap from output to input on each iterator to pass outputs
-      // from the previous evaluator into the input of the next one
+      // from the previous op into the input of the next one
       std::vector<DeviceHandle> side_output_handles = work_entry.column_handles;
       BatchedColumns side_output_columns;
       side_output_columns.resize(work_entry.columns.size());
@@ -319,9 +319,9 @@ void *evaluate_thread(void *arg) {
         for (i32 in_col_idx : column_mapping[k]) {
           assert(in_col_idx < side_output_columns.size());
 
-          // If current evaluator type and input buffer type differ, then move
+          // If current op type and input buffer type differ, then move
           // the data in the input buffer into a new buffer which has the same
-          // type as the evaluator input
+          // type as the op input
           auto copy_start = now();
           move_if_different_address_space(
               args.profiler, side_output_handles[in_col_idx], current_handle,
@@ -329,12 +329,12 @@ void *evaluate_thread(void *arg) {
           side_output_handles[in_col_idx] = current_handle;
 
           input_handle = current_handle;
-          args.profiler.add_interval("evaluator_marshal", copy_start, now());
+          args.profiler.add_interval("op_marshal", copy_start, now());
 
           input_columns.push_back(side_output_columns[in_col_idx]);
         }
 
-        // Setup output buffers to receive evaluator output
+        // Setup output buffers to receive op output
         DeviceHandle output_handle = current_handle;
         BatchedColumns output_columns;
         output_columns.resize(num_outputs);
@@ -355,7 +355,7 @@ void *evaluate_thread(void *arg) {
         // Verify the kernel produced the correct amount of output
         for (size_t i = 0; i < output_columns.size(); ++i) {
           LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
-              << "Evaluator " << k << " produced "
+              << "Op " << k << " produced "
               << output_columns[i].rows.size() << " output rows for column "
               << i << ". Expected " << batch_size << " outputs.";
         }

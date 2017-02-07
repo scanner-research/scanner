@@ -1,4 +1,4 @@
-#include "scanner/api/evaluator.h"
+#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
@@ -27,7 +27,7 @@ public:
   }
 };
 
-REGISTER_EVALUATOR(ImageEncoder).outputs({"png"});
+REGISTER_OP(ImageEncoder).outputs({"png"});
 
 REGISTER_KERNEL(ImageEncoder, ImageEncoderKernel)
     .device(DeviceType::CPU)

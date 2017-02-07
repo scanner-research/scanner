@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "scanner/api/evaluator.h"
-#include "scanner/engine/evaluator_info.h"
+#include "scanner/api/op.h"
+#include "scanner/engine/op_info.h"
 
 #include "scanner/util/common.h"
 
@@ -25,19 +25,19 @@
 namespace scanner {
 namespace internal {
 
-class EvaluatorRegistry {
+class OpRegistry {
 public:
-  void add_evaluator(const std::string &name, EvaluatorInfo *info);
+  void add_op(const std::string &name, OpInfo *info);
 
-  EvaluatorInfo* get_evaluator_info(const std::string &name) const;
+  OpInfo* get_op_info(const std::string &name) const;
 
-  bool has_evaluator(const std::string& name) const;
+  bool has_op(const std::string& name) const;
 
 private:
-  std::map<std::string, EvaluatorInfo*> evaluators_;
+  std::map<std::string, OpInfo*> ops_;
 };
 
-EvaluatorRegistry* get_evaluator_registry();
+OpRegistry* get_op_registry();
 
 }
 }
