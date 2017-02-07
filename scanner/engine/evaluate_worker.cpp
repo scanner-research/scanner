@@ -3,6 +3,8 @@
 #include "scanner/engine/evaluator_registry.h"
 #include "scanner/video/decoder_automata.h"
 
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/io/coded_stream.h>
 #include <thread>
 
 namespace scanner {
@@ -152,7 +154,11 @@ void *pre_evaluate_thread(void *arg) {
         for (Row row : work_entry.columns[c].rows) {
           args.emplace_back();
           proto::DecodeArgs &da = args.back();
-          da.ParseFromArray(row.buffer, row.size);
+          google::protobuf::io::ArrayInputStream in_stream(row.buffer,
+                                                           row.size);
+          google::protobuf::io::CodedInputStream cstream(&in_stream);
+          cstream.SetTotalBytesLimit(row.size * 2, row.size + 1);
+          da.ParseFromCodedStream(&cstream);
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
