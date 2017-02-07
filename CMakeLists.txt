@@ -368,8 +368,6 @@ add_executable(scanner_server
   scanner/main.cpp
   scanner)
 
-configure_file(scanner/engine/db.in.cpp scanner/engine/db.cpp)
-
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 configure_file(scanner/engine/python.in.cpp scanner/engine/python.cpp)
 add_library(scanner_bindings SHARED scanner/engine/python.cpp)

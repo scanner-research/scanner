@@ -396,10 +396,6 @@ void set_database_path(std::string path) {
   std::atomic_thread_fence(std::memory_order_release);
 }
 
-#define FOO(bar) #bar
-
-const std::string get_scanner_path() { return "@CMAKE_CURRENT_SOURCE_DIR@"; }
-
 void write_new_table(storehouse::StorageBackend *storage,
                      DatabaseMetadata &meta, TableMetadata &table) {
   LOG(INFO) << "Writing new table " << table.name() << "..." << std::endl;
