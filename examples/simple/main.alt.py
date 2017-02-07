@@ -13,20 +13,20 @@ caffe_args = facenet_args.caffe_args
 caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
 caffe_args.batch_size = 96
 
-table_input = db.evaluators.Input()
-caffe_input = db.evaluators.FacenetInput(
+table_input = db.ops.Input()
+caffe_input = db.ops.FacenetInput(
     inputs=[(table_input, ["frame", "frame_info"])],
     args=facenet_args,
     device=DeviceType.GPU)
-caffe = db.evaluators.Facenet(
+caffe = db.ops.Facenet(
     inputs=[(caffe_input, ["caffe_frame"]), (table_input, ["frame_info"])],
     args=facenet_args,
     device=DeviceType.GPU)
-caffe_output = db.evaluators.FacenetOutput(
+caffe_output = db.ops.FacenetOutput(
     inputs=[(caffe, ["caffe_output"]), (table_input, ["frame_info"])],
     args=facenet_args)
 
-hist = db.evaluators.Histogram(device=DeviceType.GPU)
+hist = db.ops.Histogram(device=DeviceType.GPU)
 
 def parse_hist(buf):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
@@ -57,7 +57,7 @@ def single_video():
 def video_collection():
     input_collection = db.ingest_video_collection(
         'meangirls',
-        ['/n/scanner/wcrichto.new/videos/meanGirls_medium.mp4'],
+        ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
         force=True)
     input_collection = db.collection('meangirls')
     sampler = db.sampler()
