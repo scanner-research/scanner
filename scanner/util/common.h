@@ -17,6 +17,7 @@
 
 #include "scanner/metadata.pb.h"
 #include "scanner/kernels/types.pb.h"
+#include "scanner/engine/rpc.pb.h"
 #include "glog/logging.h"
 
 #include <cstdint>
@@ -96,6 +97,13 @@ struct StridedInterval {
 
 bool string_to_image_encoding_type(const std::string& s, proto::ImageEncodingType& t);
 std::string image_encoding_type_to_string(proto::ImageEncodingType d);
+
+#define RESULT_ERROR(result__, str__, ...) {          \
+    char errstr__[1024];                              \
+    snprintf(errstr__, 1024, str__, ## __VA_ARGS__);  \
+    (result__)->set_success(false);                   \
+    (result__)->set_msg(errstr__);                    \
+  }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants

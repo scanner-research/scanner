@@ -558,9 +558,12 @@ class Database:
 
         # Execute job via RPC
         try:
-            self._master.NewJob(job_params)
+            result = self._master.NewJob(job_params)
         except grpc.RpcError as e:
-            raise ScannerException('Job failed with error: {}'.format(e))
+            raise ScannerException('RPC failed with error: {}'.format(e))
+
+        if not result.success:
+            raise ScannerException('Job failed with error: {}'.format(result.msg))
 
         self._cached_db_metadata = None
 

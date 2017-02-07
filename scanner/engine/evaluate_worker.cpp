@@ -233,6 +233,11 @@ void *evaluate_thread(void *arg) {
           registry->get_op_info(factory->get_op_name())
               ->output_columns()
               .size());
+      auto kernel = factory->new_instance(config);
+      kernel->validate(&args.result);
+      if (!args.result.success()) {
+        THREAD_RETURN_SUCCESS();
+      }
       kernels.emplace_back(factory->new_instance(config));
     }
   }

@@ -234,9 +234,10 @@ void new_job(JobParameters &params) {
   job_params.set_work_item_size(params.work_item_size);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
-  proto::Empty empty;
-  grpc::Status status = master_->NewJob(&context, job_params, &empty);
+  proto::Result job_result;
+  grpc::Status status = master_->NewJob(&context, job_params, &job_result);
   LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
                               << status.error_message();
+  // TODO(wcrichto): return job_result
 }
 }

@@ -21,6 +21,7 @@ using CustomNetConfiguration = void (*)(const FrameInfo &frame_info,
 class CaffeKernel : public VideoKernel {
 public:
   CaffeKernel(const Kernel::Config& config);
+  void validate(proto::Result* result) override;
   void new_frame_info() override;
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override;
@@ -29,6 +30,7 @@ public:
   virtual void net_config() {}
 
 protected:
+  proto::Result valid_;
   DeviceHandle device_;
   proto::CaffeArgs args_;
   std::unique_ptr<caffe::Net<float>> net_;

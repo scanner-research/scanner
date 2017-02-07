@@ -213,6 +213,11 @@ descriptor_from_net_file(const std::string &net_file_path) {
   return descriptor;
 }
 
+bool file_exists(const std::string& path) {
+  struct stat buffer;
+  return stat(path.c_str(), &buffer) == 0;
+}
+
 CaffeKernel::CaffeKernel(const Kernel::Config &config)
     : VideoKernel(config), device_(config.devices[0]) {
   args_.ParseFromArray(config.args.data(), config.args.size());
@@ -220,6 +225,21 @@ CaffeKernel::CaffeKernel(const Kernel::Config &config)
   set_device();
   // Initialize our network
   auto &descriptor = args_.net_descriptor();
+  if (!file_exists(descriptor.model_path())) {
+    RESULT_ERROR(
+      &valid_,
+      "Model path %s does not exist.",
+      descriptor.model_path().c_str());
+    return;
+  }
+  if (!file_exists(descriptor.model_weights_path())) {
+    RESULT_ERROR(
+      &valid_,
+      "Model weights path %s does not exist.",
+      descriptor.model_weights_path().c_str());
+    return;
+  }
+
   net_.reset(new caffe::Net<float>(descriptor.model_path(), caffe::TEST));
   net_->CopyTrainedLayersFrom(descriptor.model_weights_path());
   // Initialize memory
@@ -230,12 +250,21 @@ CaffeKernel::CaffeKernel(const Kernel::Config &config)
 
   size_t intended_output = descriptor.output_layer_names().size();
   size_t actual_output = config.output_columns.size();
-  LOG_IF(FATAL, intended_output != actual_output)
-      << "# output columns in net descriptor (" << intended_output << ") "
-      << "does not match number of output columns registered for op "
-      << "(" << actual_output
-      << "). If you have multiple net outputs, you must "
-      << "registry your own op using the CaffeKernel.";
+
+  if (intended_output != actual_output) {
+    RESULT_ERROR(
+      &valid_,
+      "# output columns in net descriptor (%lu) does not match number of "
+      "output columns registered for op (%lu) If you have multiple net "
+      "outputs, you must register your own op using the CaffeKernel.",
+      intended_output,
+      actual_output);
+    return;
+  }
+}
+
+void CaffeKernel::validate(proto::Result* result) {
+  result->CopyFrom(valid_);
 }
 
 void CaffeKernel::new_frame_info() {
@@ -252,7 +281,6 @@ void CaffeKernel::new_frame_info() {
     input_blob->Reshape({args_.batch_size(), input_blob->shape(1),
                          input_blob->shape(2), input_blob->shape(3)});
   }
-
 
   i32 width, height;
   if (descriptor.transpose()) {

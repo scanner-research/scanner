@@ -6,12 +6,12 @@ package scanner.proto;
 service Master {
   rpc RegisterWorker (WorkerInfo) returns (Registration) {}
   rpc NextIOItem (Empty) returns (IOItem) {}
-  rpc NewJob (JobParameters) returns (Empty) {}
+  rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
 }
 
 service Worker {
-  rpc NewJob (JobParameters) returns (Empty) {}
+  rpc NewJob (JobParameters) returns (Result) {}
 }
 
 message Empty {}
@@ -30,6 +30,11 @@ message JobParameters {
   int32 kernel_instances_per_node = 3;
   int32 io_item_size = 4;
   int32 work_item_size = 5;
+}
+
+message Result {
+  bool success = 1;
+  string msg = 2;
 }
 
 message IOItem {

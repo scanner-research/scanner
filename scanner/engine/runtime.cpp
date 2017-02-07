@@ -45,18 +45,19 @@ void create_io_items(
   const std::map<std::string, TableMetadata> &table_metas,
   const proto::TaskSet &task_set,
   std::vector<IOItem> &io_items,
-  std::vector<LoadWorkEntry> &load_work_entries) {
+  std::vector<LoadWorkEntry> &load_work_entries,
+  proto::Result* job_result) {
   const i32 io_item_size = job_params->io_item_size();
   auto &tasks = task_set.tasks();
   i32 warmup_size = 0;
   i32 total_rows = 0;
   for (size_t i = 0; i < tasks.size(); ++i) {
     auto &task = tasks.Get(i);
-    // TODO(wcrichto): these should be returned as error messages, not
-    // LOG(FATAL)'d
     if (table_metas.count(task.output_table_name()) == 0) {
-      LOG(FATAL) << "Output table " << task.output_table_name()
-                 << " does not exist.";
+      RESULT_ERROR(
+        job_result,
+        "Output table %s does not exist.", task.output_table_name().c_str());
+      return;
     }
     i32 table_id = table_metas.at(task.output_table_name()).id();
     assert(task.samples().size() > 0);
@@ -78,8 +79,10 @@ void create_io_items(
       load_item.set_io_item_index(io_items.size() - 1);
       for (auto &sample : task.samples()) {
         if (table_metas.count(sample.table_name()) == 0) {
-          LOG(FATAL) << "Requested table " << sample.table_name()
-                     << " does not exist.";
+          RESULT_ERROR(
+            job_result,
+            "Requested table %s does not exist.", sample.table_name().c_str());
+          return;
         }
         const TableMetadata &t_meta = table_metas.at(sample.table_name());
         i32 sample_table_id = t_meta.id();
@@ -151,12 +154,16 @@ public:
 
   grpc::Status NewJob(grpc::ServerContext *context,
                       const proto::JobParameters *job_params,
-                      proto::Empty *empty) {
+                      proto::Result *job_result) {
+    job_result->set_success(true);
     set_database_path(db_params_.db_path);
 
     i32 kernel_instances_per_node = job_params->kernel_instances_per_node();
-    LOG_IF(FATAL, kernel_instances_per_node <= 0)
-        << "JobParameters.kernel_instances_per_node must be greater than 0.";
+    if (kernel_instances_per_node <= 0) {
+      RESULT_ERROR(
+        job_result, "JobParameters.kernel_instances_per_node must be greater than 0.");
+      return grpc::Status::OK;
+    }
 
     timepoint_t base_time = now();
     const i32 work_item_size = job_params->work_item_size();
@@ -307,16 +314,25 @@ public:
           op_registry->get_op_info(name);
 
       DeviceType requested_device_type = op.device_type();
-      LOG_IF(FATAL, requested_device_type == DeviceType::GPU && num_gpus == 0)
-          << "Scanner is configured with zero available GPUs but a GPU "
-          << "op was requested! Please configure Scanner to have "
-          << "at least one GPU using the `gpu_ids` config option.";
+      if (requested_device_type == DeviceType::GPU && num_gpus == 0) {
+        RESULT_ERROR(
+          job_result,
+          "Scanner is configured with zero available GPUs but a GPU "
+          "op was requested! Please configure Scanner to have "
+          "at least one GPU using the `gpu_ids` config option.");
+        return grpc::Status::OK;
+      }
 
-      LOG_IF(FATAL, !kernel_registry->has_kernel(name, requested_device_type))
-          << "Requested an instance of op " << op.name()
-          << " with device type "
-          << (requested_device_type == DeviceType::CPU ? "CPU" : "GPU")
-          << " but no kernel exists for that configuration.";
+      if (!kernel_registry->has_kernel(name, requested_device_type)) {
+        RESULT_ERROR(
+          job_result,
+          "Requested an instance of op %s with device type %s, but no kernel "
+          "exists for that configuration.",
+          op.name().c_str(),
+          (requested_device_type == DeviceType::CPU ? "CPU" : "GPU"));
+        return grpc::Status::OK;
+      }
+
       KernelFactory *kernel_factory =
           kernel_registry->get_kernel(name, requested_device_type);
       kernel_factories.push_back(kernel_factory);
@@ -403,7 +419,7 @@ public:
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
     create_io_items(job_params, table_meta, job_params->task_set(), io_items,
-                    load_work_entries);
+                    load_work_entries, job_result);
 
     // Setup shared resources for distributing work to processing threads
     i64 accepted_items = 0;
@@ -440,6 +456,8 @@ public:
     // Setup evaluate workers
     std::vector<std::vector<Profiler>> eval_profilers(
         kernel_instances_per_node);
+    std::vector<std::vector<proto::Result>> eval_results(
+      kernel_instances_per_node);
     std::vector<PreEvaluateThreadArgs> pre_eval_args;
     std::vector<std::vector<EvaluateThreadArgs>> eval_args(
         kernel_instances_per_node);
@@ -451,10 +469,16 @@ public:
     for (i32 ki = 0; ki < kernel_instances_per_node; ++ki) {
       std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[ki];
       std::vector<Profiler> &eval_thread_profilers = eval_profilers[ki];
+      std::vector<proto::Result>& results = eval_results[ki];
       work_queues.resize(num_kernel_groups - 1 + 2); // +2 for pre/post
+      results.resize(num_kernel_groups);
+      for (auto& result : results) {
+        result.set_success(true);
+      }
       for (i32 i = 0; i < num_kernel_groups + 2; ++i) {
         eval_thread_profilers.push_back(Profiler(base_time));
       }
+
       // Evaluate worker
       DeviceHandle first_kernel_type;
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
@@ -504,6 +528,7 @@ public:
 
             // Per worker arguments
             ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg+1],
+            results[kg],
 
             // Queues
             *input_work_queue, *output_work_queue});
@@ -603,6 +628,19 @@ public:
           accepted_items++;
         }
       }
+
+      for (auto& results : eval_results) {
+        for (auto& result : results) {
+          if (!result.success()) {
+            goto leave_loop;
+          }
+        }
+      }
+      goto remain_loop;
+    leave_loop:
+      break;
+    remain_loop:
+
       std::this_thread::yield();
     }
 
@@ -617,10 +655,7 @@ public:
       // Wait until load has finished
       void *result;
       i32 err = pthread_join(load_threads[i], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of load thread\n");
-        exit(EXIT_FAILURE);
-      }
+      LOG_IF(FATAL, err != 0) << "error in pthread_join of load thread";
       free(result);
     }
 
@@ -635,10 +670,7 @@ public:
       // Wait until pre eval has finished
       void *result;
       i32 err = pthread_join(pre_eval_threads[i], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of pre eval thread\n");
-        exit(EXIT_FAILURE);
-      }
+      LOG_IF(FATAL, err != 0) << "error in pthread_join of pre eval thread";
       free(result);
     }
 
@@ -652,10 +684,7 @@ public:
         // Wait until eval has finished
         void *result;
         i32 err = pthread_join(eval_threads[pu][kg], &result);
-        if (err != 0) {
-          fprintf(stderr, "error in pthread_join of eval thread\n");
-          exit(EXIT_FAILURE);
-        }
+        LOG_IF(FATAL, err != 0) << "error in pthread_join of eval thread";
         free(result);
       }
     }
@@ -670,10 +699,7 @@ public:
       // Wait until eval has finished
       void *result;
       i32 err = pthread_join(post_eval_threads[pu], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of post eval thread\n");
-        exit(EXIT_FAILURE);
-      }
+      LOG_IF(FATAL, err != 0) << "error in pthread_join of post eval thread";
       free(result);
     }
 
@@ -688,10 +714,7 @@ public:
       // Wait until eval has finished
       void *result;
       i32 err = pthread_join(save_threads[i], &result);
-      if (err != 0) {
-        fprintf(stderr, "error in pthread_join of save thread\n");
-        exit(EXIT_FAILURE);
-      }
+      LOG_IF(FATAL, err != 0) << "error in pthread_join of save thread";
       free(result);
     }
 
@@ -700,6 +723,17 @@ public:
     std::fflush(NULL);
     sync();
 #endif
+
+    for (auto& results : eval_results) {
+      for (auto& result : results) {
+        if (!result.success()) {
+          job_result->set_success(false);
+          job_result->set_msg(result.msg());
+          return grpc::Status::OK;
+        }
+      }
+    }
+
     // Write out total time interval
     timepoint_t end_time = now();
 
@@ -769,6 +803,7 @@ public:
 
     BACKOFF_FAIL(profiler_output->save());
 
+    job_result->set_success(true);
     return grpc::Status::OK;
   }
 
@@ -823,7 +858,8 @@ public:
 
   grpc::Status NewJob(grpc::ServerContext *context,
                       const proto::JobParameters *job_params,
-                      proto::Empty *empty) {
+                      proto::Result *job_result) {
+    job_result->set_success(true);
     set_database_path(db_params_.db_path);
 
     const i32 io_item_size = job_params->io_item_size();
@@ -906,15 +942,19 @@ public:
     std::vector<IOItem> io_items;
     std::vector<LoadWorkEntry> load_work_entries;
     create_io_items(job_params, table_meta, job_params->task_set(), io_items,
-                    load_work_entries);
+                    load_work_entries, job_result);
+    if (!job_result->success()) {
+      return grpc::Status::OK;
+    }
+
     next_io_item_to_allocate_ = 0;
     num_io_items_ = io_items.size();
 
     grpc::CompletionQueue cq;
     std::vector<grpc::ClientContext> client_contexts(workers_.size());
     std::vector<grpc::Status> statuses(workers_.size());
-    std::vector<proto::Empty> replies(workers_.size());
-    std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Empty>>>
+    std::vector<proto::Result> replies(workers_.size());
+    std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
         rpcs;
 
     proto::JobParameters w_job_params;
@@ -932,9 +972,14 @@ public:
       GPR_ASSERT(cq.Next(&got_tag, &ok));
       GPR_ASSERT((i64)got_tag < workers_.size());
       assert(ok);
+
+      if (!replies[i].success()) {
+        job_result->set_success(false);
+        job_result->set_msg(replies[i].msg());
+        return grpc::Status::OK;
+      }
     }
     // Write table metadata
-
     return grpc::Status::OK;
   }
 

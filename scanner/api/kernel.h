@@ -65,6 +65,13 @@ class Kernel {
   virtual ~Kernel(){};
 
   /**
+   * @brief TODO
+   */
+  virtual void validate(proto::Result* result){
+    result->set_success(true);
+  }
+
+  /**
    * @brief Resets ops when about to receive non-consecutive inputs.
    *
    * Scanner tries to run ops on consecutive blocks of inputs to

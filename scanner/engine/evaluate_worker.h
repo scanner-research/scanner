@@ -67,6 +67,7 @@ struct EvaluateThreadArgs {
   // Index in columns for inputs
   std::vector<std::vector<i32>> column_mapping;
   Profiler& profiler;
+  proto::Result& result;
 
   // Queues for communicating work
   Queue<EvalWorkEntry>& input_work;
