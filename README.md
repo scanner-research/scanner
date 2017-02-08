@@ -1,22 +1,22 @@
-# Scanner #
+# Scanner: Efficient Video Analysis at Scale #
 [![Build Status](https://travis-ci.com/apoms/scanner.svg?token=3riCqXaXCxyYqpsVk2yv&branch=master)](https://travis-ci.com/apoms/scanner)
 
 _For [build instructions](TODO), [tutorials](TODO), [documentation](TODO), and [contributing guidelines](TODO), visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
-Scanner is a system for efficient analysis of videos at scale. It lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about Scanner like Spark for pixels. For example, you could use Scanner to:
+Scanner lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about Scanner like Spark for pixels. For example, you could use Scanner to:
 
 * Example 1
-* Example
+* Example 2
 * Example 3
 
-To do these kinds of applications, Scanner exposes a Python interface similar to Tensorflow and Spark SQL. Videos are represented as tables in a database, and users write computation graphs to transform these tables. For example, to compute the color histogram for each frame in a set of videos on the GPU:
+To support these applications, Scanner uses a Python interface similar to Tensorflow and Spark SQL. Videos are represented as tables in a database, and users write computation graphs to transform these tables. For example, to compute the color histogram for each frame in a set of videos on the GPU:
 
 ```python
 from scannerpy import Database, DeviceType
 db = Database()
-input = db.ingest_video_collection('my_videos', ['vid1.mp4', 'vid2.mkv'])
+videos = db.ingest_video_collection('my_videos', ['vid1.mp4', 'vid2.mkv'])
 hist = db.ops.Histogram(device=DeviceType.GPU)
-output = db.run(input, hist, 'my_videos_hist')
+output = db.run(videos, hist, 'my_videos_hist')
 vid1_hists = output.tables(0).columns(0).load()
 ```
 
