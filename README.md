@@ -1,36 +1,37 @@
 # Scanner #
 [![Build Status](https://travis-ci.com/apoms/scanner.svg?token=3riCqXaXCxyYqpsVk2yv&branch=master)](https://travis-ci.com/apoms/scanner)
 
-_For build instructions, tutorials, documentation, and contributing guidelines, visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
+_For [build instructions](TODO), [tutorials](TODO), [documentation](TODO), and [contributing guidelines](TODO), visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
-Scanner is a system for low-level, high-performance batch processing of videos. It lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about it like Hadoop for pixels. For example, you could use Scanner to make an application to:
+Scanner is a system for efficient analysis of videos at scale. It lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about Scanner like Spark for pixels. For example, you could use Scanner to:
 
 * Example 1
-* Example 2
+* Example
 * Example 3
 
-To write these applications, a user provides Scanner a pipeline. For example, to blur faces in a video, the pipeline is:
+To do these kinds of applications, Scanner exposes a Python interface similar to Tensorflow and Spark SQL. Videos are represented as tables in a database, and users write computation graphs to transform these tables. For example, to compute the color histogram for each frame in a set of videos on the GPU:
 
-1. Decode video into frames
-2. Find faces in each frame
-3. Blur each face in each frame
-4. Encode the blurred frames into a new video
+```python
+from scannerpy import Database, DeviceType
+db = Database()
+input = db.ingest_video_collection('my_videos', ['vid1.mp4', 'vid2.mkv'])
+hist = db.ops.Histogram(device=DeviceType.GPU)
+output = db.run(input, hist, 'my_videos_hist')
+vid1_hists = output.tables(0).columns(0).load()
+```
 
-Scanner then takes this pipeline and runs it in parallel over batches of frames. Scanner also provides infrastructure for performing I/O, i.e. loading the input images/videos from disk and saving the results back to disk.
+Scanner provides a convenient way to organize your videos as well as data derived from the videos (bounding boxes, histograms, feature maps, etc.) using a relational database. Behind the scenes, Scanner handles decoding the compressed videos into raw frames, allowing you to process an individual video in parallel. It then runs a computation graph on the decoded frames using kernels written in C++ for maximum performance and distributes the computation over a cluster. Scanner supports a number of operators and third-party libraries to reduce the work of writing new computations:
 
-Additionally, Scanner includes a library of common pipeline components for reducing the work of writing new pipelines:
-
-* Parallel video decode/encode on software or dedicated hardware
 * [Caffe](https://github.com/bvlc/caffe) support for neural network evaluation
 * [OpenCV](https://github.com/opencv/opencv) support with included kernels for color histograms and optical flow
 * Object tracking in videos with [Struck](https://github.com/samhare/struck)
+* Image processing with [Halide](http://halide-lang.org/)
 
-Lastly, Scanner also offers several utilities for ease of development:
+Lastly, Scanner also offers some utilities for ease of development:
 
 * Profiling via [chrome://tracing](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool)
 * Support for different storage backends including [Google Cloud Storage](https://cloud.google.com/storage/)
-* Python interface for extracting results from the database
-* Server and web interface for visualizing Scanner query results
+* Custom operators for adding your own functionality outside the source tree
 
 Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
 
