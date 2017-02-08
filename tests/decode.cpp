@@ -1,10 +1,11 @@
 #include "scanner/api/op.h"
 #include "scanner/kernels/args.pb.h"
-#include "scanner/kernels/caffe_kernel.h"
-#include "scanner/api/commands.h"
+#include "scanner/api/database.h"
 #include "scanner/util/fs.h"
 
 #include <grpc/grpc_posix.h>
+
+#include <gtest/gtest.h>
 
 namespace {
 std::string download_video(const std::string& video_url) {
@@ -18,34 +19,34 @@ std::string download_video(const std::string& video_url) {
 int main(int argc, char** argv) {
   grpc_use_signal(-1);
 
-  std::unique_ptr<storehouse::StorageConfig> sc(
-      storehouse::StorageConfig::make_posix_config());
-
   std::string db_path;
   scanner::temp_dir(db_path);
+  std::unique_ptr<storehouse::StorageConfig> sc(
+      storehouse::StorageConfig::make_posix_config());
+  std::string master_address = "localhost:5001";
 
+  scanner::Database db(sc.get(), db_path, master_address);
+
+  // Ingest video
   std::string video_path = download_video(
       "https://storage.googleapis.com/scanner-data/test/short_video.mp4");
+  scanner::Result result;
+  std::vector<scanner::FailedVideo> failed_videos;
+  result = db.ingest_videos(
+      {"mean"}, {"/n/scanner/wcrichto.new/videos/meanGirls_medium.mp4"},
+      failed_videos);
+  assert(failed_videos.empty());
 
-  // Create database
-  scanner::create_database(sc.get(), db_path);
-  // Ingest video
-  scanner::ingest_videos(sc.get(), db_path, {"mean"}, {video_path});
   // Initialize master and one worker
-  scanner::DatabaseParameters db_params;
-  db_params.storage_config = sc.get();
-  db_params.memory_pool_config.mutable_cpu()->set_use_pool(false);
-  db_params.db_path = db_path;
-  scanner::ServerState master_state = scanner::start_master(db_params, false);
-  scanner::proto::WorkerParameters worker_params =
-      scanner::default_worker_params();
-  scanner::ServerState worker_state =
-      scanner::start_worker(db_params, worker_params, "localhost:5001", false);
+  scanner::MachineParameters machine_params = scanner::default_machine_params();
+  db.start_master(machine_params);
+  db.start_worker(machine_params);
 
   // Construct job parameters
   scanner::JobParameters params;
-  params.master_address = "localhost:5001";
   params.job_name = "test_job";
+  params.memory_pool_config.mutable_cpu()->set_use_pool(false);
+  params.memory_pool_config.mutable_gpu()->set_use_pool(false);
   params.kernel_instances_per_node = 1;
   params.io_item_size = 100;
   params.work_item_size = 25;
@@ -82,5 +83,6 @@ int main(int argc, char** argv) {
 
   // Launch job
   params.task_set.output_op = output;
-  scanner::new_job(params);
+  result = db.new_job(params);
+  assert(result.success());
 }

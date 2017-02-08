@@ -13,7 +13,9 @@
  * limitations under the License.
  */
 
-#include "scanner/api/commands.h"
+#include "scanner/api/database.h"
+#include "scanner/engine/runtime.h"
+#include "scanner/engine/ingest.h"
 #include "scanner/engine/db.h"
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/rpc.pb.h"
@@ -33,27 +35,14 @@ namespace scanner {
 
 namespace {
 template <typename T>
-std::unique_ptr<grpc::Server> start(T &service, const std::string &port,
-                                    bool block) {
+std::unique_ptr<grpc::Server> start(T &service, const std::string &port) {
   std::string server_address("0.0.0.0:" + port);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
   std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
   LOG_IF(FATAL, server.get() == nullptr) << "Failed to start server";
-  if (block) {
-    server->Wait();
-  }
   return std::move(server);
-}
-
-bool database_exists(storehouse::StorageBackend *storage,
-                     const std::string &database_path) {
-  internal::set_database_path(database_path);
-  std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
-  storehouse::FileInfo info;
-  storehouse::StoreResult result = storage->get_file_info(db_meta_path, info);
-  return (result != storehouse::StoreResult::FileDoesNotExist);
 }
 
 proto::TaskSet consume_task_set(TaskSet &ts) {
@@ -148,81 +137,96 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
 
   return task_set;
 }
+
+internal::DatabaseParameters
+machine_params_to_db_params(const MachineParameters &params,
+                            storehouse::StorageConfig *sc,
+                            const std::string db_path) {
+  internal::DatabaseParameters db;
+  db.storage_config = sc;
+  db.db_path = db_path;
+  db.num_cpus = params.num_cpus;
+  db.num_load_workers = params.num_load_workers;
+  db.num_save_workers = params.num_save_workers;
+  db.gpu_ids = params.gpu_ids;
+  return db;
+}
 }
 
-void create_database(storehouse::StorageConfig *storage_config,
-                     const std::string &db_path) {
-  std::unique_ptr<storehouse::StorageBackend> storage{
-      storehouse::StorageBackend::make_from_config(storage_config)};
-
-  if (database_exists(storage.get(), db_path)) {
-    LOG(WARNING) << "Can not create database. Database already exists!";
-    return;
-  }
-
-  internal::set_database_path(db_path);
-
-  internal::DatabaseMetadata meta{};
-  internal::write_database_metadata(storage.get(), meta);
-}
-
-void destroy_database(storehouse::StorageConfig *storage_config,
-                      const std::string &db_path) {
-  LOG(FATAL) << "Not implemented yet!";
-}
-
-// void ingest_videos(storehouse::StorageConfig *storage_config,
-//                    const std::string& db_path,
-//                    const std::vector<std::string>& table_names,
-//                    const std::vector<std::string>& path) {
-// }
-
-// void ingest_images(storehouse::StorageConfig *storage_config,
-//                    const std::string& db_path,
-//                    const std::string& table_names,
-//                    const std::vector<std::string>& paths) {
-// }
-
-proto::WorkerParameters default_worker_params() {
-  proto::WorkerParameters worker_params;
-  worker_params.set_num_cpus(std::thread::hardware_concurrency());
-  worker_params.set_num_load_workers(2);
-  worker_params.set_num_save_workers(2);
+MachineParameters default_machine_params() {
+  MachineParameters machine_params;
+  machine_params.num_cpus = std::thread::hardware_concurrency();
+  machine_params.num_load_workers = 2;
+  machine_params.num_save_workers = 2;
 #ifdef HAVE_CUDA
   i32 gpu_count;
   CU_CHECK(cudaGetDeviceCount(&gpu_count));
   for (i32 i = 0; i < gpu_count; ++i) {
-    worker_params.add_gpu_ids(i);
+    machine_params.gpu_ids.push_back(i);
   }
 #endif
-  return worker_params;
+  return machine_params;
 }
 
-ServerState start_master(DatabaseParameters &params, bool block) {
-  ServerState state;
-  state.service.reset(scanner::internal::get_master_service(params));
-  state.server = start(state.service, "5001", block);
-  return state;
+Database::Database(storehouse::StorageConfig *storage_config,
+                   const std::string &db_path,
+                   const std::string &master_address)
+    : storage_config_(storage_config),
+      storage_(storehouse::StorageBackend::make_from_config(storage_config)),
+      db_path_(db_path), master_address_(master_address) {
+
+  internal::set_database_path(db_path);
+  if (!database_exists()) {
+    internal::DatabaseMetadata meta{};
+    internal::write_database_metadata(storage_.get(), meta);
+    LOG(INFO) << "Creating database at " << db_path << "...";
+  }
 }
 
-ServerState start_worker(DatabaseParameters &db_params,
-                         proto::WorkerParameters &worker_params,
-                         const std::string &master_address, bool block) {
-  ServerState state;
-  state.service.reset(scanner::internal::get_worker_service(
-      db_params, worker_params, master_address));
-  state.server = start(state.service, "5002", block);
-  return state;
+Result Database::start_master(const MachineParameters& machine_params) {
+  if (master_state_.service.get() != nullptr) {
+    LOG(WARNING) << "Master already started";
+    Result result;
+    result.set_success(false);
+    return result;
+  }
+  internal::DatabaseParameters params =
+      machine_params_to_db_params(machine_params, storage_config_, db_path_);
+  master_state_.service.reset(scanner::internal::get_master_service(params));
+  master_state_.server = start(master_state_.service, "5001");
+
+  Result result;
+  result.set_success(true);
+  return result;
 }
 
-void get_database_info(const std::string &master_address) {}
+Result Database::start_worker(const MachineParameters& machine_params) {
+  internal::DatabaseParameters params =
+      machine_params_to_db_params(machine_params, storage_config_, db_path_);
+  worker_states_.emplace_back();
+  ServerState &state = worker_states_.back();
+  state.service.reset(
+      scanner::internal::get_worker_service(params, master_address_));
+  state.server = start(state.service, "5002");
 
-void get_table_info(const std::string &master_address,
-                    const std::string &table_name) {}
+  Result result;
+  result.set_success(true);
+  return result;
+}
 
-void new_job(JobParameters &params) {
-  auto channel = grpc::CreateChannel(params.master_address,
-                                     grpc::InsecureChannelCredentials());
+Result Database::ingest_videos(const std::vector<std::string> &table_names,
+                               const std::vector<std::string> &paths,
+                               std::vector<FailedVideo> &failed_videos) {
+  internal::ingest_videos(storage_config_, db_path_, table_names, paths,
+                          failed_videos);
+  Result result;
+  result.set_success(true);
+  return result;
+}
+
+Result Database::new_job(JobParameters &params) {
+  auto channel =
+      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
       proto::Master::NewStub(channel);
 
@@ -234,10 +238,57 @@ void new_job(JobParameters &params) {
   job_params.set_work_item_size(params.work_item_size);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
-  proto::Result job_result;
+  Result job_result;
   grpc::Status status = master_->NewJob(&context, job_params, &job_result);
   LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
                               << status.error_message();
-  // TODO(wcrichto): return job_result
+
+  return job_result;
 }
+
+Result Database::shutdown_master() {
+  LOG(FATAL) << "Not implemented yet!";
+
+  Result result;
+  result.set_success(true);
+  return result;
+}
+
+Result Database::shutdown_worker() {
+  LOG(FATAL) << "Not implemented yet!";
+
+  Result result;
+  result.set_success(true);
+  return result;
+}
+
+Result Database::wait_for_server_shutdown() {
+  if (master_state_.server.get() != nullptr) {
+    master_state_.server->Wait();
+  }
+  for (ServerState& state : worker_states_) {
+    state.server->Wait();
+  }
+
+  Result result;
+  result.set_success(true);
+  return result;
+}
+
+Result Database::destroy_database() {
+  LOG(FATAL) << "Not implemented yet!";
+
+  Result result;
+  result.set_success(true);
+  return result;
+}
+
+bool Database::database_exists() {
+  internal::set_database_path(db_path_);
+  std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
+  storehouse::FileInfo info;
+  storehouse::StoreResult result = storage_->get_file_info(db_meta_path, info);
+  return (result != storehouse::StoreResult::FileDoesNotExist);
+}
+
 }

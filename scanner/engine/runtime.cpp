@@ -14,7 +14,6 @@
  */
 
 #include "scanner/engine/runtime.h"
-#include "scanner/api/commands.h"
 #include "scanner/engine/db.h"
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/op_registry.h"
@@ -30,6 +29,7 @@
 #include <grpc++/server_builder.h>
 #include <grpc/grpc_posix.h>
 #include <grpc/support/log.h>
+#include <google/protobuf/io/coded_stream.h>
 
 #include <thread>
 
@@ -39,7 +39,19 @@ using storehouse::RandomReadFile;
 
 namespace scanner {
 namespace internal {
-
+namespace {
+inline bool operator==(const MemoryPoolConfig &lhs,
+                       const MemoryPoolConfig &rhs) {
+  return (lhs.cpu().use_pool() == rhs.cpu().use_pool()) &&
+         (lhs.cpu().free_space() == rhs.cpu().free_space()) &&
+         (lhs.gpu().use_pool() == rhs.gpu().use_pool()) &&
+         (lhs.gpu().free_space() == rhs.gpu().free_space());
+}
+inline bool operator!=(const MemoryPoolConfig &lhs,
+                       const MemoryPoolConfig &rhs) {
+  return !(lhs == rhs);
+}
+}
 void create_io_items(
   const proto::JobParameters* job_params,
   const std::map<std::string, TableMetadata> &table_metas,
@@ -108,15 +120,16 @@ void create_io_items(
 
 class WorkerImpl final : public proto::Worker::Service {
 public:
-  WorkerImpl(DatabaseParameters &db_params,
-             proto::WorkerParameters &worker_params, std::string master_address)
-      : db_params_(db_params), worker_params_(worker_params) {
+  WorkerImpl(DatabaseParameters &db_params, std::string master_address)
+      : db_params_(db_params) {
     set_database_path(db_params.db_path);
 
 #ifdef DEBUG
     // Stop SIG36 from grpc when debugging
     grpc_use_signal(-1);
 #endif
+    // google::protobuf::io::CodedInputStream::SetTotalBytesLimit(67108864 * 4,
+    //                                                            67108864 * 2);
 
     master_ = proto::Master::NewStub(grpc::CreateChannel(
         master_address, grpc::InsecureChannelCredentials()));
@@ -141,15 +154,16 @@ public:
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
 
-    for (i32 id : worker_params_.gpu_ids()) {
+    for (i32 id : db_params_.gpu_ids) {
       gpu_device_ids_.push_back(id);
     }
-    init_memory_allocators(db_params_.memory_pool_config, gpu_device_ids_);
   }
 
   ~WorkerImpl() {
     delete storage_;
-    destroy_memory_allocators();
+    if (memory_pool_initialized_) {
+      destroy_memory_allocators();
+    }
   }
 
   grpc::Status NewJob(grpc::ServerContext *context,
@@ -157,6 +171,17 @@ public:
                       proto::Result *job_result) {
     job_result->set_success(true);
     set_database_path(db_params_.db_path);
+
+    // Set up memory pool if different than previous memory pool
+    if (!memory_pool_initialized_ ||
+        job_params->memory_pool_config() != cached_memory_pool_config_) {
+      if (memory_pool_initialized_) {
+        destroy_memory_allocators();
+      }
+      init_memory_allocators(job_params->memory_pool_config(), gpu_device_ids_);
+      cached_memory_pool_config_ = job_params->memory_pool_config();
+      memory_pool_initialized_ = true;
+    }
 
     i32 kernel_instances_per_node = job_params->kernel_instances_per_node();
     if (kernel_instances_per_node <= 0) {
@@ -303,7 +328,7 @@ public:
     KernelRegistry *kernel_registry = get_kernel_registry();
     std::vector<KernelFactory *> kernel_factories;
     std::vector<Kernel::Config> kernel_configs;
-    i32 num_cpus = worker_params_.num_cpus();
+    i32 num_cpus = db_params_.num_cpus;
     assert(num_cpus > 0);
 
     i32 num_gpus = static_cast<i32>(gpu_device_ids_.size());
@@ -431,7 +456,7 @@ public:
     std::atomic<i64> retired_items{0};
 
     // Setup load workers
-    i32 num_load_workers = worker_params_.num_load_workers();
+    i32 num_load_workers = db_params_.num_load_workers;
     std::vector<Profiler> load_thread_profilers(num_load_workers,
                                                 Profiler(base_time));
     std::vector<LoadThreadArgs> load_thread_args;
@@ -585,7 +610,7 @@ public:
     }
 
     // Setup save workers
-    i32 num_save_workers = worker_params_.num_save_workers();
+    i32 num_save_workers = db_params_.num_save_workers;
     std::vector<Profiler> save_thread_profilers(num_save_workers,
                                                 Profiler(base_time));
     std::vector<SaveThreadArgs> save_thread_args;
@@ -811,11 +836,12 @@ private:
   std::unique_ptr<proto::Master::Stub> master_;
   storehouse::StorageConfig *storage_config_;
   DatabaseParameters db_params_;
-  proto::WorkerParameters worker_params_;
   i32 node_id_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata *> table_metas_;
   std::vector<i32> gpu_device_ids_;
+  bool memory_pool_initialized_ = false;
+  MemoryPoolConfig cached_memory_pool_config_;
 };
 
 class MasterImpl final : public proto::Master::Service {
@@ -847,8 +873,7 @@ public:
       ++next_io_item_to_allocate_;
       i32 items_left = num_io_items_ - next_io_item_to_allocate_;
       if (items_left % 10 == 0) {
-        printf("IO items remaining: %d\n", items_left);
-        fflush(stdout);
+        LOG(INFO) << "IO items remaining: " << items_left;
       }
     } else {
       io_item->set_item_id(-1);
@@ -1000,11 +1025,9 @@ proto::Master::Service *get_master_service(DatabaseParameters &param) {
   return new MasterImpl(param);
 }
 
-proto::Worker::Service *
-get_worker_service(DatabaseParameters &db_params,
-                   proto::WorkerParameters &worker_params,
-                   const std::string &master_address) {
-  return new WorkerImpl(db_params, worker_params, master_address);
+proto::Worker::Service *get_worker_service(DatabaseParameters &params,
+                                           const std::string &master_address) {
+  return new WorkerImpl(params, master_address);
 }
 }
 }

@@ -1,4 +1,4 @@
-#include "scanner/api/commands.h"
+#include "scanner/api/database.h"
 #include "scanner/engine/op_info.h"
 #include "scanner/engine/op_registry.h"
 #include "scanner/util/common.h"

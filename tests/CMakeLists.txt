@@ -1,4 +1,4 @@
-add_executable(tests_simple simple.cpp)
-target_link_libraries(tests_simple scanner)
+add_executable(tests_decode decode.cpp)
+target_link_libraries(tests_decode scanner)
 
-add_test(TestsSimple tests_simple)
+add_test(TestsDecode tests_decode)

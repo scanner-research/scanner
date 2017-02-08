@@ -46,6 +46,7 @@ using proto::Column;
 using proto::MemoryPoolConfig;
 using proto::BoundingBox;
 using proto::Point;
+using proto::Result;
 
 struct DeviceHandle {
 public:

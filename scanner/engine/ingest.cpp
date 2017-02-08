@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/api/commands.h"
+#include "scanner/api/database.h"
 #include "scanner/engine/db.h"
 
 #include "scanner/util/common.h"
@@ -197,7 +197,8 @@ void cleanup_video_codec(CodecState state) {
 bool parse_and_write_video(storehouse::StorageBackend *storage,
                            const std::string &table_name,
                            i32 table_id,
-                           const std::string &path) {
+                           const std::string &path,
+                           std::string& error_message) {
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
@@ -221,11 +222,13 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   StoreResult result;
   EXP_BACKOFF(make_unique_random_read_file(storage, path, file_state.file), result);
   if (result != StoreResult::Success) {
+    error_message = "Can not open video file";
     return false;
   }
 
   EXP_BACKOFF(file_state.file->get_size(file_state.size), result);
   if (result != StoreResult::Success) {
+    error_message = "Can not get file size";
     return false;
   }
 
@@ -233,6 +236,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   CodecState state;
   if (!setup_video_codec(&file_state, state)) {
+    error_message = "Failed to set up video codec";
     return false;
   }
 
@@ -286,6 +290,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       LOG(ERROR) << "Error while decoding frame " << frame << " (" << err
                  << "): " << err_msg;
       cleanup_video_codec(state);
+      error_message = "Error while decoding frame " + std::to_string(frame) +
+                      " (" + std::to_string(err) + "): " + std::string(err_msg);
       return false;
     }
 
@@ -324,6 +330,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       LOG(ERROR) << "Error while filtering " << frame << " (" << frame
                  << "): " << err_msg;
       cleanup_video_codec(state);
+      error_message = "Error while filtering frame " + std::to_string(frame) +
+                      " (" + std::to_string(err) + "): " + std::string(err_msg);
       return false;
     }
 
@@ -532,8 +540,6 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   // Save the table descriptor
   write_table_metadata(storage, TableMetadata(table_desc));
-
-  // printf("num non ref frame %d\n", num_non_ref_frames);
 
   return succeeded;
 }
@@ -852,12 +858,15 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 //   }
 // }
 } // end anonymous namespace
-}
 
-void ingest_videos(storehouse::StorageConfig *storage_config,
+Result ingest_videos(storehouse::StorageConfig *storage_config,
                    const std::string &db_path,
                    const std::vector<std::string> &table_names,
-                   const std::vector<std::string> &paths) {
+                   const std::vector<std::string> &paths,
+                   std::vector<FailedVideo> &failed_videos) {
+  Result result;
+  result.set_success(true);
+
   internal::set_database_path(db_path);
   av_register_all();
 
@@ -871,6 +880,7 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
     table_ids.push_back(meta.add_table(table_names[i]));
   }
   std::vector<bool> bad_videos(table_names.size(), false);
+  std::vector<std::string> bad_messages(table_names.size());
   std::vector<std::thread> ingest_threads;
   i32 num_threads = std::thread::hardware_concurrency();
   i32 videos_allocated = 0;
@@ -884,7 +894,8 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
     ingest_threads.emplace_back([&, start, end]() {
       for (i32 i = start; i < end; ++i) {
         if (!internal::parse_and_write_video(storage.get(), table_names[i],
-                                             table_ids[i], paths[i])) {
+                                             table_ids[i], paths[i],
+                                             bad_messages[i])) {
           // Did not ingest correctly, skip it
           bad_videos[i] = true;
         }
@@ -895,28 +906,24 @@ void ingest_videos(storehouse::StorageConfig *storage_config,
     ingest_threads[t].join();
   }
 
-  std::vector<std::string> bad_paths;
+  size_t num_bad_videos = 0;
   for (size_t i = 0; i < table_names.size(); ++i) {
     if (bad_videos[i]) {
-      LOG(WARNING) << "Failed to ingest video " << paths[i] << "! "
-                   << "Adding to bad paths file "
-                   << "(" << internal::BAD_VIDEOS_FILE_PATH
-                   << "in current directory)." << std::endl;
-      bad_paths.push_back(paths[i]);
+      num_bad_videos++;
+      LOG(WARNING) << "Failed to ingest video " << paths[i] << "!";
+      failed_videos.push_back({paths[i], bad_messages[i]});
       meta.remove_table(table_ids[i]);
     }
   }
-  if (!bad_paths.empty()) {
-    std::fstream bad_paths_file(internal::BAD_VIDEOS_FILE_PATH,
-                                std::fstream::out);
-    for (std::string bad_path : bad_paths) {
-      bad_paths_file << bad_path << std::endl;
-    }
-    bad_paths_file.close();
+  if (num_bad_videos == table_names.size()) {
+    result.set_success(false);
+    result.set_msg("All videos failed to ingest properly");
   }
 
   // Save the db metadata
   internal::write_database_metadata(storage.get(), meta);
+
+  return result;
 }
 
 void ingest_images(storehouse::StorageConfig *storage_config,
@@ -930,5 +937,6 @@ void ingest_images(storehouse::StorageConfig *storage_config,
   LOG(FATAL) << "Image ingest under construction!" << std::endl;
 
   LOG(INFO) << "Creating image table " << table_name << "..." << std::endl;
+}
 }
 }

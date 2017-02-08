@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "scanner/api/commands.h"
+#include "scanner/api/database.h"
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
 #include "scanner/video/video_decoder.h"
@@ -62,10 +62,19 @@ struct EvalWorkEntry {
   bool last_in_io_item;
 };
 
+struct DatabaseParameters {
+  storehouse::StorageConfig* storage_config;
+  std::string db_path;
+  i32 num_cpus;
+  i32 num_load_workers;
+  i32 num_save_workers;
+  std::vector<i32> gpu_ids;
+};
+
 proto::Master::Service *get_master_service(DatabaseParameters &param);
 
-proto::Worker::Service* get_worker_service(
-    DatabaseParameters& db_params, proto::WorkerParameters& worker_params,
-    const std::string& master_address);
+proto::Worker::Service *get_worker_service(DatabaseParameters &params,
+                                           const std::string &master_address);
 }
 }
+

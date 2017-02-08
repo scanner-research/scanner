@@ -209,7 +209,7 @@ inline bool parse_sps(GetBitsState &gb, SPS& info) {
     }
   } break;
   default: {
-    LOG(WARNING) << "Illegal picture_order_count type";
+    LOG(WARNING) << "Illegal picture_order_count type: " << info.poc_type;
     return false;
   } break;
   }
