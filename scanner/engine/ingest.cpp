@@ -264,10 +264,13 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   i64 meta_packet_sequence_start_offset = 0;
   bool saw_sps_nal = false;
   bool saw_pps_nal = false;
+  std::map<u32, SPS> sps_map;
+  std::map<u32, PPS> pps_map;
+  u32 last_sps = -1;
+  u32 last_pps = -1;
   std::vector<u8> sps_nal_bytes;
   std::vector<u8> pps_nal_bytes;
-  bool redundant_pic_flag = false;
-  i32 log2_max_frame_num = 0;
+  SliceHeader prev_sh;
 
   i32 num_non_ref_frames = 0;
   i32 avcodec_frame = 0;
@@ -346,7 +349,6 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     i64 nal_bytestream_offset = bytestream_pos;
 
     LOG(INFO) << "new packet " << nal_bytestream_offset;
-    bool packet_has_frame = false;
     bool insert_sps_nal = false;
     // Parse NAL unit
     const u8 *nal_parse = filtered_data;
@@ -377,6 +379,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       // We need to track the last SPS NAL because some streams do
       // not insert an SPS every keyframe and we need to insert it
       // ourselves.
+
+      // SPS
       if (nal_unit_type == 7) {
         saw_sps_nal = true;
         sps_nal_bytes.insert(sps_nal_bytes.end(), nal_start - 3,
@@ -387,67 +391,68 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         gb.offset = offset;
         SPS sps = parse_sps(gb);
         i32 sps_id = sps.sps_id;
-        log2_max_frame_num = sps.log2_max_frame_num;
-        LOG(INFO) << "Last SPS NAL (" << sps_id << ", " << offset << ", "
-                  << sps.log2_max_frame_num << ")"
+        sps_map[sps_id] = sps;
+        last_sps = sps.sps_id;
+        LOG(INFO) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
                   << " seen at frame " << frame;
       }
+      // PPS
       if (nal_unit_type == 8) {
         GetBitsState gb;
         gb.buffer = nal_start;
         gb.offset = 8;
         PPS pps = parse_pps(gb);
-        redundant_pic_flag = pps.redundant_pic_cnt_present_flag;
+        pps_map[pps.pps_id] = pps;
+        last_pps = pps.pps_id;
         saw_pps_nal = true;
         pps_nal_bytes.insert(pps_nal_bytes.end(), nal_start - 3,
                              nal_start + nal_size + 3);
         LOG(INFO) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
-                  << ", redundant " << redundant_pic_flag << ", frame "
-                  << frame;
+                  << ", frame " << frame;
       }
-      if (is_vcl_nal(nal_unit_type) && !packet_has_frame) {
+      if (is_vcl_nal(nal_unit_type)) {
+        assert(last_pps != -1);
+        assert(last_sps != -1);
         GetBitsState gb;
         gb.buffer = nal_start;
         gb.offset = 8;
-        // first_mb_in_slice
-        get_ue_golomb(gb);
-        // slice_type
-        get_ue_golomb(gb);
-        // pic_parameter_set_id
-        get_ue_golomb(gb);
-        // frame num
-        u32 frame_num = get_bits(gb, log2_max_frame_num);
-        LOG(INFO) << "frame num " << frame_num;
-        frame++;
-        //packet_has_frame = true;
+        SliceHeader sh = parse_slice_header(gb, sps_map.at(last_sps), pps_map,
+                                            nal_unit_type, nal_ref_idc);
+        if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
+          frame++;
+          size_t bytestream_offset;
+          if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
+            // Insert an SPS NAL if we did not see one in the meta packet
+            // sequence
+            keyframe_byte_offsets.push_back(nal_bytestream_offset +
+                                            filtered_data_size - size_left - 3);
+            keyframe_positions.push_back(frame - 1);
+            keyframe_timestamps.push_back(state.av_packet.pts);
+            in_meta_packet_sequence = false;
+            saw_sps_nal = false;
+            LOG(INFO) << "keyframe " << frame - 1 << ", byte offset "
+                      << meta_packet_sequence_start_offset;
+
+            // Insert metadata
+            LOG(INFO) << "inserting sps and pss nals";
+            i32 size = filtered_data_size +
+                       static_cast<i32>(sps_nal_bytes.size()) +
+                       static_cast<i32>(pps_nal_bytes.size());
+
+            s_write(demuxed_bytestream.get(), size);
+            s_write(demuxed_bytestream.get(), sps_nal_bytes.data(),
+                    sps_nal_bytes.size());
+            s_write(demuxed_bytestream.get(), pps_nal_bytes.data(),
+                    pps_nal_bytes.size());
+
+            bytestream_pos += sizeof(size) + size;
+          } else {
+            s_write(demuxed_bytestream.get(), filtered_data_size);
+            bytestream_pos += sizeof(filtered_data_size) + filtered_data_size;
+          }
+        }
+        prev_sh = sh;
       }
-    }
-    size_t bytestream_offset;
-    if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
-      // Insert an SPS NAL if we did not see one in the meta packet sequence
-      keyframe_byte_offsets.push_back(nal_bytestream_offset);
-      keyframe_positions.push_back(frame - 1);
-      keyframe_timestamps.push_back(state.av_packet.pts);
-      in_meta_packet_sequence = false;
-      saw_sps_nal = false;
-      LOG(INFO) << "keyframe " << frame - 1 << ", byte offset "
-                << meta_packet_sequence_start_offset;
-
-      // Insert metadata
-      LOG(INFO) << "inserting sps and pss nals";
-      i32 size = filtered_data_size + static_cast<i32>(sps_nal_bytes.size()) +
-                 static_cast<i32>(pps_nal_bytes.size());
-
-      s_write(demuxed_bytestream.get(), size);
-      s_write(demuxed_bytestream.get(), sps_nal_bytes.data(),
-              sps_nal_bytes.size());
-      s_write(demuxed_bytestream.get(), pps_nal_bytes.data(),
-              pps_nal_bytes.size());
-
-      bytestream_pos += sizeof(size) + size;
-    } else {
-      s_write(demuxed_bytestream.get(), filtered_data_size);
-      bytestream_pos += sizeof(filtered_data_size) + filtered_data_size;
     }
     // Append the packet to the stream
     s_write(demuxed_bytestream.get(), filtered_data, filtered_data_size);
