@@ -353,6 +353,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     // Parse NAL unit
     const u8 *nal_parse = filtered_data;
     i32 size_left = filtered_data_size;
+    i32 nals_parsed = 0;
     while (size_left > 3) {
       const u8 *nal_start = nullptr;
       i32 nal_size = 0;
@@ -368,17 +369,40 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       }
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
-          LOG(INFO) << "in meta sequence " << nal_bytestream_offset;
-          meta_packet_sequence_start_offset = nal_bytestream_offset;
+          meta_packet_sequence_start_offset = nal_bytestream_offset +
+                                              filtered_data_size - size_left -
+                                              nal_size - 4;
+          LOG(INFO) << "in meta sequence " << nal_bytestream_offset << ", " <<
+              meta_packet_sequence_start_offset;
           in_meta_packet_sequence = true;
           saw_sps_nal = false;
         }
-      } else {
-        in_meta_packet_sequence = false;
       }
+      std::vector<u8> rbsp_buffer;
+      u32 consecutive_zeros = 0;
+      i32 bytes = nal_size - 1;
+      const u8* pb = nal_start + 1;
+      while (bytes) {
+        /* Copy the byte into the rbsp, unless it
+         * is the 0x03 in a 0x000003 */
+        if (consecutive_zeros < 2 || *pb != 0x03) {
+          rbsp_buffer.push_back(*pb);
+        }
+        if (*pb == 0) {
+          ++consecutive_zeros;
+        } else {
+          consecutive_zeros = 0;
+        }
+        ++pb;
+        --bytes;
+      }
+
       // We need to track the last SPS NAL because some streams do
       // not insert an SPS every keyframe and we need to insert it
       // ourselves.
+      fprintf(stderr, "nal_size %d, rbsp size %lu\n", nal_size, rbsp_buffer.size());
+      const u8* rbsp_start = rbsp_buffer.data();
+      i32 rbsp_size = rbsp_buffer.size();
 
       // SPS
       if (nal_unit_type == 7) {
@@ -387,8 +411,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
                              nal_start + nal_size + 3);
         i32 offset = 8;
         GetBitsState gb;
-        gb.buffer = nal_start;
-        gb.offset = offset;
+        gb.buffer = rbsp_start;
+        gb.offset = 0;
         SPS sps = parse_sps(gb);
         i32 sps_id = sps.sps_id;
         sps_map[sps_id] = sps;
@@ -399,8 +423,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       // PPS
       if (nal_unit_type == 8) {
         GetBitsState gb;
-        gb.buffer = nal_start;
-        gb.offset = 8;
+        gb.buffer = rbsp_start;
+        gb.offset = 0;
         PPS pps = parse_pps(gb);
         pps_map[pps.pps_id] = pps;
         last_pps = pps.pps_id;
@@ -424,11 +448,19 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
           if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
             // Insert an SPS NAL if we did not see one in the meta packet
             // sequence
-            keyframe_byte_offsets.push_back(nal_bytestream_offset +
-                                            filtered_data_size - size_left - 3);
+            // keyframe_byte_offsets.push_back(nal_bytestream_offset +
+            //                                 filtered_data_size - size_left -
+            //                                 nal_size - 3);
+            if (in_meta_packet_sequence) {
+              keyframe_byte_offsets.push_back(
+                  meta_packet_sequence_start_offset);
+            } else {
+              keyframe_byte_offsets.push_back(nal_bytestream_offset +
+                                              filtered_data_size - size_left -
+                                              nal_size - 4);
+            }
             keyframe_positions.push_back(frame - 1);
             keyframe_timestamps.push_back(state.av_packet.pts);
-            in_meta_packet_sequence = false;
             saw_sps_nal = false;
             LOG(INFO) << "keyframe " << frame - 1 << ", byte offset "
                       << meta_packet_sequence_start_offset;
@@ -451,8 +483,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
             bytestream_pos += sizeof(filtered_data_size) + filtered_data_size;
           }
         }
+        in_meta_packet_sequence = false;
         prev_sh = sh;
       }
+      nals_parsed++;
     }
     // Append the packet to the stream
     s_write(demuxed_bytestream.get(), filtered_data, filtered_data_size);

@@ -26,15 +26,15 @@ struct GetBitsState {
 };
 
 inline u32 get_bit(GetBitsState &gb) {
-  i32 v =
+  u8 v =
       ((*(gb.buffer + (gb.offset >> 0x3))) >> (0x7 - (gb.offset & 0x7))) & 0x1;
   gb.offset++;
   return v;
 }
 
 inline u32 get_bits(GetBitsState &gb, i32 bits) {
-  i32 v = 0;
-  for (i32 i = 0; i < bits; i++) {
+  u32 v = 0;
+  for (i32 i = bits - 1; i >= 0; i--) {
     v |= get_bit(gb) << i;
   }
   return v;
@@ -115,7 +115,7 @@ inline bool is_first_vcl_nal(i32 nal_type) {
 }
 
 struct SPS {
-  u8 profile_idc;
+  i32 profile_idc;
   u32 sps_id;
   u32 log2_max_frame_num;
   u32 poc_type;
@@ -129,31 +129,58 @@ inline SPS parse_sps(GetBitsState &gb) {
   // profile_idc
   info.profile_idc = get_bits(gb, 8);
   // constraint_set0_flag
-  get_bits(gb, 1);
+  get_bit(gb);
   // constraint_set1_flag
-  get_bits(gb, 1);
+  get_bit(gb);
   // constraint_set2_flag
-  get_bits(gb, 1);
+  get_bit(gb);
   // reserved_zero_5bits /* equal to 0 */
   get_bits(gb, 5);
   // level_idc
   get_bits(gb, 8);
   // seq_parameter_set_id
   info.sps_id = get_ue_golomb(gb);
-  if (info.profile_idc == 100 ||  // High profile
-      info.profile_idc == 110 ||  // High10 profile
-      info.profile_idc == 122 ||  // High422 profile
-      info.profile_idc == 244 ||  // High444 Predictive profile
-      info.profile_idc ==  44 ||  // Cavlc444 profile
-      info.profile_idc ==  83 ||  // Scalable Constrained High profile (SVC)
-      info.profile_idc ==  86 ||  // Scalable High Intra profile (SVC)
-      info.profile_idc == 118 ||  // Stereo High profile (MVC)
-      info.profile_idc == 128 ||  // Multiview High profile (MVC)
-      info.profile_idc == 138 ||  // Multiview Depth High profile (MVCD)
+  if (info.profile_idc == 100 || // High profile
+      info.profile_idc == 110 || // High10 profile
+      info.profile_idc == 122 || // High422 profile
+      info.profile_idc == 244 || // High444 Predictive profile
+      info.profile_idc == 44 ||  // Cavlc444 profile
+      info.profile_idc == 83 ||  // Scalable Constrained High profile (SVC)
+      info.profile_idc == 86 ||  // Scalable High Intra profile (SVC)
+      info.profile_idc == 118 || // Stereo High profile (MVC)
+      info.profile_idc == 128 || // Multiview High profile (MVC)
+      info.profile_idc == 138 || // Multiview Depth High profile (MVCD)
       info.profile_idc == 144) {
-    LOG(FATAL) << "Do not support videos encoded with profile_idc "
-               << info.profile_idc;
+    // chroma_format_idc
+    u32 chroma_format_idc = get_ue_golomb(gb);
+    if (chroma_format_idc > 3U) {
+      LOG(FATAL) << "invalid chroma format idc " << chroma_format_idc;
+    } else if (chroma_format_idc == 3) {
+      // residual
+      bool residual_color_transform_flag = get_bit(gb);
+      if (residual_color_transform_flag) {
+        LOG(FATAL) << "separate color planes not supported";
+      }
+    }
+    // bit_depth_luma
+    u32 bit_depth_luma = get_ue_golomb(gb) + 8;
+    u32 bit_depth_chroma = get_ue_golomb(gb) + 8;
+    if (bit_depth_chroma != bit_depth_luma) {
+      LOG(FATAL) << "separate color planes not supported";
+    }
+    if (bit_depth_luma < 8 || bit_depth_luma > 14 || bit_depth_chroma < 8 ||
+        bit_depth_chroma > 14) {
+      LOG(FATAL) << "illegal bit depth value: " << bit_depth_luma << ", "
+                 << bit_depth_chroma;
+    }
+    // transform_bypass
+    get_bit(gb);
+    // scaling_matrix
+    if (get_bit(gb)) {
+      LOG(FATAL) << "scaling matrix not supported";
+    }
   }
+  LOG(INFO) << "profile idc " << (i32)info.profile_idc;
   // log2_max_frame_num_minus4
   info.log2_max_frame_num = get_ue_golomb(gb) + 4;
   // pic_order_cnt_type
@@ -257,7 +284,7 @@ struct SliceHeader {
   bool bottom_field_flag;
   u32 idr_pic_id;
   u32 pic_order_cnt_lsb;
-  u32 delta_pic_order_cnt_bottom;
+  i32 delta_pic_order_cnt_bottom;
   u32 delta_pic_order_cnt[2];
   u32 redundant_pic_cnt;
 };
