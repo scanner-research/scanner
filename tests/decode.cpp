@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
   scanner::Result result;
   std::vector<scanner::FailedVideo> failed_videos;
   result = db.ingest_videos(
-      {"mean"}, {"/n/scanner/wcrichto.new/videos/meanGirls_medium.mp4"},
+      {"mean"}, {video_path},
       failed_videos);
   assert(failed_videos.empty());
 
