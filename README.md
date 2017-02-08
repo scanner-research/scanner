@@ -3,14 +3,13 @@
 
 _For build instructions, tutorials, documentation, and contributing guidelines, visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
-Scanner is a system for low-level, high-performance batch processing of images and videos, or visual data. It lets you write functions that get efficiently mapped across batches of frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about it like Hadoop for pixels. For example, you could use Scanner to make an application to:
+Scanner is a system for low-level, high-performance batch processing of videos. It lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about it like Hadoop for pixels. For example, you could use Scanner to make an application to:
 
-* Compute screen time for each actor in a movie database
-* Classify cell phenotypes from microscope imaging
-* Blur all the faces in a set of video
-* Implement reverse image search over a large image collection
+* Example 1
+* Example 2
+* Example 3
 
-To write these applications, a user provides Scanner a pipeline of operations. For example, to blur faces in a video, the pipeline is:
+To write these applications, a user provides Scanner a pipeline. For example, to blur faces in a video, the pipeline is:
 
 1. Decode video into frames
 2. Find faces in each frame
