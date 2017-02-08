@@ -124,8 +124,7 @@ struct SPS {
   bool frame_mbs_only_flag;
 };
 
-inline SPS parse_sps(GetBitsState &gb) {
-  SPS info;
+inline bool parse_sps(GetBitsState &gb, SPS& info) {
   // profile_idc
   info.profile_idc = get_bits(gb, 8);
   // constraint_set0_flag
@@ -154,30 +153,35 @@ inline SPS parse_sps(GetBitsState &gb) {
     // chroma_format_idc
     u32 chroma_format_idc = get_ue_golomb(gb);
     if (chroma_format_idc > 3U) {
-      LOG(FATAL) << "invalid chroma format idc " << chroma_format_idc;
+      LOG(WARNING) << "invalid chroma format idc " << chroma_format_idc;
+      return false;
     } else if (chroma_format_idc == 3) {
       // residual
       bool residual_color_transform_flag = get_bit(gb);
       if (residual_color_transform_flag) {
-        LOG(FATAL) << "separate color planes not supported";
+        LOG(WARNING) << "separate color planes not supported";
+        return false;
       }
     }
     // bit_depth_luma
     u32 bit_depth_luma = get_ue_golomb(gb) + 8;
     u32 bit_depth_chroma = get_ue_golomb(gb) + 8;
     if (bit_depth_chroma != bit_depth_luma) {
-      LOG(FATAL) << "separate color planes not supported";
+      LOG(WARNING) << "separate color planes not supported";
+      return false;
     }
     if (bit_depth_luma < 8 || bit_depth_luma > 14 || bit_depth_chroma < 8 ||
         bit_depth_chroma > 14) {
-      LOG(FATAL) << "illegal bit depth value: " << bit_depth_luma << ", "
-                 << bit_depth_chroma;
+      LOG(WARNING) << "illegal bit depth value: " << bit_depth_luma << ", "
+                   << bit_depth_chroma;
+      return false;
     }
     // transform_bypass
     get_bit(gb);
     // scaling_matrix
     if (get_bit(gb)) {
-      LOG(FATAL) << "scaling matrix not supported";
+      LOG(WARNING) << "scaling matrix not supported";
+      return false;
     }
   }
   LOG(INFO) << "profile idc " << (i32)info.profile_idc;
@@ -205,7 +209,8 @@ inline SPS parse_sps(GetBitsState &gb) {
     }
   } break;
   default: {
-    LOG(FATAL) << "Illegal picture_order_count type";
+    LOG(WARNING) << "Illegal picture_order_count type";
+    return false;
   } break;
   }
   // num_ref_frames
@@ -219,7 +224,7 @@ inline SPS parse_sps(GetBitsState &gb) {
   // frame_mbs_only_flag
   info.frame_mbs_only_flag = get_bit(gb);
   // TODO(apoms): parse rest of it
-  return info;
+  return true;
 }
 
 
@@ -230,8 +235,7 @@ struct PPS {
   bool redundant_pic_cnt_present_flag;
 };
 
-inline PPS parse_pps(GetBitsState &gb) {
-  PPS info;
+inline bool parse_pps(GetBitsState &gb, PPS& info) {
   // pic_parameter_set_id
   info.pps_id = get_ue_golomb(gb);
   // seq_parameter_set_id
@@ -246,7 +250,8 @@ inline PPS parse_pps(GetBitsState &gb) {
     // slice_group_map_type
     u32 slice_group_map_type = get_ue_golomb(gb);
     // FMO not supported
-    LOG(FATAL) << "FMO encoded video not supported";
+    LOG(WARNING) << "FMO encoded video not supported";
+    return false;
   }
   // num_ref_idx_l0_active_minus1
   u32 num_ref_idx_l0_active_minus1 = get_ue_golomb(gb);
@@ -270,7 +275,7 @@ inline PPS parse_pps(GetBitsState &gb) {
   info.redundant_pic_cnt_present_flag = get_bit(gb);
   // rbsp_trailing_bits()
 
-  return info;
+  return true;
 }
 
 struct SliceHeader {
@@ -289,11 +294,11 @@ struct SliceHeader {
   u32 redundant_pic_cnt;
 };
 
-inline SliceHeader parse_slice_header(GetBitsState &gb,
-                                      SPS &sps,
-                                      std::map<u32, PPS> &pps_map,
-                                      u32 nal_unit_type, u32 nal_ref_idc) {
-  SliceHeader info;
+inline bool parse_slice_header(GetBitsState &gb,
+                               SPS &sps,
+                               std::map<u32, PPS> &pps_map,
+                               u32 nal_unit_type, u32 nal_ref_idc,
+                               SliceHeader& info) {
   info.nal_unit_type = nal_unit_type;
   info.nal_ref_idc = nal_ref_idc;
   // first_mb_in_slice
@@ -301,7 +306,8 @@ inline SliceHeader parse_slice_header(GetBitsState &gb,
   // slice_type
   info.slice_type = get_ue_golomb(gb);
   if (info.slice_type > 9) {
-    LOG(FATAL) << "Slice type too long";
+    LOG(WARNING) << "Slice type too long";
+    return false;
   }
   info.sps_id = sps.sps_id;
   // pic_parameter_set_id
@@ -346,7 +352,7 @@ inline SliceHeader parse_slice_header(GetBitsState &gb,
   }
   info.redundant_pic_cnt =
       pps.redundant_pic_cnt_present_flag ? get_ue_golomb(gb) : 0;
-  return info;
+  return true;
 }
 
 inline bool is_new_access_unit(std::map<u32, SPS> &sps_map,

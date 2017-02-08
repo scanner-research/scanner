@@ -400,7 +400,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       // We need to track the last SPS NAL because some streams do
       // not insert an SPS every keyframe and we need to insert it
       // ourselves.
-      fprintf(stderr, "nal_size %d, rbsp size %lu\n", nal_size, rbsp_buffer.size());
+      // fprintf(stderr, "nal_size %d, rbsp size %lu\n", nal_size, rbsp_buffer.size());
       const u8* rbsp_start = rbsp_buffer.data();
       i32 rbsp_size = rbsp_buffer.size();
 
@@ -413,7 +413,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         GetBitsState gb;
         gb.buffer = rbsp_start;
         gb.offset = 0;
-        SPS sps = parse_sps(gb);
+        SPS sps;
+        if (!parse_sps(gb, sps)) {
+          return false;
+        }
         i32 sps_id = sps.sps_id;
         sps_map[sps_id] = sps;
         last_sps = sps.sps_id;
@@ -425,7 +428,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         GetBitsState gb;
         gb.buffer = rbsp_start;
         gb.offset = 0;
-        PPS pps = parse_pps(gb);
+        PPS pps;
+        if (!parse_pps(gb, pps)) {
+          return false;
+        }
         pps_map[pps.pps_id] = pps;
         last_pps = pps.pps_id;
         saw_pps_nal = true;
@@ -440,8 +446,11 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         GetBitsState gb;
         gb.buffer = nal_start;
         gb.offset = 8;
-        SliceHeader sh = parse_slice_header(gb, sps_map.at(last_sps), pps_map,
-                                            nal_unit_type, nal_ref_idc);
+        SliceHeader sh;
+        if(!parse_slice_header(gb, sps_map.at(last_sps), pps_map,
+                               nal_unit_type, nal_ref_idc, sh)) {
+          return false;
+        }
         if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
           frame++;
           size_t bytestream_offset;
@@ -524,7 +533,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   // Save the table descriptor
   write_table_metadata(storage, TableMetadata(table_desc));
 
-  printf("num non ref frame %d\n", num_non_ref_frames);
+  // printf("num non ref frame %d\n", num_non_ref_frames);
 
   return succeeded;
 }
