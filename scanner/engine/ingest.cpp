@@ -387,10 +387,11 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         }
       }
       std::vector<u8> rbsp_buffer;
+      rbsp_buffer.reserve(64 * 1024);
       u32 consecutive_zeros = 0;
       i32 bytes = nal_size - 1;
       const u8* pb = nal_start + 1;
-      while (bytes) {
+      while (bytes > 0) {
         /* Copy the byte into the rbsp, unless it
          * is the 0x03 in a 0x000003 */
         if (consecutive_zeros < 2 || *pb != 0x03) {
