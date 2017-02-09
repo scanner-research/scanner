@@ -894,6 +894,7 @@ Result ingest_videos(storehouse::StorageConfig *storage_config,
     i32 end = videos_allocated;
     ingest_threads.emplace_back([&, start, end]() {
       for (i32 i = start; i < end; ++i) {
+        printf("%s\n", table_names[i].c_str());
         if (!internal::parse_and_write_video(storage.get(), table_names[i],
                                              table_ids[i], paths[i],
                                              bad_messages[i])) {

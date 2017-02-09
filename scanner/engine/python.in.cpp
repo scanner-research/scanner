@@ -11,42 +11,6 @@ namespace scanner {
 
 namespace py = boost::python;
 
-DatabaseParameters
-make_database_parameters(storehouse::StorageConfig *storage_config,
-                         std::string memory_config_serialized,
-                         std::string db_path) {
-  MemoryPoolConfig memory_config;
-  memory_config.ParseFromArray(memory_config_serialized.data(),
-                               memory_config_serialized.size());
-  DatabaseParameters params = {storage_config, memory_config, db_path};
-  return params;
-}
-
-struct PyServerState {
-  std::shared_ptr<grpc::Server> server;
-  std::shared_ptr<grpc::Service> service;
-};
-
-PyServerState unwrap(ServerState state) {
-  PyServerState new_state;
-  new_state.server = std::move(state.server);
-  new_state.service = std::move(state.service);
-  return new_state;
-}
-
-PyServerState start_master_wrapper(DatabaseParameters &params, bool block) {
-  return unwrap(start_master(params, block));
-}
-
-PyServerState start_worker_wrapper(DatabaseParameters &db_params,
-                                   const std::string &worker_params_s,
-                                   const std::string &master_address,
-                                   bool block) {
-  proto::WorkerParameters worker_params;
-  worker_params.ParseFromArray(worker_params_s.data(), worker_params_s.size());
-  return unwrap(start_worker(db_params, worker_params, master_address, block));
-}
-
 void load_op(const std::string &path) {
   void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == NULL) << "dlopen of " << path
@@ -81,14 +45,6 @@ template <class T> py::list to_py_list(std::vector<T> vector) {
   return list;
 }
 
-void ingest_videos_wrapper(storehouse::StorageConfig *storage_config,
-                           const std::string &db_path,
-                           const py::list table_names, const py::list paths) {
-  ingest_videos(storage_config, db_path,
-                to_std_vector<std::string>(table_names),
-                to_std_vector<std::string>(paths));
-}
-
 py::list get_output_columns(const std::string &op_name) {
   internal::OpRegistry *registry = internal::get_op_registry();
   LOG_IF(FATAL, !registry->has_op(op_name))
@@ -102,28 +58,69 @@ bool has_op(const std::string &name) {
   return registry->has_op(name);
 }
 
-std::string default_worker_params_wrapper() {
-  proto::WorkerParameters params = default_worker_params();
+std::string default_machine_params_wrapper() {
+  MachineParameters params = default_machine_params();
+  proto::MachineParameters params_proto;
+  params_proto.set_num_cpus(params.num_cpus);
+  params_proto.set_num_load_workers(params.num_load_workers);
+  params_proto.set_num_save_workers(params.num_save_workers);
+  for (auto gpu_id : params.gpu_ids) {
+    params_proto.add_gpu_ids(gpu_id);
+  }
+
   std::string output;
-  bool success = params.SerializeToString(&output);
-  LOG_IF(FATAL, !success) << "Failed to serialize worker params";
+  bool success = params_proto.SerializeToString(&output);
+  LOG_IF(FATAL, !success) << "Failed to serialize machine params";
   return output;
 }
 
+void start_master_wrapper(Database& db) {
+  db.start_master(default_machine_params());
+}
+
+void start_worker_wrapper(Database& db, const std::string& params_s) {
+  proto::MachineParameters params_proto;
+  params_proto.ParseFromString(params_s);
+  MachineParameters params;
+  params.num_cpus = params_proto.num_cpus();
+  params.num_load_workers = params_proto.num_load_workers();
+  params.num_save_workers = params_proto.num_save_workers();
+  for (auto gpu_id : params_proto.gpu_ids()) {
+    params.gpu_ids.push_back(gpu_id);
+  }
+
+  db.start_worker(params);
+}
+
+py::list ingest_videos_wrapper(
+  Database& db,
+  const py::list table_names,
+  const py::list paths) {
+  std::vector<FailedVideo> failed_videos;
+  db.ingest_videos(
+    to_std_vector<std::string>(table_names),
+    to_std_vector<std::string>(paths),
+    failed_videos);
+  return to_py_list<FailedVideo>(failed_videos);
+}
+
+
 BOOST_PYTHON_MODULE(scanner_bindings) {
   using namespace py;
-  class_<DatabaseParameters>("DatabaseParameters", no_init);
-  class_<PyServerState>("ServerState", no_init);
-  def("make_database_parameters", make_database_parameters);
+  class_<Database, boost::noncopyable>(
+    "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&>())
+    .def("ingest_videos", &Database::ingest_videos);
+  class_<FailedVideo>("FailedVideo", no_init)
+    .def_readonly("path", &FailedVideo::path)
+    .def_readonly("message", &FailedVideo::message);
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
+  def("ingest_videos", ingest_videos_wrapper);
   def("load_op", load_op);
   def("get_include", get_include);
   def("other_flags", other_flags);
-  def("ingest_videos", ingest_videos_wrapper);
-  def("create_database", create_database);
   def("get_output_columns", get_output_columns);
   def("has_op", has_op);
-  def("default_worker_params", default_worker_params_wrapper);
+  def("default_machine_params", default_machine_params_wrapper);
 }
 }

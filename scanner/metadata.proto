@@ -194,9 +194,9 @@ message FrameInfo {
   int32 height = 2;
 }
 
-message WorkerParameters {
+message MachineParameters {
   int32 num_cpus = 1;
-  repeated int32 gpu_ids = 2;
-  int32 num_load_workers = 3;
-  int32 num_save_workers = 4;
+  int32 num_load_workers = 2;
+  int32 num_save_workers = 3;
+  repeated int32 gpu_ids = 4;
 }

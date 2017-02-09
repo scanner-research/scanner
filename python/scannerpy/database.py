@@ -59,10 +59,6 @@ class Database:
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._master_address = self.config.master_address
-        self._db_params = self._bindings.make_database_parameters(
-            self.config.storage_config,
-            self.config.memory_pool_config.SerializeToString(),
-            self._db_path)
         self._cached_db_metadata = None
 
         self.ops = OpGenerator(self)
@@ -70,16 +66,14 @@ class Database:
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
-        if not os.path.isfile('{}/db_metadata.bin'.format(self._db_path)):
-            self._bindings.create_database(self.config.storage_config, self._db_path)
+        self._db = self._bindings.Database(
+            self.config.storage_config,
+            self._db_path,
+            self._master_address)
+        if not os.path.isdir(pydb_path):
             os.mkdir(pydb_path)
             self._collections = self._metadata_types.CollectionsDescriptor()
             self._update_collections()
-
-        if not os.path.isdir(pydb_path):
-            raise ScannerException(
-                'Scanner database at {} was not made via Python'
-                .format(self._db_path))
 
         # Load database descriptors from disk
         self._collections = self._load_descriptor(
@@ -129,46 +123,20 @@ class Database:
         channel = grpc.insecure_channel(self._master_address)
         self._master = self._rpc_types.MasterStub(channel)
 
-    def start_master(self, block=False):
+    def start_master(self):
         """
-        Starts a master server on the current node.
-
-        Scanner clusters require one master server to coordinate computation.
-        If the returned value falls out of scope and is garbage collected,
-        the server will exit, so make sure to bind the result to a variable.
-
-        Kwargs:
-            block: Whether to block on the master creation call.
-
-        Returns:
-            An opaque handle to the master.
+        TODO(wcrichto)
         """
 
-        return self._bindings.start_master(self._db_params, block)
+        return self._bindings.start_master(self._db)
 
-    def start_worker(self, master_address=None, block=False):
+    def start_worker(self):
         """
-        Starts a worker on the current node.
-
-        Each node can have one or many workers (multiple workers can be used
-        to run multiple kernels per node that require process isolation). If the
-        returned value falls out of scope and is garbage collected, the server
-        will exit, so make sure to bind the result to a variable. The master must
-        be started before the worker is created.
-
-        Kwargs:
-            master_address: Address and port of the master node.
-            block: Whether to block on the worker creation call.
-
-        Returns:
-            An opaque handle to the worker.
+        TODO(wcrichto)
         """
 
-        worker_params = self._bindings.default_worker_params()
-        if master_address is None:
-            master_address = self._master_address
-        return self._bindings.start_worker(self._db_params, worker_params,
-                                           master_address, block)
+        machine_params = self._bindings.default_machine_params()
+        return self._bindings.start_worker(self._db, machine_params)
 
     def _run_remote_cmd(self, host, cmd):
         local_ip = socket.gethostbyname(socket.gethostname())
@@ -296,8 +264,7 @@ class Database:
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
         self._bindings.ingest_videos(
-            self.config.storage_config,
-            self._db_path,
+            self._db,
             list(table_names),
             list(paths))
         self._cached_db_metadata = None
@@ -329,8 +296,7 @@ class Database:
                         'Attempted to ingest over existing table {}'
                         .format(table))
         self._bindings.ingest_videos(
-            self.config.storage_config,
-            self._db_path,
+            self._db,
             table_names,
             videos)
         self._cached_db_metadata = None
