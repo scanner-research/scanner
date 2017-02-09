@@ -1,6 +1,8 @@
 #include "scanner/api/op.h"
 #include "scanner/kernels/caffe_kernel.h"
 
+#include "caffe/layers/imresize_layer.hpp"
+
 namespace scanner {
 
 class CPM2Kernel : public CaffeKernel {
