@@ -77,4 +77,3 @@ proto::Worker::Service *get_worker_service(DatabaseParameters &params,
                                            const std::string &master_address);
 }
 }
-
