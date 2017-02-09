@@ -1,6 +1,5 @@
 #include "scanner/api/op.h"
 #include "scanner/kernels/args.pb.h"
-#include "scanner/kernels/caffe_kernel.h"
 #include "scanner/api/database.h"
 
 #include <grpc/grpc_posix.h>
@@ -43,45 +42,29 @@ int main(int argc, char** argv) {
   scanner::TableSample sample;
   sample.table_name = "mean";
   sample.column_names = {"frame", "frame_info"};
-  for (int i = 0; i < 14385; i += 1) {
+  for (int i = 0; i < 100; i += 1) {
     sample.rows.push_back(i);
   }
   task.samples.push_back(sample);
   params.task_set.tasks.push_back(task);
 
-  scanner::proto::NetDescriptor descriptor =
-      scanner::descriptor_from_net_file("features/googlenet.toml");
-  scanner::proto::CaffeInputArgs caffe_input_args;
-  scanner::proto::CaffeArgs caffe_args;
-  caffe_input_args.mutable_net_descriptor()->CopyFrom(descriptor);
-  caffe_input_args.set_batch_size(96);
-  caffe_args.mutable_net_descriptor()->CopyFrom(descriptor);
-  caffe_args.set_batch_size(96);
+  scanner::proto::BlurArgs blur_args;
+  blur_args.set_sigma(0.5);
+  blur_args.set_kernel_size(3);
 
-  size_t caffe_input_args_size = caffe_input_args.ByteSize();
-  char* caffe_input_args_buff = new char[caffe_input_args_size];
-  caffe_input_args.SerializeToArray(caffe_input_args_buff,
-                                    caffe_input_args_size);
-
-  size_t caffe_args_size = caffe_args.ByteSize();
-  char* caffe_args_buff = new char[caffe_args_size];
-  caffe_args.SerializeToArray(caffe_args_buff, caffe_args_size);
+  size_t blur_args_size = blur_args.ByteSize();
+  char* blur_args_buff = new char[blur_args_size];
+  blur_args.SerializeToArray(blur_args_buff, blur_args_size);
 
   scanner::Op *input =
       scanner::make_input_op({"frame", "frame_info"});
 
-  scanner::Op *caffe_input = new scanner::Op(
-      "CaffeInput", {scanner::OpInput(input, {"frame", "frame_info"})},
-      scanner::DeviceType::GPU,
-      caffe_input_args_buff, caffe_input_args_size);
-
-  scanner::Op *caffe = new scanner::Op(
-      "Caffe", {scanner::OpInput(caffe_input, {"caffe_frame"}),
-                scanner::OpInput(input, {"frame_info"})},
-      scanner::DeviceType::GPU, caffe_args_buff, caffe_args_size);
+  scanner::Op *blur = new scanner::Op(
+      "Blur", {scanner::OpInput(input, {"frame", "frame_info"})},
+      scanner::DeviceType::CPU, blur_args_buff, blur_args_size);
 
   scanner::Op *output = scanner::make_output_op(
-      {scanner::OpInput(caffe, {"caffe_output"})});
+      {scanner::OpInput(blur, {"frame", "frame_info"})});
 
   // Launch job
   params.task_set.output_op = output;
