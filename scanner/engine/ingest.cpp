@@ -377,11 +377,9 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       }
       if (nal_unit_type > 4) {
         if (!in_meta_packet_sequence) {
-          meta_packet_sequence_start_offset = nal_bytestream_offset +
-                                              filtered_data_size - size_left -
-                                              nal_size - 4;
-          LOG(INFO) << "in meta sequence " << nal_bytestream_offset << ", " <<
-              meta_packet_sequence_start_offset;
+          meta_packet_sequence_start_offset = nal_bytestream_offset;
+          filtered_data_size - size_left;
+          LOG(INFO) << "in meta sequence " << nal_bytestream_offset;
           in_meta_packet_sequence = true;
           saw_sps_nal = false;
         }
@@ -466,17 +464,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
           if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
             // Insert an SPS NAL if we did not see one in the meta packet
             // sequence
-            // keyframe_byte_offsets.push_back(nal_bytestream_offset +
-            //                                 filtered_data_size - size_left -
-            //                                 nal_size - 3);
-            if (in_meta_packet_sequence) {
-              keyframe_byte_offsets.push_back(
-                  meta_packet_sequence_start_offset);
-            } else {
-              keyframe_byte_offsets.push_back(nal_bytestream_offset +
-                                              filtered_data_size - size_left -
-                                              nal_size - 4);
-            }
+            keyframe_byte_offsets.push_back(nal_bytestream_offset);
             keyframe_positions.push_back(frame - 1);
             keyframe_timestamps.push_back(state.av_packet.pts);
             saw_sps_nal = false;
