@@ -263,12 +263,13 @@ class Database:
                     raise ScannerException(
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
-        self._bindings.ingest_videos(
+        invalid = self._bindings.ingest_videos(
             self._db,
             list(table_names),
             list(paths))
+        invalid = [i.path for i in invalid]
         self._cached_db_metadata = None
-        return self.table(table_name)
+        return [self.table(t) for (t, p) in videos if p not in invalid]
 
     def ingest_video_collection(self, collection_name, videos, force=False):
         """
@@ -286,20 +287,9 @@ class Database:
         """
         table_names = ['{}:{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
-        collection = self.new_collection(collection_name, table_names, force)
-        for table in table_names:
-            if self.has_table(table):
-                if force is True:
-                    self.delete_table(table)
-                else:
-                    raise ScannerException(
-                        'Attempted to ingest over existing table {}'
-                        .format(table))
-        self._bindings.ingest_videos(
-            self._db,
-            table_names,
-            videos)
-        self._cached_db_metadata = None
+        tables = self.ingest_videos(zip(table_names, videos), force)
+        collection = self.new_collection(
+            collection_name, [t.name() for t in tables], force)
         return collection
 
     def has_collection(self, name):
@@ -476,7 +466,7 @@ class Database:
             for task in tasks:
                 new_name = '{}:{}'.format(
                     output_collection,
-                    task.output_table_name.split(':')[-1])
+                    task.samples[0].table_name.split(':')[-1])
                 task.output_table_name = new_name
 
         for task in tasks:
