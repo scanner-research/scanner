@@ -927,14 +927,170 @@ public:
     auto &tasks = job_params->task_set().tasks();
     job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
+    // Validate tasks
+    std::set<std::string> task_output_table_names;
+    for (auto &task : job_params->task_set().tasks()) {
+      if (task.output_table_name() == "") {
+        LOG(WARNING) << "Task specified with empty output table name. Output "
+                        "tables can not have empty names";
+        job_result->set_success(false);
+      }
+      if (meta.has_table(task.output_table_name())) {
+        LOG(WARNING) << "Task specified with duplicate output table name. "
+                     << "A table with name " << task.output_table_name() << " "
+                     << "already exists.";
+        job_result->set_success(false);
+      }
+      if (task_output_table_names.count(task.output_table_name()) > 0) {
+        LOG(WARNING) << "Mulitple tasks specified with output table name "
+                     << task.output_table_name()
+                     << ". Table names must be unique.";
+        job_result->set_success(false);
+      }
+      task_output_table_names.insert(task.output_table_name());
+      if (task.samples().size() == 0) {
+        LOG(WARNING) << "Task " << task.output_table_name() << " did not "
+                     << "specify any tables to sample from. Tasks must sample "
+                     << "from at least one table.";
+        job_result->set_success(false);
+      } else {
+        i32 num_rows = task.samples(0).rows().size();
+        for (auto &sample : task.samples()) {
+          if (!meta.has_table(sample.table_name())) {
+            LOG(WARNING) << "Task " << task.output_table_name() << " tried to "
+                         << "sample from non-existent table "
+                         << sample.table_name()
+                         << ". TableSample must sample from existing table.";
+            job_result->set_success(false);
+          }
+          if (sample.rows().size() == 0) {
+            LOG(WARNING) << "Task" << task.output_table_name() << " tried to "
+                         << "sample zero rows from table "
+                         << sample.table_name()
+                         << ". TableSample rows must be greater than 0";
+            job_result->set_success(false);
+          }
+          if (sample.rows().size() != num_rows) {
+            LOG(WARNING)
+                << "Task" << task.output_table_name() << " tried to "
+                << "sample from multiple tables with a differing number "
+                   "of rows. All TableSamples must have the same number of "
+                   "rows";
+            job_result->set_success(false);
+          }
+          if (sample.column_names().size() == 0) {
+            LOG(WARNING) << "Task" << task.output_table_name() << " tried to "
+                         << "sample zero columns from table "
+                         << sample.table_name()
+                         << ". TableSample must sample at least one column";
+            job_result->set_success(false);
+          }
+        }
+      }
+    }
+    // Validate ops
+    {
+      OpRegistry *op_registry = get_op_registry();
+      KernelRegistry *kernel_registry = get_kernel_registry();
+
+      i32 op_idx = 0;
+      std::vector<std::string> op_names;
+      std::vector<std::vector<std::string>> op_outputs;
+      for (auto &op : job_params->task_set().ops()) {
+        op_names.push_back(op.name());
+        if (op_idx == 0) {
+          if (op.name() != "InputTable") {
+            LOG(WARNING) << "First Op is " << op.name() << " but must be "
+                         << "Op InputTable.";
+            job_result->set_success(false);
+            break;
+          }
+          op_outputs.emplace_back();
+          for (auto &input : op.inputs()) {
+            for (auto &col : input.columns()) {
+              op_outputs.back().push_back(col);
+            }
+          }
+          op_idx++;
+          continue;
+        }
+        if (op.name() != "OutputTable") {
+          op_outputs.emplace_back();
+          if (!op_registry->has_op(op.name())) {
+            LOG(WARNING) << "Op " << op.name() << " not registered.";
+            job_result->set_success(false);
+          } else {
+            op_outputs.back() =
+                op_registry->get_op_info(op.name())->output_columns();
+          }
+          if (!kernel_registry->has_kernel(op.name(), op.device_type())) {
+            LOG(WARNING) << "Op " << op.name() << " at index " << op_idx
+                         << " requested kernel with device type "
+                         << (op.device_type() == DeviceType::CPU ? "CPU"
+                                                                 : "GPU")
+                         << " but no such kernel exists.";
+            job_result->set_success(false);
+          }
+        }
+        for (auto &input : op.inputs()) {
+          if (input.op_index() >= op_idx) {
+            LOG(WARNING) << "Op " << op.name() << " at index " << op_idx
+                         << " referenced input index " << input.op_index()
+                         << ". Ops must be specified in topo sort order.";
+            job_result->set_success(false);
+          } else {
+            std::string &input_op_name = op_names.at(input.op_index());
+            std::vector<std::string> &inputs = op_outputs.at(input.op_index());
+            for (auto &col : input.columns()) {
+              bool found = false;
+              for (auto &out_col : inputs) {
+                if (col == out_col) {
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
+                LOG(WARNING) << "Op " << op.name() << " at index " << op_idx
+                             << " requested column " << col << " from input Op "
+                             << input_op_name << " at index "
+                             << input.op_index() << " but that "
+                             << "Op does not have the requested column.";
+                job_result->set_success(false);
+              }
+            }
+          }
+        }
+        op_idx++;
+      }
+      if (op_names.size() < 3) {
+        LOG(WARNING)
+            << "Task set must specify at least three Ops: an InputTable Op, "
+            << "any other Op, and an OutputTable Op. Only " << op_names.size()
+            << " Ops were specified.";
+        job_result->set_success(false);
+      } else {
+        if (op_names.front() != "InputTable") {
+          LOG(WARNING) << "First Op is " << op_names.front()
+                       << " but must be InputTable.";
+          job_result->set_success(false);
+        }
+        if (op_names.back() != "OutputTable") {
+          LOG(WARNING) << "Last Op is " << op_names.back()
+                       << " but must be OutputTable.";
+          job_result->set_success(false);
+        }
+      }
+    }
+    if (!job_result->success()) {
+      return grpc::Status::OK;
+    }
+
     // Add job name into database metadata so we can look up what jobs have
     // been ran
     i32 job_id = meta.add_job(job_params->job_name());
     job_descriptor.set_id(job_id);
     job_descriptor.set_name(job_params->job_name());
-    write_job_metadata(storage_, JobMetadata(job_descriptor));
 
-    // Create output tables
     for (auto &task : job_params->task_set().tasks()) {
       i32 table_id = meta.add_table(task.output_table_name());
       proto::TableDescriptor table_desc;
@@ -954,6 +1110,7 @@ public:
     }
 
     // Write out database metadata so that workers can read it
+    write_job_metadata(storage_, JobMetadata(job_descriptor));
     write_database_metadata(storage_, meta);
 
     // Read all table metadata

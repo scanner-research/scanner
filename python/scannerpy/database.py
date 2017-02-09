@@ -447,7 +447,7 @@ class Database:
             force: TODO(wcrichto)
 
         Returns:
-            Either the output Collection is output_collection is specified
+            Either the output Collection if output_collection is specified
             or a list of Table objects.
         """
 
