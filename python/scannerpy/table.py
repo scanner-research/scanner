@@ -47,3 +47,10 @@ class Table:
                 return list(self._task.samples[0].rows)
             else:
                 return list(range(self.num_rows()))
+
+    def profiler(self):
+        job_id = self._descriptor.job_id
+        if job_id != -1:
+            return self._db.profiler(job_id)
+        else:
+            raise ScannerException('Ingested videos do not have profile data')

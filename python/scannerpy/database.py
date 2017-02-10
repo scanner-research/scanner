@@ -184,7 +184,7 @@ class Database:
         if proto_path is not None:
             (proto_dir, mod_file) = os.path.split(proto_path)
             sys.path.append(proto_dir)
-            (mod_name, _) = os.path.splitext(mod_name)
+            (mod_name, _) = os.path.splitext(mod_file)
             self._arg_types.append(importlib.import_module(mod_name))
         self._bindings.load_op(so_path)
 

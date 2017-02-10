@@ -131,7 +131,7 @@ protected:
 #define ROW_SIZE(column__, row__) (column__.rows[row__].size)
 
 #define INSERT_ROW(column__, buffer__, size__) \
-  column__.rows.push_back(Row{buffer__, size__})
+  column__.rows.push_back(::scanner::Row{buffer__, size__})
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Implementation Details
@@ -183,5 +183,7 @@ public:
   static ::scanner::internal::KernelRegistration kernel_registration_##uid__   \
       __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \
           #name__,                                                             \
-          [](const Kernel::Config &config) { return new kernel__(config); })
+          [](const ::scanner::Kernel::Config &config) {                        \
+              return new kernel__(config); })
+
 }

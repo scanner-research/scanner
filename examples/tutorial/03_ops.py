@@ -2,16 +2,31 @@ from scannerpy import Database
 
 db = Database()
 sampler = db.sampler()
-
-# To string together multiple ops into a pipeline, you can pass a list of ops to
-# db.run and they will be run in order. Here, we first blur each video frame
-# then compute its color histograms.
-blur = db.ops.Blur()
-hist = db.ops.Histogram()
 tasks = sampler.all([('test', 'test_hist_blurred')])
-db.run(input_table, [blur, hist])
 
-# With pipelines like the one above, all the outputs from the Blur op are passed
-# inputs to the Histogram op. However, if you want to customize your inputs and
-# outputs, or if you want to pass values between ops not adjacent in a pipeline,
-# you can explicitly list op inputs.
+# Scanner can take a directed acyclic graph (DAG) of operators and pass data
+# between them. Each graph has an Input node at the beginning that represents
+# the data from the input table.
+input = db.ops.Input()
+
+# To wire up the graph, you set the inputs of an operator to be the outputs of
+# another. Here, the input op outputs two columns, "frame" which is the raw
+# bytes of the frame, and "frame_info" which contains information about the
+# width/height/etc. of each frame. We feed these two columns into the Blur.
+blur = db.ops.Blur(inputs=[(input, ["frame", "frame_info"])])
+
+# An op can take inputs from multiple other ops, here taking the blurred frame
+# from the Blur op and the frame info from the Input op.
+hist = db.ops.Histogram(inputs=[(blur, ["frame"]), (input, ["frame_info"])])
+
+# Each op graph must have an Output node at the end that determines which
+# columns get saved into the output table.
+output = db.ops.Output(inputs=[(hist, ["histogram"])])
+
+# You provide the last op in the graph, here the output op, as the argument to
+# db.run.
+db.run(tasks, output)
+
+# Note: if you don't explicitly include an Input or Output node in your op graph
+# they will be automatically added for you. This is how the previous examples
+# have worked.
