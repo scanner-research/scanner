@@ -200,12 +200,12 @@ public:
     // Analyze op DAG to determine what inputs need to be pipped along
     // and when intermediates can be retired -- essentially liveness analysis
     // Op idx -> column name -> last used index
-    std::map<i32, std::map<std::string, i32>> intermediates;
+    std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
     // Start off with the columns from the gathered tables
     {
       auto &input_op = ops.Get(0);
       for (const std::string &input_col : input_op.inputs(0).columns()) {
-        intermediates[0].insert({input_col, 0});
+        intermediates[0].push_back(std::make_tuple(input_col, 0));
       }
     }
     for (size_t i = 1; i < ops.size(); ++i) {
@@ -215,7 +215,15 @@ public:
       for (auto &eval_input : op.inputs()) {
         i32 parent_index = eval_input.op_index();
         for (const std::string &parent_col : eval_input.columns()) {
-          intermediates.at(parent_index).at(parent_col) = i;
+          bool found = false;
+          for (auto& kv : intermediates.at(parent_index)) {
+            if (std::get<0>(kv) == parent_col) {
+              found = true;
+              std::get<1>(kv) = i;
+              break;
+            }
+          }
+          assert(found);
         }
       }
       // Add this op's outputs to the intermediate list
@@ -225,7 +233,7 @@ public:
       const auto &op_info =
           op_registry->get_op_info(op.name());
       for (const auto &output_column : op_info->output_columns()) {
-        intermediates[i].insert({output_column, i});
+        intermediates[i].push_back(std::make_tuple(output_column, i));
       }
     }
 
@@ -238,10 +246,10 @@ public:
       size_t max_i = std::min((size_t)(ops.size() - 2), i);
       for (size_t j = 0; j <= max_i; ++j) {
         for (auto &kv : intermediates.at(j)) {
-          i32 last_used_index = kv.second;
+          i32 last_used_index = std::get<1>(kv);
           if (last_used_index > op_index) {
             // Last used index is greater than current index, so still live
-            columns.push_back(std::make_tuple((i32)j, kv.first));
+            columns.push_back(std::make_tuple((i32)j, std::get<0>(kv)));
           }
         }
       }
@@ -266,10 +274,10 @@ public:
         for (size_t j = 0; j <= max_i; ++j) {
           i32 parent_index = j;
           for (auto &kv : intermediates.at(j)) {
-            i32 last_used_index = kv.second;
+            i32 last_used_index = std::get<1>(kv);
             if (last_used_index == op_index) {
               // Column is no longer live, so remove it.
-              const std::string &col_name = kv.first;
+              const std::string &col_name = std::get<0>(kv);
               if (j == i) {
                 // This op has an unused output
                 i32 col_index = -1;
@@ -646,6 +654,7 @@ public:
         i32 next_item = io_item.item_id();
         if (next_item == -1) {
           // No more work left
+          LOG(INFO) << "Node " << node_id_ << " received done signal.";
           break;
         } else {
           LoadWorkEntry &entry = load_work_entries[next_item];
@@ -657,6 +666,7 @@ public:
       for (auto& results : eval_results) {
         for (auto& result : results) {
           if (!result.success()) {
+            LOG(WARNING) << "Kernel returned error result: " << result.msg();
             goto leave_loop;
           }
         }
