@@ -464,7 +464,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
           frame++;
           size_t bytestream_offset;
-          if (state.av_packet.flags & AV_PKT_FLAG_KEY) {
+          if (nal_unit_type == 5) {
             // Insert an SPS NAL if we did not see one in the meta packet
             // sequence
             keyframe_byte_offsets.push_back(nal_bytestream_offset);
