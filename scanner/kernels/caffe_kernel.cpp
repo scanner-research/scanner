@@ -220,6 +220,7 @@ bool file_exists(const std::string& path) {
 
 CaffeKernel::CaffeKernel(const Kernel::Config &config)
     : VideoKernel(config), device_(config.devices[0]) {
+  valid_.set_success(true);
   args_.ParseFromArray(config.args.data(), config.args.size());
 
   set_device();
@@ -367,39 +368,26 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
     }
 
     // Save batch of frames
-    size_t total_size = 0;
     i32 total_rows = num_outputs * batch_count;
     for (size_t i = 0; i < num_outputs; ++i) {
       const std::string &output_layer_name = descriptor.output_layer_names(i);
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
-      size_t output_length = output_blob->count() / batch_count;
+      size_t output_length = output_blob->count(1);
       size_t output_size = output_length * sizeof(float);
-      total_size += output_size * batch_count;
-    }
+      size_t total_size = output_size * batch_count;
 
-    u8 *output_block = new_block_buffer(device_, total_size, total_rows);
-    std::vector<u8 *> dest_buffers, src_buffers;
-    std::vector<size_t> sizes;
-    for (size_t i = 0; i < num_outputs; ++i) {
-      const std::string &output_layer_name = descriptor.output_layer_names(i);
-      const boost::shared_ptr<caffe::Blob<float>> output_blob{
-          net_->blob_by_name(output_layer_name)};
-      size_t output_length = output_blob->count() / batch_count;
-      size_t output_size = output_length * sizeof(float);
-      dest_buffers.push_back(output_block);
-      src_buffers.push_back((u8 *)(device_.type == DeviceType::CPU
-                                       ? output_blob->cpu_data()
-                                       : output_blob->gpu_data()));
-      sizes.push_back(output_size * batch_count);
+      u8 *output_block = new_block_buffer(device_, total_size, total_rows);
+
+      u8 *src_buffer =
+          (u8 *)(device_.type == DeviceType::CPU ? output_blob->cpu_data()
+                                                 : output_blob->gpu_data());
+      memcpy_buffer(output_block, device_, src_buffer, device_, total_size);
       for (i32 b = 0; b < batch_count; b++) {
         output_columns[i].rows.push_back(
-            Row{output_block, output_size});
-        output_block += output_size;
+            Row{output_block + output_size * b, output_size});
       }
     }
-
-    memcpy_vec(dest_buffers, device_, src_buffers, device_, sizes);
   }
 }
 
