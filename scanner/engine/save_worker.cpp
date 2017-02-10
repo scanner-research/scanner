@@ -70,10 +70,7 @@ void *save_thread(void *arg) {
       auto io_start = now();
 
       WriteFile *output_file = nullptr;
-      {
-        StoreResult result;
-        BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
-      }
+      BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
 
       if (work_entry.columns[out_idx].rows.size() != num_rows) {
         LOG(FATAL) << "Output layer's row vector has wrong length";

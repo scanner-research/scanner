@@ -83,6 +83,10 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   for (AVFrame *frame : decoded_frame_queue_) {
     av_frame_free(&frame);
   }
+
+  if (sws_context_ != nullptr) {
+    sws_freeContext(sws_context_);
+  }
 }
 
 void SoftwareVideoDecoder::configure(const FrameInfo &metadata) {

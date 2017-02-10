@@ -185,6 +185,7 @@ void cleanup_video_codec(CodecState state) {
   avcodec_close(state.in_cc);
   av_freep(&state.in_cc);
 #endif
+  avcodec_parameters_free(&state.in_cc_params);
   avformat_close_input(&state.format_context);
   if (state.io_context) {
     av_freep(&state.io_context->buffer);

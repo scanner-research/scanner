@@ -159,6 +159,7 @@ void *pre_evaluate_thread(void *arg) {
           google::protobuf::io::CodedInputStream cstream(&in_stream);
           cstream.SetTotalBytesLimit(row.size * 2, row.size + 1);
           da.ParseFromCodedStream(&cstream);
+          delete_buffer(CPU_DEVICE, row.buffer);
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
