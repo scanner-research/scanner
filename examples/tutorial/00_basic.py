@@ -10,12 +10,12 @@ db = Database()
 hist_op = db.ops.Histogram()
 
 # Create a Scanner table from our video.
-input_table = db.ingest_videos([('test', 'test.mp4')])
+input_table = db.ingest_videos([('example', 'example.mp4')])
 
 # Define which frames we're going to run the operator on (all of them, in this
 # case). The sampler takes in pairs of (input table name, output table name).
 sampler = db.sampler()
-tasks = sampler.all([('test', 'test_hist')])
+tasks = sampler.all([('example', 'example_hist')])
 
 # Run the operator on the input and get an output table.
 [output_table] = db.run(tasks, hist_op)

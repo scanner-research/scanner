@@ -2,7 +2,7 @@ from scannerpy import Database
 
 db = Database()
 sampler = db.sampler()
-tasks = sampler.all([('test', 'test_hist_blurred')])
+tasks = sampler.all([('example', 'example_hist_blurred')])
 
 # Scanner can take a directed acyclic graph (DAG) of operators and pass data
 # between them. Each graph has an Input node at the beginning that represents
