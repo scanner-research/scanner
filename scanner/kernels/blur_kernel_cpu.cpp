@@ -26,13 +26,23 @@ class BlurKernel : public VideoKernel {
 public:
   BlurKernel(const Kernel::Config &config) : VideoKernel(config) {
     scanner::proto::BlurArgs args;
-    args.ParseFromArray(config.args.data(), config.args.size());
+    bool parsed = args.ParseFromArray(config.args.data(), config.args.size());
+    if (!parsed) {
+      RESULT_ERROR(&valid_, "Could not parse BlurArgs");
+      return;
+    }
 
     kernel_size_ = args.kernel_size();
     sigma_ = args.sigma();
 
     filter_left_ = std::ceil(kernel_size_ / 2.0) - 1;
     filter_right_ = kernel_size_ / 2;
+
+    valid_.set_success(true);
+  }
+
+  void validate(Result* result) override {
+    result->CopyFrom(valid_);
   }
 
   void new_frame_info() {
@@ -94,6 +104,7 @@ private:
 
   i32 frame_width_;
   i32 frame_height_;
+  Result valid_;
 };
 
 REGISTER_OP(Blur).outputs({"frame", "frame_info"});
