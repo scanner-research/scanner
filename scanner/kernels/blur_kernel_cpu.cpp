@@ -27,7 +27,7 @@ public:
   BlurKernel(const Kernel::Config &config) : VideoKernel(config) {
     scanner::proto::BlurArgs args;
     bool parsed = args.ParseFromArray(config.args.data(), config.args.size());
-    if (!parsed) {
+    if (!parsed || config.args.size() == 0) {
       RESULT_ERROR(&valid_, "Could not parse BlurArgs");
       return;
     }

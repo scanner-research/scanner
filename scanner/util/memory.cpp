@@ -418,18 +418,17 @@ void delete_buffer(DeviceHandle device, u8 *buffer) {
 // FIXME(wcrichto): case if transferring between two different GPUs
 void memcpy_buffer(u8 *dest_buffer, DeviceHandle dest_device,
                    const u8 *src_buffer, DeviceHandle src_device, size_t size) {
-  assert(!(dest_device.type == DeviceType::GPU &&
-           src_device.type == DeviceType::GPU &&
-           dest_device.id != src_device.id));
-
-#ifdef HAVE_CUDA
-  CU_CHECK(cudaSetDevice(src_device.id));
-  CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
-#else
-  assert(dest_device.type == DeviceType::CPU);
-  assert(dest_device.type == src_device.type);
-  memcpy(dest_buffer, src_buffer, size);
-#endif
+  if (dest_device.type == DeviceType::CPU && src_device.type == DeviceType::CPU) {
+    memcpy(dest_buffer, src_buffer, size);
+  } else {
+    assert(!(dest_device.type == DeviceType::GPU &&
+             src_device.type == DeviceType::GPU &&
+             dest_device.id != src_device.id));
+    CUDA_PROTECT({
+        CU_CHECK(cudaSetDevice(src_device.id));
+        CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
+    });
+  }
 }
 
 #define NUM_CUDA_STREAMS 32

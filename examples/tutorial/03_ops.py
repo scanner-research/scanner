@@ -13,7 +13,10 @@ input = db.ops.Input()
 # another. Here, the input op outputs two columns, "frame" which is the raw
 # bytes of the frame, and "frame_info" which contains information about the
 # width/height/etc. of each frame. We feed these two columns into the Blur.
-blur = db.ops.Blur(inputs=[(input, ["frame", "frame_info"])])
+blur = db.ops.Blur(
+    inputs=[(input, ["frame", "frame_info"])],
+    kernel_size=3,
+    sigma=0.5)
 
 # An op can take inputs from multiple other ops, here taking the blurred frame
 # from the Blur op and the frame info from the Input op.
@@ -25,7 +28,7 @@ output = db.ops.Output(inputs=[(hist, ["histogram"])])
 
 # You provide the last op in the graph, here the output op, as the argument to
 # db.run.
-db.run(tasks, output)
+db.run(tasks, output, force=True)
 
 # Note: if you don't explicitly include an Input or Output node in your op graph
 # they will be automatically added for you. This is how the previous examples

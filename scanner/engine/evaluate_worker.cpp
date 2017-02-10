@@ -350,7 +350,7 @@ void *evaluate_thread(void *arg) {
         args.profiler.add_interval("evaluate", eval_start, now());
         // Delete unused outputs
         for (size_t y = 0; y < unused_outputs[k].size(); ++y) {
-          i32 unused_col_idx = unused_outputs[k][unused_outputs.size() - 1 - y];
+          i32 unused_col_idx = unused_outputs[k][unused_outputs[k].size() - 1 - y];
           RowList &column = output_columns[unused_col_idx];
           for (Row &row : column.rows) {
             u8 *buff = row.buffer;
