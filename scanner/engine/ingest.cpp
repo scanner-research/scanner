@@ -179,13 +179,15 @@ bool setup_video_codec(FFStorehouseState *fs, CodecState &state) {
 }
 
 void cleanup_video_codec(CodecState state) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 34, 0)
+  avcodec_parameters_free(&state.in_cc_params);
+#endif
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 53, 0)
   avcodec_free_context(&state.in_cc);
 #else
   avcodec_close(state.in_cc);
   av_freep(&state.in_cc);
 #endif
-  avcodec_parameters_free(&state.in_cc_params);
   avformat_close_input(&state.format_context);
   if (state.io_context) {
     av_freep(&state.io_context->buffer);
