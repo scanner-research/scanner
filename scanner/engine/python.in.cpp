@@ -5,17 +5,10 @@
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
-#include <dlfcn.h>
 
 namespace scanner {
 
 namespace py = boost::python;
-
-void load_op(const std::string &path) {
-  void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-  LOG_IF(FATAL, handle == NULL) << "dlopen of " << path
-                                << " failed: " << dlerror();
-}
 
 std::string get_include() {
   // This variable is filled in at compile time by CMake.
@@ -116,7 +109,6 @@ BOOST_PYTHON_MODULE(scanner_bindings) {
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
   def("ingest_videos", ingest_videos_wrapper);
-  def("load_op", load_op);
   def("get_include", get_include);
   def("other_flags", other_flags);
   def("get_output_columns", get_output_columns);

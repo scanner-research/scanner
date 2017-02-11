@@ -18,16 +18,21 @@
 #include "scanner/api/database.h"
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
-#include "scanner/video/video_decoder.h"
-#include "scanner/util/memory.h"
 #include "scanner/engine/rpc.grpc.pb.h"
+#include "scanner/engine/db.h"
+#include "scanner/engine/op_registry.h"
+#include "scanner/engine/kernel_registry.h"
 
 #include "storehouse/storage_backend.h"
 
+#include <grpc++/create_channel.h>
+#include <grpc++/security/credentials.h>
 #include <grpc++/server.h>
 #include <grpc++/server_builder.h>
 
+#include <thread>
 #include <string>
+#include <dlfcn.h>
 
 namespace scanner {
 namespace internal {
@@ -75,5 +80,14 @@ proto::Master::Service *get_master_service(DatabaseParameters &param);
 
 proto::Worker::Service *get_worker_service(DatabaseParameters &params,
                                            const std::string &master_address);
+
+void create_io_items(
+  const proto::JobParameters* job_params,
+  const std::map<std::string, TableMetadata> &table_metas,
+  const proto::TaskSet &task_set,
+  std::vector<IOItem> &io_items,
+  std::vector<LoadWorkEntry> &load_work_entries,
+  proto::Result* job_result);
+
 }
 }

@@ -5,9 +5,8 @@ SCANNER_FLAGS = `python -c "import scannerpy; print(scannerpy.Database().get_bui
 all:
 # protoc generates the Python and C++ bindings for the ResizeArgs class.
 	protoc args.proto --python_out=. --cpp_out=.
-#	g++ builds the op library, making sure to include the generated protobuf
-# file and link in libprotobuf.
-	g++ args.pb.cc resize_op.cpp -o resize_op.so ${SCANNER_FLAGS} -lprotobuf
+# g++ builds the op library
+	g++ args.pb.cc resize_op.cpp -o resize_op.so ${SCANNER_FLAGS}
 
 clean:
 	rm -f args_pb2.py args_pb2.pyc args.pb.cc args.pb.h resize_op.so

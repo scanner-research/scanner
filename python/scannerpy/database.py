@@ -52,7 +52,7 @@ class Database:
         import scanner_bindings as bindings
         self._metadata_types = metadata_types
         self._rpc_types = rpc_types
-        self._arg_types = [arg_types, misc_types]
+        self._arg_types = [arg_types, misc_types, rpc_types]
         self._bindings = bindings
 
         # Setup database metadata
@@ -123,6 +123,30 @@ class Database:
         channel = grpc.insecure_channel(self._master_address)
         self._master = self._rpc_types.MasterStub(channel)
 
+        # Ping master and start master/worker locally if they don't exist.
+        try:
+            self._master.Ping(self._rpc_types.Empty())
+        except grpc.RpcError as e:
+            status = e.code()
+            if status == grpc.StatusCode.UNAVAILABLE:
+                log.info("Master not started, creating temporary master/worker...")
+                # If they get GC'd then the masters/workers will die, so persist
+                # them until the database object dies
+                self._ignore1 = self.start_master()
+                self._ignore2 = self.start_worker()
+                log.info("Temporary master/worker started")
+
+                # If we don't reconnect to master, there's a 5-10 sec delay for
+                # for original connection to reboot
+                channel = grpc.insecure_channel(self._master_address)
+                self._master = self._rpc_types.MasterStub(channel)
+            elif status == grpc.StatusCode.OK:
+                pass
+            else:
+                raise ScannerException('Master ping errored with status: {}'
+                                       .format(status))
+
+
     def start_master(self):
         """
         TODO(wcrichto)
@@ -166,6 +190,16 @@ class Database:
         for worker in workers:
             worker.wait()
 
+    def _try_rpc(self, fn):
+        try:
+            result = fn()
+        except grpc.RpcError as e:
+            raise ScannerException(e)
+
+        if not result.success:
+            raise ScannerException(result.msg)
+
+
     def load_op(self, so_path, proto_path=None):
         """
         Loads a custom op into the Scanner runtime.
@@ -182,11 +216,17 @@ class Database:
                         if one exists.
         """
         if proto_path is not None:
+            if not os.path.isfile(proto_path):
+                raise ScannerException('Protobuf path does not exist: {}'
+                                       .format(proto_path))
             (proto_dir, mod_file) = os.path.split(proto_path)
             sys.path.append(proto_dir)
             (mod_name, _) = os.path.splitext(mod_file)
             self._arg_types.append(importlib.import_module(mod_name))
-        self._bindings.load_op(so_path)
+        self._connect_to_master()
+        op_info = self.protobufs.OpInfo()
+        op_info.so_path = so_path
+        self._try_rpc(lambda: self._master.LoadOp(op_info))
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -487,39 +527,8 @@ class Database:
         job_params.io_item_size = io_item_size
         job_params.work_item_size = work_item_size
 
-        # Initialize gRPC channel with master server
-        self._connect_to_master()
-
-        # Ping master and start master/worker locally if they don't exist.
-        try:
-            self._master.Ping(self._rpc_types.Empty())
-        except grpc.RpcError as e:
-            status = e.code()
-            if status == grpc.StatusCode.UNAVAILABLE:
-                log.info("Master not started, creating temporary master/worker...")
-                # If they get GC'd then the masters/workers will die, so persist
-                # them until the database object dies
-                self._ignore1 = self.start_master()
-                self._ignore2 = self.start_worker()
-                log.info("Temporary master/worker started")
-
-                # If we don't reconnect to master, there's a 5-10 sec delay for
-                # for original connection to reboot
-                self._connect_to_master()
-            elif status == grpc.StatusCode.OK:
-                pass
-            else:
-                raise ScannerException('Master ping errored with status: {}'
-                                       .format(status))
-
         # Execute job via RPC
-        try:
-            result = self._master.NewJob(job_params)
-        except grpc.RpcError as e:
-            raise ScannerException('RPC failed with error: {}'.format(e))
-
-        if not result.success:
-            raise ScannerException('Job failed with error: {}'.format(result.msg))
+        self._try_rpc(lambda: self._master.NewJob(job_params))
 
         self._cached_db_metadata = None
 
