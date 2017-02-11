@@ -98,7 +98,7 @@ class Profiler:
 
     def statistics(self):
         totals = {}
-        for _, profiler in self._profilers.values():
+        for (total_start, total_end), profiler in self._profilers.values():
             for kind in profiler:
                 if kind not in totals:
                     totals[kind] = {}
@@ -108,6 +108,7 @@ class Profiler:
                             totals[kind][key] = 0
                         totals[kind][key] += end-start
 
+        totals['total_time'] = (total_end - total_start)
         readable_totals = self._convert_time(totals)
         return readable_totals
 

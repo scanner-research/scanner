@@ -187,7 +187,7 @@ Result Database::start_master(const MachineParameters& machine_params) {
   if (master_state_.service.get() != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
-    result.set_success(false);
+    result.set_success(true);
     return result;
   }
   internal::DatabaseParameters params =
@@ -222,6 +222,32 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
   Result result;
   result.set_success(true);
   return result;
+
+  auto channel =
+      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
+  std::unique_ptr<proto::Master::Stub> master_ =
+      proto::Master::NewStub(channel);
+
+  grpc::ClientContext context;
+  proto::IngestParameters params;
+  for (auto& t : table_names) {
+    params.add_table_names(t);
+  }
+  for (auto& p : paths) {
+    params.add_video_paths(p);
+  }
+  proto::IngestResult job_result;
+  grpc::Status status =
+      master_->IngestVideos(&context, params, &job_result);
+  LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
+                              << status.error_message();
+  for (i32 i = 0; i < job_result.failed_paths().size(); ++i) {
+    FailedVideo failed;
+    failed.path = job_result.failed_paths(i);
+    failed.message = job_result.failed_messages(i);
+    failed_videos.push_back(failed);
+  }
+  return job_result.result();
 }
 
 Result Database::new_job(JobParameters &params) {

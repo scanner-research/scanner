@@ -305,7 +305,7 @@ class Database:
                     raise ScannerException(
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
-        self._save_descriptor(db_meta, 'db_metadata.bin')
+        self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
         invalid = self._bindings.ingest_videos(
             self._db,
             list(table_names),

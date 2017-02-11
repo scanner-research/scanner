@@ -14,6 +14,7 @@
  */
 
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/ingest.h"
 
 #include <grpc/support/log.h>
 
@@ -196,6 +197,24 @@ public:
     return grpc::Status::OK;
   }
 
+  grpc::Status IngestVideos(grpc::ServerContext *context,
+                            const proto::IngestParameters *params,
+                            proto::IngestResult *result) {
+    std::vector<FailedVideo> failed_videos;
+    result->mutable_result()->CopyFrom(
+        ingest_videos(db_params_.storage_config, db_params_.db_path,
+                      std::vector<std::string>(params->table_names().begin(),
+                                               params->table_names().end()),
+                      std::vector<std::string>(params->video_paths().begin(),
+                                               params->video_paths().end()),
+                      failed_videos));
+    for (auto& failed : failed_videos) {
+      result->add_failed_paths(failed.path);
+      result->add_failed_messages(failed.message);
+    }
+    return grpc::Status::OK;
+  }
+
   grpc::Status NextIOItem(grpc::ServerContext *context,
                           const proto::NodeInfo *node_info,
                           proto::IOItem *io_item) {
@@ -210,185 +229,185 @@ public:
       io_item->set_item_id(-1);
     }
     return grpc::Status::OK;
-  }
+    }
 
-  grpc::Status NewJob(grpc::ServerContext *context,
-                      const proto::JobParameters *job_params,
-                      proto::Result *job_result) {
-    job_result->set_success(true);
-    set_database_path(db_params_.db_path);
+    grpc::Status NewJob(grpc::ServerContext * context,
+                        const proto::JobParameters *job_params,
+                        proto::Result *job_result) {
+      job_result->set_success(true);
+      set_database_path(db_params_.db_path);
 
-    const i32 io_item_size = job_params->io_item_size();
-    const i32 work_item_size = job_params->work_item_size();
+      const i32 io_item_size = job_params->io_item_size();
+      const i32 work_item_size = job_params->work_item_size();
 
-    i32 warmup_size = 0;
-    i32 total_rows = 0;
+      i32 warmup_size = 0;
+      i32 total_rows = 0;
 
-    proto::JobDescriptor job_descriptor;
-    job_descriptor.set_io_item_size(io_item_size);
-    job_descriptor.set_work_item_size(work_item_size);
-    job_descriptor.set_num_nodes(workers_.size());
+      proto::JobDescriptor job_descriptor;
+      job_descriptor.set_io_item_size(io_item_size);
+      job_descriptor.set_work_item_size(work_item_size);
+      job_descriptor.set_num_nodes(workers_.size());
 
-    // Get output columns from last output op
-    auto &ops = job_params->task_set().ops();
-    // OpRegistry* op_registry = get_op_registry();
-    // OpInfo* output_op = op_registry->get_op_info(
-    //   ops.Get(ops.size()-1).name());
-    // const std::vector<std::string>& output_columns =
-    //   output_op->output_columns();
-    auto &last_op = ops.Get(ops.size() - 1);
-    assert(last_op.name() == "OutputTable");
-    std::vector<std::string> output_columns;
-    for (const auto &eval_input : last_op.inputs()) {
-      for (const std::string &name : eval_input.columns()) {
-        output_columns.push_back(name);
+      // Get output columns from last output op
+      auto &ops = job_params->task_set().ops();
+      // OpRegistry* op_registry = get_op_registry();
+      // OpInfo* output_op = op_registry->get_op_info(
+      //   ops.Get(ops.size()-1).name());
+      // const std::vector<std::string>& output_columns =
+      //   output_op->output_columns();
+      auto &last_op = ops.Get(ops.size() - 1);
+      assert(last_op.name() == "OutputTable");
+      std::vector<std::string> output_columns;
+      for (const auto &eval_input : last_op.inputs()) {
+        for (const std::string &name : eval_input.columns()) {
+          output_columns.push_back(name);
+        }
       }
-    }
-    for (size_t i = 0; i < output_columns.size(); ++i) {
-      auto &col_name = output_columns[i];
-      Column *col = job_descriptor.add_columns();
-      col->set_id(i);
-      col->set_name(col_name);
-      col->set_type(ColumnType::Other);
-    }
-
-    DatabaseMetadata meta =
-        read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-
-    auto &tasks = job_params->task_set().tasks();
-    job_descriptor.mutable_tasks()->CopyFrom(tasks);
-
-    validate_task_set(meta, job_params->task_set(), job_result);
-    if (!job_result->success()) {
-      // No database changes made at this point, so just return
-      return grpc::Status::OK;
-    }
-
-    // Add job name into database metadata so we can look up what jobs have
-    // been ran
-    i32 job_id = meta.add_job(job_params->job_name());
-    job_descriptor.set_id(job_id);
-    job_descriptor.set_name(job_params->job_name());
-
-    for (auto &task : job_params->task_set().tasks()) {
-      i32 table_id = meta.add_table(task.output_table_name());
-      proto::TableDescriptor table_desc;
-      table_desc.set_id(table_id);
-      table_desc.set_name(task.output_table_name());
-      // Set columns equal to the last op's output columns
       for (size_t i = 0; i < output_columns.size(); ++i) {
-        Column *col = table_desc.add_columns();
+        auto &col_name = output_columns[i];
+        Column *col = job_descriptor.add_columns();
         col->set_id(i);
-        col->set_name(output_columns[i]);
+        col->set_name(col_name);
         col->set_type(ColumnType::Other);
       }
-      table_desc.set_num_rows(task.samples(0).rows().size());
-      table_desc.set_rows_per_item(io_item_size);
-      table_desc.set_job_id(job_id);
-      write_table_metadata(storage_, TableMetadata(table_desc));
-    }
 
-    // Write out database metadata so that workers can read it
-    write_job_metadata(storage_, JobMetadata(job_descriptor));
+      DatabaseMetadata meta =
+          read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
-    // Read all table metadata
-    std::map<std::string, TableMetadata> table_meta;
-    for (const std::string &table_name : meta.table_names()) {
-      std::string table_path =
-          TableMetadata::descriptor_path(meta.get_table_id(table_name));
-      table_meta[table_name] = read_table_metadata(storage_, table_path);
-    }
+      auto &tasks = job_params->task_set().tasks();
+      job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
-    std::vector<IOItem> io_items;
-    std::vector<LoadWorkEntry> load_work_entries;
-    create_io_items(job_params, table_meta, job_params->task_set(), io_items,
-                    load_work_entries, job_result);
-    if (!job_result->success()) {
-      // Haven't written the db metadata so we can just exit
-      // TODO(apoms): actually get rid of data
-      return grpc::Status::OK;
-    }
-    write_database_metadata(storage_, meta);
-
-    next_io_item_to_allocate_ = 0;
-    num_io_items_ = io_items.size();
-
-    grpc::CompletionQueue cq;
-    std::vector<grpc::ClientContext> client_contexts(workers_.size());
-    std::vector<grpc::Status> statuses(workers_.size());
-    std::vector<proto::Result> replies(workers_.size());
-    std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
-        rpcs;
-
-    proto::JobParameters w_job_params;
-    w_job_params.CopyFrom(*job_params);
-    for (size_t i = 0; i < workers_.size(); ++i) {
-      auto &worker = workers_[i];
-      rpcs.emplace_back(
-          worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
-      rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
-    }
-
-    for (size_t i = 0; i < workers_.size(); ++i) {
-      void *got_tag;
-      bool ok = false;
-      GPR_ASSERT(cq.Next(&got_tag, &ok));
-      GPR_ASSERT((i64)got_tag < workers_.size());
-      assert(ok);
-
-      if (!replies[i].success()) {
-        LOG(WARNING) << "Worker returned error: " << replies[i].msg();
-        job_result->set_success(false);
-        job_result->set_msg(replies[i].msg());
-        next_io_item_to_allocate_ = num_io_items_;
-      }
-    }
-    if (!job_result->success()) {
-      // TODO(apoms): We wrote the db meta with the tables so we should clear
-      // them out here since the job failed.
-    }
-    return grpc::Status::OK;
-  }
-
-  grpc::Status Ping(grpc::ServerContext *context, const proto::Empty *empty1,
-                    proto::Empty *empty2) {
-    return grpc::Status::OK;
-  }
-
-  grpc::Status LoadOp(grpc::ServerContext* context, const proto::OpInfo* op_info,
-                      Result* result) {
-    const std::string& so_path = op_info->so_path();
-    {
-      std::ifstream infile(so_path);
-      if (!infile.good()) {
-        RESULT_ERROR(result, "Op library was not found: %s",
-                     so_path.c_str());
+      validate_task_set(meta, job_params->task_set(), job_result);
+      if (!job_result->success()) {
+        // No database changes made at this point, so just return
         return grpc::Status::OK;
       }
-    }
 
-    void *handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
-    if (handle == nullptr) {
-      RESULT_ERROR(result, "Failed to load op library: %s", dlerror());
+      // Add job name into database metadata so we can look up what jobs have
+      // been ran
+      i32 job_id = meta.add_job(job_params->job_name());
+      job_descriptor.set_id(job_id);
+      job_descriptor.set_name(job_params->job_name());
+
+      for (auto &task : job_params->task_set().tasks()) {
+        i32 table_id = meta.add_table(task.output_table_name());
+        proto::TableDescriptor table_desc;
+        table_desc.set_id(table_id);
+        table_desc.set_name(task.output_table_name());
+        // Set columns equal to the last op's output columns
+        for (size_t i = 0; i < output_columns.size(); ++i) {
+          Column *col = table_desc.add_columns();
+          col->set_id(i);
+          col->set_name(output_columns[i]);
+          col->set_type(ColumnType::Other);
+        }
+        table_desc.set_num_rows(task.samples(0).rows().size());
+        table_desc.set_rows_per_item(io_item_size);
+        table_desc.set_job_id(job_id);
+        write_table_metadata(storage_, TableMetadata(table_desc));
+      }
+
+      // Write out database metadata so that workers can read it
+      write_job_metadata(storage_, JobMetadata(job_descriptor));
+
+      // Read all table metadata
+      std::map<std::string, TableMetadata> table_meta;
+      for (const std::string &table_name : meta.table_names()) {
+        std::string table_path =
+            TableMetadata::descriptor_path(meta.get_table_id(table_name));
+        table_meta[table_name] = read_table_metadata(storage_, table_path);
+      }
+
+      std::vector<IOItem> io_items;
+      std::vector<LoadWorkEntry> load_work_entries;
+      create_io_items(job_params, table_meta, job_params->task_set(), io_items,
+                      load_work_entries, job_result);
+      if (!job_result->success()) {
+        // Haven't written the db metadata so we can just exit
+        // TODO(apoms): actually get rid of data
+        return grpc::Status::OK;
+      }
+      write_database_metadata(storage_, meta);
+
+      next_io_item_to_allocate_ = 0;
+      num_io_items_ = io_items.size();
+
+      grpc::CompletionQueue cq;
+      std::vector<grpc::ClientContext> client_contexts(workers_.size());
+      std::vector<grpc::Status> statuses(workers_.size());
+      std::vector<proto::Result> replies(workers_.size());
+      std::vector<
+          std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
+          rpcs;
+
+      proto::JobParameters w_job_params;
+      w_job_params.CopyFrom(*job_params);
+      for (size_t i = 0; i < workers_.size(); ++i) {
+        auto &worker = workers_[i];
+        rpcs.emplace_back(
+            worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
+        rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
+      }
+
+      for (size_t i = 0; i < workers_.size(); ++i) {
+        void *got_tag;
+        bool ok = false;
+        GPR_ASSERT(cq.Next(&got_tag, &ok));
+        GPR_ASSERT((i64)got_tag < workers_.size());
+        assert(ok);
+
+        if (!replies[i].success()) {
+          LOG(WARNING) << "Worker returned error: " << replies[i].msg();
+          job_result->set_success(false);
+          job_result->set_msg(replies[i].msg());
+          next_io_item_to_allocate_ = num_io_items_;
+        }
+      }
+      if (!job_result->success()) {
+        // TODO(apoms): We wrote the db meta with the tables so we should clear
+        // them out here since the job failed.
+      }
       return grpc::Status::OK;
     }
 
-    for (auto& worker : workers_) {
-      grpc::ClientContext ctx;
-      proto::Empty empty;
-      worker->LoadOp(&ctx, *op_info, &empty);
+    grpc::Status Ping(grpc::ServerContext * context, const proto::Empty *empty1,
+                      proto::Empty *empty2) {
+      return grpc::Status::OK;
     }
 
-    result->set_success(true);
-    return grpc::Status::OK;
-  }
+    grpc::Status LoadOp(grpc::ServerContext * context,
+                        const proto::OpInfo *op_info, Result *result) {
+      const std::string &so_path = op_info->so_path();
+      {
+        std::ifstream infile(so_path);
+        if (!infile.good()) {
+          RESULT_ERROR(result, "Op library was not found: %s", so_path.c_str());
+          return grpc::Status::OK;
+        }
+      }
 
-private:
-  i32 next_io_item_to_allocate_;
-  i32 num_io_items_;
-  std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
-  DatabaseParameters db_params_;
-  storehouse::StorageBackend *storage_;
+      void *handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+      if (handle == nullptr) {
+        RESULT_ERROR(result, "Failed to load op library: %s", dlerror());
+        return grpc::Status::OK;
+      }
+
+      for (auto &worker : workers_) {
+        grpc::ClientContext ctx;
+        proto::Empty empty;
+        worker->LoadOp(&ctx, *op_info, &empty);
+      }
+
+      result->set_success(true);
+      return grpc::Status::OK;
+    }
+
+  private:
+    i32 next_io_item_to_allocate_;
+    i32 num_io_items_;
+    std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
+    DatabaseParameters db_params_;
+    storehouse::StorageBackend *storage_;
 };
 
 proto::Master::Service *get_master_service(DatabaseParameters &param) {

@@ -161,6 +161,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
 void DecoderAutomata::feeder() {
   // printf("feeder start\n");
   i64 total_frames_fed = 0;
+  i32 frames_fed = 0;
   bool seeking = false;
   while (not_done_) {
     {
@@ -189,7 +190,7 @@ void DecoderAutomata::feeder() {
       seeking = false;
     }
 
-    i32 frames_fed = 0;
+    frames_fed = 0;
     bool seen_metadata = false;
     while (frames_retrieved_ < frames_to_get_) {
       // if (next_frame_ > feeder_next_keyframe_) {
@@ -217,6 +218,7 @@ void DecoderAutomata::feeder() {
         // printf("encoded packet size %d, ptr %p\n", encoded_packet_size,
         //        encoded_packet);
       }
+      assert(encoded_packet_size > 0);
 
       if (seen_metadata && encoded_packet_size > 0) {
         const u8 *start_buffer = encoded_packet;

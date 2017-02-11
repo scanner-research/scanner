@@ -7,6 +7,7 @@ service Master {
   // Called after a new worker spawns to register with the master
   rpc RegisterWorker (WorkerInfo) returns (Registration) {}
   // Ingest videos into the system
+  rpc IngestVideos (IngestParameters) returns (IngestResult) {}
   rpc NextIOItem (NodeInfo) returns (IOItem) {}
   rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
@@ -20,6 +21,11 @@ service Worker {
 
 message Empty {}
 
+message Result {
+  bool success = 1;
+  string msg = 2;
+}
+
 message WorkerInfo {
   string address = 1;
 }
@@ -30,6 +36,17 @@ message Registration {
 
 message OpInfo {
   string so_path = 1;
+}
+
+message IngestParameters {
+  repeated string table_names = 1;
+  repeated string video_paths = 2;
+}
+
+message IngestResult {
+  Result result = 1;
+  repeated string failed_paths = 2;
+  repeated string failed_messages = 3;
 }
 
 message NodeInfo {
@@ -44,11 +61,6 @@ message JobParameters {
   int32 kernel_instances_per_node = 4;
   int32 io_item_size = 5;
   int32 work_item_size = 6;
-}
-
-message Result {
-  bool success = 1;
-  string msg = 2;
 }
 
 message IOItem {

@@ -485,11 +485,17 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
                     sps_nal_bytes.size());
             s_write(demuxed_bytestream.get(), pps_nal_bytes.data(),
                     pps_nal_bytes.size());
+            // Append the packet to the stream
+            s_write(demuxed_bytestream.get(), filtered_data,
+                    filtered_data_size);
 
             bytestream_pos += sizeof(size) + size;
           } else {
             s_write(demuxed_bytestream.get(), filtered_data_size);
             bytestream_pos += sizeof(filtered_data_size) + filtered_data_size;
+            // Append the packet to the stream
+            s_write(demuxed_bytestream.get(), filtered_data,
+                    filtered_data_size);
           }
         }
         in_meta_packet_sequence = false;
@@ -497,8 +503,6 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       }
       nals_parsed++;
     }
-    // Append the packet to the stream
-    s_write(demuxed_bytestream.get(), filtered_data, filtered_data_size);
 
     free(filtered_data);
 
