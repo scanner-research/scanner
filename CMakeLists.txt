@@ -253,6 +253,7 @@ set(SCANNER_LIBRARIES
   "${SCANNER_LIBRARIES}"
   "-ljpeg"
   "-lz"
+  "-ldl"
   "-lgrpc++_unsecure -lgrpc -lgpr")
 
 include_directories(
