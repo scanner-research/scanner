@@ -29,11 +29,14 @@ class Sampler:
             tasks.append(task)
         return tasks
 
-    def range(self, video, start, end):
-        if isinstance(video, list) or isinstance(video, Collection):
-            raise ScannerException('Sampler.range only takes a single video')
-
-        return self.strided_range(video, start, end, 1)
+    def range(self, videos, start, end):
+        videos = self._convert_collection(videos)
+        tasks = []
+        for video in videos:
+            table = self._db.table(video[0])
+            task = self.strided_range(video, start, end, 1)
+            tasks.append(task)
+        return tasks
 
     def strided_range(self, video, start, end, stride):
         if isinstance(video, list) or isinstance(video, Collection):
