@@ -230,13 +230,14 @@ void *evaluate_thread(void *arg) {
       KernelFactory *factory = std::get<0>(args.kernel_factories[i]);
       const Kernel::Config &config = std::get<1>(args.kernel_factories[i]);
       kernel_devices.push_back(config.devices[0]);
-      kernel_num_outputs.push_back(
-          registry->get_op_info(factory->get_op_name())
-              ->output_columns()
-              .size());
+      kernel_num_outputs.push_back(registry->get_op_info(factory->get_op_name())
+                                       ->output_columns()
+                                       .size());
       auto kernel = factory->new_instance(config);
       kernel->validate(&args.result);
+      LOG(WARNING) << "Kernel finished validation " << args.result.success();
       if (!args.result.success()) {
+        LOG(WARNING) << "Kernel validate failed: " << args.result.msg();
         THREAD_RETURN_SUCCESS();
       }
       kernels.emplace_back(factory->new_instance(config));

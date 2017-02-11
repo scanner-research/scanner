@@ -265,7 +265,8 @@ CaffeKernel::CaffeKernel(const Kernel::Config &config)
 }
 
 void CaffeKernel::validate(proto::Result* result) {
-  result->CopyFrom(valid_);
+  result->set_msg(valid_.msg());
+  result->set_success(valid_.success());
 }
 
 void CaffeKernel::new_frame_info() {
@@ -377,7 +378,7 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
       size_t output_size = output_length * sizeof(float);
       size_t total_size = output_size * batch_count;
 
-      u8 *output_block = new_block_buffer(device_, total_size, total_rows);
+      u8 *output_block = new_block_buffer(device_, total_size, batch_count);
 
       u8 *src_buffer =
           (u8 *)(device_.type == DeviceType::CPU ? output_blob->cpu_data()

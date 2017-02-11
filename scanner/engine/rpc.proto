@@ -7,7 +7,7 @@ service Master {
   // Called after a new worker spawns to register with the master
   rpc RegisterWorker (WorkerInfo) returns (Registration) {}
   // Ingest videos into the system
-  rpc NextIOItem (Empty) returns (IOItem) {}
+  rpc NextIOItem (NodeInfo) returns (IOItem) {}
   rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpInfo) returns (Result) {}
@@ -30,6 +30,10 @@ message Registration {
 
 message OpInfo {
   string so_path = 1;
+}
+
+message NodeInfo {
+  int32 node_id = 1;
 }
 
 message JobParameters {

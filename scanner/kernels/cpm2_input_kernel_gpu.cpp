@@ -75,7 +75,7 @@ public:
     auto eval_start = now();
 
     i32 input_count = input_columns[0].rows.size();
-    check_frame_info(CPU_DEVICE, input_columns[1]);
+    check_frame_info(device_, input_columns[1]);
 
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);

@@ -67,7 +67,7 @@ class Kernel {
   /**
    * @brief TODO
    */
-  virtual void validate(proto::Result* result){
+  virtual void validate(proto::Result* result) {
     result->set_success(true);
   }
 
