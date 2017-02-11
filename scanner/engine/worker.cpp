@@ -41,7 +41,145 @@ inline bool operator!=(const MemoryPoolConfig &lhs,
                        const MemoryPoolConfig &rhs) {
   return !(lhs == rhs);
 }
+
+void analyze_dag(
+    const proto::TaskSet &task_set,
+    std::vector<std::vector<std::tuple<i32, std::string>>> &live_columns,
+    std::vector<std::vector<i32>> &dead_columns,
+    std::vector<std::vector<i32>> &unused_outputs,
+    std::vector<std::vector<i32>> &column_mapping) {
+  // Start off with the columns from the gathered tables
+  OpRegistry *op_registry = get_op_registry();
+  auto &ops = task_set.ops();
+  std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
+  {
+    auto &input_op = ops.Get(0);
+    for (const std::string &input_col : input_op.inputs(0).columns()) {
+      intermediates[0].push_back(std::make_tuple(input_col, 0));
+    }
+  }
+  for (size_t i = 1; i < ops.size(); ++i) {
+    auto &op = ops.Get(i);
+    // For each input, update the intermediate last used index to the
+    // current index
+    for (auto &eval_input : op.inputs()) {
+      i32 parent_index = eval_input.op_index();
+      for (const std::string &parent_col : eval_input.columns()) {
+        bool found = false;
+        for (auto &kv : intermediates.at(parent_index)) {
+          if (std::get<0>(kv) == parent_col) {
+            found = true;
+            std::get<1>(kv) = i;
+            break;
+          }
+        }
+        assert(found);
+      }
+    }
+    // Add this op's outputs to the intermediate list
+    if (i == ops.size() - 1) {
+      continue;
+    }
+    const auto &op_info = op_registry->get_op_info(op.name());
+    for (const auto &output_column : op_info->output_columns()) {
+      intermediates[i].push_back(std::make_tuple(output_column, i));
+    }
+  }
+
+  // The live columns at each op index
+  live_columns.resize(ops.size());
+  for (size_t i = 0; i < ops.size(); ++i) {
+    i32 op_index = i;
+    auto &columns = live_columns[i];
+    size_t max_i = std::min((size_t)(ops.size() - 2), i);
+    for (size_t j = 0; j <= max_i; ++j) {
+      for (auto &kv : intermediates.at(j)) {
+        i32 last_used_index = std::get<1>(kv);
+        if (last_used_index > op_index) {
+          // Last used index is greater than current index, so still live
+          columns.push_back(std::make_tuple((i32)j, std::get<0>(kv)));
+        }
+      }
+    }
+  }
+
+  // The columns to remove for the current kernel
+  dead_columns.resize(ops.size() - 1);
+  // Outputs from the current kernel that are not used
+  unused_outputs.resize(ops.size() - 1);
+  // Indices in the live columns list that are the inputs to the current
+  // kernel. Starts from the second evalutor (index 1)
+  column_mapping.resize(ops.size() - 1);
+  for (size_t i = 1; i < ops.size(); ++i) {
+    i32 op_index = i;
+    auto &prev_columns = live_columns[i - 1];
+    auto &op = ops.Get(op_index);
+    // Determine which columns are no longer live
+    {
+      auto &unused = unused_outputs[i - 1];
+      auto &dead = dead_columns[i - 1];
+      size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
+      for (size_t j = 0; j <= max_i; ++j) {
+        i32 parent_index = j;
+        for (auto &kv : intermediates.at(j)) {
+          i32 last_used_index = std::get<1>(kv);
+          if (last_used_index == op_index) {
+            // Column is no longer live, so remove it.
+            const std::string &col_name = std::get<0>(kv);
+            if (j == i) {
+              // This op has an unused output
+              i32 col_index = -1;
+              const std::vector<std::string> &op_cols =
+                  op_registry->get_op_info(op.name())->output_columns();
+              for (size_t k = 0; k < op_cols.size(); k++) {
+                if (col_name == op_cols[k]) {
+                  col_index = k;
+                  break;
+                }
+              }
+              assert(col_index != -1);
+              unused.push_back(col_index);
+            } else {
+              // Determine where in the previous live columns list this
+              // column existed
+              i32 col_index = -1;
+              for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
+                const std::tuple<i32, std::string> &live_input =
+                    prev_columns[k];
+                if (parent_index == std::get<0>(live_input) &&
+                    col_name == std::get<1>(live_input)) {
+                  col_index = k;
+                  break;
+                }
+              }
+              assert(col_index != -1);
+              dead.push_back(col_index);
+            }
+          }
+        }
+      }
+    }
+    auto &mapping = column_mapping[op_index - 1];
+    for (const auto &eval_input : op.inputs()) {
+      i32 parent_index = eval_input.op_index();
+      for (const std::string &col : eval_input.columns()) {
+        i32 col_index = -1;
+        for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
+          const std::tuple<i32, std::string> &live_input = prev_columns[k];
+          if (parent_index == std::get<0>(live_input) &&
+              col == std::get<1>(live_input)) {
+            col_index = k;
+            break;
+          }
+        }
+        assert(col_index != -1);
+        mapping.push_back(col_index);
+      }
+    }
+  }
 }
+}
+
 class WorkerImpl final : public proto::Worker::Service {
 public:
   WorkerImpl(DatabaseParameters &db_params, std::string master_address)
@@ -110,7 +248,8 @@ public:
     i32 kernel_instances_per_node = job_params->kernel_instances_per_node();
     if (kernel_instances_per_node <= 0) {
       RESULT_ERROR(
-        job_result, "JobParameters.kernel_instances_per_node must be greater than 0.");
+          job_result,
+          "JobParameters.kernel_instances_per_node must be greater than 0.");
       return grpc::Status::OK;
     }
 
@@ -120,140 +259,20 @@ public:
 
     OpRegistry *op_registry = get_op_registry();
     auto &ops = job_params->task_set().ops();
-    assert(ops.Get(0).name() == "InputTable");
+
     // Analyze op DAG to determine what inputs need to be pipped along
     // and when intermediates can be retired -- essentially liveness analysis
-    // Op idx -> column name -> last used index
-    std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
-    // Start off with the columns from the gathered tables
-    {
-      auto &input_op = ops.Get(0);
-      for (const std::string &input_col : input_op.inputs(0).columns()) {
-        intermediates[0].push_back(std::make_tuple(input_col, 0));
-      }
-    }
-    for (size_t i = 1; i < ops.size(); ++i) {
-      auto &op = ops.Get(i);
-      // For each input, update the intermediate last used index to the
-      // current index
-      for (auto &eval_input : op.inputs()) {
-        i32 parent_index = eval_input.op_index();
-        for (const std::string &parent_col : eval_input.columns()) {
-          bool found = false;
-          for (auto& kv : intermediates.at(parent_index)) {
-            if (std::get<0>(kv) == parent_col) {
-              found = true;
-              std::get<1>(kv) = i;
-              break;
-            }
-          }
-          assert(found);
-        }
-      }
-      // Add this op's outputs to the intermediate list
-      if (i == ops.size() - 1) {
-        continue;
-      }
-      const auto &op_info =
-          op_registry->get_op_info(op.name());
-      for (const auto &output_column : op_info->output_columns()) {
-        intermediates[i].push_back(std::make_tuple(output_column, i));
-      }
-    }
-
     // The live columns at each op index
-    std::vector<std::vector<std::tuple<i32, std::string>>> live_columns(
-        ops.size());
-    for (size_t i = 0; i < ops.size(); ++i) {
-      i32 op_index = i;
-      auto &columns = live_columns[i];
-      size_t max_i = std::min((size_t)(ops.size() - 2), i);
-      for (size_t j = 0; j <= max_i; ++j) {
-        for (auto &kv : intermediates.at(j)) {
-          i32 last_used_index = std::get<1>(kv);
-          if (last_used_index > op_index) {
-            // Last used index is greater than current index, so still live
-            columns.push_back(std::make_tuple((i32)j, std::get<0>(kv)));
-          }
-        }
-      }
-    }
-
+    std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
     // The columns to remove for the current kernel
-    std::vector<std::vector<i32>> dead_columns(ops.size() - 1);
+    std::vector<std::vector<i32>> dead_columns;
     // Outputs from the current kernel that are not used
-    std::vector<std::vector<i32>> unused_outputs(ops.size() - 1);
+    std::vector<std::vector<i32>> unused_outputs;
     // Indices in the live columns list that are the inputs to the current
     // kernel. Starts from the second evalutor (index 1)
-    std::vector<std::vector<i32>> column_mapping(ops.size() - 1);
-    for (size_t i = 1; i < ops.size(); ++i) {
-      i32 op_index = i;
-      auto &prev_columns = live_columns[i - 1];
-      auto &op = ops.Get(op_index);
-      // Determine which columns are no longer live
-      {
-        auto &unused = unused_outputs[i - 1];
-        auto &dead = dead_columns[i - 1];
-        size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
-        for (size_t j = 0; j <= max_i; ++j) {
-          i32 parent_index = j;
-          for (auto &kv : intermediates.at(j)) {
-            i32 last_used_index = std::get<1>(kv);
-            if (last_used_index == op_index) {
-              // Column is no longer live, so remove it.
-              const std::string &col_name = std::get<0>(kv);
-              if (j == i) {
-                // This op has an unused output
-                i32 col_index = -1;
-                const std::vector<std::string> &op_cols =
-                    op_registry->get_op_info(op.name())
-                        ->output_columns();
-                for (size_t k = 0; k < op_cols.size(); k++) {
-                  if (col_name == op_cols[k]) {
-                    col_index = k;
-                    break;
-                  }
-                }
-                assert(col_index != -1);
-                unused.push_back(col_index);
-              } else {
-                // Determine where in the previous live columns list this
-                // column existed
-                i32 col_index = -1;
-                for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-                  const std::tuple<i32, std::string> &live_input =
-                      prev_columns[k];
-                  if (parent_index == std::get<0>(live_input) &&
-                      col_name == std::get<1>(live_input)) {
-                    col_index = k;
-                    break;
-                  }
-                }
-                assert(col_index != -1);
-                dead.push_back(col_index);
-              }
-            }
-          }
-        }
-      }
-      auto &mapping = column_mapping[op_index - 1];
-      for (const auto &eval_input : op.inputs()) {
-        i32 parent_index = eval_input.op_index();
-        for (const std::string &col : eval_input.columns()) {
-          i32 col_index = -1;
-          for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-            const std::tuple<i32, std::string> &live_input = prev_columns[k];
-            if (parent_index == std::get<0>(live_input) &&
-                col == std::get<1>(live_input)) {
-              col_index = k;
-              break;
-            }
-          }
-          assert(col_index != -1);
-          mapping.push_back(col_index);
-        }
-      }
-    }
+    std::vector<std::vector<i32>> column_mapping;
+    analyze_dag(job_params->task_set(), live_columns, dead_columns,
+                unused_outputs, column_mapping);
 
     // Setup kernel factories and the kernel configs that will be used
     // to instantiate instances of the op pipeline
