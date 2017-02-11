@@ -1,8 +1,26 @@
+/* Copyright 2016 Carnegie Mellon University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/kernel_registry.h"
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/save_worker.h"
+
+#include <grpc/support/log.h>
+#include <grpc/grpc_posix.h>
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -552,10 +570,11 @@ public:
       i32 local_work = accepted_items - retired_items;
       if (local_work < kernel_instances_per_node * TASKS_IN_QUEUE_PER_PU) {
         grpc::ClientContext context;
-        proto::Empty empty;
+        proto::NodeInfo node_info;
         proto::IOItem io_item;
 
-        master_->NextIOItem(&context, empty, &io_item);
+        node_info.set_node_id(node_id_);
+        master_->NextIOItem(&context, node_info, &io_item);
 
         i32 next_item = io_item.item_id();
         if (next_item == -1) {
@@ -569,10 +588,12 @@ public:
         }
       }
 
-      for (auto& results : eval_results) {
-        for (auto& result : results) {
+      for (size_t i = 0; i < eval_results.size(); ++i) {
+        for (size_t j = 0; j < eval_results[i].size(); ++j) {
+          auto &result = eval_results[i][j];
           if (!result.success()) {
-            LOG(WARNING) << "Kernel returned error result: " << result.msg();
+            LOG(WARNING) << "(N/KI/KG: " << node_id_ << "/" << i << "/" << j
+                         << ") returned error result: " << result.msg();
             goto leave_loop;
           }
         }
