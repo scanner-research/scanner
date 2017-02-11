@@ -868,8 +868,24 @@ Result ingest_videos(storehouse::StorageConfig *storage_config,
   internal::DatabaseMetadata meta = internal::read_database_metadata(
       storage.get(), internal::DatabaseMetadata::descriptor_path());
   std::vector<i32> table_ids;
+  std::set<std::string> inserted_table_names;
   for (size_t i = 0; i < table_names.size(); ++i) {
-    table_ids.push_back(meta.add_table(table_names[i]));
+    if (inserted_table_names.count(table_names[i]) > 0) {
+      RESULT_ERROR(&result, "Duplicate table name %s in ingest video set.",
+                   table_names[i].c_str());
+      break;
+    }
+    i32 table_id = meta.add_table(table_names[i]);
+    if (table_id == -1) {
+      RESULT_ERROR(&result, "Table name %s already exists in databse.",
+                   table_names[i].c_str());
+      break;
+    }
+    table_ids.push_back(table_id);
+    inserted_table_names.insert(table_names[i]);
+  }
+  if (!result.success()) {
+    return result;
   }
   std::vector<bool> bad_videos(table_names.size(), false);
   std::vector<std::string> bad_messages(table_names.size());
@@ -885,7 +901,6 @@ Result ingest_videos(storehouse::StorageConfig *storage_config,
     i32 end = videos_allocated;
     ingest_threads.emplace_back([&, start, end]() {
       for (i32 i = start; i < end; ++i) {
-        printf("%s\n", table_names[i].c_str());
         if (!internal::parse_and_write_video(storage.get(), table_names[i],
                                              table_ids[i], paths[i],
                                              bad_messages[i])) {
@@ -909,13 +924,13 @@ Result ingest_videos(storehouse::StorageConfig *storage_config,
     }
   }
   if (num_bad_videos == table_names.size()) {
-    result.set_success(false);
-    result.set_msg("All videos failed to ingest properly");
+    RESULT_ERROR(&result, "All videos failed to ingest properly");
   }
 
-  // Save the db metadata
-  internal::write_database_metadata(storage.get(), meta);
-
+  if (result.success()) {
+    // Save the db metadata
+    internal::write_database_metadata(storage.get(), meta);
+  }
   return result;
 }
 

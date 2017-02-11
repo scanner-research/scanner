@@ -574,7 +574,14 @@ public:
         proto::IOItem io_item;
 
         node_info.set_node_id(node_id_);
-        master_->NextIOItem(&context, node_info, &io_item);
+        grpc::Status status =
+            master_->NextIOItem(&context, node_info, &io_item);
+        if (!status.ok()) {
+          RESULT_ERROR(job_result,
+                       "Worker %d could not get next io item from master",
+                       node_id_);
+          break;
+        }
 
         i32 next_item = io_item.item_id();
         if (next_item == -1) {
@@ -765,7 +772,6 @@ public:
 
     BACKOFF_FAIL(profiler_output->save());
 
-    job_result->set_success(true);
     return grpc::Status::OK;
   }
 

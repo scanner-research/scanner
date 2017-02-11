@@ -138,8 +138,11 @@ const std::string &DatabaseMetadata::get_table_name(i32 table_id) const {
 }
 
 i32 DatabaseMetadata::add_table(const std::string &table) {
-  i32 table_id = next_table_id_++;
-  table_id_names_[table_id] = table;
+  i32 table_id = -1;
+  if (!has_table(table)) {
+    table_id = next_table_id_++;
+    table_id_names_[table_id] = table;
+  }
   return table_id;
 }
 
