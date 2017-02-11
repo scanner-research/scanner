@@ -120,7 +120,9 @@ class Database:
         return self._cached_db_metadata
 
     def _connect_to_master(self):
-        channel = grpc.insecure_channel(self._master_address)
+        channel = grpc.insecure_channel(
+            self._master_address,
+            options=[('grpc.max_message_length', 24499183 * 2)])
         self._master = self._rpc_types.MasterStub(channel)
 
         # Ping master and start master/worker locally if they don't exist.
@@ -298,11 +300,12 @@ class Database:
         for table_name in table_names:
             if self.has_table(table_name):
                 if force is True:
-                    self.delete_table(table_name)
+                    self._delete_table(table_name)
                 else:
                     raise ScannerException(
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
+        self._save_descriptor(db_meta, 'db_metadata.bin')
         invalid = self._bindings.ingest_videos(
             self._db,
             list(table_names),
@@ -350,15 +353,18 @@ class Database:
                 return True
         return False
 
-    def delete_table(self, name):
+    def _delete_table(self, name):
         table = self.table(name)
         db_meta = self._load_db_metadata()
         for i, t in enumerate(db_meta.tables):
             if t.id == table.id():
                 del db_meta.tables[i]
-                self._save_descriptor(db_meta, 'db_metadata.bin')
                 return
         assert False
+
+    def delete_table(self, name):
+        self._delete_table(name)
+        self._save_descriptor(db_meta, 'db_metadata.bin')
 
     def table(self, name):
         db_meta = self._load_db_metadata()
@@ -512,10 +518,11 @@ class Database:
         for task in tasks:
             if self.has_table(task.output_table_name):
                 if force:
-                    self.delete_table(task.output_table_name)
+                    self._delete_table(task.output_table_name)
                 else:
                     raise ScannerException('Job would overwrite existing table {}'
                                            .format(task.output_table_name))
+        self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
         job_params = self._rpc_types.JobParameters()
         # Generate a random job name if none given
@@ -528,6 +535,7 @@ class Database:
         job_params.work_item_size = work_item_size
 
         # Execute job via RPC
+        self._connect_to_master()
         self._try_rpc(lambda: self._master.NewJob(job_params))
 
         self._cached_db_metadata = None
