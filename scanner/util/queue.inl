@@ -18,22 +18,28 @@
 namespace scanner {
 
 template <typename T>
-Queue<T>::Queue() {}
+Queue<T>::Queue(i32 max_size)
+    : max_size_(max_size) {}
 
 template <typename T>
-Queue<T>::Queue(Queue<T> &&o) : data_(std::move(o.data_)) {}
+Queue<T>::Queue(Queue<T> &&o)
+    : max_size_(o.max_size_), data_(std::move(o.data_)) {}
 
 template <typename T>
 int Queue<T>::size() {
   std::unique_lock<std::mutex> lock(mutex_);
-  return data_.size() - waiters_;
+  return data_.size() - pop_waiters_ + push_waiters_;
 }
 
 template <typename T>
 template <typename... Args>
 void Queue<T>::emplace(Args&&... args) {
   std::unique_lock<std::mutex> lock(mutex_);
+  push_waiters_++;
+  not_full_.wait(lock, [this]{ return data_.size() < max_size_; });
+  push_waiters_--;
   data_.emplace_back(std::forward<Args>(args)...);
+
   lock.unlock();
   not_empty_.notify_one();
 }
@@ -41,6 +47,10 @@ void Queue<T>::emplace(Args&&... args) {
 template <typename T>
 void Queue<T>::push(T item) {
   std::unique_lock<std::mutex> lock(mutex_);
+  push_waiters_++;
+  not_full_.wait(lock, [this]{ return data_.size() < max_size_; });
+  push_waiters_--;
+
   data_.push_back(item);
   lock.unlock();
   // TODO(apoms): check how much overhead this causes. Would it be better to
@@ -57,6 +67,9 @@ bool Queue<T>::try_pop(T& item) {
   } else {
     item = data_.front();
     data_.pop_front();
+
+    lock.unlock();
+    not_full_.notify_one();
     return true;
   }
 }
@@ -64,12 +77,15 @@ bool Queue<T>::try_pop(T& item) {
 template <typename T>
 void Queue<T>::pop(T& item) {
   std::unique_lock<std::mutex> lock(mutex_);
-  waiters_++;
+  pop_waiters_++;
   not_empty_.wait(lock, [this]{ return data_.size() > 0; });
-  waiters_--;
+  pop_waiters_--;
 
   item = data_.front();
   data_.pop_front();
+
+  lock.unlock();
+  not_full_.notify_one();
 }
 
 }

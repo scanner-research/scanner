@@ -25,7 +25,7 @@ namespace scanner {
 template <typename T>
 class Queue {
  public:
-  Queue();
+  Queue(int max_size = 4);
   Queue(Queue<T>&& o);
 
   int size();
@@ -40,10 +40,13 @@ class Queue {
   void pop(T& item);
 
  private:
+  i32 max_size_;
   std::mutex mutex_;
   std::condition_variable not_empty_;
+  std::condition_variable not_full_;
   std::deque<T> data_;
-  std::atomic<int> waiters_{0};
+  std::atomic<int> pop_waiters_{0};
+  std::atomic<int> push_waiters_{0};
 };
 }
 
