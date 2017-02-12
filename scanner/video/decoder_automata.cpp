@@ -77,9 +77,9 @@ void DecoderAutomata::initialize(
   if (info_.width() != info.width()
       || info_.height() != info.height()) {
     decoder_->configure(info);
-    if (frames_retrieved_ > 0) {
-      decoder_->feed(nullptr, 0, true);
-    }
+  }
+  if (frames_retrieved_ > 0) {
+    decoder_->feed(nullptr, 0, true);
   }
 
   feeder_data_idx_.store(0, std::memory_order_release);
