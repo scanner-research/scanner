@@ -37,7 +37,7 @@ class Column:
 
         i = 8
         rows = rows if len(rows) > 0 else range(num_rows)
-        for fi in rows:
+        for fi in range(num_rows):
             (buf_len,) = struct.unpack("l", contents[i:i+8])
             i += 8
             old_pos = pos
@@ -46,16 +46,19 @@ class Column:
                 start_pos = old_pos
             lens.append(buf_len)
 
+        rows_idx = 0
         i = 8 + num_rows * 8 + start_pos
-        for buf_len in lens:
-            buf = contents[i:i+buf_len]
+        for j, buf_len in enumerate(lens):
+            if j == rows[rows_idx]:
+                buf = contents[i:i+buf_len]
+                if fn is not None:
+                    yield fn(buf)
+                else:
+                    yield buf
+                rows_idx += 1
             i += buf_len
-            if fn is not None:
-                yield fn(buf)
-            else:
-                yield buf
 
-    def _load_all(self, fn=None):
+    def _load(self, fn=None, rows=None):
         table_descriptor = self._table._descriptor
         total_rows = table_descriptor.num_rows
         rows_per_item = table_descriptor.rows_per_item
@@ -66,18 +69,32 @@ class Column:
         input_rows = self._table.rows()
         assert len(input_rows) == total_rows
         i = 0
+        rows_so_far = 0
+        rows_idx = 0
+        rows = range(total_rows) if rows is None else rows
         for item_id in range(num_items):
-            rows = total_rows % rows_per_item \
-                   if item_id == num_items - 1 else rows_per_item
-            for output in self._load_output_file(item_id, range(rows), fn):
+            item_rows = total_rows % rows_per_item \
+                        if item_id == num_items - 1 else rows_per_item
+            start_row = rows_so_far
+            end_row = start_row + item_rows
+            select_rows = []
+            while rows_idx < len(rows):
+                r = rows[rows_idx]
+                if r >= start_row and r < end_row:
+                    select_rows.append(r - start_row)
+                    rows_idx += 1
+                else:
+                    break
+            for output in self._load_output_file(item_id, select_rows, fn):
                 yield (input_rows[i], output)
                 i += 1
+            rows_so_far += item_rows
 
     def _decode_png(self, png):
         return cv2.imdecode(np.frombuffer(png, dtype=np.dtype(np.uint8)),
                             cv2.IMREAD_COLOR)
 
-    def load(self, fn=None):
+    def load(self, fn=None, rows=None):
         """
         Loads the results of a Scanner computation into Python.
 
@@ -98,6 +115,6 @@ class Column:
             tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
             [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
                                      force=True)
-            return out_tbl.columns(0).load(self._decode_png)
+            return out_tbl.columns(0).load(fn=self._decode_png, rows=rows)
         else:
-            return self._load_all(fn)
+            return self._load(fn, rows=rows)
