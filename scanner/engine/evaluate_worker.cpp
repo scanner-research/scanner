@@ -112,7 +112,7 @@ void *pre_evaluate_thread(void *arg) {
     }
 
     if (needs_configure) {
-      decoders.clear();
+      //decoders.clear();
     }
 
     // Setup decoders if they have not been initialized yet
