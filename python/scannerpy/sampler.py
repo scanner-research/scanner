@@ -38,6 +38,24 @@ class Sampler:
             tasks.append(task)
         return tasks
 
+    def gather(self, video, rows):
+        if isinstance(video, list) or isinstance(video, Collection):
+            raise ScannerException('Sampler.gather only takes a single video')
+        if not isinstance(video, tuple):
+            raise ScannerException("""Error: sampler input must either be a collection \
+or (input_table, output_table) pair')""")
+
+        (input_table_name, output_table_name) = video
+        task = self._db._metadata_types.Task()
+        task.output_table_name = output_table_name
+        input_table = self._db.table(input_table_name)
+        column_names = [c.name() for c in input_table.columns()]
+        sample = task.samples.add()
+        sample.table_name = input_table_name
+        sample.column_names.extend(column_names)
+        sample.rows.extend(rows)
+        return task
+
     def strided_range(self, video, start, end, stride):
         if isinstance(video, list) or isinstance(video, Collection):
             raise ScannerException('Sampler.strided_range only takes a single video')

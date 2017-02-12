@@ -85,9 +85,11 @@ class Column:
                     rows_idx += 1
                 else:
                     break
-            for output in self._load_output_file(item_id, select_rows, fn):
-                yield (input_rows[i], output)
-                i += 1
+            if select_rows:
+                print(select_rows)
+                for output in self._load_output_file(item_id, select_rows, fn):
+                    yield (input_rows[i], output)
+                    i += 1
             rows_so_far += item_rows
 
     def _decode_png(self, png):
@@ -112,9 +114,12 @@ class Column:
         # PNGs and return the decoded PNGs
         if self._descriptor.type == self._db._metadata_types.Video:
             sampler = self._db.sampler()
-            tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
+            if rows is None:
+                tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
+            else:
+                tasks = [sampler.gather((self._table.name(), '__scanner_png_dump'), rows)]
             [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
                                      force=True)
-            return out_tbl.columns(0).load(fn=self._decode_png, rows=rows)
+            return out_tbl.columns(0).load(fn=self._decode_png)
         else:
             return self._load(fn, rows=rows)
