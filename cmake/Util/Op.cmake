@@ -1,3 +1,7 @@
+# Op.cmake should be included by a CMake script that will build a custom Scanner
+# op. It sets a few default flags and exposes a function build_op for simplifying
+# the build process. See examples/tutorial/04_custom_op.py for an example usage.
+
 if(NOT SCANNER_PATH)
   message(FATAL_ERROR "Set SCANNER_PATH to the Scanner source directory before including Op.cmake.")
 endif()
@@ -21,7 +25,6 @@ function(build_op)
   cmake_parse_arguments(args "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
 
   if(NOT("${args_PROTO_SRC}" STREQUAL ""))
     find_package(SaneProtobuf REQUIRED)

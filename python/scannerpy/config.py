@@ -1,8 +1,12 @@
 import os
 import toml
 import sys
+from subprocess import check_output
 from common import *
 
+
+def read_line(s):
+    return sys.stdin.readline().strip()
 
 class Config(object):
     def __init__(self, config_path=None):
@@ -10,6 +14,20 @@ class Config(object):
             level=log.DEBUG,
             format='%(levelname)s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
         self.config_path = config_path or self.default_config_path()
+
+        if not os.path.isfile(self.config_path):
+            sys.stdout.write(
+                'Your Scanner configuration file does not exist. Create one? '
+                '[Y/n] ')
+            if sys.stdin.readline().strip().lower() == 'n':
+                exit()
+
+            config = self._default_config()
+            path = self.default_config_path()
+            with open(path, 'w') as f:
+                f.write(toml.dumps(config))
+            print('Wrote Scanner configuration to {}'.format(path))
+
         config = self.load_config(self.config_path)
         try:
             self.scanner_path = config['scanner_path']
@@ -41,22 +59,6 @@ scanner_path in {} is correct and that Scanner is built correctly."""
             else:
                 raise ScannerException('Unsupported storage type {}'.format(storage_type))
 
-            from scanner.metadata_pb2 import MemoryPoolConfig
-            cfg = MemoryPoolConfig()
-            if 'memory_pool' in config:
-                memory_pool = config['memory_pool']
-                if 'cpu' in memory_pool:
-                    cfg.cpu.use_pool = memory_pool['cpu']['use_pool']
-                    if cfg.cpu.use_pool:
-                        cfg.cpu.free_space = self._parse_size_string(
-                            memory_pool['cpu']['free_space'])
-                if 'gpu' in memory_pool:
-                    cfg.gpu.use_pool = memory_pool['gpu']['use_pool']
-                    if cfg.gpu.use_pool:
-                        cfg.gpu.free_space = self._parse_size_string(
-                            memory_pool['gpu']['free_space'])
-            self.memory_pool_config = cfg
-
             self.master_address = 'localhost:5001'
             if 'network' in config:
                 network = config['network']
@@ -76,25 +78,33 @@ scanner_path in {} is correct and that Scanner is built correctly."""
         self.storage_config = storage_config
         self.storage = StorageBackend.make_from_config(storage_config)
 
-    def _parse_size_string(self, s):
-        (prefix, suffix) = (s[:-1], s[-1])
-        mults = {
-            'G': 1024*1024*1024,
-            'M': 1024*1024,
-            'K': 1024
-        }
-        if suffix not in mults:
-            raise ScannerException('Invalid size suffix in "{}"'.format(s))
-        return int(prefix) * mults[suffix]
-
     @staticmethod
     def default_config_path():
-        return '{}/.scanner.toml'.format(os.path.expanduser('~'))
+        return os.path.expanduser('~') + '/.scanner.toml'
 
     def load_config(self, path):
         try:
             with open(path, 'r') as f:
                 return toml.loads(f.read())
         except IOError:
-            raise ScannerException('You need to setup your Scanner config. '
-                                   'Run `python scripts/setup.py`.')
+            raise ScannerException('Scanner config file does not exist: {}'
+                                   .format(path))
+
+    def _default_config(self):
+        hostname = check_output(['hostname', '-A']).split(' ')[0]
+
+        scanner_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', '..'))
+
+        db_path = os.path.expanduser('~') + '/.scanner_db'
+
+        return {
+            'scanner_path': scanner_path,
+            'storage': {
+                'type': 'posix',
+                'db_path': db_path,
+            },
+            'network': {
+                'master': hostname + ':5001'
+            }
+        }

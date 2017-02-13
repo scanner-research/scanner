@@ -59,7 +59,6 @@ class Database:
         self._storage = self.config.storage
         self._master_address = self.config.master_address
         self._cached_db_metadata = None
-        self._pending_op_loads = []
 
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self)
@@ -79,6 +78,8 @@ class Database:
         self._collections = self._load_descriptor(
             self._metadata_types.CollectionsDescriptor,
             'pydb/descriptor.bin')
+
+        self._connect_to_master()
 
         kernels_path = '{}/build/kernels'.format(self.config.scanner_path)
         self.load_op('{}/libkernels.so'.format(kernels_path),
@@ -234,7 +235,8 @@ class Database:
             self._arg_types.append(importlib.import_module(mod_name))
         op_info = self.protobufs.OpInfo()
         op_info.so_path = so_path
-        self._pending_op_loads.append(op_info)
+        self._try_rpc(lambda: self._master.LoadOp(op_info))
+
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -476,8 +478,25 @@ class Database:
 
         return self._toposort(op)
 
-    def run(self, tasks, op, output_collection=None, job_name=None,
-            force=False, io_item_size=1000, work_item_size=250):
+    def _parse_size_string(self, s):
+        (prefix, suffix) = (s[:-1], s[-1])
+        mults = {
+            'G': 1024**3,
+            'M': 1024**2,
+            'K': 1024**1
+        }
+        if suffix not in mults:
+            raise ScannerException('Invalid size suffix in "{}"'.format(s))
+        return int(prefix) * mults[suffix]
+
+    def run(self, tasks, op,
+            output_collection=None,
+            job_name=None,
+            force=False,
+            io_item_size=1000,
+            work_item_size=250,
+            cpu_pool=None,
+            gpu_pool=None):
         """
         Runs a computation over a set of inputs.
 
@@ -497,6 +516,10 @@ class Database:
             job_name: An optional name to assign the job. It will be randomly
                       generated if none is given.
             force: TODO(wcrichto)
+            io_item_size: TODO(wcrichto)
+            work_item_size: TODO(wcrichto)
+            cpu_pool: TODO(wcrichto)
+            gpu_pool: TODO(wcrichto)
 
         Returns:
             Either the output Collection if output_collection is specified
@@ -540,13 +563,15 @@ class Database:
         job_params.io_item_size = io_item_size
         job_params.work_item_size = work_item_size
 
-        # Start a connection if none exists
-        self._connect_to_master()
+        if cpu_pool is not None:
+            job_params.memory_pool_config.cpu.use_pool = True
+            size = self._parse_size_string(cpu_pool)
+            job_params.memory_pool_config.cpu.free_space = size
 
-        # Send all pending op loads to the server
-        for op_info in self._pending_op_loads:
-            self._try_rpc(lambda: self._master.LoadOp(op_info))
-        self._pending_op_loads = []
+        if gpu_pool is not None:
+            job_params.memory_pool_config.gpu.use_pool = True
+            size = self._parse_size_string(gpu_pool)
+            job_params.memory_pool_config.gpu.free_space = size
 
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(job_params))
