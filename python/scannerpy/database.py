@@ -79,9 +79,9 @@ class Database:
             self._metadata_types.CollectionsDescriptor,
             'pydb/descriptor.bin')
 
-        stdlib_path = '{}/stdlib'.format(self.config.scanner_path)
-        self.load_op('{}/libstdlib.so'.format(stdlib_path),
-                     '{}/args_pb2.py'.format(stdlib_path))
+        kernels_path = '{}/build/kernels'.format(self.config.scanner_path)
+        self.load_op('{}/libkernels.so'.format(kernels_path),
+                     '{}/args_pb2.py'.format(kernels_path))
 
     def get_build_flags(self):
         """

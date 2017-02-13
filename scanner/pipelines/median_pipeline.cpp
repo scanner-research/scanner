@@ -76,7 +76,7 @@ public:
       Eigen::Vector3d median(0, 0, 0);
 
       geometric_median<float>(X, median, distFunction());
-      // LOG(INFO) << X.size() << " " << median;
+      // VLOG(1) << X.size() << " " << median;
 
       u8 *out_buffer = new u8[out_size];
       for (i32 j = 0; j < 3; ++j) {

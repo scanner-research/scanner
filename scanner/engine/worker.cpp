@@ -605,7 +605,7 @@ public:
         i32 next_item = io_item.item_id();
         if (next_item == -1) {
           // No more work left
-          LOG(INFO) << "Node " << node_id_ << " received done signal.";
+          VLOG(1) << "Node " << node_id_ << " received done signal.";
           break;
         } else {
           LoadWorkEntry &entry = load_work_entries[next_item];

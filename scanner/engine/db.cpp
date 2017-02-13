@@ -394,21 +394,21 @@ const std::string &get_database_path() {
 }
 
 void set_database_path(std::string path) {
-  LOG(INFO) << "Setting DB path to " << path;
+  VLOG(1) << "Setting DB path to " << path;
   get_database_path_ref() = path + "/";
   std::atomic_thread_fence(std::memory_order_release);
 }
 
 void write_new_table(storehouse::StorageBackend *storage,
                      DatabaseMetadata &meta, TableMetadata &table) {
-  LOG(INFO) << "Writing new table " << table.name() << "..." << std::endl;
+  VLOG(1) << "Writing new table " << table.name() << "..." << std::endl;
   TableDescriptor &table_desc = table.get_descriptor();
   i32 table_id = meta.add_table(table.name());
   table_desc.set_id(table_id);
 
   write_table_metadata(storage, table);
   write_database_metadata(storage, meta);
-  LOG(INFO) << "Finished writing new table " << table.name() << "."
+  VLOG(1) << "Finished writing new table " << table.name() << "."
             << std::endl;
 }
 }

@@ -1,5 +1,5 @@
 #include "scanner/api/op.h"
-#include "stdlib/caffe_kernel.h"
+#include "kernels/caffe_kernel.h"
 
 namespace scanner {
 

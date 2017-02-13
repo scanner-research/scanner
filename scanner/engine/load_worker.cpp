@@ -244,7 +244,7 @@ void *load_thread(void *arg) {
       break;
     }
 
-    LOG(INFO) << "Load (N/PU: " << args.node_id << "/" << args.id
+    VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.id
               << "): processing item " << load_work_entry.io_item_index();
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -352,7 +352,7 @@ void *load_thread(void *arg) {
     args.eval_work.push(eval_work_entry);
   }
 
-  LOG(INFO) << "Load (N/PU: " << args.node_id << "/" << args.id
+  VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.id
             << "): thread finished";
 
   // Cleanup

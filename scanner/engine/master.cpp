@@ -223,7 +223,7 @@ public:
       ++next_io_item_to_allocate_;
       i32 items_left = num_io_items_ - next_io_item_to_allocate_;
       if (items_left % 10 == 0) {
-        LOG(INFO) << "IO items remaining: " << items_left;
+        VLOG(1) << "IO items remaining: " << items_left;
       }
     } else {
       io_item->set_item_id(-1);

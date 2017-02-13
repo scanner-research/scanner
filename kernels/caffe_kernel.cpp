@@ -1,4 +1,4 @@
-#include "stdlib/caffe_kernel.h"
+#include "kernels/caffe_kernel.h"
 #include "scanner/engine/db.h"
 
 #include "caffe/blob.hpp"

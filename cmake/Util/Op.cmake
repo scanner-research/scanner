@@ -30,6 +30,9 @@ function(build_op)
     add_custom_target(${args_LIB_NAME}_proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY})
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS} ${PROTO_SRCS})
     add_dependencies(${args_LIB_NAME} ${args_LIB_NAME}_proto_files)
+    target_link_libraries(${args_LIB_NAME} PUBLIC
+      "${PROTOBUF_LIBRARY}"
+      "${SCANNER_PATH}/build/libscanner.so")
   else()
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()

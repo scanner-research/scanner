@@ -76,7 +76,7 @@ void CameraMotionEvaluator::from_homography(std::vector<cv::Mat> &inputs,
       if (!H.empty()) {
         std::vector<cv::Mat> rotations, translations, normals;
         cv::decomposeHomographyMat(H, K, rotations, translations, normals);
-        LOG(INFO) << cv::norm(translations[0]);
+        VLOG(1) << cv::norm(translations[0]);
         norm = 100.0 * cv::norm(translations[0]);
       }
     }

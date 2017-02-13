@@ -42,13 +42,13 @@ TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig &config,
 }
 
 void TrackerEvaluator::configure(const BatchConfig &config) {
-  LOG(INFO) << "Tracker configure";
+  VLOG(1) << "Tracker configure";
   assert(config.formats.size() == 1);
   metadata_ = config.formats[0];
 }
 
 void TrackerEvaluator::reset() {
-  LOG(INFO) << "Tracker reset";
+  VLOG(1) << "Tracker reset";
   tracks_.clear();
 }
 
@@ -57,7 +57,7 @@ void TrackerEvaluator::evaluate(const BatchedColumns &input_columns,
   assert(input_columns.size() >= 2);
 
   i32 input_count = input_columns[0].rows.size();
-  LOG(INFO) << "Tracker evaluate on " << input_count << " inputs";
+  VLOG(1) << "Tracker evaluate on " << input_count << " inputs";
 
   i32 frame_idx = 0;
   i32 box_idx = 1;

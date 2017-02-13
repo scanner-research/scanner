@@ -8,7 +8,7 @@ class Config(object):
     def __init__(self, config_path=None):
         log.basicConfig(
             level=log.DEBUG,
-            format='%(levelname)7s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
+            format='%(levelname)s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
         self.config_path = config_path or self.default_config_path()
         config = self.load_config(self.config_path)
         try:

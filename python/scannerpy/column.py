@@ -75,7 +75,7 @@ class Column:
         for item_id in range(num_items):
             item_rows = total_rows % rows_per_item \
                         if item_id == num_items - 1 \
-                           and total_rows % rows_per_item != 0
+                           and total_rows % rows_per_item != 0 \
                         else rows_per_item
             start_row = rows_so_far
             end_row = start_row + item_rows

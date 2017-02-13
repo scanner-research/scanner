@@ -105,7 +105,7 @@ struct CodecState {
 };
 
 bool setup_video_codec(FFStorehouseState *fs, CodecState &state) {
-  LOG(INFO) << "Setting up video codec";
+  VLOG(1) << "Setting up video codec";
   av_init_packet(&state.av_packet);
   state.picture = av_frame_alloc();
   state.format_context = avformat_alloc_context();
@@ -119,7 +119,7 @@ bool setup_video_codec(FFStorehouseState *fs, CodecState &state) {
   state.format_context->pb = state.io_context;
 
   // Read file header
-  LOG(INFO) << "Opening input file to read format";
+  VLOG(1) << "Opening input file to read format";
   if (avformat_open_input(&state.format_context, NULL, NULL, NULL) < 0) {
     LOG(ERROR) << "open input failed";
     return false;
@@ -351,7 +351,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
         i32 nal_unit_type = (*nal_start) & 0x1F;
-        LOG(INFO) << "extradata nal size: " << nal_size << ", nal ref "
+        VLOG(1) << "extradata nal size: " << nal_size << ", nal ref "
                   << nal_ref_idc << ", nal unit " << nal_unit_type;
       }
       extradata_extracted = true;
@@ -359,7 +359,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
     i64 nal_bytestream_offset = bytestream_pos;
 
-    LOG(INFO) << "new packet " << nal_bytestream_offset;
+    VLOG(1) << "new packet " << nal_bytestream_offset;
     bool insert_sps_nal = false;
     // Parse NAL unit
     const u8 *nal_parse = filtered_data;
@@ -372,7 +372,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      LOG(INFO) << "frame " << frame << ", nal size " << nal_size
+      VLOG(1) << "frame " << frame << ", nal size " << nal_size
                 << ", nal_ref_idc " << nal_ref_idc << ", nal unit "
                 << nal_unit_type;
       if (nal_ref_idc == 0) {
@@ -382,7 +382,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         if (!in_meta_packet_sequence) {
           meta_packet_sequence_start_offset = nal_bytestream_offset;
           filtered_data_size - size_left;
-          LOG(INFO) << "in meta sequence " << nal_bytestream_offset;
+          VLOG(1) << "in meta sequence " << nal_bytestream_offset;
           in_meta_packet_sequence = true;
           saw_sps_nal = false;
         }
@@ -430,7 +430,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         i32 sps_id = sps.sps_id;
         sps_map[sps_id] = sps;
         last_sps = sps.sps_id;
-        LOG(INFO) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
+        VLOG(1) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
                   << " seen at frame " << frame;
       }
       // PPS
@@ -447,7 +447,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         saw_pps_nal = true;
         pps_nal_bytes.insert(pps_nal_bytes.end(), nal_start - 3,
                              nal_start + nal_size + 3);
-        LOG(INFO) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
+        VLOG(1) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
                   << ", frame " << frame;
       }
       if (is_vcl_nal(nal_unit_type)) {
@@ -471,11 +471,11 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
             keyframe_positions.push_back(frame - 1);
             keyframe_timestamps.push_back(state.av_packet.pts);
             saw_sps_nal = false;
-            LOG(INFO) << "keyframe " << frame - 1 << ", byte offset "
+            VLOG(1) << "keyframe " << frame - 1 << ", byte offset "
                       << meta_packet_sequence_start_offset;
 
             // Insert metadata
-            LOG(INFO) << "inserting sps and pss nals";
+            VLOG(1) << "inserting sps and pss nals";
             i32 size = filtered_data_size +
                        static_cast<i32>(sps_nal_bytes.size()) +
                        static_cast<i32>(pps_nal_bytes.size());
@@ -564,7 +564,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 //   for (size_t i = 0; i < image_paths.size(); ++i) {
 //     const std::string& path = image_paths[i];
 
-//     LOG(INFO) << "Ingesting image " << path << "..." << std::endl;
+//     VLOG(1) << "Ingesting image " << path << "..." << std::endl;
 
 //     // Figure out file type from extension
 //     ImageEncodingType image_type;
@@ -602,8 +602,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 //       image_bytes = read_entire_file(in_file.get(), pos);
 //     }
 
-//     LOG(INFO) << "path " << path;
-//     LOG(INFO) << "image size " << image_bytes.size() / 1024;
+//     VLOG(1) << "path " << path;
+//     VLOG(1) << "image size " << image_bytes.size() / 1024;
 //     i32 image_width;
 //     i32 image_height;
 //     ImageColorSpace color_space;
@@ -780,7 +780,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 //     average_height += image_height;
 //     max_height = std::max(max_height, (i64)image_height);
 
-//     LOG(INFO) << "Finished ingesting image " << path << "." << std::endl;
+//     VLOG(1) << "Finished ingesting image " << path << "." << std::endl;
 //   }
 
 //   // Write out all image paths which failed the ingest process
@@ -811,7 +811,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 //     metadata.set_average_height(average_height / total_images);
 //   }
 
-//   LOG(INFO)
+//   VLOG(1)
 //     << "max width " << max_width
 //     << ",  max_height " << max_height;
 
@@ -948,7 +948,7 @@ void ingest_images(storehouse::StorageConfig *storage_config,
 
   LOG(FATAL) << "Image ingest under construction!" << std::endl;
 
-  LOG(INFO) << "Creating image table " << table_name << "..." << std::endl;
+  VLOG(1) << "Creating image table " << table_name << "..." << std::endl;
 }
 }
 }

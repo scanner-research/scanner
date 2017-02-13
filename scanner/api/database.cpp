@@ -28,6 +28,7 @@
 #include <grpc++/security/server_credentials.h>
 #include <grpc++/server.h>
 #include <grpc++/server_builder.h>
+#include <grpc/support/log.h>
 
 #include <thread>
 
@@ -179,8 +180,9 @@ Database::Database(storehouse::StorageConfig *storage_config,
   if (!database_exists()) {
     internal::DatabaseMetadata meta{};
     internal::write_database_metadata(storage_.get(), meta);
-    LOG(INFO) << "Creating database at " << db_path << "...";
+    VLOG(1) << "Creating database at " << db_path << "...";
   }
+  gpr_set_log_verbosity(GPR_LOG_SEVERITY_ERROR);
 }
 
 Result Database::start_master(const MachineParameters& machine_params) {

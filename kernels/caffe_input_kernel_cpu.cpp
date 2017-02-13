@@ -1,4 +1,4 @@
-#include "stdlib/caffe_input_kernel.h"
+#include "kernels/caffe_input_kernel.h"
 
 namespace scanner {
 

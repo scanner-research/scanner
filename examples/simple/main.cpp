@@ -1,6 +1,6 @@
 #include "scanner/api/op.h"
 
-#include "stdlib/args.pb.h"
+#include "kernels/args.pb.h"
 #include "scanner/api/database.h"
 
 #include <grpc/grpc_posix.h>

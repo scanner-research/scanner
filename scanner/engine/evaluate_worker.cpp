@@ -81,7 +81,7 @@ void *pre_evaluate_thread(void *arg) {
       break;
     }
 
-    LOG(INFO) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.id
+    VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.id
               << "): "
               << "processing item " << work_entry.io_item_index;
 
@@ -207,7 +207,7 @@ void *pre_evaluate_thread(void *arg) {
     args.profiler.add_interval("decode", decode_start, now());
   }
 
-  LOG(INFO) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.id
+  VLOG(1) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): thread finished ";
   THREAD_RETURN_SUCCESS();
 }
@@ -235,9 +235,9 @@ void *evaluate_thread(void *arg) {
                                        .size());
       auto kernel = factory->new_instance(config);
       kernel->validate(&args.result);
-      LOG(WARNING) << "Kernel finished validation " << args.result.success();
+      VLOG(1) << "Kernel finished validation " << args.result.success();
       if (!args.result.success()) {
-        LOG(WARNING) << "Kernel validate failed: " << args.result.msg();
+        VLOG(1) << "Kernel validate failed: " << args.result.msg();
         THREAD_RETURN_SUCCESS();
       }
       kernels.emplace_back(factory->new_instance(config));
@@ -261,7 +261,7 @@ void *evaluate_thread(void *arg) {
       break;
     }
 
-    LOG(INFO) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+    VLOG(1) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
               << args.kg << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -402,13 +402,13 @@ void *evaluate_thread(void *arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
-    LOG(INFO) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+    VLOG(1) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
               << args.kg << "): finished item " << work_entry.io_item_index;
 
     args.output_work.push(output_work_entry);
   }
 
-  LOG(INFO) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
+  VLOG(1) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
             << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
@@ -430,7 +430,7 @@ void *post_evaluate_thread(void *arg) {
       break;
     }
 
-    LOG(INFO) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+    VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
               << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -475,7 +475,7 @@ void *post_evaluate_thread(void *arg) {
     }
   }
 
-  LOG(INFO) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+  VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): thread finished ";
 
   THREAD_RETURN_SUCCESS();
