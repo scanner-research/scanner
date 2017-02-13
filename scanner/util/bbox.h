@@ -1,6 +1,5 @@
 #pragma once
 
-#include "scanner/kernels/types.pb.h"
 #include "scanner/util/common.h"
 
 namespace scanner {

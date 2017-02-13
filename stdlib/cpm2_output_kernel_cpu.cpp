@@ -15,8 +15,8 @@
 
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "scanner/kernels/args.pb.h"
-#include "scanner/kernels/types.pb.h"
+#include "stdlib/args.pb.h"
+#include "stdlib/types.pb.h"
 #include "scanner/util/common.h"
 #include "scanner/util/serialize.h"
 #include "scanner/util/util.h"

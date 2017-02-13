@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "scanner/kernels/types.proto";
+import "scanner/types.proto";
 package scanner.proto;
 
 message BlurArgs {

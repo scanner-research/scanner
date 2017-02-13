@@ -40,7 +40,8 @@ function(halide_generator_get_exec_path TARGET OUTVAR)
     # directory, so the Xcode variable $(CONFIGURATION) is passed in the custom build script.
     set(${OUTVAR} "${CMAKE_BINARY_DIR}/$(CONFIGURATION)/${TARGET}${CMAKE_EXECUTABLE_SUFFIX}" PARENT_SCOPE)
   else()
-    set(${OUTVAR} "${CMAKE_BINARY_DIR}/${TARGET}${CMAKE_EXECUTABLE_SUFFIX}" PARENT_SCOPE)
+    get_target_property(GENERATOR_FOLDER ${args_GENERATOR_TARGET} FOLDER)
+    set(${OUTVAR} "${GENERATOR_FOLDER}/${TARGET}${CMAKE_EXECUTABLE_SUFFIX}" PARENT_SCOPE)
   endif()
 endfunction()
 
@@ -221,6 +222,8 @@ function(halide_add_generator NAME)
     halide_add_generator_stub_library(STUB_GENERATOR_TARGET "${NAME}"
                                       STUB_GENERATOR_NAME ${args_STUB_GENERATOR_NAME})
   endif()
+
+  set_target_properties("${NAME}" PROPERTIES FOLDER "${CMAKE_CURRENT_BINARY_DIR}")
 
   # Add any stub deps passed to us.
 endfunction(halide_add_generator)

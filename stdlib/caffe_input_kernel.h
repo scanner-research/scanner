@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scanner/kernels/args.pb.h"
+#include "stdlib/args.pb.h"
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/opencv.h"

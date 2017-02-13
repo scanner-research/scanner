@@ -47,12 +47,11 @@ class Database:
         # Load all protobuf types
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
-        import scanner.kernels.args_pb2 as arg_types
-        import scanner.kernels.types_pb2 as misc_types
+        import scanner.types_pb2 as misc_types
         import scanner_bindings as bindings
         self._metadata_types = metadata_types
         self._rpc_types = rpc_types
-        self._arg_types = [arg_types, misc_types, rpc_types]
+        self._arg_types = [misc_types, rpc_types]
         self._bindings = bindings
 
         # Setup database metadata
@@ -80,6 +79,10 @@ class Database:
             self._metadata_types.CollectionsDescriptor,
             'pydb/descriptor.bin')
 
+        stdlib_path = '{}/stdlib'.format(self.config.scanner_path)
+        self.load_op('{}/libstdlib.so'.format(stdlib_path),
+                     '{}/args_pb2.py'.format(stdlib_path))
+
     def get_build_flags(self):
         """
         Gets the g++ build flags for compiling custom ops.
@@ -100,6 +103,9 @@ class Database:
             include=" ".join(["-I " + d for d in include_dirs]),
             libdir='{}/build'.format(self.config.scanner_path),
             other=self._bindings.other_flags())
+
+    def print_build_flags(self):
+        sys.stdout.write(self.get_build_flags())
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()

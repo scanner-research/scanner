@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "scanner/kernels/types.pb.h"
+#include "scanner/types.pb.h"
 #include "scanner/util/memory.h"
 
 #include <cstddef>

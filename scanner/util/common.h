@@ -16,7 +16,7 @@
 #pragma once
 
 #include "scanner/metadata.pb.h"
-#include "scanner/kernels/types.pb.h"
+#include "scanner/types.pb.h"
 #include "scanner/engine/rpc.pb.h"
 #include "glog/logging.h"
 
