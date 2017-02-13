@@ -1,12 +1,13 @@
 # Scanner outputs build flags that add Scanner to your library and include paths
 # as well as cover common flags for building a shared library.
-SCANNER_FLAGS = `python -c "import scannerpy; print(scannerpy.Database().get_build_flags())"`
+SCANNER_FLAGS = `python -c "import scannerpy; scannerpy.Database().print_build_flags()"`
+
+OpenCV_DIR=/opt/opencv-3.2.0
 
 all:
 # protoc generates the Python and C++ bindings for the ResizeArgs class.
-	protoc args.proto --python_out=. --cpp_out=.
+	protoc args.proto --python_out=build --cpp_out=build
 # g++ builds the op library
-	g++ args.pb.cc resize_op.cpp -o resize_op.so ${SCANNER_FLAGS}
-
-clean:
-	rm -f args_pb2.py args_pb2.pyc args.pb.cc args.pb.h resize_op.so
+	g++ build/args.pb.cc resize_op.cpp -o build/resize_op.so ${SCANNER_FLAGS} \
+		-I ${OpenCV_DIR}/include -L ${OpenCV_DIR}/lib -lopencv_core -lopencv_imgproc \
+		-I build

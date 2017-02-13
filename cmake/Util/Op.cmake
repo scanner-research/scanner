@@ -16,11 +16,12 @@ endif()
 
 function(build_op)
   set(options )
-  set(oneValueArgs LIB_NAME PROTO_SRC)
+  set(oneValueArgs LIB_NAME PROTO_SRC NO_FLAGS)
   set(multiValueArgs CPP_SRCS)
   cmake_parse_arguments(args "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+
 
   if(NOT("${args_PROTO_SRC}" STREQUAL ""))
     find_package(SaneProtobuf REQUIRED)
@@ -37,11 +38,12 @@ function(build_op)
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
 
-  add_custom_command(
-    OUTPUT BUILD_FLAGS
-    DEPENDS ${args_LIB_NAME}
-    COMMAND python -c "import scannerpy; scannerpy.Database().print_build_flags()")
-  set_target_properties(
-    ${args_LIB_NAME} PROPERTIES
-    COMPILE_FLAGS "${BUILD_FLAGS}")
+  if("${args_NO_FLAGS}" STREQUAL "")
+    execute_process(
+      OUTPUT_VARIABLE BUILD_FLAGS
+      COMMAND python -c "import scannerpy; scannerpy.Database().print_build_flags()")
+    set_target_properties(
+      ${args_LIB_NAME} PROPERTIES
+      COMPILE_FLAGS "${BUILD_FLAGS}")
+  endif()
 endfunction()

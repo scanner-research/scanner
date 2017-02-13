@@ -59,6 +59,7 @@ class Database:
         self._storage = self.config.storage
         self._master_address = self.config.master_address
         self._cached_db_metadata = None
+        self._pending_op_loads = []
 
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self)
@@ -231,10 +232,9 @@ class Database:
             sys.path.append(proto_dir)
             (mod_name, _) = os.path.splitext(mod_file)
             self._arg_types.append(importlib.import_module(mod_name))
-        self._connect_to_master()
         op_info = self.protobufs.OpInfo()
         op_info.so_path = so_path
-        self._try_rpc(lambda: self._master.LoadOp(op_info))
+        self._pending_op_loads.append(op_info)
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -540,10 +540,18 @@ class Database:
         job_params.io_item_size = io_item_size
         job_params.work_item_size = work_item_size
 
-        # Execute job via RPC
+        # Start a connection if none exists
         self._connect_to_master()
+
+        # Send all pending op loads to the server
+        for op_info in self._pending_op_loads:
+            self._try_rpc(lambda: self._master.LoadOp(op_info))
+        self._pending_op_loads = []
+
+        # Run the job
         self._try_rpc(lambda: self._master.NewJob(job_params))
 
+        # Invalidate db metadata because of job run
         self._cached_db_metadata = None
 
         db_meta = self._load_db_metadata()

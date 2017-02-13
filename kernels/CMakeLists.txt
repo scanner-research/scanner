@@ -1,7 +1,6 @@
 set(SCANNER_PATH "${CMAKE_SOURCE_DIR}")
 include(${SCANNER_PATH}/cmake/Util/Op.cmake)
 
-option(BUILD_CUDA "" ON)
 option(BUILD_IMAGE_PROCESSING_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
 option(BUILD_CAFFE_INPUT_OPS "" ON)
@@ -192,7 +191,8 @@ endif()
 build_op(
   LIB_NAME kernels
   CPP_SRCS ${SOURCE_FILES}
-  PROTO_SRC args.proto)
+  PROTO_SRC args.proto
+  NO_FLAGS ON)
 add_dependencies(kernels scanner)
 
 target_link_libraries(kernels PUBLIC "${KERNEL_LIBRARIES}")
