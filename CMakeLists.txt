@@ -147,9 +147,8 @@ if (BUILD_CUDA)
   list(APPEND SCANNER_LIBRARIES
     util_cuda
     "${CUDA_LIBRARIES}"
-    "-lcuda"
-    "-L/usr/lib/nvidia-367"
-    "-lnvcuvid")
+    "/usr/lib/x86_64-linux-gnu/libnvcuvid.so"
+    "${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs/libcuda.so")
 endif()
 
 if (APPLE)
