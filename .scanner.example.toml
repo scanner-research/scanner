@@ -1,20 +1,14 @@
 scanner_path = "/opt/scanner"
 
-[memory_pool]
-    [cpu]
-        use_pool = false
-        free_space = "12G"
-    [gpu]
-        use_pool = false
-        free_space = "4G"
-
 [storage]
     type = "posix"
     db_path = "/opt/scanner-db"
 
-[job]
-    work_item_size = 96
-    io_item_size = 512
+# [storage]
+#     type = "gcs"
+#     key_path = "/path/to/gcs.key"
+#     cert_path = "/path/to/gcs.cert"
+#     bucket = "gcs-bucket"
 
 [network]
     master = "localhost:5001"

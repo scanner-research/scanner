@@ -18,14 +18,11 @@ before_install:
   -out .config/travisci_rsa -d
 - chmod 0600 .config/travisci_rsa
 - cp .config/travisci_rsa ~/.ssh/id_rsa
-- docker build -t $DOCKER_REPO:cpu . --build-arg gpu=OFF
-- docker build -t $DOCKER_REPO:gpu . --build-arg gpu=ON
 
 install:
 - sudo apt-get install doxygen
 
-script:
-- docker run $DOCKER_REPO:cpu /bin/bash -c "cd /opt/scanner/build && make test"
+script: ./scripts/build.sh
 
 after_success:
 - ./scripts/publish-docker.sh
