@@ -13,7 +13,7 @@ option(BUILD_MEDIAN_OPS "" OFF)
 set(OPENCV_DESIRED_COMPONENTS)
 set(OPENCV_MAJOR_VERSION 3)
 
-set(KERNEL_LIBRARIES)
+set(STDLIB_LIBRARIES)
 
 set(HALIDE_TARGETS)
 macro(add_halide_target SRC TARGET)
@@ -40,7 +40,7 @@ if (BUILD_CUDA)
   if(COMPILER_SUPPORTS_CXX1Y)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
   endif()
-  list(APPEND KERNEL_LIBRARIES "${CUDA_LIBRARIES}")
+  list(APPEND STDLIB_LIBRARIES "${CUDA_LIBRARIES}")
 endif()
 
 if (BUILD_CAFFE_OPS)
@@ -66,7 +66,7 @@ if (BUILD_CAFFE_OPS)
     endif()
   endif()
 
-  list(APPEND KERNEL_LIBRARIES "${CAFFE_LIBRARIES}")
+  list(APPEND STDLIB_LIBRARIES "${CAFFE_LIBRARIES}")
 endif()
 
 if (BUILD_TRACKER_OPS)
@@ -140,7 +140,7 @@ if (OPENCV_DESIRED_COMPONENTS)
   include_directories(SYSTEM
     ${OpenCV_INCLUDE_DIRS})
   add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
-  list(APPEND KERNEL_LIBRARIES "${OpenCV_LIBRARIES}")
+  list(APPEND STDLIB_LIBRARIES "${OpenCV_LIBRARIES}")
 endif()
 
 set(SOURCE_FILES
@@ -189,23 +189,23 @@ if (BUILD_CPM2_OPS)
 endif()
 
 build_op(
-  LIB_NAME kernels
+  LIB_NAME stdlib
   CPP_SRCS ${SOURCE_FILES}
   PROTO_SRC args.proto
   NO_FLAGS ON)
-add_dependencies(kernels scanner)
+add_dependencies(stdlib scanner)
 
-target_link_libraries(kernels PUBLIC "${KERNEL_LIBRARIES}")
+target_link_libraries(stdlib PUBLIC "${STDLIB_LIBRARIES}")
 
 if (HALIDE_FOUND)
   foreach(HALIDE_TARGET ${HALIDE_TARGETS})
-    add_dependencies(kernels "${HALIDE_TARGET}.exec_generator")
-    target_include_directories(kernels PUBLIC
+    add_dependencies(stdlib "${HALIDE_TARGET}.exec_generator")
+    target_include_directories(stdlib PUBLIC
       "${PROJECT_BINARY_DIR}/generator_genfiles")
-    halide_add_aot_library_dependency(kernels ${HALIDE_TARGET})
+    halide_add_aot_library_dependency(stdlib ${HALIDE_TARGET})
   endforeach()
   if (BUILD_CUDA)
-    add_dependencies(kernels scanner_halide)
-    target_link_libraries(kernels PRIVATE scanner_halide)
+    add_dependencies(stdlib scanner_halide)
+    target_link_libraries(stdlib PRIVATE scanner_halide)
   endif()
 endif()

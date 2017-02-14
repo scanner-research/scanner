@@ -15,7 +15,7 @@
 
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "kernels/args.pb.h"
+#include "stdlib/args.pb.h"
 #include "scanner/util/opencv.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"

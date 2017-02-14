@@ -81,8 +81,8 @@ class Database:
 
         self._connect_to_master()
 
-        kernels_path = '{}/build/kernels'.format(self.config.scanner_path)
-        self.load_op('{}/libkernels.so'.format(kernels_path),
+        stdlib_path = '{}/build/stdlib'.format(self.config.scanner_path)
+        self.load_op('{}/stdlib.so'.format(kernels_path),
                      '{}/args_pb2.py'.format(kernels_path))
 
     def get_build_flags(self):

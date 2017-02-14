@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType
-from scannerpy.libkernels import NetDescriptor, loaders
+from scannerpy.stdlib import NetDescriptor, loaders
 from functools import partial
 import os
 import subprocess

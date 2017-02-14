@@ -1,4 +1,4 @@
-#include "kernels/caffe_input_kernel.h"
+#include "stdlib/caffe_input_kernel.h"
 #include "scanner/util/memory.h"
 
 #include "caffe/blob.hpp"

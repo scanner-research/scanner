@@ -249,7 +249,7 @@ foreach(FIL ${PROTO_FILES} ${GRPC_PROTO_FILES})
     COMMAND ${CMAKE_COMMAND} -E touch ${PYDIR}/${DIR_FIL}/__init__.py)
 endforeach()
 
-add_subdirectory(kernels)
+add_subdirectory(stdlib)
 
 if (BUILD_COMPARISON)
   add_subdirectory(comparison)
