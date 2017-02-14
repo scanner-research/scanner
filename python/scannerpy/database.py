@@ -524,6 +524,7 @@ class Database:
             work_item_size: TODO(wcrichto)
             cpu_pool: TODO(wcrichto)
             gpu_pool: TODO(wcrichto)
+            kernel_instances_per_node: TODO(wcrichto)
 
         Returns:
             Either the output Collection if output_collection is specified

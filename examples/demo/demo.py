@@ -13,7 +13,7 @@ facenet_args.scale = 0.5
 facenet_args.threshold = 0.5
 caffe_args = facenet_args.caffe_args
 caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
-caffe_args.batch_size = 10
+caffe_args.batch_size = 5
 
 table_input = db.ops.Input()
 caffe_input = db.ops.FacenetInput(
@@ -42,8 +42,7 @@ if not db.has_table('example'):
 sampler = db.sampler()
 tasks = sampler.all([('example', 'example_faces')])
 print('Running face detector...')
-[faces_table] = db.run(tasks, caffe_output, force=True)
-# faces_table = db.table('example_faces')
+[faces_table] = db.run(tasks, caffe_output, force=True, io_item_size=200, work_item_size=50)
 
 print('Extracting frames...')
 video_faces = [f for _, f in faces_table.columns(0).load(partial(loaders.bboxes, db))]
@@ -51,7 +50,6 @@ video_frames = [f for _, f in db.table('example').columns(0).load()]
 
 print('Writing output video...')
 frame_shape = video_frames[0].shape
-print frame_shape
 output = cv2.VideoWriter(
     'example_faces.mkv',
     cv2.VideoWriter_fourcc(*'X264'),
@@ -60,8 +58,7 @@ output = cv2.VideoWriter(
 
 for (frame, frame_faces) in zip(video_frames, video_faces):
     for face in frame_faces:
-        print face
+        if face[4] < 0.5: continue
         face = map(int, face)
-        print face
-        cv2.rectangle(frame, (face[0], face[1]), (face[2], face[3]), (0, 0, 255), 3)
-    output.write(frame)
+        cv2.rectangle(frame, (face[0], face[1]), (face[2], face[3]), (255, 0, 0), 3)
+    output.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
