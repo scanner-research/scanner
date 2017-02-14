@@ -14,8 +14,8 @@ env:
 
 # This sets up ssh keys that allow travis builds to push to Github
 before_install:
-- openssl aes-256-cbc -K $encrypted_f836c174cc56_key -iv $encrypted_f836c174cc56_iv
-  -in .config/travisci_rsa.enc -out .config/travisci_rsa -d
+- openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in travisci_rsa.enc
+  -out travisci_rsa -d
 - chmod 0600 .config/travisci_rsa
 - cp .config/travisci_rsa ~/.ssh/id_rsa
 - docker build -t $DOCKER_REPO:cpu . --build-arg gpu=OFF
