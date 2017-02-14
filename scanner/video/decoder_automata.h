@@ -54,6 +54,7 @@ private:
   FrameInfo info_;
   size_t frame_size_;
   i32 current_frame_;
+  std::atomic<i32> reset_current_frame_;
   std::vector<proto::DecodeArgs> encoded_data_;
 
   std::atomic<i64> next_frame_;
@@ -61,7 +62,7 @@ private:
   std::atomic<i64> frames_to_get_;
 
   std::atomic<i32> retriever_data_idx_;
-  i32 retriever_valid_idx_;
+  std::atomic<i32> retriever_valid_idx_;
 
   std::atomic<i32> feeder_data_idx_;
   std::atomic<size_t> feeder_buffer_offset_;

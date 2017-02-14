@@ -63,6 +63,7 @@ void DecoderAutomata::initialize(
   next_frame_.store(encoded_data[0].valid_frames(0), std::memory_order_release);
   retriever_data_idx_.store(0, std::memory_order_release);
   retriever_valid_idx_ = 0;
+  reset_current_frame_ = -1;
 
   FrameInfo info;
   info.set_width(encoded_data[0].width());
@@ -150,6 +151,10 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
           more_frames = decoder_->discard_frame();
         }
         current_frame_++;
+        if (reset_current_frame_ != -1) {
+          current_frame_ = reset_current_frame_;
+          reset_current_frame_ = -1;
+        }
         total_frames_decoded++;
       }
     }
@@ -182,23 +187,22 @@ void DecoderAutomata::feeder() {
       continue;
     }
 
-    // Wait for
-    if (seeking) {
-      while (decoder_->decoded_frames_buffered() > 0) {
-        std::this_thread::yield();
-      }
-      seeking = false;
-    }
-
     frames_fed = 0;
     bool seen_metadata = false;
     while (frames_retrieved_ < frames_to_get_) {
       // if (next_frame_ > feeder_next_keyframe_) {
       //   // Jump to the next
       // }
+      i32 frames_to_wait = seeking ? 0 : 8;
       while (frames_retrieved_ < frames_to_get_ &&
-            decoder_->decoded_frames_buffered() > 0) {
+            decoder_->decoded_frames_buffered() > frames_to_wait) {
         std::this_thread::yield();
+        continue;
+      }
+      if (seeking) {
+        decoder_->feed(nullptr, 0, true);
+        reset_current_frame_ = encoded_data_[feeder_data_idx_].keyframes(0);
+        seeking = false;
       }
       frames_fed++;
 
@@ -240,7 +244,9 @@ void DecoderAutomata::feeder() {
         }
       }
 
-      decoder_->feed(encoded_packet, encoded_packet_size, false);
+      //if (encoded_packet_size != 0) {
+        decoder_->feed(encoded_packet, encoded_packet_size, false);
+        //}
       // Set a discontinuity if we sent an empty packet to reset
       // the stream next time
       if (encoded_packet_size == 0) {
