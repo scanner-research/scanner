@@ -88,7 +88,6 @@ class Column:
                 else:
                     break
             if select_rows:
-                print(select_rows)
                 for output in self._load_output_file(item_id, select_rows, fn):
                     yield (input_rows[i], output)
                     i += 1

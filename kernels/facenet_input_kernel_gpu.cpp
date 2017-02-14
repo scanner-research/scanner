@@ -78,7 +78,7 @@ public:
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
     i32 input_count = (i32)input_columns[0].rows.size();
-    check_frame_info(CPU_DEVICE, input_columns[1]);
+    check_frame_info(device_, input_columns[1]);
 
     size_t frame_size = net_input_width_ * net_input_height_ * 3;
     i32 net_input_size = frame_size * sizeof(f32);

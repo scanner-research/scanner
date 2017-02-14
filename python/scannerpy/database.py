@@ -304,6 +304,9 @@ class Database:
             The newly created Table object.
         """
 
+        if len(videos) == 0:
+            raise ScannerException('Must ingest at least one video.')
+
         [table_names, paths] = zip(*videos)
         for table_name in table_names:
             if self.has_table(table_name):
@@ -496,7 +499,8 @@ class Database:
             io_item_size=1000,
             work_item_size=250,
             cpu_pool=None,
-            gpu_pool=None):
+            gpu_pool=None,
+            kernel_instances_per_node=1):
         """
         Runs a computation over a set of inputs.
 
@@ -559,7 +563,7 @@ class Database:
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.ops.extend(self._process_dag(op))
-        job_params.kernel_instances_per_node = self.config.kernel_instances_per_node
+        job_params.kernel_instances_per_node = kernel_instances_per_node
         job_params.io_item_size = io_item_size
         job_params.work_item_size = work_item_size
 

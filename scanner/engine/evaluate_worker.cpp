@@ -240,7 +240,7 @@ void *evaluate_thread(void *arg) {
         VLOG(1) << "Kernel validate failed: " << args.result.msg();
         THREAD_RETURN_SUCCESS();
       }
-      kernels.emplace_back(factory->new_instance(config));
+      kernels.emplace_back(kernel);
     }
   }
   assert(kernels.size() > 0);

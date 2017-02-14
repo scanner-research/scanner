@@ -329,6 +329,8 @@ public:
       }
       write_database_metadata(storage_, meta);
 
+      VLOG(1) << "Total io item: " << io_items.size();
+
       next_io_item_to_allocate_ = 0;
       num_io_items_ = io_items.size();
 
@@ -367,6 +369,7 @@ public:
         // TODO(apoms): We wrote the db meta with the tables so we should clear
         // them out here since the job failed.
       }
+
       return grpc::Status::OK;
     }
 
