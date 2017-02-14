@@ -115,12 +115,19 @@ class Column:
         # PNGs and return the decoded PNGs
         if self._descriptor.type == self._db._metadata_types.Video:
             sampler = self._db.sampler()
+            png_table_name = '{}_png_dump'.format(self._table.name())
+            if self._db.has_table(png_table_name):
+                png_table = self._db.table(png_table_name)
+                if png_table._descriptor.timestamp > \
+                   self._table._descriptor.timestamp:
+                    return png_table.columns(0).load(self._decode_png)
+            pair = [(self._table.name(), png_table_name)]
             if rows is None:
-                tasks = sampler.all([(self._table.name(), '__scanner_png_dump')])
+                tasks = sampler.all(pair)
             else:
-                tasks = [sampler.gather((self._table.name(), '__scanner_png_dump'), rows)]
+                tasks = [sampler.gather(pair, rows)]
             [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
                                      force=True)
-            return out_tbl.columns(0).load(fn=self._decode_png)
+            return out_tbl.columns(0).load(self._decode_png)
         else:
             return self._load(fn, rows=rows)

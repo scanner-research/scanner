@@ -1,0 +1,30 @@
+[net]
+    model = "features/resnet_101/ResNet-101-deploy_augmentation.prototxt"
+    weights = "features/resnet_101/snap_resnet__iter_120000.caffemodel"
+    input_layers = ["data"]
+    output_layers = ["pool5"]
+    input_width = 224
+    input_height = 224
+    normalize = true
+
+    [net.input]
+        dimensions = [
+            "batch",
+            "channel",
+            "height",
+            "width",
+        ]
+        channel_ordering = [
+            "blue"
+            "green"
+            "red"
+        ]
+
+[mean-image]
+    width = 224
+    height = 224
+
+    [mean-image.colors]
+        blue = 0.0
+        green = 0.0
+        red = 0.0

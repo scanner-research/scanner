@@ -1,6 +1,7 @@
 FROM scannerresearch/scanner-base:ubuntu16.04-cuda8.0-cv3.2.0
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
+ARG gpu=ON
 
 ADD . /opt/scanner
 WORKDIR /opt/scanner
@@ -12,14 +13,7 @@ RUN mkdir build && cd build && \
           -D BUILD_CAFFE_INPUT_OPS=ON \
           -D BUILD_UTIL_OPS=ON \
           -D BUILD_TESTS=ON \
+          -D BUILD_CUDA=${gpu} \
           .. && \
     make -j ${cores}
-RUN mkdir build_cpu && cd build_cpu && \
-    cmake -D BUILD_CAFFE_OPS=ON \
-          -D BUILD_CAFFE_INPUT_OPS=ON \
-          -D BUILD_UTIL_OPS=ON \
-          -D BUILD_TESTS=ON \
-          -D BUILD_CUDA=OFF \
-          .. && \
-    make -j ${cores}
-RUN mv .scanner.example.toml /root/.scanner.toml
+ENV PYTHONPATH /opt/scanner/python:$PYTHONPATH

@@ -17,7 +17,8 @@ set(SOURCE_FILES
   memory.cpp
   profiler.cpp
   fs.cpp
-  bbox.cpp)
+  bbox.cpp
+  progress_bar.cpp)
 
 if (OPENCV_FOUND)
   list(APPEND SOURCE_FILES opencv.cpp)

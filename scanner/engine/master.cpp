@@ -15,7 +15,7 @@
 
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/ingest.h"
-
+#include "scanner/util/progress_bar.h"
 #include <grpc/support/log.h>
 
 namespace scanner {
@@ -225,11 +225,14 @@ public:
       if (items_left % 10 == 0) {
         VLOG(1) << "IO items remaining: " << items_left;
       }
+      i64 progress = next_io_item_to_allocate_ -
+        workers_.size() * TASKS_IN_QUEUE_PER_PU;
+      bar_->Progressed(progress > 0 ? progress : 0);
     } else {
       io_item->set_item_id(-1);
     }
     return grpc::Status::OK;
-    }
+  }
 
     grpc::Status NewJob(grpc::ServerContext * context,
                         const proto::JobParameters *job_params,
@@ -294,6 +297,9 @@ public:
         proto::TableDescriptor table_desc;
         table_desc.set_id(table_id);
         table_desc.set_name(task.output_table_name());
+        table_desc.set_timestamp(
+          std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count());
         // Set columns equal to the last op's output columns
         for (size_t i = 0; i < output_columns.size(); ++i) {
           Column *col = table_desc.add_columns();
@@ -342,6 +348,8 @@ public:
           std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
           rpcs;
 
+      bar_ = new ProgressBar(num_io_items_, "");
+
       proto::JobParameters w_job_params;
       w_job_params.CopyFrom(*job_params);
       for (size_t i = 0; i < workers_.size(); ++i) {
@@ -365,6 +373,8 @@ public:
           next_io_item_to_allocate_ = num_io_items_;
         }
       }
+      bar_->Progressed(num_io_items_);
+
       if (!job_result->success()) {
         // TODO(apoms): We wrote the db meta with the tables so we should clear
         // them out here since the job failed.
@@ -411,6 +421,7 @@ public:
     std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
     DatabaseParameters db_params_;
     storehouse::StorageBackend *storage_;
+    ProgressBar* bar_;
 };
 
 proto::Master::Service *get_master_service(DatabaseParameters &param) {

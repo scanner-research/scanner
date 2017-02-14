@@ -96,6 +96,7 @@ message TableDescriptor {
   int64 num_rows = 4;
   int64 rows_per_item = 5;
   int32 job_id = 6;
+  int64 timestamp = 7;
 }
 
 // Task set messages

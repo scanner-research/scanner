@@ -17,7 +17,7 @@ public:
     scale_ = args.scale();
     threshold_ = args.threshold();
 
-    std::ifstream template_file{"features/caffe_facenet/templates.bin",
+    std::ifstream template_file{"nets/caffe_facenet/facenet_templates.bin",
         std::ifstream::binary};
     LOG_IF(FATAL, !template_file.good()) << "Could not find template file.";
     templates_.resize(num_templates_, std::vector<float>(4));

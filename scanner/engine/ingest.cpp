@@ -206,6 +206,9 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
   table_desc.set_job_id(-1);
+  table_desc.set_timestamp(
+    std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+    .count());
 
   {
     Column *frame_col = table_desc.add_columns();

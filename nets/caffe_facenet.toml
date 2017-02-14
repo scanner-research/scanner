@@ -1,6 +1,6 @@
 [net]
-    model = "/h/wcrichto/scanner/features/caffe_facenet/facenet_deploy.prototxt"
-    weights = "/h/wcrichto/scanner/features/caffe_facenet/facenet_deploy.caffemodel"
+    model = "nets/caffe_facenet/facenet_deploy.prototxt"
+    weights = "nets/caffe_facenet/facenet_deploy.caffemodel"
     input_layers = ["data"]
     output_layers = ["score_final"]
 

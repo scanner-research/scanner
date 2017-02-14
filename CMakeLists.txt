@@ -148,7 +148,7 @@ if (BUILD_CUDA)
     util_cuda
     "${CUDA_LIBRARIES}"
     "/usr/lib/x86_64-linux-gnu/libnvcuvid.so"
-    "${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs/libcuda.so")
+    "-lcuda")
 endif()
 
 if (APPLE)
