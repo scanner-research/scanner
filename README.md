@@ -1,7 +1,7 @@
 # Scanner: Efficient Video Analysis at Scale #
-[![Build Status](https://travis-ci.com/apoms/scanner.svg?token=3riCqXaXCxyYqpsVk2yv&branch=master)](https://travis-ci.com/apoms/scanner)
+[![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.com/apoms/scanner)
 
-_For [build instructions](TODO), [tutorials](TODO), [documentation](TODO), and [contributing guidelines](TODO), visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
+_For [build instructions](TODO), [tutorials](TODO), [documentation](TODO), and [contributing guidelines](https://github.com/apoms/scanner/wiki/Contributing), visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
 Scanner lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about Scanner like Spark for pixels. For example, you could use Scanner to:
 
