@@ -1,5 +1,4 @@
-# Scanner: Efficient Video Analysis at Scale #
-[![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.com/apoms/scanner)
+# Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.com/apoms/scanner) #
 
 _For [build instructions](TODO), [tutorials](TODO), [documentation](TODO), and [contributing guidelines](https://github.com/apoms/scanner/wiki/Contributing), visit the [Scanner wiki](https://github.com/apoms/scanner/wiki)._
 
