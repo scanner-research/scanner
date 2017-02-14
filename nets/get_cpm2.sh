@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir features/cpm2
-    cd features/cpm2
+    mkdir nets/cpm2
+    cd nets/cpm2
 
     # Prototxt for COCO version
     wget https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/caffe_demo/master/model/coco/pose_deploy_linevec.prototxt

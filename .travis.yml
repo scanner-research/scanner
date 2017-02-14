@@ -7,7 +7,6 @@ services:
 
 env:
   global:
-    - DOCKER_TAG=ubuntu16.04-cuda8.0-cv3.1.0
     - DOCKER_REPO=scannerresearch/scanner
     - DOCKER_EMAIL=wcrichto@cs.stanford.edu
     - DOCKER_USER=wcrichto
@@ -19,13 +18,14 @@ before_install:
   -in .config/travisci_rsa.enc -out .config/travisci_rsa -d
 - chmod 0600 .config/travisci_rsa
 - cp .config/travisci_rsa ~/.ssh/id_rsa
-- docker build -t $DOCKER_REPO:$DOCKER_TAG . --build-arg gpu=OFF
+- docker build -t $DOCKER_REPO:cpu . --build-arg gpu=OFF
+- docker build -t $DOCKER_REPO:gpu . --build-arg gpu=ON
 
 install:
 - sudo apt-get install doxygen
 
 script:
-- docker run $DOCKER_REPO:$DOCKER_TAG /bin/bash -c "cd /opt/scanner/build && make test"
+- docker run $DOCKER_REPO:cpu /bin/bash -c "cd /opt/scanner/build && make test"
 
 after_success:
 - ./scripts/publish-docker.sh

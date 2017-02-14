@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir features/cpm
-    cd features/cpm
+    mkdir nets/cpm
+    cd nets/cpm
 
     # Person center detection
     wget https://raw.githubusercontent.com/shihenw/convolutional-pose-machines-release/master/model/_trained_person_MPI/pose_deploy_copy_4sg_resize.prototxt

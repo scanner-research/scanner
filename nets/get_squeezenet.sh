@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir features/squeezenet
-    cd features/squeezenet
+    mkdir nets/squeezenet
+    cd nets/squeezenet
 
     wget https://raw.githubusercontent.com/DeepScale/SqueezeNet/master/SqueezeNet_v1.0/deploy.prototxt
     wget -O squeezenet_v1.0.caffemodel \

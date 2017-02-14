@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir -p features/googlenet
-    cd features/googlenet
+    mkdir -p nets/googlenet
+    cd nets/googlenet
 
     wget https://raw.githubusercontent.com/BVLC/caffe/master/models/bvlc_googlenet/deploy.prototxt
     wget http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel

@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir -p features/resnet
-    cd features/resnet
+    mkdir -p nets/resnet
+    cd nets/resnet
 
     wget https://iuxblw-bn1306.files.1drv.com/y3ml4MHciDBiEDaTSmHlVGB9Hm9cIQNS53sbuCwaolComo2PZ55hhPo5SijUqhtgTv8cad4vvbn7LOY_KPNwJsz-NQTpJENAFTTdVIML1J7-_1uU2hQHE54eak7bf_ZjTJK9aOKxzBPrxrtm8Uu0d3TUPDmcG9ieDoSuonT_YpdKC0/ResNet-50-deploy.prototxt?download&psid=1
     mv ResNet-50-deploy.prototxt?download ResNet-50-deploy.prototxt

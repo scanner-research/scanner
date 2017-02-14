@@ -13,11 +13,12 @@ To support these applications, Scanner uses a Python interface similar to Tensor
 
 ```python
 from scannerpy import Database, DeviceType
+from scannerpy.stdlib import parsers
 db = Database()
 videos = db.ingest_video_collection('my_videos', ['vid1.mp4', 'vid2.mkv'])
 hist = db.ops.Histogram(device=DeviceType.GPU)
 output = db.run(videos, hist, 'my_videos_hist')
-vid1_hists = output.tables(0).columns(0).load()
+vid1_hists = output.tables(0).columns(0).load(parsers.histograms)
 ```
 
 Scanner provides a convenient way to organize your videos as well as data derived from the videos (bounding boxes, histograms, feature maps, etc.) using a relational database. Behind the scenes, Scanner handles decoding the compressed videos into raw frames, allowing you to process an individual video in parallel. It then runs a computation graph on the decoded frames using kernels written in C++ for maximum performance and distributes the computation over a cluster. Scanner supports a number of operators and third-party libraries to reduce the work of writing new computations:
@@ -40,29 +41,22 @@ Scanner is an active research project, part of a collaboration between Carnegie 
 To quickly dive into Scanner, you can use one of our prebuilt [Docker images](https://hub.docker.com/r/scannerresearch/scanner). To run a GPU image, you must install and use [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
 
 ```bash
-nvidia-docker run --name scanner -ti scannerresearch/scanner:ubuntu16.04-cuda8.0-cv3.1.0 /bin/bash
+nvidia-docker run -d --name scanner -ti scannerresearch/scanner:gpu /bin/bash
+nvidia-docker attach scanner
 ```
 
-This Docker container comes prebuilt with the [k-nearest neighbors](https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm) pipeline in `scanner/pipelines/knn_pipeline.cpp`. It does reverse image search (like with Google Images) by computing deep features for each frame of the input video, and then comparing the features from query image against the video's. Here, Scanner pre-computes the video features (`scanner_server run example_job example_dataset`), and then a Python script `knn.py` interactively queries against those features with a standard KNN implementation.
+_Note: if you don't have a GPU, then run `docker` instead of `nvidia-docker` and use `scanner:cpu` instead of `scanner:gpu` in the Docker image name._
 
-Try running this inside your Docker container:
+Then inside your Docker container, run:
 
 ```bash
-# Get a video to test on
-youtube-dl -f mp4 -o "example.%(ext)s" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-echo "example.mp4" > videos.txt
-
-# Extract features from the video
-./build/scanner_server ingest example_dataset videos.txt
-./build/scanner_server run example_dataset base knn example_job
-
-# Compute k-nearest neighbors on an exemplar
-wget -O query.jpg https://upload.wikimedia.org/wikipedia/en/9/9b/Rickastleyposter.jpg
-python python/knn.py example_dataset example_job
-# Give "query.jpg" as the input to the prompt, then replace FRAMENUMBER below with one of the frame numbers
-ffmpeg -i example.mp4 -vf "select=eq(n\,FRAMENUMBER)" -vframes 1 result.png
+python examples/demo/demo.py
 ```
 
-From outside the the container, run `nvidia-docker cp scanner:/opt/scanner/result.png .` to get the query result. That's it!
+This runs a Scanner demo which detects faces in every frame of a short video from YouTube, creating a file `example_faces.mp4`. Type `Ctrl-P + Ctrl-Q` to detach from the container and then run:
 
-To learn more about Scanner, please visit the [Scanner wiki](https://github.com/apoms/scanner/wiki).
+```bash
+nvidia-docker cp scanner:/opt/scanner/example_faces.mp4 .
+```
+
+Then you can view the generated video on your own machine. That's it! To learn more about Scanner, please visit the [Scanner wiki](https://github.com/apoms/scanner/wiki).

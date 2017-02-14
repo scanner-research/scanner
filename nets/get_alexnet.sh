@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir -p features/alexnet
-    cd features/alexnet
+    mkdir -p nets/alexnet
+    cd nets/alexnet
 
     wget https://raw.githubusercontent.com/BVLC/caffe/master/models/bvlc_reference_caffenet/deploy.prototxt
     wget http://dl.caffe.berkeleyvision.org/bvlc_reference_caffenet.caffemodel

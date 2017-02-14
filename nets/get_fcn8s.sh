@@ -4,8 +4,8 @@ CWD=`pwd`
 DIR=`basename $CWD`
 
 prog() {
-    mkdir -p features/fcn8s
-    cd features/fcn8s
+    mkdir -p nets/fcn8s
+    cd nets/fcn8s
 
     wget http://dl.caffe.berkeleyvision.org/fcn8s-heavy-pascal.caffemodel
     wget https://raw.githubusercontent.com/shelhamer/fcn.berkeleyvision.org/master/voc-fcn8s/deploy.prototxt

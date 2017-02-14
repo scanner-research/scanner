@@ -2,7 +2,7 @@ import os
 import os.path
 import sys
 import grpc
-import importlib
+import imp
 import socket
 from subprocess import Popen, PIPE
 from random import choice
@@ -229,10 +229,8 @@ class Database:
             if not os.path.isfile(proto_path):
                 raise ScannerException('Protobuf path does not exist: {}'
                                        .format(proto_path))
-            (proto_dir, mod_file) = os.path.split(proto_path)
-            sys.path.append(proto_dir)
-            (mod_name, _) = os.path.splitext(mod_file)
-            self._arg_types.append(importlib.import_module(mod_name))
+            mod = imp.load_source('_ignore', proto_path)
+            self._arg_types.append(mod)
         op_info = self.protobufs.OpInfo()
         op_info.so_path = so_path
         self._try_rpc(lambda: self._master.LoadOp(op_info))
