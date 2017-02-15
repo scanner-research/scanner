@@ -1,9 +1,0 @@
-digraph "scanner/api" {
-  compound=true
-  node [ fontsize="10", fontname="Helvetica"];
-  edge [ labelfontsize="10", labelfontname="Helvetica"];
-  subgraph clusterdir_02b1a89c2d2186e4810ecb7fecaa3754 {
-    graph [ bgcolor="#ddddee", pencolor="black", label="scanner" fontname="Helvetica", fontsize="10", URL="dir_02b1a89c2d2186e4810ecb7fecaa3754.html"]
-  dir_501612a5983cd327a74fc409370211fd [shape=box, label="api", style="filled", fillcolor="#eeeeff", pencolor="black", URL="dir_501612a5983cd327a74fc409370211fd.html"];
-  }
-}
