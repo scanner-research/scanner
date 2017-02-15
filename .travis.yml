@@ -18,5 +18,5 @@ install:
 script: ./scripts/build.sh
 
 after_success:
-# - ./scripts/publish-docker.sh
+- ./scripts/publish-docker.sh
 - ./scripts/publish-doxygen.sh
