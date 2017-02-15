@@ -12,9 +12,6 @@ env:
     - DOCKER_USER=wcrichto
     - secure: "Jf7f8UvpJ8yRA/2nnxaRb9jGrzWZvbRVRxzQtmcx+ltBpflmLFbXB6o4sySGETn5YrJe1g4VNWvkFBZIdLY0n+v4AQ/D1eMWtJT+kZLHihVGcxB3G7SUSOyEUaN1DzdHbaRW4VCSXQJWgK48amxlwnNfXtbNkSpiqIifDURBeHK1UT9+w1FKuTDZmEXv+ubDKjXvv1DuPdTtnolItDfrdtKLh5iXgTRvgXFanmNvydIcHqfz+72qJZJRCdTwUrA8FPq7jKNndftX9y2/dKuA/Xd/cP818iR57Z2PJXeR1c6ZmQ0RBTIZ8pdwG6bfix+48a5+aWlPJ3friA0G2b8psdZ/rQMxBbEClTI+BfnuJnYaIW8JREqmOBACBL7/4eo/Jifv1+vl+VhWHSicS6mWg2khCNAMPWj3cIA/bZrRlTmNlC06GkUgnHar/HhovGrowbZCGOxN0CNWWcuCGeLYfvPgPiI4JRU8eq0VqVhhqXZyPuS/RT1FoqZ4mMfNZG+RSIKHU56g5M4elakp/bZdu9lRoS4hr9VFpvPaLorOTOXPa3J+JxmB9OIP+NLxMIGjUhYnSYfTJ9/+Opxg2lWUOdqXzPZsyPyI+4RuIyyPh1w6jN/xD3EqQC55u5JlFlJ1WuNoyhx16QcKu1Eytxd2JxU6LutMw9WgQET53Q3EOVk="
 
-# This sets up ssh keys that allow travis builds to push to Github
-before_install: ./scripts/build_setup.sh
-
 install:
 - sudo apt-get install doxygen
 
