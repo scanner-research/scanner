@@ -1,9 +1,0 @@
-# Warning: this is also used as the .dockerignore, and the matching patterns are
-# similar but **not quite** the same. If you add a file here, make sure that
-# the Docker build still works.
-
-build
-**/*.pyc
-**/*.trace
-thirdparty
-!thirdparty/CMakeLists.txt

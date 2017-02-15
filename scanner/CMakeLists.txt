@@ -1,6 +1,0 @@
-set(SCANNER_OBJS)
-add_subdirectory(api)
-add_subdirectory(engine)
-add_subdirectory(video)
-add_subdirectory(util)
-set(SCANNER_OBJS ${SCANNER_OBJS} PARENT_SCOPE)

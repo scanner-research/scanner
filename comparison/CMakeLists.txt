@@ -1,7 +1,0 @@
-add_subdirectory(standalone)
-add_subdirectory(peak)
-add_subdirectory(ocv_decode)
-add_subdirectory(kernel_sol)
-add_subdirectory(readwrite)
-add_subdirectory(equal)
-#add_subdirectory(caffe)
