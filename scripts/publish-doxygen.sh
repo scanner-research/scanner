@@ -6,7 +6,7 @@ CHANGESET=$(git rev-parse --verify HEAD)
 
 rm -rf ${HTML_PATH}
 mkdir -p ${HTML_PATH}
-git clone -b gh-pages "${REPO_PATH}" --single-branch ${HTML_PATH}
+git clone -b gh-pages ${REPO_PATH} --single-branch ${HTML_PATH}
 
 cd ${HTML_PATH}
 git rm -rf .
