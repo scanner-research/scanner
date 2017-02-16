@@ -115,7 +115,7 @@ class Column:
         # PNGs and return the decoded PNGs
         if self._descriptor.type == self._db._metadata_types.Video:
             sampler = self._db.sampler()
-            png_table_name = '{}_png_dump'.format(self._table.name())
+            png_table_name = self._db._png_dump_prefix.format(self._table.name())
             if self._db.has_table(png_table_name):
                 png_table = self._db.table(png_table_name)
                 if png_table._descriptor.timestamp > \

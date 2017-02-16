@@ -3,7 +3,7 @@
 # the build process. See examples/tutorial/04_custom_op.py for an example usage.
 
 if(NOT SCANNER_PATH)
-  message(FATAL_ERROR "Set SCANNER_PATH to the Scanner source directory before including Op.cmake.")
+  message(FATAL_ERROR "Set SCANNER_PATH to the Scanner repo directory before including Op.cmake.")
 endif()
 list(APPEND CMAKE_MODULE_PATH "${SCANNER_PATH}/cmake/Modules/")
 

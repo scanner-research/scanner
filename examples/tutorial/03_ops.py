@@ -1,5 +1,10 @@
 from scannerpy import Database
 
+################################################################################
+# This tutorial shows how to combine multiple operators into a computation     #
+# graph and wire inputs/outputs.                                               #
+################################################################################
+
 db = Database()
 sampler = db.sampler()
 tasks = sampler.all([('example', 'example_hist_blurred')])

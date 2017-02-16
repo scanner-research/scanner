@@ -1,19 +1,29 @@
-/*
- * Ops in Scanner are abstract units of computation that are implemented by
- * kernels. Kernels are pinned to a specific device (CPU or GPU). Here, we
- * implement a custom op to resize an image.
- */
-
 #include "scanner/api/op.h"      // for REGISTER_OP
 #include "scanner/api/kernel.h"  // for VideoKernel and REGISTER_KERNEL
 #include "scanner/util/opencv.h" // for using OpenCV
 #include "scanner/util/memory.h" // for device-independent memory management
 #include "args.pb.h"             // for ResizeArgs (generated file)
 
+/*
+ * Ops in Scanner are abstract units of computation that are implemented by
+ * kernels. Kernels are pinned to a specific device (CPU or GPU). Here, we
+ * implement a custom op to resize an image. After reading this file, look
+ * at CMakeLists.txt for how to build the op.
+ */
+
 // Custom kernels must inherit the Kernel class or any subclass thereof,
 // e.g. the VideoKernel which provides support for processing video frames.
 class ResizeKernel : public scanner::VideoKernel {
 public:
+
+  // To allow ops to be customized by users at a runtime, e.g. to define the
+  // target width and height of the ResizeKernel, Scanner uses Google's Protocol
+  // Buffers, or protobufs, to define serialzable types usable in C++ and
+  // Python (see resize_op/args.proto). By convention, ops that take
+  // arguments must define a protobuf called <OpName>Args, e.g. ResizeArgs,
+  // In Python, users will provide the argument fields to the op constructor,
+  // and these will get serialized into a string. This string is part of the
+  // general configuration each kernel receives from the runtime, config.args.
   ResizeKernel(const scanner::Kernel::Config& config)
     : scanner::VideoKernel(config) {
     // The protobuf arguments must be decoded from the input string.
@@ -23,10 +33,16 @@ public:
     height_ = args.height();
   }
 
+  // Execute is the core computation of the kernel. It maps a batch of rows
+  // from an input table to a batch of rows of the output table. Here, we map
+  // from two input columns from the video, "frame" and "frame_info", and return
+  // a single column, "frame".
   void execute(const scanner::BatchedColumns &input_columns,
                scanner::BatchedColumns &output_columns) override {
     int input_count = input_columns[0].rows.size();
-    // This must be called at the top of the execute method in any VideoKernel
+
+    // This must be called at the top of the execute method in any VideoKernel.
+    // See the VideoKernel for the implementation check_frame_info.
     check_frame_info(scanner::CPU_DEVICE, input_columns[1]);
 
     for (int i = 0; i < input_count; ++i) {

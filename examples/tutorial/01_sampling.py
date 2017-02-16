@@ -1,5 +1,10 @@
 from scannerpy import Database
 
+################################################################################
+# This tutorial shows how to use the Sampler class to select which parts of a  #
+# video to process with an op.                                                 #
+################################################################################
+
 db = Database()
 hist_op = db.ops.Histogram()
 

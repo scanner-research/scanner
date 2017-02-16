@@ -14,10 +14,10 @@ To support these applications, Scanner uses a Python interface similar to Tensor
 from scannerpy import Database, DeviceType
 from scannerpy.stdlib import parsers
 db = Database()
-videos = db.ingest_video_collection('my_videos', ['vid1.mp4', 'vid2.mkv'])
+videos = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
 hist = db.ops.Histogram(device=DeviceType.GPU)
 output = db.run(videos, hist, 'my_videos_hist')
-vid1_hists = output.tables(0).columns(0).load(parsers.histograms)
+vid0_hists = output.tables(0).columns(0).load(parsers.histograms)
 ```
 
 Scanner provides a convenient way to organize your videos as well as data derived from the videos (bounding boxes, histograms, feature maps, etc.) using a relational database. Behind the scenes, Scanner handles decoding the compressed videos into raw frames, allowing you to process an individual video in parallel. It then runs a computation graph on the decoded frames using kernels written in C++ for maximum performance and distributes the computation over a cluster. Scanner supports a number of operators and third-party libraries to reduce the work of writing new computations:

@@ -59,6 +59,7 @@ class Database:
         self._storage = self.config.storage
         self._master_address = self.config.master_address
         self._cached_db_metadata = None
+        self._png_dump_prefix = '__png_dump_'
 
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self)
@@ -108,6 +109,51 @@ class Database:
 
     def print_build_flags(self):
         sys.stdout.write(self.get_build_flags())
+
+    def summarize(self):
+        summary = ''
+        db_meta = self._load_db_metadata()
+        tables = [
+            ('TABLES', [
+                ('Name', [t.name for t in db_meta.tables]),
+                ('# rows', [
+                    str(self.table(t.id).num_rows()) for t in db_meta.tables
+                ]),
+                ('Columns', [
+                    ', '.join([c.name() for c in self.table(t.id).columns()])
+                    for t in db_meta.tables
+                ]),
+            ]),
+        ]
+
+        if len(self._collections.names) > 0:
+            tables.append(('COLLECTIONS', [
+                ('Name', self._collections.names),
+                ('# tables', [
+                    str(len(self.collection(id).table_names()))
+                    for id in self._collections.ids
+                ])
+            ]))
+
+        for table_idx, (label, cols) in enumerate(tables):
+            if table_idx > 0:
+                summary += '\n\n'
+            num_cols = len(cols)
+            max_col_lens = [max(max([len(s) for s in c]), len(name))
+                            for name, c in cols]
+            table_width = sum(max_col_lens) + 3*(num_cols-1)
+            label = '** {} **'.format(label)
+            summary += ' ' * (table_width/2 - len(label)/2) + label + '\n'
+            summary += '-'*table_width + '\n'
+            col_name_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
+            col_name_fmt = col_name_fmt.format(*max_col_lens)
+            summary += col_name_fmt.format(*[s for s, _ in cols]) + '\n'
+            summary += '-'*table_width + '\n'
+            row_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
+            row_fmt = row_fmt.format(*max_col_lens)
+            for i in range(len(cols[0][1])):
+                summary += row_fmt.format(*[c[i] for _, c in cols]) + '\n'
+        return summary
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
@@ -348,8 +394,11 @@ class Database:
         return name in self._collections.names
 
     def collection(self, name):
-        index = self._collections.names[:].index(name)
-        id = self._collections.ids[index]
+        if isinstance(name, basestring):
+            index = self._collections.names[:].index(name)
+            id = self._collections.ids[index]
+        else:
+            id = name
         collection = self._load_descriptor(
             self._metadata_types.CollectionDescriptor,
             'pydb/collection_{}.bin'.format(id))
