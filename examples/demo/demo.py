@@ -7,6 +7,9 @@ import cv2
 
 db = Database()
 
+# TODO(wcrichto): comment the demo. Make the Scanner philosophy more clear.
+# Add some figures to the wiki perhaps explaining the high level
+
 descriptor = NetDescriptor.from_file(db, 'nets/caffe_facenet.toml')
 facenet_args = db.protobufs.FacenetArgs()
 facenet_args.scale = 0.5
