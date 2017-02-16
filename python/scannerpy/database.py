@@ -82,7 +82,7 @@ class Database:
         self._connect_to_master()
 
         stdlib_path = '{}/build/stdlib'.format(self.config.scanner_path)
-        self.load_op('{}/stdlib.so'.format(stdlib_path),
+        self.load_op('{}/libstdlib.so'.format(stdlib_path),
                      '{}/args_pb2.py'.format(stdlib_path))
 
     def get_build_flags(self):
