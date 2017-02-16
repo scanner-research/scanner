@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['execute',['execute',['../classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af',1,'scanner::Kernel']]]
+  ['database',['Database',['../classscanner_1_1Database.html',1,'scanner']]],
+  ['database',['Database',['../classscannerpy_1_1database_1_1Database.html',1,'scannerpy::database']]],
+  ['devicetype',['DeviceType',['../classscannerpy_1_1common_1_1DeviceType.html',1,'scannerpy::common']]]
 ];

@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['row',['Row',['../structscanner_1_1Row.html',1,'scanner']]],
-  ['rowlist',['RowList',['../structscanner_1_1RowList.html',1,'scanner']]]
+  ['netdescriptor',['NetDescriptor',['../classscannerpy_1_1stdlib_1_1net__descriptor_1_1NetDescriptor.html',1,'scannerpy::stdlib::net_descriptor']]]
 ];

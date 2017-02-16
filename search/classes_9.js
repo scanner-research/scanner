@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['tablesample',['TableSample',['../structscanner_1_1TableSample.html',1,'scanner']]],
-  ['task',['Task',['../structscanner_1_1Task.html',1,'scanner']]],
-  ['taskset',['TaskSet',['../structscanner_1_1TaskSet.html',1,'scanner']]]
+  ['profiler',['Profiler',['../classscannerpy_1_1profiler_1_1Profiler.html',1,'scannerpy::profiler']]],
+  ['protobufgenerator',['ProtobufGenerator',['../classscannerpy_1_1database_1_1ProtobufGenerator.html',1,'scannerpy::database']]]
 ];

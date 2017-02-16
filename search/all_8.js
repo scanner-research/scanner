@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['profiler_5f',['profiler_',['../classscanner_1_1Kernel.html#aa00bb120cfbc269db4456e2a3c2c3a9b',1,'scanner::Kernel']]]
+  ['kernel',['Kernel',['../classscanner_1_1Kernel.html',1,'scanner']]],
+  ['kernelbuilder',['KernelBuilder',['../classscanner_1_1internal_1_1KernelBuilder.html',1,'scanner::internal']]],
+  ['kernelregistration',['KernelRegistration',['../classscanner_1_1internal_1_1KernelRegistration.html',1,'scanner::internal']]]
 ];

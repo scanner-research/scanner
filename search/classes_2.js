@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['failedvideo',['FailedVideo',['../structscanner_1_1FailedVideo.html',1,'scanner']]]
+  ['evaluator',['Evaluator',['../classscannerpy_1_1evaluator_1_1Evaluator.html',1,'scannerpy::evaluator']]],
+  ['evaluatorgenerator',['EvaluatorGenerator',['../classscannerpy_1_1evaluator_1_1EvaluatorGenerator.html',1,'scannerpy::evaluator']]]
 ];
