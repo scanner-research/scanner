@@ -28,10 +28,14 @@ if (BUILD_CUDA)
 endif()
 
 add_library(caffe OBJECT ${SOURCE_FILES})
+
 # TODO(wcrichto): auto add these dependencies?
 add_dependencies(caffe
-  caffe_input_transformer_cpu.exec_generator
-  caffe_input_transformer_gpu.exec_generator)
+  caffe_input_transformer_cpu.exec_generator)
+if (BUILD_CUDA)
+  add_dependencies(caffe
+    caffe_input_transformer_gpu.exec_generator)
+endif()
 
 list(APPEND OPENCV_COMPONENTS core highgui imgproc video videoio)
 if (BUILD_CUDA)
