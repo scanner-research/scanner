@@ -43,90 +43,31 @@ else()
   add_definitions(-DCPU_ONLY)
 endif()
 
-set(SOURCES)
+set(TARGETS)
 if (BUILD_CAFFE_OPS)
   add_subdirectory(caffe)
-  list(APPEND SOURCES $<TARGET_OBJECTS:caffe>)
+  list(APPEND TARGETS caffe)
 endif()
 
 if (BUILD_IMGPROC_OPS)
   add_subdirectory(imgproc)
-  list(APPEND SOURCES $<TARGET_OBJECTS:imgproc>)
+  list(APPEND TARGETS imgproc)
 endif()
 
 if (BUILD_OPENFACE_OPS)
   add_subdirectory(openface)
-  list(APPEND SOURCES $<TARGET_OBJECTS:openface>)
+  list(APPEND TARGETS openface)
 endif()
 
 if (BUILD_MOTION_OPS)
   add_subdirectory(motion)
-  list(APPEND SOURCES $<TARGET_OBJECTS:motion>)
+  list(APPEND TARGETS motion)
 endif()
 
-if (BUILD_TRACKER_OPS)
-  find_package(Eigen REQUIRED)
-  find_package(Struck REQUIRED CONFIG
-    PATHS "thirdparty/build/bin/struck")
-  include_directories(
-    "${EIGEN_INCLUDE_DIRS}"
-    "${STRUCK_INCLUDE_DIRS}")
-endif()
-
-if (BUILD_SERVER)
-  find_package(Proxygen REQUIRED)
-  find_package(Folly REQUIRED)
-  add_definitions(-DHAVE_SERVER)
-  include_directories(
-    "${PROXYGEN_INCLUDE_DIRS}"
-    "${FOLLY_INCLUDE_DIRS}")
-endif()
-
-if (BUILD_UTIL_OPS)
-  if (OPENCV_MAJOR_VERSION EQUAL 3)
-     list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video videoio)
-  else()
-     list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video)
-  endif()
-endif()
-
-if (BUILD_MOVIE_ANALYSIS_OPS)
-  set(DOPPIA_DIR /homes/wcrichto/rodrigob-doppia-2f93f2657960/src)
-  set(OFDIS_DIR /homes/wcrichto/OF_DIS)
-  if (OPENCV_MAJOR_VERSION EQUAL 3)
-      list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video)
-      if (BUILD_CUDA)
-          list(APPEND OPENCV_DESIRED_COMPONENTS cudaoptflow cudacodec)
-      endif()
-  else()
-      list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc objdetect video)
-  endif()
-  find_package(Eigen REQUIRED)
-  include_directories(
-    "${EIGEN_INCLUDE_DIRS}"
-    "${OFDIS_DIR}"
-    "${DOPPIA_DIR}")
-  file(GLOB OFDIS_SOURCES
-    ${OFDIS_DIR}/FDF1.0.1/*.c
-    ${OFDIS_DIR}/oflow.cpp
-    ${OFDIS_DIR}/patchgrid.cpp
-    ${OFDIS_DIR}/patch.cpp
-    ${OFDIS_DIR}/refine_variational.cpp)
-  add_definitions(-DWITH_OPENMP=true)
-  FIND_PACKAGE( OpenMP REQUIRED)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-  #link_directories(${DOPPIA_DIR}/applications/objects_detection_lib/build)
-  set(SCANNER_LIBRARIES
-    #"-lmonocular_objects_detection"
-    #"-liomp5"
-    "${SCANNER_LIBRARIES}")
-endif()
-
-if (BUILD_MEDIAN_OPS)
-  find_package(Eigen)
-endif()
+set(SOURCES)
+foreach (TARGET ${TARGETS})
+  list(APPEND SOURCES $<TARGET_OBJECTS:${TARGET}>)
+endforeach()
 
 build_op(
   LIB_NAME stdlib
@@ -136,19 +77,12 @@ build_op(
 add_dependencies(stdlib scanner)
 
 find_package(OpenCV REQUIRED COMPONENTS "${OPENCV_COMPONENTS}")
-if (BUILD_CAFFE_OPS)
-  target_include_directories(caffe PUBLIC ${OpenCV_INCLUDE_DIRS})
-endif()
-if (BUILD_IMGPROC_OPS)
-  target_include_directories(imgproc PUBLIC ${OpenCV_INCLUDE_DIRS})
-endif()
-if (BUILD_OPENFACE_OPS)
-  target_include_directories(openface PUBLIC ${OpenCV_INCLUDE_DIRS})
-endif()
-if (BUILD_MOTION_OPS)
-  target_include_directories(motion PUBLIC ${OpenCV_INCLUDE_DIRS})
-endif()
 list(APPEND STDLIB_LIBRARIES "${OpenCV_LIBRARIES}")
+
+foreach (TARGET ${TARGETS})
+  target_include_directories(${TARGET} PUBLIC ${OpenCV_INCLUDE_DIRS})
+  add_dependencies(${TARGET} stdlib_proto_files)
+endforeach()
 
 target_link_libraries(stdlib PUBLIC "${STDLIB_LIBRARIES}")
 
