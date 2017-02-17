@@ -1,19 +1,15 @@
 set(SCANNER_PATH "${CMAKE_SOURCE_DIR}")
 include(${SCANNER_PATH}/cmake/Util/Op.cmake)
 
-option(BUILD_IMAGE_OPS "" ON)
+option(BUILD_IMGPROC_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
-option(BUILD_CAFFE_INPUT_OPS "" ON)
 option(BUILD_CPM2_OPS "" OFF)
-option(BUILD_MOVIE_ANALYSIS_OPS "" ON)
-option(BUILD_TRACKER_OPS "" OFF)
-option(BUILD_UTIL_OPS "" OFF)
-option(BUILD_MEDIAN_OPS "" OFF)
-
-set(OPENCV_DESIRED_COMPONENTS)
-set(OPENCV_MAJOR_VERSION 3)
+option(BUILD_MOTION_OPS "" ON)
+option(BUILD_OPENFACE_OPS "" OFF)
 
 set(STDLIB_LIBRARIES)
+set(OPENCV_MAJOR_VERSION 3)
+set(OPENCV_COMPONENTS)
 
 set(HALIDE_TARGETS)
 macro(add_halide_target SRC TARGET)
@@ -21,6 +17,7 @@ macro(add_halide_target SRC TARGET)
     find_package(Halide REQUIRED)
     include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
     include_directories("${HALIDE_INCLUDE_DIR}")
+    include_directories("${PROJECT_BINARY_DIR}/generator_genfiles")
   endif()
 
   get_filename_component(NAME ${SRC} NAME_WE)
@@ -31,6 +28,7 @@ macro(add_halide_target SRC TARGET)
     GENERATOR_TARGET ${GENERATOR}
     GENERATOR_ARGS target=${TARGET})
   list(APPEND HALIDE_TARGETS ${NAME})
+  set(HALIDE_TARGETS ${HALIDE_TARGETS} PARENT_SCOPE)
 endmacro()
 
 if (BUILD_CUDA)
@@ -41,32 +39,29 @@ if (BUILD_CUDA)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
   endif()
   list(APPEND STDLIB_LIBRARIES "${CUDA_LIBRARIES}")
+else()
+  add_definitions(-DCPU_ONLY)
 endif()
 
+set(SOURCES)
 if (BUILD_CAFFE_OPS)
-  find_package(Caffe REQUIRED)
-  add_definitions(-DHAVE_CAFFE)
-  include_directories(${CAFFE_INCLUDE_DIRS})
+  add_subdirectory(caffe)
+  list(APPEND SOURCES $<TARGET_OBJECTS:caffe>)
+endif()
 
-  if (NOT BUILD_CUDA)
-    add_definitions(-DCPU_ONLY)
-  endif()
+if (BUILD_IMGPROC_OPS)
+  add_subdirectory(imgproc)
+  list(APPEND SOURCES $<TARGET_OBJECTS:imgproc>)
+endif()
 
-  add_halide_target(caffe_input_transformer_cpu.cpp host)
-  if (BUILD_CUDA)
-    add_halide_target(caffe_input_transformer_gpu.cpp cuda)
-  endif()
+if (BUILD_OPENFACE_OPS)
+  add_subdirectory(openface)
+  list(APPEND SOURCES $<TARGET_OBJECTS:openface>)
+endif()
 
-  if (BUILD_CAFFE_INPUT_OPS)
-    # Requires opencv3
-    list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc imgcodecs)
-    if (BUILD_CUDA)
-      list(APPEND OPENCV_DESIRED_COMPONENTS
-        cudawarping cudaimgproc cudafilters cudaarithm)
-    endif()
-  endif()
-
-  list(APPEND STDLIB_LIBRARIES "${CAFFE_LIBRARIES}")
+if (BUILD_MOTION_OPS)
+  add_subdirectory(motion)
+  list(APPEND SOURCES $<TARGET_OBJECTS:motion>)
 endif()
 
 if (BUILD_TRACKER_OPS)
@@ -129,79 +124,37 @@ if (BUILD_MOVIE_ANALYSIS_OPS)
     "${SCANNER_LIBRARIES}")
 endif()
 
-list(APPEND OPENCV_DESIRED_COMPONENTS core highgui imgproc video videoio)
-
 if (BUILD_MEDIAN_OPS)
   find_package(Eigen)
 endif()
 
-if (OPENCV_DESIRED_COMPONENTS)
-  find_package(OpenCV REQUIRED COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-  include_directories(SYSTEM
-    ${OpenCV_INCLUDE_DIRS})
-  add_definitions(-DUSE_OPENCV -DHAVE_OPENCV)
-  list(APPEND STDLIB_LIBRARIES "${OpenCV_LIBRARIES}")
-endif()
-
-set(SOURCE_FILES
-  blur_kernel_cpu.cpp)
-
-if (BUILD_IMAGE_OPS)
-  list(APPEND SOURCE_FILES
-    image_encoder_kernel_cpu.cpp)
-endif()
-
-if (BUILD_MOVIE_ANALYSIS_OPS)
-  list(APPEND SOURCE_FILES
-    histogram_kernel_cpu.cpp
-    optical_flow_kernel_cpu.cpp)
-  if (BUILD_CUDA)
-    list(APPEND SOURCE_FILES
-      histogram_kernel_gpu.cpp
-      optical_flow_kernel_gpu.cpp)
-  endif()
-endif()
-
-if (BUILD_CAFFE_OPS)
-  list(APPEND SOURCE_FILES
-    caffe_kernel.cpp
-    caffe_kernel_cpu.cpp
-    caffe_input_kernel.cpp
-    caffe_input_kernel_cpu.cpp
-    facenet_output_kernel_cpu.cpp)
-  if (BUILD_CUDA)
-    list(APPEND SOURCE_FILES
-      caffe_kernel_gpu.cpp
-      caffe_input_kernel_gpu.cpp
-      facenet_input_kernel_gpu.cpp
-      facenet_kernel.cpp)
-  endif()
-endif()
-
-if (BUILD_CPM2_OPS)
-  list(APPEND SOURCE_FILES
-    cpm2_output_kernel_cpu.cpp)
-  if (BUILD_CUDA)
-    list(APPEND SOURCE_FILES
-      cpm2_input_kernel_gpu.cpp
-      cpm2_kernel.cpp)
-  endif()
-endif()
-
 build_op(
   LIB_NAME stdlib
-  CPP_SRCS ${SOURCE_FILES}
+  CPP_SRCS ${SOURCES}
   PROTO_SRC stdlib.proto
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)
 
+find_package(OpenCV REQUIRED COMPONENTS "${OPENCV_COMPONENTS}")
+if (BUILD_CAFFE_OPS)
+  target_include_directories(caffe PUBLIC ${OpenCV_INCLUDE_DIRS})
+endif()
+if (BUILD_IMGPROC_OPS)
+  target_include_directories(imgproc PUBLIC ${OpenCV_INCLUDE_DIRS})
+endif()
+if (BUILD_OPENFACE_OPS)
+  target_include_directories(openface PUBLIC ${OpenCV_INCLUDE_DIRS})
+endif()
+if (BUILD_MOTION_OPS)
+  target_include_directories(motion PUBLIC ${OpenCV_INCLUDE_DIRS})
+endif()
+list(APPEND STDLIB_LIBRARIES "${OpenCV_LIBRARIES}")
+
 target_link_libraries(stdlib PUBLIC "${STDLIB_LIBRARIES}")
 
-if (HALIDE_FOUND)
+if (HALIDE_TARGETS)
   foreach(HALIDE_TARGET ${HALIDE_TARGETS})
     add_dependencies(stdlib "${HALIDE_TARGET}.exec_generator")
-    target_include_directories(stdlib PUBLIC
-      "${PROJECT_BINARY_DIR}/generator_genfiles")
     halide_add_aot_library_dependency(stdlib ${HALIDE_TARGET})
   endforeach()
   if (BUILD_CUDA)
