@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 
 # Uncomment the line below and change the Scanner path to the repo you cloned:
-# set(SCANNER_PATH /path/to/your/scanner)
+# set(SCANNER_PATH /path/to/scanner)
 if(NOT SCANNER_PATH)
   message(FATAL_ERROR "You need to update the SCANNER_PATH in resize_op/CMakeLists.txt first.")
 endif()
@@ -16,7 +16,7 @@ include(${SCANNER_PATH}/cmake/Util/Op.cmake)
 build_op(
   LIB_NAME resize_op
   CPP_SRCS resize_op.cpp
-  PROTO_SRC args.proto)
+  PROTO_SRC resize.proto)
 
 # The library specified in build_op is a normal CMake target, so you can use all
 # the normal CMake functions with it.

@@ -3,7 +3,7 @@
 #include "scanner/util/opencv.h"
 #include "scanner/util/bbox.h"
 #include "scanner/util/serialize.h"
-#include "stdlib/args.pb.h"
+#include "stdlib/stdlib.pb.h"
 #include "scanner/types.pb.h"
 
 namespace scanner {

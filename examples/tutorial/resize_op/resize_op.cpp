@@ -2,7 +2,7 @@
 #include "scanner/api/kernel.h"  // for VideoKernel and REGISTER_KERNEL
 #include "scanner/util/opencv.h" // for using OpenCV
 #include "scanner/util/memory.h" // for device-independent memory management
-#include "args.pb.h"             // for ResizeArgs (generated file)
+#include "resize.pb.h"           // for ResizeArgs (generated file)
 
 /*
  * Ops in Scanner are abstract units of computation that are implemented by

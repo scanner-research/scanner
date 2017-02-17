@@ -191,7 +191,7 @@ endif()
 build_op(
   LIB_NAME stdlib
   CPP_SRCS ${SOURCE_FILES}
-  PROTO_SRC args.proto
+  PROTO_SRC stdlib.proto
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)
 

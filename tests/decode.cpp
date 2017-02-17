@@ -1,5 +1,5 @@
 #include "scanner/api/op.h"
-#include "stdlib/args.pb.h"
+#include "stdlib/stdlib.pb.h"
 #include "scanner/api/database.h"
 #include "scanner/util/fs.h"
 
