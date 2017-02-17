@@ -122,6 +122,11 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
   wake_feeder_.notify_one();
 
   while (frames_retrieved_ < frames_to_get_) {
+    if (reset_current_frame_ != -1) {
+      printf("reset current frame\n");
+      current_frame_ = reset_current_frame_;
+      reset_current_frame_ = -1;
+    }
     if (decoder_->decoded_frames_buffered() > 0) {
       // New frames
       bool more_frames = true;
@@ -152,10 +157,6 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
           more_frames = decoder_->discard_frame();
         }
         current_frame_++;
-        if (reset_current_frame_ != -1) {
-          current_frame_ = reset_current_frame_;
-          reset_current_frame_ = -1;
-        }
         total_frames_decoded++;
       }
     }
