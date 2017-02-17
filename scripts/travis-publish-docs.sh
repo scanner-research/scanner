@@ -4,11 +4,11 @@ COMMIT_USER="Documentation Builder"
 COMMIT_EMAIL="wcrichto@cs.stanford.edu"
 CHANGESET=$(git rev-parse --verify HEAD)
 
-openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in .config/travisci_rsa.enc -out .config/travisci_rsa -d
-chmod 0600 .config/travisci_rsa
+openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in .travis/travisci_rsa.enc -out .travis/travisci_rsa -d
+chmod 0600 .travis/travisci_rsa
 eval `ssh-agent -s`
-ssh-add .config/travisci_rsa
-cp .config/travisci_rsa.pub ~/.ssh/id_rsa.pub
+ssh-add .travis/travisci_rsa
+cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
 
 
 rm -rf ${HTML_PATH}
