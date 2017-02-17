@@ -92,6 +92,7 @@ void DecoderAutomata::initialize(
   feeder_next_keyframe_.store(encoded_data[0].keyframes(1));
   info_ = info;
   std::atomic_thread_fence(std::memory_order_release);
+  seeking_ = false;
 }
 
 void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
@@ -167,7 +168,7 @@ void DecoderAutomata::feeder() {
   // printf("feeder start\n");
   i64 total_frames_fed = 0;
   i32 frames_fed = 0;
-  bool seeking = false;
+  seeking_ = false;
   while (not_done_) {
     {
       // Wait until frames are being requested
@@ -193,16 +194,16 @@ void DecoderAutomata::feeder() {
       // if (next_frame_ > feeder_next_keyframe_) {
       //   // Jump to the next
       // }
-      i32 frames_to_wait = seeking ? 0 : 8;
+      i32 frames_to_wait = seeking_ ? 0 : 8;
       while (frames_retrieved_ < frames_to_get_ &&
             decoder_->decoded_frames_buffered() > frames_to_wait) {
         std::this_thread::yield();
         continue;
       }
-      if (seeking) {
+      if (seeking_) {
         decoder_->feed(nullptr, 0, true);
         reset_current_frame_ = encoded_data_[feeder_data_idx_].keyframes(0);
-        seeking = false;
+        seeking_ = false;
       }
       frames_fed++;
 
@@ -256,7 +257,7 @@ void DecoderAutomata::feeder() {
         seen_metadata = false;
         feeder_data_idx_ += 1;
         feeder_buffer_offset_ = 0;
-        seeking = true;
+        seeking_ = true;
         if (encoded_data_.size() <= feeder_data_idx_) {
           break;
         }

@@ -64,6 +64,7 @@ private:
   std::atomic<i32> retriever_data_idx_;
   std::atomic<i32> retriever_valid_idx_;
 
+  std::atomic<bool> seeking_;
   std::atomic<i32> feeder_data_idx_;
   std::atomic<size_t> feeder_buffer_offset_;
   std::atomic<i64> feeder_next_keyframe_;
