@@ -554,7 +554,7 @@ class Database:
             work_item_size=250,
             cpu_pool=None,
             gpu_pool=None,
-            kernel_instances_per_node=1):
+            pipeline_instances_per_node=-1):
         """
         Runs a computation over a set of inputs.
 
@@ -578,7 +578,7 @@ class Database:
             work_item_size: TODO(wcrichto)
             cpu_pool: TODO(wcrichto)
             gpu_pool: TODO(wcrichto)
-            kernel_instances_per_node: TODO(wcrichto)
+            pipeline_instances_per_node: TODO(wcrichto)
 
         Returns:
             Either the output Collection if output_collection is specified
@@ -622,7 +622,7 @@ class Database:
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.ops.extend(self._process_dag(op))
-        job_params.kernel_instances_per_node = kernel_instances_per_node
+        job_params.pipeline_instances_per_node = pipeline_instances_per_node
         job_params.io_item_size = io_item_size
         job_params.work_item_size = work_item_size
 

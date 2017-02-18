@@ -3,7 +3,7 @@ import numpy as np
 
 db = Database()
 
-hist = db.ops.Histogram(device=DeviceType.GPU)
+hist = db.ops.Histogram(device=DeviceType.CPU)
 
 def parse_hist(buf):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)

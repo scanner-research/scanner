@@ -215,10 +215,6 @@ public:
 
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
-
-    for (i32 id : db_params_.gpu_ids) {
-      gpu_device_ids_.push_back(id);
-    }
   }
 
   ~WorkerImpl() {
@@ -240,17 +236,9 @@ public:
       if (memory_pool_initialized_) {
         destroy_memory_allocators();
       }
-      init_memory_allocators(job_params->memory_pool_config(), gpu_device_ids_);
+      init_memory_allocators(job_params->memory_pool_config(), db_params_.gpu_ids);
       cached_memory_pool_config_ = job_params->memory_pool_config();
       memory_pool_initialized_ = true;
-    }
-
-    i32 kernel_instances_per_node = job_params->kernel_instances_per_node();
-    if (kernel_instances_per_node <= 0) {
-      RESULT_ERROR(
-          job_result,
-          "JobParameters.kernel_instances_per_node must be greater than 0.");
-      return grpc::Status::OK;
     }
 
     timepoint_t base_time = now();
@@ -282,7 +270,7 @@ public:
     i32 num_cpus = db_params_.num_cpus;
     assert(num_cpus > 0);
 
-    i32 num_gpus = static_cast<i32>(gpu_device_ids_.size());
+    i32 num_gpus = static_cast<i32>(db_params_.gpu_ids.size());
     for (size_t i = 1; i < ops.size() - 1; ++i) {
       auto &op = ops.Get(i);
       const std::string &name = op.name();
@@ -380,6 +368,42 @@ public:
     }
 
     i32 num_kernel_groups = static_cast<i32>(kernel_groups.size());
+    assert(num_kernel_groups > 0); // is this actually necessary?
+
+    i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
+    // If ki per node is -1, we set a smart default. Currently, we calculate the
+    // maximum possible kernel instances without oversubscribing any part of the
+    // pipeline, either CPU or GPU.
+    if (pipeline_instances_per_node == -1) {
+      pipeline_instances_per_node = std::numeric_limits<i32>::max();
+      for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+        auto &group = kernel_groups[kg];
+        for (i32 k = 0; k < group.size(); ++k) {
+          KernelFactory *factory = std::get<0>(group[k]);
+          DeviceType device_type = factory->get_device_type();
+          i32 max_devices = factory->get_max_devices();
+          if (max_devices == Kernel::UnlimitedDevices) {
+            pipeline_instances_per_node = 1;
+          } else {
+            pipeline_instances_per_node = std::min(
+              pipeline_instances_per_node,
+              device_type == DeviceType::CPU
+              ? db_params_.num_cpus / max_devices
+              : (i32) db_params_.gpu_ids.size() / max_devices);
+          }
+        }
+      }
+    }
+    LOG(WARNING) << "pi: " << pipeline_instances_per_node;
+
+    if (pipeline_instances_per_node <= 0) {
+      RESULT_ERROR(
+          job_result,
+          "JobParameters.pipeline_instances_per_node must -1 for auto-default or "
+          " greater than 0 for manual configuration.");
+      return grpc::Status::OK;
+    }
+
 
     // Load table metadata for use in constructing io items
     DatabaseMetadata meta =
@@ -402,7 +426,7 @@ public:
     Queue<LoadWorkEntry> load_work;
     Queue<EvalWorkEntry> initial_eval_work;
     std::vector<std::vector<Queue<EvalWorkEntry>>> eval_work(
-        kernel_instances_per_node);
+        pipeline_instances_per_node);
     Queue<EvalWorkEntry> save_work;
     std::atomic<i64> retired_items{0};
 
@@ -431,18 +455,18 @@ public:
 
     // Setup evaluate workers
     std::vector<std::vector<Profiler>> eval_profilers(
-        kernel_instances_per_node);
+        pipeline_instances_per_node);
     std::vector<std::vector<proto::Result>> eval_results(
-      kernel_instances_per_node);
+      pipeline_instances_per_node);
     std::vector<PreEvaluateThreadArgs> pre_eval_args;
     std::vector<std::vector<EvaluateThreadArgs>> eval_args(
-        kernel_instances_per_node);
+        pipeline_instances_per_node);
     std::vector<PostEvaluateThreadArgs> post_eval_args;
 
 
     i32 next_cpu_num = 0;
     i32 next_gpu_idx = 0;
-    for (i32 ki = 0; ki < kernel_instances_per_node; ++ki) {
+    for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
       std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[ki];
       std::vector<Profiler> &eval_thread_profilers = eval_profilers[ki];
       std::vector<proto::Result>& results = eval_results[ki];
@@ -480,7 +504,7 @@ public:
           }
         } else {
           for (i32 i = 0; i < factory->get_max_devices(); ++i) {
-            i32 device_id = gpu_device_ids_[next_gpu_idx++ % num_gpus];
+            i32 device_id = db_params_.gpu_ids[next_gpu_idx++ % num_gpus];
             for (size_t i = 0; i < group.size(); ++i) {
               Kernel::Config &config = std::get<1>(group[i]);
               config.devices.clear();
@@ -542,10 +566,10 @@ public:
     }
 
     // Launch eval worker threads
-    std::vector<pthread_t> pre_eval_threads(kernel_instances_per_node);
-    std::vector<std::vector<pthread_t>> eval_threads(kernel_instances_per_node);
-    std::vector<pthread_t> post_eval_threads(kernel_instances_per_node);
-    for (i32 pu = 0; pu < kernel_instances_per_node; ++pu) {
+    std::vector<pthread_t> pre_eval_threads(pipeline_instances_per_node);
+    std::vector<std::vector<pthread_t>> eval_threads(pipeline_instances_per_node);
+    std::vector<pthread_t> post_eval_threads(pipeline_instances_per_node);
+    for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Pre thread
       pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
                      &pre_eval_args[pu]);
@@ -587,7 +611,7 @@ public:
     // Monitor amount of work left and request more when running low
     while (true) {
       i32 local_work = accepted_items - retired_items;
-      if (local_work < kernel_instances_per_node * TASKS_IN_QUEUE_PER_PU) {
+      if (local_work < pipeline_instances_per_node * TASKS_IN_QUEUE_PER_PU) {
         grpc::ClientContext context;
         proto::NodeInfo node_info;
         proto::IOItem io_item;
@@ -648,13 +672,13 @@ public:
     }
 
     // Push sentinel work entries into queue to terminate eval threads
-    for (i32 i = 0; i < kernel_instances_per_node; ++i) {
+    for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
       initial_eval_work.push(entry);
     }
 
-    for (i32 i = 0; i < kernel_instances_per_node; ++i) {
+    for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
       // Wait until pre eval has finished
       void *result;
       i32 err = pthread_join(pre_eval_threads[i], &result);
@@ -663,12 +687,12 @@ public:
     }
 
     for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-      for (i32 pu = 0; pu < kernel_instances_per_node; ++pu) {
+      for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
         EvalWorkEntry entry;
         entry.io_item_index = -1;
         eval_work[pu][kg].push(entry);
       }
-      for (i32 pu = 0; pu < kernel_instances_per_node; ++pu) {
+      for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
         // Wait until eval has finished
         void *result;
         i32 err = pthread_join(eval_threads[pu][kg], &result);
@@ -678,12 +702,12 @@ public:
     }
 
     // Terminate post eval threads
-    for (i32 pu = 0; pu < kernel_instances_per_node; ++pu) {
+    for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
       eval_work[pu].back().push(entry);
     }
-    for (i32 pu = 0; pu < kernel_instances_per_node; ++pu) {
+    for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Wait until eval has finished
       void *result;
       i32 err = pthread_join(post_eval_threads[pu], &result);
@@ -758,11 +782,11 @@ public:
     }
 
     // Evaluate worker profilers
-    u8 eval_worker_count = kernel_instances_per_node;
+    u8 eval_worker_count = pipeline_instances_per_node;
     s_write(profiler_output.get(), eval_worker_count);
     u8 profilers_per_chain = 3;
     s_write(profiler_output.get(), profilers_per_chain);
-    for (i32 pu = 0; pu < kernel_instances_per_node; ++pu) {
+    for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       i32 i = pu;
       {
         std::string tag = "pre";

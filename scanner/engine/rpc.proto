@@ -58,7 +58,7 @@ message JobParameters {
   TaskSet task_set = 2;
 
   MemoryPoolConfig memory_pool_config = 3;
-  int32 kernel_instances_per_node = 4;
+  int32 pipeline_instances_per_node = 4;
   int32 io_item_size = 5;
   int32 work_item_size = 6;
 }
