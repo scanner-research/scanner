@@ -1,4 +1,4 @@
-# Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.com/scanner-research/scanner) #
+# Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
 _For [build instructions](https://github.com/scanner-research/scanner/wiki/Building-Scanner), [tutorials](https://github.com/scanner-research/scanner/wiki/Getting-started), [documentation](https://github.com/scanner-research/scanner/wiki/Documentation), and [contributing guidelines](https://github.com/scanner-research/scanner/wiki/Contributing), visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki)._
 
