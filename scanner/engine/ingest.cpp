@@ -51,9 +51,9 @@ namespace {
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct FFStorehouseState {
-  std::unique_ptr<RandomReadFile> file;
-  size_t size; // total file size
-  u64 pos;
+  std::unique_ptr<RandomReadFile> file{nullptr};
+  size_t size = 0; // total file size
+  u64 pos = 0;
 };
 
 // For custom AVIOContext that loads from memory
@@ -226,7 +226,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   // file instead of a posix file
   FFStorehouseState file_state;
   StoreResult result;
-  EXP_BACKOFF(make_unique_random_read_file(storage, path, file_state.file), result);
+  EXP_BACKOFF(make_unique_random_read_file(storage, path, file_state.file),
+              result);
   if (result != StoreResult::Success) {
     error_message = "Can not open video file";
     return false;
@@ -235,6 +236,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   EXP_BACKOFF(file_state.file->get_size(file_state.size), result);
   if (result != StoreResult::Success) {
     error_message = "Can not get file size";
+    return false;
+  }
+  if (file_state.size <= 0) {
+    error_message = "Can not ingest empty video file";
     return false;
   }
 
