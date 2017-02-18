@@ -16,14 +16,14 @@ def single_video():
     [table] = db.run(tasks, hist)
 
 def video_collection():
-    input_collection = db.ingest_video_collection(
+    input_collection, _ = db.ingest_video_collection(
         'meangirls',
-        ['/n/scanner/wcrichto.new/videos/meanGirls_short.mp4'],
+        ['/bigdata/wcrichto/videos/meanGirls_short.mp4'],
         force=True)
     input_collection = db.collection('meangirls')
     sampler = db.sampler()
-    strided = sampler.strided(input_collection, 4)
-    output_collection = db.run(strided, hist, 'meangirls_hist', force=True)
+    tasks = sampler.range(input_collection, 0, 100)
+    output_collection = db.run(tasks, hist, 'meangirls_hist', force=True)
     table = output_collection.tables(0)
     output_collection.profiler().write_trace('test.trace')
 

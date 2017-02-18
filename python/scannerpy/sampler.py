@@ -33,7 +33,6 @@ class Sampler:
         videos = self._convert_collection(videos)
         tasks = []
         for video in videos:
-            table = self._db.table(video[0])
             task = self.strided_range(video, start, end, 1)
             tasks.append(task)
         return tasks

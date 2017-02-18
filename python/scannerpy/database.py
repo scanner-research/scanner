@@ -252,9 +252,11 @@ class Database:
         except grpc.RpcError as e:
             raise ScannerException(e)
 
-        if not result.success:
-            raise ScannerException(result.msg)
+        if isinstance(result, self.protobufs.Result):
+            if not result.success:
+                raise ScannerException(result.msg)
 
+        return result
 
     def load_op(self, so_path, proto_path=None):
         """
@@ -280,7 +282,6 @@ class Database:
         op_info = self.protobufs.OpInfo()
         op_info.so_path = so_path
         self._try_rpc(lambda: self._master.LoadOp(op_info))
-
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -345,7 +346,7 @@ class Database:
             force: TODO(wcrichto)
 
         Returns:
-            The newly created Table object.
+            (list of created Tables, list of (path, reason) failures to ingest)
         """
 
         if len(videos) == 0:
@@ -361,13 +362,19 @@ class Database:
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
-        invalid = self._bindings.ingest_videos(
-            self._db,
-            list(table_names),
-            list(paths))
-        invalid = [i.path for i in invalid]
+        ingest_params = self.protobufs.IngestParameters()
+        ingest_params.table_names.extend(table_names)
+        ingest_params.video_paths.extend(paths)
+        ingest_result = self._try_rpc(
+            lambda: self._master.IngestVideos(ingest_params))
+        if not ingest_result.result.success:
+            raise ScannerException(ingest_result.result.msg)
+        failures = zip(ingest_result.failed_paths, ingest_result.failed_messages)
+
         self._cached_db_metadata = None
-        return [self.table(t) for (t, p) in videos if p not in invalid]
+        return ([self.table(t) for (t, p) in videos
+                if p not in ingest_result.failed_paths],
+                failures)
 
     def ingest_video_collection(self, collection_name, videos, force=False):
         """
@@ -381,14 +388,14 @@ class Database:
             force: TODO(wcrichto)
 
         Returns:
-            The newly created Collection object.
+            (Collection, list of (path, reason) failures to ingest)
         """
         table_names = ['{}:{:03d}'.format(collection_name, i)
                        for i in range(len(videos))]
-        tables = self.ingest_videos(zip(table_names, videos), force)
+        tables, failures = self.ingest_videos(zip(table_names, videos), force)
         collection = self.new_collection(
             collection_name, [t.name() for t in tables], force)
-        return collection
+        return collection, failures
 
     def has_collection(self, name):
         return name in self._collections.names
@@ -581,6 +588,10 @@ class Database:
         # If the input is a collection, assume user is running over all frames
         input_is_collection = isinstance(tasks, Collection)
         if input_is_collection:
+            if output_collection is None:
+                raise ScannerException(
+                    'If Database.run input is a collection, output_collection_name '
+                    'must be specified')
             sampler = self.sampler()
             tasks = sampler.all(tasks)
 
