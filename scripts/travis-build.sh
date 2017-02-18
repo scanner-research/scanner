@@ -20,6 +20,6 @@ build_docker() {
     docker rmi -f $DOCKER_REPO:$1
 }
 
-# docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USER" -p="$DOCKER_PASS"
+docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USER" -p="$DOCKER_PASS"
 build_docker cpu
 build_docker gpu

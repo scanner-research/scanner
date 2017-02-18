@@ -10,8 +10,7 @@ RUN cd thirdparty && mkdir build && cd build && \
     make -j ${cores}
 RUN mkdir build && cd build && \
     cmake -D BUILD_CAFFE_OPS=ON \
-          -D BUILD_CAFFE_INPUT_OPS=ON \
-          -D BUILD_UTIL_OPS=ON \
+          -D BUILD_IMGPROC_OPS=ON \
           -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
           .. && \
