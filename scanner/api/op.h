@@ -86,6 +86,11 @@ class OpBuilder {
   OpBuilder(const std::string &name)
       : name_(name) {}
 
+  OpBuilder& inputs(const std::vector<std::string>& columns) {
+    input_columns_ = columns;
+    return *this;
+  }
+
   OpBuilder& outputs(const std::vector<std::string>& columns) {
     output_columns_ = columns;
     return *this;
@@ -93,6 +98,7 @@ class OpBuilder {
 
  private:
   std::string name_;
+  std::vector<std::string> input_columns_;
   std::vector<std::string> output_columns_;
 };
 }

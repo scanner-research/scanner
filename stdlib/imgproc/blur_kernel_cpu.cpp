@@ -107,7 +107,9 @@ private:
   Result valid_;
 };
 
-REGISTER_OP(Blur).outputs({"frame", "frame_info"});
+REGISTER_OP(Blur)
+    .inputs({"frame", "frame_info"})
+    .outputs({"frame", "frame_info"});
 
 REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 }

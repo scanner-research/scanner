@@ -25,12 +25,17 @@ namespace internal {
 
 class OpInfo {
 public:
-  OpInfo(const std::string &name,
-                const std::vector<std::string> &output_columns)
-  : name_(name), output_columns_(output_columns) {}
+  OpInfo(const std::string &name, const std::vector<std::string> &input_columns,
+         const std::vector<std::string> &output_columns)
+      : name_(name), input_columns_(input_columns),
+        output_columns_(output_columns) {}
 
   const std::string& name() const {
     return name_;
+  }
+
+  const std::vector<std::string>& input_columns() const {
+    return input_columns_;
   }
 
   const std::vector<std::string>& output_columns() const {
@@ -39,6 +44,7 @@ public:
 
 private:
   std::string name_;
+  std::vector<std::string> input_columns_;
   std::vector<std::string> output_columns_;
 };
 

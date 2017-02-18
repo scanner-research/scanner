@@ -48,7 +48,7 @@ private:
   DeviceHandle device_;
 };
 
-REGISTER_OP(Histogram).outputs({"histogram"});
+REGISTER_OP(Histogram).inputs({"frame", "frame_info"}).outputs({"histogram"});
 
 REGISTER_KERNEL(Histogram, HistogramKernelCPU)
     .device(DeviceType::CPU)

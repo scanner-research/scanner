@@ -50,7 +50,9 @@ private:
   f32 scale_;
 };
 
-REGISTER_OP(CPM2).outputs({"resized_map", "joints"});
+REGISTER_OP(CPM2)
+    .inputs({"cpm2_input", "frame_info"})
+    .outputs({"cpm2_resized_map", "cpm2_joints"});
 REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::GPU).num_devices(1);
 

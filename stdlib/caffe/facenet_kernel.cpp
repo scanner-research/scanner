@@ -41,7 +41,9 @@ private:
   f32 scale_;
 };
 
-REGISTER_OP(Facenet).outputs({"caffe_output"});
+REGISTER_OP(Facenet)
+    .inputs({"facenet_input", "frame_info"})
+    .outputs({"facenet_output"});
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::GPU).num_devices(1);
 

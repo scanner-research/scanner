@@ -178,7 +178,8 @@ private:
   std::vector<cv::cuda::GpuMat> planar_input_;
 };
 
-REGISTER_OP(CPM2Input).outputs({"caffe_frame"});
-REGISTER_KERNEL(CPM2Input, CPM2InputKernel).device(DeviceType::GPU).num_devices(1);
-
+REGISTER_OP(CPM2Input).inputs({"frame", "frame_info"}).outputs({"cpm2_input"});
+REGISTER_KERNEL(CPM2Input, CPM2InputKernel)
+    .device(DeviceType::GPU)
+    .num_devices(1);
 }

@@ -157,7 +157,10 @@ private:
   std::vector<cv::cuda::GpuMat> planar_input_g_;
 };
 
-REGISTER_OP(FacenetInput).outputs({"caffe_frame"});
-REGISTER_KERNEL(FacenetInput, FacenetInputKernel).device(DeviceType::GPU).num_devices(1);
-
+REGISTER_OP(FacenetInput)
+    .inputs({"frame", "frame_info"})
+    .outputs({"facenet_input"});
+REGISTER_KERNEL(FacenetInput, FacenetInputKernel)
+    .device(DeviceType::GPU)
+    .num_devices(1);
 }

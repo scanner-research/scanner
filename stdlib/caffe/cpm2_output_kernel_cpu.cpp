@@ -487,7 +487,9 @@ protected:
   std::vector<float> joints_;
 };
 
-REGISTER_OP(CPM2Output).outputs({"poses"});
+REGISTER_OP(CPM2Output)
+    .inputs({"cpm2_resized_map", "cpm2_joints", "frame_info"})
+    .outputs({"poses"});
 REGISTER_KERNEL(CPM2Output, CPM2OutputKernel)
     .device(DeviceType::CPU)
     .num_devices(1);

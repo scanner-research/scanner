@@ -54,8 +54,9 @@ namespace internal {
 
 OpRegistration::OpRegistration(const OpBuilder &builder) {
   const std::string &name = builder.name_;
-  const std::vector<std::string> &columns = builder.output_columns_;
-  OpInfo *info = new OpInfo(name, columns);
+  const std::vector<std::string> &input_columns = builder.input_columns_;
+  const std::vector<std::string> &output_columns = builder.output_columns_;
+  OpInfo *info = new OpInfo(name, input_columns, output_columns);
   OpRegistry *registry = get_op_registry();
   registry->add_op(name, info);
 }

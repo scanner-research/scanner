@@ -27,7 +27,7 @@ public:
   }
 };
 
-REGISTER_OP(ImageEncoder).outputs({"png"});
+REGISTER_OP(ImageEncoder).inputs({"frame", "frame_info"}).outputs({"png"});
 
 REGISTER_KERNEL(ImageEncoder, ImageEncoderKernel)
     .device(DeviceType::CPU)
