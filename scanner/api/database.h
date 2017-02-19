@@ -38,7 +38,8 @@ MachineParameters default_machine_params();
 struct TableSample {
   std::string table_name;
   std::vector<std::string> column_names;
-  std::vector<i64> rows;
+  std::string sampling_function;
+  std::vector<u8> sampling_args;
 };
 
 struct Task {

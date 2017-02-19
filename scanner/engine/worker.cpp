@@ -435,19 +435,13 @@ public:
       table_meta[table_name] = read_table_metadata(storage_, table_path);
     }
 
-    // Setup identical io item list on every node
-    std::vector<IOItem> io_items;
-    std::vector<LoadWorkEntry> load_work_entries;
-    create_io_items(job_params, table_meta, job_params->task_set(), io_items,
-                    load_work_entries, job_result);
-
     // Setup shared resources for distributing work to processing threads
     i64 accepted_items = 0;
-    Queue<LoadWorkEntry> load_work;
-    Queue<EvalWorkEntry> initial_eval_work;
-    std::vector<std::vector<Queue<EvalWorkEntry>>> eval_work(
-        pipeline_instances_per_node);
-    Queue<EvalWorkEntry> save_work;
+    Queue<std::tuple<IOItem, LoadWorkEntry>> load_work;
+    Queue<std::tuple<IOItem, EvalWorkEntry>> initial_eval_work;
+    std::vector<std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>>>
+        eval_work(pipeline_instances_per_node);
+    Queue<std::tuple<IOItem, EvalWorkEntry>> save_work;
     std::atomic<i64> retired_items{0};
 
     // Setup load workers
@@ -459,7 +453,7 @@ public:
       // Create IO thread for reading and decoding data
       load_thread_args.emplace_back(LoadThreadArgs{
           // Uniform arguments
-          node_id_, io_items, warmup_size, job_params,
+          node_id_, job_params,
 
           // Per worker arguments
           i, db_params_.storage_config, load_thread_profilers[i],
@@ -487,7 +481,8 @@ public:
     i32 next_cpu_num = 0;
     i32 next_gpu_idx = db_params_.gpu_ids.size() / local_total * local_id;
     for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
-      std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[ki];
+      std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>> &work_queues =
+          eval_work[ki];
       std::vector<Profiler> &eval_thread_profilers = eval_profilers[ki];
       std::vector<proto::Result>& results = eval_results[ki];
       work_queues.resize(num_kernel_groups - 1 + 2); // +2 for pre/post
@@ -538,13 +533,15 @@ public:
         }
 
         // Input work queue
-        Queue<EvalWorkEntry> *input_work_queue = &work_queues[kg];
+        Queue<std::tuple<IOItem, EvalWorkEntry>> *input_work_queue =
+            &work_queues[kg];
         // Create new queue for output, reuse previous queue as input
-        Queue<EvalWorkEntry> *output_work_queue = &work_queues[kg + 1];
+        Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
+            &work_queues[kg + 1];
         // Create eval thread for passing data through neural net
         thread_args.emplace_back(EvaluateThreadArgs{
             // Uniform arguments
-            node_id_, io_items, warmup_size, job_params,
+            node_id_, job_params,
 
             // Per worker arguments
             ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg+1],
@@ -555,12 +552,14 @@ public:
       }
       // Pre evaluate worker
       {
-        Queue<EvalWorkEntry> *input_work_queue = &initial_eval_work;
-        Queue<EvalWorkEntry> *output_work_queue = &work_queues[0];
+        Queue<std::tuple<IOItem, EvalWorkEntry>> *input_work_queue =
+            &initial_eval_work;
+        Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
+            &work_queues[0];
         assert(kernel_groups.size() > 0);
         pre_eval_args.emplace_back(PreEvaluateThreadArgs{
             // Uniform arguments
-            node_id_, io_items, warmup_size, num_cpus, job_params,
+            node_id_, num_cpus, job_params,
 
             // Per worker arguments
               ki, first_kernel_type, eval_thread_profilers.front(),
@@ -571,11 +570,13 @@ public:
 
       // Post evaluate worker
       {
-        Queue<EvalWorkEntry> *input_work_queue = &work_queues.back();
-        Queue<EvalWorkEntry> *output_work_queue = &save_work;
+        Queue<std::tuple<IOItem, EvalWorkEntry>> *input_work_queue =
+            &work_queues.back();
+        Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
+            &save_work;
         post_eval_args.emplace_back(
             PostEvaluateThreadArgs{// Uniform arguments
-                                   node_id_, io_items, warmup_size,
+                                   node_id_,
 
                                    // Per worker arguments
                                      ki, eval_thread_profilers.back(),
@@ -613,7 +614,7 @@ public:
       // Create IO thread for reading and decoding data
       save_thread_args.emplace_back(
           SaveThreadArgs{// Uniform arguments
-                         node_id_, job_params->job_name(), io_items,
+                         node_id_, job_params->job_name(),
 
                          // Per worker arguments
                          i, db_params_.storage_config, save_thread_profilers[i],
@@ -634,26 +635,26 @@ public:
       if (local_work < pipeline_instances_per_node * TASKS_IN_QUEUE_PER_PU) {
         grpc::ClientContext context;
         proto::NodeInfo node_info;
-        proto::IOItem io_item;
+        proto::NewWork new_work;
 
         node_info.set_node_id(node_id_);
         grpc::Status status =
-            master_->NextIOItem(&context, node_info, &io_item);
+            master_->NextWork(&context, node_info, &new_work);
         if (!status.ok()) {
           RESULT_ERROR(job_result,
-                       "Worker %d could not get next io item from master",
+                       "Worker %d could not get next work from master",
                        node_id_);
           break;
         }
 
-        i32 next_item = io_item.item_id();
+        i32 next_item = new_work.io_item().item_id();
         if (next_item == -1) {
           // No more work left
           VLOG(1) << "Node " << node_id_ << " received done signal.";
           break;
         } else {
-          LoadWorkEntry &entry = load_work_entries[next_item];
-          load_work.push(entry);
+          load_work.push(
+              std::make_tuple(new_work.io_item(), new_work.load_work()));
           accepted_items++;
         }
       }
@@ -680,7 +681,7 @@ public:
     for (i32 i = 0; i < num_load_workers; ++i) {
       LoadWorkEntry entry;
       entry.set_io_item_index(-1);
-      load_work.push(entry);
+      load_work.push(std::make_tuple(IOItem{}, entry));
     }
 
     for (i32 i = 0; i < num_load_workers; ++i) {
@@ -695,7 +696,7 @@ public:
     for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
-      initial_eval_work.push(entry);
+      initial_eval_work.push(std::make_tuple(IOItem{}, entry));
     }
 
     for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
@@ -710,7 +711,7 @@ public:
       for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
         EvalWorkEntry entry;
         entry.io_item_index = -1;
-        eval_work[pu][kg].push(entry);
+        eval_work[pu][kg].push(std::make_tuple(IOItem{}, entry));
       }
       for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
         // Wait until eval has finished
@@ -725,7 +726,7 @@ public:
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
-      eval_work[pu].back().push(entry);
+      eval_work[pu].back().push(std::make_tuple(IOItem{}, entry));
     }
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Wait until eval has finished
@@ -739,7 +740,7 @@ public:
     for (i32 i = 0; i < num_save_workers; ++i) {
       EvalWorkEntry entry;
       entry.io_item_index = -1;
-      save_work.push(entry);
+      save_work.push(std::make_tuple(IOItem{}, entry));
     }
 
     for (i32 i = 0; i < num_save_workers; ++i) {

@@ -33,8 +33,6 @@ void move_if_different_address_space(Profiler &profiler,
 struct PreEvaluateThreadArgs {
   // Uniform arguments
   i32 node_id;
-  const std::vector<IOItem>& io_items;
-  i32 warmup_count;
   i32 num_cpus;
   const proto::JobParameters* job_params;
 
@@ -44,15 +42,13 @@ struct PreEvaluateThreadArgs {
   Profiler& profiler;
 
   // Queues for communicating work
-  Queue<EvalWorkEntry>& input_work;
-  Queue<EvalWorkEntry>& output_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
 };
 
 struct EvaluateThreadArgs {
   // Uniform arguments
   i32 node_id;
-  const std::vector<IOItem>& io_items;
-  i32 warmup_count;
   const proto::JobParameters* job_params;
 
   // Per worker arguments
@@ -70,23 +66,21 @@ struct EvaluateThreadArgs {
   proto::Result& result;
 
   // Queues for communicating work
-  Queue<EvalWorkEntry>& input_work;
-  Queue<EvalWorkEntry>& output_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
 };
 
 struct PostEvaluateThreadArgs {
   // Uniform arguments
   i32 node_id;
-  const std::vector<IOItem>& io_items;
-  i32 warmup_count;
 
   // Per worker arguments
   i32 id;
   Profiler& profiler;
 
   // Queues for communicating work
-  Queue<EvalWorkEntry>& input_work;
-  Queue<EvalWorkEntry>& output_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
 };
 
 void* pre_evaluate_thread(void* arg);

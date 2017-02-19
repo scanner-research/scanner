@@ -219,7 +219,6 @@ void *load_thread(void *arg) {
 
   auto setup_start = now();
 
-  const i32 io_item_size = args.job_params->io_item_size();
   const i32 work_item_size = args.job_params->work_item_size();
 
   // Setup a distinct storage backend for each IO thread
@@ -237,8 +236,10 @@ void *load_thread(void *arg) {
   while (true) {
     auto idle_start = now();
 
-    LoadWorkEntry load_work_entry;
-    args.load_work.pop(load_work_entry);
+    std::tuple<IOItem, LoadWorkEntry> entry;
+    args.load_work.pop(entry);
+    IOItem& io_item = std::get<0>(entry);
+    LoadWorkEntry& load_work_entry = std::get<1>(entry);
 
     if (load_work_entry.io_item_index() == -1) {
       break;
@@ -251,12 +252,11 @@ void *load_thread(void *arg) {
 
     auto work_start = now();
 
-    const IOItem &io_item = args.io_items[load_work_entry.io_item_index()];
     const auto &samples = load_work_entry.samples();
 
-    if (io_item.table_id != last_table_id) {
+    if (io_item.table_id() != last_table_id) {
       // Not from the same task so clear cached data
-      last_table_id = io_item.table_id;
+      last_table_id = io_item.table_id();
       index.clear();
     }
 
@@ -265,6 +265,8 @@ void *load_thread(void *arg) {
 
     // Aggregate all sample columns so we know the tuple size
     assert(!samples.empty());
+    eval_work_entry.warmup_rows = samples.Get(0).warmup_rows_size();
+
     i32 num_columns = 0;
     for (size_t i = 0; i < samples.size(); ++i) {
       num_columns += samples.Get(i).column_ids_size();
@@ -275,7 +277,6 @@ void *load_thread(void *arg) {
     i32 out_col_idx = 0;
     for (const proto::LoadSample &sample : samples) {
       i32 table_id = sample.table_id();
-      const google::protobuf::RepeatedField<i64> &rows = sample.rows();
       auto it = table_metadata.find(table_id);
       if (it == table_metadata.end()) {
         table_metadata[table_id] = read_table_metadata(
@@ -284,8 +285,13 @@ void *load_thread(void *arg) {
       }
       const TableMetadata &table_meta = it->second;
 
-      RowIntervals intervals = slice_into_row_intervals(
-          table_meta, std::vector<i64>(rows.begin(), rows.end()));
+      const google::protobuf::RepeatedField<i64> &sample_warmup_rows =
+          sample.warmup_rows();
+      const google::protobuf::RepeatedField<i64> &sample_rows = sample.rows();
+      std::vector<i64> rows(sample_warmup_rows.begin(),
+                            sample_warmup_rows.end());
+      rows.insert(rows.end(), sample_rows.begin(), sample_rows.end());
+      RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
       size_t num_items = intervals.item_ids.size();
       for (i32 col_id : sample.column_ids()) {
         ColumnType column_type = ColumnType::Other;
@@ -349,7 +355,7 @@ void *load_thread(void *arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
-    args.eval_work.push(eval_work_entry);
+    args.eval_work.push(std::make_tuple(io_item, eval_work_entry));
   }
 
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.id

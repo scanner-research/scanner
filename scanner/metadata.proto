@@ -93,17 +93,18 @@ message TableDescriptor {
   int32 id = 1;
   string name = 2;
   repeated Column columns = 3;
-  int64 num_rows = 4;
-  int64 rows_per_item = 5;
+  // @brief the last row in each item of this table
+  repeated int64 end_rows = 4;
   int32 job_id = 6;
   int64 timestamp = 7;
 }
 
 // Task set messages
 message TableSample {
-  string table_name = 2;
-  repeated string column_names = 3;
-  repeated int64 rows = 4 [packed=true];
+  string table_name = 1;
+  repeated string column_names = 2;
+  string sampling_function = 3;
+  bytes sampling_args = 4;
 }
 
 message Task {
@@ -162,7 +163,8 @@ message ImageDecodeArgs {
 message LoadSample {
   int32 table_id = 1;
   repeated int32 column_ids = 2;
-  repeated int64 rows = 3 [packed=true];
+  repeated int64 warmup_rows = 3 [packed=true];
+  repeated int64 rows = 4 [packed=true];
 }
 
 message LoadWorkEntry {
@@ -200,4 +202,38 @@ message MachineParameters {
   int32 num_load_workers = 2;
   int32 num_save_workers = 3;
   repeated int32 gpu_ids = 4;
+}
+
+message IOItem {
+  // @brief the output table id
+  int32 table_id = 1;
+  // @brief the unique id for this item in the table
+  int64 item_id = 2;
+  // @brief the first row in this item
+  int64 start_row = 3;
+  // @brief the row after the last row in this item
+  int64 end_row = 4;
+}
+
+// Sampler args
+
+message AllSamplerArgs {
+  int64 sample_size = 1;
+  int64 warmup_size = 2;
+}
+
+message StridedRangeSamplerArgs {
+  int64 stride = 1;
+  repeated int64 warmup_starts = 2;
+  repeated int64 starts = 3;
+  repeated int64 ends = 4;
+}
+
+message GatherSamplerArgs {
+  message Sample {
+    repeated int64 warmup_rows = 1 [packed=true];
+    repeated int64 rows = 2 [packed=true];
+  }
+
+  repeated Sample samples = 1;
 }

@@ -7,6 +7,7 @@ set(SOURCE_FILES
   evaluate_worker.cpp
   save_worker.cpp
   sampling.cpp
+  sampler.cpp
   db.cpp
   kernel_registry.cpp
   op_registry.cpp)

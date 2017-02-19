@@ -42,9 +42,17 @@ int main(int argc, char** argv) {
   scanner::TableSample sample;
   sample.table_name = "mean";
   sample.column_names = {"frame", "frame_info"};
+
+  sample.sampling_function = "Gather";
+  scanner::proto::GatherSamplerArgs args;
+  auto& gather_sample = *args.add_samples();
   for (int i = 0; i < 100; i += 1) {
-    sample.rows.push_back(i);
+    gather_sample.add_rows(i);
   }
+  std::vector<scanner::u8> args_data(args.ByteSize());
+  args.SerializeToArray(args_data.data(), args_data.size());
+  sample.sampling_args = args_data;
+
   task.samples.push_back(sample);
   params.task_set.tasks.push_back(task);
 

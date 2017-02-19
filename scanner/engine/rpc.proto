@@ -8,7 +8,7 @@ service Master {
   rpc RegisterWorker (WorkerInfo) returns (Registration) {}
   // Ingest videos into the system
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
-  rpc NextIOItem (NodeInfo) returns (IOItem) {}
+  rpc NextWork (NodeInfo) returns (NewWork) {}
   rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpInfo) returns (Result) {}
@@ -64,9 +64,7 @@ message JobParameters {
   int32 local_total = 8;
 }
 
-message IOItem {
-  int32 table_id = 1;
-  int64 item_id = 2;
-  int64 start_row = 3;
-  int64 end_row = 4;
-}
+message NewWork {
+  IOItem io_item = 1;
+  LoadWorkEntry load_work = 2;
+};

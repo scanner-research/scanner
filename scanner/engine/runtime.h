@@ -40,22 +40,6 @@ namespace internal {
 ///////////////////////////////////////////////////////////////////////////////
 /// Work structs - structs used to exchange data between workers during
 ///   execution of the run command.
-struct IOItem {
-  // @brief the output table id
-  i32 table_id;
-  // @brief the unique id for this item in the table
-  i64 item_id;
-  // @brief the first row in this item
-  i64 start_row;
-  // @brief the row after the last row in this item
-  i64 end_row;
-};
-
-struct WorkItem {
-  // @brief the index in the IOItem list of the parent io item
-  i64 io_item_index;
-};
-
 struct EvalWorkEntry {
   i32 io_item_index;
   BatchedColumns columns;
@@ -65,6 +49,7 @@ struct EvalWorkEntry {
   bool needs_configure;
   bool needs_reset;
   bool last_in_io_item;
+  i64 warmup_rows;
 };
 
 struct DatabaseParameters {
@@ -80,14 +65,6 @@ proto::Master::Service *get_master_service(DatabaseParameters &param);
 
 proto::Worker::Service *get_worker_service(DatabaseParameters &params,
                                            const std::string &master_address);
-
-void create_io_items(
-  const proto::JobParameters* job_params,
-  const std::map<std::string, TableMetadata> &table_metas,
-  const proto::TaskSet &task_set,
-  std::vector<IOItem> &io_items,
-  std::vector<LoadWorkEntry> &load_work_entries,
-  proto::Result* job_result);
 
 }
 }

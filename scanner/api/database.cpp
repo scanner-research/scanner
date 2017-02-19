@@ -58,9 +58,9 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
       for (std::string &s : ts.column_names) {
         sample->add_column_names(s);
       }
-      for (i64 r : ts.rows) {
-        sample->add_rows(r);
-      }
+      sample->set_sampling_function(ts.sampling_function);
+      sample->set_sampling_args(ts.sampling_args.data(),
+                                ts.sampling_args.size());
     }
   }
   // Parse ops
