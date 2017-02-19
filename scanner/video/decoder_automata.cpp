@@ -36,6 +36,7 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
 
 DecoderAutomata::~DecoderAutomata() {
   {
+    reset_current_frame_ = -1;
     frames_to_get_ = 0;
     frames_retrieved_ = 0;
     while (decoder_->discard_frame()) {
@@ -203,6 +204,9 @@ void DecoderAutomata::feeder() {
       }
       if (seeking_) {
         decoder_->feed(nullptr, 0, true);
+        while (reset_current_frame_ != -1) {
+          std::this_thread::yield();
+        }
         reset_current_frame_ = encoded_data_[feeder_data_idx_].keyframes(0);
         seeking_ = false;
       }
