@@ -283,7 +283,9 @@ Result make_sampler_instance(const std::string& sampler_type,
   Sampler* potential_sampler = factory(sampler_args, sampled_table);
   result = potential_sampler->validate();
   if (!result.success()) {
-    delete sampler;
+    delete potential_sampler;
+  } else {
+    sampler = potential_sampler;
   }
 
   return result;

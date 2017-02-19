@@ -230,7 +230,7 @@ public:
   grpc::Status NextWork(grpc::ServerContext *context,
                         const proto::NodeInfo *node_info,
                         proto::NewWork *new_work) {
-    if (samples_left_ < 0) {
+    if (samples_left_ <= 0) {
       if (next_task_ < num_tasks_ && task_result_.success()) {
         // More tasks left
         task_sampler_.reset(new TaskSampler(
@@ -370,6 +370,7 @@ public:
     write_job_metadata(storage_, JobMetadata(job_descriptor));
 
     // Setup initial task sampler
+    task_result_.set_success(true);
     next_task_ = 1;
     num_tasks_ = job_params->task_set().tasks_size();
     task_sampler_.reset(
