@@ -34,7 +34,7 @@ class Sampler:
             sample.table_name = input_table_name
             sample.column_names.extend(column_names)
             sample.sampling_function = "All"
-            samlpe.sampling_args = sampler_args.SerializeToString()
+            sample.sampling_args = sampler_args.SerializeToString()
             tasks.append(task)
         return tasks
 
@@ -75,8 +75,8 @@ or (input_table, output_table) pair')""")
         s = 0
         while s < len(rows):
             e = min(s + item_size, len(rows))
-            sampler_args_sample = sampler_args.add_samples()
-            sampler_args_sample.rows = rows[s:e]
+            sampler_args_sample = sampler_args.samples.add()
+            sampler_args_sample.rows[:] = rows[s:e]
             s = e
         sample.sampling_args = sampler_args.SerializeToString()
         return task
