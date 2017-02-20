@@ -214,6 +214,16 @@ public:
             args_.starts(i), args_.ends(i));
         return;
       }
+      for (i64 j = 0; j < args_.stencil_size(); ++j) {
+        if (args_.starts(i) + args_.stencil(j) < 0) {
+          RESULT_ERROR(
+              &valid_,
+              "Stencil start (%ld) with stencil offset %ld should be greater "
+              "than zero",
+              args_.starts(i), args_.stencil(j));
+          return;
+        }
+      }
       if (args_.ends(i) > table.num_rows()) {
         RESULT_ERROR(&valid_, "Stencil end (%ld) should be less "
                               "than table num rows (%ld)",
