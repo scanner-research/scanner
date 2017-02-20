@@ -19,6 +19,7 @@
 #include "scanner/util/progress_bar.h"
 #include <grpc/support/log.h>
 
+#include <mutex>
 namespace scanner {
 namespace internal {
 namespace {
@@ -230,6 +231,7 @@ public:
   grpc::Status NextWork(grpc::ServerContext *context,
                         const proto::NodeInfo *node_info,
                         proto::NewWork *new_work) {
+    std::unique_lock<std::mutex> lk(work_mutex_);
     if (samples_left_ <= 0) {
       if (next_task_ < num_tasks_ && task_result_.success()) {
         // More tasks left
@@ -260,7 +262,8 @@ public:
     }
 
     samples_left_--;
-    bar_->Progressed(next_task_ - 1);
+    total_samples_used_++;
+    bar_->Progressed(total_samples_used_);
     return grpc::Status::OK;
   }
 
@@ -331,6 +334,8 @@ public:
       table_metas_[table_name] = read_table_metadata(storage_, table_path);
     }
 
+    total_samples_used_ = 0;
+    total_samples_ = 0;
     for (auto &task : job_params->task_set().tasks()) {
       i32 table_id = meta.add_table(task.output_table_name());
       proto::TableDescriptor table_desc;
@@ -353,6 +358,7 @@ public:
         *job_result = result;
         break;
       }
+      total_samples_ += end_rows.size();
       for (i64 r : end_rows) {
         table_desc.add_end_rows(r);
       }
@@ -371,17 +377,9 @@ public:
 
     // Setup initial task sampler
     task_result_.set_success(true);
-    next_task_ = 1;
+    samples_left_ = 0;
+    next_task_ = 0;
     num_tasks_ = job_params->task_set().tasks_size();
-    task_sampler_.reset(
-        new TaskSampler(table_metas_, job_params_.task_set().tasks(0)));
-    *job_result = task_sampler_->validate();
-    if (!job_result->success()) {
-      // Haven't written the db metadata so we can just exit
-      // TODO(apoms): actually get rid of data
-      return grpc::Status::OK;
-    }
-    samples_left_ = task_sampler_->total_samples();
 
     write_database_metadata(storage_, meta);
 
@@ -394,7 +392,7 @@ public:
     std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
         rpcs;
 
-    bar_ = new ProgressBar(num_tasks_, "");
+    bar_ = new ProgressBar(total_samples_, "");
 
     std::map<std::string, i32> local_ids;
     std::map<std::string, i32> local_totals;
@@ -444,7 +442,7 @@ public:
       job_result->CopyFrom(task_result_);
     } else {
       assert(next_task_ == num_tasks_);
-      bar_->Progressed(num_tasks_);
+      bar_->Progressed(total_samples_);
     }
 
     return grpc::Status::OK;
@@ -491,6 +489,10 @@ private:
   proto::JobParameters job_params_;
   ProgressBar *bar_;
 
+  i64 total_samples_used_;
+  i64 total_samples_;
+
+  std::mutex work_mutex_;
   i64 next_task_;
   i64 num_tasks_;
   std::unique_ptr<TaskSampler> task_sampler_;

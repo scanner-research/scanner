@@ -1,5 +1,4 @@
 set(SOURCE_FILES
-  runtime.cpp
   master.cpp
   worker.cpp
   ingest.cpp
