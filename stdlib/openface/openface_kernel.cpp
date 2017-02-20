@@ -3,9 +3,9 @@
 #include "scanner/util/memory.h"
 #include "scanner/util/serialize.h"
 
-#include "LandmarkCoreIncludes.h"
-#include "FaceAnalyser.h"
-#include "GazeEstimation.h"
+#include "OpenFace/LandmarkCoreIncludes.h"
+#include "OpenFace/FaceAnalyser.h"
+#include "OpenFace/GazeEstimation.h"
 
 #include <boost/filesystem.hpp>
 #include <opencv2/imgproc.hpp>
