@@ -266,6 +266,7 @@ Result make_sampler_instance(const std::string& sampler_type,
                              Sampler*& sampler) {
   static std::map<std::string, SamplerFactory> samplers = {
       {"All", make_factory<AllSampler>()},
+      {"StridedRange", make_factory<StridedRangeSampler>()},
       {"Gather", make_factory<GatherSampler>()}};
 
   Result result;

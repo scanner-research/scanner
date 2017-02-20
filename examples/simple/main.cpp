@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
   params.memory_pool_config.mutable_cpu()->set_use_pool(false);
   params.memory_pool_config.mutable_gpu()->set_use_pool(false);
   params.pipeline_instances_per_node = 1;
-  params.io_item_size = 1024;
   params.work_item_size = 512;
 
   // Specify job tasks

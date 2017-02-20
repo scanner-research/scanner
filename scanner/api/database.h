@@ -58,7 +58,6 @@ struct JobParameters {
 
   MemoryPoolConfig memory_pool_config;
   i32 pipeline_instances_per_node;
-  i64 io_item_size;
   i64 work_item_size;
 };
 
