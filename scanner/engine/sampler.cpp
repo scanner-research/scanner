@@ -180,6 +180,98 @@ private:
   size_t samples_pos_ = 0;
 };
 
+class StencilSampler : public Sampler {
+public:
+  StencilSampler(const std::vector<u8> &args,
+                               const TableMetadata &table)
+      : Sampler("Stencil", table) {
+    valid_.set_success(true);
+    if (!args_.ParseFromArray(args.data(), args.size())) {
+      RESULT_ERROR(
+          &valid_,
+          "Stencil sampler provided with invalid protobuf args");
+      return;
+    }
+    if (args_.stride() <= 0) {
+      RESULT_ERROR(
+          &valid_,
+          "Stencil stride (%ld) must be greater than zero",
+          args_.stride());
+      return;
+    }
+    for (i64 i = 0; i < args_.stencil_size(); ++i) {
+      if (args_.stencil(i) >= 0) {
+        RESULT_ERROR(&valid_, "Stencil elements (%ld) must be less than zero",
+                     args_.stencil(i));
+        return;
+      }
+    }
+    for (i64 i = 0; i < args_.starts_size(); ++i) {
+      if (args_.starts(i) > args_.ends(i)) {
+        RESULT_ERROR(
+            &valid_,
+            "Stencil start (%ld) should not be after end (%ld)",
+            args_.starts(i), args_.ends(i));
+        return;
+      }
+      if (args_.ends(i) > table.num_rows()) {
+        RESULT_ERROR(&valid_, "Stencil end (%ld) should be less "
+                              "than table num rows (%ld)",
+                     args_.ends(i), table.num_rows());
+        return;
+      }
+      total_rows_ += (args_.ends(i) - args_.starts(i)) / args_.stride();
+    }
+    total_samples_ = args_.starts_size();
+  }
+
+  Result validate() override {
+    return valid_;
+  }
+
+  i64 total_rows() const override {
+    return total_rows_;
+  }
+
+  i64 total_samples() const override {
+    // NOTE(apoms): not a mistake, stencil sampler returns 1 row each time
+    return total_rows_;
+  }
+
+  RowSample next_sample() override {
+    RowSample sample;
+    i64 stride = args_.stride();
+    i64 s = args_.starts(samples_pos_);
+    int curr_start = s + stride * rows_pos_;
+    for (i64 off : args_.stencil()) {
+      sample.warmup_rows.push_back(curr_start + off);
+    }
+    sample.rows.push_back(curr_start);
+
+    rows_pos_++;
+    i64 e = args_.ends(samples_pos_);
+    if (curr_start + stride >= e) {
+      rows_pos_ = 0;
+      samples_pos_++;
+    }
+    assert(samples_pos_ <= args_.starts_size());
+    return sample;
+  }
+
+  void reset() override {
+    samples_pos_ = 0;
+    rows_pos_ = 0;
+  }
+
+private:
+  Result valid_;
+  proto::StencilSamplerArgs args_;
+  i64 total_rows_ = 0;
+  i64 total_samples_ = 0;
+  size_t samples_pos_ = 0;
+  size_t rows_pos_ = 0;
+};
+
 class GatherSampler : public Sampler {
 public:
   GatherSampler(const std::vector<u8>& args, const TableMetadata &table)
@@ -267,6 +359,7 @@ Result make_sampler_instance(const std::string& sampler_type,
   static std::map<std::string, SamplerFactory> samplers = {
       {"All", make_factory<AllSampler>()},
       {"StridedRange", make_factory<StridedRangeSampler>()},
+      {"Stencil", make_factory<StencilSampler>()},
       {"Gather", make_factory<GatherSampler>()}};
 
   Result result;
