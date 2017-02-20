@@ -47,7 +47,6 @@ protected:
     params_.memory_pool_config.mutable_cpu()->set_use_pool(false);
     params_.memory_pool_config.mutable_gpu()->set_use_pool(false);
     params_.pipeline_instances_per_node = 1;
-    params_.io_item_size = 100;
     params_.work_item_size = 25;
   }
 
@@ -109,9 +108,16 @@ protected:
     scanner::TableSample sample;
     sample.table_name = "test";
     sample.column_names = {"frame", "frame_info"};
+    sample.sampling_function = "Gather";
+    scanner::proto::GatherSamplerArgs args;
+    auto &gather_sample = *args.add_samples();
     for (int i = 0; i < 100; i += 1) {
-      sample.rows.push_back(i);
+      gather_sample.add_rows(i);
     }
+    std::vector<scanner::u8> args_data(args.ByteSize());
+    args.SerializeToArray(args_data.data(), args_data.size());
+    sample.sampling_args = args_data;
+
     task.samples.push_back(sample);
     return task;
   }
