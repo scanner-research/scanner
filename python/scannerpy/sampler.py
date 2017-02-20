@@ -18,7 +18,7 @@ class Sampler:
             return videos
 
     def all(self, videos, item_size=1000, warmup_size=0):
-        sampler_args = self._db._metadata_types.AllSamplerArgs()
+        sampler_args = self._db.protobufs.AllSamplerArgs()
         sampler_args.sample_size = item_size
         sampler_args.warmup_size = warmup_size
         videos = self._convert_collection(videos)
@@ -26,7 +26,7 @@ class Sampler:
         for video in videos:
             (input_table_name, output_table_name) = video
             table = self._db.table(video[0])
-            task = self._db._metadata_types.Task()
+            task = self._db.protobufs.Task()
             task.output_table_name = output_table_name
             input_table = self._db.table(input_table_name)
             column_names = [c.name() for c in input_table.columns()]
@@ -71,7 +71,7 @@ or (input_table, output_table) pair')""")
         sample.table_name = input_table_name
         sample.column_names.extend(column_names)
         sample.sampling_function = "Gather"
-        sampler_args = self._db._metadata_types.GatherSamplerArgs()
+        sampler_args = self._db.protobufs.GatherSamplerArgs()
         s = 0
         while s < len(rows):
             e = min(s + item_size, len(rows))
@@ -99,7 +99,7 @@ or (input_table, output_table) pair')""")
         sample.table_name = input_table_name
         sample.column_names.extend(column_names)
         sample.sampling_function = "StridedRange"
-        sampler_args = self._db._metadata_types.StridedRangeSamplerArgs()
+        sampler_args = self._db.protobufs.StridedRangeSamplerArgs()
         sampler_args.stride = stride
         s = start
         while s < end:
