@@ -27,7 +27,7 @@ class Profiler:
     def __init__(self, db, job_id):
         self._storage = db._storage
         job = db._load_descriptor(
-            db._metadata_types.JobDescriptor,
+            db.protobufs.JobDescriptor,
             'jobs/{}/descriptor.bin'.format(job_id))
 
         self._profilers = {}

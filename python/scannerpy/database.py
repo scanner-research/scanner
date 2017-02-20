@@ -49,9 +49,8 @@ class Database:
         import scanner.engine.rpc_pb2 as rpc_types
         import scanner.types_pb2 as misc_types
         import scanner_bindings as bindings
-        self._metadata_types = metadata_types
-        self._rpc_types = rpc_types
-        self._arg_types = [misc_types, rpc_types]
+
+        self._protobufs = [misc_types, rpc_types, metadata_types]
         self._bindings = bindings
 
         # Setup database metadata
@@ -72,12 +71,12 @@ class Database:
             self._master_address)
         if not os.path.isdir(pydb_path):
             os.mkdir(pydb_path)
-            self._collections = self._metadata_types.CollectionsDescriptor()
+            self._collections = self.protobufs.CollectionsDescriptor()
             self._update_collections()
 
         # Load database descriptors from disk
         self._collections = self._load_descriptor(
-            self._metadata_types.CollectionsDescriptor,
+            self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
 
         self._connect_to_master()
@@ -168,7 +167,7 @@ class Database:
     def _load_db_metadata(self):
         if self._cached_db_metadata is None:
             desc = self._load_descriptor(
-                self._metadata_types.DatabaseDescriptor,
+                self.protobufs.DatabaseDescriptor,
                 'db_metadata.bin')
             self._cached_db_metadata = desc
         return self._cached_db_metadata
@@ -177,11 +176,11 @@ class Database:
         channel = grpc.insecure_channel(
             self._master_address,
             options=[('grpc.max_message_length', 24499183 * 2)])
-        self._master = self._rpc_types.MasterStub(channel)
+        self._master = self.protobufs.MasterStub(channel)
 
         # Ping master and start master/worker locally if they don't exist.
         try:
-            self._master.Ping(self._rpc_types.Empty())
+            self._master.Ping(self.protobufs.Empty())
         except grpc.RpcError as e:
             status = e.code()
             if status == grpc.StatusCode.UNAVAILABLE:
@@ -195,7 +194,7 @@ class Database:
                 # If we don't reconnect to master, there's a 5-10 sec delay for
                 # for original connection to reboot
                 channel = grpc.insecure_channel(self._master_address)
-                self._master = self._rpc_types.MasterStub(channel)
+                self._master = self.protobufs.MasterStub(channel)
             elif status == grpc.StatusCode.OK:
                 pass
             else:
@@ -278,7 +277,7 @@ class Database:
                 raise ScannerException('Protobuf path does not exist: {}'
                                        .format(proto_path))
             mod = imp.load_source('_ignore', proto_path)
-            self._arg_types.append(mod)
+            self._protobufs.append(mod)
         op_info = self.protobufs.OpInfo()
         op_info.so_path = so_path
         self._try_rpc(lambda: self._master.LoadOp(op_info))
@@ -327,7 +326,7 @@ class Database:
         self._collections.ids.append(new_id)
         self._collections.names.append(collection_name)
         self._update_collections()
-        collection = self._metadata_types.CollectionDescriptor()
+        collection = self.protobufs.CollectionDescriptor()
         collection.tables.extend(table_names)
         collection.job_id = -1 if job_id is None else job_id
         self._save_descriptor(collection, 'pydb/collection_{}.bin'.format(new_id))
@@ -407,7 +406,7 @@ class Database:
         else:
             id = name
         collection = self._load_descriptor(
-            self._metadata_types.CollectionDescriptor,
+            self.protobufs.CollectionDescriptor,
             'pydb/collection_{}.bin'.format(id))
         return Collection(self, name, collection)
 
@@ -452,7 +451,7 @@ class Database:
             raise ScannerException('Invalid table identifier')
 
         descriptor = self._load_descriptor(
-            self._metadata_types.TableDescriptor,
+            self.protobufs.TableDescriptor,
             'tables/{}/descriptor.bin'.format(table_id))
         return Table(self, descriptor)
 
@@ -616,7 +615,7 @@ class Database:
                                            .format(task.output_table_name))
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
-        job_params = self._rpc_types.JobParameters()
+        job_params = self.protobufs.JobParameters()
         # Generate a random job name if none given
         job_name = job_name or ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
@@ -664,7 +663,7 @@ class ProtobufGenerator:
         self._db = db
 
     def __getattr__(self, name):
-        for mod in self._db._arg_types:
+        for mod in self._db._protobufs:
             if hasattr(mod, name):
                 return getattr(mod, name)
         raise ScannerException('No protobuf with name {}'.format(name))

@@ -14,7 +14,7 @@ class Table:
         job_id = self._descriptor.job_id
         if job_id != -1:
             self._job = self._db._load_descriptor(
-                self._db._metadata_types.JobDescriptor,
+                self._db.protobufs.JobDescriptor,
                 'jobs/{}/descriptor.bin'.format(job_id))
             self._task = None
             for task in self._job.tasks:

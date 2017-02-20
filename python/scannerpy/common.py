@@ -16,8 +16,8 @@ class DeviceType(enum.Enum):
     @staticmethod
     def to_proto(db, device):
         if device == DeviceType.CPU:
-            return db._metadata_types.CPU
+            return db.protobufs.CPU
         elif device == DeviceType.GPU:
-            return db._metadata_types.GPU
+            return db.protobufs.GPU
         else:
             raise ScannerException('Invalid device type')

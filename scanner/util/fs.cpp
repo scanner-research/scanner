@@ -84,6 +84,13 @@ void download(const std::string& url, const std::string& local_path) {
       << "wget failed for url " << url;
 }
 
+std::string download_temp(const std::string& url) {
+  std::string local_video_path;
+  scanner::temp_file(local_video_path);
+  scanner::download(url, local_video_path);
+  return local_video_path;
+}
+
 std::vector<uint8_t> read_entire_file(const std::string& file_name) {
   std::ifstream file(file_name, std::ios::ate | std::ios::binary);
   size_t file_size = file.tellg();

@@ -54,7 +54,7 @@ class Evaluator:
         pass
 
     def to_proto(self, indices):
-        e = self._db._metadata_types.Evaluator()
+        e = self._db.protobufs.Evaluator()
         e.name = self._name
 
         for (in_eval, cols) in self._inputs:

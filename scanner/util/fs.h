@@ -50,6 +50,8 @@ void temp_dir(std::string& name);
 
 void download(const std::string& url, const std::string& local_path);
 
+std::string download_temp(const std::string& url);
+
 void delete_file(const std::string& path);
 
 std::vector<uint8_t> read_entire_file(const std::string& file_name);

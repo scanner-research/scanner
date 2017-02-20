@@ -394,7 +394,6 @@ public:
         }
       }
     }
-    LOG(WARNING) << "pi: " << pipeline_instances_per_node;
 
     if (pipeline_instances_per_node <= 0) {
       RESULT_ERROR(

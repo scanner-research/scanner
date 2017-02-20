@@ -1,4 +1,3 @@
-add_executable(tests_decode decode.cpp)
-target_link_libraries(tests_decode scanner stdlib)
-
-add_test(TestsDecode tests_decode)
+add_executable(EndToEndTests tests.cpp)
+target_link_libraries(EndToEndTests ${GTEST_LIBRARIES} ${GTEST_LIB_MAIN} scanner stdlib)
+add_test(EndToEndTests EndToEndTests)

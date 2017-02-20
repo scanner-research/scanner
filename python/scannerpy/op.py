@@ -50,7 +50,7 @@ class Op:
         return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
 
     def to_proto(self, indices):
-        e = self._db._metadata_types.Op()
+        e = self._db.protobufs.Op()
         e.name = self._name
 
         for (in_eval, cols) in self._inputs:

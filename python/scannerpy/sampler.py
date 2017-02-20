@@ -45,7 +45,7 @@ class Sampler:
 or (input_table, output_table) pair')""")
 
         (input_table_name, output_table_name) = video
-        task = self._db._metadata_types.Task()
+        task = self._db.protobufs.Task()
         task.output_table_name = output_table_name
         input_table = self._db.table(input_table_name)
         column_names = [c.name() for c in input_table.columns()]
@@ -63,7 +63,7 @@ or (input_table, output_table) pair')""")
 or (input_table, output_table) pair')""")
 
         (input_table_name, output_table_name) = video
-        task = self._db._metadata_types.Task()
+        task = self._db.protobufs.Task()
         task.output_table_name = output_table_name
         input_table = self._db.table(input_table_name)
         num_rows = input_table.num_rows()
