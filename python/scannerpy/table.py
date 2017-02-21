@@ -37,13 +37,14 @@ class Table:
         return columns[index] if index is not None else columns
 
     def num_rows(self):
-        return self._descriptor.num_rows
+        return self._descriptor.end_rows[-1]
 
     def rows(self):
         if self._job is None:
             return list(range(self.num_rows()))
         else:
             if len(self._task.samples) == 1:
+                assert(False)
                 return list(self._task.samples[0].rows)
             else:
                 return list(range(self.num_rows()))

@@ -24,12 +24,29 @@ RowIntervals slice_into_row_intervals(const TableMetadata &table,
   RowIntervals info;
   // Analyze rows and table to determine what item ids and offsets in them to
   // sample from
-  i32 io_item_size = table.rows_per_item();
-  auto item_from_row = [io_item_size](i64 r) -> i32 {
-    return r / io_item_size;
+  std::vector<i64> end_rows = table.end_rows();
+  auto item_from_row = [&end_rows](i64 r) -> i32 {
+    i64 i = 0;
+    for (; i < end_rows.size(); ++i) {
+      if (r < end_rows[i]) {
+        break;
+      }
+    }
+    assert(i != end_rows.size());
+    return i;
   };
-  auto offset_from_row = [io_item_size](i64 r) -> i64 {
-    return r % io_item_size;
+
+  auto offset_from_row = [&end_rows](i64 r) -> i64 {
+    i64 i = 0;
+    i64 sum = 0;
+    for (; i < end_rows.size(); ++i) {
+      if (r < end_rows[i]) {
+        break;
+      }
+      sum += end_rows[i];
+    }
+    assert(i != end_rows.size());
+    return r - sum;
   };
 
   assert(!rows.empty());

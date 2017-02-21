@@ -167,8 +167,6 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 
   std::string name() const;
 
-  i32 io_item_size() const;
-
   i32 work_item_size() const;
 
   i32 num_nodes() const;
@@ -181,9 +179,9 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 
   bool has_table(const std::string& name) const;
 
-  i64 rows_in_table(const std::string& name) const;
+  // i64 rows_in_table(const std::string& name) const;
 
-  i64 total_rows() const;
+  // i64 total_rows() const;
 
 private:
   std::vector<Column> columns_;
@@ -205,7 +203,7 @@ public:
 
   i64 num_rows() const;
 
-  i64 rows_per_item() const;
+  std::vector<i64> end_rows() const;
 
   const std::vector<proto::Column>& columns() const;
 

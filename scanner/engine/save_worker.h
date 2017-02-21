@@ -26,7 +26,6 @@ struct SaveThreadArgs {
   // Uniform arguments
   i32 node_id;
   std::string job_name;
-  const std::vector<IOItem>& io_items;
 
   // Per worker arguments
   int id;
@@ -34,7 +33,7 @@ struct SaveThreadArgs {
   Profiler& profiler;
 
   // Queues for communicating work
-  Queue<EvalWorkEntry>& input_work;
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
   std::atomic<i64>& retired_items;
 };
 

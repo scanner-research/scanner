@@ -279,8 +279,6 @@ i32 JobMetadata::id() const { return descriptor_.id(); }
 
 std::string JobMetadata::name() const { return descriptor_.name(); }
 
-i32 JobMetadata::io_item_size() const { return descriptor_.io_item_size(); }
-
 i32 JobMetadata::work_item_size() const { return descriptor_.work_item_size(); }
 
 i32 JobMetadata::num_nodes() const { return descriptor_.num_nodes(); }
@@ -304,32 +302,32 @@ bool JobMetadata::has_table(const std::string &name) const {
   return false;
 }
 
-i64 JobMetadata::rows_in_table(const std::string &name) const {
-  i64 rows = -1;
-  auto it = rows_in_table_.find(name);
-  if (it == rows_in_table_.end()) {
-    for (const proto::Task &task : descriptor_.tasks()) {
-      assert(task.samples_size() > 0);
-      const proto::TableSample &sample = task.samples(0);
-      rows = sample.rows_size();
-      rows_in_table_.insert(std::make_pair(name, rows));
-    }
-  } else {
-    rows = it->second;
-  }
-  assert(rows != -1);
-  return rows;
-}
+// i64 JobMetadata::rows_in_table(const std::string &name) const {
+//   i64 rows = -1;
+//   auto it = rows_in_table_.find(name);
+//   if (it == rows_in_table_.end()) {
+//     for (const proto::Task &task : descriptor_.tasks()) {
+//       assert(task.samples_size() > 0);
+//       const proto::TableSample &sample = task.samples(0);
+//       rows = sample.rows_size();
+//       rows_in_table_.insert(std::make_pair(name, rows));
+//     }
+//   } else {
+//     rows = it->second;
+//   }
+//   assert(rows != -1);
+//   return rows;
+// }
 
-i64 JobMetadata::total_rows() const {
-  i64 rows = 0;
-  for (const proto::Task &task : descriptor_.tasks()) {
-    assert(task.samples_size() > 0);
-    const proto::TableSample &sample = task.samples(0);
-    rows += sample.rows_size();
-  }
-  return rows;
-}
+// i64 JobMetadata::total_rows() const {
+//   i64 rows = 0;
+//   for (const proto::Task &task : descriptor_.tasks()) {
+//     assert(task.samples_size() > 0);
+//     const proto::TableSample &sample = task.samples(0);
+//     rows += sample.rows_size();
+//   }
+//   return rows;
+// }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// TableMetadata
@@ -348,9 +346,14 @@ i32 TableMetadata::id() const { return descriptor_.id(); }
 
 std::string TableMetadata::name() const { return descriptor_.name(); }
 
-i64 TableMetadata::num_rows() const { return descriptor_.num_rows(); }
+i64 TableMetadata::num_rows() const {
+  return descriptor_.end_rows(descriptor_.end_rows_size() - 1);
+}
 
-i64 TableMetadata::rows_per_item() const { return descriptor_.rows_per_item(); }
+std::vector<i64> TableMetadata::end_rows() const {
+  return std::vector<i64>(descriptor_.end_rows().begin(),
+                          descriptor_.end_rows().end());
+}
 
 const std::vector<Column> &TableMetadata::columns() const { return columns_; }
 

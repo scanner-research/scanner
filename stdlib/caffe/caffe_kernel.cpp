@@ -221,7 +221,11 @@ bool file_exists(const std::string& path) {
 CaffeKernel::CaffeKernel(const Kernel::Config &config)
     : VideoKernel(config), device_(config.devices[0]) {
   valid_.set_success(true);
-  args_.ParseFromArray(config.args.data(), config.args.size());
+
+  if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
+    RESULT_ERROR(&valid_, "CaffeKernel could not parse protobuf args");
+    return;
+  }
 
   set_device();
   // Initialize our network

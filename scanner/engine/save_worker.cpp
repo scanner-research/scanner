@@ -44,8 +44,10 @@ void *save_thread(void *arg) {
   while (true) {
     auto idle_start = now();
 
-    EvalWorkEntry work_entry;
-    args.input_work.pop(work_entry);
+    std::tuple<IOItem, EvalWorkEntry> entry;
+    args.input_work.pop(entry);
+    IOItem &io_item = std::get<0>(entry);
+    EvalWorkEntry &work_entry = std::get<1>(entry);
 
     if (work_entry.io_item_index == -1) {
       break;
@@ -58,14 +60,12 @@ void *save_thread(void *arg) {
 
     auto work_start = now();
 
-    const IOItem &io_item = args.io_items[work_entry.io_item_index];
-
     // Write out each output column to an individual data file
     for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
       u64 num_rows = static_cast<u64>(work_entry.columns[out_idx].rows.size());
 
-      const std::string output_path =
-          table_item_output_path(io_item.table_id, out_idx, io_item.item_id);
+      const std::string output_path = table_item_output_path(
+          io_item.table_id(), out_idx, io_item.item_id());
 
       auto io_start = now();
 

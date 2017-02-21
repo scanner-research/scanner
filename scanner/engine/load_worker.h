@@ -25,8 +25,6 @@ namespace internal {
 struct LoadThreadArgs {
   // Uniform arguments
   i32 node_id;
-  const std::vector<IOItem>& io_items;
-  i32 warmup_count;
   const proto::JobParameters* job_params;
 
   // Per worker arguments
@@ -35,8 +33,8 @@ struct LoadThreadArgs {
   Profiler& profiler;
 
   // Queues for communicating work
-  Queue<LoadWorkEntry>& load_work;  // in
-  Queue<EvalWorkEntry>& eval_work;  // out
+  Queue<std::tuple<IOItem, LoadWorkEntry>>& load_work;  // in
+  Queue<std::tuple<IOItem, EvalWorkEntry>>& eval_work;  // out
 };
 
 void* load_thread(void* arg);

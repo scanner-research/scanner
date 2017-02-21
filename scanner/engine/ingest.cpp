@@ -51,7 +51,7 @@ namespace {
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct FFStorehouseState {
-  std::unique_ptr<RandomReadFile> file{nullptr};
+  std::unique_ptr<RandomReadFile> file = nullptr;
   size_t size = 0; // total file size
   u64 pos = 0;
 };
@@ -224,7 +224,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   // Setup custom buffer for libavcodec so that we can read from a storehouse
   // file instead of a posix file
-  FFStorehouseState file_state;
+  FFStorehouseState file_state{};
   StoreResult result;
   EXP_BACKOFF(make_unique_random_read_file(storage, path, file_state.file),
               result);
@@ -523,8 +523,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   // Save demuxed stream
   BACKOFF_FAIL(demuxed_bytestream->save());
 
-  table_desc.set_num_rows(frame);
-  table_desc.set_rows_per_item(frame);
+  table_desc.add_end_rows(frame);
   video_descriptor.set_frames(frame);
   video_descriptor.set_metadata_packets(metadata_bytes.data(),
                                         metadata_bytes.size());

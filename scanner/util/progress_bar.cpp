@@ -1,4 +1,6 @@
 #include "scanner/util/progress_bar.h"
+#include <stdio.h>
+#include <unistd.h>
 namespace scanner {
 
 ProgressBar::ProgressBar() {}
@@ -62,6 +64,9 @@ void ProgressBar::ClearBarField() {
 }
 
 void ProgressBar::Progressed(u64 idx_) {
+  if (!isatty(fileno(stdin))) {
+    return;
+  }
   try {
     if (idx_ > n) throw idx_;
 

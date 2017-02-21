@@ -38,7 +38,8 @@ MachineParameters default_machine_params();
 struct TableSample {
   std::string table_name;
   std::vector<std::string> column_names;
-  std::vector<i64> rows;
+  std::string sampling_function;
+  std::vector<u8> sampling_args;
 };
 
 struct Task {
@@ -57,7 +58,6 @@ struct JobParameters {
 
   MemoryPoolConfig memory_pool_config;
   i32 pipeline_instances_per_node;
-  i64 io_item_size;
   i64 work_item_size;
 };
 
