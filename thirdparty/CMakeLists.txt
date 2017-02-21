@@ -49,11 +49,14 @@ if (NOT STOREHOUSE_FOUND)
     set(OPENSSL_ROOT_DIR $ENV{OPENSSL_ROOT_DIR})
   endif()
 
+  include(ProcessorCount)
+  ProcessorCount(N)
   ExternalProject_Add(Storehouse
     GIT_REPOSITORY "https://github.com/scanner-research/storehouse"
-    GIT_TAG "440ef14aef19534b019175651e21e3e8b5c2e5e7"
+    GIT_TAG "d8abdd93d653d06b1f6acfe36758804eee81f290"
 
-    UPDATE_COMMAND ""
+    UPDATE_COMMAND mkdir -p thirdparty/build && cd thirdparty/build &&
+    cmake ${THIRDPARTY_SOURCE_DIR}/storehouse/thirdparty && make -j${N}
 
     SOURCE_DIR "${THIRDPARTY_SOURCE_DIR}/storehouse"
 
