@@ -230,16 +230,8 @@ public:
     job_result->set_success(true);
     set_database_path(db_params_.db_path);
 
-    // Set up memory pool if different than previous memory pool
-    if (!memory_pool_initialized_ ||
-        job_params->memory_pool_config() != cached_memory_pool_config_) {
-      if (memory_pool_initialized_) {
-        destroy_memory_allocators();
-      }
-      init_memory_allocators(job_params->memory_pool_config(), db_params_.gpu_ids);
-      cached_memory_pool_config_ = job_params->memory_pool_config();
-      memory_pool_initialized_ = true;
-    }
+    i32 local_id = job_params->local_id();
+    i32 local_total = job_params->local_total();
 
     timepoint_t base_time = now();
     const i32 work_item_size = job_params->work_item_size();
@@ -374,6 +366,7 @@ public:
     // If ki per node is -1, we set a smart default. Currently, we calculate the
     // maximum possible kernel instances without oversubscribing any part of the
     // pipeline, either CPU or GPU.
+    bool has_gpu_kernel = false;
     if (pipeline_instances_per_node == -1) {
       pipeline_instances_per_node = std::numeric_limits<i32>::max();
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
@@ -388,8 +381,11 @@ public:
             pipeline_instances_per_node = std::min(
               pipeline_instances_per_node,
               device_type == DeviceType::CPU
-              ? db_params_.num_cpus / max_devices
-              : (i32) db_params_.gpu_ids.size() / max_devices);
+              ? db_params_.num_cpus / local_total / max_devices
+              : (i32) db_params_.gpu_ids.size() / local_total / max_devices);
+          }
+          if (device_type == DeviceType::GPU) {
+            has_gpu_kernel = true;
           }
         }
       }
@@ -401,6 +397,31 @@ public:
           "JobParameters.pipeline_instances_per_node must -1 for auto-default or "
           " greater than 0 for manual configuration.");
       return grpc::Status::OK;
+    }
+
+    // Set up memory pool if different than previous memory pool
+    if (!memory_pool_initialized_ ||
+        job_params->memory_pool_config() != cached_memory_pool_config_) {
+      if (db_params_.num_cpus < local_total * pipeline_instances_per_node &&
+          job_params->memory_pool_config().cpu().use_pool()) {
+        RESULT_ERROR(
+          job_result,
+          "Cannot oversubscribe CPUs and also use CPU memory pool");
+        return grpc::Status::OK;
+      }
+      if (db_params_.gpu_ids.size() < local_total * pipeline_instances_per_node &&
+          job_params->memory_pool_config().gpu().use_pool()) {
+        RESULT_ERROR(
+          job_result,
+          "Cannot oversubscribe GPUs and also use GPU memory pool");
+        return grpc::Status::OK;
+      }
+      if (memory_pool_initialized_) {
+        destroy_memory_allocators();
+      }
+      init_memory_allocators(job_params->memory_pool_config(), db_params_.gpu_ids);
+      cached_memory_pool_config_ = job_params->memory_pool_config();
+      memory_pool_initialized_ = true;
     }
 
 
@@ -464,7 +485,7 @@ public:
 
 
     i32 next_cpu_num = 0;
-    i32 next_gpu_idx = 0;
+    i32 next_gpu_idx = db_params_.gpu_ids.size() / local_total * local_id;
     for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
       std::vector<Queue<EvalWorkEntry>> &work_queues = eval_work[ki];
       std::vector<Profiler> &eval_thread_profilers = eval_profilers[ki];
@@ -833,7 +854,6 @@ private:
   i32 node_id_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata *> table_metas_;
-  std::vector<i32> gpu_device_ids_;
   bool memory_pool_initialized_ = false;
   MemoryPoolConfig cached_memory_pool_config_;
 };

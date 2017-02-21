@@ -193,6 +193,7 @@ public:
     workers_.push_back(proto::Worker::NewStub(grpc::CreateChannel(
         worker_info->address(), grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
+    addresses_.push_back(worker_info->address());
 
     return grpc::Status::OK;
   }
@@ -350,10 +351,26 @@ public:
 
       bar_ = new ProgressBar(num_io_items_, "");
 
+      std::map<std::string, i32> local_ids;
+      std::map<std::string, i32> local_totals;
+      for (std::string& address : addresses_) {
+        if (local_totals.count(address) == 0) {
+          local_totals[address] = 0;
+        }
+        local_totals[address] += 1;
+      }
+
       proto::JobParameters w_job_params;
       w_job_params.CopyFrom(*job_params);
       for (size_t i = 0; i < workers_.size(); ++i) {
         auto &worker = workers_[i];
+        std::string& address = addresses_[i];
+        if (local_ids.count(address) == 0) {
+          local_ids[address] = 0;
+        }
+        w_job_params.set_local_id(local_ids[address]);
+        w_job_params.set_local_total(local_totals[address]);
+        local_ids[address] += 1;
         rpcs.emplace_back(
             worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
         rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
@@ -419,6 +436,7 @@ public:
     i32 next_io_item_to_allocate_;
     i32 num_io_items_;
     std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
+    std::vector<std::string> addresses_;
     DatabaseParameters db_params_;
     storehouse::StorageBackend *storage_;
     ProgressBar* bar_;

@@ -56,11 +56,12 @@ message NodeInfo {
 message JobParameters {
   string job_name = 1;
   TaskSet task_set = 2;
-
   MemoryPoolConfig memory_pool_config = 3;
   int32 pipeline_instances_per_node = 4;
   int32 io_item_size = 5;
   int32 work_item_size = 6;
+  int32 local_id = 7;
+  int32 local_total = 8;
 }
 
 message IOItem {

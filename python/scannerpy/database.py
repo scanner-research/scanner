@@ -187,8 +187,8 @@ class Database:
                 log.info("Master not started, creating temporary master/worker...")
                 # If they get GC'd then the masters/workers will die, so persist
                 # them until the database object dies
-                self._ignore1 = self.start_master()
-                self._ignore2 = self.start_worker()
+                self.start_master()
+                self.start_worker()
                 log.info("Temporary master/worker started")
 
                 # If we don't reconnect to master, there's a 5-10 sec delay for
