@@ -75,7 +75,7 @@ private:
   i32 work_item_size_;
 };
 
-REGISTER_OP(OpticalFlow).outputs({"flow"});
+REGISTER_OP(OpticalFlow).inputs({"frame", "frame_info"}).outputs({"flow"});
 
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
     .device(DeviceType::CPU)

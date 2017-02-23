@@ -81,7 +81,7 @@ class Database:
 
         self._connect_to_master()
 
-        stdlib_path = '{}/build/stdlib'.format(self.config.scanner_path)
+        stdlib_path = '{}/build/stdlib'.format(self.config.module_dir)
         self.load_op('{}/libstdlib.so'.format(stdlib_path),
                      '{}/stdlib_pb2.py'.format(stdlib_path))
 

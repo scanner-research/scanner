@@ -17,6 +17,7 @@
 #include "scanner/metadata.pb.h"
 
 #include <vector>
+#include <cmath>
 
 namespace scanner {
 namespace internal {
@@ -61,7 +62,7 @@ public:
   }
 
   i64 total_samples() const override {
-    return table_.num_rows() / args_.sample_size();
+    return (int) std::ceil((float) table_.num_rows() / args_.sample_size());
   }
 
   RowSample next_sample() override {

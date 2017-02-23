@@ -174,6 +174,7 @@ get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
     return result;
   }
   i64 num_samples = sampler.total_samples();
+  LOG(WARNING) << num_samples;
   for (i64 i = 0; i < num_samples; ++i) {
     proto::NewWork new_work;
     result = sampler.next_work(new_work);

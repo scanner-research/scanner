@@ -10,7 +10,7 @@ endif()
 
 add_library(imgproc OBJECT ${SOURCE_FILES})
 
-list(APPEND OPENCV_COMPONENTS core highgui imgproc video videoio)
+list(APPEND OPENCV_COMPONENTS core highgui imgproc)
 set(OPENCV_COMPONENTS ${OPENCV_COMPONENTS} PARENT_SCOPE)
 
 set(STDLIB_LIBRARIES ${STDLIB_LIBRARIES} PARENT_SCOPE)

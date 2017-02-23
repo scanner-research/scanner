@@ -3,10 +3,12 @@ import toml
 import sys
 from subprocess import check_output
 from common import *
+from storehousepy import StorageConfig, StorageBackend
 
 
 def read_line(s):
     return sys.stdin.readline().strip()
+
 
 class Config(object):
     def __init__(self, config_path=None):
@@ -30,20 +32,10 @@ class Config(object):
 
         config = self.load_config(self.config_path)
         try:
-            self.scanner_path = config['scanner_path']
+            self.module_dir = os.path.dirname(os.path.realpath(__file__))
+            build_path = self.module_dir + '/build'
+            sys.path.append(build_path)
 
-            if not os.path.isdir(self.scanner_path) or \
-               not os.path.isdir(self.scanner_path + '/build') or \
-               not os.path.isdir(self.scanner_path + '/scanner'):
-                raise ScannerException("""Invalid Scanner directory. Make sure \
-scanner_path in {} is correct and that Scanner is built correctly."""
-                                       .format(self.scanner_path))
-
-            sys.path.append('{}/build'.format(self.scanner_path))
-            sys.path.append('{}/thirdparty/build/bin/storehouse/lib'
-                            .format(self.scanner_path))
-
-            from storehousepy import StorageConfig, StorageBackend
             storage = config['storage']
             storage_type = storage['type']
             self.db_path = str(storage['db_path'])
