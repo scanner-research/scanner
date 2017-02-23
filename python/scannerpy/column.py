@@ -60,11 +60,10 @@ class Column:
 
     def _load(self, fn=None, rows=None):
         table_descriptor = self._table._descriptor
-        total_rows = table_descriptor.num_rows
-        rows_per_item = table_descriptor.rows_per_item
+        total_rows = table_descriptor.end_rows[-1]
 
         # Integer divide, round up
-        num_items = int(math.ceil(total_rows / float(rows_per_item)))
+        num_items = len(table_descriptor.end_rows)
         bufs = []
         input_rows = self._table.rows()
         assert len(input_rows) == total_rows
@@ -72,13 +71,12 @@ class Column:
         rows_so_far = 0
         rows_idx = 0
         rows = range(total_rows) if rows is None else rows
+        prev = 0
         for item_id in range(num_items):
-            item_rows = total_rows % rows_per_item \
-                        if item_id == num_items - 1 \
-                           and total_rows % rows_per_item != 0 \
-                        else rows_per_item
-            start_row = rows_so_far
-            end_row = start_row + item_rows
+            start_row = prev
+            end_row = table_descriptor.end_rows[item_id]
+            item_rows = start_row - end_row
+            prev = end_row
             select_rows = []
             while rows_idx < len(rows):
                 r = rows[rows_idx]
