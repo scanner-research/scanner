@@ -22,10 +22,9 @@ class Column:
     def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
 
-        descriptor_id = 1 - self._descriptor.id
         path = '{}/tables/{}/{}_{}.bin'.format(
             self._db_path, self._table._descriptor.id,
-            descriptor_id, item_id)
+            self._descriptor.id, item_id)
         try:
             contents = self._storage.read(path)
         except UserWarning:
@@ -53,9 +52,9 @@ class Column:
             if j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]
                 if fn is not None:
-                    return fn(buf, self._db)
+                    yield fn(buf, self._db)
                 else:
-                    return buf
+                    yield buf
                 rows_idx += 1
             i += buf_len
 
@@ -88,7 +87,7 @@ class Column:
                     break
             if select_rows:
                 for output in self._load_output_file(item_id, select_rows, fn):
-                    return (input_rows[i], output)
+                    yield (input_rows[i], output)
                     i += 1
             rows_so_far += item_rows
 

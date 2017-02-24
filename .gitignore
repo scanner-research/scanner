@@ -2,8 +2,13 @@
 # similar but **not quite** the same. If you add a file here, make sure that
 # the Docker build still works.
 
+.cache
 build
 **/*.pyc
 **/*.trace
 thirdparty
 !thirdparty/CMakeLists.txt
+python/*.egg-info
+
+**/*.mp4
+**/*.mkv

@@ -74,4 +74,9 @@ class Table:
     def load(self, columns, fn=None, rows=None):
         cols = [self.columns(c).load(rows=rows) for c in columns]
         for tup in zip(*cols):
-            yield fn(tup, self._db)
+            row = tup[0][0]
+            vals = (x for _, x in tup)
+            if fn is not None:
+                yield (row, fn(vals, self._db))
+            else:
+                yield (row, tup)

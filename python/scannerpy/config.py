@@ -24,7 +24,7 @@ class Config(object):
             if sys.stdin.readline().strip().lower() == 'n':
                 exit()
 
-            config = self._default_config()
+            config = self.default_config()
             path = self.default_config_path()
             with open(path, 'w') as f:
                 f.write(toml.dumps(config))
@@ -74,7 +74,8 @@ class Config(object):
             raise ScannerException('Scanner config file does not exist: {}'
                                    .format(path))
 
-    def _default_config(self):
+    @staticmethod
+    def default_config():
         hostname = check_output(['hostname', '-A']).split(' ')[0]
 
         scanner_path = os.path.abspath(

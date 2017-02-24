@@ -25,11 +25,11 @@ def histograms(buf, db):
 
 def frame_info(buf, db):
     info = db.protobufs.FrameInfo()
+    info.ParseFromString(buf)
     return info
 
 
 def flow((buf_flow, buf_frame_info), db):
     info = frame_info(buf_frame_info, db)
-    output = np.formbuffer(buf, dtype=np.dtype(np.float32))
-    output.reshape((info.height, info.width, 2))
-    return output
+    output = np.frombuffer(buf_flow, dtype=np.dtype(np.float32))
+    return output.reshape((info.height, info.width, 2))
