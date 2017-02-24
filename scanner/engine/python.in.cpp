@@ -98,7 +98,7 @@ py::list ingest_videos_wrapper(
 }
 
 
-BOOST_PYTHON_MODULE(scanner_bindings) {
+BOOST_PYTHON_MODULE(libscanner) {
   using namespace py;
   class_<Database, boost::noncopyable>(
     "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&>())

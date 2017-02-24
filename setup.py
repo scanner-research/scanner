@@ -30,7 +30,7 @@ setup(
     description='Efficient video analysis at scale',
     long_description='',
     url='https://github.com/scanner-research/scanner',
-    author='Will Crichton',
+    author='Alex Poms and Will Crichton',
     author_email='wcrichto@cs.stanford.edu',
 
     package_dir={'': 'python'},

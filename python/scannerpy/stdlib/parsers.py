@@ -3,7 +3,7 @@ import cv2
 import struct
 
 
-def bboxes(db, buf):
+def bboxes(buf, db):
     (num_bboxes,) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
     bboxes = []
@@ -19,10 +19,17 @@ def bboxes(db, buf):
     return bboxes
 
 
-def histograms(buf):
+def histograms(buf, db):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
 
 
-def flow(buf):
-    print len(buf)
-    return None
+def frame_info(buf, db):
+    info = db.protobufs.FrameInfo()
+    return info
+
+
+def flow((buf_flow, buf_frame_info), db):
+    info = frame_info(buf_frame_info, db)
+    output = np.formbuffer(buf, dtype=np.dtype(np.float32))
+    output.reshape((info.height, info.width, 2))
+    return output

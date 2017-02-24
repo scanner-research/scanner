@@ -48,7 +48,7 @@ class Database:
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
         import scanner.types_pb2 as misc_types
-        import scanner_bindings as bindings
+        import libscanner as bindings
 
         self._protobufs = [misc_types, rpc_types, metadata_types]
         self._bindings = bindings

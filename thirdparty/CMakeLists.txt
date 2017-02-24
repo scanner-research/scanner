@@ -53,7 +53,7 @@ if (NOT STOREHOUSE_FOUND)
   ProcessorCount(N)
   ExternalProject_Add(Storehouse
     GIT_REPOSITORY "https://github.com/scanner-research/storehouse"
-    GIT_TAG "d8abdd93d653d06b1f6acfe36758804eee81f290"
+    GIT_TAG "52189a0ed9958c24b8451127ea60dbf1ddbe4237"
 
     UPDATE_COMMAND mkdir -p thirdparty/build && cd thirdparty/build &&
     cmake ${THIRDPARTY_SOURCE_DIR}/storehouse/thirdparty && make -j${N}
@@ -67,6 +67,7 @@ if (NOT STOREHOUSE_FOUND)
     -DBZIP2_INCLUDE_DIR=${BZIP2_INCLUDE_DIR}
     -DCMAKE_LIBRARY_PATH=${CMAKE_LIBRARY_PATH}
     -DOPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}
+    -DBUILD_STATIC=ON
 
     CMAKE_CACHE_ARGS
     -DGLOG_ROOT_DIR:FILEPATH=${GLOG_ROOT_DIR}

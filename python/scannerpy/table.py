@@ -34,7 +34,25 @@ class Table:
 
     def columns(self, index=None):
         columns = [Column(self, c) for c in self._descriptor.columns]
-        return columns[index] if index is not None else columns
+        if index is not None:
+            col = None
+            if isinstance(index, basestring):
+                for c in columns:
+                    if columns.name() == index:
+                        col = c
+                        break
+                if col is None:
+                    raise ScannerException('Could not find column with name {}'
+                                           .format(index))
+            else:
+                assert isinstance(index, int)
+                if index < 0 or index >= len(columns):
+                    raise ScannerException('No column with index {}'
+                                           .format(index))
+                col = columns[index]
+            return col
+        else:
+            return columns
 
     def num_rows(self):
         return self._descriptor.end_rows[-1]
@@ -52,3 +70,8 @@ class Table:
             return self._db.profiler(job_id)
         else:
             raise ScannerException('Ingested videos do not have profile data')
+
+    def load(self, columns, fn=None, rows=None):
+        cols = [self.columns(c).load(rows=rows) for c in columns]
+        for tup in zip(*cols):
+            yield fn(tup, self._db)

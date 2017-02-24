@@ -121,6 +121,7 @@ set(SCANNER_LIBRARIES
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
+  "${PYTHON_LIBRARIES}"
   "-ljpeg"
   "-lz"
   "-ldl"
@@ -136,7 +137,8 @@ include_directories(
   "${OPENSSL_INCLUDE_DIR}"
   "${Boost_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
-  "${LIBLZMA_INCLUDE_DIRS}")
+  "${LIBLZMA_INCLUDE_DIRS}"
+  "${PYTHON_INCLUDE_DIRS}")
 
 if (BUILD_TESTS)
   include_directories("${GTEST_INCLUDE_DIRS}")
@@ -202,22 +204,6 @@ add_library(scanner SHARED
   ${GRPC_PROTO_SRCS}
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
-
-get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-configure_file(scanner/engine/python.in.cpp scanner/engine/python.cpp)
-add_library(scanner_bindings SHARED scanner/engine/python.cpp)
-set_target_properties(scanner_bindings PROPERTIES PREFIX "")
-target_include_directories(scanner_bindings PUBLIC ${PYTHON_INCLUDE_DIRS})
-target_link_libraries(scanner_bindings PUBLIC
-  scanner
-  ${Boost_LIBRARIES}
-  ${PythonLibs_LIBRARIES})
-
-if (BUILD_MOVIE_ANALYSIS_OPS)
-  set_target_properties(scanner PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
-  set_property(TARGET scanner APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
-endif()
-
 
 if(APPLE)
   set(PLATFORM_LINK_FLAGS
