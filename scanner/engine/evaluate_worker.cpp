@@ -408,6 +408,8 @@ void *evaluate_thread(void *arg) {
 void *post_evaluate_thread(void *arg) {
   PostEvaluateThreadArgs &args =
       *reinterpret_cast<PostEvaluateThreadArgs *>(arg);
+  std::set<i32> column_set(args.column_mapping.begin(),
+                           args.column_mapping.end());
 
   EvalWorkEntry buffered_entry;
   i64 current_offset = 0;
@@ -432,24 +434,39 @@ void *post_evaluate_thread(void *arg) {
 
     if (buffered_entry.columns.size() == 0) {
       buffered_entry.io_item_index = work_entry.io_item_index;
-      buffered_entry.columns.resize(work_entry.columns.size());
-      buffered_entry.column_handles = work_entry.column_handles;
+      buffered_entry.columns.resize(args.column_mapping.size());
+      for (i32 col_idx : args.column_mapping) {
+        buffered_entry.column_handles.push_back(
+            work_entry.column_handles[col_idx]);
+      }
     }
 
     i64 num_rows = work_entry.columns[0].rows.size();
     i32 warmup_frames = work_entry.warmup_rows;
     current_offset += num_rows;
-    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+    // Swizzle columns correctly
+    for (size_t i = 0; i < args.column_mapping.size(); ++i) {
+      i32 col_idx = args.column_mapping[i];
       // Delete warmup frame outputs
       for (i32 w = 0; w < warmup_frames; ++w) {
-        delete_buffer(work_entry.column_handles[i],
-                      work_entry.columns[i].rows[w].buffer);
+        delete_buffer(work_entry.column_handles[col_idx],
+                      work_entry.columns[col_idx].rows[w].buffer);
       }
       // Keep non-warmup frame outputs
       buffered_entry.columns[i].rows.insert(
           buffered_entry.columns[i].rows.end(),
-          work_entry.columns[i].rows.begin() + warmup_frames,
-          work_entry.columns[i].rows.end());
+          work_entry.columns[col_idx].rows.begin() + warmup_frames,
+          work_entry.columns[col_idx].rows.end());
+    }
+    // Delete unused columns
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      if (column_set.count(i) > 0) {
+        continue;
+      }
+      for (i32 b = 0; b < work_entry.columns[i].rows.size(); ++b) {
+        delete_buffer(work_entry.column_handles[i],
+                      work_entry.columns[i].rows[b].buffer);
+      }
     }
 
     if (work_entry.last_in_io_item) {

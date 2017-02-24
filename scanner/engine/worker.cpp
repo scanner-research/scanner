@@ -574,15 +574,15 @@ public:
             &work_queues.back();
         Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
             &save_work;
-        post_eval_args.emplace_back(
-            PostEvaluateThreadArgs{// Uniform arguments
-                                   node_id_,
+        post_eval_args.emplace_back(PostEvaluateThreadArgs{
+            // Uniform arguments
+            node_id_,
 
-                                   // Per worker arguments
-                                     ki, eval_thread_profilers.back(),
+            // Per worker arguments
+            ki, eval_thread_profilers.back(), column_mapping.back(),
 
-                                   // Queues
-                                   *input_work_queue, *output_work_queue});
+            // Queues
+            *input_work_queue, *output_work_queue});
       }
     }
 
