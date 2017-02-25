@@ -10,7 +10,8 @@ build_docker() {
     if [[ "$1" -eq "cpu" ]]
     then
          docker build -t $DOCKER_REPO:$1-local . --build-arg gpu=OFF
-         docker run $DOCKER_REPO:$1-local /bin/bash -c "cd /opt/scanner/build && make test"
+         docker run $DOCKER_REPO:$1-local /bin/bash \
+                -c "cd /opt/scanner/build && make test && cd /opt/scanner && pytest tests"
     else
          docker build -t $DOCKER_REPO:$1-local . --build-arg gpu=ON
     fi

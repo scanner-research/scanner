@@ -16,7 +16,13 @@ public:
         work_item_size_(config.work_item_size), num_cuda_streams_(4),
         streams_(num_cuda_streams_) {
     set_device();
-    flow_finder_ = cvc::FarnebackOpticalFlow::create();
+    for (i32 i = 0; i < num_cuda_streams_; ++i) {
+      flow_finders_.push_back(cvc::FarnebackOpticalFlow::create());
+    }
+  }
+
+  ~OpticalFlowKernelGPU() {
+    set_device();
   }
 
   void new_frame_info() override {
@@ -31,6 +37,10 @@ public:
   void reset() override {
     set_device();
     initial_frame_ = cvc::GpuMat();
+    flow_finders_.resize(0);
+    for (i32 i = 0; i < num_cuda_streams_; ++i) {
+      flow_finders_.push_back(cvc::FarnebackOpticalFlow::create());
+    }
   }
 
   void execute(const BatchedColumns &input_columns,
@@ -59,9 +69,8 @@ public:
 
     double start = CycleTimer::currentSeconds();
 
-    cv::Ptr<cvc::DenseOpticalFlow> flow_finder =
-        cvc::FarnebackOpticalFlow::create();
-
+    // FIXME(wcrichto): TVL1 flow doesn't seem to work with multiple Cuda
+    // streams, segfaults in the TVL1 destructor. Investigate?
     for (i32 i = 0; i < input_count; ++i) {
       i32 sid = i % num_cuda_streams_;
       cv::cuda::Stream &s = streams_[sid];
@@ -73,14 +82,16 @@ public:
           output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
           continue;
         } else {
-          flow_finder_->calc(initial_frame_, grayscale_[0], flow, s);
+          flow_finders_[sid]->calc(initial_frame_, grayscale_[0], flow, s);
         }
       } else {
-        flow_finder_->calc(grayscale_[i - 1], grayscale_[i], flow, s);
+        flow_finders_[sid]->calc(grayscale_[i - 1], grayscale_[i], flow, s);
       }
 
       output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
     }
+
+    grayscale_[input_count - 1].copyTo(initial_frame_);
 
     for (cv::cuda::Stream &s : streams_) {
       s.waitForCompletion();
@@ -94,7 +105,7 @@ private:
   }
 
   DeviceHandle device_;
-  cv::Ptr<cvc::DenseOpticalFlow> flow_finder_;
+  std::vector<cv::Ptr<cvc::DenseOpticalFlow>> flow_finders_;
   cvc::GpuMat initial_frame_;
   std::vector<cvc::GpuMat> grayscale_;
   i32 work_item_size_;

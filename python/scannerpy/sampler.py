@@ -47,11 +47,11 @@ class Sampler:
             tasks.append(task)
         return tasks
 
-    def range(self, videos, start, end):
+    def range(self, videos, start, end, warmup_size=0):
         videos = self._convert_collection(videos)
         tasks = []
         for video in videos:
-            task = self.strided_range(video, start, end, 1)
+            task = self.strided_range(video, start, end, 1, warmup_size=warmup_size)
             tasks.append(task)
         return tasks
 
