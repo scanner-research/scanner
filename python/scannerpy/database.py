@@ -28,7 +28,7 @@ class Database:
         protobufs: TODO(wcrichto)
     """
 
-    def __init__(self, config_path=None):
+    def __init__(self, config_path=None, config=None):
         """
         Initializes a Scanner database.
 
@@ -38,11 +38,16 @@ class Database:
         Kwargs:
             config_path: Path to a Scanner configuration TOML, by default
                          assumed to be `~/.scanner.toml`.
+            config: A scanner Config object. If specified, config_path is
+                    ignored.
 
         Returns:
             A database instance.
         """
-        self.config = Config(config_path)
+        if config:
+            self.config = config
+        else:
+            self.config = Config(config_path)
 
         # Load all protobuf types
         import scanner.metadata_pb2 as metadata_types

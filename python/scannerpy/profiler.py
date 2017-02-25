@@ -96,6 +96,10 @@ class Profiler:
         return {k: self._convert_time(v) if isinstance(v, dict) else convert(v)
                 for (k, v) in d.iteritems()}
 
+    def total_time_interval(self):
+        intv, _ = self._profilers.values()[0]
+        return intv
+
     def statistics(self):
         totals = {}
         for (total_start, total_end), profiler in self._profilers.values():
