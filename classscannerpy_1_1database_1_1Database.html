@@ -193,7 +193,13 @@ Public Attributes</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname"><em>config_path</em> = <code>None</code>&#160;</td>
+          <td class="paramname"><em>config_path</em> = <code>None</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>config</em> = <code>None</code>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -207,7 +213,9 @@ Public Attributes</h2></td></tr>
 <p>This will create a database at the <code>db_path</code> specified in the config if none exists.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramname">config_path</td><td>Path to a Scanner configuration TOML, by default assumed to be <code>~/.scanner.toml</code>.</td></tr>
+    <tr><td class="paramname">config_path</td><td>Path to a Scanner configuration TOML, by default assumed to be <code>~/.scanner.toml</code>. </td></tr>
+    <tr><td class="paramname">config</td><td>A scanner Config object. If specified, config_path is </td></tr>
+    <tr><td class="paramname">ignored.</td><td></td></tr>
   </table>
   </dd>
 </dl>
