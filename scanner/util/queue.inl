@@ -88,4 +88,13 @@ void Queue<T>::pop(T& item) {
   not_full_.notify_one();
 }
 
+template <typename T>
+void Queue<T>::clear() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  data_.clear();
+
+  lock.unlock();
+  not_full_.notify_one();
+}
+
 }

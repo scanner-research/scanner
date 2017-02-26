@@ -39,6 +39,8 @@ class Queue {
 
   void pop(T& item);
 
+  void clear();
+
  private:
   i32 max_size_;
   std::mutex mutex_;

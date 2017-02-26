@@ -665,6 +665,8 @@ public:
           if (!result.success()) {
             LOG(WARNING) << "(N/KI/KG: " << node_id_ << "/" << i << "/" << j
                          << ") returned error result: " << result.msg();
+            job_result->set_success(false);
+            job_result->set_msg(result.msg());
             goto leave_loop;
           }
         }
@@ -677,6 +679,23 @@ public:
       std::this_thread::yield();
     }
 
+    // If the job failed, can't expect queues to have drained, so
+    // attempt to flush all all queues here (otherwise we could block
+    // on pushing into a queue)
+    if (!job_result->success()) {
+      load_work.clear();
+      initial_eval_work.clear();
+      for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+        for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+          eval_work[pu][kg].clear();
+        }
+      }
+      for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+        eval_work[pu].back().clear();
+      }
+      save_work.clear();
+    }
+
     // Push sentinel work entries into queue to terminate load threads
     for (i32 i = 0; i < num_load_workers; ++i) {
       LoadWorkEntry entry;
@@ -684,72 +703,75 @@ public:
       load_work.push(std::make_tuple(IOItem{}, entry));
     }
 
+    // NOTE(apoms): we don't want to wait if there is a failure because
+    // the bounded queues mean a thread might be hanging. Alternatively,
+    // we could drain all queues.
     for (i32 i = 0; i < num_load_workers; ++i) {
       // Wait until load has finished
       void *result;
       i32 err = pthread_join(load_threads[i], &result);
       LOG_IF(FATAL, err != 0) << "error in pthread_join of load thread";
       free(result);
-    }
+        }
 
-    // Push sentinel work entries into queue to terminate eval threads
-    for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
-      EvalWorkEntry entry;
-      entry.io_item_index = -1;
-      initial_eval_work.push(std::make_tuple(IOItem{}, entry));
-    }
+        // Push sentinel work entries into queue to terminate eval threads
+        for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
+          EvalWorkEntry entry;
+          entry.io_item_index = -1;
+          initial_eval_work.push(std::make_tuple(IOItem{}, entry));
+        }
 
-    for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
-      // Wait until pre eval has finished
-      void *result;
-      i32 err = pthread_join(pre_eval_threads[i], &result);
-      LOG_IF(FATAL, err != 0) << "error in pthread_join of pre eval thread";
-      free(result);
-    }
+        for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
+          // Wait until pre eval has finished
+          void *result;
+          i32 err = pthread_join(pre_eval_threads[i], &result);
+          LOG_IF(FATAL, err != 0) << "error in pthread_join of pre eval thread";
+          free(result);
+        }
 
-    for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-      for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-        EvalWorkEntry entry;
-        entry.io_item_index = -1;
-        eval_work[pu][kg].push(std::make_tuple(IOItem{}, entry));
-      }
-      for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-        // Wait until eval has finished
-        void *result;
-        i32 err = pthread_join(eval_threads[pu][kg], &result);
-        LOG_IF(FATAL, err != 0) << "error in pthread_join of eval thread";
-        free(result);
-      }
-    }
+        for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+          for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+            EvalWorkEntry entry;
+            entry.io_item_index = -1;
+            eval_work[pu][kg].push(std::make_tuple(IOItem{}, entry));
+          }
+          for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+            // Wait until eval has finished
+            void *result;
+            i32 err = pthread_join(eval_threads[pu][kg], &result);
+            LOG_IF(FATAL, err != 0) << "error in pthread_join of eval thread";
+            free(result);
+          }
+        }
 
-    // Terminate post eval threads
-    for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-      EvalWorkEntry entry;
-      entry.io_item_index = -1;
-      eval_work[pu].back().push(std::make_tuple(IOItem{}, entry));
-    }
-    for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-      // Wait until eval has finished
-      void *result;
-      i32 err = pthread_join(post_eval_threads[pu], &result);
-      LOG_IF(FATAL, err != 0) << "error in pthread_join of post eval thread";
-      free(result);
-    }
+        // Terminate post eval threads
+        for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+          EvalWorkEntry entry;
+          entry.io_item_index = -1;
+          eval_work[pu].back().push(std::make_tuple(IOItem{}, entry));
+        }
+        for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+          // Wait until eval has finished
+          void *result;
+          i32 err = pthread_join(post_eval_threads[pu], &result);
+          LOG_IF(FATAL, err != 0)
+              << "error in pthread_join of post eval thread";
+          free(result);
+        }
 
-    // Push sentinel work entries into queue to terminate save threads
-    for (i32 i = 0; i < num_save_workers; ++i) {
-      EvalWorkEntry entry;
-      entry.io_item_index = -1;
-      save_work.push(std::make_tuple(IOItem{}, entry));
-    }
-
-    for (i32 i = 0; i < num_save_workers; ++i) {
-      // Wait until eval has finished
-      void *result;
-      i32 err = pthread_join(save_threads[i], &result);
-      LOG_IF(FATAL, err != 0) << "error in pthread_join of save thread";
-      free(result);
-    }
+        // Push sentinel work entries into queue to terminate save threads
+        for (i32 i = 0; i < num_save_workers; ++i) {
+          EvalWorkEntry entry;
+          entry.io_item_index = -1;
+          save_work.push(std::make_tuple(IOItem{}, entry));
+        }
+        for (i32 i = 0; i < num_save_workers; ++i) {
+          // Wait until eval has finished
+          void *result;
+          i32 err = pthread_join(save_threads[i], &result);
+          LOG_IF(FATAL, err != 0) << "error in pthread_join of save thread";
+          free(result);
+        }
 
 // Ensure all files are flushed
 #ifdef SCANNER_PROFILING
@@ -757,14 +779,8 @@ public:
     sync();
 #endif
 
-    for (auto& results : eval_results) {
-      for (auto& result : results) {
-        if (!result.success()) {
-          job_result->set_success(false);
-          job_result->set_msg(result.msg());
-          return grpc::Status::OK;
-        }
-      }
+    if (!job_result->success()) {
+      return grpc::Status::OK;
     }
 
     // Write out total time interval
@@ -835,6 +851,8 @@ public:
     }
 
     BACKOFF_FAIL(profiler_output->save());
+
+    VLOG(1) << "Worker " << node_id_ << " finished NewJob";
 
     return grpc::Status::OK;
   }
