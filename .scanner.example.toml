@@ -11,4 +11,6 @@ scanner_path = "/opt/scanner"
 #     bucket = "gcs-bucket"
 
 [network]
-    master = "localhost:5001"
+    master = "localhost"
+    master_port = "15555"
+    worker_port = "15556"

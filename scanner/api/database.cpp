@@ -195,7 +195,7 @@ Result Database::start_master(const MachineParameters& machine_params) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   master_state_.service.reset(scanner::internal::get_master_service(params));
-  master_state_.server = start(master_state_.service, "5001");
+  master_state_.server = start(master_state_.service, "15555");
 
   Result result;
   result.set_success(true);
@@ -209,7 +209,7 @@ Result Database::start_worker(const MachineParameters& machine_params) {
   ServerState &state = worker_states_.back();
   state.service.reset(
       scanner::internal::get_worker_service(params, master_address_));
-  state.server = start(state.service, "5002");
+  state.server = start(state.service, "15556");
 
   Result result;
   result.set_success(true);

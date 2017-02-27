@@ -39,16 +39,22 @@ template <class T> py::list to_py_list(std::vector<T> vector) {
 }
 
 py::list get_output_columns(const std::string &op_name) {
+  LOG(FATAL) << "get_output_columns_called";
+  
+  /*
   internal::OpRegistry *registry = internal::get_op_registry();
   LOG_IF(FATAL, !registry->has_op(op_name))
       << "Op " << op_name << " does not exist.";
   internal::OpInfo *info = registry->get_op_info(op_name);
   return to_py_list(info->output_columns());
+  */
 }
 
 bool has_op(const std::string &name) {
-  internal::OpRegistry *registry = internal::get_op_registry();
-  return registry->has_op(name);
+  LOG(FATAL) << "has_op called";
+  //internal::OpRegistry *registry = internal::get_op_registry();
+  //return registry->has_op(name);
+  return true;
 }
 
 std::string default_machine_params_wrapper() {

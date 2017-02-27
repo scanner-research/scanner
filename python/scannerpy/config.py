@@ -51,12 +51,20 @@ class Config(object):
             else:
                 raise ScannerException('Unsupported storage type {}'.format(storage_type))
 
-            self.master_address = 'localhost:5001'
+            self.master_address_base = 'localhost'
+            self.master_port = '15555'
+            self.worker_port = '15556'
             if 'network' in config:
                 network = config['network']
-                if 'master_address' in network:
-                    self.master_address = network['master_address']
+                if 'master' in network:
+                    self.master_address_base = network['master'].encode('ascii','ignore')
+                if 'master_port' in network:
+                    self.master_port = int(network['master_port'])
+                if 'worker_port' in network:
+                    self.worker_port = int(network['worker_port'])
 
+            self.master_address = self.master_address_base + ':' + str(self.master_port)
+            print("hi" + self.master_address + " " + str(self.worker_port))
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))
         self.storage_config = storage_config
@@ -90,6 +98,8 @@ class Config(object):
                 'db_path': db_path,
             },
             'network': {
-                'master': hostname + ':5001'
+                'master': hostname,
+                'master_port': '15555',
+                'worker_port': '15556'
             }
         }
