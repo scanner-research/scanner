@@ -17,7 +17,7 @@ db = Database()
 hist_op = db.ops.Histogram()
 
 # Create a Scanner table from our video in the format (table name, video path).
-[input_table] = db.ingest_videos([('example', 'example.mp4')])
+([input_table],_) = db.ingest_videos([('example', '/n/scanner/wcrichto.new/videos/movies/private/zootopia_2016.mkv')], force=True)
 print(db.summarize())
 
 # Define which frames we're going to run the operator on (all of them, in this
@@ -27,7 +27,7 @@ tasks = sampler.all([(input_table.name(), 'example_hist')])
 
 # Run the operator on the input and get an output table. The columns of the
 # output table are written to disk by the Scanner runtime.
-[output_table] = db.run(tasks, hist_op)
+[output_table] = db.run(tasks, hist_op, force=True)
 
 # Load the histograms from a column of the output table. The parsers.histograms
 # function  converts the raw bytes output by Scanner into a numpy array for each

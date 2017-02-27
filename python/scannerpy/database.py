@@ -242,9 +242,10 @@ class Database:
             master: ssh-able address of the master node.
             workers: list of ssh-able addresses of the worker nodes.
         """
-        master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master(True)"'
-        worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker(\'{}:5001\', True)"' \
-                     .format(master)
+        master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master()"'
+        #worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker(\'{}:5001\', True)"' \
+        #             .format(master)
+        worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker()"'
 
         master = self._run_remote_cmd(master, master_cmd)
         workers = [self._run_remote_cmd(w, worker_cmd) for w in workers]
@@ -519,9 +520,25 @@ class Database:
 
         return [e.to_proto(eval_index) for e in eval_sorted]
 
+    def _get_output_columns(self, op_name):
+        output_columns_args = self.protobufs.OutputColumnsArgs()
+        output_columns_args.op_name = op_name
+
+        try:
+            output_columns_result = self._master.GetOutputColumns(output_columns_args)
+        except grpc.RpcError as e:
+            raise ScannerException(e)
+
+        if isinstance(output_columns_result, self.protobufs.OutputColumnsResult):
+            if not output_columns_result.result.success:
+                raise ScannerException(output_columns_result.result.msg)
+
+        return output_columns_result.output_columns
+
     def _process_dag(self, op):
         # If ops are passed as a list (e.g. [transform, caffe])
         # then hook up inputs to outputs of adjacent ops
+
         if isinstance(op, list):
             for i in range(len(op) - 1):
                 if len(op[i+1]._inputs) > 0:
@@ -529,14 +546,14 @@ class Database:
                 if op[i]._name == "InputTable":
                     out_cols = ["frame", "frame_info"]
                 else:
-                    out_cols = self._bindings.get_output_columns(op[i]._name)
+                    out_cols = self._get_output_columns(op[i]._name)
                 op[i+1]._inputs = [(op[i], out_cols)]
             op = op[-1]
 
         # If the user doesn't explicitly specify an OutputTable, assume that
         # it's all the output columns of the last op.
         if op._name != "OutputTable":
-            out_cols = self._bindings.get_output_columns(str(op._name))
+            out_cols = self._get_output_columns(str(op._name))
             op = Op.output(self, [(op, out_cols)])
 
         return self._toposort(op)

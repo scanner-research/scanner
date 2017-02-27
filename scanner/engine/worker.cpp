@@ -201,7 +201,8 @@ public:
     if (gethostname(hostname, 1024)) {
       LOG(FATAL) << "gethostname failed";
     }
-    worker_info.set_address(std::string(hostname) + ":5002");
+    std::string hostnameF = std::string(hostname) + ".pdl.local.cmu.edu";
+    worker_info.set_address(hostnameF + ":15556");
 
     grpc::ClientContext context;
     proto::Registration registration;
