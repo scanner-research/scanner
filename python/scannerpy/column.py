@@ -91,7 +91,7 @@ class Column:
                     i += 1
             rows_so_far += item_rows
 
-    def _decode_png(self, png):
+    def _decode_png(self, png, db):
         return cv2.imdecode(np.frombuffer(png, dtype=np.dtype(np.uint8)),
                             cv2.IMREAD_COLOR)
 

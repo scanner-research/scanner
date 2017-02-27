@@ -75,7 +75,7 @@ class Table:
         cols = [self.columns(c).load(rows=rows) for c in columns]
         for tup in zip(*cols):
             row = tup[0][0]
-            vals = (x for _, x in tup)
+            vals = [x for _, x in tup]
             if fn is not None:
                 yield (row, fn(vals, self._db))
             else:

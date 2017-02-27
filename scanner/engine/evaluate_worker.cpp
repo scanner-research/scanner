@@ -168,6 +168,7 @@ void *pre_evaluate_thread(void *arg) {
       entry.needs_configure = first_item ? needs_configure : false;
       entry.needs_reset = first_item ? needs_reset : false;
       entry.last_in_io_item = (r + work_item_size >= total_rows) ? true : false;
+      entry.warmup_rows = work_entry.warmup_rows;
       entry.columns.resize(work_entry.columns.size());
       for (size_t c = 0; c < work_entry.columns.size(); ++c) {
         i64 start = r;
@@ -273,6 +274,7 @@ void *evaluate_thread(void *arg) {
     output_work_entry.needs_configure = work_entry.needs_configure;
     output_work_entry.needs_reset = work_entry.needs_reset;
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
+    output_work_entry.warmup_rows = work_entry.warmup_rows;
 
     BatchedColumns &work_item_output_columns = output_work_entry.columns;
     std::vector<DeviceHandle> &work_item_output_handles =
@@ -440,6 +442,7 @@ void *post_evaluate_thread(void *arg) {
             work_entry.column_handles[col_idx]);
       }
     }
+
 
     i64 num_rows = work_entry.columns[0].rows.size();
     i32 warmup_frames = work_entry.warmup_rows;

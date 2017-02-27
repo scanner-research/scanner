@@ -12,3 +12,5 @@ python/*.egg-info
 
 **/*.mp4
 **/*.mkv
+
+python/scannerpy/include

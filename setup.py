@@ -11,18 +11,23 @@ REQUIRED_PACKAGES = [
     'storehouse >= 0.1.0'
 ]
 
-
 package_data = {
     'scannerpy': [
         'build/*.so',
     ]
 }
 
-def get_dirs(d):
+os.system('mkdir -p python/scannerpy/include && '
+          'ln -fs ../../../scanner python/scannerpy/include &&'
+          'ln -fs ../../build python/scannerpy')
+
+def get_build_dirs(d):
     return [t[0]+'/*' for t in os.walk('build/'+d) if 'CMakeFiles' not in t[0]]
 
-package_data['scannerpy'] += get_dirs('scanner')
-package_data['scannerpy'] += get_dirs('stdlib')
+package_data['scannerpy'] += get_build_dirs('scanner')
+package_data['scannerpy'] += get_build_dirs('stdlib')
+package_data['scannerpy'] += ['include/{}/*.h'.format(t[0])
+                              for t in os.walk('scanner')]
 
 setup(
     name='scannerpy',

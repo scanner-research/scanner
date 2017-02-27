@@ -105,10 +105,12 @@ class Database:
         """
 
         include_dirs = self._bindings.get_include().split(";")
+        include_dirs.append(self.config.module_dir + "/include")
+        include_dirs.append(self.config.module_dir + "/build")
         flags = '{include} -std=c++11 -fPIC -shared -L{libdir} -lscanner {other}'
         return flags.format(
             include=" ".join(["-I " + d for d in include_dirs]),
-            libdir='{}/build'.format(self.config.scanner_path),
+            libdir='{}/build'.format(self.config.module_dir),
             other=self._bindings.other_flags())
 
     def print_build_flags(self):
