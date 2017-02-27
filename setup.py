@@ -27,7 +27,7 @@ package_data['scannerpy'] += ['include/{}/*.h'.format(t[0])
 
 setup(
     name='scannerpy',
-    version='0.1.12',
+    version='0.1.13',
     description='Efficient video analysis at scale',
     long_description='',
     url='https://github.com/scanner-research/scanner',
