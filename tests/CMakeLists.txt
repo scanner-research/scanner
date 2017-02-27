@@ -3,7 +3,7 @@ target_link_libraries(CppTests ${GTEST_LIBRARIES} ${GTEST_LIB_MAIN} scanner stdl
 add_test(CppTests CppTests)
 
 if(NOT BUILD_CUDA)
-  set(MARKERS "-m 'not gpu'")
+  set(MARKERS -m "not gpu")
 endif()
 add_test(
   NAME PythonTests
