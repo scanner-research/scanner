@@ -15,5 +15,6 @@ RUN mkdir build && cd build && \
           -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
           .. && \
-    make -j ${cores}
+    make -j ${cores} && \
+    cd /opt/scanner && ./scripts/dev-setup.sh
 ENV PYTHONPATH /opt/scanner/python:$PYTHONPATH

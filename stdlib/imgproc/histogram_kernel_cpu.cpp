@@ -36,8 +36,9 @@ public:
 
       for (i32 j = 0; j < 3; ++j) {
         int channels[] = {j};
-        cv::Mat out(BINS, 1, CV_32S, output_buf + BINS * sizeof(float));
+        cv::Mat out(BINS, 1, CV_32F , output_buf + BINS * sizeof(float));
         cv::calcHist(&img, 1, channels, cv::Mat(), out, 1, &BINS, &histRange);
+        out.convertTo(out, CV_32S);
       }
 
       output_columns[0].rows.push_back(Row{output_buf, hist_size});
