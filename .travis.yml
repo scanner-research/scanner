@@ -14,8 +14,8 @@ env:
 
 install:
 - sudo apt-get install -y doxygen graphviz python-pip
-- pip install doxypypy
+- pip install doxypypy twine
 
 script: ./scripts/travis-build.sh
 
-after_success: ./scripts/travis-publish-docs.sh
+after_success: ./scripts/travis-publish.sh

@@ -1,3 +1,4 @@
+# Commit docs
 REPO_PATH=git@github.com:scanner-research/scanner.git
 HTML_PATH=build/doc/html
 COMMIT_USER="Documentation Builder"
@@ -28,3 +29,13 @@ git config user.email "${COMMIT_EMAIL}"
 git commit -m "Automated documentation build for changeset ${CHANGESET}."
 git push origin gh-pages
 cd -
+
+# Publish Python package if on a new tag
+if [ -n "$TRAVIS_TAG" ];
+then
+    docker run $DOCKER_REPO:gpu /bin/bash -c "
+pip install twine && \
+python setup.py bdist_wheel && \
+twine upload -u 'wcrichto' -p '${PYPI_PASS}' dist/*
+"
+fi
