@@ -429,7 +429,7 @@ public:
       i64 worker_id = (i64)got_tag;
 
       if (!replies[worker_id].success()) {
-        LOG(WARNING) << "Worker " + worker_id + " returned error: " << replies[worker_id].msg();
+        LOG(WARNING) << "Worker " << worker_id << " returned error: " << replies[worker_id].msg();
         job_result->set_success(false);
         job_result->set_msg(replies[worker_id].msg());
         next_task_ = num_tasks_;
