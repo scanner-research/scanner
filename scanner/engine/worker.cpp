@@ -182,7 +182,7 @@ void analyze_dag(
 
 class WorkerImpl final : public proto::Worker::Service {
 public:
-  WorkerImpl(DatabaseParameters &db_params, std::string master_address)
+  WorkerImpl(DatabaseParameters &db_params, std::string master_address, std::string worker_port)
       : db_params_(db_params) {
     set_database_path(db_params.db_path);
 
@@ -202,7 +202,7 @@ public:
       LOG(FATAL) << "gethostname failed";
     }
     std::string hostnameF = std::string(hostname) + ".pdl.local.cmu.edu";
-    worker_info.set_address(hostnameF + ":15556");
+    worker_info.set_address(hostnameF + ":" + worker_port);
 
     grpc::ClientContext context;
     proto::Registration registration;
@@ -879,8 +879,9 @@ private:
 };
 
 proto::Worker::Service *get_worker_service(DatabaseParameters &params,
-                                           const std::string &master_address) {
-  return new WorkerImpl(params, master_address);
+                                           const std::string &master_address,
+                                           const std::string &worker_port) {
+  return new WorkerImpl(params, master_address, worker_port);
 }
 
 }

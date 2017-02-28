@@ -64,7 +64,7 @@ class Config(object):
                     self.worker_port = int(network['worker_port'])
 
             self.master_address = self.master_address_base + ':' + str(self.master_port)
-            print("hi" + self.master_address + " " + str(self.worker_port))
+
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))
         self.storage_config = storage_config
