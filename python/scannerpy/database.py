@@ -62,6 +62,8 @@ class Database:
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._master_address = self.config.master_address
+        self._master_port = str(self.config.master_port)
+        self._worker_port = str(self.config.worker_port)
         self._cached_db_metadata = None
         self._png_dump_prefix = '__png_dump_'
 
@@ -73,7 +75,9 @@ class Database:
         self._db = self._bindings.Database(
             self.config.storage_config,
             self._db_path,
-            self._master_address)
+            self._master_address,
+            self._master_port,
+            self._worker_port)
         if not os.path.isdir(pydb_path):
             os.mkdir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()

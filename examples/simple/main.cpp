@@ -11,8 +11,10 @@ int main(int argc, char** argv) {
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
   std::string master_address = "localhost:5001";
+  std::string master_port = "5001";
+  std::string worker_port = "5002";
 
-  scanner::Database db(sc.get(), db_path, master_address);
+  scanner::Database db(sc.get(), db_path, master_address, master_port, worker_port);
 
   // Ingest video
   scanner::Result result;

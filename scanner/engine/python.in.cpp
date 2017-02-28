@@ -107,7 +107,7 @@ py::list ingest_videos_wrapper(
 BOOST_PYTHON_MODULE(libscanner) {
   using namespace py;
   class_<Database, boost::noncopyable>(
-    "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&>())
+    "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&, const std::string&, const std::string&>())
     .def("ingest_videos", &Database::ingest_videos);
   class_<FailedVideo>("FailedVideo", no_init)
     .def_readonly("path", &FailedVideo::path)
