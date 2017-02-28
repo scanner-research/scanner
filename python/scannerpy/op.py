@@ -27,9 +27,8 @@ class OpGenerator:
         except grpc.RpcError as e:
             raise ScannerException(e)
 
-        if isinstance(result, self._db.protobufs.Result):
-            if not result.success:
-                raise ScannerException('Op {} does not exist'.format(name))
+        if not result.success:
+            raise ScannerException('Op {} does not exist'.format(name))
 
         def make_op(**kwargs):
             inputs = kwargs.pop('inputs', [])
