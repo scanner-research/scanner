@@ -19,16 +19,8 @@ class OpGenerator:
         elif name == 'Output':
             return lambda inputs: Op.output(self._db, inputs)
 
-        has_op_args = self._db.protobufs.HasOpArgs()
-        has_op_args.op_name = name
-
-        try:
-            result = self._db._master.HasOp(has_op_args)
-        except grpc.RpcError as e:
-            raise ScannerException(e)
-
-        if not result.success:
-            raise ScannerException('Op {} does not exist'.format(name))
+        # This will raise an exception if the op does not exist.
+        self._db._check_has_op(name)
 
         def make_op(**kwargs):
             inputs = kwargs.pop('inputs', [])

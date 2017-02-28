@@ -12,8 +12,7 @@ service Master {
   rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpInfo) returns (Result) {}
-  rpc HasOp (HasOpArgs) returns (Result) {}
-  rpc GetOutputColumns (OutputColumnsArgs) returns (OutputColumnsResult) {}
+  rpc GetOpOutputInfo (OpOutputInfoArgs) returns (OpOutputInfo) {}
 }
 
 service Worker {
@@ -71,15 +70,11 @@ message NewWork {
   LoadWorkEntry load_work = 2;
 };
 
-message HasOpArgs {
+message OpOutputInfoArgs {
   string op_name = 1;
 }
 
-message OutputColumnsArgs {
-  string op_name = 1;
-}
-
-message OutputColumnsResult {
+message OpOutputInfo {
   Result result = 1;
   repeated string output_columns = 2;
 }
