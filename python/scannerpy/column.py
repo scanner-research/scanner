@@ -95,6 +95,7 @@ class Column:
         return cv2.imdecode(np.frombuffer(png, dtype=np.dtype(np.uint8)),
                             cv2.IMREAD_COLOR)
 
+    # TODO(wcrichto): don't show progress bar when running decode png
     def load(self, fn=None, rows=None):
         """
         Loads the results of a Scanner computation into Python.
@@ -116,14 +117,16 @@ class Column:
             png_table_name = self._db._png_dump_prefix.format(self._table.name())
             if self._db.has_table(png_table_name):
                 png_table = self._db.table(png_table_name)
-                if png_table._descriptor.timestamp > \
+                if rows is None and \
+                   png_table.num_rows() == self._table.num_rows() and \
+                   png_table._descriptor.timestamp > \
                    self._table._descriptor.timestamp:
                     return png_table.columns(0).load(self._decode_png)
             pair = [(self._table.name(), png_table_name)]
             if rows is None:
                 tasks = sampler.all(pair)
             else:
-                tasks = [sampler.gather(pair, rows)]
+                tasks = [sampler.gather(pair[0], rows)]
             [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
                                      force=True)
             return out_tbl.columns(0).load(self._decode_png)
