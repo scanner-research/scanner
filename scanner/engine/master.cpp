@@ -426,10 +426,12 @@ public:
       GPR_ASSERT((i64)got_tag < workers_.size());
       assert(ok);
 
-      if (!replies[i].success()) {
-        LOG(WARNING) << "Worker returned error: " << replies[i].msg();
+      i64 worker_id = (i64)got_tag;
+
+      if (!replies[worker_id].success()) {
+        LOG(WARNING) << "Worker " + worker_id + " returned error: " << replies[worker_id].msg();
         job_result->set_success(false);
-        job_result->set_msg(replies[i].msg());
+        job_result->set_msg(replies[worker_id].msg());
         next_task_ = num_tasks_;
       }
     }
@@ -453,33 +455,33 @@ public:
     return grpc::Status::OK;
   }
 
-   grpc::Status HasOp(grpc::ServerContext * context, const proto::HasOpArgs *hasOpArg,
-                      proto::Result *result) {
-      OpRegistry *registry = get_op_registry();
-      if (registry->has_op(hasOpArg->op_name())) {
-        result->set_success(true);
-      } else {
-        result->set_success(false);
-      }
-
-      return grpc::Status::OK;
+  grpc::Status HasOp(grpc::ServerContext * context, const proto::HasOpArgs *hasOpArg,
+                    proto::Result *result) {
+    OpRegistry *registry = get_op_registry();
+    if (registry->has_op(hasOpArg->op_name())) {
+      result->set_success(true);
+    } else {
+      result->set_success(false);
     }
 
-    grpc::Status GetOutputColumns(grpc::ServerContext * context, const proto::OutputColumnsArgs *output_columns_args,
-                      proto::OutputColumnsResult *output_columns_result) {
-      OpRegistry *registry = get_op_registry();
-      std::string op_name = output_columns_args->op_name();
-      LOG_IF(FATAL, !registry->has_op(op_name))
-          << "Op " << op_name << " does not exist.";
-      OpInfo *info = registry->get_op_info(op_name);
+    return grpc::Status::OK;
+  }
 
-      for (auto& output_column : info->output_columns()) {
-        output_columns_result->add_output_columns(output_column);
-      }
-      output_columns_result->mutable_result()->set_success(true);
+  grpc::Status GetOutputColumns(grpc::ServerContext * context, const proto::OutputColumnsArgs *output_columns_args,
+                    proto::OutputColumnsResult *output_columns_result) {
+    OpRegistry *registry = get_op_registry();
+    std::string op_name = output_columns_args->op_name();
+    LOG_IF(FATAL, !registry->has_op(op_name))
+        << "Op " << op_name << " does not exist.";
+    OpInfo *info = registry->get_op_info(op_name);
 
-      return grpc::Status::OK; 
-    }  
+    for (auto& output_column : info->output_columns()) {
+      output_columns_result->add_output_columns(output_column);
+    }
+    output_columns_result->mutable_result()->set_success(true);
+
+    return grpc::Status::OK; 
+  }  
 
   grpc::Status LoadOp(grpc::ServerContext *context,
                       const proto::OpInfo *op_info, Result *result) {
