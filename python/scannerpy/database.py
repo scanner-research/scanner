@@ -528,15 +528,11 @@ class Database:
         output_columns_args = self.protobufs.OutputColumnsArgs()
         output_columns_args.op_name = op_name
 
-        try:
-            output_columns_result = self._master.GetOutputColumns(output_columns_args)
-        except grpc.RpcError as e:
-            raise ScannerException(e)
+        output_columns_result = self._try_rpc (lambda: self._master.GetOutputColumns(output_columns_args))
 
-        if isinstance(output_columns_result, self.protobufs.OutputColumnsResult):
-            if not output_columns_result.result.success:
-                raise ScannerException(output_columns_result.result.msg)
-
+        if not output_columns_result.result.success:
+            raise ScannerException(output_columns_result.result.msg)
+               
         return output_columns_result.output_columns
 
     def _process_dag(self, op):

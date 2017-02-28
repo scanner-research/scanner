@@ -201,7 +201,10 @@ public:
     if (gethostname(hostname, 1024)) {
       LOG(FATAL) << "gethostname failed";
     }
+    
+    /** Hack so that ocean knows who crissy is **/
     std::string hostnameF = std::string(hostname) + ".pdl.local.cmu.edu";
+
     worker_info.set_address(hostnameF + ":" + worker_port);
 
     grpc::ClientContext context;

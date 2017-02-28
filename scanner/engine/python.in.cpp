@@ -38,25 +38,6 @@ template <class T> py::list to_py_list(std::vector<T> vector) {
   return list;
 }
 
-py::list get_output_columns(const std::string &op_name) {
-  LOG(FATAL) << "get_output_columns_called";
-  
-  /*
-  internal::OpRegistry *registry = internal::get_op_registry();
-  LOG_IF(FATAL, !registry->has_op(op_name))
-      << "Op " << op_name << " does not exist.";
-  internal::OpInfo *info = registry->get_op_info(op_name);
-  return to_py_list(info->output_columns());
-  */
-}
-
-bool has_op(const std::string &name) {
-  LOG(FATAL) << "has_op called";
-  //internal::OpRegistry *registry = internal::get_op_registry();
-  //return registry->has_op(name);
-  return true;
-}
-
 std::string default_machine_params_wrapper() {
   MachineParameters params = default_machine_params();
   proto::MachineParameters params_proto;
@@ -117,8 +98,6 @@ BOOST_PYTHON_MODULE(libscanner) {
   def("ingest_videos", ingest_videos_wrapper);
   def("get_include", get_include);
   def("other_flags", other_flags);
-  def("get_output_columns", get_output_columns);
-  def("has_op", has_op);
   def("default_machine_params", default_machine_params_wrapper);
 }
 }

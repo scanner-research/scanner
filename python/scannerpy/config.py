@@ -52,8 +52,8 @@ class Config(object):
                 raise ScannerException('Unsupported storage type {}'.format(storage_type))
 
             self.master_address_base = 'localhost'
-            self.master_port = '15555'
-            self.worker_port = '15556'
+            self.master_port = '5001'
+            self.worker_port = '5002'
             if 'network' in config:
                 network = config['network']
                 if 'master' in network:
@@ -99,7 +99,7 @@ class Config(object):
             },
             'network': {
                 'master': hostname,
-                'master_port': '15555',
-                'worker_port': '15556'
+                'master_port': '5001',
+                'worker_port': '5002'
             }
         }
