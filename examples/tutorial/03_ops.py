@@ -33,8 +33,7 @@ output = db.ops.Output(inputs=[(hist, ["histogram"])])
 
 # You provide the last op in the graph, here the output op, as the argument to
 # db.run.
-import timeit
-start_time = timeit.default_timer(); db.run(tasks, output, force=True); elapsed = timeit.default_timer() - start_time
+db.run(tasks, output, force=True)
 
 # Note: if you don't explicitly include an Input or Output node in your op graph
 # they will be automatically added for you. This is how the previous examples

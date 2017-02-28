@@ -12,5 +12,5 @@ scanner_path = "/opt/scanner"
 
 [network]
     master = "localhost"
-    master_port = "15555"
-    worker_port = "15556"
+    master_port = "5001"
+    worker_port = "5002"
