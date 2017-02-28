@@ -201,7 +201,7 @@ public:
                               const proto::WorkerInfo *worker_info,
                               proto::Registration *registration) {
     set_database_path(db_params_.db_path);
-    LOG(INFO) << "Adding worker: " << worker_info->address() << "\n";
+    VLOG(1) << "Adding worker: " << worker_info->address();
     workers_.push_back(proto::Worker::NewStub(grpc::CreateChannel(
         worker_info->address(), grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
@@ -455,30 +455,22 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status HasOp(grpc::ServerContext * context, const proto::HasOpArgs *hasOpArg,
-                    proto::Result *result) {
+  grpc::Status GetOpOutputInfo(grpc::ServerContext * context, const proto::OpOutputInfoArgs *op_output_info_args,
+                    proto::OpOutputInfo *op_output_info) {
     OpRegistry *registry = get_op_registry();
-    if (registry->has_op(hasOpArg->op_name())) {
-      result->set_success(true);
-    } else {
-      result->set_success(false);
+    std::string op_name = op_output_info_args->op_name();
+    if (!registry->has_op(op_name)) {
+      op_output_info->mutable_result()->set_success(false);
+      op_output_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
+      return grpc::Status::OK;
     }
-
-    return grpc::Status::OK;
-  }
-
-  grpc::Status GetOutputColumns(grpc::ServerContext * context, const proto::OutputColumnsArgs *output_columns_args,
-                    proto::OutputColumnsResult *output_columns_result) {
-    OpRegistry *registry = get_op_registry();
-    std::string op_name = output_columns_args->op_name();
-    LOG_IF(FATAL, !registry->has_op(op_name))
-        << "Op " << op_name << " does not exist.";
+    
     OpInfo *info = registry->get_op_info(op_name);
 
     for (auto& output_column : info->output_columns()) {
-      output_columns_result->add_output_columns(output_column);
+      op_output_info->add_output_columns(output_column);
     }
-    output_columns_result->mutable_result()->set_success(true);
+    op_output_info->mutable_result()->set_success(true);
 
     return grpc::Status::OK; 
   }  

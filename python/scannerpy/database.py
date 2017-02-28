@@ -62,8 +62,6 @@ class Database:
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._master_address = self.config.master_address
-        self._master_port = str(self.config.master_port)
-        self._worker_port = str(self.config.worker_port)
         self._cached_db_metadata = None
         self._png_dump_prefix = '__png_dump_'
 
@@ -76,8 +74,8 @@ class Database:
             self.config.storage_config,
             self._db_path,
             self._master_address,
-            self._master_port,
-            self._worker_port)
+            str(self.config.master_port),
+            str(self.config.worker_port))
         if not os.path.isdir(pydb_path):
             os.mkdir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
@@ -247,8 +245,6 @@ class Database:
             workers: list of ssh-able addresses of the worker nodes.
         """
         master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master()"'
-        #worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker(\'{}:5001\', True)"' \
-        #             .format(master)
         worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker()"'
 
         master = self._run_remote_cmd(master, master_cmd)
@@ -524,16 +520,22 @@ class Database:
 
         return [e.to_proto(eval_index) for e in eval_sorted]
 
+    def _get_op_output_info(self, op_name):
+        op_output_info_args = self.protobufs.OpOutputInfoArgs()
+        op_output_info_args.op_name = op_name
+
+        op_output_info = self._try_rpc (lambda: self._master.GetOpOutputInfo(op_output_info_args))
+
+        if not op_output_info.result.success:
+            raise ScannerException(op_output_info.result.msg)
+
+        return op_output_info
+
+    def _check_has_op(self, op_name):
+        self._get_op_output_info(op_name)
+
     def _get_output_columns(self, op_name):
-        output_columns_args = self.protobufs.OutputColumnsArgs()
-        output_columns_args.op_name = op_name
-
-        output_columns_result = self._try_rpc (lambda: self._master.GetOutputColumns(output_columns_args))
-
-        if not output_columns_result.result.success:
-            raise ScannerException(output_columns_result.result.msg)
-               
-        return output_columns_result.output_columns
+        return self._get_op_output_info(op_name).output_columns
 
     def _process_dag(self, op):
         # If ops are passed as a list (e.g. [transform, caffe])
