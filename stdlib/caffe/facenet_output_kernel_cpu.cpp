@@ -17,7 +17,7 @@ public:
     scale_ = args.scale();
     threshold_ = args.threshold();
 
-    std::ifstream template_file{"nets/caffe_facenet/facenet_templates.bin",
+    std::ifstream template_file{"nets/caffe_facenet/templates.bin",
         std::ifstream::binary};
     LOG_IF(FATAL, !template_file.good()) << "Could not find template file.";
     templates_.resize(num_templates_, std::vector<float>(4));
@@ -35,8 +35,12 @@ public:
     net_input_width_ = std::floor(frame_info_.width() * scale_);
     net_input_height_ = std::floor(frame_info_.height() * scale_);
 
-    net_input_width_ += (net_input_width_ % 8);
-    net_input_height_ += (net_input_height_ % 8);
+    if (net_input_width_ % 8 != 0)  {
+      net_input_width_  += 8 - (net_input_width_ % 8);
+    };
+    if (net_input_height_ % 8 != 0) {
+      net_input_height_ += 8 - (net_input_height_ % 8);
+    }
 
     grid_width_ = std::ceil(float(net_input_width_) / cell_width_);
     grid_height_ = std::ceil(float(net_input_height_) / cell_height_);

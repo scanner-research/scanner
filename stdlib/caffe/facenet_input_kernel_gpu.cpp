@@ -29,10 +29,14 @@ public:
     }
 
   void new_frame_info() override {
-    net_input_width_ = frame_info_.width() * scale_;
-    net_input_height_ = frame_info_.height() * scale_;
-    net_input_width_ += (net_input_width_ % 8);
-    net_input_height_ += (net_input_height_ % 8);
+    net_input_width_ = std::floor(frame_info_.width() * scale_);
+    net_input_height_ = std::floor(frame_info_.height() * scale_);
+    if (net_input_width_ % 8 != 0)  {
+      net_input_width_  += 8 - (net_input_width_ % 8);
+    };
+    if (net_input_height_ % 8 != 0) {
+      net_input_height_ += 8 - (net_input_height_ % 8);
+    }
 
     cv::cuda::setDevice(device_.id);
     cudaSetDevice(device_.id);

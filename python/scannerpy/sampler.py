@@ -38,12 +38,13 @@ class Sampler:
             tasks.append(task)
         return tasks
 
-    def strided(self, videos, stride):
+    def strided(self, videos, stride, item_size=1000):
         videos = self._convert_collection(videos)
         tasks = []
         for video in videos:
             table = self._db.table(video[0])
-            task = self.strided_range(video, 0, table.num_rows(), stride)
+            task = self.strided_range(video, 0, table.num_rows(), stride,
+                                      item_size=item_size)
             tasks.append(task)
         return tasks
 
