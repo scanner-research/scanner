@@ -3,8 +3,11 @@ from scannerpy.stdlib import parsers
 from scipy.spatial import distance
 import numpy as np
 import cv2
-import sys
 import math
+import sys
+import os.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
+import util
 
 try:
     import plotly.offline as offline
@@ -16,11 +19,8 @@ except ImportError:
 WINDOW_SIZE = 500
 
 def main():
-    if len(sys.argv) <= 1:
-        print('Usage: python detect.py <path/to/movie.mp4>')
-        exit()
-
-    movie_path = sys.argv[1]
+    movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
+    print('Detecting shots in movie {}'.format(movie_path))
 
     db = Database()
     if not db.has_table('movie'):
@@ -58,8 +58,8 @@ def main():
         window = diffs[max(i-WINDOW_SIZE,0):min(i+WINDOW_SIZE,n)]
         if diffs[i] - np.mean(window) > 3 * np.std(window):
             boundaries.append(i)
-    print boundaries
 
+    print boundaries
     print('Visualizing shot boundaries...')
 
     # Loading the frames for each shot boundary
@@ -84,8 +84,8 @@ def main():
             (col * target_w):((col+1) * target_w),
             :] = frame
 
-    cv2.imwrite('/tmp/test.jpg', img)
-
+    cv2.imwrite('shots.jpg', img)
+    print('Successfully generated shots.jpg')
 
 if __name__ == "__main__":
     main()

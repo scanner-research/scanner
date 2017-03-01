@@ -75,7 +75,7 @@ private:
 // These functions run statically when the shared library is loaded to tell the
 // Scanner runtime about your custom op.
 
-REGISTER_OP(Resize).outputs({"frame"});
+REGISTER_OP(Resize).inputs({"frame", "frame_info"}).outputs({"frame"});
 
 REGISTER_KERNEL(Resize, ResizeKernel)
    .device(scanner::DeviceType::CPU)

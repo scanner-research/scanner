@@ -20,7 +20,7 @@ tasks = sampler.strided(tables, 8)
 
 # We pass the tasks to the database same as before, and can process the output
 # same as before.
-[output_table] = db.run(tasks, hist_op)
+[output_table] = db.run(tasks, hist_op, force=True)
 
 # Here's some examples of other sampling modes.
 
@@ -29,4 +29,4 @@ tasks = sampler.strided(tables, 8)
 sampler.range(tables, 0, 100)
 
 # Gather takes an arbitrary list of frames from a video.
-sampler.gather(tables, [10, 17, 32])
+sampler.gather(tables[0], [10, 17, 32])

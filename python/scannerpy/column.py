@@ -128,7 +128,7 @@ class Column:
             else:
                 tasks = [sampler.gather(pair[0], rows)]
             [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
-                                     force=True)
+                                     force=True, show_progress=False)
             return out_tbl.columns(0).load(self._decode_png)
         else:
             return self._load(fn, rows=rows)

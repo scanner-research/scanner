@@ -189,7 +189,7 @@ get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
 
 class MasterImpl final : public proto::Master::Service {
 public:
-  MasterImpl(DatabaseParameters &params) : db_params_(params) {
+  MasterImpl(DatabaseParameters &params) : db_params_(params), bar_(nullptr) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
     set_database_path(params.db_path);
@@ -263,7 +263,7 @@ public:
 
     samples_left_--;
     total_samples_used_++;
-    bar_->Progressed(total_samples_used_);
+    if (bar_) { bar_->Progressed(total_samples_used_); }
     return grpc::Status::OK;
   }
 
@@ -392,7 +392,12 @@ public:
     std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
         rpcs;
 
-    bar_ = new ProgressBar(total_samples_, "");
+    if (bar_) { delete bar_; }
+    if (job_params->show_progress()) {
+      bar_ = new ProgressBar(total_samples_, "");
+    } else {
+      bar_ = nullptr;
+    }
 
     std::map<std::string, i32> local_ids;
     std::map<std::string, i32> local_totals;
@@ -442,7 +447,7 @@ public:
       job_result->CopyFrom(task_result_);
     } else {
       assert(next_task_ == num_tasks_);
-      bar_->Progressed(total_samples_);
+      if (bar_) { bar_->Progressed(total_samples_); }
     }
 
     return grpc::Status::OK;
