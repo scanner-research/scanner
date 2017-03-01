@@ -49,10 +49,14 @@ class Sampler:
         return tasks
 
     def range(self, videos, start, end, item_size=1000, warmup_size=0):
+        return self.ranges(videos, [(start, end)], item_size=item_size,
+                           warmup_size=warmup_size)
+
+    def ranges(self, videos, intervals, item_size=1000, warmup_size=0):
         videos = self._convert_collection(videos)
         tasks = []
         for video in videos:
-            task = self.strided_range(video, start, end, 1,
+            task = self.strided_ranges(video, intervals, 1,
                                       item_size=item_size,
                                       warmup_size=warmup_size)
             tasks.append(task)
@@ -86,6 +90,12 @@ or (input_table, output_table) pair')""")
 
     def strided_range(self, video, start, end, stride, item_size=1000,
                       warmup_size=0):
+        return self.strided_ranges(video, [(start, end)], stride,
+                                   item_size=item_size,
+                                   warmup_size=warmup_size)
+
+    def strided_ranges(self, video, intervals, stride, item_size=1000,
+                      warmup_size=0):
         if isinstance(video, list) or isinstance(video, Collection):
             raise ScannerException('Sampler.strided_range only takes a single video')
         if not isinstance(video, tuple):
@@ -104,13 +114,14 @@ or (input_table, output_table) pair')""")
         sample.sampling_function = "StridedRange"
         sampler_args = self._db.protobufs.StridedRangeSamplerArgs()
         sampler_args.stride = stride
-        s = start
-        while s < end:
-            ws = max(0, s - warmup_size * stride)
-            e = min(s + item_size * stride, end)
-            sampler_args.warmup_starts.append(ws)
-            sampler_args.starts.append(s)
-            sampler_args.ends.append(e)
-            s = e
+        for start, end in intervals:
+            s = start
+            while s < end:
+                ws = max(0, s - warmup_size * stride)
+                e = min(s + item_size * stride, end)
+                sampler_args.warmup_starts.append(ws)
+                sampler_args.starts.append(s)
+                sampler_args.ends.append(e)
+                s = e
         sample.sampling_args = sampler_args.SerializeToString()
         return task
