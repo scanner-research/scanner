@@ -163,6 +163,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     }
     std::this_thread::yield();
   }
+  reset_current_frame_ = -1;
   decoder_->wait_until_frames_copied();
 }
 
@@ -200,14 +201,16 @@ void DecoderAutomata::feeder() {
       while (frames_retrieved_ < frames_to_get_ &&
             decoder_->decoded_frames_buffered() > frames_to_wait) {
         std::this_thread::yield();
-        continue;
       }
       if (seeking_) {
-        decoder_->feed(nullptr, 0, true);
-        while (reset_current_frame_ != -1) {
+        i64 reset = encoded_data_[feeder_data_idx_].keyframes(0);
+        while (reset_current_frame_ != -1 || reset > next_frame_) {
           std::this_thread::yield();
         }
-        reset_current_frame_ = encoded_data_[feeder_data_idx_].keyframes(0);
+        if (frames_retrieved_ >= frames_to_get_) {
+          continue;
+        }
+        reset_current_frame_ = reset;
         seeking_ = false;
       }
       frames_fed++;
