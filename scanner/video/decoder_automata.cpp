@@ -36,7 +36,6 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
 
 DecoderAutomata::~DecoderAutomata() {
   {
-    reset_current_frame_ = -1;
     frames_to_get_ = 0;
     frames_retrieved_ = 0;
     while (decoder_->discard_frame()) {
@@ -64,7 +63,6 @@ void DecoderAutomata::initialize(
   next_frame_.store(encoded_data[0].valid_frames(0), std::memory_order_release);
   retriever_data_idx_.store(0, std::memory_order_release);
   retriever_valid_idx_ = 0;
-  reset_current_frame_ = -1;
 
   FrameInfo info;
   info.set_width(encoded_data[0].width());
@@ -123,17 +121,13 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
   wake_feeder_.notify_one();
 
   while (frames_retrieved_ < frames_to_get_) {
-    if (reset_current_frame_ != -1) {
-      printf("reset current frame\n");
-      current_frame_ = reset_current_frame_;
-      reset_current_frame_ = -1;
-    }
     if (decoder_->decoded_frames_buffered() > 0) {
       // New frames
       bool more_frames = true;
       while (more_frames && frames_retrieved_ < frames_to_get_) {
         const auto &valid_frames =
             encoded_data_[retriever_data_idx_].valid_frames();
+        assert(valid_frames.size() > retriever_valid_idx_.load());
         assert(current_frame_ <= valid_frames.Get(retriever_valid_idx_));
         // printf("has buffered frames, curr %d, next %d\n",
         //        current_frame_, valid_frames.Get(retriever_valid_idx_));
@@ -145,6 +139,32 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
             // Move to next decode args
             retriever_data_idx_ += 1;
             retriever_valid_idx_ = 0;
+
+            // Trigger feeder to start again and set ourselves to the
+            // start of that keyframe
+            if (retriever_data_idx_ < encoded_data_.size()) {
+              // Wait until feeder is waiting
+              {
+                // Wait until frames are being requested
+                std::unique_lock<std::mutex> lk(feeder_mutex_);
+                wake_feeder_.wait(lk, [this, &total_frames_decoded] {
+                  while (decoder_->discard_frame()) {
+                    total_frames_decoded++;
+                  }
+                  return feeder_waiting_.load();
+                });
+              }
+
+              {
+                std::unique_lock<std::mutex> lk(feeder_mutex_);
+                feeder_waiting_ = false;
+                current_frame_ =
+                    encoded_data_[retriever_data_idx_].keyframes(0) - 1;
+              }
+              wake_feeder_.notify_one();
+            } else {
+              assert(frames_retrieved_ + 1 == frames_to_get_);
+            }
           }
           if (retriever_data_idx_ < encoded_data_.size()) {
             next_frame_.store(encoded_data_[retriever_data_idx_].valid_frames(
@@ -163,7 +183,6 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     }
     std::this_thread::yield();
   }
-  reset_current_frame_ = -1;
   decoder_->wait_until_frames_copied();
 }
 
@@ -191,27 +210,19 @@ void DecoderAutomata::feeder() {
       continue;
     }
 
+    if (seeking_) {
+      decoder_->feed(nullptr, 0, true);
+      seeking_ = false;
+    }
+
     frames_fed = 0;
     bool seen_metadata = false;
     while (frames_retrieved_ < frames_to_get_) {
-      // if (next_frame_ > feeder_next_keyframe_) {
-      //   // Jump to the next
-      // }
-      i32 frames_to_wait = seeking_ ? 0 : 8;
+      i32 frames_to_wait = 8;
       while (frames_retrieved_ < frames_to_get_ &&
             decoder_->decoded_frames_buffered() > frames_to_wait) {
+        wake_feeder_.notify_one();
         std::this_thread::yield();
-      }
-      if (seeking_) {
-        i64 reset = encoded_data_[feeder_data_idx_].keyframes(0);
-        while (reset_current_frame_ != -1 || reset > next_frame_) {
-          std::this_thread::yield();
-        }
-        if (frames_retrieved_ >= frames_to_get_) {
-          continue;
-        }
-        reset_current_frame_ = reset;
-        seeking_ = false;
       }
       frames_fed++;
 
@@ -253,9 +264,7 @@ void DecoderAutomata::feeder() {
         }
       }
 
-      //if (encoded_packet_size != 0) {
-        decoder_->feed(encoded_packet, encoded_packet_size, false);
-        //}
+      decoder_->feed(encoded_packet, encoded_packet_size, false);
       // Set a discontinuity if we sent an empty packet to reset
       // the stream next time
       if (encoded_packet_size == 0) {
@@ -266,10 +275,10 @@ void DecoderAutomata::feeder() {
         feeder_data_idx_ += 1;
         feeder_buffer_offset_ = 0;
         seeking_ = true;
-        if (encoded_data_.size() <= feeder_data_idx_) {
-          break;
+        if (feeder_data_idx_ < encoded_data_.size()) {
+          feeder_next_keyframe_ = encoded_data_[feeder_data_idx_].keyframes(1);
         }
-        feeder_next_keyframe_ = encoded_data_[feeder_data_idx_].keyframes(1);
+        break;
       } else {
         seen_metadata = true;
       }
