@@ -227,6 +227,15 @@ class BlockAllocator {
 public:
   BlockAllocator(Allocator *allocator) : allocator_(allocator) {}
 
+  ~BlockAllocator() {
+    std::lock_guard<std::mutex> guard(lock_);
+
+    for (Allocation& alloc : allocations_) {
+      assert(alloc.refs > 0);
+      allocator_->free(alloc.buffer);
+    }
+  }
+
   u8 *allocate(size_t size, i32 refs) {
     u8 *buffer = allocator_->allocate(size);
 
@@ -312,7 +321,9 @@ private:
 
 static SystemAllocator *cpu_system_allocator = nullptr;
 static std::map<i32, SystemAllocator *> gpu_system_allocators;
+static PoolAllocator *cpu_pool_allocator = nullptr;
 static BlockAllocator *cpu_block_allocator = nullptr;
+static std::map<i32, PoolAllocator*> gpu_pool_allocators;
 static std::map<i32, BlockAllocator *> gpu_block_allocators;
 
 void init_memory_allocators(MemoryPoolConfig config,
@@ -327,9 +338,10 @@ void init_memory_allocators(MemoryPoolConfig config,
     LOG_IF(FATAL, config.cpu().free_space() > total_mem)
         << "Requested CPU free space (" << config.cpu().free_space() << ") "
         << "larger than total CPU memory size ( " << total_mem << ")";
-    cpu_block_allocator_base =
+    cpu_pool_allocator =
         new PoolAllocator(CPU_DEVICE, cpu_system_allocator,
                           total_mem - config.cpu().free_space());
+    cpu_block_allocator_base = cpu_pool_allocator;
   }
   cpu_block_allocator = new BlockAllocator(cpu_block_allocator_base);
 
@@ -347,8 +359,9 @@ void init_memory_allocators(MemoryPoolConfig config,
           << "Requested GPU free space (" << config.gpu().free_space() << ") "
           << "larger than total GPU memory size ( " << total_mem << ") "
           << "on device " << device_id;
-      gpu_block_allocator_base = new PoolAllocator(
+      gpu_pool_allocators[device.id] = new PoolAllocator(
           device, gpu_system_allocator, total_mem - config.gpu().free_space());
+      gpu_block_allocator_base = gpu_pool_allocators[device.id];
     }
     gpu_block_allocators[device.id] =
         new BlockAllocator(gpu_block_allocator_base);
@@ -357,16 +370,26 @@ void init_memory_allocators(MemoryPoolConfig config,
 }
 
 void destroy_memory_allocators() {
-  delete cpu_system_allocator;
   delete cpu_block_allocator;
+  if (cpu_pool_allocator) {
+    delete cpu_pool_allocator;
+    cpu_pool_allocator = nullptr;
+  }
+  delete cpu_system_allocator;
 
 #ifdef HAVE_CUDA
-  for (auto entry : gpu_system_allocators) {
-    delete entry.second;
-  }
   for (auto entry : gpu_block_allocators) {
     delete entry.second;
   }
+  for (auto entry : gpu_pool_allocators) {
+    delete entry.second;
+  }
+  for (auto entry : gpu_system_allocators) {
+    delete entry.second;
+  }
+  gpu_block_allocators.clear();
+  gpu_pool_allocators.clear();
+  gpu_system_allocators.clear();
 #endif
 }
 
