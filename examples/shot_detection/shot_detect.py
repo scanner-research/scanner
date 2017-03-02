@@ -59,7 +59,6 @@ def main():
         if diffs[i] - np.mean(window) > 3 * np.std(window):
             boundaries.append(i)
 
-    print boundaries
     print('Visualizing shot boundaries...')
 
     # Loading the frames for each shot boundary

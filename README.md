@@ -49,7 +49,7 @@ _Note: if you don't have a GPU, then run `docker` instead of `nvidia-docker` and
 Then inside your Docker container, run:
 
 ```bash
-python examples/demo/demo.py
+python examples/face_detection/face_detect.py
 ```
 
 This runs a Scanner demo which detects faces in every frame of a short video from YouTube, creating a file `example_faces.mp4`. Type `Ctrl-P + Ctrl-Q` to detach from the container and then run:
