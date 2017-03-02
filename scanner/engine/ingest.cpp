@@ -283,8 +283,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   std::map<u32, PPS> pps_map;
   u32 last_sps = -1;
   u32 last_pps = -1;
-  std::vector<u8> sps_nal_bytes;
-  std::vector<u8> pps_nal_bytes;
+  std::map<u32, std::vector<u8>> sps_nal_bytes;
+  std::map<u32, std::vector<u8>> pps_nal_bytes;
   SliceHeader prev_sh;
 
   i32 num_non_ref_frames = 0;
@@ -425,8 +425,6 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       // SPS
       if (nal_unit_type == 7) {
         saw_sps_nal = true;
-        sps_nal_bytes.insert(sps_nal_bytes.end(), nal_start - 3,
-                             nal_start + nal_size + 3);
         i32 offset = 8;
         GetBitsState gb;
         gb.buffer = rbsp_start;
@@ -438,6 +436,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         i32 sps_id = sps.sps_id;
         sps_map[sps_id] = sps;
         last_sps = sps.sps_id;
+
+        sps_nal_bytes[sps_id].clear();
+        sps_nal_bytes[sps_id].insert(sps_nal_bytes[sps_id].end(), nal_start - 3,
+                                     nal_start + nal_size + 3);
         VLOG(1) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
                   << " seen at frame " << frame;
       }
@@ -453,8 +455,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         pps_map[pps.pps_id] = pps;
         last_pps = pps.pps_id;
         saw_pps_nal = true;
-        pps_nal_bytes.insert(pps_nal_bytes.end(), nal_start - 3,
-                             nal_start + nal_size + 3);
+        i32 pps_id = pps.pps_id;
+        pps_nal_bytes[pps_id].clear();
+        pps_nal_bytes[pps_id].insert(pps_nal_bytes[pps_id].end(), nal_start - 3,
+                                     nal_start + nal_size + 3);
         VLOG(1) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
                   << ", frame " << frame;
       }
@@ -484,15 +488,25 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
             // Insert metadata
             VLOG(1) << "inserting sps and pss nals";
-            i32 size = filtered_data_size +
-                       static_cast<i32>(sps_nal_bytes.size()) +
-                       static_cast<i32>(pps_nal_bytes.size());
+            i32 size = filtered_data_size;
+            for (auto& kv : sps_nal_bytes) {
+              auto& sps_nal = kv.second;
+              size += static_cast<i32>(sps_nal.size());
+            }
+            for (auto& kv : pps_nal_bytes) {
+              auto& pps_nal = kv.second;
+              size += static_cast<i32>(pps_nal.size());
+            }
 
             s_write(demuxed_bytestream.get(), size);
-            s_write(demuxed_bytestream.get(), sps_nal_bytes.data(),
-                    sps_nal_bytes.size());
-            s_write(demuxed_bytestream.get(), pps_nal_bytes.data(),
-                    pps_nal_bytes.size());
+            for (auto &kv : sps_nal_bytes) {
+              auto &sps_nal = kv.second;
+              s_write(demuxed_bytestream.get(), sps_nal.data(), sps_nal.size());
+            }
+            for (auto &kv : pps_nal_bytes) {
+              auto &pps_nal = kv.second;
+              s_write(demuxed_bytestream.get(), pps_nal.data(), pps_nal.size());
+            }
             // Append the packet to the stream
             s_write(demuxed_bytestream.get(), filtered_data,
                     filtered_data_size);
