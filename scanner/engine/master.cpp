@@ -198,7 +198,7 @@ public:
   ~MasterImpl() { delete storage_; }
 
   grpc::Status RegisterWorker(grpc::ServerContext *context,
-                              const proto::WorkerInfo *worker_info,
+                              const proto::WorkerParams *worker_info,
                               proto::Registration *registration) {
     set_database_path(db_params_.db_path);
 
@@ -206,6 +206,20 @@ public:
         worker_info->address(), grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
     addresses_.push_back(worker_info->address());
+
+    return grpc::Status::OK;
+  }
+
+  grpc::Status ActiveWorkers(grpc::ServerContext *context,
+                              const proto::Empty *empty,
+                              proto::RegisteredWorkers *registered_workers) {
+    set_database_path(db_params_.db_path);
+
+    for (size_t i = 0; i < workers_.size(); ++i) {
+      proto::WorkerInfo* info = registered_workers->add_workers();
+      info->set_id(i);
+      info->set_address(addresses_[i]);
+    }
 
     return grpc::Status::OK;
   }
@@ -487,7 +501,7 @@ public:
 
 private:
   std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
-    std::vector<std::string> addresses_;
+  std::vector<std::string> addresses_;
   DatabaseParameters db_params_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata> table_metas_;

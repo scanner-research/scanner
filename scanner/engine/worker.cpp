@@ -196,7 +196,7 @@ public:
     master_ = proto::Master::NewStub(grpc::CreateChannel(
         master_address, grpc::InsecureChannelCredentials()));
 
-    proto::WorkerInfo worker_info;
+    proto::WorkerParams worker_info;
     char hostname[1024];
     if (gethostname(hostname, 1024)) {
       LOG(FATAL) << "gethostname failed";
