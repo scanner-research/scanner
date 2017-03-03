@@ -28,7 +28,8 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
                                  VideoDecoderType decoder_type)
     : device_handle_(device_handle), num_devices_(num_devices),
       decoder_type_(decoder_type),
-      decoder_(VideoDecoder::make_from_config(device_handle, num_devices,
+      decoder_(VideoDecoder::make_from_config(device_handle,
+                                              num_devices,
                                               decoder_type)),
       feeder_waiting_(false), not_done_(true), frames_retrieved_(0) {
   feeder_thread_ = std::thread(&DecoderAutomata::feeder, this);
@@ -179,11 +180,15 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
         }
         current_frame_++;
         total_frames_decoded++;
+        // printf("curr frame %d, frames decoded %d\n", current_frame_,
+        //        total_frames_decoded);
       }
     }
     std::this_thread::yield();
   }
   decoder_->wait_until_frames_copied();
+  // printf("total frames decoded %d\n", total_frames_decoded);
+  // printf("total frames used %d\n", total_frames_used);
 }
 
 void DecoderAutomata::feeder() {
@@ -284,6 +289,7 @@ void DecoderAutomata::feeder() {
       }
       std::this_thread::yield();
     }
+    //printf("frames fed %d\n", frames_fed);
   }
 }
 }

@@ -70,12 +70,10 @@ struct DecoderState {
     cc = avcodec_alloc_context3(codec);
     EXPECT_TRUE(cc) << "could not alloc codec context";
 
-    cc->thread_count = 32;
+    cc->thread_count = 16;
 
     int result = avcodec_open2(cc, codec, NULL);
     EXPECT_TRUE(result >= 0) << "could not open codec";
-
-    //frame = av_frame_alloc();
 
     sws_context = nullptr;
 
@@ -264,9 +262,8 @@ protected:
 
     // Ingest video
     if (!downloaded) {
-      video_path = scanner::download_temp(
-          "https://storage.googleapis.com/scanner-data/test/short_video.mp4");
       downloaded = true;
+      video_path = download_video(short_video);
     }
   }
 
@@ -294,9 +291,10 @@ TEST_F(FfmpegTest, MemoryLeak) {
   auto storage = storehouse::StorageBackend::make_from_config(sc.get());
 
   // Load test data
+  printf("Reading data...\n");
   VideoMetadata video_meta =
       read_video_metadata(storage, download_video_meta(short_video));
-  std::vector<u8> video_bytes = read_entire_file(download_video(short_video));
+  std::vector<u8> video_bytes = read_entire_file(video_path);
 
   DecoderState ds;
   ds.frame_width = video_meta.width();
@@ -308,10 +306,11 @@ TEST_F(FfmpegTest, MemoryLeak) {
 
   const u8 *encoded_buffer = (const u8 *)video_bytes.data();
   size_t encoded_buffer_size = video_bytes.size();
-  encoded_buffer_size /= 5;
 
-  int iterations = 250;
+  printf("Starting decoding...\n");
+  int iterations = 3;
   for (int i = 0; i < iterations; ++i) {
+    printf("Iteration %d\n", i);
     size_t buffer_offset = 0;
     while (buffer_offset < encoded_buffer_size) {
       i32 encoded_packet_size = 0;
@@ -331,6 +330,7 @@ TEST_F(FfmpegTest, MemoryLeak) {
       }
     }
   }
+  delete[] decode_buffer;
 }
 
 }

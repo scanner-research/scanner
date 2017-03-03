@@ -5,7 +5,7 @@ option(BUILD_IMGPROC_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
 option(BUILD_CPM2_OPS "" OFF)
 option(BUILD_MOTION_OPS "" ON)
-option(BUILD_OPENFACE_OPS "" ON)
+option(BUILD_OPENFACE_OPS "" OFF)
 
 set(STDLIB_LIBRARIES)
 set(OPENCV_MAJOR_VERSION 3)
@@ -64,6 +64,9 @@ if (BUILD_MOTION_OPS)
   list(APPEND TARGETS motion)
 endif()
 
+add_subdirectory(misc)
+list(APPEND TARGETS misc)
+
 set(SOURCES)
 foreach (TARGET ${TARGETS})
   list(APPEND SOURCES $<TARGET_OBJECTS:${TARGET}>)
@@ -71,7 +74,7 @@ endforeach()
 
 build_op(
   LIB_NAME stdlib
-  CPP_SRCS ${SOURCES}
+  CPP_SRCS ${SOURCES} ../scanner/engine/halide_context.cpp
   PROTO_SRC stdlib.proto
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)

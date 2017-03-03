@@ -34,6 +34,11 @@ const TestVideoInfo short_video(
     "https://storage.googleapis.com/scanner-data/test/short_video.h264",
     "https://storage.googleapis.com/scanner-data/test/short_video_meta.bin");
 
+const TestVideoInfo long_video(
+    640, 480,
+    "https://storage.googleapis.com/scanner-data/test/long_video.h264",
+    "https://storage.googleapis.com/scanner-data/test/long_video_meta.bin");
+
 inline std::string download_video(const TestVideoInfo& info) {
   std::string local_video_path;
   temp_file(local_video_path);
