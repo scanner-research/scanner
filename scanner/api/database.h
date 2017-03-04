@@ -70,7 +70,9 @@ class Database {
 public:
   Database(storehouse::StorageConfig *storage_config,
            const std::string &db_path,
-           const std::string &master_address);
+           const std::string &master_address,
+           const std::string &master_port,
+           const std::string &worker_port);
 
   Result start_master(const MachineParameters &params);
 
@@ -107,6 +109,8 @@ private:
   std::unique_ptr<storehouse::StorageBackend> storage_;
   std::string db_path_;
   std::string master_address_;
+  std::string master_port_;
+  std::string worker_port_;
 
   ServerState master_state_;
   std::vector<ServerState> worker_states_;

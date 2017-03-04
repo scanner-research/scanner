@@ -21,12 +21,14 @@ db = Database()
 hist_op = db.ops.Histogram()
 
 # Create a Scanner table from our video in the format (table name, video path).
+
 # If any videos fail to ingest, they'll show up in the failed list. If force
 # is true, it will overwrite existing tables of the same name.
 example_video_path = util.download_video()
 [input_table], failed = db.ingest_videos([
     ('example', example_video_path),
     ('thisshouldfail', 'thisshouldfail.mp4')], force=True)
+
 print(db.summarize())
 print('Failures:', failed)
 

@@ -201,7 +201,7 @@ public:
                               const proto::WorkerParams *worker_info,
                               proto::Registration *registration) {
     set_database_path(db_params_.db_path);
-
+    VLOG(1) << "Adding worker: " << worker_info->address();
     workers_.push_back(proto::Worker::NewStub(grpc::CreateChannel(
         worker_info->address(), grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
@@ -445,10 +445,12 @@ public:
       GPR_ASSERT((i64)got_tag < workers_.size());
       assert(ok);
 
-      if (!replies[i].success()) {
-        LOG(WARNING) << "Worker returned error: " << replies[i].msg();
+      i64 worker_id = (i64)got_tag;
+
+      if (!replies[worker_id].success()) {
+        LOG(WARNING) << "Worker " << worker_id << " returned error: " << replies[worker_id].msg();
         job_result->set_success(false);
-        job_result->set_msg(replies[i].msg());
+        job_result->set_msg(replies[worker_id].msg());
         next_task_ = num_tasks_;
       }
     }
@@ -471,6 +473,26 @@ public:
                     proto::Empty *empty2) {
     return grpc::Status::OK;
   }
+
+  grpc::Status GetOpOutputInfo(grpc::ServerContext * context, const proto::OpOutputInfoArgs *op_output_info_args,
+                    proto::OpOutputInfo *op_output_info) {
+    OpRegistry *registry = get_op_registry();
+    std::string op_name = op_output_info_args->op_name();
+    if (!registry->has_op(op_name)) {
+      op_output_info->mutable_result()->set_success(false);
+      op_output_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
+      return grpc::Status::OK;
+    }
+    
+    OpInfo *info = registry->get_op_info(op_name);
+
+    for (auto& output_column : info->output_columns()) {
+      op_output_info->add_output_columns(output_column);
+    }
+    op_output_info->mutable_result()->set_success(true);
+
+    return grpc::Status::OK; 
+  }  
 
   grpc::Status LoadOp(grpc::ServerContext *context,
                       const proto::OpInfo *op_info, Result *result) {

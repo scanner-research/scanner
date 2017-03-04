@@ -21,7 +21,9 @@ protected:
     }
     sc_.reset(storehouse::StorageConfig::make_posix_config());
     std::string master_address = "localhost:5001";
-    db_ = new scanner::Database(sc_.get(), db_path, master_address);
+    std::string master_port = "5001";
+    std::string worker_port = "5002";
+    db_ = new scanner::Database(sc_.get(), db_path, master_address, master_port, worker_port);
 
     // Ingest video
     if (!downloaded) {

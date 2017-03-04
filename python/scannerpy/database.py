@@ -73,7 +73,9 @@ class Database:
         self._db = self._bindings.Database(
             self.config.storage_config,
             self._db_path,
-            self._master_address)
+            self._master_address,
+            str(self.config.master_port),
+            str(self.config.worker_port))
         if not os.path.isdir(pydb_path):
             os.mkdir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
@@ -242,9 +244,8 @@ class Database:
             master: ssh-able address of the master node.
             workers: list of ssh-able addresses of the worker nodes.
         """
-        master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master(True)"'
-        worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker(\'{}:5001\', True)"' \
-                     .format(master)
+        master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master()"'
+        worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker()"'
 
         master = self._run_remote_cmd(master, master_cmd)
         workers = [self._run_remote_cmd(w, worker_cmd) for w in workers]
@@ -519,9 +520,27 @@ class Database:
 
         return [e.to_proto(eval_index) for e in eval_sorted]
 
+    def _get_op_output_info(self, op_name):
+        op_output_info_args = self.protobufs.OpOutputInfoArgs()
+        op_output_info_args.op_name = op_name
+
+        op_output_info = self._try_rpc (lambda: self._master.GetOpOutputInfo(op_output_info_args))
+
+        if not op_output_info.result.success:
+            raise ScannerException(op_output_info.result.msg)
+
+        return op_output_info
+
+    def _check_has_op(self, op_name):
+        self._get_op_output_info(op_name)
+
+    def _get_output_columns(self, op_name):
+        return self._get_op_output_info(op_name).output_columns
+
     def _process_dag(self, op):
         # If ops are passed as a list (e.g. [transform, caffe])
         # then hook up inputs to outputs of adjacent ops
+
         if isinstance(op, list):
             for i in range(len(op) - 1):
                 if len(op[i+1]._inputs) > 0:
@@ -529,14 +548,14 @@ class Database:
                 if op[i]._name == "InputTable":
                     out_cols = ["frame", "frame_info"]
                 else:
-                    out_cols = self._bindings.get_output_columns(op[i]._name)
+                    out_cols = self._get_output_columns(op[i]._name)
                 op[i+1]._inputs = [(op[i], out_cols)]
             op = op[-1]
 
         # If the user doesn't explicitly specify an OutputTable, assume that
         # it's all the output columns of the last op.
         if op._name != "OutputTable":
-            out_cols = self._bindings.get_output_columns(str(op._name))
+            out_cols = self._get_output_columns(str(op._name))
             op = Op.output(self, [(op, out_cols)])
 
         return self._toposort(op)

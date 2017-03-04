@@ -13,6 +13,7 @@ service Master {
   rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpInfo) returns (Result) {}
+  rpc GetOpOutputInfo (OpOutputInfoArgs) returns (OpOutputInfo) {}
 }
 
 service Worker {
@@ -79,3 +80,13 @@ message NewWork {
   IOItem io_item = 1;
   LoadWorkEntry load_work = 2;
 };
+
+message OpOutputInfoArgs {
+  string op_name = 1;
+}
+
+message OpOutputInfo {
+  Result result = 1;
+  repeated string output_columns = 2;
+}
+

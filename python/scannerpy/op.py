@@ -1,5 +1,5 @@
 from common import *
-
+import grpc
 
 class OpGenerator:
     """
@@ -19,8 +19,8 @@ class OpGenerator:
         elif name == 'Output':
             return lambda inputs: Op.output(self._db, inputs)
 
-        if not self._db._bindings.has_op(name):
-            raise ScannerException('Op {} does not exist'.format(name))
+        # This will raise an exception if the op does not exist.
+        self._db._check_has_op(name)
 
         def make_op(**kwargs):
             inputs = kwargs.pop('inputs', [])
