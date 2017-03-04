@@ -171,10 +171,13 @@ MachineParameters default_machine_params() {
 
 Database::Database(storehouse::StorageConfig *storage_config,
                    const std::string &db_path,
-                   const std::string &master_address)
+                   const std::string &master_address,
+                   const std::string &master_port,
+                   const std::string &worker_port)
     : storage_config_(storage_config),
       storage_(storehouse::StorageBackend::make_from_config(storage_config)),
-      db_path_(db_path), master_address_(master_address) {
+      db_path_(db_path), master_address_(master_address) ,
+      master_port_(master_port), worker_port_(worker_port) {
 
   internal::set_database_path(db_path);
   if (!database_exists()) {
@@ -195,7 +198,7 @@ Result Database::start_master(const MachineParameters& machine_params) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   master_state_.service.reset(scanner::internal::get_master_service(params));
-  master_state_.server = start(master_state_.service, "5001");
+  master_state_.server = start(master_state_.service, master_port_);
 
   Result result;
   result.set_success(true);
@@ -208,8 +211,8 @@ Result Database::start_worker(const MachineParameters& machine_params) {
   worker_states_.emplace_back();
   ServerState &state = worker_states_.back();
   state.service.reset(
-      scanner::internal::get_worker_service(params, master_address_));
-  state.server = start(state.service, "5002");
+      scanner::internal::get_worker_service(params, master_address_, worker_port_));
+  state.server = start(state.service, worker_port_);
 
   Result result;
   result.set_success(true);
