@@ -219,9 +219,9 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
     // Get frame from pool of allocated frames to decode video into
     AVFrame *frame;
     {
-      if (frame_pool.empty()) {
+      if (frame_pool_.empty()) {
         // Create a new frame if our pool is empty
-        frame_pool.push(av_frame_alloc());
+        frame_pool_.push(av_frame_alloc());
       }
       frame_pool_.pop(frame);
     }
