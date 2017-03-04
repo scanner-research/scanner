@@ -74,7 +74,7 @@ endforeach()
 
 build_op(
   LIB_NAME stdlib
-  CPP_SRCS ${SOURCES} ../scanner/engine/halide_context.cpp
+  CPP_SRCS ${SOURCES}
   PROTO_SRC stdlib.proto
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)
