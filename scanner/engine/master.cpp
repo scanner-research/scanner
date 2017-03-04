@@ -199,17 +199,37 @@ public:
 
   ~MasterImpl() { delete storage_; }
 
+  // Expects context->peer() to return a string in the format ipv4:<peer_address>:<random_port>
+  // Returns the <peer_address> from the above format.
+  static std::string get_worker_address_from_grpc_context(grpc::ServerContext *context) {
+    std::string worker_address = context->peer();
+    std::size_t portSep = worker_address.find_last_of(':');
+    if (portSep == std::string::npos) { }
+    std::string worker_address_base = worker_address.substr(0, portSep);
+
+    portSep = worker_address_base.find_first_of(':');
+    if (portSep == std::string::npos) { }
+    
+    std::string worker_address_actual = worker_address_base.substr(portSep + 1);
+
+    return worker_address_actual;
+  }
+
   grpc::Status RegisterWorker(grpc::ServerContext *context,
                               const proto::WorkerParams *worker_info,
                               proto::Registration *registration) {
-    std::unique_lock<std::mutex> lk(work_mutex_);
+	std::unique_lock<std::mutex> lk(work_mutex_);
 
     set_database_path(db_params_.db_path);
-    VLOG(1) << "Adding worker: " << worker_info->address();
+
+    std::string worker_address = get_worker_address_from_grpc_context(context);
+    worker_address += ":" + worker_info->port();
+
+    VLOG(1) << "Adding worker: " << worker_address;
     workers_.push_back(proto::Worker::NewStub(grpc::CreateChannel(
-        worker_info->address(), grpc::InsecureChannelCredentials())));
+        worker_address, grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
-    addresses_.push_back(worker_info->address());
+    addresses_.push_back(worker_address);
 
     return grpc::Status::OK;
   }
