@@ -184,63 +184,6 @@ void analyze_dag(
 }
 }
 
-void errorGettingFQDN(std::string error_msg = "") {
-  LOG(FATAL) << "Error getting FQDN: " << error_msg;
-}
-
-/**
-  getFQDN - Given the master address (in <host:port> format),
-    returns the FQDN specific to the interface that is used to
-    connect to the master (so that the master may connect to this
-    worker via that FQDN). Will connect to master, run getsockinfo
-    on the open socket, and getnameinfo on the returned sockinfo.
-*/
-std::string getFQDN(std::string& master_address) {
-  std::size_t portSep = master_address.find_last_of(':');
-
-  if (portSep == std::string::npos) { errorGettingFQDN("Incorrect master address format"); }
-
-  int portno = atoi(master_address.substr(portSep+1).c_str());
-  if (portno == 0) { errorGettingFQDN("Incorrect master address format"); }
-
-  std::string master_address_base = master_address.substr(0, portSep);
-
-  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd < 0) { errorGettingFQDN("Error opening socket"); }
-
-  struct hostent *server = gethostbyname(master_address_base.c_str());
-  if (server == NULL) { errorGettingFQDN("Couldn't look up master's IP: " + master_address); }
-
-  struct sockaddr_in serv_addr;
-  memset(&serv_addr, 0, sizeof(serv_addr));
-  serv_addr.sin_family = AF_INET;
-  bcopy((char *)server->h_addr,
-       (char *)&serv_addr.sin_addr.s_addr,
-       server->h_length);
-  serv_addr.sin_port = htons(portno);
-  if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
-    errorGettingFQDN("Couldn't connect to master: " + master_address);
-  }
-
-  struct sockaddr_in worker_addr;
-  unsigned int worker_addr_size = sizeof(worker_addr);
-  if (getsockname(sockfd, (struct sockaddr*) &worker_addr, &worker_addr_size) != 0) {
-    close(sockfd);
-    errorGettingFQDN("Couldn't get socket name for connection to master.");
-  }
-
-  char fqdn[1024], local_port[1024];
-  if (getnameinfo((struct sockaddr *) &worker_addr, sizeof(worker_addr), fqdn, 1024, local_port, 1024, 0) != 0) {
-    close(sockfd);
-    errorGettingFQDN("Couldn't get FQDN after all this work.");
-  }
-
-  close(sockfd);
-
-  return std::string(fqdn);
-}
-
-
 class WorkerImpl final : public proto::Worker::Service {
 public:
   WorkerImpl(DatabaseParameters &db_params, std::string master_address,
@@ -258,11 +201,9 @@ public:
     master_ = proto::Master::NewStub(grpc::CreateChannel(
         master_address, grpc::InsecureChannelCredentials()));
 
-
     proto::WorkerParams worker_info;
-    std::string hostname = getFQDN(master_address);
+    worker_info.set_port(worker_port);
 
-    worker_info.set_address(hostname + ":" + worker_port);
     proto::MachineParameters* params = worker_info.mutable_params();
     params->set_num_cpus(db_params_.num_cpus);
     params->set_num_load_workers(db_params_.num_cpus);
