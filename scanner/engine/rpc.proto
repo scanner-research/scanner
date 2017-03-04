@@ -5,7 +5,8 @@ package scanner.proto;
 
 service Master {
   // Called after a new worker spawns to register with the master
-  rpc RegisterWorker (WorkerInfo) returns (Registration) {}
+  rpc RegisterWorker (WorkerParams) returns (Registration) {}
+  rpc ActiveWorkers (Empty) returns (RegisteredWorkers) {}
   // Ingest videos into the system
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
   rpc NextWork (NodeInfo) returns (NewWork) {}
@@ -27,12 +28,21 @@ message Result {
   string msg = 2;
 }
 
-message WorkerInfo {
+message WorkerParams {
   string address = 1;
 }
 
 message Registration {
   int32 node_id = 1;
+}
+
+message WorkerInfo {
+  int32 id = 1;
+  string address = 2;
+}
+
+message RegisteredWorkers {
+  repeated WorkerInfo workers = 1;
 }
 
 message OpInfo {
@@ -63,6 +73,7 @@ message JobParameters {
   int32 work_item_size = 6;
   int32 local_id = 7;
   int32 local_total = 8;
+  bool show_progress = 9;
 }
 
 message NewWork {

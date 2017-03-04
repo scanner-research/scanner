@@ -35,8 +35,12 @@ public:
     net_input_width_ = std::floor(frame_info_.width() * scale_);
     net_input_height_ = std::floor(frame_info_.height() * scale_);
 
-    net_input_width_ += (net_input_width_ % 8);
-    net_input_height_ += (net_input_height_ % 8);
+    if (net_input_width_ % 8 != 0)  {
+      net_input_width_  += 8 - (net_input_width_ % 8);
+    };
+    if (net_input_height_ % 8 != 0) {
+      net_input_height_ += 8 - (net_input_height_ % 8);
+    }
 
     grid_width_ = std::ceil(float(net_input_width_) / cell_width_);
     grid_height_ = std::ceil(float(net_input_height_) / cell_height_);

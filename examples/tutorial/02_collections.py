@@ -1,4 +1,8 @@
 from scannerpy import Database
+import sys
+import os.path
+sys.path.append(os.path.dirname(__file__) + '/..')
+import util
 
 ################################################################################
 # This tutorial shows how to organize your videos into Collections.            #
@@ -12,7 +16,9 @@ hist_op = db.ops.Histogram()
 # called "example_collection" from the video in the previous example.
 # Collections do not incur any runtime overhead, but are simply an abstraction
 # for more easily managing your videos.
-input_collection = db.ingest_video_collection('example_collection', ['example.mp4'])
+example_video_path = util.download_video()
+input_collection, _ = db.ingest_video_collection(
+    'example_collection', [example_video_path], force=True)
 print(db.summarize())
 
 # We can also provide collections directly to the run function which will run

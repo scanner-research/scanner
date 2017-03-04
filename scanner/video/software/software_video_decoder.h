@@ -17,6 +17,7 @@
 
 #include "scanner/video/video_decoder.h"
 #include "scanner/api/kernel.h"
+#include "scanner/util/queue.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -71,9 +72,8 @@ class SoftwareVideoDecoder : public VideoDecoder {
   bool reset_context_;
   SwsContext* sws_context_;
 
-  std::mutex frame_mutex_;
-  std::vector<AVFrame*> frame_pool_;
-  std::deque<AVFrame*> decoded_frame_queue_;
+  Queue<AVFrame*> frame_pool_;
+  Queue<AVFrame*> decoded_frame_queue_;
 };
 }
 }

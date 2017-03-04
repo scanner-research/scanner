@@ -9,6 +9,6 @@ all:
 # protoc generates the Python and C++ bindings for the ResizeArgs class.
 	protoc resize.proto --python_out=build --cpp_out=build
 # g++ builds the op library
-	g++ build/args.pb.cc resize_op.cpp -o build/libresize_op.so ${SCANNER_FLAGS} \
+	g++ build/resize.pb.cc resize_op.cpp -o build/libresize_op.so ${SCANNER_FLAGS} \
 		-I ${OpenCV_DIR}/include -L ${OpenCV_DIR}/lib -lopencv_core -lopencv_imgproc \
 		-I build
