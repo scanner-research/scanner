@@ -4,9 +4,9 @@ _For [build instructions](https://github.com/scanner-research/scanner/wiki/Build
 
 Scanner lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about Scanner like Spark for pixels. For example, you could use Scanner to:
 
-* Example 1
-* Example 2
-* Example 3
+* [Locate and recognize faces](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/face_detect.py)
+* [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection/shot_detect.py)
+* [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search/search.py)
 
 To support these applications, Scanner uses a Python interface similar to Tensorflow and Spark SQL. Videos are represented as tables in a database, and users write computation graphs to transform these tables. For example, to compute the color histogram for each frame in a set of videos on the GPU:
 
@@ -49,7 +49,7 @@ _Note: if you don't have a GPU, then run `docker` instead of `nvidia-docker` and
 Then inside your Docker container, run:
 
 ```bash
-python examples/demo/demo.py
+python examples/face_detection/face_detect.py
 ```
 
 This runs a Scanner demo which detects faces in every frame of a short video from YouTube, creating a file `example_faces.mp4`. Type `Ctrl-P + Ctrl-Q` to detach from the container and then run:

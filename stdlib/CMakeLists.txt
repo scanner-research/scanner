@@ -5,7 +5,7 @@ option(BUILD_IMGPROC_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
 option(BUILD_CPM2_OPS "" OFF)
 option(BUILD_MOTION_OPS "" ON)
-option(BUILD_OPENFACE_OPS "" ON)
+option(BUILD_OPENFACE_OPS "" OFF)
 
 set(STDLIB_LIBRARIES)
 set(OPENCV_MAJOR_VERSION 3)
@@ -63,6 +63,9 @@ if (BUILD_MOTION_OPS)
   add_subdirectory(motion)
   list(APPEND TARGETS motion)
 endif()
+
+add_subdirectory(misc)
+list(APPEND TARGETS misc)
 
 set(SOURCES)
 foreach (TARGET ${TARGETS})

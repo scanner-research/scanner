@@ -189,7 +189,7 @@ get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
 
 class MasterImpl final : public proto::Master::Service {
 public:
-  MasterImpl(DatabaseParameters &params) : db_params_(params) {
+  MasterImpl(DatabaseParameters &params) : db_params_(params), bar_(nullptr) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
     set_database_path(params.db_path);
@@ -198,7 +198,7 @@ public:
   ~MasterImpl() { delete storage_; }
 
   grpc::Status RegisterWorker(grpc::ServerContext *context,
-                              const proto::WorkerInfo *worker_info,
+                              const proto::WorkerParams *worker_info,
                               proto::Registration *registration) {
     set_database_path(db_params_.db_path);
     VLOG(1) << "Adding worker: " << worker_info->address();
@@ -206,6 +206,20 @@ public:
         worker_info->address(), grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
     addresses_.push_back(worker_info->address());
+
+    return grpc::Status::OK;
+  }
+
+  grpc::Status ActiveWorkers(grpc::ServerContext *context,
+                              const proto::Empty *empty,
+                              proto::RegisteredWorkers *registered_workers) {
+    set_database_path(db_params_.db_path);
+
+    for (size_t i = 0; i < workers_.size(); ++i) {
+      proto::WorkerInfo* info = registered_workers->add_workers();
+      info->set_id(i);
+      info->set_address(addresses_[i]);
+    }
 
     return grpc::Status::OK;
   }
@@ -263,7 +277,7 @@ public:
 
     samples_left_--;
     total_samples_used_++;
-    bar_->Progressed(total_samples_used_);
+    if (bar_) { bar_->Progressed(total_samples_used_); }
     return grpc::Status::OK;
   }
 
@@ -392,7 +406,12 @@ public:
     std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
         rpcs;
 
-    bar_ = new ProgressBar(total_samples_, "");
+    if (bar_) { delete bar_; }
+    if (job_params->show_progress()) {
+      bar_ = new ProgressBar(total_samples_, "");
+    } else {
+      bar_ = nullptr;
+    }
 
     std::map<std::string, i32> local_ids;
     std::map<std::string, i32> local_totals;
@@ -444,7 +463,7 @@ public:
       job_result->CopyFrom(task_result_);
     } else {
       assert(next_task_ == num_tasks_);
-      bar_->Progressed(total_samples_);
+      if (bar_) { bar_->Progressed(total_samples_); }
     }
 
     return grpc::Status::OK;
@@ -504,7 +523,7 @@ public:
 
 private:
   std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
-    std::vector<std::string> addresses_;
+  std::vector<std::string> addresses_;
   DatabaseParameters db_params_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata> table_metas_;

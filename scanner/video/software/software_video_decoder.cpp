@@ -41,12 +41,10 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
                                            DeviceType output_type,
                                            i32 thread_count)
     : device_id_(device_id), output_type_(output_type), codec_(nullptr),
-      cc_(nullptr), reset_context_(true), sws_context_(nullptr) {
+      cc_(nullptr), reset_context_(true), sws_context_(nullptr),
+      frame_pool_(1024), decoded_frame_queue_(1024) {
   avcodec_register_all();
 
-  if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
-    LOG(FATAL) << "Unsupported output type for software decoder";
-  }
   av_init_packet(&packet_);
 
   codec_ = avcodec_find_decoder(AV_CODEC_ID_H264);
@@ -62,7 +60,6 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
   }
 
   cc_->thread_count = thread_count;
-  cc_->refcounted_frames = 1;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");
@@ -77,16 +74,18 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   avcodec_close(cc_);
   av_freep(&cc_);
 #endif
-  for (AVFrame *frame : frame_pool_) {
+  while (frame_pool_.size() > 0) {
+    AVFrame* frame;
+    frame_pool_.pop(frame);
     av_frame_free(&frame);
   }
-  for (AVFrame *frame : decoded_frame_queue_) {
+  while (decoded_frame_queue_.size() > 0) {
+    AVFrame* frame;
+    decoded_frame_queue_.pop(frame);
     av_frame_free(&frame);
   }
 
-  if (sws_context_ != nullptr) {
-    sws_freeContext(sws_context_);
-  }
+  sws_freeContext(sws_context_);
 }
 
 void SoftwareVideoDecoder::configure(const FrameInfo &metadata) {
@@ -127,23 +126,35 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
     }
   }
 #endif
+  static thread_local i32 what = 0;
   if (discontinuity) {
-    std::lock_guard<std::mutex> lock(frame_mutex_);
+    // printf("what %d, frames %d\n",
+    //        what,
+    //        decoded_frame_queue_.size() + frame_pool_.size());
     while (decoded_frame_queue_.size() > 0) {
-      AVFrame *frame = decoded_frame_queue_.front();
-      decoded_frame_queue_.pop_front();
-      av_frame_unref(frame);
-      frame_pool_.push_back(frame);
+      AVFrame *frame;
+      decoded_frame_queue_.pop(frame);
+      av_frame_free(&frame);
+      what--;
     }
+    while (frame_pool_.size() > 0) {
+      AVFrame *frame;
+      frame_pool_.pop(frame);
+      av_frame_free(&frame);
+      what--;
+    }
+    // printf("disc, what %d\n", what);
     avcodec_flush_buffers(cc_);
     return false;
   }
   if (encoded_size > 0) {
-    if (av_new_packet(&packet_, encoded_size) < 0) {
-      fprintf(stderr, "could not allocate packet for feeding into decoder\n");
-      assert(false);
-    }
-    memcpy(packet_.data, encoded_buffer, encoded_size);
+    // if (av_new_packet(&packet_, encoded_size) < 0) {
+    //   fprintf(stderr, "could not allocate packet for feeding into decoder\n");
+    //   assert(false);
+    // }
+    // memcpy(packet_.data, encoded_buffer, encoded_size);
+    packet_.data = const_cast<u8*>(encoded_buffer);
+    packet_.size = encoded_size;
   } else {
     packet_.data = NULL;
     packet_.size = 0;
@@ -164,34 +175,34 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
   auto received_start = now();
   bool done = false;
   while (!done) {
-
     AVFrame *frame;
     {
-      std::lock_guard<std::mutex> lock(frame_mutex_);
-      if (frame_pool_.empty()) {
+      if (frame_pool_.size() <= 0) {
         // Create a new frame if our pool is empty
-        frame_pool_.push_back(av_frame_alloc());
+        frame_pool_.push(av_frame_alloc());
+        what++;
+        // printf("what %d, frame pool %d, decoded %d\n", what, frame_pool_.size(),
+        //        decoded_frame_queue_.size());
       }
-      frame = frame_pool_.back();
-      frame_pool_.pop_back();
+      frame_pool_.pop(frame);
     }
 
     error = avcodec_receive_frame(cc_, frame);
     if (error == AVERROR_EOF) {
+      frame_pool_.push(frame);
       break;
     }
     if (error == 0) {
-      std::lock_guard<std::mutex> lock(frame_mutex_);
-      decoded_frame_queue_.push_back(frame);
+      //printf("decoded_frame_queue %d\n", decoded_frame_queue_.size());
+      decoded_frame_queue_.push(frame);
     } else if (error == AVERROR(EAGAIN)) {
       done = true;
-      std::lock_guard<std::mutex> lock(frame_mutex_);
-      frame_pool_.push_back(frame);
+      frame_pool_.push(frame);
     } else {
       char err_msg[256];
       av_strerror(error, err_msg, 256);
       fprintf(stderr, "Error while receiving frame (%d): %s\n", error, err_msg);
-      assert(false);
+      exit(1);
     }
   }
   auto received_end = now();
@@ -208,13 +219,11 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
     // Get frame from pool of allocated frames to decode video into
     AVFrame *frame;
     {
-      std::lock_guard<std::mutex> lock(frame_mutex_);
-      if (frame_pool_.empty()) {
+      if (frame_pool_.size() <= 0) {
         // Create a new frame if our pool is empty
-        frame_pool_.push_back(av_frame_alloc());
+        frame_pool_.push(av_frame_alloc());
       }
-      frame = frame_pool_.back();
-      frame_pool_.pop_back();
+      frame_pool_.pop(frame);
     }
 
     auto decode_start = now();
@@ -238,17 +247,14 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
           fprintf(stderr, "could not clone frame\n");
           assert(false);
         }
-        std::lock_guard<std::mutex> lock(frame_mutex_);
-        decoded_frame_queue_.push_back(cloned_frame);
-        av_frame_unref(frame);
-        frame_pool_.push_back(frame);
+        decoded_frame_queue_.push(cloned_frame);
+        av_frame_free(&frame);
       } else {
         // Frame is reference counted so we can just take it directly
-        std::lock_guard<std::mutex> lock(frame_mutex_);
-        decoded_frame_queue_.push_back(frame);
+        decoded_frame_queue_.push(frame);
       }
     } else {
-      frame_pool_.push_back(frame);
+      frame_pool_.push(frame);
     }
     packet_.data += consumed_length;
     packet_.size -= consumed_length;
@@ -262,12 +268,11 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
 }
 
 bool SoftwareVideoDecoder::discard_frame() {
-  std::lock_guard<std::mutex> lock(frame_mutex_);
   if (decoded_frame_queue_.size() > 0) {
-    AVFrame *frame = decoded_frame_queue_.front();
-    decoded_frame_queue_.pop_front();
+    AVFrame *frame;
+    decoded_frame_queue_.pop(frame);
     av_frame_unref(frame);
-    frame_pool_.push_back(frame);
+    frame_pool_.push(frame);
   }
 
   return decoded_frame_queue_.size() > 0;
@@ -277,23 +282,19 @@ bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
   int64_t size_left = decoded_size;
 
   AVFrame *frame;
-  {
-    std::lock_guard<std::mutex> lock(frame_mutex_);
-    if (decoded_frame_queue_.size() > 0) {
-      frame = decoded_frame_queue_.front();
-      decoded_frame_queue_.pop_front();
-    } else {
-      return false;
-    }
+  if (decoded_frame_queue_.size() > 0) {
+    decoded_frame_queue_.pop(frame);
+  } else {
+    return false;
   }
 
   if (reset_context_) {
     auto get_context_start = now();
     AVPixelFormat decoder_pixel_format = cc_->pix_fmt;
-    sws_context_ =
-        sws_getCachedContext(sws_context_, frame_width_, frame_height_,
-                             decoder_pixel_format, frame_width_, frame_height_,
-                             AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+    sws_freeContext(sws_context_);
+    sws_context_ = sws_getContext(
+        frame_width_, frame_height_, decoder_pixel_format, frame_width_,
+        frame_height_, AV_PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
     reset_context_ = false;
     auto get_context_end = now();
     if (profiler_) {
@@ -307,12 +308,7 @@ bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
     exit(EXIT_FAILURE);
   }
 
-  u8 *scale_buffer = nullptr;
-  if (output_type_ == DeviceType::GPU) {
-    scale_buffer = conversion_buffer_.data();
-  } else if (output_type_ == DeviceType::CPU) {
-    scale_buffer = decoded_buffer;
-  }
+  u8 *scale_buffer = decoded_buffer;
 
   uint8_t *out_slices[4];
   int out_linesizes[4];
@@ -335,20 +331,8 @@ bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
   }
   auto scale_end = now();
 
-  if (output_type_ == DeviceType::GPU) {
-#ifdef HAVE_CUDA
-    cudaMemcpy(decoded_buffer, scale_buffer, required_size,
-               cudaMemcpyHostToDevice);
-#else
-    LOG(FATAL) << "Unsupported output type for software decoder";
-#endif
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(frame_mutex_);
-    av_frame_unref(frame);
-    frame_pool_.push_back(frame);
-  }
+  av_frame_unref(frame);
+  frame_pool_.push(frame);
 
   if (profiler_) {
     profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
@@ -358,7 +342,6 @@ bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
 }
 
 int SoftwareVideoDecoder::decoded_frames_buffered() {
-  std::lock_guard<std::mutex> lock(frame_mutex_);
   return decoded_frame_queue_.size();
 }
 

@@ -10,11 +10,11 @@ public:
 
   void net_config() override {
     // Calculate width by scaling by box size
-    int resize_width = frame_info_.width() * scale_;
-    int resize_height = frame_info_.height() * scale_;
+    int resize_width = std::floor(frame_info_.width() * scale_);
+    int resize_height = std::floor(frame_info_.height() * scale_);
 
-    resize_width += (resize_width % 8);
-    resize_height += (resize_height % 8);
+    if (resize_width % 8 != 0)  { resize_width  += 8 - (resize_width % 8);  }
+    if (resize_height % 8 != 0) { resize_height += 8 - (resize_height % 8); }
 
     int net_input_width = resize_height;
     int net_input_height = resize_width;

@@ -257,7 +257,8 @@ public:
     master_ = proto::Master::NewStub(grpc::CreateChannel(
         master_address, grpc::InsecureChannelCredentials()));
 
-    proto::WorkerInfo worker_info;
+
+    proto::WorkerParams worker_info;
     std::string hostname = getFQDN(master_address);
 
     worker_info.set_address(hostname + ":" + worker_port);
@@ -686,6 +687,9 @@ public:
       pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
     }
 
+#ifdef SCANNER_PROFILING
+    sleep(10);
+#endif
     timepoint_t start_time = now();
 
     // Monitor amount of work left and request more when running low
@@ -762,9 +766,6 @@ public:
       load_work.push(std::make_tuple(IOItem{}, entry));
     }
 
-    // NOTE(apoms): we don't want to wait if there is a failure because
-    // the bounded queues mean a thread might be hanging. Alternatively,
-    // we could drain all queues.
     for (i32 i = 0; i < num_load_workers; ++i) {
       // Wait until load has finished
       void *result;
@@ -813,8 +814,7 @@ public:
       // Wait until eval has finished
       void *result;
       i32 err = pthread_join(post_eval_threads[pu], &result);
-      LOG_IF(FATAL, err != 0)
-        << "error in pthread_join of post eval thread";
+      LOG_IF(FATAL, err != 0) << "error in pthread_join of post eval thread";
       free(result);
     }
 

@@ -38,7 +38,7 @@ class Table:
             col = None
             if isinstance(index, basestring):
                 for c in columns:
-                    if columns.name() == index:
+                    if c.name() == index:
                         col = c
                         break
                 if col is None:
@@ -79,4 +79,4 @@ class Table:
             if fn is not None:
                 yield (row, fn(vals, self._db))
             else:
-                yield (row, tup)
+                yield (row, vals)

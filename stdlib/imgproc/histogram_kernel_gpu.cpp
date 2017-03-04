@@ -40,16 +40,17 @@ public:
       i32 sid = i % num_cuda_streams_;
       cv::cuda::Stream &s = streams_[sid];
 
+      // TODO(wcrichto): implement correctly w/ streams
       cvc::GpuMat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
                       input_columns[0].rows[i].buffer);
-      cvc::split(img, planes_, s);
+      cvc::split(img, planes_);
 
       u8 *output_buf = output_block + i * hist_size;
       cvc::GpuMat out_mat(1, BINS * 3, CV_32S, output_buf);
 
       for (i32 j = 0; j < 3; ++j) {
         cvc::histEven(planes_[j], out_mat(cv::Rect(j * BINS, 0, BINS, 1)), BINS,
-                      0, 256, s);
+                      0, 256);
       }
 
       output_columns[0].rows.push_back(Row{output_buf, hist_size});
