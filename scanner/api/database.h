@@ -102,6 +102,7 @@ protected:
   struct ServerState {
     std::unique_ptr<grpc::Server> server;
     std::unique_ptr<grpc::Service> service;
+    std::unique_ptr<std::atomic<bool>> request_shutdown;
   };
 
 private:

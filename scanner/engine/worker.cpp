@@ -243,8 +243,9 @@ std::string getFQDN(std::string& master_address) {
 
 class WorkerImpl final : public proto::Worker::Service {
 public:
-  WorkerImpl(DatabaseParameters &db_params, std::string master_address, std::string worker_port)
-      : db_params_(db_params) {
+  WorkerImpl(DatabaseParameters &db_params, std::string master_address,
+             std::string worker_port, std::atomic<bool> &shutdown)
+      : db_params_(db_params), trigger_shutdown_(shutdown) {
     set_database_path(db_params.db_path);
 
 #ifdef DEBUG
@@ -262,6 +263,13 @@ public:
     std::string hostname = getFQDN(master_address);
 
     worker_info.set_address(hostname + ":" + worker_port);
+    proto::MachineParameters* params = worker_info.mutable_params();
+    params->set_num_cpus(db_params_.num_cpus);
+    params->set_num_load_workers(db_params_.num_cpus);
+    params->set_num_save_workers(db_params_.num_cpus);
+    for (i32 gpu_id : db_params_.gpu_ids) {
+      params->add_gpu_ids(gpu_id);
+    }
 
     grpc::ClientContext context;
     proto::Registration registration;
@@ -322,7 +330,14 @@ public:
     i32 num_cpus = db_params_.num_cpus;
     assert(num_cpus > 0);
 
-    i32 num_gpus = static_cast<i32>(db_params_.gpu_ids.size());
+    i32 num_gpus = db_params_.gpu_ids.size() / local_total;
+    // Should have at least one gpu if there are gpus
+    assert(db_params_.gpu_ids.size() == 0 || num_gpus > 0);
+    std::vector<i32> gpu_ids;
+    for (i32 i = 0; i < num_gpus; ++i) {
+      gpu_ids.push_back(i + local_id);
+    }
+
     for (size_t i = 1; i < ops.size() - 1; ++i) {
       auto &op = ops.Get(i);
       const std::string &name = op.name();
@@ -442,7 +457,7 @@ public:
               pipeline_instances_per_node,
               device_type == DeviceType::CPU
               ? db_params_.num_cpus / local_total / max_devices
-              : (i32) db_params_.gpu_ids.size() / local_total / max_devices);
+              : (i32) num_gpus / max_devices);
           }
           if (device_type == DeviceType::GPU) {
             has_gpu_kernel = true;
@@ -479,7 +494,7 @@ public:
       if (memory_pool_initialized_) {
         destroy_memory_allocators();
       }
-      init_memory_allocators(job_params->memory_pool_config(), db_params_.gpu_ids);
+      init_memory_allocators(job_params->memory_pool_config(), gpu_ids);
       cached_memory_pool_config_ = job_params->memory_pool_config();
       memory_pool_initialized_ = true;
     }
@@ -539,7 +554,7 @@ public:
 
 
     i32 next_cpu_num = 0;
-    i32 next_gpu_idx = db_params_.gpu_ids.size() / local_total * local_id;
+    i32 next_gpu_idx = 0;
     for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
       std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>> &work_queues =
           eval_work[ki];
@@ -579,7 +594,7 @@ public:
           }
         } else {
           for (i32 i = 0; i < factory->get_max_devices(); ++i) {
-            i32 device_id = db_params_.gpu_ids[next_gpu_idx++ % num_gpus];
+            i32 device_id = gpu_ids[next_gpu_idx++ % num_gpus];
             for (size_t i = 0; i < group.size(); ++i) {
               Kernel::Config &config = std::get<1>(group[i]);
               config.devices.clear();
@@ -925,10 +940,19 @@ public:
     return grpc::Status::OK;
   }
 
+  grpc::Status Shutdown(grpc::ServerContext *context,
+                        const proto::Empty *empty,
+                        Result *result) {
+    trigger_shutdown_ = true;
+    result->set_success(true);
+    return grpc::Status::OK;
+  }
+
 private:
   std::unique_ptr<proto::Master::Stub> master_;
   storehouse::StorageConfig *storage_config_;
   DatabaseParameters db_params_;
+  std::atomic<bool>& trigger_shutdown_;
   i32 node_id_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata *> table_metas_;
@@ -938,8 +962,9 @@ private:
 
 proto::Worker::Service *get_worker_service(DatabaseParameters &params,
                                            const std::string &master_address,
-                                           const std::string &worker_port) {
-  return new WorkerImpl(params, master_address, worker_port);
+                                           const std::string &worker_port,
+                                           std::atomic<bool>& shutdown) {
+  return new WorkerImpl(params, master_address, worker_port, shutdown);
 }
 
 }
