@@ -5,6 +5,7 @@
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
+#include <thread>
 
 namespace scanner {
 
@@ -54,11 +55,11 @@ std::string default_machine_params_wrapper() {
   return output;
 }
 
-void start_master_wrapper(Database& db) {
-  db.start_master(default_machine_params());
+proto::Result start_master_wrapper(Database& db) {
+  return db.start_master(default_machine_params());
 }
 
-void start_worker_wrapper(Database& db, const std::string& params_s) {
+proto::Result start_worker_wrapper(Database& db, const std::string& params_s) {
   proto::MachineParameters params_proto;
   params_proto.ParseFromString(params_s);
   MachineParameters params;
@@ -69,7 +70,7 @@ void start_worker_wrapper(Database& db, const std::string& params_s) {
     params.gpu_ids.push_back(gpu_id);
   }
 
-  db.start_worker(params);
+  return db.start_worker(params);
 }
 
 py::list ingest_videos_wrapper(
@@ -84,6 +85,11 @@ py::list ingest_videos_wrapper(
   return to_py_list<FailedVideo>(failed_videos);
 }
 
+Result wait_for_server_shutdown_wrapper(
+  Database& db) {
+  return db.wait_for_server_shutdown();
+}
+
 
 BOOST_PYTHON_MODULE(libscanner) {
   using namespace py;
@@ -93,9 +99,15 @@ BOOST_PYTHON_MODULE(libscanner) {
   class_<FailedVideo>("FailedVideo", no_init)
     .def_readonly("path", &FailedVideo::path)
     .def_readonly("message", &FailedVideo::message);
+  class_<proto::Result>("Result", no_init)
+      .def("success", &proto::Result::success,
+           return_value_policy<return_by_value>())
+      .def("msg", &proto::Result::msg,
+           return_value_policy<return_by_value>());
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
   def("ingest_videos", ingest_videos_wrapper);
+  def("wait_for_server_shutdown", wait_for_server_shutdown_wrapper);
   def("get_include", get_include);
   def("other_flags", other_flags);
   def("default_machine_params", default_machine_params_wrapper);
