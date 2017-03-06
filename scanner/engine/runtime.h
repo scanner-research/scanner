@@ -61,13 +61,15 @@ struct DatabaseParameters {
   std::vector<i32> gpu_ids;
 };
 
+
+
 proto::Master::Service *get_master_service(DatabaseParameters &param,
-                                           std::atomic<bool> &shutdown);
+                                           Flag& shutdown_flag);
 
 proto::Worker::Service *get_worker_service(DatabaseParameters &params,
                                            const std::string &master_address,
                                            const std::string &worker_port,
-                                           std::atomic<bool> &shutdown);
+                                           Flag& shutdown_flag);
 
 }
 }

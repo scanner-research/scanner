@@ -54,7 +54,8 @@ def start_master(config=None, config_path=None, block=False):
     return db
 
 
-def start_worker(master_address, config=None, config_path=None, block=False):
+def start_worker(master_address, port=None, config=None, config_path=None,
+                 block=False):
     """
     Start a worker instance on this node.
 
@@ -75,6 +76,7 @@ def start_worker(master_address, config=None, config_path=None, block=False):
         A cpp database instance.
     """
     config = config or Config(config_path)
+    port = port or config.worker_port
 
     # Load all protobuf types
     m_addr, _, m_port = master_address.partition(':')
@@ -84,9 +86,9 @@ def start_worker(master_address, config=None, config_path=None, block=False):
         config.db_path,
         m_addr,
         m_port,
-        config.worker_port)
+        str(port))
     machine_params = bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params)
+    result = bindings.start_worker(db, machine_params, int(port))
     if not result.success:
         raise ScannerException('Failed to start worker: {}'.format(result.msg))
     if block:
@@ -304,14 +306,21 @@ class Database:
         self._db = self._bindings.Database(
             self.config.storage_config,
             self._db_path,
-            self._master_address.split(':')[0],
+            self._master_address,
             self.config.master_port,
             self.config.worker_port)
 
         if self._debug:
+            self._master_conn = None
+            self._worker_conns = None
             machine_params = self._bindings.default_machine_params()
-            assert self._bindings.start_master(self._db).success
-            assert self._bindings.start_worker(self._db, machine_params).success
+            res = self._bindings.start_master(self._db).success
+            assert res
+            for i in range(len(workers)):
+                res = self._bindings.start_worker(
+                    self._db, machine_params,
+                    int(self.config.worker_port) + i).success
+                assert res
             assert self._connect_to_master()
         else:
             master_cmd = ('python -c ' +
@@ -321,10 +330,7 @@ class Database:
             worker_cmd = (
                 'python -c ' +
                 '"from scannerpy import start_worker\n' +
-                'start_worker(\'{:s}\', block=True, config_path=\'{}\')"').format(
-                    self._master_address,
-                    self.config.config_path)
-
+                'start_worker(\'{master:s}\', port={worker_port:d}, block=True, config_path=\'{config_path:s}\')"')
             self._master_conn = self._run_remote_cmd(self._master_address,
                                                      master_cmd)
 
@@ -342,8 +348,12 @@ class Database:
                 raise ScannerException('Timed out waiting to connect to master')
 
             # Start workers now that master is ready
-            self._worker_conns = [self._run_remote_cmd(w, worker_cmd)
-                                  for w in self._worker_addresses]
+            self._worker_conns = [
+                self._run_remote_cmd(w, worker_cmd.format(
+                    master=self._master_address,
+                    config_path=self.config.config_path,
+                    worker_port=int(w.partition(':')[2])))
+                for w in self._worker_addresses]
             slept_so_far = 0
             sleep_time = 20
             while slept_so_far < sleep_time:
@@ -375,12 +385,14 @@ class Database:
         if self._master:
             self._try_rpc(
                 lambda: self._master.Shutdown(self.protobufs.Empty()))
+            self._master = None
+        if self._master_conn:
             self._master_conn.kill()
             self._master_conn = None
+        if self._worker_conns:
             for wc in self._worker_conns:
                 wc.kill()
             self._worker_conns = None
-            self._master = None
 
     def _try_rpc(self, fn):
         try:

@@ -76,7 +76,7 @@ public:
 
   Result start_master(const MachineParameters &params);
 
-  Result start_worker(const MachineParameters &params);
+  Result start_worker(const MachineParameters &params, i32 port);
 
   Result ingest_videos(const std::vector<std::string> &table_names,
                               const std::vector<std::string> &paths,
@@ -102,7 +102,7 @@ protected:
   struct ServerState {
     std::unique_ptr<grpc::Server> server;
     std::unique_ptr<grpc::Service> service;
-    std::unique_ptr<std::atomic<bool>> request_shutdown;
+    Flag shutdown_flag;
   };
 
 private:
@@ -113,7 +113,7 @@ private:
   std::string master_port_;
   std::string worker_port_;
 
-  ServerState master_state_;
-  std::vector<ServerState> worker_states_;
+  std::unique_ptr<ServerState> master_state_;
+  std::vector<std::unique_ptr<ServerState>> worker_states_;
 };
 }
