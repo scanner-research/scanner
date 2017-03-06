@@ -9,8 +9,6 @@ import ipaddress
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
-from multiprocessing import Process
-from urlparse import urlparse
 # Scanner imports
 from common import *
 from profiler import Profiler
@@ -24,12 +22,21 @@ from column import Column
 
 def start_master(config=None, config_path=None, block=False):
     """
-    TODO(wcrichto)
+    Start a master server instance on this node.
+
+    Kwargs:
+        config: A scanner Config object. If specified, config_path is
+                ignored.
+        config_path: Path to a Scanner configuration TOML, by default
+                     assumed to be `~/.scanner.toml`.
+        block: If true, will wait until the server is shutdown. Server
+               will not shutdown currently unless wait_For_server_shutdown
+               is eventually called.
+
+    Returns:
+        A cpp database instance.
     """
-    if config:
-        config = config
-    else:
-        config = Config(config_path)
+    config = config or Config(config_path)
 
     # Load all protobuf types
     import libscanner as bindings
@@ -41,20 +48,33 @@ def start_master(config=None, config_path=None, block=False):
         config.worker_port)
     result = bindings.start_master(db)
     if not result.success:
-        return result
+        raise ScannerException('Failed to start master: {}'.format(result.msg))
     if block:
         bindings.wait_for_server_shutdown(db)
-    return result
+    return db
 
 
 def start_worker(master_address, config=None, config_path=None, block=False):
     """
-    TODO(wcrichto)
+    Start a master server instance on this node.
+
+    Args:
+        master_address: The address of the master server to connect this worker
+                        to.
+
+    Kwargs:
+        config: A scanner Config object. If specified, config_path is
+                ignored.
+        config_path: Path to a Scanner configuration TOML, by default
+                     assumed to be `~/.scanner.toml`.
+        block: If true, will wait until the server is shutdown. Server
+               will not shutdown currently unless wait_ror_server_shutdown
+               is eventually called.
+
+    Returns:
+        A cpp database instance.
     """
-    if config:
-        config = config
-    else:
-        config = Config(config_path)
+    config = config or Config(config_path)
 
     # Load all protobuf types
     m_addr, _, m_port = master_address.partition(':')
@@ -68,7 +88,7 @@ def start_worker(master_address, config=None, config_path=None, block=False):
     machine_params = bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params)
     if not result.success:
-        return result
+        raise ScannerException('Failed to start worker: {}'.format(result.msg))
     if block:
         bindings.wait_for_server_shutdown(db)
     return result
@@ -261,9 +281,7 @@ class Database:
 
     def start_cluster(self, master, workers):
         """
-        Convenience method for starting a Scanner cluster.
-
-        This should be run as a background/tmux/etc. script.
+        Starts  a Scanner cluster.
 
         Args:
             master: ssh-able address of the master node.
