@@ -4,10 +4,12 @@ import sys
 import grpc
 import imp
 import socket
+import time
+import ipaddress
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
-
+# Scanner imports
 from common import *
 from profiler import Profiler
 from config import Config
@@ -16,6 +18,80 @@ from sampler import Sampler
 from collection import Collection
 from table import Table
 from column import Column
+
+
+def start_master(config=None, config_path=None, block=False):
+    """
+    Start a master server instance on this node.
+
+    Kwargs:
+        config: A scanner Config object. If specified, config_path is
+                ignored.
+        config_path: Path to a Scanner configuration TOML, by default
+                     assumed to be `~/.scanner.toml`.
+        block: If true, will wait until the server is shutdown. Server
+               will not shutdown currently unless wait_For_server_shutdown
+               is eventually called.
+
+    Returns:
+        A cpp database instance.
+    """
+    config = config or Config(config_path)
+
+    # Load all protobuf types
+    import libscanner as bindings
+    db = bindings.Database(
+        config.storage_config,
+        config.db_path,
+        config.master_address_base,
+        config.master_port,
+        config.worker_port)
+    result = bindings.start_master(db)
+    if not result.success:
+        raise ScannerException('Failed to start master: {}'.format(result.msg))
+    if block:
+        bindings.wait_for_server_shutdown(db)
+    return db
+
+
+def start_worker(master_address, config=None, config_path=None, block=False):
+    """
+    Start a master server instance on this node.
+
+    Args:
+        master_address: The address of the master server to connect this worker
+                        to.
+
+    Kwargs:
+        config: A scanner Config object. If specified, config_path is
+                ignored.
+        config_path: Path to a Scanner configuration TOML, by default
+                     assumed to be `~/.scanner.toml`.
+        block: If true, will wait until the server is shutdown. Server
+               will not shutdown currently unless wait_ror_server_shutdown
+               is eventually called.
+
+    Returns:
+        A cpp database instance.
+    """
+    config = config or Config(config_path)
+
+    # Load all protobuf types
+    m_addr, _, m_port = master_address.partition(':')
+    import libscanner as bindings
+    db = bindings.Database(
+        config.storage_config,
+        config.db_path,
+        m_addr,
+        m_port,
+        config.worker_port)
+    machine_params = bindings.default_machine_params()
+    result = bindings.start_worker(db, machine_params)
+    if not result.success:
+        raise ScannerException('Failed to start worker: {}'.format(result.msg))
+    if block:
+        bindings.wait_for_server_shutdown(db)
+    return result
 
 
 class Database:
@@ -28,7 +104,8 @@ class Database:
         protobufs: TODO(wcrichto)
     """
 
-    def __init__(self, config_path=None, config=None):
+    def __init__(self, master=None, workers=None,
+                 config_path=None, config=None):
         """
         Initializes a Scanner database.
 
@@ -61,21 +138,16 @@ class Database:
         # Setup database metadata
         self._db_path = self.config.db_path
         self._storage = self.config.storage
-        self._master_address = self.config.master_address
         self._cached_db_metadata = None
         self._png_dump_prefix = '__png_dump_'
 
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self)
 
+        self.start_cluster(master, workers)
+
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
-        self._db = self._bindings.Database(
-            self.config.storage_config,
-            self._db_path,
-            self._master_address,
-            str(self.config.master_port),
-            str(self.config.worker_port))
         if not os.path.isdir(pydb_path):
             os.mkdir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
@@ -86,11 +158,8 @@ class Database:
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
 
-        self._connect_to_master()
-
-        stdlib_path = '{}/build/stdlib'.format(self.config.module_dir)
-        self.load_op('{}/libstdlib.so'.format(stdlib_path),
-                     '{}/stdlib_pb2.py'.format(stdlib_path))
+    def __del__(self):
+        self.stop_cluster()
 
     def get_build_flags(self):
         """
@@ -186,49 +255,25 @@ class Database:
             self._master_address,
             options=[('grpc.max_message_length', 24499183 * 2)])
         self._master = self.protobufs.MasterStub(channel)
-
-        # Ping master and start master/worker locally if they don't exist.
+        result = False
         try:
             self._master.Ping(self.protobufs.Empty())
+            result = True
         except grpc.RpcError as e:
             status = e.code()
             if status == grpc.StatusCode.UNAVAILABLE:
-                log.info("Master not started, creating temporary master/worker...")
-                # If they get GC'd then the masters/workers will die, so persist
-                # them until the database object dies
-                self.start_master()
-                self.start_worker()
-                log.info("Temporary master/worker started")
-
-                # If we don't reconnect to master, there's a 5-10 sec delay for
-                # for original connection to reboot
-                channel = grpc.insecure_channel(self._master_address)
-                self._master = self.protobufs.MasterStub(channel)
-            elif status == grpc.StatusCode.OK:
                 pass
+            elif status == grpc.StatusCode.OK:
+                result = True
             else:
                 raise ScannerException('Master ping errored with status: {}'
                                        .format(status))
-
-
-    def start_master(self):
-        """
-        TODO(wcrichto)
-        """
-
-        return self._bindings.start_master(self._db)
-
-    def start_worker(self):
-        """
-        TODO(wcrichto)
-        """
-
-        machine_params = self._bindings.default_machine_params()
-        return self._bindings.start_worker(self._db, machine_params)
+        return result
 
     def _run_remote_cmd(self, host, cmd):
-        local_ip = socket.gethostbyname(socket.gethostname())
-        if socket.gethostbyname(host) == local_ip:
+        host_ip, _, _ = host.partition(':')
+        host_ip = unicode(socket.gethostbyname(host_ip), "utf-8")
+        if ipaddress.ip_address(host_ip).is_private:
             return Popen(cmd, shell=True)
         else:
             print "ssh {} {}".format(host, cmd)
@@ -236,22 +281,93 @@ class Database:
 
     def start_cluster(self, master, workers):
         """
-        Convenience method for starting a Scanner cluster.
-
-        This should be run as a background/tmux/etc. script.
+        Starts  a Scanner cluster.
 
         Args:
             master: ssh-able address of the master node.
             workers: list of ssh-able addresses of the worker nodes.
         """
-        master_cmd = 'python -c "from scannerpy import Database as Db; Db().start_master()"'
-        worker_cmd = 'python -c "from scannerpy import Database as Db; Db().start_worker()"'
 
-        master = self._run_remote_cmd(master, master_cmd)
-        workers = [self._run_remote_cmd(w, worker_cmd) for w in workers]
-        master.wait()
-        for worker in workers:
-            worker.wait()
+        if master is None:
+            self._master_address = self.config.master_address
+        else:
+            self._master_address = master
+        if workers is None:
+            self._worker_addresses = [self.config.worker_address]
+        else:
+            self._worker_addresses = workers
+
+        master_cmd = ('python -c ' +
+                      '"from scannerpy import start_master\n' +
+                      'start_master(block=True)"')
+        worker_cmd = ('python -c ' +
+                      '"from scannerpy import start_worker\n' +
+                      'start_worker(\'{:s}\', block=True)"').format(
+                          self._master_address)
+
+        self._master_conn = self._run_remote_cmd(self._master_address,
+                                                 master_cmd)
+        # Wait for master to start
+        slept_so_far = 0
+        sleep_time = 20
+        while slept_so_far < sleep_time:
+            if self._connect_to_master():
+                break
+            time.sleep(0.3)
+            slept_so_far += 0.3
+        if slept_so_far >= sleep_time:
+            self._master_conn.kill()
+            self._master_conn = None
+            raise ScannerException('Timed out waiting to connect to master')
+
+        # Recreate db to connect to new master
+        self._db = self._bindings.Database(
+            self.config.storage_config,
+            self._db_path,
+            self._master_address,
+            self.config.master_port,
+            self.config.worker_port)
+
+        # Start workers now that master is ready
+        self._worker_conns = [self._run_remote_cmd(w, worker_cmd)
+                              for w in self._worker_addresses]
+        slept_so_far = 0
+        sleep_time = 20
+        while slept_so_far < sleep_time:
+            active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
+            if (len(active_workers.workers) > len(self._worker_addresses)):
+                raise ScannerException(
+                    ('Master has more workers than requested ' +
+                     '({:d} vs {:d})').format(len(active_workers.workers),
+                                              len(self._worker_addresses)))
+            if (len(active_workers.workers) == len(self._worker_addresses)):
+                break
+            time.sleep(0.3)
+            slept_so_far += 0.3
+        if slept_so_far >= sleep_time:
+            self._master_conn.wait()
+            for wc in self._worker_conns:
+                wc.wait()
+            self._master_conn = None
+            self._worker_conns = None
+            raise ScannerException(
+                'Timed out waiting for workers to connect to master')
+
+        # Load stdlib
+        stdlib_path = '{}/build/stdlib'.format(self.config.module_dir)
+        self.load_op('{}/libstdlib.so'.format(stdlib_path),
+                     '{}/stdlib_pb2.py'.format(stdlib_path))
+
+    def stop_cluster(self):
+        if self._master:
+            self._try_rpc(
+                lambda: self._master.Shutdown(self.protobufs.Empty()))
+            self._master_conn.kill()
+            self._master_conn = None
+            for wc in self._worker_conns:
+                wc.kill()
+            self._worker_conns = None
+            self._master = None
 
     def _try_rpc(self, fn):
         try:
