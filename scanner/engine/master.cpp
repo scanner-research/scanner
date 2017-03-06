@@ -444,8 +444,6 @@ public:
       w_job_params.set_local_id(local_ids[sans_port]);
       w_job_params.set_local_total(local_totals[sans_port]);
       local_ids[sans_port] += 1;
-      printf("local id %d\n", local_ids[sans_port]);
-      printf("address %s\n", sans_port.c_str());
       rpcs.emplace_back(
           worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
       rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
