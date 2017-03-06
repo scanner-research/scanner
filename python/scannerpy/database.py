@@ -105,7 +105,8 @@ class Database:
     """
 
     def __init__(self, master=None, workers=None,
-                 config_path=None, config=None):
+                 config_path=None, config=None,
+                 debug=False):
         """
         Initializes a Scanner database.
 
@@ -125,6 +126,8 @@ class Database:
             self.config = config
         else:
             self.config = Config(config_path)
+
+        self._debug = debug
 
         # Load all protobuf types
         import scanner.metadata_pb2 as metadata_types
@@ -297,61 +300,69 @@ class Database:
         else:
             self._worker_addresses = workers
 
-        master_cmd = ('python -c ' +
-                      '"from scannerpy import start_master\n' +
-                      'start_master(block=True)"')
-        worker_cmd = ('python -c ' +
-                      '"from scannerpy import start_worker\n' +
-                      'start_worker(\'{:s}\', block=True)"').format(
-                          self._master_address)
-
-        self._master_conn = self._run_remote_cmd(self._master_address,
-                                                 master_cmd)
-        # Wait for master to start
-        slept_so_far = 0
-        sleep_time = 20
-        while slept_so_far < sleep_time:
-            if self._connect_to_master():
-                break
-            time.sleep(0.3)
-            slept_so_far += 0.3
-        if slept_so_far >= sleep_time:
-            self._master_conn.kill()
-            self._master_conn = None
-            raise ScannerException('Timed out waiting to connect to master')
-
-        # Recreate db to connect to new master
+        # Boot up C++ database bindings
         self._db = self._bindings.Database(
             self.config.storage_config,
             self._db_path,
-            self._master_address,
+            self._master_address.split(':')[0],
             self.config.master_port,
             self.config.worker_port)
 
-        # Start workers now that master is ready
-        self._worker_conns = [self._run_remote_cmd(w, worker_cmd)
-                              for w in self._worker_addresses]
-        slept_so_far = 0
-        sleep_time = 20
-        while slept_so_far < sleep_time:
-            active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
-            if (len(active_workers.workers) > len(self._worker_addresses)):
+        if self._debug:
+            machine_params = self._bindings.default_machine_params()
+            assert self._bindings.start_master(self._db).success
+            assert self._bindings.start_worker(self._db, machine_params).success
+            assert self._connect_to_master()
+        else:
+            master_cmd = ('python -c ' +
+                          '"from scannerpy import start_master\n' +
+                          'start_master(block=True, config_path="{}")"').format(
+                              self.config.config_path)
+            worker_cmd = ('python -c ' +
+                          '"from scannerpy import start_worker\n' +
+                          'start_worker(\'{:s}\', block=True, config_path="{}")"').format(
+                              self._master_address)
+
+            self._master_conn = self._run_remote_cmd(self._master_address,
+                                                     master_cmd)
+
+            # Wait for master to start
+            slept_so_far = 0
+            sleep_time = 20
+            while slept_so_far < sleep_time:
+                if self._connect_to_master():
+                    break
+                time.sleep(0.3)
+                slept_so_far += 0.3
+            if slept_so_far >= sleep_time:
+                self._master_conn.kill()
+                self._master_conn = None
+                raise ScannerException('Timed out waiting to connect to master')
+
+            # Start workers now that master is ready
+            self._worker_conns = [self._run_remote_cmd(w, worker_cmd)
+                                  for w in self._worker_addresses]
+            slept_so_far = 0
+            sleep_time = 20
+            while slept_so_far < sleep_time:
+                active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
+                if (len(active_workers.workers) > len(self._worker_addresses)):
+                    raise ScannerException(
+                        ('Master has more workers than requested ' +
+                         '({:d} vs {:d})').format(len(active_workers.workers),
+                                                  len(self._worker_addresses)))
+                if (len(active_workers.workers) == len(self._worker_addresses)):
+                    break
+                time.sleep(0.3)
+                slept_so_far += 0.3
+            if slept_so_far >= sleep_time:
+                self._master_conn.wait()
+                for wc in self._worker_conns:
+                    wc.wait()
+                self._master_conn = None
+                self._worker_conns = None
                 raise ScannerException(
-                    ('Master has more workers than requested ' +
-                     '({:d} vs {:d})').format(len(active_workers.workers),
-                                              len(self._worker_addresses)))
-            if (len(active_workers.workers) == len(self._worker_addresses)):
-                break
-            time.sleep(0.3)
-            slept_so_far += 0.3
-        if slept_so_far >= sleep_time:
-            self._master_conn.wait()
-            for wc in self._worker_conns:
-                wc.wait()
-            self._master_conn = None
-            self._worker_conns = None
-            raise ScannerException(
-                'Timed out waiting for workers to connect to master')
+                    'Timed out waiting for workers to connect to master')
 
         # Load stdlib
         stdlib_path = '{}/build/stdlib'.format(self.config.module_dir)
