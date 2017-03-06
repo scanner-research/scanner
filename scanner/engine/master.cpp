@@ -189,7 +189,8 @@ get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
 
 class MasterImpl final : public proto::Master::Service {
 public:
-  MasterImpl(DatabaseParameters &params) : db_params_(params), bar_(nullptr) {
+  MasterImpl(DatabaseParameters &params, std::atomic<bool> &shutdown)
+      : db_params_(params), trigger_shutdown_(shutdown), bar_(nullptr) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
     set_database_path(params.db_path);
@@ -521,10 +522,26 @@ public:
     return grpc::Status::OK;
   }
 
+  grpc::Status Shutdown(grpc::ServerContext *context,
+                        const proto::Empty *empty,
+                        Result *result) {
+    result->set_success(true);
+    trigger_shutdown_ = true;
+    for (auto& w : workers_) {
+      grpc::ClientContext ctx;
+      proto::Empty empty;
+      proto::Result wresult;
+      w->Shutdown(&ctx, empty, &wresult);
+      result->CopyFrom(&wresult);
+    }
+    return grpc::Status::OK;
+  }
+
 private:
   std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
   std::vector<std::string> addresses_;
   DatabaseParameters db_params_;
+  std::atomic<bool>& trigger_shutdown_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata> table_metas_;
   proto::JobParameters job_params_;
@@ -541,8 +558,9 @@ private:
   Result task_result_;
 };
 
-proto::Master::Service *get_master_service(DatabaseParameters &param) {
-  return new MasterImpl(param);
+proto::Master::Service *get_master_service(DatabaseParameters &param,
+                                           std::atomic<bool> &shutdown) {
+  return new MasterImpl(param, shutdown);
 }
 }
 }

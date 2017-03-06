@@ -176,7 +176,7 @@ Database::Database(storehouse::StorageConfig *storage_config,
                    const std::string &worker_port)
     : storage_config_(storage_config),
       storage_(storehouse::StorageBackend::make_from_config(storage_config)),
-      db_path_(db_path), master_address_(master_address) ,
+      db_path_(db_path), master_address_(master_address),
       master_port_(master_port), worker_port_(worker_port) {
 
   internal::set_database_path(db_path);
@@ -197,7 +197,9 @@ Result Database::start_master(const MachineParameters& machine_params) {
   }
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
-  master_state_.service.reset(scanner::internal::get_master_service(params));
+  master_state_.request_shutdown.reset(new std::atomic<bool>());
+  master_state_.service.reset(scanner::internal::get_master_service(
+      params, *master_state_.request_shutdown.get()));
   master_state_.server = start(master_state_.service, master_port_);
 
   Result result;
@@ -210,8 +212,10 @@ Result Database::start_worker(const MachineParameters& machine_params) {
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   worker_states_.emplace_back();
   ServerState &state = worker_states_.back();
-  state.service.reset(
-      scanner::internal::get_worker_service(params, master_address_, worker_port_));
+  state.request_shutdown.reset(new std::atomic<bool>());
+  std::string maddr = master_address_ + ":" + master_port_;
+  state.service.reset(scanner::internal::get_worker_service(
+      params, maddr, worker_port_, *state.request_shutdown.get()));
   state.server = start(state.service, worker_port_);
 
   Result result;
@@ -294,10 +298,24 @@ Result Database::shutdown_worker() {
 
 Result Database::wait_for_server_shutdown() {
   if (master_state_.server.get() != nullptr) {
-    master_state_.server->Wait();
+    while (true) {
+      if (master_state_.request_shutdown->load()) {
+        master_state_.server->Shutdown();
+        master_state_.server->Wait();
+        break;
+      }
+      std::this_thread::yield();
+    }
   }
   for (ServerState& state : worker_states_) {
-    state.server->Wait();
+    while (true) {
+      if (state.request_shutdown->load()) {
+        state.server->Shutdown();
+        state.server->Wait();
+        break;
+      }
+      std::this_thread::yield();
+    }
   }
 
   Result result;

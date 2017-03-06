@@ -14,11 +14,13 @@ service Master {
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpInfo) returns (Result) {}
   rpc GetOpOutputInfo (OpOutputInfoArgs) returns (OpOutputInfo) {}
+  rpc Shutdown (Empty) returns (Result) {}
 }
 
 service Worker {
   rpc NewJob (JobParameters) returns (Result) {}
   rpc LoadOp (OpInfo) returns (Empty) {}
+  rpc Shutdown (Empty) returns (Result) {}
 }
 
 message Empty {}
@@ -30,6 +32,7 @@ message Result {
 
 message WorkerParams {
   string address = 1;
+  MachineParameters params = 2;
 }
 
 message Registration {
