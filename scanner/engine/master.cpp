@@ -525,14 +525,15 @@ public:
   grpc::Status Shutdown(grpc::ServerContext *context,
                         const proto::Empty *empty,
                         Result *result) {
+    result->set_success(true);
     trigger_shutdown_ = true;
     for (auto& w : workers_) {
       grpc::ClientContext ctx;
       proto::Empty empty;
-      proto::Result result;
-      w->Shutdown(&ctx, empty, &result);
+      proto::Result wresult;
+      w->Shutdown(&ctx, empty, &wresult);
+      result->CopyFrom(&wresult);
     }
-    result->set_success(true);
     return grpc::Status::OK;
   }
 
