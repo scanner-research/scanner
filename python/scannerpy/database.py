@@ -316,12 +316,14 @@ class Database:
         else:
             master_cmd = ('python -c ' +
                           '"from scannerpy import start_master\n' +
-                          'start_master(block=True, config_path="{}")"').format(
+                          'start_master(block=True, config_path=\'{}\')"').format(
                               self.config.config_path)
-            worker_cmd = ('python -c ' +
-                          '"from scannerpy import start_worker\n' +
-                          'start_worker(\'{:s}\', block=True, config_path="{}")"').format(
-                              self._master_address)
+            worker_cmd = (
+                'python -c ' +
+                '"from scannerpy import start_worker\n' +
+                'start_worker(\'{:s}\', block=True, config_path=\'{}\')"').format(
+                    self._master_address,
+                    self.config.config_path)
 
             self._master_conn = self._run_remote_cmd(self._master_address,
                                                      master_cmd)
