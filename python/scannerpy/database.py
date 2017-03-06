@@ -56,7 +56,7 @@ def start_master(config=None, config_path=None, block=False):
 
 def start_worker(master_address, config=None, config_path=None, block=False):
     """
-    Start a master server instance on this node.
+    Start a worker instance on this node.
 
     Args:
         master_address: The address of the master server to connect this worker
