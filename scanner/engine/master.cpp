@@ -532,7 +532,7 @@ public:
       proto::Empty empty;
       proto::Result wresult;
       w->Shutdown(&ctx, empty, &wresult);
-      result->CopyFrom(&wresult);
+      result->CopyFrom(wresult);
     }
     return grpc::Status::OK;
   }
