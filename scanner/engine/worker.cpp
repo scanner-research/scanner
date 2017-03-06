@@ -244,7 +244,7 @@ std::string getFQDN(std::string& master_address) {
 class WorkerImpl final : public proto::Worker::Service {
 public:
   WorkerImpl(DatabaseParameters &db_params, std::string master_address,
-             std::string worker_port, std::atomic<bool> &shutdown)
+             std::string worker_port, Flag& shutdown)
       : db_params_(db_params), trigger_shutdown_(shutdown) {
     set_database_path(db_params.db_path);
 
@@ -943,7 +943,7 @@ public:
   grpc::Status Shutdown(grpc::ServerContext *context,
                         const proto::Empty *empty,
                         Result *result) {
-    trigger_shutdown_ = true;
+    trigger_shutdown_.set();
     result->set_success(true);
     return grpc::Status::OK;
   }
@@ -952,7 +952,7 @@ private:
   std::unique_ptr<proto::Master::Stub> master_;
   storehouse::StorageConfig *storage_config_;
   DatabaseParameters db_params_;
-  std::atomic<bool>& trigger_shutdown_;
+  Flag& trigger_shutdown_;
   i32 node_id_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata *> table_metas_;
@@ -963,7 +963,7 @@ private:
 proto::Worker::Service *get_worker_service(DatabaseParameters &params,
                                            const std::string &master_address,
                                            const std::string &worker_port,
-                                           std::atomic<bool>& shutdown) {
+                                           Flag& shutdown) {
   return new WorkerImpl(params, master_address, worker_port, shutdown);
 }
 

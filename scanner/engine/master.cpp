@@ -17,6 +17,7 @@
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/sampler.h"
 #include "scanner/util/progress_bar.h"
+#include "scanner/util/util.h"
 #include <grpc/support/log.h>
 
 #include <mutex>
@@ -189,7 +190,7 @@ get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
 
 class MasterImpl final : public proto::Master::Service {
 public:
-  MasterImpl(DatabaseParameters &params, std::atomic<bool> &shutdown)
+  MasterImpl(DatabaseParameters &params, Flag& shutdown)
       : db_params_(params), trigger_shutdown_(shutdown), bar_(nullptr) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
@@ -201,6 +202,8 @@ public:
   grpc::Status RegisterWorker(grpc::ServerContext *context,
                               const proto::WorkerParams *worker_info,
                               proto::Registration *registration) {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+
     set_database_path(db_params_.db_path);
     VLOG(1) << "Adding worker: " << worker_info->address();
     workers_.push_back(proto::Worker::NewStub(grpc::CreateChannel(
@@ -214,6 +217,8 @@ public:
   grpc::Status ActiveWorkers(grpc::ServerContext *context,
                               const proto::Empty *empty,
                               proto::RegisteredWorkers *registered_workers) {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+
     set_database_path(db_params_.db_path);
 
     for (size_t i = 0; i < workers_.size(); ++i) {
@@ -417,10 +422,13 @@ public:
     std::map<std::string, i32> local_ids;
     std::map<std::string, i32> local_totals;
     for (std::string &address : addresses_) {
-      if (local_totals.count(address) == 0) {
-        local_totals[address] = 0;
+      // Strip port
+      std::vector<std::string> split_addr = split(address, ':');
+      std::string sans_port = split_addr[0];
+      if (local_totals.count(sans_port) == 0) {
+        local_totals[sans_port] = 0;
       }
-      local_totals[address] += 1;
+      local_totals[sans_port] += 1;
     }
 
     proto::JobParameters w_job_params;
@@ -428,12 +436,16 @@ public:
     for (size_t i = 0; i < workers_.size(); ++i) {
       auto &worker = workers_[i];
       std::string &address = addresses_[i];
-      if (local_ids.count(address) == 0) {
-        local_ids[address] = 0;
+      std::vector<std::string> split_addr = split(address, ':');
+      std::string sans_port = split_addr[0];
+      if (local_ids.count(sans_port) == 0) {
+        local_ids[sans_port] = 0;
       }
-      w_job_params.set_local_id(local_ids[address]);
-      w_job_params.set_local_total(local_totals[address]);
-      local_ids[address] += 1;
+      w_job_params.set_local_id(local_ids[sans_port]);
+      w_job_params.set_local_total(local_totals[sans_port]);
+      local_ids[sans_port] += 1;
+      printf("local id %d\n", local_ids[sans_port]);
+      printf("address %s\n", sans_port.c_str());
       rpcs.emplace_back(
           worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
       rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
@@ -526,7 +538,7 @@ public:
                         const proto::Empty *empty,
                         Result *result) {
     result->set_success(true);
-    trigger_shutdown_ = true;
+    trigger_shutdown_.set();
     for (auto& w : workers_) {
       grpc::ClientContext ctx;
       proto::Empty empty;
@@ -541,7 +553,7 @@ private:
   std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
   std::vector<std::string> addresses_;
   DatabaseParameters db_params_;
-  std::atomic<bool>& trigger_shutdown_;
+  Flag& trigger_shutdown_;
   storehouse::StorageBackend *storage_;
   std::map<std::string, TableMetadata> table_metas_;
   proto::JobParameters job_params_;
@@ -559,8 +571,8 @@ private:
 };
 
 proto::Master::Service *get_master_service(DatabaseParameters &param,
-                                           std::atomic<bool> &shutdown) {
-  return new MasterImpl(param, shutdown);
+                                           Flag& shutdown_flag) {
+  return new MasterImpl(param, shutdown_flag);
 }
 }
 }

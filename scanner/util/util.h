@@ -25,6 +25,8 @@
 #include <sstream>
 #include <vector>
 #include <glog/logging.h>
+#include <mutex>
+#include <condition_variable>
 
 namespace scanner {
 
@@ -89,4 +91,25 @@ template <typename T>
 T nano_to_ms(T ns) {
   return ns / 1000000;
 }
+
+class Flag {
+ public:
+  void set() {
+    std::unique_lock<std::mutex> lock(m_);
+    bit_ = true;
+    lock.unlock();
+    cv_.notify_all();
+  }
+
+  void wait() {
+    std::unique_lock<std::mutex> lock(m_);
+    cv_.wait(lock, [&] { return bit_.load(); });
+  }
+
+ private:
+  std::mutex m_;
+  std::condition_variable cv_;
+  std::atomic<bool> bit_{false};
+};
+
 }
