@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+import parsers
 
 def nms(boxes, overlapThresh):
     # if there are no boxes, return an empty list
@@ -6,6 +8,11 @@ def nms(boxes, overlapThresh):
         return []
     elif len(boxes) == 1:
         return boxes
+
+    boxes = [
+        [box.x1, box.y1, box.x2, box.y2, box.score,
+         box.track_id, box.track_score]
+        for box in boxes]
 
     npboxes = np.array(boxes[0])
     for box in boxes[1:]:
@@ -58,3 +65,27 @@ def nms(boxes, overlapThresh):
 
     # return only the bounding boxes that were picked
     return boxes[pick]
+
+
+def draw(vid_table, bbox_table, output_path, fps=24, threshold=0.0,
+                color=(255,0,0)):
+    rows = bbox_table.rows()
+    bboxes = [b for _, b in bbox_table.load([0], parsers.bboxes)]
+    frames = [f[0] for _, f in vid_table.load([0], rows=rows)]
+
+    frame_shape = frames[0].shape
+    output = cv2.VideoWriter(
+        output_path,
+        cv2.VideoWriter_fourcc(*'X264'),
+        fps,
+        (frame_shape[1], frame_shape[0]))
+
+    for (frame, frame_bboxes) in zip(frames, bboxes):
+        for bbox in frame_bboxes:
+            if bbox.score < threshold: continue
+            cv2.rectangle(
+                frame,
+                (int(bbox.x1), int(bbox.y1)),
+                (int(bbox.x2), int(bbox.y2)),
+                color, 3)
+        output.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))

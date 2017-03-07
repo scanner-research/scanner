@@ -91,6 +91,19 @@ Result wait_for_server_shutdown_wrapper(
   return db.wait_for_server_shutdown();
 }
 
+Result new_table_wrapper(
+  Database& db,
+  const std::string& name,
+  const py::list columns,
+  const py::list rows) {
+  std::vector<py::list> rows_py1 = to_std_vector<py::list>(rows);
+  std::vector<std::vector<std::string>> rows_py2;
+  for (auto l : rows_py1) {
+    rows_py2.push_back(to_std_vector<std::string>(l));
+  }
+
+  return db.new_table(name, to_std_vector<std::string>(columns), rows_py2);
+}
 
 BOOST_PYTHON_MODULE(libscanner) {
   using namespace py;
@@ -112,5 +125,6 @@ BOOST_PYTHON_MODULE(libscanner) {
   def("get_include", get_include);
   def("other_flags", other_flags);
   def("default_machine_params", default_machine_params_wrapper);
+  def("new_table", new_table_wrapper);
 }
 }

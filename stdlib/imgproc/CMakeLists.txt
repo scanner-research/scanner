@@ -1,7 +1,8 @@
 set(SOURCE_FILES
   blur_kernel_cpu.cpp
   histogram_kernel_cpu.cpp
-  image_encoder_kernel_cpu.cpp)
+  image_encoder_kernel_cpu.cpp
+  image_decoder_kernel_cpu.cpp)
 
 if (BUILD_CUDA)
   list(APPEND SOURCE_FILES

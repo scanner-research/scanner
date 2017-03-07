@@ -3,7 +3,8 @@ set(SOURCE_FILES
   caffe_kernel_cpu.cpp
   caffe_input_kernel.cpp
   caffe_input_kernel_cpu.cpp
-  facenet_output_kernel_cpu.cpp)
+  facenet_output_kernel_cpu.cpp
+  yolo_output_kernel_cpu.cpp)
 if (BUILD_CUDA)
   list(APPEND SOURCE_FILES
     caffe_kernel_gpu.cpp
@@ -26,6 +27,8 @@ add_halide_target(caffe_input_transformer_cpu.cpp host)
 if (BUILD_CUDA)
   add_halide_target(caffe_input_transformer_gpu.cpp cuda)
 endif()
+
+add_definitions(-DUSE_OPENCV)
 
 add_library(caffe OBJECT ${SOURCE_FILES})
 

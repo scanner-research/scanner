@@ -151,7 +151,7 @@ void CaffeInputKernel::transform_caffe(u8 *input_buffer, u8 *output_buffer) {
   }
 
   caffe::DataTransformer<f32> transformer(param, caffe::TEST);
-  // transformer.Transform(input_mats, &output_blob);
+  transformer.Transform(input_mats, &output_blob);
 }
 
 void CaffeInputKernel::execute(const BatchedColumns &input_columns,

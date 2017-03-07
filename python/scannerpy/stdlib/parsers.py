@@ -14,9 +14,7 @@ def bboxes(bufs, db):
         box = db.protobufs.BoundingBox()
         box.ParseFromString(buf[:bbox_size])
         buf = buf[bbox_size:]
-        bbox = [box.x1, box.y1, box.x2, box.y2, box.score,
-                box.track_id, box.track_score]
-        bboxes.append(bbox)
+        bboxes.append(box)
     return bboxes
 
 

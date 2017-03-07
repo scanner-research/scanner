@@ -235,7 +235,7 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
   return result;
 
   auto channel =
-      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
+      grpc::CreateChannel(master_address_ + ":" + master_port_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
       proto::Master::NewStub(channel);
 
@@ -263,7 +263,8 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
 
 Result Database::new_job(JobParameters &params) {
   auto channel =
-      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
+      grpc::CreateChannel(master_address_ + ":" + master_port_,
+                          grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
       proto::Master::NewStub(channel);
 
@@ -281,6 +282,63 @@ Result Database::new_job(JobParameters &params) {
 
   return job_result;
 }
+
+
+Result Database::new_table(const std::string& table_name,
+                           const std::vector<std::string>& columns,
+                           const std::vector<std::vector<std::string>>& rows) {
+
+  internal::DatabaseMetadata meta =
+    internal::read_database_metadata(
+      storage_.get(), internal::DatabaseMetadata::descriptor_path());
+
+  i32 table_id = meta.add_table(table_name);
+  proto::TableDescriptor table_desc;
+  table_desc.set_id(table_id);
+  table_desc.set_name(table_name);
+  table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
+                             now().time_since_epoch())
+                           .count());
+  for (size_t i = 0; i < columns.size(); ++i) {
+    proto::Column* col = table_desc.add_columns();
+    col->set_id(i);
+    col->set_name(columns[i]);
+    col->set_type(proto::ColumnType::Other);
+  }
+
+  table_desc.add_end_rows(rows.size());
+  table_desc.set_job_id(-1);
+
+  internal::write_table_metadata(storage_.get(), internal::TableMetadata(table_desc));
+  internal::write_database_metadata(storage_.get(), meta);
+
+  for (size_t j = 0; j < columns.size(); ++j) {
+    const std::string output_path =
+      internal::table_item_output_path(table_id, j, 0);
+
+    storehouse::WriteFile *output_file = nullptr;
+    BACKOFF_FAIL(storage_->make_write_file(output_path, output_file));
+
+    u64 num_rows = rows.size();
+    s_write(output_file, num_rows);
+    for (size_t i = 0; i < num_rows; ++i) {
+      i64 buffer_size = rows[i][j].size();
+      s_write(output_file, buffer_size);
+    }
+    for (size_t i = 0; i < num_rows; ++i) {
+      i64 buffer_size = rows[i][j].size();
+      u8* buffer = (u8*) rows[i][j].data();
+      s_write(output_file, buffer, buffer_size);
+    }
+
+    BACKOFF_FAIL(output_file->save());
+  }
+
+  proto::Result result;
+  result.set_success(true);
+  return result;
+}
+
 
 Result Database::shutdown_master() {
   LOG(FATAL) << "Not implemented yet!";
