@@ -23,6 +23,12 @@ public:
     frames_per_row_ = args_.frames_per_row();
   }
 
+  ~MontageKernelGPU() {
+    if (montage_buffer_ != nullptr) {
+      delete_buffer(device_, montage_buffer_);
+    }
+  }
+
   void reset(){
     if (montage_width_ != 0) {
       montage_buffer_ =
@@ -54,7 +60,6 @@ public:
 
     i32 input_count = input_columns[0].rows.size();
     for (i32 i = 0; i < input_count; ++i) {
-      // TODO(wcrichto): implement correctly w/ streams
       cvc::GpuMat img(frame_height_, frame_width_, CV_8UC3,
                       input_columns[0].rows[i].buffer);
       i64 x = frames_seen_ % frames_per_row_;
@@ -66,8 +71,10 @@ public:
 
       frames_seen_++;
       if (frames_seen_ == num_frames_) {
+        assert(montage_buffer_ != nullptr);
         output_columns[0].rows.push_back(
             Row{montage_buffer_, montage_width_ * montage_height_ * 3});
+        montage_buffer_ = nullptr;
       } else {
         output_columns[0].rows.push_back(Row{new_buffer(device_, 1), 1});
       }
@@ -83,7 +90,7 @@ private:
   proto::Result valid_;
   DeviceHandle device_;
   proto::MontageArgs args_;
-  i64 num_frames_ = args_.num_frames();
+  i64 num_frames_;
   i32 frame_width_;
   i32 frame_height_;
   i32 target_width_;
