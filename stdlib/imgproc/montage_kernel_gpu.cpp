@@ -11,7 +11,7 @@ class MontageKernelGPU : public VideoKernel {
 public:
   MontageKernelGPU(const Kernel::Config &config)
       : VideoKernel(config), device_(config.devices[0]),
-        frames_seen_(0) {
+        frames_seen_(0), montage_width_(0) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
       RESULT_ERROR(&valid_, "MontageKernel could not parse protobuf args");
@@ -21,6 +21,17 @@ public:
     num_frames_ = args_.num_frames();
     target_width_ = args_.target_width();
     frames_per_row_ = args_.frames_per_row();
+  }
+
+  void reset(){
+    if (montage_width_ != 0) {
+      montage_buffer_ =
+          new_buffer(device_, montage_width_ * montage_height_ * 3);
+      montage_image_ = cvc::GpuMat(montage_height_, montage_width_, CV_8UC3,
+                                   montage_buffer_);
+      montage_image_.setTo(0);
+      frames_seen_ = 0;
+    }
   }
 
   void new_frame_info() override {
@@ -33,12 +44,7 @@ public:
     montage_width_ = frames_per_row_ * target_width_;
     montage_height_ =
         std::ceil(num_frames_ / (1.0 * frames_per_row_)) * target_height_;
-
-    montage_buffer_ =
-        new_buffer(device_, montage_width_ * montage_height_ * 3);
-    montage_image_ =
-        cvc::GpuMat(montage_height_, montage_width_, CV_8UC3, montage_buffer_);
-    montage_image_.setTo(0);
+    reset();
   }
 
   void execute(const BatchedColumns &input_columns,
