@@ -8,6 +8,7 @@ import sys
 import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
+import time
 
 try:
     import plotly.offline as offline
@@ -67,10 +68,9 @@ def make_montage(n, frames):
 
 
 def make_montage_scanner(db, table, shot_starts):
-    row_length = 32
-    num_rows = len(shot_starts) / row_length
+    row_length = 8
     rows_per_item = 1
-    target_width = 128
+    target_width = 256
 
     montage_args = db.protobufs.MontageArgs()
     montage_args.num_frames = row_length * rows_per_item
@@ -98,25 +98,35 @@ def main():
 
     with Database() as db:
         print('Loading movie into Scanner database...')
+        s = time.time()
         db.ingest_videos([(movie_name, movie_path)], force=True)
         movie_table = db.table(movie_name)
+        print('Time: {:.1f}s'.format(time.time() - s))
 
+        s = time.time()
         print('Computing a color histogram for each frame...')
         db.run(
             db.sampler().all([(movie_table.name(), movie_name + '_hist')]),
             db.ops.Histogram(device=DeviceType.GPU),
             force=True)
         hists_table = db.table(movie_name + '_hist')
+        print('')
+        print('Time: {:.1f}s'.format(time.time() - s))
 
+        s = time.time()
         print('Computing shot boundaries...')
         # Read histograms from disk
         hists = [h for _, h in hists_table.load(['histogram'],
                                                 parsers.histograms)]
         boundaries = compute_shot_boundaries(hists)
+        print('Time: {:.1f}s'.format(time.time() - s))
 
-        print('Visualizing shot boundaries...')
+        s = time.time()
+        print('Creating shot montage...')
         # Make montage in scanner
         montage_img = make_montage_scanner(db, movie_table.name(), boundaries)
+        print('')
+        print('Time: {:.1f}s'.format(time.time() - s))
 
         # Loading the frames for each shot boundary
         # frames = movie_table.load([0], rows=boundaries)
