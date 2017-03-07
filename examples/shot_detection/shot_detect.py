@@ -79,9 +79,7 @@ def make_montage_scanner(db, table, shot_starts):
     for _, img in montage_collection.tables(0).load([0]):
         pass
     img = np.frombuffer(img[0], dtype=np.uint8)
-    print(img.shape)
     img = np.reshape(img, (256 * 8, -1, 3))
-    print(img.shape)
     return img
 
 
