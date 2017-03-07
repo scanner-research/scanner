@@ -438,9 +438,6 @@ public:
       std::string &address = addresses_[i];
       std::vector<std::string> split_addr = split(address, ':');
       std::string sans_port = split_addr[0];
-      if (local_ids.count(sans_port) == 0) {
-        local_ids[sans_port] = 0;
-      }
       w_job_params.set_local_id(local_ids[sans_port]);
       w_job_params.set_local_total(local_totals[sans_port]);
       local_ids[sans_port] += 1;

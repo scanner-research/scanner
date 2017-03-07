@@ -330,12 +330,17 @@ public:
     i32 num_cpus = db_params_.num_cpus;
     assert(num_cpus > 0);
 
+    i32 total_gpus = db_params_.gpu_ids.size();
     i32 num_gpus = db_params_.gpu_ids.size() / local_total;
     // Should have at least one gpu if there are gpus
     assert(db_params_.gpu_ids.size() == 0 || num_gpus > 0);
     std::vector<i32> gpu_ids;
-    for (i32 i = 0; i < num_gpus; ++i) {
-      gpu_ids.push_back(i + local_id);
+    {
+      i32 start_idx = num_gpus * local_id;
+      for (i32 i = 0; i < num_gpus; ++i) {
+        gpu_ids.push_back(db_params_.gpu_ids[(start_idx + i) % total_gpus]);
+        printf("device id %d\n", gpu_ids.back());
+      }
     }
 
     for (size_t i = 1; i < ops.size() - 1; ++i) {
