@@ -208,14 +208,14 @@ Result Database::start_master(const MachineParameters& machine_params) {
 }
 
 Result Database::start_worker(const MachineParameters &machine_params,
-                              i32 port) {
+                              const std::string& port) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   ServerState* s = new ServerState;
   ServerState &state = *s;
   std::string maddr = master_address_ + ":" + master_port_;
   state.service.reset(scanner::internal::get_worker_service(
-      params, maddr, std::to_string(port),
+      params, maddr, port,
       state.shutdown_flag));
   state.server = start(state.service, worker_port_);
   worker_states_.emplace_back(s);

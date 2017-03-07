@@ -7,17 +7,17 @@
 int main(int argc, char** argv) {
   grpc_use_signal(-1);
 
-  int worker_port = std::atoi(argv[1]);
+  std::string worker_port(argv[1]);
 
   std::string db_path = "/tmp/scanner_db";
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
   std::string master_address = "localhost";
-  int master_port = 5001;
+  const std::string master_port = "5001";
 
   scanner::Database db(sc.get(), db_path, master_address,
-                       std::to_string(master_port),
-                       std::to_string(worker_port));
+                       master_port,
+                       worker_port);
 
   // Ingest video
   scanner::Result result;
