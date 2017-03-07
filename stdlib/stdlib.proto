@@ -8,6 +8,12 @@ message BlurArgs {
   float sigma = 2;
 }
 
+message MontageArgs {
+  int64 num_frames = 1;
+  int32 target_width = 4;
+  int32 frames_per_row = 6;
+}
+
 message CaffeInputArgs {
   NetDescriptor net_descriptor = 1;
   int32 batch_size = 2;

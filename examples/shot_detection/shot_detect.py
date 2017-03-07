@@ -66,6 +66,25 @@ def make_montage(n, frames):
     return img
 
 
+def make_montage_scanner(db, table, shot_starts):
+    montage_args = db.protobufs.MontageArgs()
+    montage_args.num_frames = len(shot_starts)
+    montage_args.target_width = 256
+    montage_args.frames_per_row = 8
+    montage_op = db.ops.Montage(args=montage_args, device=DeviceType.GPU)
+    selected_frames = [db.sampler().gather((table, 'mont'), shot_starts,
+                                          item_size=len(shot_starts))]
+    montage_collection = db.run(selected_frames, montage_op, 'montage_image',
+                                force=True)
+    for _, img in montage_collection.tables(0).load([0]):
+        pass
+    img = np.frombuffer(img[0], dtype=np.uint8)
+    print(img.shape)
+    img = np.reshape(img, (256 * 8, -1, 3))
+    print(img.shape)
+    return img
+
+
 def main():
     movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
     print('Detecting shots in movie {}'.format(movie_path))
@@ -91,10 +110,12 @@ def main():
         boundaries = compute_shot_boundaries(hists)
 
         print('Visualizing shot boundaries...')
+        # Make montage in scanner
+        montage_img = make_montage_scanner(db, movie_table.name(), boundaries)
 
         # Loading the frames for each shot boundary
-        frames = movie_table.load([0], rows=boundaries)
-        montage_img = make_montage(len(boundaries), frames)
+        # frames = movie_table.load([0], rows=boundaries)
+        # montage_img = make_montage(len(boundaries), frames)
 
         cv2.imwrite('shots.jpg', montage_img)
         print('Successfully generated shots.jpg')

@@ -6,7 +6,8 @@ set(SOURCE_FILES
 
 if (BUILD_CUDA)
   list(APPEND SOURCE_FILES
-    histogram_kernel_gpu.cpp)
+    histogram_kernel_gpu.cpp
+    montage_kernel_gpu.cpp)
 endif()
 
 add_library(imgproc OBJECT ${SOURCE_FILES})
