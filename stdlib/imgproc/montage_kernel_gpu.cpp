@@ -38,6 +38,7 @@ public:
         new_buffer(device_, montage_width_ * montage_height_ * 3);
     montage_image_ =
         cvc::GpuMat(montage_height_, montage_width_, CV_8UC3, montage_buffer_);
+    montage_image_.setTo(0);
   }
 
   void execute(const BatchedColumns &input_columns,
