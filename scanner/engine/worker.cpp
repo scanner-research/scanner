@@ -339,7 +339,6 @@ public:
       i32 start_idx = num_gpus * local_id;
       for (i32 i = 0; i < num_gpus; ++i) {
         gpu_ids.push_back(db_params_.gpu_ids[(start_idx + i) % total_gpus]);
-        printf("device id %d\n", gpu_ids.back());
       }
     }
 
