@@ -86,9 +86,9 @@ def start_worker(master_address, port=None, config=None, config_path=None,
         config.db_path,
         m_addr,
         m_port,
-        str(port))
+        port)
     machine_params = bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params, int(port))
+    result = bindings.start_worker(db, machine_params, port)
     if not result.success:
         raise ScannerException('Failed to start worker: {}'.format(result.msg))
     if block:
@@ -318,7 +318,7 @@ class Database:
             for i in range(len(workers)):
                 res = self._bindings.start_worker(
                     self._db, machine_params,
-                    int(self.config.worker_port) + i).success
+                    str(int(self.config.worker_port) + i)).success
                 assert res
             assert self._connect_to_master()
         else:
@@ -329,7 +329,7 @@ class Database:
             worker_cmd = (
                 'python -c ' +
                 '"from scannerpy import start_worker\n' +
-                'start_worker(\'{master:s}\', port={worker_port:d}, block=True, config_path=\'{config_path:s}\')"')
+                'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config_path=\'{config_path:s}\')"')
             self._master_conn = self._run_remote_cmd(self._master_address,
                                                      master_cmd)
 
@@ -351,7 +351,7 @@ class Database:
                 self._run_remote_cmd(w, worker_cmd.format(
                     master=self._master_address,
                     config_path=self.config.config_path,
-                    worker_port=int(w.partition(':')[2])))
+                    worker_port=w.partition(':')[2]))
                 for w in self._worker_addresses]
             slept_so_far = 0
             sleep_time = 20

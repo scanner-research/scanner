@@ -152,5 +152,5 @@ class TestOpticalFlow:
 
     def run(self, db, op):
         tasks = db.sampler().range([('test', 'test_flow')], 0, 50, warmup_size=1)
-        [table] = db.run(tasks, op, force=True)
+        [table] = db.run(tasks, op, force=True, show_progress=False)
         next(table.load([0, 1], parsers.flow))

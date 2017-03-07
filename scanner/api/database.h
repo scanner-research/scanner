@@ -76,7 +76,7 @@ public:
 
   Result start_master(const MachineParameters &params);
 
-  Result start_worker(const MachineParameters &params, i32 port);
+  Result start_worker(const MachineParameters &params, const std::string& port);
 
   Result ingest_videos(const std::vector<std::string> &table_names,
                               const std::vector<std::string> &paths,

@@ -60,7 +60,7 @@ proto::Result start_master_wrapper(Database& db) {
 }
 
 proto::Result start_worker_wrapper(Database &db, const std::string &params_s,
-                                   i32 port) {
+                                   const std::string& port) {
   proto::MachineParameters params_proto;
   params_proto.ParseFromString(params_s);
   MachineParameters params;
