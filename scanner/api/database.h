@@ -88,6 +88,10 @@ public:
 
   Result new_job(JobParameters &params);
 
+  Result new_table(const std::string& table_name,
+                   const std::vector<std::string>& columns,
+                   const std::vector<std::vector<std::string>>& rows);
+
   Result shutdown_master();
 
   Result shutdown_worker();

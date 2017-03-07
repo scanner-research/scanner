@@ -59,9 +59,9 @@ class Config(object):
                 if 'master' in network:
                     self.master_address_base = network['master'].encode('ascii','ignore')
                 if 'master_port' in network:
-                    self.master_port = int(network['master_port'])
+                    self.master_port = network['master_port'].encode('ascii', 'ignore')
                 if 'worker_port' in network:
-                    self.worker_port = int(network['worker_port'])
+                    self.worker_port = network['worker_port'].encode('ascii', 'ignore')
 
             self.master_address = self.master_address_base + ':' + str(self.master_port)
             self.worker_address = self.master_address_base + ':' + str(self.worker_port)
@@ -85,7 +85,7 @@ class Config(object):
 
     @staticmethod
     def default_config():
-        hostname = check_output(['hostname', '-A']).split(' ')[0]
+        hostname = check_output(['hostname']).strip()
 
         scanner_path = os.path.abspath(
             os.path.join(os.path.dirname(__file__), '..', '..'))

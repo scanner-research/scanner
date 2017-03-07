@@ -15,7 +15,9 @@ class OpGenerator:
 
     def __getattr__(self, name):
         if name == 'Input':
-            return lambda: Op.input(self._db)
+            def make_op(inputs=None):
+                return Op.input(self._db, inputs)
+            return make_op
         elif name == 'Output':
             return lambda inputs: Op.output(self._db, inputs)
 
@@ -40,10 +42,9 @@ class Op:
         self._args = args
 
     @classmethod
-    def input(cls, db):
-        # TODO(wcrichto): allow non-frame inputs
-        return cls(db, "InputTable", [(None, ["frame", "frame_info"])],
-                   DeviceType.CPU, {})
+    def input(cls, db, inputs=None):
+        inputs = inputs or ["frame", "frame_info"]
+        return cls(db, "InputTable", [(None, inputs)], DeviceType.CPU, {})
 
     @classmethod
     def output(cls, db, inputs):

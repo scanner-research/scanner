@@ -192,17 +192,17 @@ void errorGettingFQDN(std::string error_msg = "") {
   getFQDN - Given the master address (in <host:port> format),
     returns the FQDN specific to the interface that is used to
     connect to the master (so that the master may connect to this
-    worker via that FQDN). Will connect to master, run getsockinfo 
+    worker via that FQDN). Will connect to master, run getsockinfo
     on the open socket, and getnameinfo on the returned sockinfo.
 */
-std::string getFQDN(std::string& master_address) { 
+std::string getFQDN(std::string& master_address) {
   std::size_t portSep = master_address.find_last_of(':');
-  
+
   if (portSep == std::string::npos) { errorGettingFQDN("Incorrect master address format"); }
-  
+
   int portno = atoi(master_address.substr(portSep+1).c_str());
   if (portno == 0) { errorGettingFQDN("Incorrect master address format"); }
-  
+
   std::string master_address_base = master_address.substr(0, portSep);
 
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -214,7 +214,7 @@ std::string getFQDN(std::string& master_address) {
   struct sockaddr_in serv_addr;
   memset(&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
-  bcopy((char *)server->h_addr, 
+  bcopy((char *)server->h_addr,
        (char *)&serv_addr.sin_addr.s_addr,
        server->h_length);
   serv_addr.sin_port = htons(portno);

@@ -491,7 +491,7 @@ public:
       op_output_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
       return grpc::Status::OK;
     }
-    
+
     OpInfo *info = registry->get_op_info(op_name);
 
     for (auto& output_column : info->output_columns()) {
@@ -499,8 +499,8 @@ public:
     }
     op_output_info->mutable_result()->set_success(true);
 
-    return grpc::Status::OK; 
-  }  
+    return grpc::Status::OK;
+  }
 
   grpc::Status LoadOp(grpc::ServerContext *context,
                       const proto::OpInfo *op_info, Result *result) {

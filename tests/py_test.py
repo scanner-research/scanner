@@ -5,6 +5,61 @@ import toml
 import pytest
 import subprocess
 import requests
+import imp
+import os.path
+
+try:
+    subprocess.check_call(['nvidia-smi'])
+    has_gpu = True
+except OSError:
+    has_gpu = False
+
+gpu = pytest.mark.skipif(
+    not has_gpu,
+    reason='need GPU to run')
+slow = pytest.mark.skipif(
+    not pytest.config.getoption('--runslow'),
+    reason='need --runslow option to run')
+
+cwd = os.path.dirname(os.path.abspath(__file__))
+
+# def test_tutorial():
+#     def run_py(path):
+#         print(path)
+#         subprocess.check_call(
+#             'cd {}/../examples/tutorial && python {}.py'.format(cwd, path),
+#             shell=True)
+
+#     subprocess.check_call(
+#         'cd {}/../examples/tutorial/resize_op && '
+#         'mkdir -p build && cd build && cmake -D SCANNER_PATH={} .. && '
+#         'make'.format(cwd, cwd + '/..'),
+#         shell=True)
+
+#     tutorials = [
+#         '00_basic',
+#         '01_sampling',
+#         '02_collections',
+#         '03_ops',
+#         '04_custom_op']
+
+#     for t in tutorials:
+#         run_py(t)
+
+@slow
+def test_examples():
+    def run_py((d, f)):
+        print(f)
+        subprocess.check_call(
+            'cd {}/../examples/{} && python {}.py'.format(cwd, d, f),
+            shell=True)
+
+    examples = [
+        ('face_detection', 'face_detect'),
+        ('shot_detection', 'shot_detect')]
+
+    for e in examples:
+        run_py(e)
 
 @pytest.fixture(scope="module")
 def db():
@@ -16,7 +71,7 @@ def db():
         cfg_path = f.name
 
     # Setup and ingest video
-    db = Database(cfg_path)
+    db = Database(config_path=cfg_path)
     url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
     with tempfile.NamedTemporaryFile(delete=False) as f:
         resp = requests.get(url, stream=True)
@@ -34,7 +89,6 @@ def db():
                            cfg_path,
                            vid_path])
 
-@pytest.mark.first
 def test_new_database(db): pass
 
 def test_table_properties(db):
@@ -54,7 +108,8 @@ def test_load_video_column(db):
 def test_profiler(db):
     [output] = db.run(
         db.sampler().all([('test', '_ignore')]),
-        db.ops.Histogram())
+        db.ops.Histogram(),
+        show_progress=False)
     profiler = output.profiler()
     f = tempfile.NamedTemporaryFile(delete=False)
     f.close()
@@ -69,7 +124,7 @@ def builder(cls):
         def test_cpu(self, db):
             inst.run(db, inst.op(db, DeviceType.CPU))
 
-        @pytest.mark.gpu
+        @gpu
         def test_gpu(self, db):
             inst.run(db, inst.op(db, DeviceType.GPU))
 
@@ -81,7 +136,8 @@ class TestHistogram:
         return db.ops.Histogram(device=ty)
 
     def run(self, db, op):
-        [table] = db.run(db.sampler().all([('test', 'test_hist')]), op, force=True)
+        [table] = db.run(db.sampler().all([('test', 'test_hist')]), op,
+                         force=True, show_progress=False)
         next(table.load([0], parsers.histograms))
 
 @builder

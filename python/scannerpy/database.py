@@ -281,8 +281,7 @@ class Database:
         if ipaddress.ip_address(host_ip).is_private:
             return Popen(cmd, shell=True)
         else:
-            print "ssh {} {}".format(host, cmd)
-            return Popen("ssh {} {}".format(host, cmd), shell=True)
+            return Popen("ssh {} {}".format(host_ip, cmd), shell=True)
 
     def start_cluster(self, master, workers):
         """
@@ -579,6 +578,15 @@ class Database:
         self._delete_table(name)
         self._save_descriptor(db_meta, 'db_metadata.bin')
 
+    def new_table(self, name, columns, rows, force=False):
+        if self.has_table(name):
+            if force:
+                self.delete_table(name)
+            else:
+                raise ScannerException('Attempted to create table with existing '
+                                       'name {}'.format(name))
+        self._bindings.new_table(self._db, name, columns, rows)
+
     def table(self, name):
         db_meta = self._load_db_metadata()
 
@@ -687,7 +695,7 @@ class Database:
                 if len(op[i+1]._inputs) > 0:
                     continue
                 if op[i]._name == "InputTable":
-                    out_cols = ["frame", "frame_info"]
+                    out_cols = [c for _, c in op[i]._inputs]
                 else:
                     out_cols = self._get_output_columns(op[i]._name)
                 op[i+1]._inputs = [(op[i], out_cols)]
