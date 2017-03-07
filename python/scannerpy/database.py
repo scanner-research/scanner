@@ -166,6 +166,12 @@ class Database:
     def __del__(self):
         self.stop_cluster()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_val, exception_tb):
+        self.stop_cluster()
+
     def get_build_flags(self):
         """
         Gets the g++ build flags for compiling custom ops.
