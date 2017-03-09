@@ -74,7 +74,7 @@ def make_montage_scanner(db, table, shot_starts):
 
     montage_args = db.protobufs.MontageArgs()
     montage_args.num_frames = row_length * rows_per_item
-    montage_args.target_width = 128
+    montage_args.target_width = target_width
     montage_args.frames_per_row = row_length
     montage_op = db.ops.Montage(args=montage_args, device=DeviceType.GPU)
     selected_frames = [db.sampler().gather((table, 'mont'), shot_starts,
