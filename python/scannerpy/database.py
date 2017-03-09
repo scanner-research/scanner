@@ -284,10 +284,10 @@ class Database:
     def _run_remote_cmd(self, host, cmd):
         host_ip, _, _ = host.partition(':')
         host_ip = unicode(socket.gethostbyname(host_ip), "utf-8")
-        if ipaddress.ip_address(host_ip).is_private:
-            return Popen(cmd, shell=True)
+        if ipaddress.ip_address(host_ip).is_loopback:
+           return Popen(cmd, shell=True)
         else:
-            return Popen("ssh {} {}".format(host_ip, cmd), shell=True)
+            return Popen("ssh {} \"{}\"".format(host_ip, cmd), shell=True)
 
     def start_cluster(self, master, workers):
         """
@@ -329,13 +329,13 @@ class Database:
             assert self._connect_to_master()
         else:
             master_cmd = ('python -c ' +
-                          '"from scannerpy import start_master\n' +
-                          'start_master(block=True, config_path=\'{}\')"').format(
+                          '\\"from scannerpy import start_master\n' +
+                          'start_master(block=True, config_path=\'{}\')\\"').format(
                               self.config.config_path)
             worker_cmd = (
                 'python -c ' +
-                '"from scannerpy import start_worker\n' +
-                'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config_path=\'{config_path:s}\')"')
+                '\\"from scannerpy import start_worker\n' +
+                'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config_path=\'{config_path:s}\')\\"')
             self._master_conn = self._run_remote_cmd(self._master_address,
                                                      master_cmd)
 
