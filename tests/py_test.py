@@ -71,7 +71,7 @@ def db():
         cfg_path = f.name
 
     # Setup and ingest video
-    db = Database(config_path=cfg_path)
+    db = Database(config_path=cfg_path, debug=True)
     url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
     with tempfile.NamedTemporaryFile(delete=False) as f:
         resp = requests.get(url, stream=True)
