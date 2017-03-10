@@ -171,13 +171,10 @@ MachineParameters default_machine_params() {
 
 Database::Database(storehouse::StorageConfig *storage_config,
                    const std::string &db_path,
-                   const std::string &master_address,
-                   const std::string &master_port,
-                   const std::string &worker_port)
+                   const std::string &master_address)
     : storage_config_(storage_config),
       storage_(storehouse::StorageBackend::make_from_config(storage_config)),
-      db_path_(db_path), master_address_(master_address),
-      master_port_(master_port), worker_port_(worker_port) {
+      db_path_(db_path), master_address_(master_address) {
 
   internal::set_database_path(db_path);
   if (!database_exists()) {
@@ -188,7 +185,8 @@ Database::Database(storehouse::StorageConfig *storage_config,
   gpr_set_log_verbosity(GPR_LOG_SEVERITY_ERROR);
 }
 
-Result Database::start_master(const MachineParameters& machine_params) {
+Result Database::start_master(const MachineParameters& machine_params,
+                              const std::string& port) {
   if (master_state_ != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
@@ -200,7 +198,7 @@ Result Database::start_master(const MachineParameters& machine_params) {
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   master_state_->service.reset(scanner::internal::get_master_service(
       params, master_state_->shutdown_flag));
-  master_state_->server = start(master_state_->service, master_port_);
+  master_state_->server = start(master_state_->service, port);
 
   Result result;
   result.set_success(true);
@@ -213,11 +211,9 @@ Result Database::start_worker(const MachineParameters &machine_params,
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   ServerState* s = new ServerState;
   ServerState &state = *s;
-  std::string maddr = master_address_ + ":" + master_port_;
   state.service.reset(scanner::internal::get_worker_service(
-      params, maddr, port,
-      state.shutdown_flag));
-  state.server = start(state.service, worker_port_);
+      params, master_address_, port, state.shutdown_flag));
+  state.server = start(state.service, port);
   worker_states_.emplace_back(s);
 
   Result result;
@@ -235,7 +231,7 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
   return result;
 
   auto channel =
-      grpc::CreateChannel(master_address_ + ":" + master_port_, grpc::InsecureChannelCredentials());
+      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
       proto::Master::NewStub(channel);
 
@@ -263,8 +259,7 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
 
 Result Database::new_job(JobParameters &params) {
   auto channel =
-      grpc::CreateChannel(master_address_ + ":" + master_port_,
-                          grpc::InsecureChannelCredentials());
+      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
       proto::Master::NewStub(channel);
 

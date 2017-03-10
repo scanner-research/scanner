@@ -6,6 +6,7 @@ import imp
 import socket
 import time
 import ipaddress
+import pickle
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
@@ -20,7 +21,7 @@ from table import Table
 from column import Column
 
 
-def start_master(config=None, config_path=None, block=False):
+def start_master(port=None, config=None, config_path=None, block=False):
     """
     Start a master server instance on this node.
 
@@ -37,16 +38,15 @@ def start_master(config=None, config_path=None, block=False):
         A cpp database instance.
     """
     config = config or Config(config_path)
+    port = port or config.master_port
 
     # Load all protobuf types
     import libscanner as bindings
     db = bindings.Database(
         config.storage_config,
         config.db_path,
-        config.master_address_base,
-        config.master_port,
-        config.worker_port)
-    result = bindings.start_master(db)
+        config.master_address + ':' + port)
+    result = bindings.start_master(db, port)
     if not result.success:
         raise ScannerException('Failed to start master: {}'.format(result.msg))
     if block:
@@ -79,14 +79,11 @@ def start_worker(master_address, port=None, config=None, config_path=None,
     port = port or config.worker_port
 
     # Load all protobuf types
-    m_addr, _, m_port = master_address.partition(':')
     import libscanner as bindings
     db = bindings.Database(
         config.storage_config,
         config.db_path,
-        m_addr,
-        m_port,
-        port)
+        master_address)
     machine_params = bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params, port)
     if not result.success:
@@ -263,7 +260,7 @@ class Database:
 
     def _connect_to_master(self):
         channel = grpc.insecure_channel(
-            self._master_address + ':' + self.config.master_port,
+            self._master_address,
             options=[('grpc.max_message_length', 24499183 * 2)])
         self._master = self.protobufs.MasterStub(channel)
         result = False
@@ -285,8 +282,9 @@ class Database:
         host_ip, _, _ = host.partition(':')
         host_ip = unicode(socket.gethostbyname(host_ip), "utf-8")
         if ipaddress.ip_address(host_ip).is_loopback:
-           return Popen(cmd, shell=True)
+            return Popen(cmd, shell=True)
         else:
+            cmd = cmd.replace('"', '\"')
             return Popen("ssh {} \"{}\"".format(host_ip, cmd), shell=True)
 
     def start_cluster(self, master, workers):
@@ -299,11 +297,13 @@ class Database:
         """
 
         if master is None:
-            self._master_address = self.config.master_address
+            self._master_address = (
+                self.config.master_address + ':' + self.config.master_port)
         else:
             self._master_address = master
         if workers is None:
-            self._worker_addresses = [self.config.master_address]
+            self._worker_addresses = [
+                self.config.master_address + ':' + self.config.worker_port]
         else:
             self._worker_addresses = workers
 
@@ -311,9 +311,7 @@ class Database:
         self._db = self._bindings.Database(
             self.config.storage_config,
             self._db_path,
-            self._master_address,
-            self.config.master_port,
-            self.config.worker_port)
+            self._master_address)
 
         if self._debug:
             self._master_conn = None
@@ -328,14 +326,21 @@ class Database:
                 assert res
             assert self._connect_to_master()
         else:
-            master_cmd = ('python -c ' +
-                          '\\"from scannerpy import start_master\n' +
-                          'start_master(block=True, config_path=\'{}\')\\"').format(
-                              self.config.config_path)
+            pickled_config = pickle.dumps(self.config)
+            master_cmd = (
+                'python -c ' +
+                '\"from scannerpy import start_master\n' +
+                'import pickle\n' +
+                'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
+                'start_master(port=\'{master_port:s}\', block=True, config=config)\"').format(
+                    master_port=self.config.master_port,
+                    config=pickled_config)
             worker_cmd = (
                 'python -c ' +
-                '\\"from scannerpy import start_worker\n' +
-                'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config_path=\'{config_path:s}\')\\"')
+                '\"from scannerpy import start_worker\n' +
+                'import pickle\n' +
+                'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
+                'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\"')
             self._master_conn = self._run_remote_cmd(self._master_address,
                                                      master_cmd)
 
@@ -356,7 +361,7 @@ class Database:
             self._worker_conns = [
                 self._run_remote_cmd(w, worker_cmd.format(
                     master=self._master_address,
-                    config_path=self.config.config_path,
+                    config=pickled_config,
                     worker_port=w.partition(':')[2]))
                 for w in self._worker_addresses]
             slept_so_far = 0
