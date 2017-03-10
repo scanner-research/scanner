@@ -1,8 +1,9 @@
 [net]
-    model = "features/faster_rcnn_coco/test.prototxt"
-    weights = "features/faster_rcnn_coco/coco_vgg16_faster_rcnn_final.caffemodel"
-    input_layers = ["data", "im_info"]
+    model = "nets/faster_rcnn_coco/test.prototxt"
+    weights = "nets/faster_rcnn_coco/coco_vgg16_faster_rcnn_final.caffemodel"
+    input_layers = ["data"]
     output_layers = ["cls_prob", "rois", "fc7"]
+    # output_layers = ["fc7"]
     normalize = false
 
     [net.input]

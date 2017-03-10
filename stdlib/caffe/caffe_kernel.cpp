@@ -9,6 +9,9 @@
 #include "caffe/util/io.hpp"
 #include "toml/toml.h"
 
+#include <Python.h>
+#include <boost/python.hpp>
+
 namespace scanner {
 
 using caffe::Blob;
@@ -245,8 +248,11 @@ CaffeKernel::CaffeKernel(const Kernel::Config &config)
     return;
   }
 
+  PyGILState_STATE gstate = PyGILState_Ensure();
   net_.reset(new caffe::Net<float>(descriptor.model_path(), caffe::TEST));
   net_->CopyTrainedLayersFrom(descriptor.model_weights_path());
+  PyGILState_Release(gstate);
+
   // Initialize memory
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
       net_->blob_by_name(descriptor.input_layer_names(0))};
@@ -336,6 +342,8 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
   }
   assert(input_blobs.size() > 0);
 
+  PyGILState_STATE gstate = PyGILState_Ensure();
+
   size_t num_outputs = descriptor.output_layer_names().size();
   i32 input_count = (i32)input_columns[0].rows.size();
   i32 batch_size = args_.batch_size();
@@ -366,7 +374,12 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
 
     // Compute features
     auto net_start = now();
-    net_->ForwardPrefilled();
+    try {
+      net_->ForwardPrefilled();
+    } catch (boost::python::error_already_set) {
+      PyErr_Print();
+      exit(0);
+    }
     if (profiler_) {
       CUDA_PROTECT({ cudaDeviceSynchronize(); });
       profiler_->add_interval("caffe:net", net_start, now());
@@ -378,7 +391,7 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
       const std::string &output_layer_name = descriptor.output_layer_names(i);
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
-      size_t output_length = output_blob->count(1);
+      size_t output_length = output_blob->count() / batch_count;
       size_t output_size = output_length * sizeof(float);
       size_t total_size = output_size * batch_count;
 
@@ -394,6 +407,8 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
       }
     }
   }
+
+  PyGILState_Release(gstate);
 }
 
 void CaffeKernel::set_device() {

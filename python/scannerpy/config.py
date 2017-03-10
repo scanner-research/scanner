@@ -51,7 +51,7 @@ class Config(object):
             else:
                 raise ScannerException('Unsupported storage type {}'.format(storage_type))
 
-            self.master_address_base = 'localhost'
+            self.master_address = 'localhost'
             self.master_port = '5001'
             self.worker_port = '5002'
             if 'network' in config:
@@ -62,9 +62,6 @@ class Config(object):
                     self.master_port = network['master_port'].encode('ascii', 'ignore')
                 if 'worker_port' in network:
                     self.worker_port = network['worker_port'].encode('ascii', 'ignore')
-
-            self.master_address = self.master_address_base + ':' + str(self.master_port)
-            self.worker_address = self.master_address_base + ':' + str(self.worker_port)
 
         except KeyError as key:
             raise ScannerException('Scanner config missing key: {}'.format(key))
