@@ -246,7 +246,7 @@ void *load_thread(void *arg) {
       break;
     }
 
-    VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.id
+    VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.id
               << "): processing item " << load_work_entry.io_item_index();
 
     args.profiler.add_interval("idle", idle_start, now());
