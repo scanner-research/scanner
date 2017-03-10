@@ -263,7 +263,7 @@ class Database:
 
     def _connect_to_master(self):
         channel = grpc.insecure_channel(
-            self._master_address,
+            self._master_address + ':' + self.config.master_port,
             options=[('grpc.max_message_length', 24499183 * 2)])
         self._master = self.protobufs.MasterStub(channel)
         result = False
@@ -303,7 +303,7 @@ class Database:
         else:
             self._master_address = master
         if workers is None:
-            self._worker_addresses = [self.config.worker_address]
+            self._worker_addresses = [self.config.master_address]
         else:
             self._worker_addresses = workers
 
@@ -321,7 +321,7 @@ class Database:
             machine_params = self._bindings.default_machine_params()
             res = self._bindings.start_master(self._db).success
             assert res
-            for i in range(len(workers)):
+            for i in range(len(self._worker_addresses)):
                 res = self._bindings.start_worker(
                     self._db, machine_params,
                     str(int(self.config.worker_port) + i)).success
@@ -587,11 +587,13 @@ class Database:
     def new_table(self, name, columns, rows, force=False):
         if self.has_table(name):
             if force:
-                self.delete_table(name)
+                #self.delete_table(name)
+                pass
             else:
                 raise ScannerException('Attempted to create table with existing '
                                        'name {}'.format(name))
         self._bindings.new_table(self._db, name, columns, rows)
+        self._cached_db_metadata = None
 
     def table(self, name):
         db_meta = self._load_db_metadata()

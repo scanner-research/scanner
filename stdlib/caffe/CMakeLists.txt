@@ -4,7 +4,9 @@ set(SOURCE_FILES
   caffe_input_kernel.cpp
   caffe_input_kernel_cpu.cpp
   facenet_output_kernel_cpu.cpp
-  yolo_output_kernel_cpu.cpp)
+  yolo_output_kernel_cpu.cpp
+  faster_rcnn_kernel.cpp
+  faster_rcnn_output_kernel_cpu.cpp)
 if (BUILD_CUDA)
   list(APPEND SOURCE_FILES
     caffe_kernel_gpu.cpp
