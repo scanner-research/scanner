@@ -7,17 +7,18 @@
 int main(int argc, char** argv) {
   grpc_use_signal(-1);
 
-  std::string worker_port(argv[1]);
+  std::string worker_port = "5002";
+  if (argc > 1 && argv[1]) {
+    worker_port = std::string(argv[1]);
+  }
 
   std::string db_path = "/tmp/scanner_db";
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
-  std::string master_address = "localhost";
-  const std::string master_port = "5001";
+  std::string master_port = "5001";
+  std::string master_address = "localhost:" + master_port;
 
-  scanner::Database db(sc.get(), db_path, master_address,
-                       master_port,
-                       worker_port);
+  scanner::Database db(sc.get(), db_path, master_address);
 
   // Ingest video
   scanner::Result result;
@@ -29,7 +30,7 @@ int main(int argc, char** argv) {
 
   // Initialize master and one worker
   scanner::MachineParameters machine_params = scanner::default_machine_params();
-  db.start_master(machine_params);
+  db.start_master(machine_params, master_port);
   db.start_worker(machine_params, worker_port);
 
   // Construct job parameters

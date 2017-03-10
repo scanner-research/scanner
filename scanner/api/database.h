@@ -70,17 +70,15 @@ class Database {
 public:
   Database(storehouse::StorageConfig *storage_config,
            const std::string &db_path,
-           const std::string &master_address,
-           const std::string &master_port,
-           const std::string &worker_port);
+           const std::string &master_address);
 
-  Result start_master(const MachineParameters &params);
+  Result start_master(const MachineParameters& params, const std::string& port);
 
-  Result start_worker(const MachineParameters &params, const std::string& port);
+  Result start_worker(const MachineParameters& params, const std::string& port);
 
-  Result ingest_videos(const std::vector<std::string> &table_names,
-                              const std::vector<std::string> &paths,
-                              std::vector<FailedVideo> &failed_videos);
+  Result ingest_videos(const std::vector<std::string>& table_names,
+                       const std::vector<std::string>& paths,
+                       std::vector<FailedVideo>& failed_videos);
 
   // void ingest_images(storehouse::StorageConfig *storage_config,
   //                    const std::string &db_path, const std::string &table_name,
@@ -114,8 +112,6 @@ private:
   std::unique_ptr<storehouse::StorageBackend> storage_;
   std::string db_path_;
   std::string master_address_;
-  std::string master_port_;
-  std::string worker_port_;
 
   std::unique_ptr<ServerState> master_state_;
   std::vector<std::unique_ptr<ServerState>> worker_states_;

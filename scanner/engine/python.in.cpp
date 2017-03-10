@@ -55,8 +55,8 @@ std::string default_machine_params_wrapper() {
   return output;
 }
 
-proto::Result start_master_wrapper(Database& db) {
-  return db.start_master(default_machine_params());
+proto::Result start_master_wrapper(Database& db, const std::string& port) {
+  return db.start_master(default_machine_params(), port);
 }
 
 proto::Result start_worker_wrapper(Database &db, const std::string &params_s,
@@ -108,7 +108,7 @@ Result new_table_wrapper(
 BOOST_PYTHON_MODULE(libscanner) {
   using namespace py;
   class_<Database, boost::noncopyable>(
-    "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&, const std::string&, const std::string&>())
+    "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&>())
     .def("ingest_videos", &Database::ingest_videos);
   class_<FailedVideo>("FailedVideo", no_init)
     .def_readonly("path", &FailedVideo::path)

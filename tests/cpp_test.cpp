@@ -20,10 +20,10 @@ protected:
       scanner::temp_dir(db_path);
     }
     sc_.reset(storehouse::StorageConfig::make_posix_config());
-    std::string master_address = "localhost";
     std::string master_port = "5001";
     std::string worker_port = "5002";
-    db_ = new scanner::Database(sc_.get(), db_path, master_address, master_port, worker_port);
+    std::string master_address = "localhost:" + master_port;
+    db_ = new scanner::Database(sc_.get(), db_path, master_address);
 
     // Ingest video
     if (!downloaded) {
@@ -42,7 +42,7 @@ protected:
     // Initialize master and one worker
     scanner::MachineParameters machine_params =
       scanner::default_machine_params();
-    db_->start_master(machine_params);
+    db_->start_master(machine_params, master_port);
     db_->start_worker(machine_params, worker_port);
 
     // Construct job parameters
