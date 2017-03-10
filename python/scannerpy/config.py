@@ -30,26 +30,14 @@ class Config(object):
                 f.write(toml.dumps(config))
             print('Wrote Scanner configuration to {}'.format(path))
 
-        config = self.load_config(self.config_path)
+        self.config = self.load_config(self.config_path)
+        config = self.config
         try:
             self.module_dir = os.path.dirname(os.path.realpath(__file__))
             build_path = self.module_dir + '/build'
             sys.path.append(build_path)
 
-            storage = config['storage']
-            storage_type = storage['type']
-            self.db_path = str(storage['db_path'])
-            if storage_type == 'posix':
-                storage_config = StorageConfig.make_posix_config()
-            elif storage_type == 'gcs':
-                with open(storage['key_path']) as f:
-                    key = f.read()
-                storage_config = StorageConfig.make_gcs_config(
-                    storage['cert_path'].encode('latin-1'),
-                    key,
-                    storage['bucket'].encode('latin-1'))
-            else:
-                raise ScannerException('Unsupported storage type {}'.format(storage_type))
+            storage_config = self._make_storage_config(config)
 
             self.master_address = 'localhost'
             self.master_port = '5001'
@@ -67,6 +55,24 @@ class Config(object):
             raise ScannerException('Scanner config missing key: {}'.format(key))
         self.storage_config = storage_config
         self.storage = StorageBackend.make_from_config(storage_config)
+
+    def _make_storage_config(self, config):
+        storage = config['storage']
+        storage_type = storage['type']
+        self.db_path = str(storage['db_path'])
+        if storage_type == 'posix':
+            storage_config = StorageConfig.make_posix_config()
+        elif storage_type == 'gcs':
+            with open(storage['key_path']) as f:
+                key = f.read()
+            storage_config = StorageConfig.make_gcs_config(
+                storage['cert_path'].encode('latin-1'),
+                key,
+                storage['bucket'].encode('latin-1'))
+        else:
+            raise ScannerException(
+                'Unsupported storage type {}'.format(storage_type))
+        return storage_config
 
     @staticmethod
     def default_config_path():
@@ -101,3 +107,23 @@ class Config(object):
                 'worker_port': '5002'
             }
         }
+
+    def __getstate__(self):
+        # capture what is normally pickled
+        state = self.__dict__.copy()
+        # Get rid of the storehouse objects
+        state.pop('storage_config', None)
+        state.pop('storage', None)
+        # what we return here will be stored in the pickle
+        return state
+
+    def __setstate__(self, newstate):
+        self.module_dir = os.path.dirname(os.path.realpath(__file__))
+        build_path = self.module_dir + '/build'
+        sys.path.append(build_path)
+
+        sc = self._make_storage_config(newstate['config'])
+        newstate['storage_config'] = sc
+        newstate['storage'] = StorageBackend.make_from_config(sc)
+        # re-instate our __dict__ state from the pickled state
+        self.__dict__.update(newstate)
