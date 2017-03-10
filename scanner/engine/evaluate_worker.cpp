@@ -2,6 +2,7 @@
 
 #include "scanner/engine/op_registry.h"
 #include "scanner/video/decoder_automata.h"
+#include "scanner/util/cuda.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/io/coded_stream.h>
@@ -83,7 +84,7 @@ void *pre_evaluate_thread(void *arg) {
       break;
     }
 
-    VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.id << "): "
+    VLOG(2) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.id << "): "
             << "processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -130,6 +131,7 @@ void *pre_evaluate_thread(void *arg) {
         if (work_entry.column_types[c] == ColumnType::Video) {
           decoders.emplace_back(new DecoderAutomata(args.device_handle,
                                                     num_devices, decoder_type));
+          decoders.back()->set_profiler(&args.profiler);
         }
       }
       args.profiler.add_interval("init", init_start, now());
@@ -227,6 +229,10 @@ void *evaluate_thread(void *arg) {
       kernel_num_outputs.push_back(registry->get_op_info(factory->get_op_name())
                                        ->output_columns()
                                        .size());
+
+#ifdef HAVE_CUDA
+      cudaSetDevice(0);
+#endif
       auto kernel = factory->new_instance(config);
       kernel->validate(&args.result);
       VLOG(1) << "Kernel finished validation " << args.result.success();
@@ -256,7 +262,7 @@ void *evaluate_thread(void *arg) {
       break;
     }
 
-    VLOG(1) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+    VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
               << args.kg << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -396,7 +402,7 @@ void *evaluate_thread(void *arg) {
 
     args.profiler.add_interval("task", work_start, now());
 
-    VLOG(1) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+    VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
               << args.kg << "): finished item " << work_entry.io_item_index;
 
     args.output_work.push(std::make_tuple(io_item, output_work_entry));
@@ -428,7 +434,7 @@ void *post_evaluate_thread(void *arg) {
       break;
     }
 
-    VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+    VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
               << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());

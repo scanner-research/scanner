@@ -53,7 +53,7 @@ void *save_thread(void *arg) {
       break;
     }
 
-    VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.id
+    VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.id
               << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -142,7 +142,7 @@ void *save_thread(void *arg) {
       args.profiler.increment("io_write", size_written);
     }
 
-    VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.id
+    VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.id
               << "): finished item " << work_entry.io_item_index;
 
     args.profiler.add_interval("task", work_start, now());

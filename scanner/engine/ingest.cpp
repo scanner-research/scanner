@@ -287,8 +287,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   std::map<u32, std::vector<u8>> pps_nal_bytes;
   SliceHeader prev_sh;
 
-  i32 num_non_ref_frames = 0;
-  i32 avcodec_frame = 0;
+  i64 num_non_ref_frames = 0;
+  i64 avcodec_frame = 0;
   while (true) {
     // Read from format context
     i32 err = av_read_frame(state.format_context, &state.av_packet);
@@ -359,7 +359,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
         i32 nal_unit_type = (*nal_start) & 0x1F;
-        VLOG(1) << "extradata nal size: " << nal_size << ", nal ref "
+        VLOG(2) << "extradata nal size: " << nal_size << ", nal ref "
                   << nal_ref_idc << ", nal unit " << nal_unit_type;
       }
       extradata_extracted = true;
@@ -367,7 +367,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
     i64 nal_bytestream_offset = bytestream_pos;
 
-    VLOG(1) << "new packet " << nal_bytestream_offset;
+    VLOG(2) << "new packet " << nal_bytestream_offset;
     bool insert_sps_nal = false;
     // Parse NAL unit
     const u8 *nal_parse = filtered_data;
@@ -380,7 +380,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
-      VLOG(1) << "frame " << frame << ", nal size " << nal_size
+      VLOG(2) << "frame " << frame << ", nal size " << nal_size
                 << ", nal_ref_idc " << nal_ref_idc << ", nal unit "
                 << nal_unit_type;
       if (nal_ref_idc == 0) {
@@ -390,7 +390,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         if (!in_meta_packet_sequence) {
           meta_packet_sequence_start_offset = nal_bytestream_offset;
           filtered_data_size - size_left;
-          VLOG(1) << "in meta sequence " << nal_bytestream_offset;
+          VLOG(2) << "in meta sequence " << nal_bytestream_offset;
           in_meta_packet_sequence = true;
           saw_sps_nal = false;
         }
@@ -440,7 +440,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         sps_nal_bytes[sps_id].clear();
         sps_nal_bytes[sps_id].insert(sps_nal_bytes[sps_id].end(), nal_start - 3,
                                      nal_start + nal_size + 3);
-        VLOG(1) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
+        VLOG(2) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
                   << " seen at frame " << frame;
       }
       // PPS
@@ -459,7 +459,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         pps_nal_bytes[pps_id].clear();
         pps_nal_bytes[pps_id].insert(pps_nal_bytes[pps_id].end(), nal_start - 3,
                                      nal_start + nal_size + 3);
-        VLOG(1) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
+        VLOG(2) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
                   << ", frame " << frame;
       }
       if (is_vcl_nal(nal_unit_type)) {
@@ -483,11 +483,11 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
             keyframe_positions.push_back(frame - 1);
             keyframe_timestamps.push_back(state.av_packet.pts);
             saw_sps_nal = false;
-            VLOG(1) << "keyframe " << frame - 1 << ", byte offset "
+            VLOG(2) << "keyframe " << frame - 1 << ", byte offset "
                       << meta_packet_sequence_start_offset;
 
             // Insert metadata
-            VLOG(1) << "inserting sps and pss nals";
+            VLOG(2) << "inserting sps and pss nals";
             i32 size = filtered_data_size;
             for (auto& kv : sps_nal_bytes) {
               auto& sps_nal = kv.second;
@@ -530,6 +530,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
     av_packet_unref(&state.av_packet);
   }
+  VLOG(1) << "Num frames: " << frame;
+  VLOG(1) << "Num non-reference frames: " << num_non_ref_frames;
+  VLOG(1) << "% non-reference frames: " << num_non_ref_frames / (float)frame;
+  VLOG(1) << "Average GOP length: " << frame / (float)keyframe_positions.size();
 
   // Cleanup video decoder
   cleanup_video_codec(state);
