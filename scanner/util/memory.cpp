@@ -74,12 +74,19 @@ public:
 
 class SystemAllocator : public Allocator {
 public:
-  SystemAllocator(DeviceHandle device) : device_(device) {}
+  SystemAllocator(DeviceHandle device, bool pinned = false) :
+      device_(device), pinned_(pinned) {}
 
   u8 *allocate(size_t size) {
     if (device_.type == DeviceType::CPU) {
       try {
-        return new u8[size];
+        if (pinned_) {
+          u8* buff;
+          CUDA_PROTECT({ CU_CHECK(cudaMallocHost((void**)&buff, size)); });
+          return buff;
+        } else {
+          return new u8[size];
+        }
       } catch (const std::bad_alloc &e) {
         LOG(FATAL) << "CPU memory allocation failed: " << e.what();
       }
@@ -95,7 +102,10 @@ public:
 
   void free(u8 *buffer) {
     if (device_.type == DeviceType::CPU) {
-      delete[] buffer;
+      //delete[] buffer;
+      if (pinned_) {
+        CUDA_PROTECT({ CU_CHECK(cudaFreeHost(buffer)); });
+      }
     } else if (device_.type == DeviceType::GPU) {
       CUDA_PROTECT({
         CU_CHECK(cudaSetDevice(device_.id));
@@ -114,6 +124,7 @@ public:
 
 private:
   DeviceHandle device_;
+  bool pinned_;
 };
 
 bool pointer_in_buffer(u8 *ptr, u8 *buf_start, u8 *buf_end) {
@@ -328,7 +339,7 @@ static std::map<i32, BlockAllocator *> gpu_block_allocators;
 
 void init_memory_allocators(MemoryPoolConfig config,
                             std::vector<i32> gpu_device_ids) {
-  cpu_system_allocator = new SystemAllocator(CPU_DEVICE);
+  cpu_system_allocator = new SystemAllocator(CPU_DEVICE, config.pinned_cpu());
   Allocator *cpu_block_allocator_base = cpu_system_allocator;
   if (config.cpu().use_pool()) {
     struct sysinfo info;
@@ -355,7 +366,7 @@ void init_memory_allocators(MemoryPoolConfig config,
       cudaDeviceProp prop;
       CU_CHECK(cudaGetDeviceProperties(&prop, device_id));
       size_t total_mem = prop.totalGlobalMem;
-      LOG_IF(FATAL, config.cpu().free_space() > total_mem)
+      LOG_IF(FATAL, config.gpu().free_space() > total_mem)
           << "Requested GPU free space (" << config.gpu().free_space() << ") "
           << "larger than total GPU memory size ( " << total_mem << ") "
           << "on device " << device_id;

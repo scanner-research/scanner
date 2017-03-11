@@ -178,6 +178,7 @@ message MemoryPoolConfig {
     int64 free_space = 2;
   }
 
+  bool pinned_cpu = 1;
   Pool cpu = 3;
   Pool gpu = 4;
 }

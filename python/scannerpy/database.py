@@ -284,7 +284,7 @@ class Database:
         if ipaddress.ip_address(host_ip).is_loopback:
             return Popen(cmd, shell=True)
         else:
-            cmd = cmd.replace('"', '\"')
+            cmd = cmd.replace('"', '\\"')
             return Popen("ssh {} \"{}\"".format(host_ip, cmd), shell=True)
 
     def start_cluster(self, master, workers):
@@ -317,7 +317,8 @@ class Database:
             self._master_conn = None
             self._worker_conns = None
             machine_params = self._bindings.default_machine_params()
-            res = self._bindings.start_master(self._db).success
+            res = self._bindings.start_master(self._db,
+                                              self.config.master_port).success
             assert res
             for i in range(len(self._worker_addresses)):
                 res = self._bindings.start_worker(
@@ -813,8 +814,12 @@ class Database:
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress
 
+        job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:
             job_params.memory_pool_config.cpu.use_pool = True
+            if cpu_pool[0] == 'p':
+                job_params.memory_pool_config.pinned_cpu = True
+                cpu_pool = cpu_pool[1:]
             size = self._parse_size_string(cpu_pool)
             job_params.memory_pool_config.cpu.free_space = size
 
