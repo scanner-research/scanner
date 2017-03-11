@@ -38,10 +38,16 @@ public:
 
   void get_frames(u8* buffer, i32 num_frames);
 
+  void set_profiler(Profiler* profiler);
+
 private:
   void feeder();
 
+  void set_feeder_idx(i32 data_idx);
+
   const i32 MAX_BUFFERED_FRAMES = 8;
+
+  Profiler* profiler_ = nullptr;
 
   DeviceHandle device_handle_;
   i32 num_devices_;
@@ -64,8 +70,13 @@ private:
   std::atomic<i32> retriever_data_idx_;
   std::atomic<i32> retriever_valid_idx_;
 
+  std::atomic<bool> skip_frames_;
   std::atomic<bool> seeking_;
   std::atomic<i32> feeder_data_idx_;
+  std::atomic<i64> feeder_valid_idx_;
+  std::atomic<i64> feeder_current_frame_;
+  std::atomic<i64> feeder_next_frame_;
+
   std::atomic<size_t> feeder_buffer_offset_;
   std::atomic<i64> feeder_next_keyframe_;
   std::mutex feeder_mutex_;
