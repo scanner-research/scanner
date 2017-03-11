@@ -2,17 +2,17 @@ import numpy as np
 import cv2
 import parsers
 
-def nms(boxes, overlapThresh):
+def nms(orig_boxes, overlapThresh):
     # if there are no boxes, return an empty list
-    if len(boxes) == 0:
+    if len(orig_boxes) == 0:
         return []
-    elif len(boxes) == 1:
-        return boxes
+    elif len(orig_boxes) == 1:
+        return orig_boxes
 
     boxes = [
         [box.x1, box.y1, box.x2, box.y2, box.score,
          box.track_id, box.track_score]
-        for box in boxes]
+        for box in orig_boxes]
 
     npboxes = np.array(boxes[0])
     for box in boxes[1:]:
@@ -64,7 +64,7 @@ def nms(boxes, overlapThresh):
             ([last], np.where(overlap > overlapThresh)[0])))
 
     # return only the bounding boxes that were picked
-    return boxes[pick]
+    return np.array(orig_boxes)[pick]
 
 
 def draw(vid_table, bbox_table, output_path, fps=24, threshold=0.0,
