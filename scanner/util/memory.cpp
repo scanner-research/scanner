@@ -102,9 +102,10 @@ public:
 
   void free(u8 *buffer) {
     if (device_.type == DeviceType::CPU) {
-      //delete[] buffer;
       if (pinned_) {
         CUDA_PROTECT({ CU_CHECK(cudaFreeHost(buffer)); });
+      } else {
+        delete[] buffer;
       }
     } else if (device_.type == DeviceType::GPU) {
       CUDA_PROTECT({
