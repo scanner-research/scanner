@@ -323,16 +323,21 @@ void *load_thread(void *arg) {
           frame_info.set_height(entry.height);
 
           size_t frame_info_size = frame_info.ByteSize();
+          size_t total_rows = 0;
           for (size_t i = 0; i < num_items; ++i) {
-            size_t total_rows = intervals.valid_offsets[i].size();
-            u8 *buffer = new_block_buffer(
-                CPU_DEVICE, frame_info_size * total_rows, total_rows);
+            total_rows += intervals.valid_offsets[i].size();
+          }
+          u8 *buffer = new_block_buffer(
+              CPU_DEVICE, frame_info_size * total_rows, total_rows);
+          total_rows = 0;
+          for (size_t i = 0; i < num_items; ++i) {
             for (size_t j = 0; j < intervals.valid_offsets[i].size(); ++j) {
-              u8 *b = buffer + frame_info_size * j;
+              u8* b = buffer + frame_info_size * (j + total_rows);
               frame_info.SerializeToArray(b, frame_info_size);
               INSERT_ROW(eval_work_entry.columns[out_col_idx], b,
                          frame_info_size);
             }
+            total_rows += intervals.valid_offsets[i].size();
           }
         } else {
           // regular column

@@ -92,7 +92,9 @@ class Profiler:
 
     def _convert_time(self, d):
         def convert(t):
-            return '{:2f}'.format(t / 1.0e9)
+            if isinstance(t, float):
+                return '{:2f}'.format(t / 1.0e9)
+            return t
         return {k: self._convert_time(v) if isinstance(v, dict) else convert(v)
                 for (k, v) in d.iteritems()}
 
@@ -109,10 +111,14 @@ class Profiler:
                 for thread in profiler[kind]:
                     for (key, start, end) in thread['intervals']:
                         if key not in totals[kind]:
-                            totals[kind][key] = 0
+                            totals[kind][key] = 0.0
                         totals[kind][key] += end-start
+                    for (name, value) in thread['counters'].iteritems():
+                        if name not in totals[kind]:
+                            totals[kind][name] = 0
+                        totals[kind][name] += value
 
-        totals['total_time'] = (total_end - total_start)
+        totals['total_time'] = float(total_end - total_start)
         readable_totals = self._convert_time(totals)
         return readable_totals
 
