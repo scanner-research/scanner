@@ -45,4 +45,5 @@ message NetDescriptor {
   bool preserve_aspect_ratio = 12;
   bool transpose = 13;
   int32 pad_mod = 14;
+  bool uses_python = 15;
 }
