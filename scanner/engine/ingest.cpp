@@ -211,14 +211,19 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     .count());
 
   {
+    Column *index_col = table_desc.add_columns();
+    index_col->set_name("index");
+    index_col->set_id(0);
+    index_col->set_type(ColumnType::Other);
+
     Column *frame_col = table_desc.add_columns();
     frame_col->set_name("frame");
-    frame_col->set_id(0);
+    frame_col->set_id(1);
     frame_col->set_type(ColumnType::Video);
 
     Column *frame_info_col = table_desc.add_columns();
     frame_info_col->set_name("frame_info");
-    frame_info_col->set_id(1);
+    frame_info_col->set_id(2);
     frame_info_col->set_type(ColumnType::Other);
   }
 
@@ -254,7 +259,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   VideoMetadata video_meta;
   proto::VideoDescriptor &video_descriptor = video_meta.get_descriptor();
   video_descriptor.set_table_id(table_id);
-  video_descriptor.set_column_id(0);
+  video_descriptor.set_column_id(1);
   video_descriptor.set_item_id(0);
 
   video_descriptor.set_width(state.in_cc->width);
@@ -262,7 +267,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
   video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
 
-  std::string data_path = table_item_output_path(table_id, 0, 0);
+  std::string data_path = table_item_output_path(table_id, 1, 0);
   std::unique_ptr<WriteFile> demuxed_bytestream{};
   BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream));
 
@@ -273,7 +278,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   std::vector<i64> keyframe_byte_offsets;
 
   bool succeeded = true;
-  i32 frame = 0;
+  i64 frame = 0;
   bool extradata_extracted = false;
   bool in_meta_packet_sequence = false;
   i64 meta_packet_sequence_start_offset = 0;
@@ -540,6 +545,19 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   // Save demuxed stream
   BACKOFF_FAIL(demuxed_bytestream->save());
+
+  // Create index column
+  std::string index_path = table_item_output_path(table_id, 0, 0);
+  std::unique_ptr<WriteFile> index_file{};
+  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
+  s_write(index_file.get(), frame);
+  for (i64 i = 0; i < frame; ++i) {
+    s_write(index_file.get(), sizeof(i64));
+  }
+  for (i64 i = 0; i < frame; ++i) {
+    s_write(index_file.get(), i);
+  }
+  BACKOFF_FAIL(index_file->save());
 
   table_desc.add_end_rows(frame);
   video_descriptor.set_frames(frame);
