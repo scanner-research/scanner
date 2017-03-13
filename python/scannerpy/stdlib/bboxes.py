@@ -1,3 +1,4 @@
+from ..table import Table
 import numpy as np
 import cv2
 import parsers
@@ -69,8 +70,11 @@ def nms(orig_boxes, overlapThresh):
 
 def draw(vid_table, bbox_table, output_path, fps=24, threshold=0.0,
                 color=(255,0,0)):
-    rows = bbox_table.rows()
-    bboxes = [b for _, b in bbox_table.load([0], parsers.bboxes)]
+    if isinstance(bbox_table, Table):
+        rows = bbox_table.rows()
+        bboxes = [b for _, b in bbox_table.load([0], parsers.bboxes)]
+    else:
+        [rows, bboxes] = zip(*bbox_table)
     frames = [f[0] for _, f in vid_table.load([0], rows=rows)]
 
     frame_shape = frames[0].shape

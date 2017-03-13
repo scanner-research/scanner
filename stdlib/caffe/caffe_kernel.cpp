@@ -342,7 +342,10 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
   }
   assert(input_blobs.size() > 0);
 
-  PyGILState_STATE gstate = PyGILState_Ensure();
+  PyGILState_STATE gstate;
+  if (descriptor.uses_python()) {
+    gstate = PyGILState_Ensure();
+  }
 
   size_t num_outputs = descriptor.output_layer_names().size();
   i32 input_count = (i32)input_columns[0].rows.size();
@@ -408,7 +411,9 @@ void CaffeKernel::execute(const BatchedColumns &input_columns,
     }
   }
 
-  PyGILState_Release(gstate);
+  if (descriptor.uses_python()) {
+    PyGILState_Release(gstate);
+  }
 }
 
 void CaffeKernel::set_device() {
