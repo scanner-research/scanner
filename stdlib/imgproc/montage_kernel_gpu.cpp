@@ -55,13 +55,16 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    set_device();
-    check_frame_info(device_, input_columns[1]);
+    auto& frame_col = input_columns[1];
+    auto& frame_info_col = input_columns[2];
+    check_frame_info(device_, frame_info_col);
 
-    i32 input_count = input_columns[0].rows.size();
+    set_device();
+
+    i32 input_count = frame_col.rows.size();
     for (i32 i = 0; i < input_count; ++i) {
       cvc::GpuMat img(frame_height_, frame_width_, CV_8UC3,
-                      input_columns[0].rows[i].buffer);
+                      frame_col.rows[i].buffer);
       i64 x = frames_seen_ % frames_per_row_;
       i64 y = frames_seen_ / frames_per_row_;
       cvc::GpuMat montage_subimg =

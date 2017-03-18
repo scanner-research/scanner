@@ -89,8 +89,11 @@ public:
                BatchedColumns &output_columns) override {
     auto eval_start = now();
 
-    i32 input_count = input_columns[0].rows.size();
-    check_frame_info(device_, input_columns[1]);
+    auto& frame_col = input_columns[1];
+    auto& frame_info_col = input_columns[2];
+    check_frame_info(device_, frame_info_col);
+
+    i32 input_count = frame_col.rows.size();
 
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
@@ -107,8 +110,8 @@ public:
       int sid = i % num_cuda_streams_;
       cv::cuda::Stream &cv_stream = streams_[sid];
 
-      u8 *buffer = input_columns[0].rows[i].buffer;
-      assert(input_columns[0].rows[i].size == frame_height_ * frame_width_ * 3);
+      u8 *buffer = frame_col.rows[i].buffer;
+      assert(frame_col.rows[i].size == frame_height_ * frame_width_ * 3);
       frame_input_[sid] =
           cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3, buffer);
       cv::cuda::cvtColor(frame_input_[sid], bgr_input_[sid],

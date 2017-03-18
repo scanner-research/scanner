@@ -318,15 +318,13 @@ class Database:
             self._master_conn = None
             self._worker_conns = None
             machine_params = self._bindings.default_machine_params()
-            res = self._bindings.start_master(self._db,
-                                              self.config.master_port).success
-            assert res
+            assert self._bindings.start_master(
+                self._db, self.config.master_port).success
+            assert self._connect_to_master()
             for i in range(len(self._worker_addresses)):
-                res = self._bindings.start_worker(
+                assert self._bindings.start_worker(
                     self._db, machine_params,
                     str(int(self.config.worker_port) + i)).success
-                assert res
-            assert self._connect_to_master()
         else:
             pickled_config = pickle.dumps(self.config)
             master_cmd = (
@@ -661,7 +659,7 @@ class Database:
             elif len(c._inputs) == 0:
                 input = Op.input(self)
                 # TODO(wcrichto): allow non-frame input
-                c._inputs = [(input, ["frame", "frame_info"])]
+                c._inputs = [(input, ["index", "frame", "frame_info"])]
                 start_node = input
             for (parent, _) in c._inputs:
                 edges[parent].append(c)
@@ -681,6 +679,8 @@ class Database:
                 in_edges_left[child] -= 1
                 if in_edges_left[child] == 0:
                     stack.append(child)
+
+        eval_sorted[-1]._inputs.insert(0, (eval_sorted[0], ["index"]))
 
         return [e.to_proto(eval_index) for e in eval_sorted]
 

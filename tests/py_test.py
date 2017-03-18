@@ -71,23 +71,23 @@ def db():
         cfg_path = f.name
 
     # Setup and ingest video
-    db = Database(config_path=cfg_path, debug=True)
-    url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        resp = requests.get(url, stream=True)
-        assert resp.ok
-        for block in resp.iter_content(1024):
-            f.write(block)
-        vid_path = f.name
-    db.ingest_videos([('test', vid_path)])
+    with Database(config_path=cfg_path, debug=True) as db:
+        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            resp = requests.get(url, stream=True)
+            assert resp.ok
+            for block in resp.iter_content(1024):
+                f.write(block)
+            vid_path = f.name
+        db.ingest_videos([('test', vid_path)])
 
-    yield db
+        yield db
 
-    # Tear down
-    subprocess.check_call(['rm', '-rf',
-                           cfg['storage']['db_path'],
-                           cfg_path,
-                           vid_path])
+        # Tear down
+        subprocess.check_call(['rm', '-rf',
+                               cfg['storage']['db_path'],
+                               cfg_path,
+                               vid_path])
 
 def test_new_database(db): pass
 
@@ -96,14 +96,13 @@ def test_table_properties(db):
     assert table.id() == 0
     assert table.name() == 'test'
     assert table.num_rows() == 720
-    assert len(table.columns()) == 2
-    assert [c.name() for c in table.columns()] == ['frame', 'frame_info']
+    assert [c.name() for c in table.columns()] == ['index', 'frame', 'frame_info']
 
 def test_make_collection(db):
     db.new_collection('test', ['test'])
 
 def test_load_video_column(db):
-    next(db.table('test').columns(0).load())
+    next(db.table('test').columns(1).load())
 
 def test_profiler(db):
     [output] = db.run(
@@ -138,14 +137,14 @@ class TestHistogram:
     def run(self, db, op):
         [table] = db.run(db.sampler().all([('test', 'test_hist')]), op,
                          force=True, show_progress=False)
-        next(table.load([0], parsers.histograms))
+        next(table.load([1], parsers.histograms))
 
 @builder
 class TestOpticalFlow:
     def op(self, db, ty):
         input = db.ops.Input()
         flow = db.ops.OpticalFlow(
-            inputs=[(input,['frame', 'frame_info'])],
+            inputs=[(input,['index', 'frame', 'frame_info'])],
             device=ty)
         output = db.ops.Output(inputs=[(flow, ['flow']), (input, ['frame_info'])])
         return output
@@ -153,4 +152,4 @@ class TestOpticalFlow:
     def run(self, db, op):
         tasks = db.sampler().range([('test', 'test_flow')], 0, 50, warmup_size=1)
         [table] = db.run(tasks, op, force=True, show_progress=False)
-        next(table.load([0, 1], parsers.flow))
+        next(table.load([1, 2], parsers.flow))
