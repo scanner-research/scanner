@@ -1,7 +1,2 @@
 from scannerpy import Database
-db = Database()
-
-db.start_master()
-
-import time
-time.sleep(1000)
+db = Database(workers=['ocean.pdl.local.cmu.edu:15559', 'crissy.pdl.local.cmu.edu:15559'])

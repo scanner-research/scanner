@@ -31,7 +31,7 @@ message Result {
 }
 
 message WorkerParams {
-  string address = 1;
+  string port = 1;
   MachineParameters params = 2;
 }
 
