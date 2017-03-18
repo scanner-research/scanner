@@ -11,12 +11,14 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    check_frame_info(CPU_DEVICE, input_columns[1]);
+    auto& frame_col = input_columns[1];
+    auto& frame_info_col = input_columns[2];
+    check_frame_info(CPU_DEVICE, frame_info_col);
 
-    i32 input_count = input_columns[0].rows.size();
+    i32 input_count = frame_col.rows.size();
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                  (u8 *)input_columns[0].rows[i].buffer);
+                  (u8 *)frame_col.rows[i].buffer);
       std::vector<u8> buf;
       bool success = cv::imencode(".png", img, buf);
       LOG_IF(FATAL, !success) << "Failed to encode image";

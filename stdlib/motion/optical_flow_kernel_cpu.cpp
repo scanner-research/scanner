@@ -28,9 +28,11 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    check_frame_info(device_, input_columns[1]);
+    auto& frame_col = input_columns[1];
+    auto& frame_info_col = input_columns[2];
+    check_frame_info(device_, frame_info_col);
 
-    i32 input_count = (i32)input_columns[0].rows.size();
+    i32 input_count = (i32)frame_col.rows.size();
     size_t out_buf_size =
         frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
 
@@ -39,7 +41,7 @@ public:
 
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                    input_columns[0].rows[i].buffer);
+                    frame_col.rows[i].buffer);
       cv::cvtColor(input, grayscale_[i], CV_BGR2GRAY);
     }
 
