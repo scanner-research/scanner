@@ -45,7 +45,7 @@ class Config(object):
             if 'network' in config:
                 network = config['network']
                 if 'master' in network:
-                    self.master_address_base = network['master'].encode('ascii','ignore')
+                    self.master_address = network['master'].encode('ascii','ignore')
                 if 'master_port' in network:
                     self.master_port = network['master_port'].encode('ascii', 'ignore')
                 if 'worker_port' in network:
