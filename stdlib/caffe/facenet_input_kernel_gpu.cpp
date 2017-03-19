@@ -79,11 +79,15 @@ public:
     }
   }
 
+  // TODO(wcrichto): set_device
+
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    i32 input_count = (i32)input_columns[0].rows.size();
-    check_frame_info(device_, input_columns[1]);
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
+    check_frame_info(device_, frame_info_col);
 
+    i32 input_count = (i32)frame_col.rows.size();
     size_t frame_size = net_input_width_ * net_input_height_ * 3;
     i32 net_input_size = frame_size * sizeof(f32);
 
@@ -99,7 +103,7 @@ public:
 
       f32 *net_input = (f32 *)(output_block + i * net_input_size);
 
-      u8 *buffer = input_columns[0].rows[i].buffer;
+      u8 *buffer = frame_col.rows[i].buffer;
       frame_input_g_[sid] = cv::cuda::GpuMat(
           frame_info_.height(), frame_info_.width(), CV_8UC3, buffer);
       cv::cuda::resize(frame_input_g_[sid], resized_input_g_[sid],

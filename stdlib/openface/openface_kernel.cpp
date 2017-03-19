@@ -27,7 +27,10 @@ public:
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    check_frame_info(CPU_DEVICE, input_columns[1]);
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
+    check_frame_info(CPU_DEVICE, frame_info_col);
+
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
     cx = width / 2.0f;
@@ -37,14 +40,14 @@ public:
     fx = (fx + fy) / 2.0;
     fy = fx;
 
-    i32 input_count = input_columns[0].rows.size();
+    i32 input_count = frame_col.rows.size();
     for (i32 b = 0; b < input_count; ++b) {
       cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                  (u8 *)input_columns[0].rows[b].buffer);
+                  (u8 *)frame_col.rows[b].buffer);
       cv::Mat grey;
       cv::cvtColor(img, grey, CV_BGR2GRAY);
       std::vector<BoundingBox> all_bboxes = deserialize_proto_vector<BoundingBox>(
-        input_columns[2].rows[b].buffer, input_columns[2].rows[b].size);
+        input_columns[1].rows[b].buffer, input_columns[1].rows[b].size);
       for (auto& bbox : all_bboxes) {
         f64 x1 = bbox.x1(), y1 = bbox.y1(), x2 = bbox.x2(), y2 = bbox.y2();
         f64 w = x2 - x1, h = y2 - y1;
@@ -82,7 +85,7 @@ public:
         }
       }
 
-      INSERT_ROW(output_columns[0], img.data, input_columns[0].rows[b].size);
+      INSERT_ROW(output_columns[0], img.data, frame_col.rows[b].size);
     }
   }
 

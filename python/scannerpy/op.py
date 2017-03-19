@@ -43,7 +43,7 @@ class Op:
 
     @classmethod
     def input(cls, db, inputs=None):
-        inputs = inputs or ["frame", "frame_info"]
+        inputs = inputs or ["index", "frame", "frame_info"]
         return cls(db, "InputTable", [(None, inputs)], DeviceType.CPU, {})
 
     @classmethod
