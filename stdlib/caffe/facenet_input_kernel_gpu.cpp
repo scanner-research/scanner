@@ -83,8 +83,8 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    auto& frame_col = input_columns[1];
-    auto& frame_info_col = input_columns[2];
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
     check_frame_info(device_, frame_info_col);
 
     i32 input_count = (i32)frame_col.rows.size();

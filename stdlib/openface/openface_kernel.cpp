@@ -27,8 +27,8 @@ public:
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    auto& frame_col = input_columns[1];
-    auto& frame_info_col = input_columns[2];
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
     check_frame_info(CPU_DEVICE, frame_info_col);
 
     i32 width = frame_info_.width();
@@ -47,7 +47,7 @@ public:
       cv::Mat grey;
       cv::cvtColor(img, grey, CV_BGR2GRAY);
       std::vector<BoundingBox> all_bboxes = deserialize_proto_vector<BoundingBox>(
-        input_columns[2].rows[b].buffer, input_columns[2].rows[b].size);
+        input_columns[1].rows[b].buffer, input_columns[1].rows[b].size);
       for (auto& bbox : all_bboxes) {
         f64 x1 = bbox.x1(), y1 = bbox.y1(), x2 = bbox.x2(), y2 = bbox.y2();
         f64 w = x2 - x1, h = y2 - y1;

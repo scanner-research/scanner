@@ -28,9 +28,8 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    assert(input_columns.size() == 3);
-    auto& frame_col = input_columns[1];
-    auto& frame_info_col = input_columns[2];
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
 
     set_device();
     check_frame_info(device_, frame_info_col);

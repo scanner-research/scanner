@@ -70,14 +70,6 @@ protected:
       device_type, blur_args_buff, blur_args_size);
   }
 
-  scanner::Op* blur_dag() {
-    scanner::Op *input =
-      scanner::make_input_op({"frame", "frame_info"});
-    scanner::Op *output = scanner::make_output_op(
-      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame", "frame_info"})});
-    return output;
-  }
-
   void gen_random(char *s, const int len) {
     static const char alphanum[] =
       "0123456789"
@@ -109,7 +101,7 @@ protected:
     task.output_table_name = output_table_name;
     scanner::TableSample sample;
     sample.table_name = "test";
-    sample.column_names = {"frame", "frame_info"};
+    sample.column_names = {"index", "frame", "frame_info"};
     sample.sampling_function = "Gather";
     scanner::proto::GatherSamplerArgs args;
     auto &gather_sample = *args.add_samples();
@@ -129,13 +121,9 @@ protected:
   scanner::Database* db_;
 };
 
-TEST_F(ScannerTest, Range) {
-  run_task(range_task("Range"), blur_dag());
-}
-
 TEST_F(ScannerTest, NonLinearDAG) {
   scanner::Op *input =
-    scanner::make_input_op({"frame", "frame_info"});
+    scanner::make_input_op({"index", "frame", "frame_info"});
 
   scanner::Op *hist = new scanner::Op(
     "Histogram",
@@ -144,7 +132,7 @@ TEST_F(ScannerTest, NonLinearDAG) {
     scanner::DeviceType::CPU);
 
   scanner::Op *output = scanner::make_output_op(
-    {scanner::OpInput(hist, {"histogram"})});
+    {scanner::OpInput(input, {"index"}), scanner::OpInput(hist, {"histogram"})});
 
   run_task(range_task("NonLinearDAG"), output);
 }
@@ -153,7 +141,7 @@ TEST_F(ScannerTest, NonLinearDAG) {
 
 TEST_F(ScannerTest, CPUToGPU) {
   scanner::Op *input =
-    scanner::make_input_op({"frame", "frame_info"});
+    scanner::make_input_op({"index", "frame", "frame_info"});
 
   scanner::Op *hist = new scanner::Op(
     "Histogram",
@@ -162,7 +150,7 @@ TEST_F(ScannerTest, CPUToGPU) {
     scanner::DeviceType::GPU);
 
   scanner::Op *output = scanner::make_output_op(
-    {scanner::OpInput(hist, {"histogram"})});
+    {scanner::OpInput(input, {"index"}), scanner::OpInput(hist, {"histogram"})});
 
   run_task(range_task("CPUToGPU"), output);
 }
