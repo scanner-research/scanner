@@ -28,11 +28,14 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
+
     set_device();
-    check_frame_info(device_, input_columns[1]);
+    check_frame_info(device_, frame_info_col);
 
     size_t hist_size = BINS * 3 * sizeof(float);
-    i32 input_count = input_columns[0].rows.size();
+    i32 input_count = frame_col.rows.size();
     u8 *output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
@@ -42,7 +45,7 @@ public:
 
       // TODO(wcrichto): implement correctly w/ streams
       cvc::GpuMat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                      input_columns[0].rows[i].buffer);
+                      frame_col.rows[i].buffer);
       cvc::split(img, planes_);
 
       u8 *output_buf = output_block + i * hist_size;

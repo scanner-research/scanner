@@ -71,7 +71,7 @@ def nms(orig_boxes, overlapThresh):
 def draw(vid_table, bbox_table, output_path, fps=24, threshold=0.0,
                 color=(255,0,0)):
     if isinstance(bbox_table, Table):
-        rows = bbox_table.rows()
+        rows = bbox_table.parent_rows()
         bboxes = [b for _, b in bbox_table.load([0], parsers.bboxes)]
     else:
         [rows, bboxes] = zip(*bbox_table)

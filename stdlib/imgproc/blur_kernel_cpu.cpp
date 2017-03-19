@@ -52,15 +52,17 @@ public:
 
   void execute(const BatchedColumns &input_columns,
                BatchedColumns &output_columns) override {
-    i32 input_count = (i32)input_columns[0].rows.size();
-    check_frame_info(CPU_DEVICE, input_columns[1]);
+    auto& frame_col = input_columns[0];
+    auto& frame_info_col = input_columns[1];
+    check_frame_info(CPU_DEVICE, frame_info_col);
 
+    i32 input_count = (i32)frame_col.rows.size();
     i32 width = frame_width_;
     i32 height = frame_height_;
     size_t frame_size = width * height * 3 * sizeof(u8);
 
     for (i32 i = 0; i < input_count; ++i) {
-      u8 *input_buffer = input_columns[0].rows[i].buffer;
+      u8 *input_buffer = frame_col.rows[i].buffer;
       u8 *output_buffer = new u8[frame_size];
 
       u8 *frame_buffer = input_buffer;

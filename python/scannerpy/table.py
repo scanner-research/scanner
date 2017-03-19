@@ -1,5 +1,6 @@
 from common import *
 from column import Column
+import struct
 
 
 class Table:
@@ -60,9 +61,14 @@ class Table:
     def rows(self):
         return list(range(self.num_rows()))
 
+    def _parse_index(self, bufs, db):
+        return struct.unpack("=Q", bufs[0])[0]
+
     def parent_rows(self):
-        assert(False)
-        return list(range(self.num_rows()))
+        if self._job is None:
+            raise ScannerException('Table {} has no parent'.format(self.name()))
+
+        return [i for _, i in self.load(['index'], fn=self._parse_index)]
 
     def profiler(self):
         job_id = self._descriptor.job_id
