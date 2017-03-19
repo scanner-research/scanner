@@ -318,13 +318,16 @@ class Database:
             self._master_conn = None
             self._worker_conns = None
             machine_params = self._bindings.default_machine_params()
-            assert self._bindings.start_master(
+            res = self._bindings.start_master(
                 self._db, self.config.master_port).success
-            assert self._connect_to_master()
+            assert res
+            res = self._connect_to_master()
+            assert res
             for i in range(len(self._worker_addresses)):
-                assert self._bindings.start_worker(
+                res = self._bindings.start_worker(
                     self._db, machine_params,
                     str(int(self.config.worker_port) + i)).success
+                assert res
         else:
             pickled_config = pickle.dumps(self.config)
             master_cmd = (
