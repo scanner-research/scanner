@@ -156,8 +156,8 @@ void CaffeInputKernel::transform_caffe(u8 *input_buffer, u8 *output_buffer) {
 
 void CaffeInputKernel::execute(const BatchedColumns &input_columns,
                                BatchedColumns &output_columns) {
-  auto& frame_col = input_columns[1];
-  auto& frame_info_col = input_columns[2];
+  auto& frame_col = input_columns[0];
+  auto& frame_info_col = input_columns[1];
   check_frame_info(device_, frame_info_col);
 
   auto eval_start = now();

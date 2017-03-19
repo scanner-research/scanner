@@ -87,8 +87,11 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
         edges[parent_eval].push_back(c);
         in_edges_left[c] += 1;
 
-        if (explored_nodes.count(parent_eval) > 0)
+        if (explored_nodes.count(parent_eval) > 0 ||
+            std::find(stack.begin(), stack.end(), parent_eval) != stack.end()) {
           continue;
+        }
+
         stack.push_back(parent_eval);
       }
     }

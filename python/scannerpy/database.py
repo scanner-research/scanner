@@ -659,7 +659,7 @@ class Database:
             elif len(c._inputs) == 0:
                 input = Op.input(self)
                 # TODO(wcrichto): allow non-frame input
-                c._inputs = [(input, ["index", "frame", "frame_info"])]
+                c._inputs = [(input, ["frame", "frame_info"])]
                 start_node = input
             for (parent, _) in c._inputs:
                 edges[parent].append(c)

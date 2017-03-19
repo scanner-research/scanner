@@ -144,7 +144,7 @@ class TestOpticalFlow:
     def op(self, db, ty):
         input = db.ops.Input()
         flow = db.ops.OpticalFlow(
-            inputs=[(input,['index', 'frame', 'frame_info'])],
+            inputs=[(input,['frame', 'frame_info'])],
             device=ty)
         output = db.ops.Output(inputs=[(flow, ['flow']), (input, ['frame_info'])])
         return output
