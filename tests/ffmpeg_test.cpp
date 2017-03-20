@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/util/fs.h"
 #include "scanner/util/h264.h"
 #include "scanner/util/queue.h"

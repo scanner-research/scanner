@@ -16,7 +16,7 @@
 #include "scanner/api/database.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/ingest.h"
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/rpc.pb.h"
 #include "scanner/engine/runtime.h"

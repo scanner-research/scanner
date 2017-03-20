@@ -1,5 +1,5 @@
 #include "stdlib/caffe/caffe_kernel.h"
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"

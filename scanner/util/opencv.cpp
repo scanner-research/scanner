@@ -1,7 +1,7 @@
 #include "scanner/util/opencv.h"
 
 #include "scanner/api/kernel.h"
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/util/image.h"
 
 #ifdef HAVE_CUDA

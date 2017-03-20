@@ -14,7 +14,7 @@
  */
 
 #include "scanner/api/database.h"
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 
 #include "scanner/util/common.h"
 #include "scanner/util/h264.h"
@@ -212,17 +212,17 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 
   {
     Column *index_col = table_desc.add_columns();
-    index_col->set_name("index");
+    index_col->set_name(index_column_name());
     index_col->set_id(0);
     index_col->set_type(ColumnType::Other);
 
     Column *frame_col = table_desc.add_columns();
-    frame_col->set_name("frame");
+    frame_col->set_name(frame_column_name());
     frame_col->set_id(1);
     frame_col->set_type(ColumnType::Video);
 
     Column *frame_info_col = table_desc.add_columns();
-    frame_info_col->set_name("frame_info");
+    frame_info_col->set_name(frame_info_column_name());
     frame_info_col->set_id(2);
     frame_info_col->set_type(ColumnType::Other);
   }

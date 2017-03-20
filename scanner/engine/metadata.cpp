@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/util/storehouse.h"
 #include "scanner/util/util.h"
