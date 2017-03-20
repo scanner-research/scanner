@@ -1,9 +1,9 @@
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "stdlib/stdlib.pb.h"
-#include "scanner/util/opencv.h"
+#include "scanner/api/op.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"
+#include "scanner/util/opencv.h"
+#include "stdlib/stdlib.pb.h"
 
 #ifdef HAVE_CUDA
 #include <opencv2/core/cuda_stream_accessor.hpp>
@@ -12,27 +12,27 @@
 namespace scanner {
 
 class FacenetInputKernel : public VideoKernel {
-public:
-  FacenetInputKernel(const Kernel::Config &config)
-    : VideoKernel(config),
-      device_(config.devices[0])
+ public:
+  FacenetInputKernel(const Kernel::Config& config)
+      : VideoKernel(config),
+        device_(config.devices[0])
 #ifdef HAVE_CUDA
-    ,
-      num_cuda_streams_(32),
-      streams_(num_cuda_streams_)
+        ,
+        num_cuda_streams_(32),
+        streams_(num_cuda_streams_)
 #endif
-    {
-      proto::FacenetArgs args;
-      args.ParseFromArray(config.args.data(), config.args.size());
-      args_.CopyFrom(args.caffe_args());
-      scale_ = args.scale();
-    }
+  {
+    proto::FacenetArgs args;
+    args.ParseFromArray(config.args.data(), config.args.size());
+    args_.CopyFrom(args.caffe_args());
+    scale_ = args.scale();
+  }
 
   void new_frame_info() override {
     net_input_width_ = std::floor(frame_info_.width() * scale_);
     net_input_height_ = std::floor(frame_info_.height() * scale_);
-    if (net_input_width_ % 8 != 0)  {
-      net_input_width_  += 8 - (net_input_width_ % 8);
+    if (net_input_width_ % 8 != 0) {
+      net_input_width_ += 8 - (net_input_width_ % 8);
     };
     if (net_input_height_ % 8 != 0) {
       net_input_height_ += 8 - (net_input_height_ % 8);
@@ -81,8 +81,8 @@ public:
 
   // TODO(wcrichto): set_device
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& frame_info_col = input_columns[1];
     check_frame_info(device_, frame_info_col);
@@ -91,19 +91,19 @@ public:
     size_t frame_size = net_input_width_ * net_input_height_ * 3;
     i32 net_input_size = frame_size * sizeof(f32);
 
-    u8 *output_block = new_block_buffer(
-      device_, input_count * net_input_size, input_count);
+    u8* output_block =
+        new_block_buffer(device_, input_count * net_input_size, input_count);
 
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
 
     for (i32 i = 0; i < input_count; ++i) {
       int sid = i % num_cuda_streams_;
-      cv::cuda::Stream &cv_stream = streams_[sid];
+      cv::cuda::Stream& cv_stream = streams_[sid];
 
-      f32 *net_input = (f32 *)(output_block + i * net_input_size);
+      f32* net_input = (f32*)(output_block + i * net_input_size);
 
-      u8 *buffer = frame_col.rows[i].buffer;
+      u8* buffer = frame_col.rows[i].buffer;
       frame_input_g_[sid] = cv::cuda::GpuMat(
           frame_info_.height(), frame_info_.width(), CV_8UC3, buffer);
       cv::cuda::resize(frame_input_g_[sid], resized_input_g_[sid],
@@ -122,10 +122,10 @@ public:
                           cv_stream);
       cv::cuda::transpose(input_planes_g_[sid][2], flipped_planes_g_[sid][2],
                           cv_stream);
-      auto &plane1 = flipped_planes_g_[sid][0];
-      auto &plane2 = flipped_planes_g_[sid][1];
-      auto &plane3 = flipped_planes_g_[sid][2];
-      auto &planar_input = planar_input_g_[sid];
+      auto& plane1 = flipped_planes_g_[sid][0];
+      auto& plane2 = flipped_planes_g_[sid][1];
+      auto& plane3 = flipped_planes_g_[sid][2];
+      auto& planar_input = planar_input_g_[sid];
       plane1.copyTo(planar_input(cv::Rect(
           0, net_input_width_ * 0, net_input_height_, net_input_width_)));
       plane2.copyTo(planar_input(cv::Rect(
@@ -139,14 +139,14 @@ public:
           planar_input.step, net_input_height_ * sizeof(float),
           net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      INSERT_ROW(output_columns[0], (u8 *)net_input, net_input_size);
+      INSERT_ROW(output_columns[0], (u8*)net_input, net_input_size);
     }
-    for (cv::cuda::Stream &s : streams_) {
+    for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();
     }
   }
 
-private:
+ private:
   DeviceHandle device_;
   proto::CaffeArgs args_;
   f32 scale_;

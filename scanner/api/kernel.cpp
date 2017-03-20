@@ -20,16 +20,16 @@
 
 namespace scanner {
 
-Kernel::Kernel(const Config &config) {}
+Kernel::Kernel(const Config& config) {}
 
-void VideoKernel::check_frame_info(const DeviceHandle &device,
-                                   const RowList &row_list) {
-  auto &rows = row_list.rows;
+void VideoKernel::check_frame_info(const DeviceHandle& device,
+                                   const RowList& row_list) {
+  auto& rows = row_list.rows;
   assert(rows.size() > 0);
 
   // Assume that all the FrameInfos in the same batch are the same
-  u8 *buffer = new_buffer(CPU_DEVICE, rows[0].size);
-  memcpy_buffer((u8 *)buffer, CPU_DEVICE, rows[0].buffer, device, rows[0].size);
+  u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
+  memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer, device, rows[0].size);
   FrameInfo frame_info;
   bool parsed = frame_info.ParseFromArray(buffer, rows[0].size);
   LOG_IF(FATAL, !parsed) << "Invalid frame info";
@@ -43,15 +43,14 @@ void VideoKernel::check_frame_info(const DeviceHandle &device,
 }
 
 namespace internal {
-KernelRegistration::KernelRegistration(const KernelBuilder &builder) {
-
-  const std::string &name = builder.name_;
+KernelRegistration::KernelRegistration(const KernelBuilder& builder) {
+  const std::string& name = builder.name_;
   DeviceType type = builder.device_type_;
   i32 num_devices = builder.num_devices_;
   KernelConstructor constructor = builder.constructor_;
-  internal::KernelFactory *factory =
+  internal::KernelFactory* factory =
       new internal::KernelFactory(name, type, num_devices, 0, constructor);
-  internal::KernelRegistry *registry = internal::get_kernel_registry();
+  internal::KernelRegistry* registry = internal::get_kernel_registry();
   registry->add_kernel(name, factory);
 }
 }

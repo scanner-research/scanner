@@ -1,8 +1,8 @@
-#include "scanner/api/op.h"      // for REGISTER_OP
-#include "scanner/api/kernel.h"  // for VideoKernel and REGISTER_KERNEL
-#include "scanner/util/opencv.h" // for using OpenCV
-#include "scanner/util/memory.h" // for device-independent memory management
-#include "resize.pb.h"           // for ResizeArgs (generated file)
+#include "resize.pb.h"            // for ResizeArgs (generated file)
+#include "scanner/api/kernel.h"   // for VideoKernel and REGISTER_KERNEL
+#include "scanner/api/op.h"       // for REGISTER_OP
+#include "scanner/util/memory.h"  // for device-independent memory management
+#include "scanner/util/opencv.h"  // for using OpenCV
 
 /*
  * Ops in Scanner are abstract units of computation that are implemented by
@@ -14,8 +14,7 @@
 // Custom kernels must inherit the Kernel class or any subclass thereof,
 // e.g. the VideoKernel which provides support for processing video frames.
 class ResizeKernel : public scanner::VideoKernel {
-public:
-
+ public:
   // To allow ops to be customized by users at a runtime, e.g. to define the
   // target width and height of the ResizeKernel, Scanner uses Google's Protocol
   // Buffers, or protobufs, to define serialzable types usable in C++ and
@@ -25,7 +24,7 @@ public:
   // and these will get serialized into a string. This string is part of the
   // general configuration each kernel receives from the runtime, config.args.
   ResizeKernel(const scanner::Kernel::Config& config)
-    : scanner::VideoKernel(config) {
+      : scanner::VideoKernel(config) {
     // The protobuf arguments must be decoded from the input string.
     ResizeArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
@@ -37,8 +36,8 @@ public:
   // from an input table to a batch of rows of the output table. Here, we map
   // from two input columns from the video, "frame" and "frame_info", and return
   // a single column, "frame".
-  void execute(const scanner::BatchedColumns &input_columns,
-               scanner::BatchedColumns &output_columns) override {
+  void execute(const scanner::BatchedColumns& input_columns,
+               scanner::BatchedColumns& output_columns) override {
     int input_count = input_columns[0].rows.size();
 
     // This must be called at the top of the execute method in any VideoKernel.
@@ -47,16 +46,13 @@ public:
 
     for (int i = 0; i < input_count; ++i) {
       // Convert the raw input buffer into an OpenCV matrix
-      cv::Mat input(
-        frame_info_.height(),
-        frame_info_.width(),
-        CV_8UC3,
-        input_columns[0].rows[i].buffer);
+      cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
+                    input_columns[0].rows[i].buffer);
 
       // Allocate a buffer for the output
       size_t output_size = width_ * height_ * 3;
       unsigned char* output_buf =
-        scanner::new_buffer(scanner::CPU_DEVICE, output_size);
+          scanner::new_buffer(scanner::CPU_DEVICE, output_size);
       cv::Mat output(height_, width_, CV_8UC3, output_buf);
 
       // Call to OpenCV for the resize
@@ -67,7 +63,7 @@ public:
     }
   }
 
-private:
+ private:
   int width_;
   int height_;
 };
@@ -78,5 +74,5 @@ private:
 REGISTER_OP(Resize).inputs({"frame", "frame_info"}).outputs({"frame"});
 
 REGISTER_KERNEL(Resize, ResizeKernel)
-   .device(scanner::DeviceType::CPU)
-   .num_devices(1);
+    .device(scanner::DeviceType::CPU)
+    .num_devices(1);

@@ -52,13 +52,13 @@ const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct FFStorehouseState {
   std::unique_ptr<RandomReadFile> file = nullptr;
-  size_t size = 0; // total file size
+  size_t size = 0;  // total file size
   u64 pos = 0;
 };
 
 // For custom AVIOContext that loads from memory
-i32 read_packet(void *opaque, u8 *buf, i32 buf_size) {
-  FFStorehouseState *fs = (FFStorehouseState *)opaque;
+i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
+  FFStorehouseState* fs = (FFStorehouseState*)opaque;
   size_t size_read;
   storehouse::StoreResult result;
   EXP_BACKOFF(fs->file->read(fs->pos, buf_size, buf, size_read), result);
@@ -70,49 +70,49 @@ i32 read_packet(void *opaque, u8 *buf, i32 buf_size) {
   return static_cast<i32>(size_read);
 }
 
-i64 seek(void *opaque, i64 offset, i32 whence) {
-  FFStorehouseState *fs = (FFStorehouseState *)opaque;
+i64 seek(void* opaque, i64 offset, i32 whence) {
+  FFStorehouseState* fs = (FFStorehouseState*)opaque;
   switch (whence) {
-  case SEEK_SET:
-    assert(offset >= 0);
-    fs->pos = static_cast<u64>(offset);
-    break;
-  case SEEK_CUR:
-    fs->pos += offset;
-    break;
-  case SEEK_END:
-    fs->pos = fs->size;
-    break;
-  case AVSEEK_SIZE:
-    return fs->size;
-    break;
+    case SEEK_SET:
+      assert(offset >= 0);
+      fs->pos = static_cast<u64>(offset);
+      break;
+    case SEEK_CUR:
+      fs->pos += offset;
+      break;
+    case SEEK_END:
+      fs->pos = fs->size;
+      break;
+    case AVSEEK_SIZE:
+      return fs->size;
+      break;
   }
   return fs->size - fs->pos;
 }
 
 struct CodecState {
   AVPacket av_packet;
-  AVFrame *picture;
-  AVFormatContext *format_context;
-  AVIOContext *io_context;
-  AVCodec *in_codec;
-  AVCodecContext *in_cc;
+  AVFrame* picture;
+  AVFormatContext* format_context;
+  AVIOContext* io_context;
+  AVCodec* in_codec;
+  AVCodecContext* in_cc;
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 34, 0)
-  AVCodecParameters *in_cc_params;
+  AVCodecParameters* in_cc_params;
 #endif
   i32 video_stream_index;
-  AVBitStreamFilterContext *annexb;
+  AVBitStreamFilterContext* annexb;
 };
 
-bool setup_video_codec(FFStorehouseState *fs, CodecState &state) {
+bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
   VLOG(1) << "Setting up video codec";
   av_init_packet(&state.av_packet);
   state.picture = av_frame_alloc();
   state.format_context = avformat_alloc_context();
 
   size_t avio_context_buffer_size = 4096;
-  u8 *avio_context_buffer =
-      static_cast<u8 *>(av_malloc(avio_context_buffer_size));
+  u8* avio_context_buffer =
+      static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
       avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
                          &read_packet, NULL, &seek);
@@ -141,7 +141,7 @@ bool setup_video_codec(FFStorehouseState *fs, CodecState &state) {
     return false;
   }
 
-  AVStream const *const in_stream =
+  AVStream const* const in_stream =
       state.format_context->streams[state.video_stream_index];
 
   state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
@@ -197,31 +197,30 @@ void cleanup_video_codec(CodecState state) {
   av_bitstream_filter_close(state.annexb);
 }
 
-bool parse_and_write_video(storehouse::StorageBackend *storage,
-                           const std::string &table_name,
-                           i32 table_id,
-                           const std::string &path,
+bool parse_and_write_video(storehouse::StorageBackend* storage,
+                           const std::string& table_name, i32 table_id,
+                           const std::string& path,
                            std::string& error_message) {
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
   table_desc.set_job_id(-1);
   table_desc.set_timestamp(
-    std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
-    .count());
+      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count());
 
   {
-    Column *index_col = table_desc.add_columns();
+    Column* index_col = table_desc.add_columns();
     index_col->set_name(index_column_name());
     index_col->set_id(0);
     index_col->set_type(ColumnType::Other);
 
-    Column *frame_col = table_desc.add_columns();
+    Column* frame_col = table_desc.add_columns();
     frame_col->set_name(frame_column_name());
     frame_col->set_id(1);
     frame_col->set_type(ColumnType::Video);
 
-    Column *frame_info_col = table_desc.add_columns();
+    Column* frame_info_col = table_desc.add_columns();
     frame_info_col->set_name(frame_info_column_name());
     frame_info_col->set_id(2);
     frame_info_col->set_type(ColumnType::Other);
@@ -257,7 +256,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
   }
 
   VideoMetadata video_meta;
-  proto::VideoDescriptor &video_descriptor = video_meta.get_descriptor();
+  proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
   video_descriptor.set_table_id(table_id);
   video_descriptor.set_column_id(1);
   video_descriptor.set_item_id(0);
@@ -332,10 +331,10 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     /* here, we use a stream based decoder (mpeg1video), so we
        feed decoder and see if it could decode a frame */
 
-    u8 *orig_data = state.av_packet.data;
+    u8* orig_data = state.av_packet.data;
     i32 orig_size = state.av_packet.size;
 
-    u8 *filtered_data;
+    u8* filtered_data;
     i32 filtered_data_size;
     if (av_bitstream_filter_filter(
             state.annexb, state.in_cc, NULL, &filtered_data,
@@ -352,20 +351,20 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     }
 
     if (!extradata_extracted) {
-      const u8 *extradata = state.in_cc->extradata;
+      const u8* extradata = state.in_cc->extradata;
       i32 extradata_size_left = state.in_cc->extradata_size;
 
       metadata_bytes.resize(extradata_size_left);
       memcpy(metadata_bytes.data(), extradata, extradata_size_left);
 
       while (extradata_size_left > 3) {
-        const u8 *nal_start = nullptr;
+        const u8* nal_start = nullptr;
         i32 nal_size = 0;
         next_nal(extradata, extradata_size_left, nal_start, nal_size);
         i32 nal_ref_idc = (*nal_start >> 5);
         i32 nal_unit_type = (*nal_start) & 0x1F;
         VLOG(2) << "extradata nal size: " << nal_size << ", nal ref "
-                  << nal_ref_idc << ", nal unit " << nal_unit_type;
+                << nal_ref_idc << ", nal unit " << nal_unit_type;
       }
       extradata_extracted = true;
     }
@@ -375,19 +374,19 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
     VLOG(2) << "new packet " << nal_bytestream_offset;
     bool insert_sps_nal = false;
     // Parse NAL unit
-    const u8 *nal_parse = filtered_data;
+    const u8* nal_parse = filtered_data;
     i32 size_left = filtered_data_size;
     i32 nals_parsed = 0;
     while (size_left > 3) {
-      const u8 *nal_start = nullptr;
+      const u8* nal_start = nullptr;
       i32 nal_size = 0;
       next_nal(nal_parse, size_left, nal_start, nal_size);
 
       i32 nal_ref_idc = (*nal_start >> 5);
       i32 nal_unit_type = (*nal_start) & 0x1F;
       VLOG(2) << "frame " << frame << ", nal size " << nal_size
-                << ", nal_ref_idc " << nal_ref_idc << ", nal unit "
-                << nal_unit_type;
+              << ", nal_ref_idc " << nal_ref_idc << ", nal unit "
+              << nal_unit_type;
       if (nal_ref_idc == 0) {
         num_non_ref_frames += 1;
       }
@@ -423,7 +422,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
       // We need to track the last SPS NAL because some streams do
       // not insert an SPS every keyframe and we need to insert it
       // ourselves.
-      // fprintf(stderr, "nal_size %d, rbsp size %lu\n", nal_size, rbsp_buffer.size());
+      // fprintf(stderr, "nal_size %d, rbsp size %lu\n", nal_size,
+      // rbsp_buffer.size());
       const u8* rbsp_start = rbsp_buffer.data();
       i32 rbsp_size = rbsp_buffer.size();
 
@@ -446,7 +446,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         sps_nal_bytes[sps_id].insert(sps_nal_bytes[sps_id].end(), nal_start - 3,
                                      nal_start + nal_size + 3);
         VLOG(2) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
-                  << " seen at frame " << frame;
+                << " seen at frame " << frame;
       }
       // PPS
       if (nal_unit_type == 8) {
@@ -465,7 +465,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         pps_nal_bytes[pps_id].insert(pps_nal_bytes[pps_id].end(), nal_start - 3,
                                      nal_start + nal_size + 3);
         VLOG(2) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
-                  << ", frame " << frame;
+                << ", frame " << frame;
       }
       if (is_vcl_nal(nal_unit_type)) {
         assert(last_pps != -1);
@@ -474,8 +474,8 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
         gb.buffer = nal_start;
         gb.offset = 8;
         SliceHeader sh;
-        if(!parse_slice_header(gb, sps_map.at(last_sps), pps_map,
-                               nal_unit_type, nal_ref_idc, sh)) {
+        if (!parse_slice_header(gb, sps_map.at(last_sps), pps_map,
+                                nal_unit_type, nal_ref_idc, sh)) {
           return false;
         }
         if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
@@ -489,7 +489,7 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
             keyframe_timestamps.push_back(state.av_packet.pts);
             saw_sps_nal = false;
             VLOG(2) << "keyframe " << frame - 1 << ", byte offset "
-                      << meta_packet_sequence_start_offset;
+                    << meta_packet_sequence_start_offset;
 
             // Insert metadata
             VLOG(2) << "inserting sps and pss nals";
@@ -504,12 +504,12 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
             }
 
             s_write(demuxed_bytestream.get(), size);
-            for (auto &kv : sps_nal_bytes) {
-              auto &sps_nal = kv.second;
+            for (auto& kv : sps_nal_bytes) {
+              auto& sps_nal = kv.second;
               s_write(demuxed_bytestream.get(), sps_nal.data(), sps_nal.size());
             }
-            for (auto &kv : pps_nal_bytes) {
-              auto &pps_nal = kv.second;
+            for (auto& kv : pps_nal_bytes) {
+              auto& pps_nal = kv.second;
               s_write(demuxed_bytestream.get(), pps_nal.data(), pps_nal.size());
             }
             // Append the packet to the stream
@@ -896,13 +896,13 @@ bool parse_and_write_video(storehouse::StorageBackend *storage,
 //     BACKOFF_FAIL(metadata_file->save());
 //   }
 // }
-} // end anonymous namespace
+}  // end anonymous namespace
 
-Result ingest_videos(storehouse::StorageConfig *storage_config,
-                   const std::string &db_path,
-                   const std::vector<std::string> &table_names,
-                   const std::vector<std::string> &paths,
-                   std::vector<FailedVideo> &failed_videos) {
+Result ingest_videos(storehouse::StorageConfig* storage_config,
+                     const std::string& db_path,
+                     const std::vector<std::string>& table_names,
+                     const std::vector<std::string>& paths,
+                     std::vector<FailedVideo>& failed_videos) {
   Result result;
   result.set_success(true);
 
@@ -981,9 +981,9 @@ Result ingest_videos(storehouse::StorageConfig *storage_config,
   return result;
 }
 
-void ingest_images(storehouse::StorageConfig *storage_config,
-                   const std::string &db_path, const std::string &table_name,
-                   const std::vector<std::string> &paths) {
+void ingest_images(storehouse::StorageConfig* storage_config,
+                   const std::string& db_path, const std::string& table_name,
+                   const std::vector<std::string>& paths) {
   internal::set_database_path(db_path);
 
   std::unique_ptr<storehouse::StorageBackend> storage{

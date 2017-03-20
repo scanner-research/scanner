@@ -30,13 +30,13 @@ using storehouse::RandomReadFile;
 namespace scanner {
 namespace internal {
 
-void *save_thread(void *arg) {
-  SaveThreadArgs &args = *reinterpret_cast<SaveThreadArgs *>(arg);
+void* save_thread(void* arg) {
+  SaveThreadArgs& args = *reinterpret_cast<SaveThreadArgs*>(arg);
 
   auto setup_start = now();
 
   // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend *storage =
+  storehouse::StorageBackend* storage =
       storehouse::StorageBackend::make_from_config(args.storage_config);
 
   args.profiler.add_interval("setup", setup_start, now());
@@ -46,15 +46,15 @@ void *save_thread(void *arg) {
 
     std::tuple<IOItem, EvalWorkEntry> entry;
     args.input_work.pop(entry);
-    IOItem &io_item = std::get<0>(entry);
-    EvalWorkEntry &work_entry = std::get<1>(entry);
+    IOItem& io_item = std::get<0>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     if (work_entry.io_item_index == -1) {
       break;
     }
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.id
-              << "): processing item " << work_entry.io_item_index;
+            << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -69,7 +69,7 @@ void *save_thread(void *arg) {
 
       auto io_start = now();
 
-      WriteFile *output_file = nullptr;
+      WriteFile* output_file = nullptr;
       BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
 
       if (work_entry.columns[out_idx].rows.size() != num_rows) {
@@ -78,21 +78,21 @@ void *save_thread(void *arg) {
 
       if (!work_entry.column_handles[out_idx].is_same_address_space(
               CPU_DEVICE)) {
-        std::vector<u8 *> dest_buffers, src_buffers;
+        std::vector<u8*> dest_buffers, src_buffers;
         std::vector<size_t> sizes;
         size_t total_size = 0;
         for (i32 f = 0; f < num_rows; ++f) {
-          Row &row = work_entry.columns[out_idx].rows[f];
+          Row& row = work_entry.columns[out_idx].rows[f];
           total_size += row.size;
         }
 
         if (num_rows > 0) {
-          u8 *output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
+          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
           for (i32 f = 0; f < num_rows; ++f) {
-            Row &row = work_entry.columns[out_idx].rows[f];
+            Row& row = work_entry.columns[out_idx].rows[f];
             size_t size = row.size;
-            u8 *src_buffer = row.buffer;
-            u8 *dest_buffer = output_block;
+            u8* src_buffer = row.buffer;
+            u8* dest_buffer = output_block;
 
             dest_buffers.push_back(dest_buffer);
             src_buffers.push_back(src_buffer);
@@ -105,7 +105,7 @@ void *save_thread(void *arg) {
                      work_entry.column_handles[out_idx], sizes);
 
           for (i32 f = 0; f < num_rows; ++f) {
-            delete_buffer(work_entry.column_handles[out_idx] , src_buffers[f]);
+            delete_buffer(work_entry.column_handles[out_idx], src_buffers[f]);
             work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
           }
         }
@@ -123,7 +123,7 @@ void *save_thread(void *arg) {
       // Write actual output data
       for (size_t i = 0; i < num_rows; ++i) {
         i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-        u8 *buffer = work_entry.columns[out_idx].rows[i].buffer;
+        u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
         s_write(output_file, buffer, buffer_size);
         size_written += buffer_size;
       }
@@ -143,7 +143,7 @@ void *save_thread(void *arg) {
     }
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.id
-              << "): finished item " << work_entry.io_item_index;
+            << "): finished item " << work_entry.io_item_index;
 
     args.profiler.add_interval("task", work_start, now());
 
@@ -151,7 +151,7 @@ void *save_thread(void *arg) {
   }
 
   VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.id
-            << "): thread finished ";
+          << "): thread finished ";
 
   // Cleanup
   delete storage;

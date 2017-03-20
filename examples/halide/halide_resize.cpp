@@ -11,7 +11,7 @@ Expr kernel_box(Expr x) {
 }
 
 class HalideResizeKernel : public Halide::Generator<HalideResizeKernel> {
-public:
+ public:
   ImageParam input{UInt(8), 3, "input"};
   Param<int> input_width{"input_width"}, input_height{"input_height"};
   Param<int> target_width{"target_width"}, target_height{"target_height"};
@@ -55,9 +55,7 @@ public:
     resized_final(x, y, c) = clamp(resized_y(x, y, c), 0.0f, 255.0f);
     resized_final.bound(c, 0, 3);
 
-    input
-      .dim(0).set_stride(3)
-      .dim(2).set_stride(1);
+    input.dim(0).set_stride(3).dim(2).set_stride(1);
 
     Target target = Halide::get_target_from_environment();
     target.set_feature(Target::CUDA);
@@ -69,5 +67,4 @@ public:
   }
 };
 
-Halide::RegisterGenerator<HalideResizeKernel> register_me{
-    "halide_resize"};
+Halide::RegisterGenerator<HalideResizeKernel> register_me{"halide_resize"};

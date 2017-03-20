@@ -13,23 +13,23 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/runtime.h"
+#include <grpc/support/log.h>
 #include "scanner/engine/ingest.h"
+#include "scanner/engine/runtime.h"
 #include "scanner/engine/sampler.h"
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
-#include <grpc/support/log.h>
 
 #include <mutex>
 namespace scanner {
 namespace internal {
 namespace {
-void validate_task_set(DatabaseMetadata &meta, const proto::TaskSet &task_set,
-                       Result *result) {
-  auto &tasks = task_set.tasks();
+void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
+                       Result* result) {
+  auto& tasks = task_set.tasks();
   // Validate tasks
   std::set<std::string> task_output_table_names;
-  for (auto &task : task_set.tasks()) {
+  for (auto& task : task_set.tasks()) {
     if (task.output_table_name() == "") {
       LOG(WARNING) << "Task specified with empty output table name. Output "
                       "tables can not have empty names";
@@ -54,7 +54,7 @@ void validate_task_set(DatabaseMetadata &meta, const proto::TaskSet &task_set,
                    << "from at least one table.";
       result->set_success(false);
     } else {
-      for (auto &sample : task.samples()) {
+      for (auto& sample : task.samples()) {
         if (!meta.has_table(sample.table_name())) {
           LOG(WARNING) << "Task " << task.output_table_name() << " tried to "
                        << "sample from non-existent table "
@@ -75,13 +75,13 @@ void validate_task_set(DatabaseMetadata &meta, const proto::TaskSet &task_set,
   }
   // Validate ops
   {
-    OpRegistry *op_registry = get_op_registry();
-    KernelRegistry *kernel_registry = get_kernel_registry();
+    OpRegistry* op_registry = get_op_registry();
+    KernelRegistry* kernel_registry = get_kernel_registry();
 
     i32 op_idx = 0;
     std::vector<std::string> op_names;
     std::vector<std::vector<std::string>> op_outputs;
-    for (auto &op : task_set.ops()) {
+    for (auto& op : task_set.ops()) {
       op_names.push_back(op.name());
       if (op_idx == 0) {
         if (op.name() != "InputTable") {
@@ -90,8 +90,8 @@ void validate_task_set(DatabaseMetadata &meta, const proto::TaskSet &task_set,
           break;
         }
         op_outputs.emplace_back();
-        for (auto &input : op.inputs()) {
-          for (auto &col : input.columns()) {
+        for (auto& input : op.inputs()) {
+          for (auto& col : input.columns()) {
             op_outputs.back().push_back(col);
           }
         }
@@ -114,18 +114,18 @@ void validate_task_set(DatabaseMetadata &meta, const proto::TaskSet &task_set,
                        (op.device_type() == DeviceType::CPU ? "CPU" : "GPU"));
         }
       }
-      for (auto &input : op.inputs()) {
+      for (auto& input : op.inputs()) {
         if (input.op_index() >= op_idx) {
           RESULT_ERROR(result,
                        "Op %s at index %d referenced input index %d."
                        "Ops must be specified in topo sort order.",
                        op.name().c_str(), op_idx, input.op_index());
         } else {
-          std::string &input_op_name = op_names.at(input.op_index());
-          std::vector<std::string> &inputs = op_outputs.at(input.op_index());
-          for (auto &col : input.columns()) {
+          std::string& input_op_name = op_names.at(input.op_index());
+          std::vector<std::string>& inputs = op_outputs.at(input.op_index());
+          for (auto& col : input.columns()) {
             bool found = false;
-            for (auto &out_col : inputs) {
+            for (auto& out_col : inputs) {
               if (col == out_col) {
                 found = true;
                 break;
@@ -163,9 +163,9 @@ void validate_task_set(DatabaseMetadata &meta, const proto::TaskSet &task_set,
   }
 }
 
-Result
-get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
-                  const proto::Task &task, std::vector<i64> &rows) {
+Result get_task_end_rows(
+    const std::map<std::string, TableMetadata>& table_metas,
+    const proto::Task& task, std::vector<i64>& rows) {
   Result result;
   result.set_success(true);
 
@@ -189,8 +189,8 @@ get_task_end_rows(const std::map<std::string, TableMetadata> &table_metas,
 }
 
 class MasterImpl final : public proto::Master::Service {
-public:
-  MasterImpl(DatabaseParameters &params, Flag& shutdown)
+ public:
+  MasterImpl(DatabaseParameters& params, Flag& shutdown)
       : db_params_(params), trigger_shutdown_(shutdown), bar_(nullptr) {
     storage_ =
         storehouse::StorageBackend::make_from_config(db_params_.storage_config);
@@ -199,26 +199,30 @@ public:
 
   ~MasterImpl() { delete storage_; }
 
-  // Expects context->peer() to return a string in the format ipv4:<peer_address>:<random_port>
+  // Expects context->peer() to return a string in the format
+  // ipv4:<peer_address>:<random_port>
   // Returns the <peer_address> from the above format.
-  static std::string get_worker_address_from_grpc_context(grpc::ServerContext *context) {
+  static std::string get_worker_address_from_grpc_context(
+      grpc::ServerContext* context) {
     std::string worker_address = context->peer();
     std::size_t portSep = worker_address.find_last_of(':');
-    if (portSep == std::string::npos) { }
+    if (portSep == std::string::npos) {
+    }
     std::string worker_address_base = worker_address.substr(0, portSep);
 
     portSep = worker_address_base.find_first_of(':');
-    if (portSep == std::string::npos) { }
-    
+    if (portSep == std::string::npos) {
+    }
+
     std::string worker_address_actual = worker_address_base.substr(portSep + 1);
 
     return worker_address_actual;
   }
 
-  grpc::Status RegisterWorker(grpc::ServerContext *context,
-                              const proto::WorkerParams *worker_info,
-                              proto::Registration *registration) {
-	std::unique_lock<std::mutex> lk(work_mutex_);
+  grpc::Status RegisterWorker(grpc::ServerContext* context,
+                              const proto::WorkerParams* worker_info,
+                              proto::Registration* registration) {
+    std::unique_lock<std::mutex> lk(work_mutex_);
 
     set_database_path(db_params_.db_path);
 
@@ -234,9 +238,9 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status ActiveWorkers(grpc::ServerContext *context,
-                              const proto::Empty *empty,
-                              proto::RegisteredWorkers *registered_workers) {
+  grpc::Status ActiveWorkers(grpc::ServerContext* context,
+                             const proto::Empty* empty,
+                             proto::RegisteredWorkers* registered_workers) {
     std::unique_lock<std::mutex> lk(work_mutex_);
 
     set_database_path(db_params_.db_path);
@@ -250,9 +254,9 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status IngestVideos(grpc::ServerContext *context,
-                            const proto::IngestParameters *params,
-                            proto::IngestResult *result) {
+  grpc::Status IngestVideos(grpc::ServerContext* context,
+                            const proto::IngestParameters* params,
+                            proto::IngestResult* result) {
     std::vector<FailedVideo> failed_videos;
     result->mutable_result()->CopyFrom(
         ingest_videos(db_params_.storage_config, db_params_.db_path,
@@ -268,9 +272,9 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status NextWork(grpc::ServerContext *context,
-                        const proto::NodeInfo *node_info,
-                        proto::NewWork *new_work) {
+  grpc::Status NextWork(grpc::ServerContext* context,
+                        const proto::NodeInfo* node_info,
+                        proto::NewWork* new_work) {
     std::unique_lock<std::mutex> lk(work_mutex_);
     if (samples_left_ <= 0) {
       if (next_task_ < num_tasks_ && task_result_.success()) {
@@ -303,13 +307,15 @@ public:
 
     samples_left_--;
     total_samples_used_++;
-    if (bar_) { bar_->Progressed(total_samples_used_); }
+    if (bar_) {
+      bar_->Progressed(total_samples_used_);
+    }
     return grpc::Status::OK;
   }
 
-  grpc::Status NewJob(grpc::ServerContext *context,
-                      const proto::JobParameters *job_params,
-                      proto::Result *job_result) {
+  grpc::Status NewJob(grpc::ServerContext* context,
+                      const proto::JobParameters* job_params,
+                      proto::Result* job_result) {
     job_result->set_success(true);
     set_database_path(db_params_.db_path);
 
@@ -327,23 +333,23 @@ public:
     job_descriptor.set_num_nodes(workers_.size());
 
     // Get output columns from last output op
-    auto &ops = job_params->task_set().ops();
+    auto& ops = job_params->task_set().ops();
     // OpRegistry* op_registry = get_op_registry();
     // OpInfo* output_op = op_registry->get_op_info(
     //   ops.Get(ops.size()-1).name());
     // const std::vector<std::string>& output_columns =
     //   output_op->output_columns();
-    auto &last_op = ops.Get(ops.size() - 1);
+    auto& last_op = ops.Get(ops.size() - 1);
     assert(last_op.name() == "OutputTable");
     std::vector<std::string> output_columns;
-    for (const auto &eval_input : last_op.inputs()) {
-      for (const std::string &name : eval_input.columns()) {
+    for (const auto& eval_input : last_op.inputs()) {
+      for (const std::string& name : eval_input.columns()) {
         output_columns.push_back(name);
       }
     }
     for (size_t i = 0; i < output_columns.size(); ++i) {
-      auto &col_name = output_columns[i];
-      Column *col = job_descriptor.add_columns();
+      auto& col_name = output_columns[i];
+      Column* col = job_descriptor.add_columns();
       col->set_id(i);
       col->set_name(col_name);
       col->set_type(ColumnType::Other);
@@ -352,7 +358,7 @@ public:
     DatabaseMetadata meta =
         read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
-    auto &tasks = job_params->task_set().tasks();
+    auto& tasks = job_params->task_set().tasks();
     job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
     validate_task_set(meta, job_params->task_set(), job_result);
@@ -368,7 +374,7 @@ public:
     job_descriptor.set_name(job_params->job_name());
 
     // Read all table metadata
-    for (const std::string &table_name : meta.table_names()) {
+    for (const std::string& table_name : meta.table_names()) {
       std::string table_path =
           TableMetadata::descriptor_path(meta.get_table_id(table_name));
       table_metas_[table_name] = read_table_metadata(storage_, table_path);
@@ -376,7 +382,7 @@ public:
 
     total_samples_used_ = 0;
     total_samples_ = 0;
-    for (auto &task : job_params->task_set().tasks()) {
+    for (auto& task : job_params->task_set().tasks()) {
       i32 table_id = meta.add_table(task.output_table_name());
       proto::TableDescriptor table_desc;
       table_desc.set_id(table_id);
@@ -386,7 +392,7 @@ public:
                                    .count());
       // Set columns equal to the last op's output columns
       for (size_t i = 0; i < output_columns.size(); ++i) {
-        Column *col = table_desc.add_columns();
+        Column* col = table_desc.add_columns();
         col->set_id(i);
         col->set_name(output_columns[i]);
         col->set_type(ColumnType::Other);
@@ -432,7 +438,9 @@ public:
     std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
         rpcs;
 
-    if (bar_) { delete bar_; }
+    if (bar_) {
+      delete bar_;
+    }
     if (job_params->show_progress()) {
       bar_ = new ProgressBar(total_samples_, "");
     } else {
@@ -441,7 +449,7 @@ public:
 
     std::map<std::string, i32> local_ids;
     std::map<std::string, i32> local_totals;
-    for (std::string &address : addresses_) {
+    for (std::string& address : addresses_) {
       // Strip port
       std::vector<std::string> split_addr = split(address, ':');
       std::string sans_port = split_addr[0];
@@ -454,8 +462,8 @@ public:
     proto::JobParameters w_job_params;
     w_job_params.CopyFrom(*job_params);
     for (size_t i = 0; i < workers_.size(); ++i) {
-      auto &worker = workers_[i];
-      std::string &address = addresses_[i];
+      auto& worker = workers_[i];
+      std::string& address = addresses_[i];
       std::vector<std::string> split_addr = split(address, ':');
       std::string sans_port = split_addr[0];
       w_job_params.set_local_id(local_ids[sans_port]);
@@ -463,11 +471,11 @@ public:
       local_ids[sans_port] += 1;
       rpcs.emplace_back(
           worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
-      rpcs[i]->Finish(&replies[i], &statuses[i], (void *)i);
+      rpcs[i]->Finish(&replies[i], &statuses[i], (void*)i);
     }
 
     for (size_t i = 0; i < workers_.size(); ++i) {
-      void *got_tag;
+      void* got_tag;
       bool ok = false;
       GPR_ASSERT(cq.Next(&got_tag, &ok));
       GPR_ASSERT((i64)got_tag < workers_.size());
@@ -476,7 +484,8 @@ public:
       i64 worker_id = (i64)got_tag;
 
       if (!replies[worker_id].success()) {
-        LOG(WARNING) << "Worker " << worker_id << " returned error: " << replies[worker_id].msg();
+        LOG(WARNING) << "Worker " << worker_id
+                     << " returned error: " << replies[worker_id].msg();
         job_result->set_success(false);
         job_result->set_msg(replies[worker_id].msg());
         next_task_ = num_tasks_;
@@ -491,28 +500,33 @@ public:
       job_result->CopyFrom(task_result_);
     } else {
       assert(next_task_ == num_tasks_);
-      if (bar_) { bar_->Progressed(total_samples_); }
+      if (bar_) {
+        bar_->Progressed(total_samples_);
+      }
     }
 
     return grpc::Status::OK;
   }
 
-  grpc::Status Ping(grpc::ServerContext *context, const proto::Empty *empty1,
-                    proto::Empty *empty2) {
+  grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty1,
+                    proto::Empty* empty2) {
     return grpc::Status::OK;
   }
 
-  grpc::Status GetOpOutputInfo(grpc::ServerContext * context, const proto::OpOutputInfoArgs *op_output_info_args,
-                    proto::OpOutputInfo *op_output_info) {
-    OpRegistry *registry = get_op_registry();
+  grpc::Status GetOpOutputInfo(
+      grpc::ServerContext* context,
+      const proto::OpOutputInfoArgs* op_output_info_args,
+      proto::OpOutputInfo* op_output_info) {
+    OpRegistry* registry = get_op_registry();
     std::string op_name = op_output_info_args->op_name();
     if (!registry->has_op(op_name)) {
       op_output_info->mutable_result()->set_success(false);
-      op_output_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
+      op_output_info->mutable_result()->set_msg("Op " + op_name +
+                                                " does not exist");
       return grpc::Status::OK;
     }
 
-    OpInfo *info = registry->get_op_info(op_name);
+    OpInfo* info = registry->get_op_info(op_name);
 
     for (auto& output_column : info->output_columns()) {
       op_output_info->add_output_columns(output_column);
@@ -522,9 +536,9 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status LoadOp(grpc::ServerContext *context,
-                      const proto::OpInfo *op_info, Result *result) {
-    const std::string &so_path = op_info->so_path();
+  grpc::Status LoadOp(grpc::ServerContext* context,
+                      const proto::OpInfo* op_info, Result* result) {
+    const std::string& so_path = op_info->so_path();
     {
       std::ifstream infile(so_path);
       if (!infile.good()) {
@@ -533,13 +547,13 @@ public:
       }
     }
 
-    void *handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (handle == nullptr) {
       RESULT_ERROR(result, "Failed to load op library: %s", dlerror());
       return grpc::Status::OK;
     }
 
-    for (auto &worker : workers_) {
+    for (auto& worker : workers_) {
       grpc::ClientContext ctx;
       proto::Empty empty;
       worker->LoadOp(&ctx, *op_info, &empty);
@@ -549,9 +563,8 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status Shutdown(grpc::ServerContext *context,
-                        const proto::Empty *empty,
-                        Result *result) {
+  grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
+                        Result* result) {
     result->set_success(true);
     trigger_shutdown_.set();
     for (auto& w : workers_) {
@@ -564,15 +577,15 @@ public:
     return grpc::Status::OK;
   }
 
-private:
+ private:
   std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
   std::vector<std::string> addresses_;
   DatabaseParameters db_params_;
   Flag& trigger_shutdown_;
-  storehouse::StorageBackend *storage_;
+  storehouse::StorageBackend* storage_;
   std::map<std::string, TableMetadata> table_metas_;
   proto::JobParameters job_params_;
-  ProgressBar *bar_;
+  ProgressBar* bar_;
 
   i64 total_samples_used_;
   i64 total_samples_;
@@ -585,7 +598,7 @@ private:
   Result task_result_;
 };
 
-proto::Master::Service *get_master_service(DatabaseParameters &param,
+proto::Master::Service* get_master_service(DatabaseParameters& param,
                                            Flag& shutdown_flag) {
   return new MasterImpl(param, shutdown_flag);
 }

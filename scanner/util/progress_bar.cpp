@@ -5,8 +5,7 @@ namespace scanner {
 
 ProgressBar::ProgressBar() {}
 
-ProgressBar::ProgressBar(u64 n_, const char* description_,
-                         std::ostream& out_) {
+ProgressBar::ProgressBar(u64 n_, const char* description_, std::ostream& out_) {
   n = n_;
   frequency_update = n_;
   description = description_;
@@ -104,5 +103,4 @@ void ProgressBar::Progressed(u64 idx_) {
               << std::flush;
   }
 }
-
 }

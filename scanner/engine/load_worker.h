@@ -38,6 +38,5 @@ struct LoadThreadArgs {
 };
 
 void* load_thread(void* arg);
-
 }
 }

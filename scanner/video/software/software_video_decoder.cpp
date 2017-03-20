@@ -40,9 +40,14 @@ namespace internal {
 SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
                                            DeviceType output_type,
                                            i32 thread_count)
-    : device_id_(device_id), output_type_(output_type), codec_(nullptr),
-      cc_(nullptr), reset_context_(true), sws_context_(nullptr),
-      frame_pool_(1024), decoded_frame_queue_(1024) {
+    : device_id_(device_id),
+      output_type_(output_type),
+      codec_(nullptr),
+      cc_(nullptr),
+      reset_context_(true),
+      sws_context_(nullptr),
+      frame_pool_(1024),
+      decoded_frame_queue_(1024) {
   avcodec_register_all();
 
   av_init_packet(&packet_);
@@ -88,7 +93,7 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
   sws_freeContext(sws_context_);
 }
 
-void SoftwareVideoDecoder::configure(const FrameInfo &metadata) {
+void SoftwareVideoDecoder::configure(const FrameInfo& metadata) {
   metadata_ = metadata;
   frame_width_ = metadata_.width();
   frame_height_ = metadata_.height();
@@ -100,7 +105,7 @@ void SoftwareVideoDecoder::configure(const FrameInfo &metadata) {
   conversion_buffer_.resize(required_size);
 }
 
-bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
+bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                                 bool discontinuity) {
 // Debug read packets
 #if 0
@@ -132,13 +137,13 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
     //        what,
     //        decoded_frame_queue_.size() + frame_pool_.size());
     while (decoded_frame_queue_.size() > 0) {
-      AVFrame *frame;
+      AVFrame* frame;
       decoded_frame_queue_.pop(frame);
       av_frame_free(&frame);
       what--;
     }
     while (frame_pool_.size() > 0) {
-      AVFrame *frame;
+      AVFrame* frame;
       frame_pool_.pop(frame);
       av_frame_free(&frame);
       what--;
@@ -149,7 +154,8 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
   }
   if (encoded_size > 0) {
     // if (av_new_packet(&packet_, encoded_size) < 0) {
-    //   fprintf(stderr, "could not allocate packet for feeding into decoder\n");
+    //   fprintf(stderr, "could not allocate packet for feeding into
+    //   decoder\n");
     //   assert(false);
     // }
     // memcpy(packet_.data, encoded_buffer, encoded_size);
@@ -175,13 +181,14 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
   auto received_start = now();
   bool done = false;
   while (!done) {
-    AVFrame *frame;
+    AVFrame* frame;
     {
       if (frame_pool_.size() <= 0) {
         // Create a new frame if our pool is empty
         frame_pool_.push(av_frame_alloc());
         what++;
-        // printf("what %d, frame pool %d, decoded %d\n", what, frame_pool_.size(),
+        // printf("what %d, frame pool %d, decoded %d\n", what,
+        // frame_pool_.size(),
         //        decoded_frame_queue_.size());
       }
       frame_pool_.pop(frame);
@@ -193,7 +200,7 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
       break;
     }
     if (error == 0) {
-      //printf("decoded_frame_queue %d\n", decoded_frame_queue_.size());
+      // printf("decoded_frame_queue %d\n", decoded_frame_queue_.size());
       decoded_frame_queue_.push(frame);
     } else if (error == AVERROR(EAGAIN)) {
       done = true;
@@ -212,12 +219,12 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
                             received_end);
   }
 #else
-  uint8_t *orig_data = packet_.data;
+  uint8_t* orig_data = packet_.data;
   int orig_size = packet_.size;
   int got_picture = 0;
   do {
     // Get frame from pool of allocated frames to decode video into
-    AVFrame *frame;
+    AVFrame* frame;
     {
       if (frame_pool_.size() <= 0) {
         // Create a new frame if our pool is empty
@@ -242,7 +249,7 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
     if (got_picture) {
       if (frame->buf[0] == NULL) {
         // Must copy packet as data is stored statically
-        AVFrame *cloned_frame = av_frame_clone(frame);
+        AVFrame* cloned_frame = av_frame_clone(frame);
         if (cloned_frame == NULL) {
           fprintf(stderr, "could not clone frame\n");
           assert(false);
@@ -269,7 +276,7 @@ bool SoftwareVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
 
 bool SoftwareVideoDecoder::discard_frame() {
   if (decoded_frame_queue_.size() > 0) {
-    AVFrame *frame;
+    AVFrame* frame;
     decoded_frame_queue_.pop(frame);
     av_frame_unref(frame);
     frame_pool_.push(frame);
@@ -278,10 +285,10 @@ bool SoftwareVideoDecoder::discard_frame() {
   return decoded_frame_queue_.size() > 0;
 }
 
-bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
+bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   int64_t size_left = decoded_size;
 
-  AVFrame *frame;
+  AVFrame* frame;
   if (decoded_frame_queue_.size() > 0) {
     decoded_frame_queue_.pop(frame);
   } else {
@@ -308,9 +315,9 @@ bool SoftwareVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
     exit(EXIT_FAILURE);
   }
 
-  u8 *scale_buffer = decoded_buffer;
+  u8* scale_buffer = decoded_buffer;
 
-  uint8_t *out_slices[4];
+  uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size =
       av_image_fill_arrays(out_slices, out_linesizes, scale_buffer,

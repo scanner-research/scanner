@@ -16,11 +16,11 @@
 #include "scanner/util/memory.h"
 #include "scanner/util/cuda.h"
 
-#include <cassert>
-#include <mutex>
 #include <sys/syscall.h>
 #include <sys/sysinfo.h>
 #include <unistd.h>
+#include <cassert>
+#include <mutex>
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -65,19 +65,19 @@ namespace scanner {
 // and the latter by the pool if it exists.
 
 class Allocator {
-public:
+ public:
   virtual ~Allocator(){};
 
-  virtual u8 *allocate(size_t size) = 0;
-  virtual void free(u8 *buffer) = 0;
+  virtual u8* allocate(size_t size) = 0;
+  virtual void free(u8* buffer) = 0;
 };
 
 class SystemAllocator : public Allocator {
-public:
-  SystemAllocator(DeviceHandle device, bool pinned = false) :
-      device_(device), pinned_(pinned) {}
+ public:
+  SystemAllocator(DeviceHandle device, bool pinned = false)
+      : device_(device), pinned_(pinned) {}
 
-  u8 *allocate(size_t size) {
+  u8* allocate(size_t size) {
     if (device_.type == DeviceType::CPU) {
       try {
         if (pinned_) {
@@ -87,20 +87,20 @@ public:
         } else {
           return new u8[size];
         }
-      } catch (const std::bad_alloc &e) {
+      } catch (const std::bad_alloc& e) {
         LOG(FATAL) << "CPU memory allocation failed: " << e.what();
       }
     } else if (device_.type == DeviceType::GPU) {
-      u8 *buffer;
+      u8* buffer;
       CUDA_PROTECT({
         CU_CHECK(cudaSetDevice(device_.id));
-        CU_CHECK(cudaMalloc((void **)&buffer, size));
+        CU_CHECK(cudaMalloc((void**)&buffer, size));
       })
       return buffer;
     }
   }
 
-  void free(u8 *buffer) {
+  void free(u8* buffer) {
     if (device_.type == DeviceType::CPU) {
       if (pinned_) {
         CUDA_PROTECT({ CU_CHECK(cudaFreeHost(buffer)); });
@@ -123,18 +123,18 @@ public:
     }
   }
 
-private:
+ private:
   DeviceHandle device_;
   bool pinned_;
 };
 
-bool pointer_in_buffer(u8 *ptr, u8 *buf_start, u8 *buf_end) {
+bool pointer_in_buffer(u8* ptr, u8* buf_start, u8* buf_end) {
   return (size_t)ptr >= (size_t)buf_start && (size_t)ptr < (size_t)buf_end;
 }
 
 class PoolAllocator : public Allocator {
-public:
-  PoolAllocator(DeviceHandle device, SystemAllocator *allocator,
+ public:
+  PoolAllocator(DeviceHandle device, SystemAllocator* allocator,
                 size_t pool_size)
       : device_(device), system_allocator(allocator), pool_size_(pool_size) {
     pool_ = system_allocator->allocate(pool_size_);
@@ -142,7 +142,7 @@ public:
 
   ~PoolAllocator() { system_allocator->free(pool_); }
 
-  u8 *allocate(size_t size) {
+  u8* allocate(size_t size) {
     Allocation alloc;
     alloc.length = size;
 
@@ -170,7 +170,7 @@ public:
 
     if (!found) {
       if (num_alloc > 0) {
-        Allocation &last = allocations_[num_alloc - 1];
+        Allocation& last = allocations_[num_alloc - 1];
         alloc.offset = align(last.offset + last.length);
       } else {
         alloc.offset = 0;
@@ -181,7 +181,7 @@ public:
     LOG_IF(FATAL, alloc.offset + alloc.length >= pool_size_)
         << "Exceeded pool size";
 
-    u8 *buffer = pool_ + alloc.offset;
+    u8* buffer = pool_ + alloc.offset;
     return buffer;
   }
 
@@ -195,7 +195,7 @@ public:
     }
   }
 
-  void free(u8 *buffer) {
+  void free(u8* buffer) {
     LOG_IF(FATAL, !pointer_in_buffer(buffer, pool_, pool_ + pool_size_))
         << "Pool allocator tried to free buffer not in pool";
 
@@ -204,12 +204,12 @@ public:
     bool found = find_buffer(buffer, index);
     LOG_IF(FATAL, !found) << "Attempted to free unallocated buffer in pool";
 
-    Allocation &alloc = allocations_[index];
+    Allocation& alloc = allocations_[index];
     allocations_.erase(allocations_.begin() + index);
   }
 
-private:
-  bool find_buffer(u8 *buffer, i32 &index) {
+ private:
+  bool find_buffer(u8* buffer, i32& index) {
     i32 num_alloc = allocations_.size();
     for (i32 i = 0; i < num_alloc; ++i) {
       Allocation alloc = allocations_[i];
@@ -227,17 +227,17 @@ private:
   } Allocation;
 
   DeviceHandle device_;
-  u8 *pool_ = nullptr;
+  u8* pool_ = nullptr;
   size_t pool_size_;
   std::mutex lock_;
   std::vector<Allocation> allocations_;
 
-  SystemAllocator *system_allocator;
+  SystemAllocator* system_allocator;
 };
 
 class BlockAllocator {
-public:
-  BlockAllocator(Allocator *allocator) : allocator_(allocator) {}
+ public:
+  BlockAllocator(Allocator* allocator) : allocator_(allocator) {}
 
   ~BlockAllocator() {
     std::lock_guard<std::mutex> guard(lock_);
@@ -248,8 +248,8 @@ public:
     }
   }
 
-  u8 *allocate(size_t size, i32 refs) {
-    u8 *buffer = allocator_->allocate(size);
+  u8* allocate(size_t size, i32 refs) {
+    u8* buffer = allocator_->allocate(size);
 
     Allocation alloc;
     alloc.buffer = buffer;
@@ -262,14 +262,14 @@ public:
     return buffer;
   }
 
-  void free(u8 *buffer) {
+  void free(u8* buffer) {
     std::lock_guard<std::mutex> guard(lock_);
 
     i32 index;
     bool found = find_buffer(buffer, index);
     LOG_IF(FATAL, !found) << "Block allocator freed non-block buffer";
 
-    Allocation &alloc = allocations_[index];
+    Allocation& alloc = allocations_[index];
     assert(alloc.refs > 0);
     alloc.refs -= 1;
 
@@ -280,7 +280,7 @@ public:
     }
   }
 
-  bool buffers_in_same_block(std::vector<u8 *> buffers) {
+  bool buffers_in_same_block(std::vector<u8*> buffers) {
     assert(buffers.size() > 0);
 
     std::lock_guard<std::mutex> guard(lock_);
@@ -301,14 +301,14 @@ public:
     return true;
   }
 
-  bool buffer_in_block(u8 *buffer) {
+  bool buffer_in_block(u8* buffer) {
     std::lock_guard<std::mutex> guard(lock_);
     i32 index;
     return find_buffer(buffer, index);
   }
 
-private:
-  bool find_buffer(u8 *buffer, i32 &index) {
+ private:
+  bool find_buffer(u8* buffer, i32& index) {
     i32 num_alloc = allocations_.size();
     for (i32 i = 0; i < num_alloc; ++i) {
       Allocation alloc = allocations_[i];
@@ -321,27 +321,27 @@ private:
   }
 
   typedef struct {
-    u8 *buffer;
+    u8* buffer;
     size_t size;
     i32 refs;
   } Allocation;
 
   std::mutex lock_;
   std::vector<Allocation> allocations_;
-  Allocator *allocator_;
+  Allocator* allocator_;
 };
 
-static SystemAllocator *cpu_system_allocator = nullptr;
-static std::map<i32, SystemAllocator *> gpu_system_allocators;
-static PoolAllocator *cpu_pool_allocator = nullptr;
-static BlockAllocator *cpu_block_allocator = nullptr;
+static SystemAllocator* cpu_system_allocator = nullptr;
+static std::map<i32, SystemAllocator*> gpu_system_allocators;
+static PoolAllocator* cpu_pool_allocator = nullptr;
+static BlockAllocator* cpu_block_allocator = nullptr;
 static std::map<i32, PoolAllocator*> gpu_pool_allocators;
-static std::map<i32, BlockAllocator *> gpu_block_allocators;
+static std::map<i32, BlockAllocator*> gpu_block_allocators;
 
 void init_memory_allocators(MemoryPoolConfig config,
                             std::vector<i32> gpu_device_ids) {
   cpu_system_allocator = new SystemAllocator(CPU_DEVICE, config.pinned_cpu());
-  Allocator *cpu_block_allocator_base = cpu_system_allocator;
+  Allocator* cpu_block_allocator_base = cpu_system_allocator;
   if (config.cpu().use_pool()) {
     struct sysinfo info;
     i32 err = sysinfo(&info);
@@ -360,9 +360,9 @@ void init_memory_allocators(MemoryPoolConfig config,
 #ifdef HAVE_CUDA
   for (i32 device_id : gpu_device_ids) {
     DeviceHandle device = {DeviceType::GPU, device_id};
-    SystemAllocator *gpu_system_allocator = new SystemAllocator(device);
+    SystemAllocator* gpu_system_allocator = new SystemAllocator(device);
     gpu_system_allocators[device.id] = gpu_system_allocator;
-    Allocator *gpu_block_allocator_base = gpu_system_allocator;
+    Allocator* gpu_block_allocator_base = gpu_system_allocator;
     if (config.gpu().use_pool()) {
       cudaDeviceProp prop;
       CU_CHECK(cudaGetDeviceProperties(&prop, device_id));
@@ -405,7 +405,7 @@ void destroy_memory_allocators() {
 #endif
 }
 
-SystemAllocator *system_allocator_for_device(DeviceHandle device) {
+SystemAllocator* system_allocator_for_device(DeviceHandle device) {
   if (device.type == DeviceType::CPU) {
     return cpu_system_allocator;
   } else if (device.type == DeviceType::GPU) {
@@ -416,7 +416,7 @@ SystemAllocator *system_allocator_for_device(DeviceHandle device) {
   }
 }
 
-BlockAllocator *block_allocator_for_device(DeviceHandle device) {
+BlockAllocator* block_allocator_for_device(DeviceHandle device) {
   if (device.type == DeviceType::CPU) {
     return cpu_block_allocator;
   } else if (device.type == DeviceType::GPU) {
@@ -427,41 +427,42 @@ BlockAllocator *block_allocator_for_device(DeviceHandle device) {
   }
 }
 
-u8 *new_buffer(DeviceHandle device, size_t size) {
+u8* new_buffer(DeviceHandle device, size_t size) {
   assert(size > 0);
-  SystemAllocator *allocator = system_allocator_for_device(device);
+  SystemAllocator* allocator = system_allocator_for_device(device);
   return allocator->allocate(size);
 }
 
-u8 *new_block_buffer(DeviceHandle device, size_t size, i32 refs) {
+u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs) {
   assert(size > 0);
-  BlockAllocator *allocator = block_allocator_for_device(device);
+  BlockAllocator* allocator = block_allocator_for_device(device);
   return allocator->allocate(size, refs);
 }
 
-void delete_buffer(DeviceHandle device, u8 *buffer) {
+void delete_buffer(DeviceHandle device, u8* buffer) {
   assert(buffer != nullptr);
-  BlockAllocator *block_allocator = block_allocator_for_device(device);
+  BlockAllocator* block_allocator = block_allocator_for_device(device);
   if (block_allocator->buffer_in_block(buffer)) {
     block_allocator->free(buffer);
   } else {
-    SystemAllocator *system_allocator = system_allocator_for_device(device);
+    SystemAllocator* system_allocator = system_allocator_for_device(device);
     system_allocator->free(buffer);
   }
 }
 
 // FIXME(wcrichto): case if transferring between two different GPUs
-void memcpy_buffer(u8 *dest_buffer, DeviceHandle dest_device,
-                   const u8 *src_buffer, DeviceHandle src_device, size_t size) {
-  if (dest_device.type == DeviceType::CPU && src_device.type == DeviceType::CPU) {
+void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
+                   const u8* src_buffer, DeviceHandle src_device, size_t size) {
+  if (dest_device.type == DeviceType::CPU &&
+      src_device.type == DeviceType::CPU) {
     memcpy(dest_buffer, src_buffer, size);
   } else {
     assert(!(dest_device.type == DeviceType::GPU &&
              src_device.type == DeviceType::GPU &&
              dest_device.id != src_device.id));
     CUDA_PROTECT({
-        CU_CHECK(cudaSetDevice(src_device.id));
-        CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
+      CU_CHECK(cudaSetDevice(src_device.id));
+      CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
     });
   }
 }
@@ -469,8 +470,8 @@ void memcpy_buffer(u8 *dest_buffer, DeviceHandle dest_device,
 #define NUM_CUDA_STREAMS 32
 
 // TODO(wcrichto): implement CPU-CPU transfer
-void memcpy_vec(std::vector<u8 *> dest_buffers, DeviceHandle dest_device,
-                const std::vector<u8 *> src_buffers, DeviceHandle src_device,
+void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
+                const std::vector<u8*> src_buffers, DeviceHandle src_device,
                 std::vector<size_t> sizes) {
   assert(dest_device.type == DeviceType::GPU ||
          src_device.type == DeviceType::GPU);
@@ -488,8 +489,8 @@ void memcpy_vec(std::vector<u8 *> dest_buffers, DeviceHandle dest_device,
     }
   }
 
-  BlockAllocator *dest_allocator = block_allocator_for_device(dest_device);
-  BlockAllocator *src_allocator = block_allocator_for_device(src_device);
+  BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
+  BlockAllocator* src_allocator = block_allocator_for_device(src_device);
 
   if (src_device.type == DeviceType::GPU) {
     CU_CHECK(cudaSetDevice(src_device.id));

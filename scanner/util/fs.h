@@ -15,14 +15,14 @@
 
 #pragma once
 
+#include <glog/logging.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <cstring>
-#include <string>
 #include <sstream>
+#include <string>
 #include <vector>
-#include <glog/logging.h>
 
 namespace scanner {
 
@@ -55,5 +55,4 @@ std::string download_temp(const std::string& url);
 void delete_file(const std::string& path);
 
 std::vector<uint8_t> read_entire_file(const std::string& file_name);
-
 }

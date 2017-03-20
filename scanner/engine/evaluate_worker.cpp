@@ -1,22 +1,22 @@
 #include "scanner/engine/evaluate_worker.h"
 
 #include "scanner/engine/op_registry.h"
-#include "scanner/video/decoder_automata.h"
 #include "scanner/util/cuda.h"
+#include "scanner/video/decoder_automata.h"
 
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <thread>
 
 namespace scanner {
 namespace internal {
 namespace {
-void move_if_different_address_space(Profiler &profiler,
+void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     RowList &column) {
+                                     RowList& column) {
   if (!current_handle.is_same_address_space(target_handle)) {
-    std::vector<u8 *> dest_buffers, src_buffers;
+    std::vector<u8*> dest_buffers, src_buffers;
     std::vector<size_t> sizes;
 
     size_t total_size = 0;
@@ -25,7 +25,7 @@ void move_if_different_address_space(Profiler &profiler,
     }
 
     if (column.rows.size() > 0) {
-      u8 *block =
+      u8* block =
           new_block_buffer(target_handle, total_size, column.rows.size());
       for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
         size_t size = column.rows[b].size;
@@ -50,19 +50,19 @@ void move_if_different_address_space(Profiler &profiler,
 }
 }
 
-void move_if_different_address_space(Profiler &profiler,
+void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     BatchedColumns &columns) {
+                                     BatchedColumns& columns) {
   for (i32 i = 0; i < (i32)columns.size(); ++i) {
-    RowList &column = columns[i];
+    RowList& column = columns[i];
     move_if_different_address_space(profiler, current_handle, target_handle,
                                     column);
   }
 }
 
-void *pre_evaluate_thread(void *arg) {
-  PreEvaluateThreadArgs &args = *reinterpret_cast<PreEvaluateThreadArgs *>(arg);
+void* pre_evaluate_thread(void* arg) {
+  PreEvaluateThreadArgs& args = *reinterpret_cast<PreEvaluateThreadArgs*>(arg);
 
   i64 work_item_size = args.job_params->work_item_size();
 
@@ -106,7 +106,7 @@ void *pre_evaluate_thread(void *arg) {
     i64 total_rows = io_item.end_row() - io_item.start_row();
 
     if (needs_configure) {
-      //decoders.clear();
+      // decoders.clear();
     }
 
     // Setup decoders if they have not been initialized yet
@@ -145,10 +145,10 @@ void *pre_evaluate_thread(void *arg) {
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video) {
         decode_args.emplace_back();
-        auto &args = decode_args.back();
+        auto& args = decode_args.back();
         for (Row row : work_entry.columns[c].rows) {
           args.emplace_back();
-          proto::DecodeArgs &da = args.back();
+          proto::DecodeArgs& da = args.back();
           google::protobuf::io::ArrayInputStream in_stream(row.buffer,
                                                            row.size);
           google::protobuf::io::CodedInputStream cstream(&in_stream);
@@ -181,7 +181,7 @@ void *pre_evaluate_thread(void *arg) {
           i64 num_rows = end - start;
           size_t frame_size = decode_args[media_col_idx][0].width() *
                               decode_args[media_col_idx][0].height() * 3;
-          u8 *buffer = new_block_buffer(decoder_output_handle,
+          u8* buffer = new_block_buffer(decoder_output_handle,
                                         num_rows * frame_size, num_rows);
           decoders[media_col_idx]->get_frames(buffer, num_rows);
           for (i64 n = 0; n < num_rows; ++n) {
@@ -204,27 +204,27 @@ void *pre_evaluate_thread(void *arg) {
   }
 
   VLOG(1) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.id
-            << "): thread finished ";
+          << "): thread finished ";
   THREAD_RETURN_SUCCESS();
 }
 
-void *evaluate_thread(void *arg) {
-  EvaluateThreadArgs &args = *reinterpret_cast<EvaluateThreadArgs *>(arg);
+void* evaluate_thread(void* arg) {
+  EvaluateThreadArgs& args = *reinterpret_cast<EvaluateThreadArgs*>(arg);
 
   auto setup_start = now();
 
   // Instantiate kernels
-  const std::vector<std::vector<i32>> &dead_columns = args.dead_columns;
-  const std::vector<std::vector<i32>> &unused_outputs = args.unused_outputs;
-  const std::vector<std::vector<i32>> &column_mapping = args.column_mapping;
+  const std::vector<std::vector<i32>>& dead_columns = args.dead_columns;
+  const std::vector<std::vector<i32>>& unused_outputs = args.unused_outputs;
+  const std::vector<std::vector<i32>>& column_mapping = args.column_mapping;
   std::vector<DeviceHandle> kernel_devices;
   std::vector<i32> kernel_num_outputs;
   std::vector<std::unique_ptr<Kernel>> kernels;
   {
-    OpRegistry *registry = get_op_registry();
+    OpRegistry* registry = get_op_registry();
     for (size_t i = 0; i < args.kernel_factories.size(); ++i) {
-      KernelFactory *factory = std::get<0>(args.kernel_factories[i]);
-      const Kernel::Config &config = std::get<1>(args.kernel_factories[i]);
+      KernelFactory* factory = std::get<0>(args.kernel_factories[i]);
+      const Kernel::Config& config = std::get<1>(args.kernel_factories[i]);
       kernel_devices.push_back(config.devices[0]);
       kernel_num_outputs.push_back(registry->get_op_info(factory->get_op_name())
                                        ->output_columns()
@@ -245,7 +245,7 @@ void *evaluate_thread(void *arg) {
   }
   assert(kernels.size() > 0);
 
-  for (auto &kernel : kernels) {
+  for (auto& kernel : kernels) {
     kernel->set_profiler(&args.profiler);
   }
 
@@ -263,7 +263,7 @@ void *evaluate_thread(void *arg) {
     }
 
     VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
-              << args.kg << "): processing item " << work_entry.io_item_index;
+            << args.kg << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -271,7 +271,7 @@ void *evaluate_thread(void *arg) {
 
     // Make the op aware of the format of the data
     if (work_entry.needs_reset) {
-      for (auto &kernel : kernels) {
+      for (auto& kernel : kernels) {
         kernel->reset();
       }
     }
@@ -283,20 +283,20 @@ void *evaluate_thread(void *arg) {
     output_work_entry.last_in_io_item = work_entry.last_in_io_item;
     output_work_entry.warmup_rows = work_entry.warmup_rows;
 
-    BatchedColumns &work_item_output_columns = output_work_entry.columns;
-    std::vector<DeviceHandle> &work_item_output_handles =
+    BatchedColumns& work_item_output_columns = output_work_entry.columns;
+    std::vector<DeviceHandle>& work_item_output_handles =
         output_work_entry.column_handles;
     i32 num_final_output_columns = 0;
 
     i32 current_input = 0;
     i32 total_inputs = 0;
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-      total_inputs = // io_item.end_row - io_item.start_row;
+      total_inputs =  // io_item.end_row - io_item.start_row;
           std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
     }
     while (current_input < total_inputs) {
-      i32 batch_size =
-        std::min(total_inputs - current_input, args.job_params->work_item_size());
+      i32 batch_size = std::min(total_inputs - current_input,
+                                args.job_params->work_item_size());
 
       BatchedColumns side_input_columns;
       DeviceHandle input_handle;
@@ -317,7 +317,7 @@ void *evaluate_thread(void *arg) {
       }
       for (size_t k = 0; k < kernels.size(); ++k) {
         DeviceHandle current_handle = kernel_devices[k];
-        std::unique_ptr<Kernel> &kernel = kernels[k];
+        std::unique_ptr<Kernel>& kernel = kernels[k];
         i32 num_outputs = kernel_num_outputs[k];
 
         // Map from previous output columns to the set of input columns needed
@@ -351,10 +351,11 @@ void *evaluate_thread(void *arg) {
         args.profiler.add_interval("evaluate", eval_start, now());
         // Delete unused outputs
         for (size_t y = 0; y < unused_outputs[k].size(); ++y) {
-          i32 unused_col_idx = unused_outputs[k][unused_outputs[k].size() - 1 - y];
-          RowList &column = output_columns[unused_col_idx];
-          for (Row &row : column.rows) {
-            u8 *buff = row.buffer;
+          i32 unused_col_idx =
+              unused_outputs[k][unused_outputs[k].size() - 1 - y];
+          RowList& column = output_columns[unused_col_idx];
+          for (Row& row : column.rows) {
+            u8* buff = row.buffer;
             delete_buffer(current_handle, buff);
           }
           output_columns.erase(output_columns.begin() + unused_col_idx);
@@ -362,23 +363,23 @@ void *evaluate_thread(void *arg) {
         // Verify the kernel produced the correct amount of output
         for (size_t i = 0; i < output_columns.size(); ++i) {
           LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
-              << "Op " << k << " produced "
-              << output_columns[i].rows.size() << " output rows for column "
-              << i << ". Expected " << batch_size << " outputs.";
+              << "Op " << k << " produced " << output_columns[i].rows.size()
+              << " output rows for column " << i << ". Expected " << batch_size
+              << " outputs.";
         }
         // Delete dead columns
         for (size_t y = 0; y < dead_columns[k].size(); ++y) {
           i32 dead_col_idx = dead_columns[k][dead_columns[k].size() - 1 - y];
-          RowList &column = side_output_columns[dead_col_idx];
-          for (Row &row : column.rows) {
-            u8 *buff = row.buffer;
+          RowList& column = side_output_columns[dead_col_idx];
+          for (Row& row : column.rows) {
+            u8* buff = row.buffer;
             delete_buffer(side_output_handles[dead_col_idx], buff);
           }
           side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
           side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
         }
         // Add new output columns
-        for (const RowList &column : output_columns) {
+        for (const RowList& column : output_columns) {
           side_output_columns.push_back(column);
           side_output_handles.push_back(current_handle);
         }
@@ -403,20 +404,20 @@ void *evaluate_thread(void *arg) {
     args.profiler.add_interval("task", work_start, now());
 
     VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
-              << args.kg << "): finished item " << work_entry.io_item_index;
+            << args.kg << "): finished item " << work_entry.io_item_index;
 
     args.output_work.push(std::make_tuple(io_item, output_work_entry));
   }
 
   VLOG(1) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
-            << "): thread finished";
+          << "): thread finished";
 
   THREAD_RETURN_SUCCESS();
 }
 
-void *post_evaluate_thread(void *arg) {
-  PostEvaluateThreadArgs &args =
-      *reinterpret_cast<PostEvaluateThreadArgs *>(arg);
+void* post_evaluate_thread(void* arg) {
+  PostEvaluateThreadArgs& args =
+      *reinterpret_cast<PostEvaluateThreadArgs*>(arg);
   std::set<i32> column_set(args.column_mapping.begin(),
                            args.column_mapping.end());
 
@@ -435,7 +436,7 @@ void *post_evaluate_thread(void *arg) {
     }
 
     VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
-              << "): processing item " << work_entry.io_item_index;
+            << "): processing item " << work_entry.io_item_index;
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -449,7 +450,6 @@ void *post_evaluate_thread(void *arg) {
             work_entry.column_handles[col_idx]);
       }
     }
-
 
     i64 num_rows = work_entry.columns[0].rows.size();
     i32 warmup_frames = work_entry.warmup_rows;
@@ -486,7 +486,7 @@ void *post_evaluate_thread(void *arg) {
   }
 
   VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
-            << "): thread finished ";
+          << "): thread finished ";
 
   THREAD_RETURN_SUCCESS();
 }

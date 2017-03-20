@@ -15,9 +15,9 @@
 
 #pragma once
 
-#include "scanner/video/video_decoder.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/queue.h"
+#include "scanner/video/video_decoder.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -31,8 +31,8 @@ extern "C" {
 }
 
 #include <deque>
-#include <vector>
 #include <mutex>
+#include <vector>
 
 namespace scanner {
 namespace internal {

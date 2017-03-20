@@ -1,5 +1,5 @@
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
+#include "scanner/api/op.h"
 #include "scanner/util/cycle_timer.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
@@ -9,9 +9,10 @@
 namespace scanner {
 
 class OpticalFlowKernelCPU : public VideoKernel {
-public:
-  OpticalFlowKernelCPU(const Kernel::Config &config)
-      : VideoKernel(config), device_(config.devices[0]),
+ public:
+  OpticalFlowKernelCPU(const Kernel::Config& config)
+      : VideoKernel(config),
+        device_(config.devices[0]),
         work_item_size_(config.work_item_size) {
     flow_finder_ = cv::FarnebackOpticalFlow::create();
   }
@@ -26,8 +27,8 @@ public:
 
   void reset() override { initial_frame_ = cv::Mat(); }
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& frame_info_col = input_columns[1];
     check_frame_info(device_, frame_info_col);
@@ -36,7 +37,7 @@ public:
     size_t out_buf_size =
         frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
 
-    u8 *output_block =
+    u8* output_block =
         new_block_buffer(device_, out_buf_size * input_count, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
@@ -69,7 +70,7 @@ public:
     }
   }
 
-private:
+ private:
   DeviceHandle device_;
   cv::Ptr<cv::DenseOpticalFlow> flow_finder_;
   cv::Mat initial_frame_;

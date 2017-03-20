@@ -13,18 +13,18 @@
  * limitations under the License.
  */
 
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "stdlib/stdlib.pb.h"
+#include "scanner/api/op.h"
 #include "scanner/util/memory.h"
+#include "stdlib/stdlib.pb.h"
 
 #include <cmath>
 
 namespace scanner {
 
 class BlurKernel : public VideoKernel {
-public:
-  BlurKernel(const Kernel::Config &config) : VideoKernel(config) {
+ public:
+  BlurKernel(const Kernel::Config& config) : VideoKernel(config) {
     scanner::proto::BlurArgs args;
     bool parsed = args.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed || config.args.size() == 0) {
@@ -41,17 +41,15 @@ public:
     valid_.set_success(true);
   }
 
-  void validate(Result* result) override {
-    result->CopyFrom(valid_);
-  }
+  void validate(Result* result) override { result->CopyFrom(valid_); }
 
   void new_frame_info() {
     frame_width_ = frame_info_.width();
     frame_height_ = frame_info_.height();
   }
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& frame_info_col = input_columns[1];
     check_frame_info(CPU_DEVICE, frame_info_col);
@@ -62,11 +60,11 @@ public:
     size_t frame_size = width * height * 3 * sizeof(u8);
 
     for (i32 i = 0; i < input_count; ++i) {
-      u8 *input_buffer = frame_col.rows[i].buffer;
-      u8 *output_buffer = new u8[frame_size];
+      u8* input_buffer = frame_col.rows[i].buffer;
+      u8* output_buffer = new u8[frame_size];
 
-      u8 *frame_buffer = input_buffer;
-      u8 *blurred_buffer = (output_buffer);
+      u8* frame_buffer = input_buffer;
+      u8* blurred_buffer = (output_buffer);
       for (i32 y = filter_left_; y < height - filter_right_; ++y) {
         for (i32 x = filter_left_; x < width - filter_right_; ++x) {
           for (i32 c = 0; c < 3; ++c) {
@@ -87,7 +85,7 @@ public:
     FrameInfo info;
     info.set_width(frame_width_);
     info.set_height(frame_height_);
-    u8 *buffer = new_block_buffer(CPU_DEVICE, info.ByteSize() * input_count,
+    u8* buffer = new_block_buffer(CPU_DEVICE, info.ByteSize() * input_count,
                                   input_count);
     for (i32 i = 0; i < input_count; ++i) {
       Row row;
@@ -98,7 +96,7 @@ public:
     }
   }
 
-private:
+ private:
   i32 kernel_size_;
   i32 filter_left_;
   i32 filter_right_;

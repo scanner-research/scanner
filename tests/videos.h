@@ -13,14 +13,14 @@
  * limitations under the License.
  */
 
-#include "scanner/video/decoder_automata.h"
 #include "scanner/util/fs.h"
+#include "scanner/video/decoder_automata.h"
 
 #include <thread>
 
 namespace scanner {
 struct TestVideoInfo {
-  TestVideoInfo(i32 w, i32 h, const std::string &u, const std::string& m)
+  TestVideoInfo(i32 w, i32 h, const std::string& u, const std::string& m)
       : width(w), height(h), data_url(u), metadata_url(m) {}
 
   i32 width;

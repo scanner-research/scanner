@@ -39,8 +39,8 @@ struct VideoIntervals {
 };
 
 // Gets the list of work items for a sequence of rows in the job
-RowIntervals slice_into_row_intervals(const TableMetadata &table,
-                                      const std::vector<i64> &rows) {
+RowIntervals slice_into_row_intervals(const TableMetadata& table,
+                                      const std::vector<i64>& rows) {
   RowIntervals info;
   // Analyze rows and table to determine what item ids and offsets in them to
   // sample from
@@ -99,9 +99,8 @@ RowIntervals slice_into_row_intervals(const TableMetadata &table,
   return info;
 }
 
-VideoIntervals
-slice_into_video_intervals(const std::vector<i64> &keyframe_positions,
-                           const std::vector<i64> &rows) {
+VideoIntervals slice_into_video_intervals(
+    const std::vector<i64>& keyframe_positions, const std::vector<i64>& rows) {
   VideoIntervals info;
   assert(keyframe_positions.size() >= 2);
   size_t start_keyframe_index = 0;
@@ -137,9 +136,9 @@ slice_into_video_intervals(const std::vector<i64> &keyframe_positions,
   return info;
 }
 
-std::tuple<size_t, size_t>
-find_keyframe_indices(i32 start_frame, i32 end_frame,
-                      const std::vector<i64> &keyframe_positions) {
+std::tuple<size_t, size_t> find_keyframe_indices(
+    i32 start_frame, i32 end_frame,
+    const std::vector<i64>& keyframe_positions) {
   size_t start_keyframe_index = std::numeric_limits<size_t>::max();
   for (size_t i = 1; i < keyframe_positions.size(); ++i) {
     if (keyframe_positions[i] > start_frame) {
@@ -169,7 +168,7 @@ struct VideoIndexEntry {
   std::vector<i64> keyframe_byte_offsets;
 };
 
-VideoIndexEntry read_video_index(storehouse::StorageBackend *storage,
+VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
                                  i32 table_id, i32 column_id, i32 item_id) {
   VideoIndexEntry index_entry;
   VideoMetadata video_meta = read_video_metadata(
@@ -193,12 +192,12 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend *storage,
   return index_entry;
 }
 
-void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
-                       const std::vector<i64> &rows, RowList &row_list) {
-  RandomReadFile *video_file = index_entry.file.get();
+void read_video_column(Profiler& profiler, VideoIndexEntry& index_entry,
+                       const std::vector<i64>& rows, RowList& row_list) {
+  RandomReadFile* video_file = index_entry.file.get();
   u64 file_size = index_entry.file_size;
-  const std::vector<i64> &keyframe_positions = index_entry.keyframe_positions;
-  const std::vector<i64> &keyframe_byte_offsets =
+  const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
+  const std::vector<i64>& keyframe_byte_offsets =
       index_entry.keyframe_byte_offsets;
 
   // Read the bytes from the file that correspond to the sequences of
@@ -234,7 +233,7 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
     }
 
     size_t buffer_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
-    u8 *buffer = new_buffer(CPU_DEVICE, buffer_size);
+    u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
 
     auto io_start = now();
 
@@ -261,7 +260,7 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
     decode_args.set_encoded_video(buffer, buffer_size);
 
     size_t size = decode_args.ByteSize();
-    u8 *decode_args_buffer = new_buffer(CPU_DEVICE, size);
+    u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);
     bool result = decode_args.SerializeToArray(decode_args_buffer, size);
     assert(result);
     INSERT_ROW(row_list, decode_args_buffer, size);
@@ -270,10 +269,10 @@ void read_video_column(Profiler &profiler, VideoIndexEntry &index_entry,
   }
 }
 
-void read_other_column(storehouse::StorageBackend *storage, i32 table_id,
+void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
                        i32 column_id, i32 item_id, i32 item_start, i32 item_end,
-                       const std::vector<i64> &rows, RowList &row_list) {
-  const std::vector<i64> &valid_offsets = rows;
+                       const std::vector<i64>& rows, RowList& row_list) {
+  const std::vector<i64>& valid_offsets = rows;
 
   std::unique_ptr<RandomReadFile> file;
   StoreResult result;
@@ -289,7 +288,7 @@ void read_other_column(storehouse::StorageBackend *storage, i32 table_id,
 
   // Read row sizes from work item file header
   std::vector<i64> row_sizes(num_rows);
-  s_read(file.get(), reinterpret_cast<u8 *>(row_sizes.data()),
+  s_read(file.get(), reinterpret_cast<u8*>(row_sizes.data()),
          row_sizes.size() * sizeof(i64), pos);
 
   // Determine start and end position of rows to read in file
@@ -314,7 +313,7 @@ void read_other_column(storehouse::StorageBackend *storage, i32 table_id,
   for (i32 i = item_start; i < item_end; ++i) {
     size_t buffer_size = static_cast<size_t>(row_sizes[i]);
     if (i == valid_offsets[valid_idx]) {
-      u8 *buffer = new_buffer(CPU_DEVICE, buffer_size);
+      u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
       memcpy(buffer, row_data.data() + offset, buffer_size);
       INSERT_ROW(row_list, buffer, buffer_size);
       valid_idx++;
@@ -325,15 +324,15 @@ void read_other_column(storehouse::StorageBackend *storage, i32 table_id,
 }
 }
 
-void *load_thread(void *arg) {
-  LoadThreadArgs &args = *reinterpret_cast<LoadThreadArgs *>(arg);
+void* load_thread(void* arg) {
+  LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
 
   auto setup_start = now();
 
   const i32 work_item_size = args.job_params->work_item_size();
 
   // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend *storage =
+  storehouse::StorageBackend* storage =
       storehouse::StorageBackend::make_from_config(args.storage_config);
 
   // Caching table metadata
@@ -357,13 +356,13 @@ void *load_thread(void *arg) {
     }
 
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.id
-              << "): processing item " << load_work_entry.io_item_index();
+            << "): processing item " << load_work_entry.io_item_index();
 
     args.profiler.add_interval("idle", idle_start, now());
 
     auto work_start = now();
 
-    const auto &samples = load_work_entry.samples();
+    const auto& samples = load_work_entry.samples();
 
     if (io_item.table_id() != last_table_id) {
       // Not from the same task so clear cached data
@@ -386,7 +385,7 @@ void *load_thread(void *arg) {
 
     i32 media_col_idx = 0;
     i32 out_col_idx = 0;
-    for (const proto::LoadSample &sample : samples) {
+    for (const proto::LoadSample& sample : samples) {
       i32 table_id = sample.table_id();
       auto it = table_metadata.find(table_id);
       if (it == table_metadata.end()) {
@@ -394,11 +393,11 @@ void *load_thread(void *arg) {
             storage, TableMetadata::descriptor_path(table_id));
         it = table_metadata.find(table_id);
       }
-      const TableMetadata &table_meta = it->second;
+      const TableMetadata& table_meta = it->second;
 
-      const google::protobuf::RepeatedField<i64> &sample_warmup_rows =
+      const google::protobuf::RepeatedField<i64>& sample_warmup_rows =
           sample.warmup_rows();
-      const google::protobuf::RepeatedField<i64> &sample_rows = sample.rows();
+      const google::protobuf::RepeatedField<i64>& sample_rows = sample.rows();
       std::vector<i64> rows(sample_warmup_rows.begin(),
                             sample_warmup_rows.end());
       rows.insert(rows.end(), sample_rows.begin(), sample_rows.end());
@@ -411,7 +410,7 @@ void *load_thread(void *arg) {
           // video frame column
           for (size_t i = 0; i < num_items; ++i) {
             i32 item_id = intervals.item_ids[i];
-            const std::vector<i64> &valid_offsets = intervals.valid_offsets[i];
+            const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
             // TODO(apoms): cache this so we avoid the IO and recompute for each
             //   request
@@ -437,7 +436,7 @@ void *load_thread(void *arg) {
           for (size_t i = 0; i < num_items; ++i) {
             total_rows += intervals.valid_offsets[i].size();
           }
-          u8 *buffer = new_block_buffer(
+          u8* buffer = new_block_buffer(
               CPU_DEVICE, frame_info_size * total_rows, total_rows);
           total_rows = 0;
           for (size_t i = 0; i < num_items; ++i) {
@@ -456,7 +455,7 @@ void *load_thread(void *arg) {
             i64 item_start;
             i64 item_end;
             std::tie(item_start, item_end) = intervals.item_intervals[i];
-            const std::vector<i64> &valid_offsets = intervals.valid_offsets[i];
+            const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
             read_other_column(storage, table_id, col_id, item_id, item_start,
                               item_end, valid_offsets,
@@ -475,7 +474,7 @@ void *load_thread(void *arg) {
   }
 
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.id
-            << "): thread finished";
+          << "): thread finished";
 
   // Cleanup
   delete storage;

@@ -38,6 +38,5 @@ struct SaveThreadArgs {
 };
 
 void* save_thread(void* arg);
-
 }
 }

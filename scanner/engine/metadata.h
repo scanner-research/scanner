@@ -52,8 +52,8 @@ inline std::string table_item_output_path(i32 table_id, i32 column_id,
          std::to_string(item_id) + ".bin";
 }
 
-inline std::string
-table_item_video_metadata_path(i32 table_id, i32 column_id, i32 item_id) {
+inline std::string table_item_video_metadata_path(i32 table_id, i32 column_id,
+                                                  i32 item_id) {
   return table_directory(table_id) + "/" + std::to_string(column_id) + "_" +
          std::to_string(item_id) + "_video_metadata.bin";
 }
@@ -67,26 +67,24 @@ inline std::string job_descriptor_path(i32 job_id) {
 }
 
 inline std::string job_profiler_path(i32 job_id, i32 node) {
-  return job_directory(job_id) + "/profile_" +
-         std::to_string(node) + ".bin";
+  return job_directory(job_id) + "/profile_" + std::to_string(node) + ".bin";
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
 
-template<typename T>
+template <typename T>
 class Metadata {
-public:
+ public:
   using Descriptor = T;
   Metadata() {}
   Metadata(const Descriptor& d) : descriptor_(d) {}
 
-  Descriptor &get_descriptor() const { return descriptor_; }
+  Descriptor& get_descriptor() const { return descriptor_; }
 
   std::string descriptor_path() const;
 
-protected:
+ protected:
   mutable Descriptor descriptor_;
 };
 
@@ -95,7 +93,7 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
   DatabaseMetadata();
   DatabaseMetadata(const Descriptor& descriptor);
 
-  const Descriptor &get_descriptor() const;
+  const Descriptor& get_descriptor() const;
 
   static std::string descriptor_path();
 
@@ -143,7 +141,8 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
   std::vector<i64> keyframe_byte_offsets() const;
 };
 
-class ImageFormatGroupMetadata : public Metadata<proto::ImageFormatGroupDescriptor> {
+class ImageFormatGroupMetadata
+    : public Metadata<proto::ImageFormatGroupDescriptor> {
  public:
   ImageFormatGroupMetadata();
   ImageFormatGroupMetadata(const Descriptor& descriptor);
@@ -183,7 +182,7 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 
   // i64 total_rows() const;
 
-private:
+ private:
   std::vector<Column> columns_;
   std::map<std::string, i32> column_ids_;
   std::vector<std::string> table_names_;
@@ -191,7 +190,7 @@ private:
 };
 
 class TableMetadata : public Metadata<proto::TableDescriptor> {
-public:
+ public:
   TableMetadata();
   TableMetadata(const Descriptor& table);
 
@@ -216,7 +215,6 @@ public:
  private:
   std::vector<proto::Column> columns_;
 };
-
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Constants
@@ -247,58 +245,53 @@ T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
 }
 
 template <typename T>
-void write_db_proto(storehouse::StorageBackend *storage, T db_proto) {
+void write_db_proto(storehouse::StorageBackend* storage, T db_proto) {
   std::unique_ptr<storehouse::WriteFile> output_file;
-  BACKOFF_FAIL(
-    make_unique_write_file(
-      storage,
-      db_proto.Metadata<typename T::Descriptor>::descriptor_path(),
+  BACKOFF_FAIL(make_unique_write_file(
+      storage, db_proto.Metadata<typename T::Descriptor>::descriptor_path(),
       output_file));
-  serialize_db_proto<typename T::Descriptor>(
-    output_file.get(), db_proto.get_descriptor());
+  serialize_db_proto<typename T::Descriptor>(output_file.get(),
+                                             db_proto.get_descriptor());
   BACKOFF_FAIL(output_file->save());
 }
 
 template <typename T>
 T read_db_proto(storehouse::StorageBackend* storage, const std::string& path) {
   std::unique_ptr<storehouse::RandomReadFile> db_in_file;
-  BACKOFF_FAIL(
-    make_unique_random_read_file(storage, path, db_in_file));
+  BACKOFF_FAIL(make_unique_random_read_file(storage, path, db_in_file));
   u64 pos = 0;
   return T(deserialize_db_proto<typename T::Descriptor>(db_in_file.get(), pos));
 }
 
 template <typename T>
-using WriteFn = void(*)(storehouse::StorageBackend *storage, T db_proto);
+using WriteFn = void (*)(storehouse::StorageBackend* storage, T db_proto);
 
 template <typename T>
-using ReadFn = T(*)(storehouse::StorageBackend *storage,
-                    const std::string& path);
+using ReadFn = T (*)(storehouse::StorageBackend* storage,
+                     const std::string& path);
 
 constexpr WriteFn<DatabaseMetadata> write_database_metadata =
-  write_db_proto<DatabaseMetadata>;
+    write_db_proto<DatabaseMetadata>;
 constexpr ReadFn<DatabaseMetadata> read_database_metadata =
-  read_db_proto<DatabaseMetadata>;
+    read_db_proto<DatabaseMetadata>;
 
-constexpr WriteFn<JobMetadata> write_job_metadata =
-  write_db_proto<JobMetadata>;
-constexpr ReadFn<JobMetadata> read_job_metadata =
-  read_db_proto<JobMetadata>;
+constexpr WriteFn<JobMetadata> write_job_metadata = write_db_proto<JobMetadata>;
+constexpr ReadFn<JobMetadata> read_job_metadata = read_db_proto<JobMetadata>;
 
 constexpr WriteFn<TableMetadata> write_table_metadata =
-  write_db_proto<TableMetadata>;
+    write_db_proto<TableMetadata>;
 constexpr ReadFn<TableMetadata> read_table_metadata =
-  read_db_proto<TableMetadata>;
+    read_db_proto<TableMetadata>;
 
 constexpr WriteFn<VideoMetadata> write_video_metadata =
-  write_db_proto<VideoMetadata>;
+    write_db_proto<VideoMetadata>;
 constexpr ReadFn<VideoMetadata> read_video_metadata =
-  read_db_proto<VideoMetadata>;
+    read_db_proto<VideoMetadata>;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Database modification helper functions
-void write_new_table(storehouse::StorageBackend *storage,
-                     const DatabaseMetadata &meta,
-                     const proto::TableDescriptor &table);
+void write_new_table(storehouse::StorageBackend* storage,
+                     const DatabaseMetadata& meta,
+                     const proto::TableDescriptor& table);
 }
 }

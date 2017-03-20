@@ -18,10 +18,10 @@
 #include "scanner/api/database.h"
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
-#include "scanner/engine/rpc.grpc.pb.h"
+#include "scanner/engine/kernel_registry.h"
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/op_registry.h"
-#include "scanner/engine/kernel_registry.h"
+#include "scanner/engine/rpc.grpc.pb.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -30,9 +30,9 @@
 #include <grpc++/server.h>
 #include <grpc++/server_builder.h>
 
-#include <thread>
-#include <string>
 #include <dlfcn.h>
+#include <string>
+#include <thread>
 
 namespace scanner {
 namespace internal {
@@ -61,15 +61,12 @@ struct DatabaseParameters {
   std::vector<i32> gpu_ids;
 };
 
-
-
-proto::Master::Service *get_master_service(DatabaseParameters &param,
+proto::Master::Service* get_master_service(DatabaseParameters& param,
                                            Flag& shutdown_flag);
 
-proto::Worker::Service *get_worker_service(DatabaseParameters &params,
-                                           const std::string &master_address,
-                                           const std::string &worker_port,
+proto::Worker::Service* get_worker_service(DatabaseParameters& params,
+                                           const std::string& master_address,
+                                           const std::string& worker_port,
                                            Flag& shutdown_flag);
-
 }
 }

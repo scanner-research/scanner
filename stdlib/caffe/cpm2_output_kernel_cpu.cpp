@@ -13,34 +13,34 @@
  * limitations under the License.
  */
 
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "stdlib/stdlib.pb.h"
+#include "scanner/api/op.h"
 #include "scanner/types.pb.h"
 #include "scanner/util/common.h"
 #include "scanner/util/serialize.h"
 #include "scanner/util/util.h"
+#include "stdlib/stdlib.pb.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <algorithm>
 #include <vector>
 
 namespace scanner {
 struct ModelDescriptor {
   virtual ~ModelDescriptor() {}
-  virtual const std::string &get_part_name(int n) = 0;
+  virtual const std::string& get_part_name(int n) = 0;
   virtual int num_parts() = 0;
   virtual int num_limb_seq() = 0;
-  virtual const int *get_limb_seq() = 0;
-  virtual const int *get_map_idx() = 0;
+  virtual const int* get_limb_seq() = 0;
+  virtual const int* get_map_idx() = 0;
   virtual const std::string name() = 0;
 };
 namespace {
 
 struct ColumnCompare {
-  bool operator()(const std::vector<double> &lhs,
-                  const std::vector<double> &rhs) const {
+  bool operator()(const std::vector<double>& lhs,
+                  const std::vector<double>& rhs) const {
     return lhs[2] > rhs[2];
   }
 };
@@ -54,8 +54,8 @@ struct MPIModelDescriptor : public ModelDescriptor {
                           42, 43, 32, 33, 34, 35, 36, 37};
   virtual int num_parts() { return 15; }
   virtual int num_limb_seq() { return 14; }
-  virtual const int *get_limb_seq() { return limbSeq; }
-  virtual const int *get_map_idx() { return mapIdx; }
+  virtual const int* get_limb_seq() { return limbSeq; }
+  virtual const int* get_map_idx() { return mapIdx; }
   virtual const std::string name() { return "MPI_15"; }
 
   MPIModelDescriptor()
@@ -74,7 +74,7 @@ struct MPIModelDescriptor : public ModelDescriptor {
       part2name[mb] = part2name[la] + "->" + part2name[lb] + "(Y)";
     }
   }
-  virtual const std::string &get_part_name(int n) { return part2name.at(n); }
+  virtual const std::string& get_part_name(int n) { return part2name.at(n); }
 };
 
 struct COCOModelDescriptor : public ModelDescriptor {
@@ -87,8 +87,8 @@ struct COCOModelDescriptor : public ModelDescriptor {
                     49, 50, 53, 54, 51, 52, 55, 56, 37, 38, 45, 46};
   virtual int num_parts() { return 18; }
   virtual int num_limb_seq() { return 38 / 2; }
-  virtual const int *get_limb_seq() { return limbSeq; }
-  virtual const int *get_map_idx() { return mapIdx; }
+  virtual const int* get_limb_seq() { return limbSeq; }
+  virtual const int* get_map_idx() { return mapIdx; }
   virtual const std::string name() { return "COCO_18"; }
 
   COCOModelDescriptor()
@@ -108,13 +108,13 @@ struct COCOModelDescriptor : public ModelDescriptor {
       part2name[mb] = part2name[la] + "->" + part2name[lb] + "(Y)";
     }
   }
-  virtual const std::string &get_part_name(int n) { return part2name.at(n); }
+  virtual const std::string& get_part_name(int n) { return part2name.at(n); }
 };
 }
 
 class CPM2OutputKernel : public VideoKernel {
-public:
-  CPM2OutputKernel(const Kernel::Config &config) : VideoKernel(config) {
+ public:
+  CPM2OutputKernel(const Kernel::Config& config) : VideoKernel(config) {
     proto::CPM2Args args;
     args.ParseFromArray(config.args.data(), config.args.size());
     scale_ = args.scale();
@@ -140,8 +140,8 @@ public:
     feature_channels_ = 44;
   }
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     assert(input_columns.size() == 3);
     i32 heatmap_idx = 0;
     i32 joints_idx = 1;
@@ -156,10 +156,10 @@ public:
              feature_width_ * feature_height_ * feature_channels_ *
                  sizeof(f32));
 
-      float *heatmap =
-          reinterpret_cast<float *>(input_columns[heatmap_idx].rows[b].buffer);
-      float *peaks =
-          reinterpret_cast<float *>(input_columns[joints_idx].rows[b].buffer);
+      float* heatmap =
+          reinterpret_cast<float*>(input_columns[heatmap_idx].rows[b].buffer);
+      float* peaks =
+          reinterpret_cast<float*>(input_columns[joints_idx].rows[b].buffer);
 
       std::vector<std::vector<double>> subset;
       std::vector<std::vector<std::vector<double>>> connection;
@@ -168,7 +168,7 @@ public:
 
       std::vector<std::vector<scanner::Point>> bodies(count);
       for (int p = 0; p < count; ++p) {
-        std::vector<scanner::Point> &body_joints = bodies[p];
+        std::vector<scanner::Point>& body_joints = bodies[p];
         for (i32 j = 0; j < num_joints_; ++j) {
           int offset = p * num_joints_ * 3 + j * 3;
           float score = joints_[offset + 2];
@@ -183,17 +183,17 @@ public:
         }
       }
       size_t size;
-      u8 *buffer;
+      u8* buffer;
       serialize_proto_vector_of_vectors(bodies, buffer, size);
       output_columns.at(heatmap_idx).rows.push_back(Row{buffer, size});
     }
   }
 
-protected:
-  int connect_limbs(std::vector<std::vector<double>> &subset,
-                    std::vector<std::vector<std::vector<double>>> &connection,
-                    const float *heatmap_pointer, const float *peaks,
-                    float *joints) {
+ protected:
+  int connect_limbs(std::vector<std::vector<double>>& subset,
+                    std::vector<std::vector<std::vector<double>>>& connection,
+                    const float* heatmap_pointer, const float* peaks,
+                    float* joints) {
     /* Parts Connection ---------------------------------------*/
     // limbSeq = [15 2; 2 1; 2 3; 3 4; 4 5; 2 6; 6 7; 7 8; 15 12; 12 13; 13 14;
     // 15
@@ -204,8 +204,8 @@ protected:
     // 24};
 
     const int NUM_PARTS = modeldesc->num_parts();
-    const int *limbSeq = modeldesc->get_limb_seq();
-    const int *mapIdx = modeldesc->get_map_idx();
+    const int* limbSeq = modeldesc->get_limb_seq();
+    const int* mapIdx = modeldesc->get_map_idx();
     const int num_limb_seq = modeldesc->num_limb_seq();
 
     int SUBSET_CNT = NUM_PARTS + 2;
@@ -223,14 +223,14 @@ protected:
       // float* score_mid = heatmap_pointer + mapIdx[k] * INIT_PERSON_NET_HEIGHT
       // *
       // INIT_PERSON_NET_WIDTH;
-      const float *map_x = heatmap_pointer +
+      const float* map_x = heatmap_pointer +
                            mapIdx[2 * k] * net_input_height_ * net_input_width_;
-      const float *map_y =
+      const float* map_y =
           heatmap_pointer +
           mapIdx[2 * k + 1] * net_input_height_ * net_input_width_;
 
-      const float *candA = peaks + limbSeq[2 * k] * peaks_offset;
-      const float *candB = peaks + limbSeq[2 * k + 1] * peaks_offset;
+      const float* candA = peaks + limbSeq[2 * k] * peaks_offset;
+      const float* candB = peaks + limbSeq[2 * k + 1] * peaks_offset;
 
       std::vector<std::vector<double>> connection_k;
       int nA = candA[0];
@@ -243,12 +243,12 @@ protected:
         for (int i = 1; i <= nB; i++) {
           std::vector<double> row_vec(SUBSET_SIZE, 0);
           row_vec[limbSeq[2 * k + 1]] =
-              limbSeq[2 * k + 1] * peaks_offset + i * 3 + 2; // store the index
+              limbSeq[2 * k + 1] * peaks_offset + i * 3 + 2;  // store the index
           row_vec[SUBSET_CNT] =
-              1; // last number in each row is the parts number of that person
+              1;  // last number in each row is the parts number of that person
           row_vec[SUBSET_SCORE] =
               candB[i * 3 +
-                    2]; // second last number in each row is the total score
+                    2];  // second last number in each row is the total score
           subset.push_back(row_vec);
         }
         continue;
@@ -256,12 +256,12 @@ protected:
         for (int i = 1; i <= nA; i++) {
           std::vector<double> row_vec(SUBSET_SIZE, 0);
           row_vec[limbSeq[2 * k]] =
-              limbSeq[2 * k] * peaks_offset + i * 3 + 2; // store the index
+              limbSeq[2 * k] * peaks_offset + i * 3 + 2;  // store the index
           row_vec[SUBSET_CNT] =
-              1; // last number in each row is the parts number of that person
+              1;  // last number in each row is the parts number of that person
           row_vec[SUBSET_SCORE] =
               candA[i * 3 +
-                    2]; // second last number in each row is the total score
+                    2];  // second last number in each row is the total score
           subset.push_back(row_vec);
         }
         continue;
@@ -302,7 +302,7 @@ protected:
             // parts score + cpnnection score
             std::vector<double> row_vec(4, 0);
             row_vec[3] =
-                sum / count + candA[i * 3 + 2] + candB[j * 3 + 2]; // score_all
+                sum / count + candA[i * 3 + 2] + candB[j * 3 + 2];  // score_all
             row_vec[2] = sum / count;
             row_vec[0] = i;
             row_vec[1] = j;
@@ -314,8 +314,7 @@ protected:
       //** select the top num connection, assuming that each part occur only
       // once
       // sort rows in descending order based on parts + connection score
-      if (temp.size() > 0)
-        std::sort(temp.begin(), temp.end(), ColumnCompare());
+      if (temp.size() > 0) std::sort(temp.begin(), temp.end(), ColumnCompare());
 
       int num = std::min(nA, nB);
       int cnt = 0;
@@ -344,7 +343,7 @@ protected:
           int i = int(temp[row][0]);
           int j = int(temp[row][1]);
           float score = temp[row][2];
-          if (occurA[i - 1] == 0 && occurB[j - 1] == 0) { // && score> (1+thre)
+          if (occurA[i - 1] == 0 && occurB[j - 1] == 0) {  // && score> (1+thre)
             std::vector<double> row_vec(3, 0);
             row_vec[0] = limbSeq[2 * k] * peaks_offset + i * 3 + 2;
             row_vec[1] = limbSeq[2 * k + 1] * peaks_offset + j * 3 + 2;
@@ -438,8 +437,9 @@ protected:
           int idx = int(subset[i][j]);
           if (idx) {
             joints[cnt * NUM_PARTS * 3 + j * 3 + 2] = peaks[idx];
-            joints[cnt * NUM_PARTS * 3 + j * 3 + 1] =
-                peaks[idx - 1] * frame_info_.height() / (float)net_input_height_;
+            joints[cnt * NUM_PARTS * 3 + j * 3 + 1] = peaks[idx - 1] *
+                                                      frame_info_.height() /
+                                                      (float)net_input_height_;
             joints[cnt * NUM_PARTS * 3 + j * 3] =
                 peaks[idx - 2] * frame_info_.width() / (float)net_input_width_;
           } else {

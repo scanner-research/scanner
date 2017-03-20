@@ -25,14 +25,14 @@ struct GetBitsState {
   i64 size;
 };
 
-inline u32 get_bit(GetBitsState &gb) {
+inline u32 get_bit(GetBitsState& gb) {
   u8 v =
       ((*(gb.buffer + (gb.offset >> 0x3))) >> (0x7 - (gb.offset & 0x7))) & 0x1;
   gb.offset++;
   return v;
 }
 
-inline u32 get_bits(GetBitsState &gb, i32 bits) {
+inline u32 get_bits(GetBitsState& gb, i32 bits) {
   u32 v = 0;
   for (i32 i = bits - 1; i >= 0; i--) {
     v |= get_bit(gb) << i;
@@ -40,7 +40,7 @@ inline u32 get_bits(GetBitsState &gb, i32 bits) {
   return v;
 }
 
-inline u32 get_ue_golomb(GetBitsState &gb) {
+inline u32 get_ue_golomb(GetBitsState& gb) {
   // calculate zero bits. Will be optimized.
   i32 zeros = 0;
   while (0 == get_bit(gb)) {
@@ -57,7 +57,7 @@ inline u32 get_ue_golomb(GetBitsState &gb) {
   return (info - 1);
 }
 
-inline u32 get_se_golomb(GetBitsState &gb) {
+inline u32 get_se_golomb(GetBitsState& gb) {
   // calculate zero bits. Will be optimized.
   i32 zeros = 0;
   while (0 == get_bit(gb)) {
@@ -73,7 +73,6 @@ inline u32 get_se_golomb(GetBitsState &gb) {
 
   return (info - 1);
 }
-
 
 inline void next_nal(const u8*& buffer, i32& buffer_size_left,
                      const u8*& nal_start, i32& nal_size) {
@@ -124,7 +123,7 @@ struct SPS {
   bool frame_mbs_only_flag;
 };
 
-inline bool parse_sps(GetBitsState &gb, SPS& info) {
+inline bool parse_sps(GetBitsState& gb, SPS& info) {
   // profile_idc
   info.profile_idc = get_bits(gb, 8);
   // constraint_set0_flag
@@ -139,16 +138,16 @@ inline bool parse_sps(GetBitsState &gb, SPS& info) {
   get_bits(gb, 8);
   // seq_parameter_set_id
   info.sps_id = get_ue_golomb(gb);
-  if (info.profile_idc == 100 || // High profile
-      info.profile_idc == 110 || // High10 profile
-      info.profile_idc == 122 || // High422 profile
-      info.profile_idc == 244 || // High444 Predictive profile
-      info.profile_idc == 44 ||  // Cavlc444 profile
-      info.profile_idc == 83 ||  // Scalable Constrained High profile (SVC)
-      info.profile_idc == 86 ||  // Scalable High Intra profile (SVC)
-      info.profile_idc == 118 || // Stereo High profile (MVC)
-      info.profile_idc == 128 || // Multiview High profile (MVC)
-      info.profile_idc == 138 || // Multiview Depth High profile (MVCD)
+  if (info.profile_idc == 100 ||  // High profile
+      info.profile_idc == 110 ||  // High10 profile
+      info.profile_idc == 122 ||  // High422 profile
+      info.profile_idc == 244 ||  // High444 Predictive profile
+      info.profile_idc == 44 ||   // Cavlc444 profile
+      info.profile_idc == 83 ||   // Scalable Constrained High profile (SVC)
+      info.profile_idc == 86 ||   // Scalable High Intra profile (SVC)
+      info.profile_idc == 118 ||  // Stereo High profile (MVC)
+      info.profile_idc == 128 ||  // Multiview High profile (MVC)
+      info.profile_idc == 138 ||  // Multiview Depth High profile (MVCD)
       info.profile_idc == 144) {
     // chroma_format_idc
     u32 chroma_format_idc = get_ue_golomb(gb);
@@ -190,28 +189,28 @@ inline bool parse_sps(GetBitsState &gb, SPS& info) {
   // pic_order_cnt_type
   info.poc_type = get_ue_golomb(gb);
   switch (info.poc_type) {
-  case 0: {
-    // log2_max_pic_order_cnt_lsb_minus4
-    info.log2_max_pic_order_cnt_lsb = get_ue_golomb(gb) + 4;
-  } break;
-  case 1: {
-    // delta_pic_order_always_zero_flag
-    info.delta_pic_order_always_zero_flag = get_bit(gb);
-    // offset_for_non_ref_pic
-    get_se_golomb(gb);
-    // offset_for_top_to_bottom_field
-    get_se_golomb(gb);
-    // num_ref_frames_in_pic_order_cnt_cycle
-    u32 num_ref_frames = get_ue_golomb(gb);
-    for (u32 i = 0; i < num_ref_frames; i++) {
-      // offset_for_ref_frame[ i ];
+    case 0: {
+      // log2_max_pic_order_cnt_lsb_minus4
+      info.log2_max_pic_order_cnt_lsb = get_ue_golomb(gb) + 4;
+    } break;
+    case 1: {
+      // delta_pic_order_always_zero_flag
+      info.delta_pic_order_always_zero_flag = get_bit(gb);
+      // offset_for_non_ref_pic
       get_se_golomb(gb);
-    }
-  } break;
-  default: {
-    LOG(WARNING) << "Illegal picture_order_count type: " << info.poc_type;
-    return false;
-  } break;
+      // offset_for_top_to_bottom_field
+      get_se_golomb(gb);
+      // num_ref_frames_in_pic_order_cnt_cycle
+      u32 num_ref_frames = get_ue_golomb(gb);
+      for (u32 i = 0; i < num_ref_frames; i++) {
+        // offset_for_ref_frame[ i ];
+        get_se_golomb(gb);
+      }
+    } break;
+    default: {
+      LOG(WARNING) << "Illegal picture_order_count type: " << info.poc_type;
+      return false;
+    } break;
   }
   // num_ref_frames
   get_ue_golomb(gb);
@@ -227,7 +226,6 @@ inline bool parse_sps(GetBitsState &gb, SPS& info) {
   return true;
 }
 
-
 struct PPS {
   u32 pps_id;
   u32 sps_id;
@@ -235,7 +233,7 @@ struct PPS {
   bool redundant_pic_cnt_present_flag;
 };
 
-inline bool parse_pps(GetBitsState &gb, PPS& info) {
+inline bool parse_pps(GetBitsState& gb, PPS& info) {
   // pic_parameter_set_id
   info.pps_id = get_ue_golomb(gb);
   // seq_parameter_set_id
@@ -268,9 +266,9 @@ inline bool parse_pps(GetBitsState &gb, PPS& info) {
   // chroma_qp_index_offset
   u32 chroma_qp_index_offset = get_se_golomb(gb);
   // deblocking_filter_control_present_flag
-  (void) get_bit(gb);
+  (void)get_bit(gb);
   // constrained_intra_pred_flag
-  (void) get_bit(gb);
+  (void)get_bit(gb);
   // redundant_pic_cnt_present_flag
   info.redundant_pic_cnt_present_flag = get_bit(gb);
   // rbsp_trailing_bits()
@@ -282,7 +280,7 @@ struct SliceHeader {
   u32 nal_unit_type;
   u32 nal_ref_idc;
   u32 slice_type;
-  u32 sps_id; // Added for convenience
+  u32 sps_id;  // Added for convenience
   u32 pps_id;
   u32 frame_num;
   bool field_pic_flag;
@@ -294,11 +292,9 @@ struct SliceHeader {
   u32 redundant_pic_cnt;
 };
 
-inline bool parse_slice_header(GetBitsState &gb,
-                               SPS &sps,
-                               std::map<u32, PPS> &pps_map,
-                               u32 nal_unit_type, u32 nal_ref_idc,
-                               SliceHeader& info) {
+inline bool parse_slice_header(GetBitsState& gb, SPS& sps,
+                               std::map<u32, PPS>& pps_map, u32 nal_unit_type,
+                               u32 nal_ref_idc, SliceHeader& info) {
   info.nal_unit_type = nal_unit_type;
   info.nal_ref_idc = nal_ref_idc;
   // first_mb_in_slice
@@ -355,12 +351,12 @@ inline bool parse_slice_header(GetBitsState &gb,
   return true;
 }
 
-inline bool is_new_access_unit(std::map<u32, SPS> &sps_map,
-                        std::map<u32, PPS> &pps_map, SliceHeader &prev,
-                        SliceHeader &curr) {
-  SPS &prev_sps = sps_map.at(prev.sps_id);
-  SPS &curr_sps = sps_map.at(curr.sps_id);
-  PPS &curr_pps = pps_map.at(curr.pps_id);
+inline bool is_new_access_unit(std::map<u32, SPS>& sps_map,
+                               std::map<u32, PPS>& pps_map, SliceHeader& prev,
+                               SliceHeader& curr) {
+  SPS& prev_sps = sps_map.at(prev.sps_id);
+  SPS& curr_sps = sps_map.at(curr.sps_id);
+  PPS& curr_pps = pps_map.at(curr.pps_id);
   if (curr.nal_unit_type != 5 && curr.frame_num != prev.frame_num) {
     VLOG(1) << "frame num";
     return true;
@@ -383,9 +379,8 @@ inline bool is_new_access_unit(std::map<u32, SPS> &sps_map,
               prev.delta_pic_order_cnt_bottom !=
                   curr.delta_pic_order_cnt_bottom)) {
     VLOG(1) << "poc type 0: " << prev.pic_order_cnt_lsb << " vs. "
-              << curr.pic_order_cnt_lsb << ", "
-              << prev.delta_pic_order_cnt_bottom << " vs. "
-              << curr.delta_pic_order_cnt_bottom;
+            << curr.pic_order_cnt_lsb << ", " << prev.delta_pic_order_cnt_bottom
+            << " vs. " << curr.delta_pic_order_cnt_bottom;
     return true;
   } else if ((prev_sps.poc_type == 1 && curr_sps.poc_type == 1) &&
              (prev.delta_pic_order_cnt[0] != curr.delta_pic_order_cnt[0] ||

@@ -4,7 +4,7 @@
 
 namespace scanner {
 
-std::vector<BoundingBox> best_nms(const std::vector<BoundingBox> &boxes,
+std::vector<BoundingBox> best_nms(const std::vector<BoundingBox>& boxes,
                                   f32 overlap) {
   std::vector<bool> valid(boxes.size(), true);
   auto cmp = [](std::pair<f32, i32> left, std::pair<f32, i32> right) {
@@ -21,14 +21,12 @@ std::vector<BoundingBox> best_nms(const std::vector<BoundingBox> &boxes,
     std::pair<f32, i32> entry = q.top();
     q.pop();
     i32 c_idx = entry.second;
-    if (!valid[c_idx])
-      continue;
+    if (!valid[c_idx]) continue;
 
     best.push_back(c_idx);
 
     for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-      if (!valid[i])
-        continue;
+      if (!valid[i]) continue;
 
       f32 x1 = std::max(boxes[c_idx].x1(), boxes[i].x1());
       f32 y1 = std::max(boxes[c_idx].y1(), boxes[i].y1());
@@ -52,7 +50,7 @@ std::vector<BoundingBox> best_nms(const std::vector<BoundingBox> &boxes,
   return out_boxes;
 }
 
-std::vector<BoundingBox> average_nms(const std::vector<BoundingBox> &boxes,
+std::vector<BoundingBox> average_nms(const std::vector<BoundingBox>& boxes,
                                      f32 overlap) {
   std::vector<BoundingBox> best_boxes;
   std::vector<bool> valid(boxes.size(), true);
@@ -70,22 +68,20 @@ std::vector<BoundingBox> average_nms(const std::vector<BoundingBox> &boxes,
     std::pair<f32, i32> entry = q.top();
     q.pop();
     i32 c_idx = entry.second;
-    if (!valid[c_idx])
-      continue;
+    if (!valid[c_idx]) continue;
 
     best.push_back(c_idx);
 
-    const BoundingBox &current_box = boxes[c_idx];
+    const BoundingBox& current_box = boxes[c_idx];
     f64 total_weight = current_box.score();
     f64 best_x1 = current_box.x1() * current_box.score();
     f64 best_y1 = current_box.y1() * current_box.score();
     f64 best_x2 = current_box.x2() * current_box.score();
     f64 best_y2 = current_box.y2() * current_box.score();
     for (i32 i = 0; i < (i32)boxes.size(); ++i) {
-      if (!valid[i])
-        continue;
+      if (!valid[i]) continue;
 
-      const BoundingBox &candidate = boxes[i];
+      const BoundingBox& candidate = boxes[i];
 
       f32 x1 = std::max(current_box.x1(), candidate.x1());
       f32 y1 = std::max(current_box.y1(), candidate.y1());

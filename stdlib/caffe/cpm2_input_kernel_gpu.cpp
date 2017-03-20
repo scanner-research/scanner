@@ -13,24 +13,26 @@
  * limitations under the License.
  */
 
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "stdlib/stdlib.pb.h"
-#include "scanner/util/opencv.h"
+#include "scanner/api/op.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"
+#include "scanner/util/opencv.h"
+#include "stdlib/stdlib.pb.h"
 
 #include <opencv2/core/cuda_stream_accessor.hpp>
 
 namespace scanner {
 
 class CPM2InputKernel : public VideoKernel {
-public:
-  CPM2InputKernel(const Kernel::Config &config)
-      : VideoKernel(config), device_(config.devices[0])
+ public:
+  CPM2InputKernel(const Kernel::Config& config)
+      : VideoKernel(config),
+        device_(config.devices[0])
 #ifdef HAVE_CUDA
         ,
-        num_cuda_streams_(32), streams_(num_cuda_streams_)
+        num_cuda_streams_(32),
+        streams_(num_cuda_streams_)
 #endif
   {
     proto::CPM2Args args;
@@ -85,8 +87,8 @@ public:
     }
   }
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     auto eval_start = now();
 
     auto& frame_col = input_columns[0];
@@ -100,22 +102,22 @@ public:
 
     size_t net_input_size =
         net_input_width_ * net_input_height_ * 3 * sizeof(f32);
-    u8 *output_block =
+    u8* output_block =
         new_block_buffer(device_, input_count * net_input_size, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
-      f32 *net_input =
-          reinterpret_cast<f32 *>(output_block + net_input_size * i);
+      f32* net_input =
+          reinterpret_cast<f32*>(output_block + net_input_size * i);
 
       int sid = i % num_cuda_streams_;
-      cv::cuda::Stream &cv_stream = streams_[sid];
+      cv::cuda::Stream& cv_stream = streams_[sid];
 
-      u8 *buffer = frame_col.rows[i].buffer;
+      u8* buffer = frame_col.rows[i].buffer;
       assert(frame_col.rows[i].size == frame_height_ * frame_width_ * 3);
       frame_input_[sid] =
           cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3, buffer);
-      cv::cuda::cvtColor(frame_input_[sid], bgr_input_[sid],
-                         cv::COLOR_RGB2BGR, 0, cv_stream);
+      cv::cuda::cvtColor(frame_input_[sid], bgr_input_[sid], cv::COLOR_RGB2BGR,
+                         0, cv_stream);
       cv::cuda::resize(bgr_input_[sid], resized_input_[sid],
                        cv::Size(resize_width_, resize_height_), 0, 0,
                        cv::INTER_CUBIC, cv_stream);
@@ -123,14 +125,14 @@ public:
                                height_padding_, 0, width_padding_,
                                cv::BORDER_CONSTANT, cv::Scalar(128, 128, 128),
                                cv_stream);
-      padded_input_[sid].convertTo(float_input_[sid], CV_32FC3,
-                                     (1.0f / 256.0f), -0.5f, cv_stream);
+      padded_input_[sid].convertTo(float_input_[sid], CV_32FC3, (1.0f / 256.0f),
+                                   -0.5f, cv_stream);
       // Changed from interleaved BGR to planar RGB
       cv::cuda::split(float_input_[sid], input_planes_[sid], cv_stream);
-      auto &plane1 = input_planes_[sid][0];
-      auto &plane2 = input_planes_[sid][1];
-      auto &plane3 = input_planes_[sid][2];
-      auto &planar_input = planar_input_[sid];
+      auto& plane1 = input_planes_[sid][0];
+      auto& plane2 = input_planes_[sid][1];
+      auto& plane3 = input_planes_[sid][2];
+      auto& planar_input = planar_input_[sid];
       plane1.copyTo(planar_input(cv::Rect(
           0, net_input_height_ * 0, net_input_width_, net_input_height_)));
       plane2.copyTo(planar_input(cv::Rect(
@@ -144,9 +146,9 @@ public:
           planar_input.step, net_input_width_ * sizeof(float),
           net_input_height_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      INSERT_ROW(output_columns[0], (u8 *)net_input, net_input_size);
+      INSERT_ROW(output_columns[0], (u8*)net_input, net_input_size);
     }
-    for (cv::cuda::Stream &s : streams_) {
+    for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();
     }
 
@@ -155,7 +157,7 @@ public:
     }
   }
 
-private:
+ private:
   DeviceHandle device_;
   proto::CaffeArgs args_;
   f32 scale_;

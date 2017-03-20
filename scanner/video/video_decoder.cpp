@@ -48,60 +48,59 @@ bool VideoDecoder::has_decoder_type(VideoDecoderType type) {
   std::vector<VideoDecoderType> types =
       VideoDecoder::get_supported_decoder_types();
 
-  for (const VideoDecoderType &supported_type : types) {
-    if (type == supported_type)
-      return true;
+  for (const VideoDecoderType& supported_type : types) {
+    if (type == supported_type) return true;
   }
 
   return false;
 }
 
-VideoDecoder *VideoDecoder::make_from_config(DeviceHandle device_handle,
+VideoDecoder* VideoDecoder::make_from_config(DeviceHandle device_handle,
                                              i32 num_devices,
                                              VideoDecoderType type) {
-  VideoDecoder *decoder = nullptr;
+  VideoDecoder* decoder = nullptr;
 
   switch (type) {
-  case VideoDecoderType::NVIDIA: {
+    case VideoDecoderType::NVIDIA: {
 #ifdef HAVE_NVIDIA_VIDEO_HARDWARE
-    // HACK(apoms): we are just going to assume all processing is done in the
-    //   default context for now and retain it ourselves. Ideally we would
-    //   allow the user to pass in the CUcontext they want to use for
-    //   decoding frames into but that would require providing opaque
-    //   configuration data to this function which we are avoiding for now.
-    //   The
-    //   reason we are avoding it for now is that by having configuration data
-    //   for different decoders, the client code ends up needing to do
-    //   conditional includes depending on which decoders are available in
-    //   order to fill in the configuration data, which is just messy.
-    CUD_CHECK(cuInit(0));
-    CUcontext cuda_context;
-    CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_handle.id));
+      // HACK(apoms): we are just going to assume all processing is done in the
+      //   default context for now and retain it ourselves. Ideally we would
+      //   allow the user to pass in the CUcontext they want to use for
+      //   decoding frames into but that would require providing opaque
+      //   configuration data to this function which we are avoiding for now.
+      //   The
+      //   reason we are avoding it for now is that by having configuration data
+      //   for different decoders, the client code ends up needing to do
+      //   conditional includes depending on which decoders are available in
+      //   order to fill in the configuration data, which is just messy.
+      CUD_CHECK(cuInit(0));
+      CUcontext cuda_context;
+      CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_handle.id));
 
-    decoder = new NVIDIAVideoDecoder(device_handle.id, device_handle.type,
-                                     cuda_context);
+      decoder = new NVIDIAVideoDecoder(device_handle.id, device_handle.type,
+                                       cuda_context);
 #else
 #endif
-    break;
-  }
-  case VideoDecoderType::INTEL: {
+      break;
+    }
+    case VideoDecoderType::INTEL: {
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
-    decoder = new IntelVideoDecoder(device_handle.id, device_handle.type);
+      decoder = new IntelVideoDecoder(device_handle.id, device_handle.type);
 #else
 #endif
-    break;
-  }
-  case VideoDecoderType::SOFTWARE: {
-    decoder = new SoftwareVideoDecoder(device_handle.id, device_handle.type,
-                                       num_devices);
-    break;
-  }
-  default: {}
+      break;
+    }
+    case VideoDecoderType::SOFTWARE: {
+      decoder = new SoftwareVideoDecoder(device_handle.id, device_handle.type,
+                                         num_devices);
+      break;
+    }
+    default: {}
   }
 
   return decoder;
 }
 
-void VideoDecoder::set_profiler(Profiler *profiler) { profiler_ = profiler; }
+void VideoDecoder::set_profiler(Profiler* profiler) { profiler_ = profiler; }
 }
 }

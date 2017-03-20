@@ -1,10 +1,10 @@
 #pragma once
 
-#include "stdlib/stdlib.pb.h"
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
+#include "scanner/api/op.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"
+#include "stdlib/stdlib.pb.h"
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
@@ -15,11 +15,11 @@
 
 namespace scanner {
 
-using CustomNetConfiguration = void (*)(const FrameInfo &frame_info,
-                                        caffe::Net<float> *net);
+using CustomNetConfiguration = void (*)(const FrameInfo& frame_info,
+                                        caffe::Net<float>* net);
 
 class CaffeKernel : public VideoKernel {
-public:
+ public:
   CaffeKernel(const Kernel::Config& config);
   void validate(proto::Result* result) override;
   void new_frame_info() override;
@@ -29,7 +29,7 @@ public:
 
   virtual void net_config() {}
 
-protected:
+ protected:
   proto::Result valid_;
   DeviceHandle device_;
   proto::CaffeArgs args_;
@@ -38,5 +38,4 @@ protected:
 };
 
 proto::NetDescriptor descriptor_from_net_file(const std::string& path);
-
 }

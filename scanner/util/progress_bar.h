@@ -1,7 +1,7 @@
 #pragma once
 
-#include "scanner/util/common.h"
 #include <sys/ioctl.h>
+#include "scanner/util/common.h"
 
 #include <cstring>
 #include <iomanip>
@@ -37,5 +37,4 @@ class ProgressBar {
   int GetConsoleWidth();
   int GetBarLength();
 };
-
 }

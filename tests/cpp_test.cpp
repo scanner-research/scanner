@@ -1,7 +1,7 @@
-#include "scanner/api/op.h"
-#include "stdlib/stdlib.pb.h"
 #include "scanner/api/database.h"
+#include "scanner/api/op.h"
 #include "scanner/util/fs.h"
+#include "stdlib/stdlib.pb.h"
 
 #include <gtest/gtest.h>
 
@@ -13,7 +13,7 @@ static bool downloaded = false;
 static std::string db_path = "";
 
 class ScannerTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() override {
     // Create database
     if (!downloaded) {
@@ -28,12 +28,10 @@ protected:
     // Ingest video
     if (!downloaded) {
       std::string video_path = scanner::download_temp(
-        "https://storage.googleapis.com/scanner-data/test/short_video.mp4");
+          "https://storage.googleapis.com/scanner-data/test/short_video.mp4");
       scanner::Result result;
       std::vector<scanner::FailedVideo> failed_videos;
-      result = db_->ingest_videos(
-        {"test"}, {video_path},
-        failed_videos);
+      result = db_->ingest_videos({"test"}, {video_path}, failed_videos);
       assert(result.success());
       assert(failed_videos.empty());
       downloaded = true;
@@ -41,7 +39,7 @@ protected:
 
     // Initialize master and one worker
     scanner::MachineParameters machine_params =
-      scanner::default_machine_params();
+        scanner::default_machine_params();
     db_->start_master(machine_params, master_port);
     db_->start_worker(machine_params, worker_port);
 
@@ -52,9 +50,7 @@ protected:
     params_.work_item_size = 25;
   }
 
-  void TearDown() {
-    delete db_;
-  }
+  void TearDown() { delete db_; }
 
   scanner::Op* blur_op(scanner::Op* input, scanner::DeviceType device_type) {
     scanner::proto::BlurArgs blur_args;
@@ -65,16 +61,16 @@ protected:
     char* blur_args_buff = new char[blur_args_size];
     blur_args.SerializeToArray(blur_args_buff, blur_args_size);
 
-    return new scanner::Op(
-      "Blur", {scanner::OpInput(input, {"frame", "frame_info"})},
-      device_type, blur_args_buff, blur_args_size);
+    return new scanner::Op("Blur",
+                           {scanner::OpInput(input, {"frame", "frame_info"})},
+                           device_type, blur_args_buff, blur_args_size);
   }
 
-  void gen_random(char *s, const int len) {
+  void gen_random(char* s, const int len) {
     static const char alphanum[] =
-      "0123456789"
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-      "abcdefghijklmnopqrstuvwxyz";
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
 
     for (int i = 0; i < len; ++i) {
       s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
@@ -92,8 +88,7 @@ protected:
     params_.task_set.output_op = op;
 
     scanner::Result result = db_->new_job(params_);
-    ASSERT_TRUE(result.success())
-      << "Run job failed: " << result.msg();
+    ASSERT_TRUE(result.success()) << "Run job failed: " << result.msg();
   }
 
   scanner::Task range_task(std::string output_table_name) {
@@ -104,7 +99,7 @@ protected:
     sample.column_names = {"index", "frame", "frame_info"};
     sample.sampling_function = "Gather";
     scanner::proto::GatherSamplerArgs args;
-    auto &gather_sample = *args.add_samples();
+    auto& gather_sample = *args.add_samples();
     for (int i = 0; i < 100; i += 1) {
       gather_sample.add_rows(i);
     }
@@ -122,17 +117,17 @@ protected:
 };
 
 TEST_F(ScannerTest, NonLinearDAG) {
-  scanner::Op *input =
-    scanner::make_input_op({"index", "frame", "frame_info"});
+  scanner::Op* input = scanner::make_input_op({"index", "frame", "frame_info"});
 
-  scanner::Op *hist = new scanner::Op(
-    "Histogram",
-    {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"}),
-     scanner::OpInput(input, {"frame_info"})},
-    scanner::DeviceType::CPU);
+  scanner::Op* hist = new scanner::Op(
+      "Histogram",
+      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"}),
+       scanner::OpInput(input, {"frame_info"})},
+      scanner::DeviceType::CPU);
 
-  scanner::Op *output = scanner::make_output_op(
-    {scanner::OpInput(input, {"index"}), scanner::OpInput(hist, {"histogram"})});
+  scanner::Op* output =
+      scanner::make_output_op({scanner::OpInput(input, {"index"}),
+                               scanner::OpInput(hist, {"histogram"})});
 
   run_task(range_task("NonLinearDAG"), output);
 }
@@ -140,17 +135,17 @@ TEST_F(ScannerTest, NonLinearDAG) {
 #ifdef HAVE_CUDA
 
 TEST_F(ScannerTest, CPUToGPU) {
-  scanner::Op *input =
-    scanner::make_input_op({"index", "frame", "frame_info"});
+  scanner::Op* input = scanner::make_input_op({"index", "frame", "frame_info"});
 
-  scanner::Op *hist = new scanner::Op(
-    "Histogram",
-    {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"}),
-     scanner::OpInput(input, {"frame_info"})},
-    scanner::DeviceType::GPU);
+  scanner::Op* hist = new scanner::Op(
+      "Histogram",
+      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"}),
+       scanner::OpInput(input, {"frame_info"})},
+      scanner::DeviceType::GPU);
 
-  scanner::Op *output = scanner::make_output_op(
-    {scanner::OpInput(input, {"index"}), scanner::OpInput(hist, {"histogram"})});
+  scanner::Op* output =
+      scanner::make_output_op({scanner::OpInput(input, {"index"}),
+                               scanner::OpInput(hist, {"histogram"})});
 
   run_task(range_task("CPUToGPU"), output);
 }
@@ -173,5 +168,4 @@ TEST_F(ScannerTest, CPUToGPU) {
 // }
 
 #endif
-
 }

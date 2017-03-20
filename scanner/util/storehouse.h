@@ -23,7 +23,8 @@
 
 namespace scanner {
 
-inline void s_write(storehouse::WriteFile* file, const u8* buffer, size_t size) {
+inline void s_write(storehouse::WriteFile* file, const u8* buffer,
+                    size_t size) {
   storehouse::StoreResult result;
   EXP_BACKOFF(file->append(size, buffer), result);
   exit_on_error(result);
@@ -40,10 +41,9 @@ inline void s_write(storehouse::WriteFile* file, const std::string& s) {
 }
 
 inline void s_read(storehouse::RandomReadFile* file, u8* buffer, size_t size,
-                 u64& pos) {
-  VLOG(1) << "Reading " << file->path()
-            << " (size " << size
-            << ", pos " << pos << ")";
+                   u64& pos) {
+  VLOG(1) << "Reading " << file->path() << " (size " << size << ", pos " << pos
+          << ")";
   storehouse::StoreResult result;
   size_t size_read;
   EXP_BACKOFF(file->read(pos, size, buffer, size_read), result);

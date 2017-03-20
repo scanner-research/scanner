@@ -1,15 +1,15 @@
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "scanner/util/opencv.h"
+#include "scanner/api/op.h"
+#include "scanner/types.pb.h"
 #include "scanner/util/bbox.h"
+#include "scanner/util/opencv.h"
 #include "scanner/util/serialize.h"
 #include "stdlib/stdlib.pb.h"
-#include "scanner/types.pb.h"
 
 namespace scanner {
 
 class FacenetOutputKernel : public VideoKernel {
-public:
+ public:
   FacenetOutputKernel(const Kernel::Config& config) : VideoKernel(config) {
     proto::FacenetArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
@@ -18,14 +18,14 @@ public:
     threshold_ = args.threshold();
 
     std::ifstream template_file{"nets/caffe_facenet/facenet_templates.bin",
-        std::ifstream::binary};
+                                std::ifstream::binary};
     LOG_IF(FATAL, !template_file.good()) << "Could not find template file.";
     templates_.resize(num_templates_, std::vector<float>(4));
     for (i32 t = 0; t < 25; ++t) {
       for (i32 i = 0; i < 4; ++i) {
         LOG_IF(FATAL, !template_file.good()) << "Template file not correct.";
         f32 d;
-        template_file.read(reinterpret_cast<char *>(&d), sizeof(f32));
+        template_file.read(reinterpret_cast<char*>(&d), sizeof(f32));
         templates_[t][i] = d;
       }
     }
@@ -35,8 +35,8 @@ public:
     net_input_width_ = std::floor(frame_info_.width() * scale_);
     net_input_height_ = std::floor(frame_info_.height() * scale_);
 
-    if (net_input_width_ % 8 != 0)  {
-      net_input_width_  += 8 - (net_input_width_ % 8);
+    if (net_input_width_ % 8 != 0) {
+      net_input_width_ += 8 - (net_input_width_ % 8);
     };
     if (net_input_height_ % 8 != 0) {
       net_input_height_ += 8 - (net_input_height_ % 8);
@@ -46,17 +46,18 @@ public:
     grid_height_ = std::ceil(float(net_input_height_) / cell_height_);
 
     feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_templates_,     // template probabilities
-      grid_width_ * grid_height_ * num_templates_ * 4, // template adjustments
+        grid_width_ * grid_height_ * num_templates_,  // template probabilities
+        grid_width_ * grid_height_ * num_templates_ *
+            4,  // template adjustments
     };
     feature_vector_sizes_ = {
-      sizeof(f32) * feature_vector_lengths_[0],
-      sizeof(f32) * feature_vector_lengths_[1],
+        sizeof(f32) * feature_vector_lengths_[0],
+        sizeof(f32) * feature_vector_lengths_[1],
     };
   }
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     check_frame_info(CPU_DEVICE, input_columns[0]);
 
     i32 input_count = (i32)input_columns[0].rows.size();
@@ -70,17 +71,16 @@ public:
     // Get bounding box data from output feature vector and turn it
     // into canonical center x, center y, width, height
     for (i32 b = 0; b < input_count; ++b) {
-
       assert(input_columns[0].rows[b].size ==
              (feature_vector_sizes_[0] + feature_vector_sizes_[1]));
 
       std::vector<BoundingBox> bboxes;
       // Track confidence per pixel for each category so we can calculate
       // uncertainty across the frame
-      f32 *template_confidences =
-        reinterpret_cast<f32 *>(input_columns[0].rows[b].buffer);
-      f32 *template_adjustments =
-        template_confidences + feature_vector_lengths_[0];
+      f32* template_confidences =
+          reinterpret_cast<f32*>(input_columns[0].rows[b].buffer);
+      f32* template_adjustments =
+          template_confidences + feature_vector_lengths_[0];
 
       for (i32 t : valid_templates) {
         for (i32 xi = 0; xi < grid_width_; ++xi) {
@@ -88,12 +88,12 @@ public:
             i32 vec_offset = xi * grid_height_ + yi;
 
             f32 confidence =
-              template_confidences[t * grid_width_ * grid_height_ + vec_offset];
+                template_confidences[t * grid_width_ * grid_height_ +
+                                     vec_offset];
             // Apply sigmoid to confidence
             confidence = 1.0 / (1.0 + std::exp(-confidence));
 
-            if (confidence < threshold_)
-              continue;
+            if (confidence < threshold_) continue;
 
             f32 x = xi * cell_width_ - 2;
             f32 y = yi * cell_height_ - 2;
@@ -102,22 +102,22 @@ public:
             f32 height = templates_[t][3] - templates_[t][1] + 1;
 
             f32 dcx = template_adjustments[(num_templates_ * 0 + t) *
-                                           grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             x += width * dcx;
 
             f32 dcy = template_adjustments[(num_templates_ * 1 + t) *
-                                           grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             y += height * dcy;
 
             f32 dcw = template_adjustments[(num_templates_ * 2 + t) *
-                                           grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             width *= std::exp(dcw);
 
             f32 dch = template_adjustments[(num_templates_ * 3 + t) *
-                                           grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             height *= std::exp(dch);
 
@@ -140,7 +140,8 @@ public:
             bbox.set_y2(y + height / 2);
             bbox.set_score(confidence);
 
-            // if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() > frame_info_.width()
+            // if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() >
+            // frame_info_.width()
             // ||
             //     bbox.y2() > frame_info_.height())
             //   continue;
@@ -155,13 +156,13 @@ public:
 
       // Assume size of a bounding box is the same size as all bounding boxes
       size_t size;
-      u8 *buffer;
+      u8* buffer;
       serialize_bbox_vector(best_bboxes, buffer, size);
       output_columns[0].rows.push_back(Row{buffer, size});
     }
   }
 
-private:
+ private:
   f32 scale_;
   const std::vector<i32> regular_valid_templates_ = {
       4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 21, 22, 23, 24};
@@ -185,5 +186,4 @@ REGISTER_OP(FacenetOutput).inputs({"facenet_output"}).outputs({"bboxes"});
 REGISTER_KERNEL(FacenetOutput, FacenetOutputKernel)
     .device(DeviceType::CPU)
     .num_devices(1);
-
 }

@@ -1,5 +1,5 @@
-#include "scanner/api/op.h"
 #include "scanner/api/database.h"
+#include "scanner/api/op.h"
 #include "stdlib/stdlib.pb.h"
 
 #include <grpc/grpc_posix.h>
@@ -69,14 +69,13 @@ int main(int argc, char** argv) {
   char* blur_args_buff = new char[blur_args_size];
   blur_args.SerializeToArray(blur_args_buff, blur_args_size);
 
-  scanner::Op *input =
-      scanner::make_input_op({"frame", "frame_info"});
+  scanner::Op* input = scanner::make_input_op({"frame", "frame_info"});
 
-  scanner::Op *blur = new scanner::Op(
+  scanner::Op* blur = new scanner::Op(
       "Blur", {scanner::OpInput(input, {"frame", "frame_info"})},
       scanner::DeviceType::CPU, blur_args_buff, blur_args_size);
 
-  scanner::Op *output = scanner::make_output_op(
+  scanner::Op* output = scanner::make_output_op(
       {scanner::OpInput(blur, {"frame", "frame_info"})});
 
   // Launch job

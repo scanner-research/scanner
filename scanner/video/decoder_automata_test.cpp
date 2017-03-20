@@ -85,7 +85,7 @@ TEST(DecoderAutomata, GetStridedFrames) {
   decode_args.set_height(video_meta.height());
   decode_args.set_start_keyframe(0);
   decode_args.set_end_keyframe(video_meta.frames());
-  for (i64 r = 0; r < video_meta.frames(); r+=2) {
+  for (i64 r = 0; r < video_meta.frames(); r += 2) {
     decode_args.add_valid_frames(r);
   }
   for (i64 k : video_meta.keyframe_positions()) {
@@ -106,6 +106,5 @@ TEST(DecoderAutomata, GetStridedFrames) {
   delete decoder;
   delete storage;
 }
-
 }
 }

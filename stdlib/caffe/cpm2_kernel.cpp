@@ -6,9 +6,9 @@
 namespace scanner {
 
 class CPM2Kernel : public CaffeKernel {
-public:
+ public:
   CPM2Kernel(const Kernel::Config& config)
-    : CaffeKernel(get_caffe_config(config)) {}
+      : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
     // Calculate width by scaling by box size
@@ -21,8 +21,8 @@ public:
     int net_input_width = resize_width + width_padding;
     int net_input_height = resize_height + height_padding;
 
-    caffe::ImResizeLayer<float> *resize_layer =
-        (caffe::ImResizeLayer<float> *)net_->layer_by_name("resize").get();
+    caffe::ImResizeLayer<float>* resize_layer =
+        (caffe::ImResizeLayer<float>*)net_->layer_by_name("resize").get();
 
     resize_layer->SetStartScale(1);
     resize_layer->SetScaleGap(0.1);
@@ -46,7 +46,7 @@ public:
     return new_config;
   }
 
-private:
+ private:
   f32 scale_;
 };
 
@@ -55,5 +55,4 @@ REGISTER_OP(CPM2)
     .outputs({"cpm2_resized_map", "cpm2_joints"});
 REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::GPU).num_devices(1);
-
 }

@@ -37,29 +37,22 @@ namespace internal {
  */
 class KernelFactory {
  public:
-  KernelFactory(const std::string& op_name,
-                DeviceType type, i32 max_devices, i32 warmup_size,
-                KernelConstructor constructor)
+  KernelFactory(const std::string& op_name, DeviceType type, i32 max_devices,
+                i32 warmup_size, KernelConstructor constructor)
       : op_name_(op_name),
-        type_(type), max_devices_(max_devices), warmup_size_(warmup_size),
+        type_(type),
+        max_devices_(max_devices),
+        warmup_size_(warmup_size),
         constructor_(constructor) {}
 
-  const std::string& get_op_name() const {
-    return op_name_;
-  }
+  const std::string& get_op_name() const { return op_name_; }
 
   /** Describes the capabilities of the ops the factory produces. */
-  DeviceType get_device_type() const {
-    return type_;
-  }
+  DeviceType get_device_type() const { return type_; }
 
-  i32 get_max_devices() const {
-    return max_devices_;
-  }
+  i32 get_max_devices() const { return max_devices_; }
 
-  i32 get_warmup_size() const {
-    return warmup_size_;
-  }
+  i32 get_warmup_size() const { return warmup_size_; }
 
   /* @brief Constructs a kernel to be used for processing rows of data.
    */
@@ -74,6 +67,5 @@ class KernelFactory {
   i32 warmup_size_;
   KernelConstructor constructor_;
 };
-
 }
 }
