@@ -15,10 +15,10 @@
 
 #pragma once
 
-#include "scanner/video/video_decoder.h"
 #include "scanner/api/kernel.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
+#include "scanner/video/video_decoder.h"
 
 #include <cuda.h>
 #include <cuda_runtime.h>

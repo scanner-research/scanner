@@ -1,7 +1,7 @@
 #pragma once
 
-#include "scanner/util/common.h"
 #include "scanner/api/kernel.h"
+#include "scanner/util/common.h"
 
 #include "HalideRuntime.h"
 
@@ -23,10 +23,8 @@ void setup_halide_frame_buf(buffer_t& halide_buf, FrameInfo& frame_info) {
   halide_buf.elem_size = 1;
 }
 
-void set_halide_buf_ptr(const DeviceHandle& device,
-                        buffer_t &halide_buf,
-                        u8 *buf,
-                        size_t size) {
+void set_halide_buf_ptr(const DeviceHandle& device, buffer_t& halide_buf,
+                        u8* buf, size_t size) {
   if (device.type == DeviceType::GPU) {
     CUDA_PROTECT({
       halide_buf.dev = (uintptr_t) nullptr;
@@ -42,18 +40,16 @@ void set_halide_buf_ptr(const DeviceHandle& device,
       // "You'll need to set the host field of the buffer_t structs to
       // something other than nullptr as that is used to indicate bounds query
       // calls" - Zalman Stern
-      halide_buf.host = (u8 *)0xdeadbeef;
-      });
+      halide_buf.host = (u8*)0xdeadbeef;
+    });
   } else {
     halide_buf.host = buf;
   }
 }
 
-void unset_halide_buf_ptr(const DeviceHandle& device,
-                          buffer_t &halide_buf) {
+void unset_halide_buf_ptr(const DeviceHandle& device, buffer_t& halide_buf) {
   if (device.type == DeviceType::GPU) {
     CUDA_PROTECT({ halide_cuda_detach_device_ptr(nullptr, &halide_buf); });
   }
 }
-
 }

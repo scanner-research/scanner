@@ -26,18 +26,17 @@ namespace scanner {
 namespace internal {
 
 class OpRegistry {
-public:
-  void add_op(const std::string &name, OpInfo *info);
+ public:
+  void add_op(const std::string& name, OpInfo* info);
 
-  OpInfo* get_op_info(const std::string &name) const;
+  OpInfo* get_op_info(const std::string& name) const;
 
   bool has_op(const std::string& name) const;
 
-private:
+ private:
   std::map<std::string, OpInfo*> ops_;
 };
 
 OpRegistry* get_op_registry();
-
 }
 }

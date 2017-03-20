@@ -1,10 +1,10 @@
 #pragma once
 
-#include "stdlib/stdlib.pb.h"
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
-#include "scanner/util/opencv.h"
+#include "scanner/api/op.h"
 #include "scanner/util/cuda.h"
+#include "scanner/util/opencv.h"
+#include "stdlib/stdlib.pb.h"
 
 #ifdef HAVE_CUDA
 #include "caffe_input_transformer_gpu/caffe_input_transformer_gpu.h"
@@ -14,7 +14,7 @@
 namespace scanner {
 
 class CaffeInputKernel : public VideoKernel {
-public:
+ public:
   CaffeInputKernel(const Kernel::Config& config);
   ~CaffeInputKernel();
 
@@ -28,7 +28,7 @@ public:
   virtual void extra_inputs(const BatchedColumns& input_columns,
                             BatchedColumns& output_columns) {}
 
-protected:
+ protected:
   void set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size);
   void unset_halide_buf(buffer_t& halide_buf);
   void transform_halide(u8* input_buffer, u8* output_buffer);
@@ -42,5 +42,4 @@ protected:
   CUcontext context_;
 #endif
 };
-
 }

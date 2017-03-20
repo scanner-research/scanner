@@ -17,7 +17,7 @@
 
 namespace scanner {
 
-std::ostream &operator<<(std::ostream &os, DeviceHandle const &handle) {
+std::ostream& operator<<(std::ostream& os, DeviceHandle const& handle) {
   std::string name;
   if (handle.type == DeviceType::CPU) {
     name = "CPU";
@@ -32,11 +32,11 @@ std::ostream &operator<<(std::ostream &os, DeviceHandle const &handle) {
 StridedInterval::StridedInterval(i32 start, i32 end, i32 stride)
     : start(start), end(end), stride(stride) {}
 
-StridedInterval::StridedInterval(const Interval &i)
+StridedInterval::StridedInterval(const Interval& i)
     : start(i.start), end(i.end), stride(1) {}
 
-bool string_to_image_encoding_type(const std::string &s,
-                                   ImageEncodingType &type) {
+bool string_to_image_encoding_type(const std::string& s,
+                                   ImageEncodingType& type) {
   bool success = true;
   if (s == "png" || s == "PNG") {
     type = ImageEncodingType::PNG;
@@ -55,26 +55,26 @@ bool string_to_image_encoding_type(const std::string &s,
 std::string image_encoding_type_to_string(ImageEncodingType t) {
   std::string s;
   switch (t) {
-  case ImageEncodingType::JPEG:
-    s = "jpeg";
-    break;
-  case ImageEncodingType::PNG:
-    s = "png";
-    break;
-  case ImageEncodingType::BMP:
-    s = "bmp";
-    break;
-  case ImageEncodingType::RAW:
-    s = "raw";
-    break;
-  default:
-    assert(false);
+    case ImageEncodingType::JPEG:
+      s = "jpeg";
+      break;
+    case ImageEncodingType::PNG:
+      s = "png";
+      break;
+    case ImageEncodingType::BMP:
+      s = "bmp";
+      break;
+    case ImageEncodingType::RAW:
+      s = "raw";
+      break;
+    default:
+      assert(false);
   }
   return s;
 }
 
-i64 IO_ITEM_SIZE = 64;         // Number of rows to load and save at a time
-i64 WORK_ITEM_SIZE = 8;        // Max size of a work item
-i32 TASKS_IN_QUEUE_PER_PU = 4; // How many tasks per PU to allocate to a node
-i32 NUM_CUDA_STREAMS = 32;     // Number of cuda streams for image processing
+i64 IO_ITEM_SIZE = 64;          // Number of rows to load and save at a time
+i64 WORK_ITEM_SIZE = 8;         // Max size of a work item
+i32 TASKS_IN_QUEUE_PER_PU = 4;  // How many tasks per PU to allocate to a node
+i32 NUM_CUDA_STREAMS = 32;      // Number of cuda streams for image processing
 }

@@ -1,5 +1,5 @@
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
+#include "scanner/api/op.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
 
@@ -9,35 +9,34 @@ const i32 BINS = 16;
 }
 
 class HistogramKernelCPU : public VideoKernel {
-public:
-  HistogramKernelCPU(const Kernel::Config &config)
-      : VideoKernel(config), device_(config.devices[0]) {
-  }
+ public:
+  HistogramKernelCPU(const Kernel::Config& config)
+      : VideoKernel(config), device_(config.devices[0]) {}
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& frame_info_col = input_columns[1];
 
     check_frame_info(device_, frame_info_col);
     size_t hist_size = BINS * 3 * sizeof(float);
     i32 input_count = frame_col.rows.size();
-    u8 *output_block =
+    u8* output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
     cv::Mat tmp;
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                  (u8 *)frame_col.rows[i].buffer);
+                  (u8*)frame_col.rows[i].buffer);
 
       float range[] = {0, 256};
-      const float *histRange = {range};
+      const float* histRange = {range};
 
-      u8 *output_buf = output_block + i * hist_size;
+      u8* output_buf = output_block + i * hist_size;
 
       for (i32 j = 0; j < 3; ++j) {
         int channels[] = {j};
-        cv::Mat out(BINS, 1, CV_32F , output_buf + BINS * sizeof(float));
+        cv::Mat out(BINS, 1, CV_32F, output_buf + BINS * sizeof(float));
         cv::calcHist(&img, 1, channels, cv::Mat(), out, 1, &BINS, &histRange);
         out.convertTo(out, CV_32S);
       }
@@ -46,7 +45,7 @@ public:
     }
   }
 
-private:
+ private:
   DeviceHandle device_;
 };
 

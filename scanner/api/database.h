@@ -49,7 +49,7 @@ struct Task {
 
 struct TaskSet {
   std::vector<Task> tasks;
-  Op *output_op;
+  Op* output_op;
 };
 
 struct JobParameters {
@@ -67,10 +67,9 @@ struct FailedVideo {
 };
 
 class Database {
-public:
-  Database(storehouse::StorageConfig *storage_config,
-           const std::string &db_path,
-           const std::string &master_address);
+ public:
+  Database(storehouse::StorageConfig* storage_config,
+           const std::string& db_path, const std::string& master_address);
 
   Result start_master(const MachineParameters& params, const std::string& port);
 
@@ -81,10 +80,11 @@ public:
                        std::vector<FailedVideo>& failed_videos);
 
   // void ingest_images(storehouse::StorageConfig *storage_config,
-  //                    const std::string &db_path, const std::string &table_name,
+  //                    const std::string &db_path, const std::string
+  //                    &table_name,
   //                    const std::vector<std::string> &paths);
 
-  Result new_job(JobParameters &params);
+  Result new_job(JobParameters& params);
 
   Result new_table(const std::string& table_name,
                    const std::vector<std::string>& columns,
@@ -98,7 +98,7 @@ public:
 
   Result destroy_database();
 
-protected:
+ protected:
   bool database_exists();
 
   struct ServerState {
@@ -107,8 +107,8 @@ protected:
     Flag shutdown_flag;
   };
 
-private:
-  storehouse::StorageConfig *storage_config_;
+ private:
+  storehouse::StorageConfig* storage_config_;
   std::unique_ptr<storehouse::StorageBackend> storage_;
   std::string db_path_;
   std::string master_address_;

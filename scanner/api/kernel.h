@@ -67,9 +67,7 @@ class Kernel {
   /**
    * @brief TODO
    */
-  virtual void validate(proto::Result* result) {
-    result->set_success(true);
-  }
+  virtual void validate(proto::Result* result) { result->set_success(true); }
 
   /**
    * @brief Resets ops when about to receive non-consecutive inputs.
@@ -99,8 +97,8 @@ class Kernel {
    *
    * Number of output columns must be non-zero.
    */
-  virtual void execute(const BatchedColumns &input_columns,
-                       BatchedColumns &output_columns) = 0;
+  virtual void execute(const BatchedColumns& input_columns,
+                       BatchedColumns& output_columns) = 0;
 
   /**
    * Do not call this function.
@@ -116,10 +114,10 @@ class Kernel {
 };
 
 class VideoKernel : public Kernel {
-public:
-  VideoKernel(const Config& config) : Kernel(config) {};
+ public:
+  VideoKernel(const Config& config) : Kernel(config){};
 
-protected:
+ protected:
   void check_frame_info(const DeviceHandle& device, const RowList& row_list);
   virtual void new_frame_info(){};
 
@@ -147,12 +145,11 @@ class KernelRegistration {
 };
 
 class KernelBuilder {
-public:
+ public:
   friend class KernelRegistration;
 
-  KernelBuilder(const std::string &name,
-                KernelConstructor constructor)
-    : name_(name), constructor_(constructor) {}
+  KernelBuilder(const std::string& name, KernelConstructor constructor)
+      : name_(name), constructor_(constructor) {}
 
   KernelBuilder& device(DeviceType device_type) {
     device_type_ = device_type;
@@ -170,7 +167,6 @@ public:
   DeviceType device_type_;
   i32 num_devices_;
 };
-
 }
 
 #define REGISTER_KERNEL(name__, kernel__) \
@@ -179,11 +175,10 @@ public:
 #define REGISTER_KERNEL_HELPER(uid__, name__, kernel__) \
   REGISTER_KERNEL_UID(uid__, name__, kernel__)
 
-#define REGISTER_KERNEL_UID(uid__, name__, kernel__)                           \
-  static ::scanner::internal::KernelRegistration kernel_registration_##uid__   \
-      __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \
-          #name__,                                                             \
-          [](const ::scanner::Kernel::Config &config) {                        \
-              return new kernel__(config); })
-
+#define REGISTER_KERNEL_UID(uid__, name__, kernel__)                         \
+  static ::scanner::internal::KernelRegistration kernel_registration_##uid__ \
+      __attribute__((unused)) = ::scanner::internal::KernelBuilder(          \
+          #name__, [](const ::scanner::Kernel::Config& config) {             \
+            return new kernel__(config);                                     \
+          })
 }

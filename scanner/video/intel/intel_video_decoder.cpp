@@ -37,8 +37,12 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// IntelVideoDecoder
 IntelVideoDecoder::IntelVideoDecoder(int device_id, DeviceType output_type)
-    : device_id_(device_id), output_type_(output_type), codec_(nullptr),
-      cc_(nullptr), reset_context_(true), sws_context_(nullptr) {
+    : device_id_(device_id),
+      output_type_(output_type),
+      codec_(nullptr),
+      cc_(nullptr),
+      reset_context_(true),
+      sws_context_(nullptr) {
   if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
     LOG(FATAL) << "Unsupported output type for intel decoder";
   }
@@ -69,15 +73,15 @@ IntelVideoDecoder::~IntelVideoDecoder() {
   avcodec_close(cc_);
   av_freep(&cc_);
 #endif
-  for (AVFrame *frame : frame_pool_) {
+  for (AVFrame* frame : frame_pool_) {
     av_frame_free(&frame);
   }
-  for (AVFrame *frame : decoded_frame_queue_) {
+  for (AVFrame* frame : decoded_frame_queue_) {
     av_frame_free(&frame);
   }
 }
 
-void IntelVideoDecoder::configure(const InputFormat &metadata) {
+void IntelVideoDecoder::configure(const InputFormat& metadata) {
   metadata_ = metadata;
   reset_context_ = true;
 
@@ -87,7 +91,7 @@ void IntelVideoDecoder::configure(const InputFormat &metadata) {
   conversion_buffer_.resize(required_size);
 }
 
-bool IntelVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
+bool IntelVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                              bool discontinuity) {
 // Debug read packets
 #if 0
@@ -122,7 +126,7 @@ bool IntelVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
   }
   memcpy(packet_.data, encoded_buffer, encoded_size);
 
-  uint8_t *orig_data = packet_.data;
+  uint8_t* orig_data = packet_.data;
   int orig_size = packet_.size;
   int got_picture = 0;
   do {
@@ -131,7 +135,7 @@ bool IntelVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
       // Create a new frame if our pool is empty
       frame_pool_.push_back(av_frame_alloc());
     }
-    AVFrame *frame = frame_pool_.back();
+    AVFrame* frame = frame_pool_.back();
     frame_pool_.pop_back();
 
     int consumed_length =
@@ -146,7 +150,7 @@ bool IntelVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
     if (got_picture) {
       if (frame->buf[0] == NULL) {
         // Must copy packet as data is stored statically
-        AVFrame *cloned_frame = av_frame_clone(frame);
+        AVFrame* cloned_frame = av_frame_clone(frame);
         if (cloned_frame == NULL) {
           fprintf(stderr, "could not clone frame\n");
           assert(false);
@@ -171,7 +175,7 @@ bool IntelVideoDecoder::feed(const u8 *encoded_buffer, size_t encoded_size,
 }
 
 bool IntelVideoDecoder::discard_frame() {
-  AVFrame *frame = decoded_frame_queue_.front();
+  AVFrame* frame = decoded_frame_queue_.front();
   decoded_frame_queue_.pop_front();
   av_frame_unref(frame);
   frame_pool_.push_back(frame);
@@ -179,10 +183,10 @@ bool IntelVideoDecoder::discard_frame() {
   return decoded_frame_queue_.size() > 0;
 }
 
-bool IntelVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
+bool IntelVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   int64_t size_left = decoded_size;
 
-  AVFrame *frame = decoded_frame_queue_.front();
+  AVFrame* frame = decoded_frame_queue_.front();
   decoded_frame_queue_.pop_front();
 
   if (reset_context_) {
@@ -198,14 +202,14 @@ bool IntelVideoDecoder::get_frame(u8 *decoded_buffer, size_t decoded_size) {
     exit(EXIT_FAILURE);
   }
 
-  u8 *scale_buffer = nullptr;
+  u8* scale_buffer = nullptr;
   if (output_type_ == DeviceType::GPU) {
     scale_buffer = conversion_buffer_.data();
   } else if (output_type_ == DeviceType::CPU) {
     scale_buffer = decoded_buffer;
   }
 
-  uint8_t *out_slices[4];
+  uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size = av_image_fill_arrays(
       out_slices, out_linesizes, scale_buffer, AV_PIX_FMT_RGB24,

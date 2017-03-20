@@ -17,10 +17,10 @@
 
 #include "scanner/video/video_decoder.h"
 
-#include <thread>
-#include <mutex>
 #include <condition_variable>
 #include <memory>
+#include <mutex>
+#include <thread>
 
 namespace scanner {
 namespace internal {
@@ -29,7 +29,8 @@ class DecoderAutomata {
   DecoderAutomata() = delete;
   DecoderAutomata(const DecoderAutomata&) = delete;
   DecoderAutomata(const DecoderAutomata&& other) = delete;
-public:
+
+ public:
   DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
                   VideoDecoderType decoder_type);
   ~DecoderAutomata();
@@ -40,7 +41,7 @@ public:
 
   void set_profiler(Profiler* profiler);
 
-private:
+ private:
   void feeder();
 
   void set_feeder_idx(i32 data_idx);
@@ -81,8 +82,6 @@ private:
   std::atomic<i64> feeder_next_keyframe_;
   std::mutex feeder_mutex_;
   std::condition_variable wake_feeder_;
-
 };
-
 }
 }

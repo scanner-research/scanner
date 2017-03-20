@@ -14,7 +14,6 @@
  */
 
 #include "scanner/api/database.h"
-#include "scanner/engine/runtime.h"
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/rpc.grpc.pb.h"
@@ -36,7 +35,7 @@ namespace scanner {
 
 namespace {
 template <typename T>
-std::unique_ptr<grpc::Server> start(T &service, const std::string &port) {
+std::unique_ptr<grpc::Server> start(T& service, const std::string& port) {
   std::string server_address("0.0.0.0:" + port);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -46,16 +45,16 @@ std::unique_ptr<grpc::Server> start(T &service, const std::string &port) {
   return std::move(server);
 }
 
-proto::TaskSet consume_task_set(TaskSet &ts) {
+proto::TaskSet consume_task_set(TaskSet& ts) {
   proto::TaskSet task_set;
   // Parse tasks
-  for (Task &t : ts.tasks) {
-    proto::Task *task = task_set.add_tasks();
+  for (Task& t : ts.tasks) {
+    proto::Task* task = task_set.add_tasks();
     task->set_output_table_name(t.output_table_name);
-    for (TableSample &ts : t.samples) {
-      proto::TableSample *sample = task->add_samples();
+    for (TableSample& ts : t.samples) {
+      proto::TableSample* sample = task->add_samples();
       sample->set_table_name(ts.table_name);
-      for (std::string &s : ts.column_names) {
+      for (std::string& s : ts.column_names) {
         sample->add_column_names(s);
       }
       sample->set_sampling_function(ts.sampling_function);
@@ -64,16 +63,16 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
     }
   }
   // Parse ops
-  std::map<Op *, std::vector<Op *>> edges; // parent -> child
-  std::map<Op *, i32> in_edges_left;              // parent -> child
-  Op *start_node = nullptr;
+  std::map<Op*, std::vector<Op*>> edges;  // parent -> child
+  std::map<Op*, i32> in_edges_left;       // parent -> child
+  Op* start_node = nullptr;
   {
     // Find all edges
-    std::set<Op *> explored_nodes;
-    std::vector<Op *> stack;
+    std::set<Op*> explored_nodes;
+    std::vector<Op*> stack;
     stack.push_back(ts.output_op);
     while (!stack.empty()) {
-      Op *c = stack.back();
+      Op* c = stack.back();
       stack.pop_back();
       explored_nodes.insert(c);
 
@@ -82,8 +81,8 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
         start_node = c;
         continue;
       }
-      for (const OpInput &input : c->get_inputs()) {
-        Op *parent_eval = input.get_op();
+      for (const OpInput& input : c->get_inputs()) {
+        Op* parent_eval = input.get_op();
         edges[parent_eval].push_back(c);
         in_edges_left[c] += 1;
 
@@ -96,20 +95,20 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
       }
     }
   }
-  std::vector<Op *> sorted_ops;
-  std::map<Op *, i32> op_index;
+  std::vector<Op*> sorted_ops;
+  std::map<Op*, i32> op_index;
   {
     // Perform topological sort
-    std::vector<Op *> stack;
+    std::vector<Op*> stack;
     stack.push_back(start_node);
     while (!stack.empty()) {
-      Op *curr = stack.back();
+      Op* curr = stack.back();
       stack.pop_back();
 
       sorted_ops.push_back(curr);
       op_index.insert({curr, sorted_ops.size() - 1});
-      for (Op *child : edges[curr]) {
-        i32 &edges_left = in_edges_left[child];
+      for (Op* child : edges[curr]) {
+        i32& edges_left = in_edges_left[child];
         edges_left -= 1;
         if (edges_left == 0) {
           stack.push_back(child);
@@ -119,13 +118,13 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
   }
   assert(sorted_ops.size() == in_edges_left.size() + 1);
   // Translate sorted ops into serialized task set
-  for (Op *eval : sorted_ops) {
-    proto::Op *proto_eval = task_set.add_ops();
+  for (Op* eval : sorted_ops) {
+    proto::Op* proto_eval = task_set.add_ops();
     proto_eval->set_name(eval->get_name());
     proto_eval->set_device_type(eval->get_device_type());
     proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
-    for (const OpInput &input : eval->get_inputs()) {
-      proto::OpInput *proto_input = proto_eval->add_inputs();
+    for (const OpInput& input : eval->get_inputs()) {
+      proto::OpInput* proto_input = proto_eval->add_inputs();
       i32 parent_index;
       if (input.get_op() == nullptr) {
         parent_index = -1;
@@ -133,7 +132,7 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
         parent_index = op_index.at(input.get_op());
       }
       proto_input->set_op_index(parent_index);
-      for (const std::string &column_name : input.get_columns()) {
+      for (const std::string& column_name : input.get_columns()) {
         proto_input->add_columns(column_name);
       }
     }
@@ -142,10 +141,9 @@ proto::TaskSet consume_task_set(TaskSet &ts) {
   return task_set;
 }
 
-internal::DatabaseParameters
-machine_params_to_db_params(const MachineParameters &params,
-                            storehouse::StorageConfig *sc,
-                            const std::string db_path) {
+internal::DatabaseParameters machine_params_to_db_params(
+    const MachineParameters& params, storehouse::StorageConfig* sc,
+    const std::string db_path) {
   internal::DatabaseParameters db;
   db.storage_config = sc;
   db.db_path = db_path;
@@ -172,13 +170,13 @@ MachineParameters default_machine_params() {
   return machine_params;
 }
 
-Database::Database(storehouse::StorageConfig *storage_config,
-                   const std::string &db_path,
-                   const std::string &master_address)
+Database::Database(storehouse::StorageConfig* storage_config,
+                   const std::string& db_path,
+                   const std::string& master_address)
     : storage_config_(storage_config),
       storage_(storehouse::StorageBackend::make_from_config(storage_config)),
-      db_path_(db_path), master_address_(master_address) {
-
+      db_path_(db_path),
+      master_address_(master_address) {
   internal::set_database_path(db_path);
   if (!database_exists()) {
     internal::DatabaseMetadata meta{};
@@ -208,12 +206,12 @@ Result Database::start_master(const MachineParameters& machine_params,
   return result;
 }
 
-Result Database::start_worker(const MachineParameters &machine_params,
+Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   ServerState* s = new ServerState;
-  ServerState &state = *s;
+  ServerState& state = *s;
   state.service.reset(scanner::internal::get_worker_service(
       params, master_address_, port, state.shutdown_flag));
   state.server = start(state.service, port);
@@ -224,9 +222,9 @@ Result Database::start_worker(const MachineParameters &machine_params,
   return result;
 }
 
-Result Database::ingest_videos(const std::vector<std::string> &table_names,
-                               const std::vector<std::string> &paths,
-                               std::vector<FailedVideo> &failed_videos) {
+Result Database::ingest_videos(const std::vector<std::string>& table_names,
+                               const std::vector<std::string>& paths,
+                               std::vector<FailedVideo>& failed_videos) {
   internal::ingest_videos(storage_config_, db_path_, table_names, paths,
                           failed_videos);
   Result result;
@@ -247,10 +245,9 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
     params.add_video_paths(p);
   }
   proto::IngestResult job_result;
-  grpc::Status status =
-      master_->IngestVideos(&context, params, &job_result);
-  LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
-                              << status.error_message();
+  grpc::Status status = master_->IngestVideos(&context, params, &job_result);
+  LOG_IF(FATAL, !status.ok())
+      << "Could not contact master server: " << status.error_message();
   for (i32 i = 0; i < job_result.failed_paths().size(); ++i) {
     FailedVideo failed;
     failed.path = job_result.failed_paths(i);
@@ -260,7 +257,7 @@ Result Database::ingest_videos(const std::vector<std::string> &table_names,
   return job_result.result();
 }
 
-Result Database::new_job(JobParameters &params) {
+Result Database::new_job(JobParameters& params) {
   auto channel =
       grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
@@ -269,34 +266,32 @@ Result Database::new_job(JobParameters &params) {
   grpc::ClientContext context;
   proto::JobParameters job_params;
   job_params.set_job_name(params.job_name);
-  job_params.set_pipeline_instances_per_node(params.pipeline_instances_per_node);
+  job_params.set_pipeline_instances_per_node(
+      params.pipeline_instances_per_node);
   job_params.set_work_item_size(params.work_item_size);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   Result job_result;
   grpc::Status status = master_->NewJob(&context, job_params, &job_result);
-  LOG_IF(FATAL, !status.ok()) << "Could not contact master server: "
-                              << status.error_message();
+  LOG_IF(FATAL, !status.ok())
+      << "Could not contact master server: " << status.error_message();
 
   return job_result;
 }
 
-
 Result Database::new_table(const std::string& table_name,
                            const std::vector<std::string>& columns,
                            const std::vector<std::vector<std::string>>& rows) {
-
-  internal::DatabaseMetadata meta =
-    internal::read_database_metadata(
+  internal::DatabaseMetadata meta = internal::read_database_metadata(
       storage_.get(), internal::DatabaseMetadata::descriptor_path());
 
   i32 table_id = meta.add_table(table_name);
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
-  table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
-                             now().time_since_epoch())
-                           .count());
+  table_desc.set_timestamp(
+      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count());
   for (size_t i = 0; i < columns.size(); ++i) {
     proto::Column* col = table_desc.add_columns();
     col->set_id(i);
@@ -307,14 +302,15 @@ Result Database::new_table(const std::string& table_name,
   table_desc.add_end_rows(rows.size());
   table_desc.set_job_id(-1);
 
-  internal::write_table_metadata(storage_.get(), internal::TableMetadata(table_desc));
+  internal::write_table_metadata(storage_.get(),
+                                 internal::TableMetadata(table_desc));
   internal::write_database_metadata(storage_.get(), meta);
 
   for (size_t j = 0; j < columns.size(); ++j) {
     const std::string output_path =
-      internal::table_item_output_path(table_id, j, 0);
+        internal::table_item_output_path(table_id, j, 0);
 
-    storehouse::WriteFile *output_file = nullptr;
+    storehouse::WriteFile* output_file = nullptr;
     BACKOFF_FAIL(storage_->make_write_file(output_path, output_file));
 
     u64 num_rows = rows.size();
@@ -325,7 +321,7 @@ Result Database::new_table(const std::string& table_name,
     }
     for (size_t i = 0; i < num_rows; ++i) {
       i64 buffer_size = rows[i][j].size();
-      u8* buffer = (u8*) rows[i][j].data();
+      u8* buffer = (u8*)rows[i][j].data();
       s_write(output_file, buffer, buffer_size);
     }
 
@@ -336,7 +332,6 @@ Result Database::new_table(const std::string& table_name,
   result.set_success(true);
   return result;
 }
-
 
 Result Database::shutdown_master() {
   LOG(FATAL) << "Not implemented yet!";
@@ -386,5 +381,4 @@ bool Database::database_exists() {
   storehouse::StoreResult result = storage_->get_file_info(db_meta_path, info);
   return (result != storehouse::StoreResult::FileDoesNotExist);
 }
-
 }

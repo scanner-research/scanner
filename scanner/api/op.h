@@ -25,10 +25,9 @@ namespace scanner {
 struct OpInput;
 
 class Op {
-public:
-  Op(const std::string &name, const std::vector<OpInput> &inputs,
-            DeviceType device_type,
-            char *args = nullptr, size_t args_size = 0);
+ public:
+  Op(const std::string& name, const std::vector<OpInput>& inputs,
+     DeviceType device_type, char* args = nullptr, size_t args_size = 0);
 
   virtual ~Op(){};
 
@@ -42,7 +41,7 @@ public:
 
   size_t get_args_size() const;
 
-protected:
+ protected:
   std::string name_;
   std::vector<OpInput> inputs_;
   DeviceType type_;
@@ -51,16 +50,16 @@ protected:
 };
 
 class OpInput {
-public:
-  OpInput(Op *op, const std::vector<std::string> &columns)
+ public:
+  OpInput(Op* op, const std::vector<std::string>& columns)
       : op(op), columns(columns) {}
 
   Op* get_op() const;
 
   const std::vector<std::string>& get_columns() const;
 
-private:
-  Op *op;
+ private:
+  Op* op;
   std::vector<std::string> columns;
 };
 
@@ -83,8 +82,7 @@ class OpBuilder {
  public:
   friend class OpRegistration;
 
-  OpBuilder(const std::string &name)
-      : name_(name) {}
+  OpBuilder(const std::string& name) : name_(name) {}
 
   OpBuilder& inputs(const std::vector<std::string>& columns) {
     input_columns_ = columns;
@@ -103,11 +101,9 @@ class OpBuilder {
 };
 }
 
-#define REGISTER_OP(name__) \
-  REGISTER_OP_UID(__COUNTER__, name__)
+#define REGISTER_OP(name__) REGISTER_OP_UID(__COUNTER__, name__)
 
-#define REGISTER_OP_UID(uid__, name__)                                  \
-  static ::scanner::internal::OpRegistration                            \
-      op_registration_##uid__ __attribute__((unused)) =                 \
-          ::scanner::internal::OpBuilder(#name__)
+#define REGISTER_OP_UID(uid__, name__)                               \
+  static ::scanner::internal::OpRegistration op_registration_##uid__ \
+      __attribute__((unused)) = ::scanner::internal::OpBuilder(#name__)
 }

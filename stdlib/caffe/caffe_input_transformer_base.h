@@ -11,32 +11,28 @@ Expr kernel_box(Expr x) {
   return select(xx <= 0.5f, 1.0f, 0.0f);
 }
 
-Expr sinc(Expr x) {
-  return sin(float(M_PI) * x) / x;
-}
+Expr sinc(Expr x) { return sin(float(M_PI) * x) / x; }
 
 Expr kernel_lanczos(Expr x) {
-  Expr value = sinc(x) * sinc(x/3);
-  value = select(x == 0.0f, 1.0f, value); // Take care of singularity at zero
-  value = select(x > 3 || x < -3, 0.0f, value); // Clamp to zero out of bounds
+  Expr value = sinc(x) * sinc(x / 3);
+  value = select(x == 0.0f, 1.0f, value);  // Take care of singularity at zero
+  value = select(x > 3 || x < -3, 0.0f, value);  // Clamp to zero out of bounds
   return value;
 }
 
 struct KernelInfo {
-  const char *name;
+  const char* name;
   float size;
   Expr (*kernel)(Expr);
 };
 
-static KernelInfo kernelInfo[] = {
-  { "box", 0.5f, kernel_box },
-  // { "linear", 1.0f, kernel_linear },
-  // { "cubic", 2.0f, kernel_cubic },
-  { "lanczos", 3.0f, kernel_lanczos }
-};
+static KernelInfo kernelInfo[] = {{"box", 0.5f, kernel_box},
+                                  // { "linear", 1.0f, kernel_linear },
+                                  // { "cubic", 2.0f, kernel_cubic },
+                                  {"lanczos", 3.0f, kernel_lanczos}};
 
 class CaffeInputTransformer : public Halide::Generator<CaffeInputTransformer> {
-public:
+ public:
   ImageParam input{UInt(8), 3, "input"};
   Param<int> input_width{"input_width"}, input_height{"input_height"};
   Param<int> target_width{"target_width"}, target_height{"target_height"};
@@ -54,7 +50,7 @@ public:
     Expr scaleX = target_width / cast<float>(input_width);
     Expr scaleY = target_height / cast<float>(input_height);
 
-    const KernelInfo &info = kernelInfo[0];
+    const KernelInfo& info = kernelInfo[0];
     Expr kernelSizeX = info.size / scaleX;
     Expr kernelSizeY = info.size / scaleY;
 
@@ -83,17 +79,16 @@ public:
     resized_final(x, y, c) = clamp(resized_y(x, y, c), 0.0f, 255.0f);
 
     Func mean_subtract("mean_subtract");
-    mean_subtract(x, y, c) = resized_final(x, y, c) -
-      select(c==0, mean_r,
-             select(c==1, mean_g, mean_b));
+    mean_subtract(x, y, c) =
+        resized_final(x, y, c) -
+        select(c == 0, mean_r, select(c == 1, mean_g, mean_b));
 
     Func rescaled("rescaled");
-    rescaled(x, y, c) = mean_subtract(x, y, 2-c) / select(normalize, 255.0f, 1.0f);
+    rescaled(x, y, c) =
+        mean_subtract(x, y, 2 - c) / select(normalize, 255.0f, 1.0f);
     rescaled.bound(c, 0, 3);
 
-    input
-      .dim(0).set_stride(3)
-      .dim(2).set_stride(1);
+    input.dim(0).set_stride(3).dim(2).set_stride(1);
 
     Target target = Halide::get_target_from_environment();
 #ifdef HALIDE_USE_GPU

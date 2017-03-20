@@ -1,5 +1,5 @@
-#include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
+#include "scanner/api/op.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
@@ -8,10 +8,12 @@
 namespace scanner {
 
 class MontageKernelGPU : public VideoKernel {
-public:
-  MontageKernelGPU(const Kernel::Config &config)
-      : VideoKernel(config), device_(config.devices[0]),
-        frames_seen_(0), montage_width_(0) {
+ public:
+  MontageKernelGPU(const Kernel::Config& config)
+      : VideoKernel(config),
+        device_(config.devices[0]),
+        frames_seen_(0),
+        montage_width_(0) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
       RESULT_ERROR(&valid_, "MontageKernel could not parse protobuf args");
@@ -29,7 +31,7 @@ public:
     }
   }
 
-  void reset(){
+  void reset() {
     if (montage_width_ != 0) {
       montage_buffer_ =
           new_buffer(device_, montage_width_ * montage_height_ * 3);
@@ -53,8 +55,8 @@ public:
     reset();
   }
 
-  void execute(const BatchedColumns &input_columns,
-               BatchedColumns &output_columns) override {
+  void execute(const BatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& frame_info_col = input_columns[1];
     check_frame_info(device_, frame_info_col);
@@ -89,7 +91,7 @@ public:
     cvc::setDevice(device_.id);
   }
 
-private:
+ private:
   proto::Result valid_;
   DeviceHandle device_;
   proto::MontageArgs args_;
@@ -103,15 +105,12 @@ private:
   i64 montage_width_;
   i64 montage_height_;
 
-  u8 *montage_buffer_;
+  u8* montage_buffer_;
   cvc::GpuMat montage_image_;
   i64 frames_seen_;
 };
 
-REGISTER_OP(Montage)
-    .inputs({"frame", "frame_info"})
-    .outputs({"montage"});
-
+REGISTER_OP(Montage).inputs({"frame", "frame_info"}).outputs({"montage"});
 
 REGISTER_KERNEL(Montage, MontageKernelGPU)
     .device(DeviceType::GPU)

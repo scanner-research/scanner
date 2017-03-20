@@ -11,7 +11,7 @@
 
 namespace scanner {
 
-CaffeInputKernel::CaffeInputKernel(const Kernel::Config &config)
+CaffeInputKernel::CaffeInputKernel(const Kernel::Config& config)
     : VideoKernel(config), device_(config.devices[0]) {
   args_.ParseFromArray(config.args.data(), config.args.size());
   if (device_.type == DeviceType::GPU) {
@@ -41,7 +41,7 @@ void CaffeInputKernel::new_frame_info() {
   }
 }
 
-void CaffeInputKernel::set_halide_buf(buffer_t &halide_buf, u8 *buf,
+void CaffeInputKernel::set_halide_buf(buffer_t& halide_buf, u8* buf,
                                       size_t size) {
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({
@@ -58,20 +58,20 @@ void CaffeInputKernel::set_halide_buf(buffer_t &halide_buf, u8 *buf,
       // "You'll need to set the host field of the buffer_t structs to
       // something other than nullptr as that is used to indicate bounds query
       // calls" - Zalman Stern
-      halide_buf.host = (u8 *)0xdeadbeef;
-      });
+      halide_buf.host = (u8*)0xdeadbeef;
+    });
   } else {
     halide_buf.host = buf;
   }
 }
 
-void CaffeInputKernel::unset_halide_buf(buffer_t &halide_buf) {
+void CaffeInputKernel::unset_halide_buf(buffer_t& halide_buf) {
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({ halide_cuda_detach_device_ptr(nullptr, &halide_buf); });
   }
 }
 
-void CaffeInputKernel::transform_halide(u8 *input_buffer, u8 *output_buffer) {
+void CaffeInputKernel::transform_halide(u8* input_buffer, u8* output_buffer) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
   size_t net_input_size =
@@ -120,7 +120,7 @@ void CaffeInputKernel::transform_halide(u8 *input_buffer, u8 *output_buffer) {
   unset_halide_buf(output_buf);
 }
 
-void CaffeInputKernel::transform_caffe(u8 *input_buffer, u8 *output_buffer) {
+void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
   size_t net_input_size =
@@ -137,11 +137,11 @@ void CaffeInputKernel::transform_caffe(u8 *input_buffer, u8 *output_buffer) {
 
   caffe::Blob<f32> output_blob;
   output_blob.Reshape(1, 3, net_input_height_, net_input_width_);
-  output_blob.set_cpu_data((f32 *)output_buffer);
+  output_blob.set_cpu_data((f32*)output_buffer);
 
   caffe::TransformationParameter param;
-  auto &descriptor = args_.net_descriptor();
-  auto &mean_colors = descriptor.mean_colors();
+  auto& descriptor = args_.net_descriptor();
+  auto& mean_colors = descriptor.mean_colors();
   param.set_force_color(true);
   if (descriptor.normalize()) {
     param.set_scale(1.0 / 255.0);
@@ -154,8 +154,8 @@ void CaffeInputKernel::transform_caffe(u8 *input_buffer, u8 *output_buffer) {
   transformer.Transform(input_mats, &output_blob);
 }
 
-void CaffeInputKernel::execute(const BatchedColumns &input_columns,
-                               BatchedColumns &output_columns) {
+void CaffeInputKernel::execute(const BatchedColumns& input_columns,
+                               BatchedColumns& output_columns) {
   auto& frame_col = input_columns[0];
   auto& frame_info_col = input_columns[1];
   check_frame_info(device_, frame_info_col);
@@ -167,12 +167,12 @@ void CaffeInputKernel::execute(const BatchedColumns &input_columns,
 
   set_device();
 
-  u8 *output_block =
+  u8* output_block =
       new_block_buffer(device_, net_input_size * input_count, input_count);
 
   for (i32 frame = 0; frame < input_count; frame++) {
-    u8 *input_buffer = frame_col.rows[frame].buffer;
-    u8 *output_buffer = output_block + frame * net_input_size;
+    u8* input_buffer = frame_col.rows[frame].buffer;
+    u8* output_buffer = output_block + frame * net_input_size;
 
     transform_halide(input_buffer, output_buffer);
 
@@ -193,5 +193,4 @@ void CaffeInputKernel::set_device() {
     halide_set_gpu_device(device_.id);
   });
 }
-
 }

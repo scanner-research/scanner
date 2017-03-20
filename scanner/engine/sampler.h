@@ -41,9 +41,9 @@ struct RowSample {
 };
 
 class Sampler {
-public:
-  Sampler(const std::string& name, const TableMetadata& table) :
-      name_(name), table_(table) {}
+ public:
+  Sampler(const std::string& name, const TableMetadata& table)
+      : name_(name), table_(table) {}
 
   const std::string& name() const { return name_; }
 
@@ -57,7 +57,7 @@ public:
 
   virtual void reset() = 0;
 
-protected:
+ protected:
   std::string name_;
   TableMetadata table_;
 };
@@ -68,9 +68,9 @@ Result make_sampler_instance(const std::string& sampler_type,
                              Sampler*& sampler);
 
 class TaskSampler {
-public:
-  TaskSampler(const std::map<std::string, TableMetadata> &table_metas,
-              const proto::Task &task);
+ public:
+  TaskSampler(const std::map<std::string, TableMetadata>& table_metas,
+              const proto::Task& task);
 
   Result validate();
 
@@ -80,7 +80,7 @@ public:
 
   Result next_work(proto::NewWork& new_work);
 
-private:
+ private:
   const std::map<std::string, TableMetadata>& table_metas_;
   const proto::Task& task_;
   Result valid_;
@@ -91,6 +91,5 @@ private:
   i64 samples_pos_ = 0;
   i64 allocated_rows_ = 0;
 };
-
 }
 }

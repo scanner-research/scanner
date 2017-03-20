@@ -4,25 +4,29 @@
 namespace scanner {
 
 class FacenetKernel : public CaffeKernel {
-public:
+ public:
   FacenetKernel(const Kernel::Config& config)
-    : CaffeKernel(get_caffe_config(config)) {}
+      : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
     // Calculate width by scaling by box size
     int resize_width = std::floor(frame_info_.width() * scale_);
     int resize_height = std::floor(frame_info_.height() * scale_);
 
-    if (resize_width % 8 != 0)  { resize_width  += 8 - (resize_width % 8);  }
-    if (resize_height % 8 != 0) { resize_height += 8 - (resize_height % 8); }
+    if (resize_width % 8 != 0) {
+      resize_width += 8 - (resize_width % 8);
+    }
+    if (resize_height % 8 != 0) {
+      resize_height += 8 - (resize_height % 8);
+    }
 
     int net_input_width = resize_height;
     int net_input_height = resize_width;
 
     const boost::shared_ptr<caffe::Blob<float>> input_blob{
-      net_->blob_by_name("data")};
+        net_->blob_by_name("data")};
     input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-          net_input_height, net_input_width});
+                         net_input_height, net_input_width});
   }
 
   Kernel::Config get_caffe_config(const Kernel::Config& config) {
@@ -37,7 +41,7 @@ public:
     return new_config;
   }
 
-private:
+ private:
   f32 scale_;
 };
 
@@ -46,5 +50,4 @@ REGISTER_OP(Facenet)
     .outputs({"facenet_output"});
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::GPU).num_devices(1);
-
 }

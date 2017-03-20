@@ -25,12 +25,13 @@ std::string other_flags() {
 }
 
 template <typename T>
-inline std::vector<T> to_std_vector(const py::object &iterable) {
+inline std::vector<T> to_std_vector(const py::object& iterable) {
   return std::vector<T>(py::stl_input_iterator<T>(iterable),
                         py::stl_input_iterator<T>());
 }
 
-template <class T> py::list to_py_list(std::vector<T> vector) {
+template <class T>
+py::list to_py_list(std::vector<T> vector) {
   typename std::vector<T>::iterator iter;
   py::list list;
   for (iter = vector.begin(); iter != vector.end(); ++iter) {
@@ -59,7 +60,7 @@ proto::Result start_master_wrapper(Database& db, const std::string& port) {
   return db.start_master(default_machine_params(), port);
 }
 
-proto::Result start_worker_wrapper(Database &db, const std::string &params_s,
+proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
                                    const std::string& port) {
   proto::MachineParameters params_proto;
   params_proto.ParseFromString(params_s);
@@ -74,28 +75,20 @@ proto::Result start_worker_wrapper(Database &db, const std::string &params_s,
   return db.start_worker(params, port);
 }
 
-py::list ingest_videos_wrapper(
-  Database& db,
-  const py::list table_names,
-  const py::list paths) {
+py::list ingest_videos_wrapper(Database& db, const py::list table_names,
+                               const py::list paths) {
   std::vector<FailedVideo> failed_videos;
-  db.ingest_videos(
-    to_std_vector<std::string>(table_names),
-    to_std_vector<std::string>(paths),
-    failed_videos);
+  db.ingest_videos(to_std_vector<std::string>(table_names),
+                   to_std_vector<std::string>(paths), failed_videos);
   return to_py_list<FailedVideo>(failed_videos);
 }
 
-Result wait_for_server_shutdown_wrapper(
-  Database& db) {
+Result wait_for_server_shutdown_wrapper(Database& db) {
   return db.wait_for_server_shutdown();
 }
 
-Result new_table_wrapper(
-  Database& db,
-  const std::string& name,
-  const py::list columns,
-  const py::list rows) {
+Result new_table_wrapper(Database& db, const std::string& name,
+                         const py::list columns, const py::list rows) {
   std::vector<py::list> rows_py1 = to_std_vector<py::list>(rows);
   std::vector<std::vector<std::string>> rows_py2;
   for (auto l : rows_py1) {
@@ -108,16 +101,16 @@ Result new_table_wrapper(
 BOOST_PYTHON_MODULE(libscanner) {
   using namespace py;
   class_<Database, boost::noncopyable>(
-    "Database", init<storehouse::StorageConfig*, const std::string&, const std::string&>())
-    .def("ingest_videos", &Database::ingest_videos);
+      "Database", init<storehouse::StorageConfig*, const std::string&,
+                       const std::string&>())
+      .def("ingest_videos", &Database::ingest_videos);
   class_<FailedVideo>("FailedVideo", no_init)
-    .def_readonly("path", &FailedVideo::path)
-    .def_readonly("message", &FailedVideo::message);
+      .def_readonly("path", &FailedVideo::path)
+      .def_readonly("message", &FailedVideo::message);
   class_<proto::Result>("Result", no_init)
       .def("success", &proto::Result::success,
            return_value_policy<return_by_value>())
-      .def("msg", &proto::Result::msg,
-           return_value_policy<return_by_value>());
+      .def("msg", &proto::Result::msg, return_value_policy<return_by_value>());
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
   def("ingest_videos", ingest_videos_wrapper);

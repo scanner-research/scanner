@@ -7,17 +7,17 @@
 #include <sys/stat.h> /* mkdir(2) */
 #include <unistd.h>   /* access(2) */
 #include <cstdarg>
-#include <sstream>
 #include <fstream>
+#include <sstream>
 
 namespace scanner {
 // Stolen from
 // https://gist.github.com/JonathonReinhart/8c0d90191c38af2dcadb102c4e202950
-int mkdir_p(const char *path, mode_t mode) {
+int mkdir_p(const char* path, mode_t mode) {
   /* Adapted from http://stackoverflow.com/a/2336245/119527 */
   const size_t len = strlen(path);
   char _path[PATH_MAX];
-  char *p;
+  char* p;
 
   errno = 0;
 
@@ -40,8 +40,7 @@ int mkdir_p(const char *path, mode_t mode) {
           return -1;
         }
         if (mkdir(_path, mode) != 0) {
-          if (errno != EEXIST)
-            return -1;
+          if (errno != EEXIST) return -1;
         }
       }
 
@@ -50,14 +49,13 @@ int mkdir_p(const char *path, mode_t mode) {
   }
 
   if (mkdir(_path, mode) != 0) {
-    if (errno != EEXIST)
-      return -1;
+    if (errno != EEXIST) return -1;
   }
 
   return 0;
 }
 
-void temp_file(FILE **fp, std::string &name) {
+void temp_file(FILE** fp, std::string& name) {
   char n[] = "/tmp/scannerXXXXXX";
   int fd = mkstemp(n);
   *fp = fdopen(fd, "wb+");
@@ -72,7 +70,7 @@ void temp_file(std::string& name) {
 
 void temp_dir(std::string& name) {
   char n[] = "/tmp/scannerXXXXXX";
-  (void) mkdtemp(n);
+  (void)mkdtemp(n);
   name = std::string(n);
 }
 
@@ -102,5 +100,4 @@ std::vector<uint8_t> read_entire_file(const std::string& file_name) {
               std::istreambuf_iterator<char>());
   return data;
 }
-
 }

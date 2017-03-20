@@ -27,21 +27,19 @@ namespace internal {
 
 class KernelRegistry {
  public:
-   void add_kernel(const std::string &name, KernelFactory *factory);
+  void add_kernel(const std::string& name, KernelFactory* factory);
 
-   bool has_kernel(const std::string &name, DeviceType device_type);
+  bool has_kernel(const std::string& name, DeviceType device_type);
 
-   KernelFactory *get_kernel(const std::string &name, DeviceType device_type);
+  KernelFactory* get_kernel(const std::string& name, DeviceType device_type);
 
  protected:
-  static std::string factory_name(const std::string &name, DeviceType type);
+  static std::string factory_name(const std::string& name, DeviceType type);
 
  private:
-
   std::map<std::string, KernelFactory*> factories_;
 };
 
 KernelRegistry* get_kernel_registry();
-
 }
 }

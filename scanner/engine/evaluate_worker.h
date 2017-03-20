@@ -23,10 +23,10 @@
 namespace scanner {
 namespace internal {
 
-void move_if_different_address_space(Profiler &profiler,
+void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     BatchedColumns &columns);
+                                     BatchedColumns& columns);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
@@ -90,6 +90,5 @@ void* pre_evaluate_thread(void* arg);
 void* evaluate_thread(void* arg);
 
 void* post_evaluate_thread(void* arg);
-
 }
 }

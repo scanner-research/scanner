@@ -13,18 +13,18 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/runtime.h"
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <netdb.h>
+#include <sys/socket.h>
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/kernel_registry.h"
 #include "scanner/engine/load_worker.h"
+#include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <ifaddrs.h>
-#include <netdb.h>
 
-#include <grpc/support/log.h>
 #include <grpc/grpc_posix.h>
+#include <grpc/support/log.h>
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -34,43 +34,43 @@ namespace scanner {
 namespace internal {
 
 namespace {
-inline bool operator==(const MemoryPoolConfig &lhs,
-                       const MemoryPoolConfig &rhs) {
+inline bool operator==(const MemoryPoolConfig& lhs,
+                       const MemoryPoolConfig& rhs) {
   return (lhs.cpu().use_pool() == rhs.cpu().use_pool()) &&
          (lhs.cpu().free_space() == rhs.cpu().free_space()) &&
          (lhs.gpu().use_pool() == rhs.gpu().use_pool()) &&
          (lhs.gpu().free_space() == rhs.gpu().free_space());
 }
-inline bool operator!=(const MemoryPoolConfig &lhs,
-                       const MemoryPoolConfig &rhs) {
+inline bool operator!=(const MemoryPoolConfig& lhs,
+                       const MemoryPoolConfig& rhs) {
   return !(lhs == rhs);
 }
 
 void analyze_dag(
-    const proto::TaskSet &task_set,
-    std::vector<std::vector<std::tuple<i32, std::string>>> &live_columns,
-    std::vector<std::vector<i32>> &dead_columns,
-    std::vector<std::vector<i32>> &unused_outputs,
-    std::vector<std::vector<i32>> &column_mapping) {
+    const proto::TaskSet& task_set,
+    std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns,
+    std::vector<std::vector<i32>>& dead_columns,
+    std::vector<std::vector<i32>>& unused_outputs,
+    std::vector<std::vector<i32>>& column_mapping) {
   // Start off with the columns from the gathered tables
-  OpRegistry *op_registry = get_op_registry();
-  auto &ops = task_set.ops();
+  OpRegistry* op_registry = get_op_registry();
+  auto& ops = task_set.ops();
   std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
   {
-    auto &input_op = ops.Get(0);
-    for (const std::string &input_col : input_op.inputs(0).columns()) {
+    auto& input_op = ops.Get(0);
+    for (const std::string& input_col : input_op.inputs(0).columns()) {
       intermediates[0].push_back(std::make_tuple(input_col, 0));
     }
   }
   for (size_t i = 1; i < ops.size(); ++i) {
-    auto &op = ops.Get(i);
+    auto& op = ops.Get(i);
     // For each input, update the intermediate last used index to the
     // current index
-    for (auto &eval_input : op.inputs()) {
+    for (auto& eval_input : op.inputs()) {
       i32 parent_index = eval_input.op_index();
-      for (const std::string &parent_col : eval_input.columns()) {
+      for (const std::string& parent_col : eval_input.columns()) {
         bool found = false;
-        for (auto &kv : intermediates.at(parent_index)) {
+        for (auto& kv : intermediates.at(parent_index)) {
           if (std::get<0>(kv) == parent_col) {
             found = true;
             std::get<1>(kv) = i;
@@ -84,8 +84,8 @@ void analyze_dag(
     if (i == ops.size() - 1) {
       continue;
     }
-    const auto &op_info = op_registry->get_op_info(op.name());
-    for (const auto &output_column : op_info->output_columns()) {
+    const auto& op_info = op_registry->get_op_info(op.name());
+    for (const auto& output_column : op_info->output_columns()) {
       intermediates[i].push_back(std::make_tuple(output_column, i));
     }
   }
@@ -94,10 +94,10 @@ void analyze_dag(
   live_columns.resize(ops.size());
   for (size_t i = 0; i < ops.size(); ++i) {
     i32 op_index = i;
-    auto &columns = live_columns[i];
+    auto& columns = live_columns[i];
     size_t max_i = std::min((size_t)(ops.size() - 2), i);
     for (size_t j = 0; j <= max_i; ++j) {
-      for (auto &kv : intermediates.at(j)) {
+      for (auto& kv : intermediates.at(j)) {
         i32 last_used_index = std::get<1>(kv);
         if (last_used_index > op_index) {
           // Last used index is greater than current index, so still live
@@ -116,24 +116,24 @@ void analyze_dag(
   column_mapping.resize(ops.size() - 1);
   for (size_t i = 1; i < ops.size(); ++i) {
     i32 op_index = i;
-    auto &prev_columns = live_columns[i - 1];
-    auto &op = ops.Get(op_index);
+    auto& prev_columns = live_columns[i - 1];
+    auto& op = ops.Get(op_index);
     // Determine which columns are no longer live
     {
-      auto &unused = unused_outputs[i - 1];
-      auto &dead = dead_columns[i - 1];
+      auto& unused = unused_outputs[i - 1];
+      auto& dead = dead_columns[i - 1];
       size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
       for (size_t j = 0; j <= max_i; ++j) {
         i32 parent_index = j;
-        for (auto &kv : intermediates.at(j)) {
+        for (auto& kv : intermediates.at(j)) {
           i32 last_used_index = std::get<1>(kv);
           if (last_used_index == op_index) {
             // Column is no longer live, so remove it.
-            const std::string &col_name = std::get<0>(kv);
+            const std::string& col_name = std::get<0>(kv);
             if (j == i) {
               // This op has an unused output
               i32 col_index = -1;
-              const std::vector<std::string> &op_cols =
+              const std::vector<std::string>& op_cols =
                   op_registry->get_op_info(op.name())->output_columns();
               for (size_t k = 0; k < op_cols.size(); k++) {
                 if (col_name == op_cols[k]) {
@@ -148,7 +148,7 @@ void analyze_dag(
               // column existed
               i32 col_index = -1;
               for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-                const std::tuple<i32, std::string> &live_input =
+                const std::tuple<i32, std::string>& live_input =
                     prev_columns[k];
                 if (parent_index == std::get<0>(live_input) &&
                     col_name == std::get<1>(live_input)) {
@@ -163,13 +163,13 @@ void analyze_dag(
         }
       }
     }
-    auto &mapping = column_mapping[op_index - 1];
-    for (const auto &eval_input : op.inputs()) {
+    auto& mapping = column_mapping[op_index - 1];
+    for (const auto& eval_input : op.inputs()) {
       i32 parent_index = eval_input.op_index();
-      for (const std::string &col : eval_input.columns()) {
+      for (const std::string& col : eval_input.columns()) {
         i32 col_index = -1;
         for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-          const std::tuple<i32, std::string> &live_input = prev_columns[k];
+          const std::tuple<i32, std::string>& live_input = prev_columns[k];
           if (parent_index == std::get<0>(live_input) &&
               col == std::get<1>(live_input)) {
             col_index = k;
@@ -185,8 +185,8 @@ void analyze_dag(
 }
 
 class WorkerImpl final : public proto::Worker::Service {
-public:
-  WorkerImpl(DatabaseParameters &db_params, std::string master_address,
+ public:
+  WorkerImpl(DatabaseParameters& db_params, std::string master_address,
              std::string worker_port, Flag& shutdown)
       : db_params_(db_params), trigger_shutdown_(shutdown) {
     set_database_path(db_params.db_path);
@@ -216,9 +216,9 @@ public:
     proto::Registration registration;
     grpc::Status status =
         master_->RegisterWorker(&context, worker_info, &registration);
-    LOG_IF(FATAL, !status.ok()) << "Worker could not contact master server at "
-                                << master_address << " (" << status.error_code()
-                                << "): " << status.error_message();
+    LOG_IF(FATAL, !status.ok())
+        << "Worker could not contact master server at " << master_address
+        << " (" << status.error_code() << "): " << status.error_message();
 
     node_id_ = registration.node_id();
 
@@ -233,9 +233,9 @@ public:
     }
   }
 
-  grpc::Status NewJob(grpc::ServerContext *context,
-                      const proto::JobParameters *job_params,
-                      proto::Result *job_result) {
+  grpc::Status NewJob(grpc::ServerContext* context,
+                      const proto::JobParameters* job_params,
+                      proto::Result* job_result) {
     job_result->set_success(true);
     set_database_path(db_params_.db_path);
 
@@ -246,8 +246,8 @@ public:
     const i32 work_item_size = job_params->work_item_size();
     i32 warmup_size = 0;
 
-    OpRegistry *op_registry = get_op_registry();
-    auto &ops = job_params->task_set().ops();
+    OpRegistry* op_registry = get_op_registry();
+    auto& ops = job_params->task_set().ops();
 
     // Analyze op DAG to determine what inputs need to be pipped along
     // and when intermediates can be retired -- essentially liveness analysis
@@ -265,8 +265,8 @@ public:
 
     // Setup kernel factories and the kernel configs that will be used
     // to instantiate instances of the op pipeline
-    KernelRegistry *kernel_registry = get_kernel_registry();
-    std::vector<KernelFactory *> kernel_factories;
+    KernelRegistry* kernel_registry = get_kernel_registry();
+    std::vector<KernelFactory*> kernel_factories;
     std::vector<Kernel::Config> kernel_configs;
     i32 num_cpus = db_params_.num_cpus;
     assert(num_cpus > 0);
@@ -284,51 +284,47 @@ public:
     }
 
     for (size_t i = 1; i < ops.size() - 1; ++i) {
-      auto &op = ops.Get(i);
-      const std::string &name = op.name();
-      OpInfo *op_info =
-          op_registry->get_op_info(name);
+      auto& op = ops.Get(i);
+      const std::string& name = op.name();
+      OpInfo* op_info = op_registry->get_op_info(name);
 
       DeviceType requested_device_type = op.device_type();
       if (requested_device_type == DeviceType::GPU && num_gpus == 0) {
-        RESULT_ERROR(
-          job_result,
-          "Scanner is configured with zero available GPUs but a GPU "
-          "op was requested! Please configure Scanner to have "
-          "at least one GPU using the `gpu_ids` config option.");
+        RESULT_ERROR(job_result,
+                     "Scanner is configured with zero available GPUs but a GPU "
+                     "op was requested! Please configure Scanner to have "
+                     "at least one GPU using the `gpu_ids` config option.");
         return grpc::Status::OK;
       }
 
       if (!kernel_registry->has_kernel(name, requested_device_type)) {
         RESULT_ERROR(
-          job_result,
-          "Requested an instance of op %s with device type %s, but no kernel "
-          "exists for that configuration.",
-          op.name().c_str(),
-          (requested_device_type == DeviceType::CPU ? "CPU" : "GPU"));
+            job_result,
+            "Requested an instance of op %s with device type %s, but no kernel "
+            "exists for that configuration.",
+            op.name().c_str(),
+            (requested_device_type == DeviceType::CPU ? "CPU" : "GPU"));
         return grpc::Status::OK;
       }
 
-      KernelFactory *kernel_factory =
+      KernelFactory* kernel_factory =
           kernel_registry->get_kernel(name, requested_device_type);
       kernel_factories.push_back(kernel_factory);
 
       Kernel::Config kernel_config;
       kernel_config.work_item_size = work_item_size;
-      kernel_config.args = std::vector<u8>(op.kernel_args().begin(),
-                                           op.kernel_args().end());
-      const std::vector<std::string> &output_columns =
+      kernel_config.args =
+          std::vector<u8>(op.kernel_args().begin(), op.kernel_args().end());
+      const std::vector<std::string>& output_columns =
           op_info->output_columns();
       kernel_config.output_columns = std::vector<std::string>(
           output_columns.begin(), output_columns.end());
 
-      for (auto &input : op.inputs()) {
-        const proto::Op &input_op =
-            ops.Get(input.op_index());
+      for (auto& input : op.inputs()) {
+        const proto::Op& input_op = ops.Get(input.op_index());
         if (input_op.name() == "InputTable") {
         } else {
-          OpInfo *input_op_info =
-              op_registry->get_op_info(input_op.name());
+          OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
           // TODO: verify that input.columns() are all in
           // op_info->output_columns()
         }
@@ -340,7 +336,7 @@ public:
     }
 
     // Break up kernels into groups that run on the same device
-    std::vector<std::vector<std::tuple<KernelFactory *, Kernel::Config>>>
+    std::vector<std::vector<std::tuple<KernelFactory*, Kernel::Config>>>
         kernel_groups;
     std::vector<std::vector<std::vector<std::tuple<i32, std::string>>>>
         kg_live_columns;
@@ -355,7 +351,7 @@ public:
       kg_unused_outputs.emplace_back();
       kg_column_mapping.emplace_back();
       for (size_t i = 0; i < kernel_factories.size(); ++i) {
-        KernelFactory *factory = kernel_factories[i];
+        KernelFactory* factory = kernel_factories[i];
         if (factory->get_device_type() != last_device_type) {
           // Does not use the same device as previous kernel, so push into new
           // group
@@ -366,11 +362,11 @@ public:
           kg_unused_outputs.emplace_back();
           kg_column_mapping.emplace_back();
         }
-        auto &group = kernel_groups.back();
-        auto &lc = kg_live_columns.back();
-        auto &dc = kg_dead_columns.back();
-        auto &uo = kg_unused_outputs.back();
-        auto &cm = kg_column_mapping.back();
+        auto& group = kernel_groups.back();
+        auto& lc = kg_live_columns.back();
+        auto& dc = kg_dead_columns.back();
+        auto& uo = kg_unused_outputs.back();
+        auto& cm = kg_column_mapping.back();
         group.push_back(std::make_tuple(factory, kernel_configs[i]));
         lc.push_back(live_columns[i]);
         dc.push_back(dead_columns[i]);
@@ -380,7 +376,7 @@ public:
     }
 
     i32 num_kernel_groups = static_cast<i32>(kernel_groups.size());
-    assert(num_kernel_groups > 0); // is this actually necessary?
+    assert(num_kernel_groups > 0);  // is this actually necessary?
 
     i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
     // If ki per node is -1, we set a smart default. Currently, we calculate the
@@ -390,19 +386,19 @@ public:
     if (pipeline_instances_per_node == -1) {
       pipeline_instances_per_node = std::numeric_limits<i32>::max();
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-        auto &group = kernel_groups[kg];
+        auto& group = kernel_groups[kg];
         for (i32 k = 0; k < group.size(); ++k) {
-          KernelFactory *factory = std::get<0>(group[k]);
+          KernelFactory* factory = std::get<0>(group[k]);
           DeviceType device_type = factory->get_device_type();
           i32 max_devices = factory->get_max_devices();
           if (max_devices == Kernel::UnlimitedDevices) {
             pipeline_instances_per_node = 1;
           } else {
-            pipeline_instances_per_node = std::min(
-              pipeline_instances_per_node,
-              device_type == DeviceType::CPU
-              ? db_params_.num_cpus / local_total / max_devices
-              : (i32) num_gpus / max_devices);
+            pipeline_instances_per_node =
+                std::min(pipeline_instances_per_node,
+                         device_type == DeviceType::CPU
+                             ? db_params_.num_cpus / local_total / max_devices
+                             : (i32)num_gpus / max_devices);
           }
           if (device_type == DeviceType::GPU) {
             has_gpu_kernel = true;
@@ -412,10 +408,10 @@ public:
     }
 
     if (pipeline_instances_per_node <= 0) {
-      RESULT_ERROR(
-          job_result,
-          "JobParameters.pipeline_instances_per_node must -1 for auto-default or "
-          " greater than 0 for manual configuration.");
+      RESULT_ERROR(job_result,
+                   "JobParameters.pipeline_instances_per_node must -1 for "
+                   "auto-default or "
+                   " greater than 0 for manual configuration.");
       return grpc::Status::OK;
     }
 
@@ -424,16 +420,15 @@ public:
         job_params->memory_pool_config() != cached_memory_pool_config_) {
       if (db_params_.num_cpus < local_total * pipeline_instances_per_node &&
           job_params->memory_pool_config().cpu().use_pool()) {
-        RESULT_ERROR(
-          job_result,
-          "Cannot oversubscribe CPUs and also use CPU memory pool");
+        RESULT_ERROR(job_result,
+                     "Cannot oversubscribe CPUs and also use CPU memory pool");
         return grpc::Status::OK;
       }
-      if (db_params_.gpu_ids.size() < local_total * pipeline_instances_per_node &&
+      if (db_params_.gpu_ids.size() <
+              local_total * pipeline_instances_per_node &&
           job_params->memory_pool_config().gpu().use_pool()) {
-        RESULT_ERROR(
-          job_result,
-          "Cannot oversubscribe GPUs and also use GPU memory pool");
+        RESULT_ERROR(job_result,
+                     "Cannot oversubscribe GPUs and also use GPU memory pool");
         return grpc::Status::OK;
       }
       if (memory_pool_initialized_) {
@@ -444,12 +439,11 @@ public:
       memory_pool_initialized_ = true;
     }
 
-
     // Load table metadata for use in constructing io items
     DatabaseMetadata meta =
         read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
     std::map<std::string, TableMetadata> table_meta;
-    for (const std::string &table_name : meta.table_names()) {
+    for (const std::string& table_name : meta.table_names()) {
       std::string table_path =
           TableMetadata::descriptor_path(meta.get_table_id(table_name));
       table_meta[table_name] = read_table_metadata(storage_, table_path);
@@ -491,21 +485,20 @@ public:
     std::vector<std::vector<Profiler>> eval_profilers(
         pipeline_instances_per_node);
     std::vector<std::vector<proto::Result>> eval_results(
-      pipeline_instances_per_node);
+        pipeline_instances_per_node);
     std::vector<PreEvaluateThreadArgs> pre_eval_args;
     std::vector<std::vector<EvaluateThreadArgs>> eval_args(
         pipeline_instances_per_node);
     std::vector<PostEvaluateThreadArgs> post_eval_args;
 
-
     i32 next_cpu_num = 0;
     i32 next_gpu_idx = 0;
     for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
-      std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>> &work_queues =
+      std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>>& work_queues =
           eval_work[ki];
-      std::vector<Profiler> &eval_thread_profilers = eval_profilers[ki];
+      std::vector<Profiler>& eval_thread_profilers = eval_profilers[ki];
       std::vector<proto::Result>& results = eval_results[ki];
-      work_queues.resize(num_kernel_groups - 1 + 2); // +2 for pre/post
+      work_queues.resize(num_kernel_groups - 1 + 2);  // +2 for pre/post
       results.resize(num_kernel_groups);
       for (auto& result : results) {
         result.set_success(true);
@@ -517,22 +510,22 @@ public:
       // Evaluate worker
       DeviceHandle first_kernel_type;
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-        auto &group = kernel_groups[kg];
-        auto &lc = kg_live_columns[kg];
-        auto &dc = kg_dead_columns[kg];
-        auto &uo = kg_unused_outputs[kg];
-        auto &cm = kg_column_mapping[kg];
-        std::vector<EvaluateThreadArgs> &thread_args = eval_args[ki];
+        auto& group = kernel_groups[kg];
+        auto& lc = kg_live_columns[kg];
+        auto& dc = kg_dead_columns[kg];
+        auto& uo = kg_unused_outputs[kg];
+        auto& cm = kg_column_mapping[kg];
+        std::vector<EvaluateThreadArgs>& thread_args = eval_args[ki];
         // HACK(apoms): we assume all ops in a kernel group use the
         //   same number of devices for now.
         // for (size_t i = 0; i < group.size(); ++i) {
-        KernelFactory *factory = std::get<0>(group[0]);
+        KernelFactory* factory = std::get<0>(group[0]);
         DeviceType device_type = factory->get_device_type();
         if (device_type == DeviceType::CPU) {
           for (i32 i = 0; i < factory->get_max_devices(); ++i) {
             i32 device_id = next_cpu_num++ % num_cpus;
             for (size_t i = 0; i < group.size(); ++i) {
-              Kernel::Config &config = std::get<1>(group[i]);
+              Kernel::Config& config = std::get<1>(group[i]);
               config.devices.clear();
               config.devices.push_back({device_type, device_id});
             }
@@ -541,7 +534,7 @@ public:
           for (i32 i = 0; i < factory->get_max_devices(); ++i) {
             i32 device_id = gpu_ids[next_gpu_idx++ % num_gpus];
             for (size_t i = 0; i < group.size(); ++i) {
-              Kernel::Config &config = std::get<1>(group[i]);
+              Kernel::Config& config = std::get<1>(group[i]);
               config.devices.clear();
               config.devices.push_back({device_type, device_id});
             }
@@ -553,10 +546,10 @@ public:
         }
 
         // Input work queue
-        Queue<std::tuple<IOItem, EvalWorkEntry>> *input_work_queue =
+        Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
             &work_queues[kg];
         // Create new queue for output, reuse previous queue as input
-        Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
+        Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue =
             &work_queues[kg + 1];
         // Create eval thread for passing data through neural net
         thread_args.emplace_back(EvaluateThreadArgs{
@@ -564,7 +557,7 @@ public:
             node_id_, job_params,
 
             // Per worker arguments
-            ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg+1],
+            ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg + 1],
             results[kg],
 
             // Queues
@@ -572,9 +565,9 @@ public:
       }
       // Pre evaluate worker
       {
-        Queue<std::tuple<IOItem, EvalWorkEntry>> *input_work_queue =
+        Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
             &initial_eval_work;
-        Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
+        Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue =
             &work_queues[0];
         assert(kernel_groups.size() > 0);
         pre_eval_args.emplace_back(PreEvaluateThreadArgs{
@@ -582,7 +575,7 @@ public:
             node_id_, num_cpus, job_params,
 
             // Per worker arguments
-              ki, first_kernel_type, eval_thread_profilers.front(),
+            ki, first_kernel_type, eval_thread_profilers.front(),
 
             // Queues
             *input_work_queue, *output_work_queue});
@@ -590,9 +583,9 @@ public:
 
       // Post evaluate worker
       {
-        Queue<std::tuple<IOItem, EvalWorkEntry>> *input_work_queue =
+        Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
             &work_queues.back();
-        Queue<std::tuple<IOItem, EvalWorkEntry>> *output_work_queue =
+        Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue =
             &save_work;
         post_eval_args.emplace_back(PostEvaluateThreadArgs{
             // Uniform arguments
@@ -608,14 +601,15 @@ public:
 
     // Launch eval worker threads
     std::vector<pthread_t> pre_eval_threads(pipeline_instances_per_node);
-    std::vector<std::vector<pthread_t>> eval_threads(pipeline_instances_per_node);
+    std::vector<std::vector<pthread_t>> eval_threads(
+        pipeline_instances_per_node);
     std::vector<pthread_t> post_eval_threads(pipeline_instances_per_node);
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Pre thread
       pthread_create(&pre_eval_threads[pu], NULL, pre_evaluate_thread,
                      &pre_eval_args[pu]);
       // Op threads
-      std::vector<pthread_t> &threads = eval_threads[pu];
+      std::vector<pthread_t>& threads = eval_threads[pu];
       threads.resize(num_kernel_groups);
       for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
         pthread_create(&threads[kg], NULL, evaluate_thread, &eval_args[pu][kg]);
@@ -632,15 +626,15 @@ public:
     std::vector<SaveThreadArgs> save_thread_args;
     for (i32 i = 0; i < num_save_workers; ++i) {
       // Create IO thread for reading and decoding data
-      save_thread_args.emplace_back(
-          SaveThreadArgs{// Uniform arguments
-                         node_id_, job_params->job_name(),
+      save_thread_args.emplace_back(SaveThreadArgs{
+          // Uniform arguments
+          node_id_, job_params->job_name(),
 
-                         // Per worker arguments
-                         i, db_params_.storage_config, save_thread_profilers[i],
+          // Per worker arguments
+          i, db_params_.storage_config, save_thread_profilers[i],
 
-                         // Queues
-                         save_work, retired_items});
+          // Queues
+          save_work, retired_items});
     }
     std::vector<pthread_t> save_threads(num_save_workers);
     for (i32 i = 0; i < num_save_workers; ++i) {
@@ -661,8 +655,7 @@ public:
         proto::NewWork new_work;
 
         node_info.set_node_id(node_id_);
-        grpc::Status status =
-            master_->NextWork(&context, node_info, &new_work);
+        grpc::Status status = master_->NextWork(&context, node_info, &new_work);
         if (!status.ok()) {
           RESULT_ERROR(job_result,
                        "Worker %d could not get next work from master",
@@ -684,7 +677,7 @@ public:
 
       for (size_t i = 0; i < eval_results.size(); ++i) {
         for (size_t j = 0; j < eval_results[i].size(); ++j) {
-          auto &result = eval_results[i][j];
+          auto& result = eval_results[i][j];
           if (!result.success()) {
             LOG(WARNING) << "(N/KI/KG: " << node_id_ << "/" << i << "/" << j
                          << ") returned error result: " << result.msg();
@@ -728,7 +721,7 @@ public:
 
     for (i32 i = 0; i < num_load_workers; ++i) {
       // Wait until load has finished
-      void *result;
+      void* result;
       i32 err = pthread_join(load_threads[i], &result);
       LOG_IF(FATAL, err != 0) << "error in pthread_join of load thread";
       free(result);
@@ -743,7 +736,7 @@ public:
 
     for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
       // Wait until pre eval has finished
-      void *result;
+      void* result;
       i32 err = pthread_join(pre_eval_threads[i], &result);
       LOG_IF(FATAL, err != 0) << "error in pthread_join of pre eval thread";
       free(result);
@@ -757,7 +750,7 @@ public:
       }
       for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
         // Wait until eval has finished
-        void *result;
+        void* result;
         i32 err = pthread_join(eval_threads[pu][kg], &result);
         LOG_IF(FATAL, err != 0) << "error in pthread_join of eval thread";
         free(result);
@@ -772,7 +765,7 @@ public:
     }
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Wait until eval has finished
-      void *result;
+      void* result;
       i32 err = pthread_join(post_eval_threads[pu], &result);
       LOG_IF(FATAL, err != 0) << "error in pthread_join of post eval thread";
       free(result);
@@ -786,7 +779,7 @@ public:
     }
     for (i32 i = 0; i < num_save_workers; ++i) {
       // Wait until eval has finished
-      void *result;
+      void* result;
       i32 err = pthread_join(save_threads[i], &result);
       LOG_IF(FATAL, err != 0) << "error in pthread_join of save thread";
       free(result);
@@ -876,41 +869,39 @@ public:
     return grpc::Status::OK;
   }
 
-  grpc::Status LoadOp(grpc::ServerContext* context, const proto::OpInfo* op_info,
-                      proto::Empty* empty) {
+  grpc::Status LoadOp(grpc::ServerContext* context,
+                      const proto::OpInfo* op_info, proto::Empty* empty) {
     const std::string& so_path = op_info->so_path();
-    void *handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
     LOG_IF(FATAL, handle == nullptr)
-      << "dlopen of " << so_path << " failed: " << dlerror();
+        << "dlopen of " << so_path << " failed: " << dlerror();
     return grpc::Status::OK;
   }
 
-  grpc::Status Shutdown(grpc::ServerContext *context,
-                        const proto::Empty *empty,
-                        Result *result) {
+  grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
+                        Result* result) {
     trigger_shutdown_.set();
     result->set_success(true);
     return grpc::Status::OK;
   }
 
-private:
+ private:
   std::unique_ptr<proto::Master::Stub> master_;
-  storehouse::StorageConfig *storage_config_;
+  storehouse::StorageConfig* storage_config_;
   DatabaseParameters db_params_;
   Flag& trigger_shutdown_;
   i32 node_id_;
-  storehouse::StorageBackend *storage_;
-  std::map<std::string, TableMetadata *> table_metas_;
+  storehouse::StorageBackend* storage_;
+  std::map<std::string, TableMetadata*> table_metas_;
   bool memory_pool_initialized_ = false;
   MemoryPoolConfig cached_memory_pool_config_;
 };
 
-proto::Worker::Service *get_worker_service(DatabaseParameters &params,
-                                           const std::string &master_address,
-                                           const std::string &worker_port,
+proto::Worker::Service* get_worker_service(DatabaseParameters& params,
+                                           const std::string& master_address,
+                                           const std::string& worker_port,
                                            Flag& shutdown) {
   return new WorkerImpl(params, master_address, worker_port, shutdown);
 }
-
 }
 }

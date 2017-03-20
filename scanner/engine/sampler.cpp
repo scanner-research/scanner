@@ -16,8 +16,8 @@
 #include "scanner/engine/sampler.h"
 #include "scanner/metadata.pb.h"
 
-#include <vector>
 #include <cmath>
+#include <vector>
 
 namespace scanner {
 namespace internal {
@@ -25,16 +25,15 @@ namespace internal {
 namespace {
 
 using SamplerFactory =
-    std::function<Sampler*(const std::vector<u8> &, const TableMetadata &)>;
+    std::function<Sampler*(const std::vector<u8>&, const TableMetadata&)>;
 
 class AllSampler : public Sampler {
-public:
-  AllSampler(const std::vector<u8>& args, const TableMetadata &table)
+ public:
+  AllSampler(const std::vector<u8>& args, const TableMetadata& table)
       : Sampler("All", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
-      RESULT_ERROR(&valid_,
-                   "All sampler provided with invalid protobuf args");
+      RESULT_ERROR(&valid_, "All sampler provided with invalid protobuf args");
       return;
     }
     if (args_.sample_size() <= 0) {
@@ -57,12 +56,10 @@ public:
     return result;
   }
 
-  i64 total_rows() const override {
-    return table_.num_rows();
-  }
+  i64 total_rows() const override { return table_.num_rows(); }
 
   i64 total_samples() const override {
-    return (int) std::ceil((float) table_.num_rows() / args_.sample_size());
+    return (int)std::ceil((float)table_.num_rows() / args_.sample_size());
   }
 
   RowSample next_sample() override {
@@ -81,19 +78,17 @@ public:
     return sample;
   }
 
-  void reset() override {
-    rows_pos_ = 0;
-  }
+  void reset() override { rows_pos_ = 0; }
 
-private:
+ private:
   Result valid_;
   proto::AllSamplerArgs args_;
   i64 rows_pos_ = 0;
 };
 
 class StridedRangeSampler : public Sampler {
-public:
-  StridedRangeSampler(const std::vector<u8>& args, const TableMetadata &table)
+ public:
+  StridedRangeSampler(const std::vector<u8>& args, const TableMetadata& table)
       : Sampler("StridedRange", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
@@ -122,10 +117,9 @@ public:
         return;
       }
       if (args_.starts(i) > args_.ends(i)) {
-        RESULT_ERROR(
-            &valid_,
-            "StridedRange start (%ld) should not be after end (%ld)",
-            args_.starts(i), args_.ends(i));
+        RESULT_ERROR(&valid_,
+                     "StridedRange start (%ld) should not be after end (%ld)",
+                     args_.starts(i), args_.ends(i));
         return;
       }
       if (args_.ends(i) > table.num_rows()) {
@@ -140,17 +134,11 @@ public:
     total_samples_ = args_.warmup_starts_size();
   }
 
-  Result validate() override {
-    return valid_;
-  }
+  Result validate() override { return valid_; }
 
-  i64 total_rows() const override {
-    return total_rows_;
-  }
+  i64 total_rows() const override { return total_rows_; }
 
-  i64 total_samples() const override {
-    return total_samples_;
-  }
+  i64 total_samples() const override { return total_samples_; }
 
   RowSample next_sample() override {
     RowSample sample;
@@ -169,11 +157,9 @@ public:
     return sample;
   }
 
-  void reset() override {
-    samples_pos_ = 0;
-  }
+  void reset() override { samples_pos_ = 0; }
 
-private:
+ private:
   Result valid_;
   proto::StridedRangeSamplerArgs args_;
   i64 total_rows_ = 0;
@@ -182,22 +168,18 @@ private:
 };
 
 class StencilSampler : public Sampler {
-public:
-  StencilSampler(const std::vector<u8> &args,
-                               const TableMetadata &table)
+ public:
+  StencilSampler(const std::vector<u8>& args, const TableMetadata& table)
       : Sampler("Stencil", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
-      RESULT_ERROR(
-          &valid_,
-          "Stencil sampler provided with invalid protobuf args");
+      RESULT_ERROR(&valid_,
+                   "Stencil sampler provided with invalid protobuf args");
       return;
     }
     if (args_.stride() <= 0) {
-      RESULT_ERROR(
-          &valid_,
-          "Stencil stride (%ld) must be greater than zero",
-          args_.stride());
+      RESULT_ERROR(&valid_, "Stencil stride (%ld) must be greater than zero",
+                   args_.stride());
       return;
     }
     for (i64 i = 0; i < args_.stencil_size(); ++i) {
@@ -209,10 +191,9 @@ public:
     }
     for (i64 i = 0; i < args_.starts_size(); ++i) {
       if (args_.starts(i) > args_.ends(i)) {
-        RESULT_ERROR(
-            &valid_,
-            "Stencil start (%ld) should not be after end (%ld)",
-            args_.starts(i), args_.ends(i));
+        RESULT_ERROR(&valid_,
+                     "Stencil start (%ld) should not be after end (%ld)",
+                     args_.starts(i), args_.ends(i));
         return;
       }
       for (i64 j = 0; j < args_.stencil_size(); ++j) {
@@ -226,8 +207,9 @@ public:
         }
       }
       if (args_.ends(i) > table.num_rows()) {
-        RESULT_ERROR(&valid_, "Stencil end (%ld) should be less "
-                              "than table num rows (%ld)",
+        RESULT_ERROR(&valid_,
+                     "Stencil end (%ld) should be less "
+                     "than table num rows (%ld)",
                      args_.ends(i), table.num_rows());
         return;
       }
@@ -236,13 +218,9 @@ public:
     total_samples_ = args_.starts_size();
   }
 
-  Result validate() override {
-    return valid_;
-  }
+  Result validate() override { return valid_; }
 
-  i64 total_rows() const override {
-    return total_rows_;
-  }
+  i64 total_rows() const override { return total_rows_; }
 
   i64 total_samples() const override {
     // NOTE(apoms): not a mistake, stencil sampler returns 1 row each time
@@ -274,7 +252,7 @@ public:
     rows_pos_ = 0;
   }
 
-private:
+ private:
   Result valid_;
   proto::StencilSamplerArgs args_;
   i64 total_rows_ = 0;
@@ -284,8 +262,8 @@ private:
 };
 
 class GatherSampler : public Sampler {
-public:
-  GatherSampler(const std::vector<u8>& args, const TableMetadata &table)
+ public:
+  GatherSampler(const std::vector<u8>& args, const TableMetadata& table)
       : Sampler("Gather", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
@@ -308,10 +286,9 @@ public:
       }
       for (i32 j = 0; j < s.rows_size(); ++j) {
         if (s.rows(j) <= max) {
-          RESULT_ERROR(
-              &valid_,
-              "Gather sampler row (%ld) less than previous row (%ld)",
-              s.rows(j), max);
+          RESULT_ERROR(&valid_,
+                       "Gather sampler row (%ld) less than previous row (%ld)",
+                       s.rows(j), max);
           return;
         }
         max = s.rows(j);
@@ -320,21 +297,15 @@ public:
     }
   }
 
-  Result validate() override {
-    return valid_;
-  }
+  Result validate() override { return valid_; }
 
-  i64 total_rows() const override {
-    return total_rows_;
-  }
+  i64 total_rows() const override { return total_rows_; }
 
-  i64 total_samples() const override {
-    return args_.samples_size();
-  }
+  i64 total_samples() const override { return args_.samples_size(); }
 
   RowSample next_sample() override {
     RowSample sample;
-    auto &s = args_.samples(samples_pos_);
+    auto& s = args_.samples(samples_pos_);
     sample.warmup_rows =
         std::vector<i64>(s.warmup_rows().begin(), s.warmup_rows().end());
     sample.rows = std::vector<i64>(s.rows().begin(), s.rows().end());
@@ -343,11 +314,9 @@ public:
     return sample;
   }
 
-  void reset() override {
-    samples_pos_ = 0;
-  }
+  void reset() override { samples_pos_ = 0; }
 
-private:
+ private:
   Result valid_;
   proto::GatherSamplerArgs args_;
   i64 total_rows_ = 0;
@@ -360,7 +329,6 @@ SamplerFactory make_factory() {
     return new T(args, table);
   };
 }
-
 }
 
 Result make_sampler_instance(const std::string& sampler_type,
@@ -397,8 +365,8 @@ Result make_sampler_instance(const std::string& sampler_type,
 }
 
 TaskSampler::TaskSampler(
-    const std::map<std::string, TableMetadata> &table_metas,
-    const proto::Task &task)
+    const std::map<std::string, TableMetadata>& table_metas,
+    const proto::Task& task)
     : table_metas_(table_metas), task_(task) {
   valid_.set_success(true);
   if (table_metas.count(task.output_table_name()) == 0) {
@@ -413,7 +381,7 @@ TaskSampler::TaskSampler(
                    sample.table_name().c_str());
       return;
     }
-    const TableMetadata &t_meta = table_metas.at(sample.table_name());
+    const TableMetadata& t_meta = table_metas.at(sample.table_name());
     std::vector<u8> sampler_args(sample.sampling_args().begin(),
                                  sample.sampling_args().end());
     Sampler* sampler = nullptr;
@@ -426,17 +394,19 @@ TaskSampler::TaskSampler(
   }
   total_rows_ = samplers_[0]->total_rows();
   total_samples_ = samplers_[0]->total_samples();
-  for (auto &sampler : samplers_) {
+  for (auto& sampler : samplers_) {
     if (sampler->total_rows() != total_rows_) {
-      RESULT_ERROR(&valid_, "Samplers for task %s output a different number "
-                            "of rows (%ld vs. %ld)",
+      RESULT_ERROR(&valid_,
+                   "Samplers for task %s output a different number "
+                   "of rows (%ld vs. %ld)",
                    task.output_table_name().c_str(), sampler->total_rows(),
                    total_rows_);
       return;
     }
     if (sampler->total_samples() != total_samples_) {
-      RESULT_ERROR(&valid_, "Samplers for task %s output a different number "
-                            "of samples (%ld vs. %ld)",
+      RESULT_ERROR(&valid_,
+                   "Samplers for task %s output a different number "
+                   "of samples (%ld vs. %ld)",
                    task.output_table_name().c_str(), sampler->total_samples(),
                    total_samples_);
       return;
@@ -445,17 +415,11 @@ TaskSampler::TaskSampler(
   table_id_ = table_metas.at(task.output_table_name()).id();
 }
 
-Result TaskSampler::validate() {
-  return valid_;
-}
+Result TaskSampler::validate() { return valid_; }
 
-i64 TaskSampler::total_rows() {
-  return total_rows_;
-}
+i64 TaskSampler::total_rows() { return total_rows_; }
 
-i64 TaskSampler::total_samples() {
-  return total_samples_;
-}
+i64 TaskSampler::total_samples() { return total_samples_; }
 
 Result TaskSampler::next_work(proto::NewWork& new_work) {
   if (!valid_.success()) {
@@ -468,19 +432,19 @@ Result TaskSampler::next_work(proto::NewWork& new_work) {
 
   i64 item_id = sample_num;
 
-  proto::LoadWorkEntry &load_item = *new_work.mutable_load_work();
+  proto::LoadWorkEntry& load_item = *new_work.mutable_load_work();
   load_item.set_io_item_index(item_id);
   i64 warmup_rows = 0;
   i64 rows = 0;
   for (i32 i = 0; i < task_.samples_size(); ++i) {
-    auto &sample = task_.samples(i);
-    const TableMetadata &t_meta = table_metas_.at(sample.table_name());
+    auto& sample = task_.samples(i);
+    const TableMetadata& t_meta = table_metas_.at(sample.table_name());
     i32 sample_table_id = t_meta.id();
 
-    auto &sampler = samplers_[i];
+    auto& sampler = samplers_[i];
     RowSample row_sample = sampler->next_sample();
 
-    proto::LoadSample *load_sample = load_item.add_samples();
+    proto::LoadSample* load_sample = load_item.add_samples();
     load_sample->set_table_id(sample_table_id);
     for (auto col_name : sample.column_names()) {
       load_sample->add_column_ids(t_meta.column_id(col_name));
@@ -496,15 +460,17 @@ Result TaskSampler::next_work(proto::NewWork& new_work) {
       rows = row_sample.rows.size();
     } else {
       if (row_sample.warmup_rows.size() != warmup_rows) {
-        RESULT_ERROR(&valid_, "Samplers for task %s output a different number "
-                              "of warmup rows per sample (%ld vs. %ld)",
+        RESULT_ERROR(&valid_,
+                     "Samplers for task %s output a different number "
+                     "of warmup rows per sample (%ld vs. %ld)",
                      task_.output_table_name().c_str(),
                      row_sample.warmup_rows.size(), warmup_rows);
         return valid_;
       }
       if (row_sample.rows.size() != rows) {
-        RESULT_ERROR(&valid_, "Samplers for task %s output a different number "
-                              "of rows per sample (%ld vs. %ld)",
+        RESULT_ERROR(&valid_,
+                     "Samplers for task %s output a different number "
+                     "of rows per sample (%ld vs. %ld)",
                      task_.output_table_name().c_str(), row_sample.rows.size(),
                      rows);
         return valid_;
@@ -512,7 +478,7 @@ Result TaskSampler::next_work(proto::NewWork& new_work) {
     }
   }
 
-  proto::IOItem &item = *new_work.mutable_io_item();
+  proto::IOItem& item = *new_work.mutable_io_item();
   item.set_table_id(table_id_);
   item.set_item_id(item_id);
   item.set_start_row(allocated_rows_);
@@ -522,6 +488,5 @@ Result TaskSampler::next_work(proto::NewWork& new_work) {
 
   return valid_;
 }
-
 }
 }

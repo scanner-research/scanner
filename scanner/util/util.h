@@ -15,18 +15,18 @@
 
 #pragma once
 
+#include <glog/logging.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <atomic>
 #include <chrono>
-#include <cstring>
-#include <string>
-#include <sstream>
-#include <vector>
-#include <glog/logging.h>
-#include <mutex>
 #include <condition_variable>
+#include <cstring>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace scanner {
 
@@ -53,8 +53,8 @@ inline double nano_since(timepoint_t then) {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// String processing
-inline void split(const std::string &s, char delim,
-                  std::vector<std::string> &elems) {
+inline void split(const std::string& s, char delim,
+                  std::vector<std::string>& elems) {
   std::stringstream ss;
   ss.str(s);
   std::string item;
@@ -63,7 +63,7 @@ inline void split(const std::string &s, char delim,
   }
 }
 
-inline std::vector<std::string> split(const std::string &s, char delim) {
+inline std::vector<std::string> split(const std::string& s, char delim) {
   std::vector<std::string> elems;
   split(s, delim, elems);
   return elems;
@@ -111,5 +111,4 @@ class Flag {
   std::condition_variable cv_;
   std::atomic<bool> bit_{false};
 };
-
 }

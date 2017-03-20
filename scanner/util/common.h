@@ -15,10 +15,10 @@
 
 #pragma once
 
+#include "glog/logging.h"
+#include "scanner/engine/rpc.pb.h"
 #include "scanner/metadata.pb.h"
 #include "scanner/types.pb.h"
-#include "scanner/engine/rpc.pb.h"
-#include "glog/logging.h"
 
 #include <cstdint>
 #include <string>
@@ -50,34 +50,29 @@ using proto::Result;
 using proto::IOItem;
 
 struct DeviceHandle {
-public:
+ public:
   bool operator==(const DeviceHandle& other) {
     return type == other.type && id == other.id;
   }
 
-  bool operator!=(const DeviceHandle& other) {
-    return !(*this == other);
-  }
+  bool operator!=(const DeviceHandle& other) { return !(*this == other); }
 
   bool can_copy_to(const DeviceHandle& other) {
-    return !(this->type == DeviceType::GPU &&
-             other.type == DeviceType::GPU &&
+    return !(this->type == DeviceType::GPU && other.type == DeviceType::GPU &&
              this->id != other.id);
   }
 
   bool is_same_address_space(const DeviceHandle& other) {
-    return
-      this->type == other.type &&
-      ((this->type == DeviceType::CPU) ||
-       (this->type == DeviceType::GPU &&
-        this->id == other.id));
+    return this->type == other.type &&
+           ((this->type == DeviceType::CPU) ||
+            (this->type == DeviceType::GPU && this->id == other.id));
   }
 
   DeviceType type;
   i32 id;
 };
 
-std::ostream& operator<<(std::ostream &os, const DeviceHandle& handle);
+std::ostream& operator<<(std::ostream& os, const DeviceHandle& handle);
 
 static const DeviceHandle CPU_DEVICE = {DeviceType::CPU, 0};
 
@@ -97,19 +92,21 @@ struct StridedInterval {
   i32 stride = 1;
 };
 
-bool string_to_image_encoding_type(const std::string& s, proto::ImageEncodingType& t);
+bool string_to_image_encoding_type(const std::string& s,
+                                   proto::ImageEncodingType& t);
 std::string image_encoding_type_to_string(proto::ImageEncodingType d);
 
-#define RESULT_ERROR(result__, str__, ...) {          \
-    char errstr__[1024];                              \
-    snprintf(errstr__, 1024, str__, ## __VA_ARGS__);  \
-    LOG(ERROR) << errstr__;                           \
-    (result__)->set_success(false);                   \
-    (result__)->set_msg(errstr__);                    \
+#define RESULT_ERROR(result__, str__, ...)          \
+  {                                                 \
+    char errstr__[1024];                            \
+    snprintf(errstr__, 1024, str__, ##__VA_ARGS__); \
+    LOG(ERROR) << errstr__;                         \
+    (result__)->set_success(false);                 \
+    (result__)->set_msg(errstr__);                  \
   }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
 extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
-extern i32 NUM_CUDA_STREAMS;  // # of cuda streams for image processing
+extern i32 NUM_CUDA_STREAMS;       // # of cuda streams for image processing
 }

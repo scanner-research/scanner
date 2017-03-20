@@ -74,9 +74,9 @@ template <typename T>
 void serialize_proto_vector_of_vectors(
     const std::vector<std::vector<T>>& elements, u8*& buffer, size_t& size) {
   size = sizeof(size_t);
-  for (auto &vec_of_e : elements) {
+  for (auto& vec_of_e : elements) {
     size += sizeof(size_t);
-    for (auto &e : vec_of_e) {
+    for (auto& e : vec_of_e) {
       size += e.ByteSize() + sizeof(i32);
     }
   }
