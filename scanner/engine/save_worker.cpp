@@ -15,7 +15,7 @@
 
 #include "scanner/engine/save_worker.h"
 
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/util/common.h"
 #include "scanner/util/storehouse.h"
 

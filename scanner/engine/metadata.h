@@ -221,6 +221,8 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 /// Constants
 
+inline std::string index_column_name() { return "index"; }
+
 inline std::string frame_column_name() { return "frame"; }
 
 inline std::string frame_info_column_name() { return "frame_info"; }

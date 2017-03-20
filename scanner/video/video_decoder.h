@@ -16,7 +16,7 @@
 #pragma once
 
 #include "scanner/api/kernel.h"
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 

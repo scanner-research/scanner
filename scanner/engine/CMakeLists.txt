@@ -8,9 +8,8 @@ set(SOURCE_FILES
   load_worker.cpp
   evaluate_worker.cpp
   save_worker.cpp
-  sampling.cpp
   sampler.cpp
-  db.cpp
+  metadata.cpp
   kernel_registry.cpp
   op_registry.cpp
   python.cpp)

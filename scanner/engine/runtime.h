@@ -19,7 +19,7 @@
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
 #include "scanner/engine/rpc.grpc.pb.h"
-#include "scanner/engine/db.h"
+#include "scanner/engine/metadata.h"
 #include "scanner/engine/op_registry.h"
 #include "scanner/engine/kernel_registry.h"
 
