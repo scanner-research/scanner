@@ -13,7 +13,8 @@ class MontageKernelGPU : public VideoKernel {
       : VideoKernel(config),
         device_(config.devices[0]),
         frames_seen_(0),
-        montage_width_(0) {
+        montage_width_(0),
+        montage_buffer_(nullptr) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
       RESULT_ERROR(&valid_, "MontageKernel could not parse protobuf args");
@@ -63,6 +64,7 @@ class MontageKernelGPU : public VideoKernel {
 
     set_device();
 
+    assert(montage_buffer_ != nullptr);
     i32 input_count = frame_col.rows.size();
     for (i32 i = 0; i < input_count; ++i) {
       cvc::GpuMat img(frame_height_, frame_width_, CV_8UC3,
@@ -79,6 +81,7 @@ class MontageKernelGPU : public VideoKernel {
         assert(montage_buffer_ != nullptr);
         output_columns[0].rows.push_back(
             Row{montage_buffer_, montage_width_ * montage_height_ * 3});
+        montage_image_ = cvc::GpuMat();
         montage_buffer_ = nullptr;
       } else {
         output_columns[0].rows.push_back(Row{new_buffer(device_, 1), 1});

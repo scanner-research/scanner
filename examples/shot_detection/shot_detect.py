@@ -83,7 +83,7 @@ def make_montage_scanner(db, table, shot_starts):
                                 force=True)
 
     montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
-    for _, img in montage_collection.tables(0).load([0]):
+    for _, img in montage_collection.tables(0).load(['montage']):
         if len(img[0]) > 100:
             img = np.frombuffer(img[0], dtype=np.uint8)
             img = np.flip(np.reshape(img, (-1, target_width * row_length, 3)), 2)
