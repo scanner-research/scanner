@@ -244,10 +244,15 @@ CaffeKernel::CaffeKernel(const Kernel::Config& config)
     return;
   }
 
-  PyGILState_STATE gstate = PyGILState_Ensure();
+  PyGILState_STATE gstate;
+  if (descriptor.uses_python()) {
+    gstate = PyGILState_Ensure();
+  }
   net_.reset(new caffe::Net<float>(descriptor.model_path(), caffe::TEST));
   net_->CopyTrainedLayersFrom(descriptor.model_weights_path());
-  PyGILState_Release(gstate);
+  if (descriptor.uses_python()) {
+    PyGILState_Release(gstate);
+  }
 
   // Initialize memory
   const boost::shared_ptr<caffe::Blob<float>> input_blob{
@@ -379,7 +384,9 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       exit(0);
     }
     if (profiler_) {
+#ifdef SCANNER_PROFILING
       CUDA_PROTECT({ cudaDeviceSynchronize(); });
+#endif
       profiler_->add_interval("caffe:net", net_start, now());
     }
 
