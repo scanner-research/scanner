@@ -64,7 +64,8 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
     exit(EXIT_FAILURE);
   }
 
-  cc_->thread_count = thread_count;
+  //cc_->thread_count = thread_count;
+  cc_->thread_count = 4;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");
@@ -153,14 +154,11 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     return false;
   }
   if (encoded_size > 0) {
-    // if (av_new_packet(&packet_, encoded_size) < 0) {
-    //   fprintf(stderr, "could not allocate packet for feeding into
-    //   decoder\n");
-    //   assert(false);
-    // }
-    // memcpy(packet_.data, encoded_buffer, encoded_size);
-    packet_.data = const_cast<u8*>(encoded_buffer);
-    packet_.size = encoded_size;
+    if (av_new_packet(&packet_, encoded_size) < 0) {
+      fprintf(stderr, "could not allocate packet for feeding into decoder\n");
+      assert(false);
+    }
+    memcpy(packet_.data, encoded_buffer, encoded_size);
   } else {
     packet_.data = NULL;
     packet_.size = 0;
