@@ -14,12 +14,13 @@ class OpticalFlowKernelCPU : public VideoKernel {
       : VideoKernel(config),
         device_(config.devices[0]),
         work_item_size_(config.work_item_size) {
-    flow_finder_ = cv::FarnebackOpticalFlow::create();
+    flow_finder_ =
+        cv::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0);
   }
 
   void new_frame_info() override {
     grayscale_.resize(0);
-    for (i32 i = 0; i < work_item_size_; ++i) {
+    for (i32 i = 0; i < 2; ++i) {
       grayscale_.emplace_back(frame_info_.height(), frame_info_.width(),
                               CV_8UC1);
     }
@@ -40,18 +41,13 @@ class OpticalFlowKernelCPU : public VideoKernel {
     u8* output_block =
         new_block_buffer(device_, out_buf_size * input_count, input_count);
 
-    for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                    frame_col.rows[i].buffer);
-      cv::cvtColor(input, grayscale_[i], CV_BGR2GRAY);
-    }
-
     double start = CycleTimer::currentSeconds();
 
-    cv::Ptr<cv::DenseOpticalFlow> flow_finder =
-        cv::FarnebackOpticalFlow::create();
-
     for (i32 i = 0; i < input_count; ++i) {
+      cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
+                    input_columns[0].rows[i].buffer);
+      cv::cvtColor(input, grayscale_[i % 2], CV_BGR2GRAY);
+
       cv::Mat flow(frame_info_.height(), frame_info_.width(), CV_32FC2,
                    output_block + i * out_buf_size);
 
@@ -63,11 +59,13 @@ class OpticalFlowKernelCPU : public VideoKernel {
           flow_finder_->calc(initial_frame_, grayscale_[0], flow);
         }
       } else {
-        flow_finder_->calc(grayscale_[i - 1], grayscale_[i], flow);
+        flow_finder_->calc(grayscale_[(i - 1) % 2], grayscale_[i % 2], flow);
       }
 
       output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
     }
+
+    grayscale_[(input_count - 1) % 2].copyTo(initial_frame_);
   }
 
  private:
