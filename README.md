@@ -4,7 +4,7 @@ _To try out Scanner, [check out our Quick start](https://github.com/scanner-rese
 
 Scanner is like Spark for videos. It runs stateful functions across video frames using clusters of machines with CPUs and GPUs. For example, you could use Scanner to:
 
-* [Locate and recognize faces](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/face_detect.py)
+* [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/face_detect.py)
 * [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection/shot_detect.py)
 * [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search/search.py)
 
@@ -24,12 +24,7 @@ vid0_hists = output.tables(0).columns(0).load(parsers.histograms)
 
 [Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
 
-Scanner makes it easy to use existing computer vision and pixel processing tools. For example, Scanner has:
-
-* [Caffe](https://github.com/bvlc/caffe) support for neural network evaluation
-* [OpenCV](https://github.com/opencv/opencv) support with included kernels for color histograms and optical flow
-* Object tracking in videos with [Struck](https://github.com/samhare/struck)
-* Image processing with [Halide](http://halide-lang.org/)
+Scanner makes it easy to use existing computer vision and pixel processing tools. For example, Scanner supports deep neural networks with [Caffe](https://github.com/scanner-research/scanner/tree/master/examples/caffe), image processing with [OpenCV](https://github.com/scanner-research/scanner/blob/master/examples/opticalflow/flow.py) and [Halide](https://github.com/scanner-research/scanner/tree/master/examples/halide), and object tracking with Struck.
 
 Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
 
@@ -56,4 +51,4 @@ This runs a Scanner demo which detects faces in every frame of a short video fro
 nvidia-docker cp scanner:/opt/scanner/example_faces.mp4 .
 ```
 
-Then you can view the generated video on your own machine. That's it! To learn more about Scanner, please visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki).
+Then you can view the generated video on your own machine. That's it! For [build instructions](https://github.com/scanner-research/scanner/wiki/Building-Scanner), [tutorials](https://github.com/scanner-research/scanner/wiki/Getting-started), [documentation](https://github.com/scanner-research/scanner/wiki/Documentation), and [contributing guidelines](https://github.com/scanner-research/scanner/wiki/Contributing), visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki).
