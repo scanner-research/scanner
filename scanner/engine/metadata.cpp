@@ -66,9 +66,9 @@ std::string Metadata<TableDescriptor>::descriptor_path() const {
 DatabaseMetadata::DatabaseMetadata() : next_table_id_(0), next_job_id_(0) {}
 
 DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
-    : Metadata(d),
-      next_table_id_(d.next_table_id()),
-      next_job_id_(d.next_job_id()) {
+  : Metadata(d),
+    next_table_id_(d.next_table_id()),
+    next_job_id_(d.next_job_id()) {
   for (int i = 0; i < descriptor_.tables_size(); ++i) {
     const DatabaseDescriptor::Table& table = descriptor_.tables(i);
     table_id_names_.insert({table.id(), table.name()});
@@ -134,7 +134,7 @@ i32 DatabaseMetadata::get_table_id(const std::string& table) const {
       break;
     }
   }
-  LOG_IF(FATAL, id == -1) << "Table " << table << " does not exist.";
+  LOG_IF(WARNING, id == -1) << "Table " << table << " does not exist.";
   return id;
 }
 
@@ -205,7 +205,7 @@ void DatabaseMetadata::remove_job(i32 job_id) {
 VideoMetadata::VideoMetadata() {}
 
 VideoMetadata::VideoMetadata(const VideoDescriptor& descriptor)
-    : Metadata(descriptor) {}
+  : Metadata(descriptor) {}
 
 std::string VideoMetadata::descriptor_path(i32 table_id, i32 column_id,
                                            i32 item_id) {
@@ -239,8 +239,8 @@ std::vector<i64> VideoMetadata::keyframe_byte_offsets() const {
 ImageFormatGroupMetadata::ImageFormatGroupMetadata() {}
 
 ImageFormatGroupMetadata::ImageFormatGroupMetadata(
-    const ImageFormatGroupDescriptor& descriptor)
-    : Metadata(descriptor) {}
+  const ImageFormatGroupDescriptor& descriptor)
+  : Metadata(descriptor) {}
 
 i32 ImageFormatGroupMetadata::num_images() const {
   return descriptor_.num_images();
@@ -405,18 +405,6 @@ void set_database_path(std::string path) {
   VLOG(1) << "Setting DB path to " << path;
   get_database_path_ref() = path + "/";
   std::atomic_thread_fence(std::memory_order_release);
-}
-
-void write_new_table(storehouse::StorageBackend* storage,
-                     DatabaseMetadata& meta, TableMetadata& table) {
-  VLOG(1) << "Writing new table " << table.name() << "..." << std::endl;
-  TableDescriptor& table_desc = table.get_descriptor();
-  i32 table_id = meta.add_table(table.name());
-  table_desc.set_id(table_id);
-
-  write_table_metadata(storage, table);
-  write_database_metadata(storage, meta);
-  VLOG(1) << "Finished writing new table " << table.name() << "." << std::endl;
 }
 }
 }

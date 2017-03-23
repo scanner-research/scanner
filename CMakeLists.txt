@@ -77,7 +77,7 @@ if (BUILD_CUDA)
 endif()
 
 if (BUILD_CUDA)
-  add_library(scanner_halide scanner/engine/halide_context.cpp)
+  add_library(scanner_halide scanner/util/halide_context.cpp)
 endif()
 
 ###### Required Dependencies #######

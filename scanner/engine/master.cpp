@@ -104,7 +104,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
           RESULT_ERROR(result, "Op %s is not registered.", op.name().c_str());
         } else {
           op_outputs.back() =
-              op_registry->get_op_info(op.name())->output_columns();
+            op_registry->get_op_info(op.name())->output_columns();
         }
         if (!kernel_registry->has_kernel(op.name(), op.device_type())) {
           RESULT_ERROR(result,
@@ -164,8 +164,8 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
 }
 
 Result get_task_end_rows(
-    const std::map<std::string, TableMetadata>& table_metas,
-    const proto::Task& task, std::vector<i64>& rows) {
+  const std::map<std::string, TableMetadata>& table_metas,
+  const proto::Task& task, std::vector<i64>& rows) {
   Result result;
   result.set_success(true);
 
@@ -191,9 +191,9 @@ Result get_task_end_rows(
 class MasterImpl final : public proto::Master::Service {
  public:
   MasterImpl(DatabaseParameters& params, Flag& shutdown)
-      : db_params_(params), trigger_shutdown_(shutdown), bar_(nullptr) {
+    : db_params_(params), trigger_shutdown_(shutdown), bar_(nullptr) {
     storage_ =
-        storehouse::StorageBackend::make_from_config(db_params_.storage_config);
+      storehouse::StorageBackend::make_from_config(db_params_.storage_config);
     set_database_path(params.db_path);
   }
 
@@ -203,7 +203,7 @@ class MasterImpl final : public proto::Master::Service {
   // ipv4:<peer_address>:<random_port>
   // Returns the <peer_address> from the above format.
   static std::string get_worker_address_from_grpc_context(
-      grpc::ServerContext* context) {
+    grpc::ServerContext* context) {
     std::string worker_address = context->peer();
     std::size_t portSep = worker_address.find_last_of(':');
     if (portSep == std::string::npos) {
@@ -230,8 +230,8 @@ class MasterImpl final : public proto::Master::Service {
     worker_address += ":" + worker_info->port();
 
     VLOG(1) << "Adding worker: " << worker_address;
-    workers_.push_back(proto::Worker::NewStub(grpc::CreateChannel(
-        worker_address, grpc::InsecureChannelCredentials())));
+    workers_.push_back(proto::Worker::NewStub(
+      grpc::CreateChannel(worker_address, grpc::InsecureChannelCredentials())));
     registration->set_node_id(workers_.size() - 1);
     addresses_.push_back(worker_address);
 
@@ -259,12 +259,12 @@ class MasterImpl final : public proto::Master::Service {
                             proto::IngestResult* result) {
     std::vector<FailedVideo> failed_videos;
     result->mutable_result()->CopyFrom(
-        ingest_videos(db_params_.storage_config, db_params_.db_path,
-                      std::vector<std::string>(params->table_names().begin(),
-                                               params->table_names().end()),
-                      std::vector<std::string>(params->video_paths().begin(),
-                                               params->video_paths().end()),
-                      failed_videos));
+      ingest_videos(db_params_.storage_config, db_params_.db_path,
+                    std::vector<std::string>(params->table_names().begin(),
+                                             params->table_names().end()),
+                    std::vector<std::string>(params->video_paths().begin(),
+                                             params->video_paths().end()),
+                    failed_videos));
     for (auto& failed : failed_videos) {
       result->add_failed_paths(failed.path);
       result->add_failed_messages(failed.message);
@@ -280,7 +280,7 @@ class MasterImpl final : public proto::Master::Service {
       if (next_task_ < num_tasks_ && task_result_.success()) {
         // More tasks left
         task_sampler_.reset(new TaskSampler(
-            table_metas_, job_params_.task_set().tasks(next_task_)));
+          table_metas_, job_params_.task_set().tasks(next_task_)));
         task_result_ = task_sampler_->validate();
         if (task_result_.success()) {
           samples_left_ = task_sampler_->total_samples();
@@ -356,7 +356,9 @@ class MasterImpl final : public proto::Master::Service {
     }
 
     DatabaseMetadata meta =
-        read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+    DatabaseMetadata meta_copy =
+      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
     auto& tasks = job_params->task_set().tasks();
     job_descriptor.mutable_tasks()->CopyFrom(tasks);
@@ -376,7 +378,7 @@ class MasterImpl final : public proto::Master::Service {
     // Read all table metadata
     for (const std::string& table_name : meta.table_names()) {
       std::string table_path =
-          TableMetadata::descriptor_path(meta.get_table_id(table_name));
+        TableMetadata::descriptor_path(meta.get_table_id(table_name));
       table_metas_[table_name] = read_table_metadata(storage_, table_path);
     }
 
@@ -388,8 +390,8 @@ class MasterImpl final : public proto::Master::Service {
       table_desc.set_id(table_id);
       table_desc.set_name(task.output_table_name());
       table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
-                                   now().time_since_epoch())
-                                   .count());
+                                 now().time_since_epoch())
+                                 .count());
       // Set columns equal to the last op's output columns
       for (size_t i = 0; i < output_columns.size(); ++i) {
         Column* col = table_desc.add_columns();
@@ -436,7 +438,7 @@ class MasterImpl final : public proto::Master::Service {
     std::vector<grpc::Status> statuses(workers_.size());
     std::vector<proto::Result> replies(workers_.size());
     std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
-        rpcs;
+      rpcs;
 
     if (bar_) {
       delete bar_;
@@ -461,6 +463,7 @@ class MasterImpl final : public proto::Master::Service {
 
     proto::JobParameters w_job_params;
     w_job_params.CopyFrom(*job_params);
+    w_job_params.set_global_total(workers_.size());
     for (size_t i = 0; i < workers_.size(); ++i) {
       auto& worker = workers_[i];
       std::string& address = addresses_[i];
@@ -470,7 +473,7 @@ class MasterImpl final : public proto::Master::Service {
       w_job_params.set_local_total(local_totals[sans_port]);
       local_ids[sans_port] += 1;
       rpcs.emplace_back(
-          worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
+        worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
       rpcs[i]->Finish(&replies[i], &statuses[i], (void*)i);
     }
 
@@ -493,8 +496,8 @@ class MasterImpl final : public proto::Master::Service {
     }
 
     if (!job_result->success()) {
-      // TODO(apoms): We wrote the db meta with the tables so we should clear
-      // them out here since the job failed.
+      // Overwrite database metadata with copy from prior to modification
+      write_database_metadata(storage_, meta_copy);
     }
     if (!task_result_.success()) {
       job_result->CopyFrom(task_result_);
@@ -514,9 +517,9 @@ class MasterImpl final : public proto::Master::Service {
   }
 
   grpc::Status GetOpOutputInfo(
-      grpc::ServerContext* context,
-      const proto::OpOutputInfoArgs* op_output_info_args,
-      proto::OpOutputInfo* op_output_info) {
+    grpc::ServerContext* context,
+    const proto::OpOutputInfoArgs* op_output_info_args,
+    proto::OpOutputInfo* op_output_info) {
     OpRegistry* registry = get_op_registry();
     std::string op_name = op_output_info_args->op_name();
     if (!registry->has_op(op_name)) {

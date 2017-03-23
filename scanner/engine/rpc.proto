@@ -76,7 +76,8 @@ message JobParameters {
   int32 work_item_size = 6;
   int32 local_id = 7;
   int32 local_total = 8;
-  bool show_progress = 9;
+  int32 global_total = 9;
+  bool show_progress = 10;
 }
 
 message NewWork {
@@ -92,4 +93,3 @@ message OpOutputInfo {
   Result result = 1;
   repeated string output_columns = 2;
 }
-
