@@ -7,6 +7,7 @@ import socket
 import time
 import ipaddress
 import pickle
+import struct
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
@@ -287,7 +288,7 @@ class Database:
             cmd = cmd.replace('"', '\\"')
             #cmd = cmd.replace('\'', '\\\'')
             #print("ssh {} \"{}\"".format(host_ip, cmd))
-            return Popen("ssh {} \"{}\"".format(host_ip, cmd), shell=True)
+            return Popen("ssh {} \"cd {} && {}\"".format(host_ip, os.getcwd(), cmd), shell=True)
 
     def start_cluster(self, master, workers):
         """
@@ -601,6 +602,9 @@ class Database:
             else:
                 raise ScannerException('Attempted to create table with existing '
                                        'name {}'.format(name))
+        columns.insert(0, "index")
+        for i, row in enumerate(rows):
+            row.insert(0, struct.pack('=Q', i))
         self._bindings.new_table(self._db, name, columns, rows)
         self._cached_db_metadata = None
 
@@ -714,7 +718,7 @@ class Database:
                 if len(op[i+1]._inputs) > 0:
                     continue
                 if op[i]._name == "InputTable":
-                    out_cols = [c for _, c in op[i]._inputs]
+                    out_cols = ["frame", "frame_info"]
                 else:
                     out_cols = self._get_output_columns(op[i]._name)
                 op[i+1]._inputs = [(op[i], out_cols)]
