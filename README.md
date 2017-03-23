@@ -1,14 +1,16 @@
 # Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
-_For [build instructions](https://github.com/scanner-research/scanner/wiki/Building-Scanner), [tutorials](https://github.com/scanner-research/scanner/wiki/Getting-started), [documentation](https://github.com/scanner-research/scanner/wiki/Documentation), and [contributing guidelines](https://github.com/scanner-research/scanner/wiki/Contributing), visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki)._
+_To try out Scanner, [check out our Quick start](https://github.com/scanner-research/scanner#quick-start)._
 
-Scanner lets you write stateful functions that get efficiently mapped across batches of video frames. These functions can execute on a multi-core CPU or GPU and can be distributed across multiple machines. You can think about Scanner like Spark for pixels. For example, you could use Scanner to:
+Scanner is like Spark for videos. It runs stateful functions across video frames using clusters of machines with CPUs and GPUs. For example, you could use Scanner to:
 
 * [Locate and recognize faces](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/face_detect.py)
 * [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection/shot_detect.py)
 * [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search/search.py)
 
-To support these applications, Scanner uses a Python interface similar to Tensorflow and Spark SQL. Videos are represented as tables in a database, and users write computation graphs to transform these tables. For example, to compute the color histogram for each frame in a set of videos on the GPU:
+[Click here to learn more about the design and usage of Scanner.](https://github.com/scanner-research/scanner/wiki/Getting-started)
+
+Scanner provides a Python API to organize your videos and run high-performance functions written in C++. For example, this program computes a histogram of colors for each frame in a set of videos on the GPU:
 
 ```python
 from scannerpy import Database, DeviceType
@@ -20,18 +22,14 @@ output = db.run(videos, hist, 'my_videos_hist')
 vid0_hists = output.tables(0).columns(0).load(parsers.histograms)
 ```
 
-Scanner provides a convenient way to organize your videos as well as data derived from the videos (bounding boxes, histograms, feature maps, etc.) using a relational database. Behind the scenes, Scanner handles decoding the compressed videos into raw frames, allowing you to process an individual video in parallel. It then runs a computation graph on the decoded frames using kernels written in C++ for maximum performance and distributes the computation over a cluster. Scanner supports a number of operators and third-party libraries to reduce the work of writing new computations:
+[Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
+
+Scanner makes it easy to use existing computer vision and pixel processing tools. For example, Scanner has:
 
 * [Caffe](https://github.com/bvlc/caffe) support for neural network evaluation
 * [OpenCV](https://github.com/opencv/opencv) support with included kernels for color histograms and optical flow
 * Object tracking in videos with [Struck](https://github.com/samhare/struck)
 * Image processing with [Halide](http://halide-lang.org/)
-
-Lastly, Scanner also offers some utilities for ease of development:
-
-* Profiling via [chrome://tracing](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool)
-* Support for different storage backends including [Google Cloud Storage](https://cloud.google.com/storage/)
-* Custom operators for adding your own functionality outside the source tree
 
 Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
 
