@@ -47,11 +47,11 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
 }
 
 void analyze_dag(
-    const proto::TaskSet& task_set,
-    std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns,
-    std::vector<std::vector<i32>>& dead_columns,
-    std::vector<std::vector<i32>>& unused_outputs,
-    std::vector<std::vector<i32>>& column_mapping) {
+  const proto::TaskSet& task_set,
+  std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns,
+  std::vector<std::vector<i32>>& dead_columns,
+  std::vector<std::vector<i32>>& unused_outputs,
+  std::vector<std::vector<i32>>& column_mapping) {
   // Start off with the columns from the gathered tables
   OpRegistry* op_registry = get_op_registry();
   auto& ops = task_set.ops();
@@ -134,7 +134,7 @@ void analyze_dag(
               // This op has an unused output
               i32 col_index = -1;
               const std::vector<std::string>& op_cols =
-                  op_registry->get_op_info(op.name())->output_columns();
+                op_registry->get_op_info(op.name())->output_columns();
               for (size_t k = 0; k < op_cols.size(); k++) {
                 if (col_name == op_cols[k]) {
                   col_index = k;
@@ -149,7 +149,7 @@ void analyze_dag(
               i32 col_index = -1;
               for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
                 const std::tuple<i32, std::string>& live_input =
-                    prev_columns[k];
+                  prev_columns[k];
                 if (parent_index == std::get<0>(live_input) &&
                     col_name == std::get<1>(live_input)) {
                   col_index = k;
@@ -188,7 +188,7 @@ class WorkerImpl final : public proto::Worker::Service {
  public:
   WorkerImpl(DatabaseParameters& db_params, std::string master_address,
              std::string worker_port, Flag& shutdown)
-      : db_params_(db_params), trigger_shutdown_(shutdown) {
+    : db_params_(db_params), trigger_shutdown_(shutdown) {
     set_database_path(db_params.db_path);
 
 #ifdef DEBUG
@@ -198,8 +198,8 @@ class WorkerImpl final : public proto::Worker::Service {
     // google::protobuf::io::CodedInputStream::SetTotalBytesLimit(67108864 * 4,
     //                                                            67108864 * 2);
 
-    master_ = proto::Master::NewStub(grpc::CreateChannel(
-        master_address, grpc::InsecureChannelCredentials()));
+    master_ = proto::Master::NewStub(
+      grpc::CreateChannel(master_address, grpc::InsecureChannelCredentials()));
 
     proto::WorkerParams worker_info;
     worker_info.set_port(worker_port);
@@ -215,15 +215,15 @@ class WorkerImpl final : public proto::Worker::Service {
     grpc::ClientContext context;
     proto::Registration registration;
     grpc::Status status =
-        master_->RegisterWorker(&context, worker_info, &registration);
+      master_->RegisterWorker(&context, worker_info, &registration);
     LOG_IF(FATAL, !status.ok())
-        << "Worker could not contact master server at " << master_address
-        << " (" << status.error_code() << "): " << status.error_message();
+      << "Worker could not contact master server at " << master_address << " ("
+      << status.error_code() << "): " << status.error_message();
 
     node_id_ = registration.node_id();
 
     storage_ =
-        storehouse::StorageBackend::make_from_config(db_params_.storage_config);
+      storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   }
 
   ~WorkerImpl() {
@@ -241,6 +241,7 @@ class WorkerImpl final : public proto::Worker::Service {
 
     i32 local_id = job_params->local_id();
     i32 local_total = job_params->local_total();
+    i32 node_count = job_params->global_total();
 
     timepoint_t base_time = now();
     const i32 work_item_size = job_params->work_item_size();
@@ -299,26 +300,28 @@ class WorkerImpl final : public proto::Worker::Service {
 
       if (!kernel_registry->has_kernel(name, requested_device_type)) {
         RESULT_ERROR(
-            job_result,
-            "Requested an instance of op %s with device type %s, but no kernel "
-            "exists for that configuration.",
-            op.name().c_str(),
-            (requested_device_type == DeviceType::CPU ? "CPU" : "GPU"));
+          job_result,
+          "Requested an instance of op %s with device type %s, but no kernel "
+          "exists for that configuration.",
+          op.name().c_str(),
+          (requested_device_type == DeviceType::CPU ? "CPU" : "GPU"));
         return grpc::Status::OK;
       }
 
       KernelFactory* kernel_factory =
-          kernel_registry->get_kernel(name, requested_device_type);
+        kernel_registry->get_kernel(name, requested_device_type);
       kernel_factories.push_back(kernel_factory);
 
       Kernel::Config kernel_config;
       kernel_config.work_item_size = work_item_size;
+      kernel_config.node_id = node_id_;
+      kernel_config.node_count = node_count;
       kernel_config.args =
-          std::vector<u8>(op.kernel_args().begin(), op.kernel_args().end());
+        std::vector<u8>(op.kernel_args().begin(), op.kernel_args().end());
       const std::vector<std::string>& output_columns =
-          op_info->output_columns();
-      kernel_config.output_columns = std::vector<std::string>(
-          output_columns.begin(), output_columns.end());
+        op_info->output_columns();
+      kernel_config.output_columns =
+        std::vector<std::string>(output_columns.begin(), output_columns.end());
 
       for (auto& input : op.inputs()) {
         const proto::Op& input_op = ops.Get(input.op_index());
@@ -337,9 +340,9 @@ class WorkerImpl final : public proto::Worker::Service {
 
     // Break up kernels into groups that run on the same device
     std::vector<std::vector<std::tuple<KernelFactory*, Kernel::Config>>>
-        kernel_groups;
+      kernel_groups;
     std::vector<std::vector<std::vector<std::tuple<i32, std::string>>>>
-        kg_live_columns;
+      kg_live_columns;
     std::vector<std::vector<std::vector<i32>>> kg_dead_columns;
     std::vector<std::vector<std::vector<i32>>> kg_unused_outputs;
     std::vector<std::vector<std::vector<i32>>> kg_column_mapping;
@@ -395,10 +398,10 @@ class WorkerImpl final : public proto::Worker::Service {
             pipeline_instances_per_node = 1;
           } else {
             pipeline_instances_per_node =
-                std::min(pipeline_instances_per_node,
-                         device_type == DeviceType::CPU
-                             ? db_params_.num_cpus / local_total / max_devices
-                             : (i32)num_gpus / max_devices);
+              std::min(pipeline_instances_per_node,
+                       device_type == DeviceType::CPU
+                         ? db_params_.num_cpus / local_total / max_devices
+                         : (i32)num_gpus / max_devices);
           }
           if (device_type == DeviceType::GPU) {
             has_gpu_kernel = true;
@@ -425,7 +428,7 @@ class WorkerImpl final : public proto::Worker::Service {
         return grpc::Status::OK;
       }
       if (db_params_.gpu_ids.size() <
-              local_total * pipeline_instances_per_node &&
+            local_total * pipeline_instances_per_node &&
           job_params->memory_pool_config().gpu().use_pool()) {
         RESULT_ERROR(job_result,
                      "Cannot oversubscribe GPUs and also use GPU memory pool");
@@ -441,11 +444,11 @@ class WorkerImpl final : public proto::Worker::Service {
 
     // Load table metadata for use in constructing io items
     DatabaseMetadata meta =
-        read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
     std::map<std::string, TableMetadata> table_meta;
     for (const std::string& table_name : meta.table_names()) {
       std::string table_path =
-          TableMetadata::descriptor_path(meta.get_table_id(table_name));
+        TableMetadata::descriptor_path(meta.get_table_id(table_name));
       table_meta[table_name] = read_table_metadata(storage_, table_path);
     }
 
@@ -454,7 +457,7 @@ class WorkerImpl final : public proto::Worker::Service {
     Queue<std::tuple<IOItem, LoadWorkEntry>> load_work;
     Queue<std::tuple<IOItem, EvalWorkEntry>> initial_eval_work;
     std::vector<std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>>>
-        eval_work(pipeline_instances_per_node);
+      eval_work(pipeline_instances_per_node);
     Queue<std::tuple<IOItem, EvalWorkEntry>> save_work;
     std::atomic<i64> retired_items{0};
 
@@ -466,14 +469,14 @@ class WorkerImpl final : public proto::Worker::Service {
     for (i32 i = 0; i < num_load_workers; ++i) {
       // Create IO thread for reading and decoding data
       load_thread_args.emplace_back(LoadThreadArgs{
-          // Uniform arguments
-          node_id_, job_params,
+        // Uniform arguments
+        node_id_, job_params,
 
-          // Per worker arguments
-          i, db_params_.storage_config, load_thread_profilers[i],
+        // Per worker arguments
+        i, db_params_.storage_config, load_thread_profilers[i],
 
-          // Queues
-          load_work, initial_eval_work,
+        // Queues
+        load_work, initial_eval_work,
       });
     }
     std::vector<pthread_t> load_threads(num_load_workers);
@@ -483,19 +486,19 @@ class WorkerImpl final : public proto::Worker::Service {
 
     // Setup evaluate workers
     std::vector<std::vector<Profiler>> eval_profilers(
-        pipeline_instances_per_node);
+      pipeline_instances_per_node);
     std::vector<std::vector<proto::Result>> eval_results(
-        pipeline_instances_per_node);
+      pipeline_instances_per_node);
     std::vector<PreEvaluateThreadArgs> pre_eval_args;
     std::vector<std::vector<EvaluateThreadArgs>> eval_args(
-        pipeline_instances_per_node);
+      pipeline_instances_per_node);
     std::vector<PostEvaluateThreadArgs> post_eval_args;
 
     i32 next_cpu_num = 0;
     i32 next_gpu_idx = 0;
     for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
       std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>>& work_queues =
-          eval_work[ki];
+        eval_work[ki];
       std::vector<Profiler>& eval_thread_profilers = eval_profilers[ki];
       std::vector<proto::Result>& results = eval_results[ki];
       work_queues.resize(num_kernel_groups - 1 + 2);  // +2 for pre/post
@@ -547,62 +550,62 @@ class WorkerImpl final : public proto::Worker::Service {
 
         // Input work queue
         Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
-            &work_queues[kg];
+          &work_queues[kg];
         // Create new queue for output, reuse previous queue as input
         Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue =
-            &work_queues[kg + 1];
+          &work_queues[kg + 1];
         // Create eval thread for passing data through neural net
         thread_args.emplace_back(EvaluateThreadArgs{
-            // Uniform arguments
-            node_id_, job_params,
+          // Uniform arguments
+          node_id_, job_params,
 
-            // Per worker arguments
-            ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg + 1],
-            results[kg],
+          // Per worker arguments
+          ki, kg, group, lc, dc, uo, cm, eval_thread_profilers[kg + 1],
+          results[kg],
 
-            // Queues
-            *input_work_queue, *output_work_queue});
+          // Queues
+          *input_work_queue, *output_work_queue});
       }
       // Pre evaluate worker
       {
         Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
-            &initial_eval_work;
+          &initial_eval_work;
         Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue =
-            &work_queues[0];
+          &work_queues[0];
         assert(kernel_groups.size() > 0);
         pre_eval_args.emplace_back(PreEvaluateThreadArgs{
-            // Uniform arguments
-            node_id_, num_cpus, job_params,
+          // Uniform arguments
+          node_id_, num_cpus, job_params,
 
-            // Per worker arguments
-            ki, first_kernel_type, eval_thread_profilers.front(),
+          // Per worker arguments
+          ki, first_kernel_type, eval_thread_profilers.front(),
 
-            // Queues
-            *input_work_queue, *output_work_queue});
+          // Queues
+          *input_work_queue, *output_work_queue});
       }
 
       // Post evaluate worker
       {
         Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
-            &work_queues.back();
+          &work_queues.back();
         Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue =
-            &save_work;
+          &save_work;
         post_eval_args.emplace_back(PostEvaluateThreadArgs{
-            // Uniform arguments
-            node_id_,
+          // Uniform arguments
+          node_id_,
 
-            // Per worker arguments
-            ki, eval_thread_profilers.back(), column_mapping.back(),
+          // Per worker arguments
+          ki, eval_thread_profilers.back(), column_mapping.back(),
 
-            // Queues
-            *input_work_queue, *output_work_queue});
+          // Queues
+          *input_work_queue, *output_work_queue});
       }
     }
 
     // Launch eval worker threads
     std::vector<pthread_t> pre_eval_threads(pipeline_instances_per_node);
     std::vector<std::vector<pthread_t>> eval_threads(
-        pipeline_instances_per_node);
+      pipeline_instances_per_node);
     std::vector<pthread_t> post_eval_threads(pipeline_instances_per_node);
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Pre thread
@@ -627,14 +630,14 @@ class WorkerImpl final : public proto::Worker::Service {
     for (i32 i = 0; i < num_save_workers; ++i) {
       // Create IO thread for reading and decoding data
       save_thread_args.emplace_back(SaveThreadArgs{
-          // Uniform arguments
-          node_id_, job_params->job_name(),
+        // Uniform arguments
+        node_id_, job_params->job_name(),
 
-          // Per worker arguments
-          i, db_params_.storage_config, save_thread_profilers[i],
+        // Per worker arguments
+        i, db_params_.storage_config, save_thread_profilers[i],
 
-          // Queues
-          save_work, retired_items});
+        // Queues
+        save_work, retired_items});
     }
     std::vector<pthread_t> save_threads(num_save_workers);
     for (i32 i = 0; i < num_save_workers; ++i) {
@@ -670,7 +673,7 @@ class WorkerImpl final : public proto::Worker::Service {
           break;
         } else {
           load_work.push(
-              std::make_tuple(new_work.io_item(), new_work.load_work()));
+            std::make_tuple(new_work.io_item(), new_work.load_work()));
           accepted_items++;
         }
       }
@@ -804,20 +807,20 @@ class WorkerImpl final : public proto::Worker::Service {
     std::string profiler_file_name = job_profiler_path(job_id, node_id_);
     std::unique_ptr<WriteFile> profiler_output;
     BACKOFF_FAIL(
-        make_unique_write_file(storage_, profiler_file_name, profiler_output));
+      make_unique_write_file(storage_, profiler_file_name, profiler_output));
 
     i64 base_time_ns =
-        std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
-            .time_since_epoch()
-            .count();
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
+        .time_since_epoch()
+        .count();
     i64 start_time_ns =
-        std::chrono::time_point_cast<std::chrono::nanoseconds>(start_time)
-            .time_since_epoch()
-            .count();
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(start_time)
+        .time_since_epoch()
+        .count();
     i64 end_time_ns =
-        std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
-            .time_since_epoch()
-            .count();
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(end_time)
+        .time_since_epoch()
+        .count();
     s_write(profiler_output.get(), start_time_ns);
     s_write(profiler_output.get(), end_time_ns);
 
@@ -874,7 +877,7 @@ class WorkerImpl final : public proto::Worker::Service {
     const std::string& so_path = op_info->so_path();
     void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
     LOG_IF(FATAL, handle == nullptr)
-        << "dlopen of " << so_path << " failed: " << dlerror();
+      << "dlopen of " << so_path << " failed: " << dlerror();
     return grpc::Status::OK;
   }
 

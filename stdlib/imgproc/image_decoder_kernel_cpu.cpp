@@ -17,7 +17,7 @@ class ImageDecoderKernel : public Kernel {
           input_columns[0].rows[i].buffer,
           input_columns[0].rows[i].buffer + input_columns[0].rows[i].size);
       cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
-      LOG_IF(FATAL, img.empty()) << "Failed to decode image";
+      LOG_IF(FATAL, img.empty() || !img.data) << "Failed to decode image";
       size_t size = img.total() * img.elemSize();
       u8* output_buf = new_buffer(CPU_DEVICE, size);
       std::memcpy(output_buf, img.data, size);
