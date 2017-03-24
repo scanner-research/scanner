@@ -6,6 +6,7 @@ namespace scanner {
 
 using FnPtr = void (*)();
 
+//! Convenience for dynamic registration of C++ functions.
 class UserFunctionRegistry {
  public:
   void add_user_function(const std::string& name, const FnPtr fn);
@@ -42,7 +43,7 @@ class UserFunctionRegistration {
 
 #define REGISTER_USER_FUNCTION_UID(uid__, name__, function__) \
   static ::scaner::internal::UserFunctionRegistration         \
-      user_function_registration_##uid__ =                    \
-          ::scanner::internal::UserFunctionRegistration(      \
-              #name__, static_cast<const void*>(function__));
+    user_function_registration_##uid__ =                      \
+      ::scanner::internal::UserFunctionRegistration(          \
+        #name__, static_cast<const void*>(function__));
 }

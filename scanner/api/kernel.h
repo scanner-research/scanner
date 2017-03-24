@@ -24,15 +24,13 @@ namespace scanner {
 
 using proto::FrameInfo;
 
-bool is_frame_column(const std::string& name);
-
-FrameInfo get_frame_info(const std::string& name);
-
+//! Row in a Scanner table, byte buffer of arbitrary size.
 struct Row {
   u8* buffer;
   size_t size;
 };
 
+//! Each column is a RowList.
 struct RowList {
   std::vector<Row> rows;
 };
@@ -52,11 +50,13 @@ class Kernel {
  public:
   static const i32 UnlimitedDevices = 0;
 
+  //! Kernel parameters provided at instantiation.
   struct Config {
-    std::vector<DeviceHandle> devices;
+    std::vector<DeviceHandle> devices;  //! Non-empty set of devices provided to
+                                        //! the kernel.
     std::vector<std::string> input_columns;
     std::vector<std::string> output_columns;
-    std::vector<u8> args;
+    std::vector<u8> args;  //! Byte-string of proto args if given.
     i32 work_item_size;
     i32 node_id;
     i32 node_count;
@@ -67,7 +67,9 @@ class Kernel {
   virtual ~Kernel(){};
 
   /**
-   * @brief TODO
+   * @brief Checks if kernel arguments are valid.
+   *
+   * Only useful if your kernel has its own custom Protobuf arguments.
    */
   virtual void validate(proto::Result* result) { result->set_success(true); }
 
@@ -102,9 +104,7 @@ class Kernel {
   virtual void execute(const BatchedColumns& input_columns,
                        BatchedColumns& output_columns) = 0;
 
-  /**
-   * Do not call this function.
-   */
+  //! Do not call this function.
   virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
 
  protected:
@@ -115,12 +115,22 @@ class Kernel {
   Profiler* profiler_ = nullptr;
 };
 
+//! Kernel with support for frame and frame_info columns.
 class VideoKernel : public Kernel {
  public:
   VideoKernel(const Config& config) : Kernel(config){};
 
  protected:
+  /**
+   * @brief Checks frame info column against cached data.
+   *
+   * This function should be called at the top of the execute function on the
+   * frame info column. If the frame info changes, e.g. the kernel is processing
+   * a new video, then this calls new_frame_info which you can override.
+   */
   void check_frame_info(const DeviceHandle& device, const RowList& row_list);
+
+  //! Callback for if frame info changes.
   virtual void new_frame_info(){};
 
   FrameInfo frame_info_;
