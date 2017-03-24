@@ -9,18 +9,16 @@ var indexSectionsWithContent =
 {
   0: "_cdefgijklmnoprstuvw",
   1: "cdefjkmnoprstuv",
-  2: "s",
-  3: "_egilnrsvw",
-  4: "cop"
+  2: "_cegilnrsvw",
+  3: "cgiopw"
 };
 
 var indexSectionNames =
 {
   0: "all",
   1: "classes",
-  2: "namespaces",
-  3: "functions",
-  4: "variables"
+  2: "functions",
+  3: "variables"
 };
 
 function convertToId(search)

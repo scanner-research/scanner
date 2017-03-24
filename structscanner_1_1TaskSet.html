@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -93,12 +92,17 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::TaskSet Struct Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p>Set of tasks and a pipeline to run in a single job.  
+ <a href="structscanner_1_1TaskSet.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="database_8h_source.html">database.h</a>&gt;</code></p>
 <div class="dynheader">
 Collaboration diagram for scanner::TaskSet:</div>
 <div class="dyncontent">
 <div class="center"><img src="structscanner_1_1TaskSet__coll__graph.png" border="0" usemap="#scanner_1_1TaskSet_coll__map" alt="Collaboration graph"/></div>
 <map name="scanner_1_1TaskSet_coll__map" id="scanner_1_1TaskSet_coll__map">
-<area shape="rect" id="node2" href="classscanner_1_1Op.html" title="scanner::Op" alt="" coords="21,96,115,123"/></map>
+<area shape="rect" id="node2" href="classscanner_1_1Op.html" title="Interface for a computation unit implemented by a Kernel. " alt="" coords="21,96,115,123"/></map>
 <center><span class="legend">[<a href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
@@ -110,7 +114,9 @@ std::vector&lt; <a class="el" href="structscanner_1_1Task.html">Task</a> &gt;&#1
 <a class="el" href="classscanner_1_1Op.html">Op</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>output_op</b></td></tr>
 <tr class="separator:a441365832d29afbba0d4de29ac86a3ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<hr/>The documentation for this struct was generated from the following file:<ul>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Set of tasks and a pipeline to run in a single job. </p>
+</div><hr/>The documentation for this struct was generated from the following file:<ul>
 <li>scanner/api/<a class="el" href="database_8h_source.html">database.h</a></li>
 </ul>
 </div><!-- contents -->

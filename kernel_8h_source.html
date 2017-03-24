@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li><a href="annotated.html"><span>Classes</span></a></li>
       <li class="current"><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -68,7 +67,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -113,31 +112,27 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;</div>
 <div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;<span class="keyword">using</span> proto::FrameInfo;</div>
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;</div>
-<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;<span class="keywordtype">bool</span> is_frame_column(<span class="keyword">const</span> std::string&amp; name);</div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;FrameInfo get_frame_info(<span class="keyword">const</span> std::string&amp; name);</div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;</div>
-<div class="line"><a name="l00031"></a><span class="lineno"><a class="line" href="structscanner_1_1Row.html">   31</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structscanner_1_1Row.html">Row</a> {</div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;  u8* buffer;</div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;  <span class="keywordtype">size_t</span> size;</div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;};</div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;</div>
-<div class="line"><a name="l00036"></a><span class="lineno"><a class="line" href="structscanner_1_1RowList.html">   36</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structscanner_1_1RowList.html">RowList</a> {</div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;  std::vector&lt;Row&gt; rows;</div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;};</div>
+<div class="line"><a name="l00028"></a><span class="lineno"><a class="line" href="structscanner_1_1Row.html">   28</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structscanner_1_1Row.html">Row</a> {</div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;  u8* buffer;</div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;  <span class="keywordtype">size_t</span> size;</div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;};</div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;</div>
+<div class="line"><a name="l00034"></a><span class="lineno"><a class="line" href="structscanner_1_1RowList.html">   34</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structscanner_1_1RowList.html">RowList</a> {</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;  std::vector&lt;Row&gt; rows;</div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;};</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;</div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;<span class="keyword">using</span> BatchedColumns = std::vector&lt;RowList&gt;;</div>
 <div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;<span class="keyword">using</span> BatchedColumns = std::vector&lt;RowList&gt;;</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;</div>
-<div class="line"><a name="l00051"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html">   51</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1Kernel.html">Kernel</a> {</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160; <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;  <span class="keyword">static</span> <span class="keyword">const</span> i32 UnlimitedDevices = 0;</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;</div>
-<div class="line"><a name="l00055"></a><span class="lineno"><a class="line" href="structscanner_1_1Kernel_1_1Config.html">   55</a></span>&#160;  <span class="keyword">struct </span><a class="code" href="structscanner_1_1Kernel_1_1Config.html">Config</a> {</div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    std::vector&lt;DeviceHandle&gt; devices;</div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    std::vector&lt;std::string&gt; input_columns;</div>
+<div class="line"><a name="l00049"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html">   49</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1Kernel.html">Kernel</a> {</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160; <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;  <span class="keyword">static</span> <span class="keyword">const</span> i32 UnlimitedDevices = 0;</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;</div>
+<div class="line"><a name="l00054"></a><span class="lineno"><a class="line" href="structscanner_1_1Kernel_1_1Config.html">   54</a></span>&#160;  <span class="keyword">struct </span><a class="code" href="structscanner_1_1Kernel_1_1Config.html">Config</a> {</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    std::vector&lt;DeviceHandle&gt; devices;  </div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    std::vector&lt;std::string&gt; <a class="code" href="structscanner_1_1Kernel_1_1Config.html#a7121a3c2e4c074dbf5d215330cb3da94">input_columns</a>;</div>
 <div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    std::vector&lt;std::string&gt; output_columns;</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    std::vector&lt;u8&gt; args;</div>
-<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;    i32 work_item_size;</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    std::vector&lt;u8&gt; args;  </div>
+<div class="line"><a name="l00060"></a><span class="lineno"><a class="line" href="structscanner_1_1Kernel_1_1Config.html#a6e2dca08902d2395ede6f10e42e276ea">   60</a></span>&#160;    i32 <a class="code" href="structscanner_1_1Kernel_1_1Config.html#a6e2dca08902d2395ede6f10e42e276ea">work_item_size</a>;</div>
 <div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    i32 node_id;</div>
 <div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    i32 node_count;</div>
 <div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;  };</div>
@@ -146,98 +141,101 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;</div>
 <div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;  <span class="keyword">virtual</span> ~<a class="code" href="classscanner_1_1Kernel.html">Kernel</a>(){};</div>
 <div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;</div>
-<div class="line"><a name="l00072"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">   72</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">validate</a>(proto::Result* result) { result-&gt;set_success(<span class="keyword">true</span>); }</div>
-<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;</div>
-<div class="line"><a name="l00083"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">   83</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">reset</a>(){};</div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;</div>
-<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">execute</a>(<span class="keyword">const</span> BatchedColumns&amp; input_columns,</div>
-<div class="line"><a name="l00103"></a><span class="lineno">  103</span>&#160;                       BatchedColumns&amp; output_columns) = 0;</div>
-<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160;</div>
+<div class="line"><a name="l00074"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">   74</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">validate</a>(proto::Result* result) { result-&gt;set_success(<span class="keyword">true</span>); }</div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;</div>
+<div class="line"><a name="l00085"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">   85</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">reset</a>(){};</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;</div>
+<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">execute</a>(<span class="keyword">const</span> BatchedColumns&amp; input_columns,</div>
+<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;                       BatchedColumns&amp; output_columns) = 0;</div>
+<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;</div>
 <div class="line"><a name="l00108"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">  108</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a>(Profiler* profiler) { <a class="code" href="classscanner_1_1Kernel.html#aa00bb120cfbc269db4456e2a3c2c3a9b">profiler_</a> = profiler; }</div>
 <div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;</div>
 <div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160; <span class="keyword">protected</span>:</div>
 <div class="line"><a name="l00115"></a><span class="lineno"><a class="line" href="classscanner_1_1Kernel.html#aa00bb120cfbc269db4456e2a3c2c3a9b">  115</a></span>&#160;  Profiler* <a class="code" href="classscanner_1_1Kernel.html#aa00bb120cfbc269db4456e2a3c2c3a9b">profiler_</a> = <span class="keyword">nullptr</span>;</div>
 <div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;};</div>
 <div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;</div>
-<div class="line"><a name="l00118"></a><span class="lineno"><a class="line" href="classscanner_1_1VideoKernel.html">  118</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1VideoKernel.html">VideoKernel</a> : <span class="keyword">public</span> <a class="code" href="classscanner_1_1Kernel.html">Kernel</a> {</div>
-<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160; <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;  <a class="code" href="classscanner_1_1VideoKernel.html">VideoKernel</a>(<span class="keyword">const</span> <a class="code" href="structscanner_1_1Kernel_1_1Config.html">Config</a>&amp; config) : <a class="code" href="classscanner_1_1Kernel.html">Kernel</a>(config){};</div>
-<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160; <span class="keyword">protected</span>:</div>
-<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;  <span class="keywordtype">void</span> check_frame_info(<span class="keyword">const</span> DeviceHandle&amp; device, <span class="keyword">const</span> <a class="code" href="structscanner_1_1RowList.html">RowList</a>&amp; row_list);</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> new_frame_info(){};</div>
-<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;</div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;  FrameInfo frame_info_;</div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;};</div>
-<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;</div>
-<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;<span class="preprocessor">#define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)</span></div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;<span class="preprocessor">#define ROW_SIZE(column__, row__) (column__.rows[row__].size)</span></div>
-<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;<span class="preprocessor">#define INSERT_ROW(column__, buffer__, size__) \</span></div>
-<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;<span class="preprocessor">  column__.rows.push_back(::scanner::Row{buffer__, size__})</span></div>
-<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;<span class="keyword">namespace </span>internal {</div>
-<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;</div>
-<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160;<span class="keyword">class </span>KernelBuilder;</div>
-<div class="line"><a name="l00141"></a><span class="lineno">  141</span>&#160;</div>
-<div class="line"><a name="l00142"></a><span class="lineno">  142</span>&#160;<span class="keyword">using</span> KernelConstructor = std::function&lt;Kernel*(const Kernel::Config&amp; config)&gt;;</div>
-<div class="line"><a name="l00143"></a><span class="lineno">  143</span>&#160;</div>
-<div class="line"><a name="l00144"></a><span class="lineno"><a class="line" href="classscanner_1_1internal_1_1KernelRegistration.html">  144</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1internal_1_1KernelRegistration.html">KernelRegistration</a> {</div>
-<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160; <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00146"></a><span class="lineno">  146</span>&#160;  <a class="code" href="classscanner_1_1internal_1_1KernelRegistration.html">KernelRegistration</a>(<span class="keyword">const</span> <a class="code" href="classscanner_1_1internal_1_1KernelBuilder.html">KernelBuilder</a>&amp; builder);</div>
-<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160;};</div>
-<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;</div>
-<div class="line"><a name="l00149"></a><span class="lineno"><a class="line" href="classscanner_1_1internal_1_1KernelBuilder.html">  149</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1internal_1_1KernelBuilder.html">KernelBuilder</a> {</div>
-<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160; <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00151"></a><span class="lineno">  151</span>&#160;  <span class="keyword">friend</span> <span class="keyword">class </span><a class="code" href="classscanner_1_1internal_1_1KernelRegistration.html">KernelRegistration</a>;</div>
-<div class="line"><a name="l00152"></a><span class="lineno">  152</span>&#160;</div>
-<div class="line"><a name="l00153"></a><span class="lineno">  153</span>&#160;  <a class="code" href="classscanner_1_1internal_1_1KernelBuilder.html">KernelBuilder</a>(<span class="keyword">const</span> std::string&amp; name, KernelConstructor constructor)</div>
-<div class="line"><a name="l00154"></a><span class="lineno">  154</span>&#160;    : name_(name), constructor_(constructor) {}</div>
-<div class="line"><a name="l00155"></a><span class="lineno">  155</span>&#160;</div>
-<div class="line"><a name="l00156"></a><span class="lineno">  156</span>&#160;  <a class="code" href="classscanner_1_1internal_1_1KernelBuilder.html">KernelBuilder</a>&amp; device(DeviceType device_type) {</div>
-<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160;    device_type_ = device_type;</div>
-<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160;    <span class="keywordflow">return</span> *<span class="keyword">this</span>;</div>
-<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;  }</div>
-<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160;</div>
-<div class="line"><a name="l00161"></a><span class="lineno">  161</span>&#160;  <a class="code" href="classscanner_1_1internal_1_1KernelBuilder.html">KernelBuilder</a>&amp; num_devices(i32 devices) {</div>
-<div class="line"><a name="l00162"></a><span class="lineno">  162</span>&#160;    num_devices_ = devices;</div>
-<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;    <span class="keywordflow">return</span> *<span class="keyword">this</span>;</div>
-<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;  }</div>
+<div class="line"><a name="l00119"></a><span class="lineno"><a class="line" href="classscanner_1_1VideoKernel.html">  119</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1VideoKernel.html">VideoKernel</a> : <span class="keyword">public</span> <a class="code" href="classscanner_1_1Kernel.html">Kernel</a> {</div>
+<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160; <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;  <a class="code" href="classscanner_1_1VideoKernel.html">VideoKernel</a>(<span class="keyword">const</span> <a class="code" href="structscanner_1_1Kernel_1_1Config.html">Config</a>&amp; config) : <a class="code" href="classscanner_1_1Kernel.html">Kernel</a>(config){};</div>
+<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;</div>
+<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160; <span class="keyword">protected</span>:</div>
+<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;  <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1VideoKernel.html#ac71978adb7309445ec54d9f484c0a4a1">check_frame_info</a>(<span class="keyword">const</span> DeviceHandle&amp; device, <span class="keyword">const</span> <a class="code" href="structscanner_1_1RowList.html">RowList</a>&amp; row_list);</div>
+<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;</div>
+<div class="line"><a name="l00134"></a><span class="lineno"><a class="line" href="classscanner_1_1VideoKernel.html#a4bae7eb944b6099db1ff94db1eed616d">  134</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classscanner_1_1VideoKernel.html#a4bae7eb944b6099db1ff94db1eed616d">new_frame_info</a>(){};</div>
+<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;</div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;  FrameInfo frame_info_;</div>
+<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;};</div>
+<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;</div>
+<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;<span class="preprocessor">#define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)</span></div>
+<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00141"></a><span class="lineno">  141</span>&#160;<span class="preprocessor">#define ROW_SIZE(column__, row__) (column__.rows[row__].size)</span></div>
+<div class="line"><a name="l00142"></a><span class="lineno">  142</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00143"></a><span class="lineno">  143</span>&#160;<span class="preprocessor">#define INSERT_ROW(column__, buffer__, size__) \</span></div>
+<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;<span class="preprocessor">  column__.rows.push_back(::scanner::Row{buffer__, size__})</span></div>
+<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;<span class="keyword">namespace </span>internal {</div>
+<div class="line"><a name="l00149"></a><span class="lineno">  149</span>&#160;</div>
+<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160;<span class="keyword">class </span>KernelBuilder;</div>
+<div class="line"><a name="l00151"></a><span class="lineno">  151</span>&#160;</div>
+<div class="line"><a name="l00152"></a><span class="lineno">  152</span>&#160;<span class="keyword">using</span> KernelConstructor = std::function&lt;Kernel*(const Kernel::Config&amp; config)&gt;;</div>
+<div class="line"><a name="l00153"></a><span class="lineno">  153</span>&#160;</div>
+<div class="line"><a name="l00154"></a><span class="lineno">  154</span>&#160;<span class="keyword">class </span>KernelRegistration {</div>
+<div class="line"><a name="l00155"></a><span class="lineno">  155</span>&#160; <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00156"></a><span class="lineno">  156</span>&#160;  KernelRegistration(<span class="keyword">const</span> KernelBuilder&amp; builder);</div>
+<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160;};</div>
+<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160;</div>
+<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;<span class="keyword">class </span>KernelBuilder {</div>
+<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160; <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00161"></a><span class="lineno">  161</span>&#160;  <span class="keyword">friend</span> <span class="keyword">class </span>KernelRegistration;</div>
+<div class="line"><a name="l00162"></a><span class="lineno">  162</span>&#160;</div>
+<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;  KernelBuilder(<span class="keyword">const</span> std::string&amp; name, KernelConstructor constructor)</div>
+<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;    : name_(name), constructor_(constructor) {}</div>
 <div class="line"><a name="l00165"></a><span class="lineno">  165</span>&#160;</div>
-<div class="line"><a name="l00166"></a><span class="lineno">  166</span>&#160; <span class="keyword">private</span>:</div>
-<div class="line"><a name="l00167"></a><span class="lineno">  167</span>&#160;  std::string name_;</div>
-<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;  KernelConstructor constructor_;</div>
-<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;  DeviceType device_type_;</div>
-<div class="line"><a name="l00170"></a><span class="lineno">  170</span>&#160;  i32 num_devices_;</div>
-<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;};</div>
-<div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;}</div>
-<div class="line"><a name="l00173"></a><span class="lineno">  173</span>&#160;</div>
-<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;<span class="preprocessor">#define REGISTER_KERNEL(name__, kernel__) \</span></div>
-<div class="line"><a name="l00175"></a><span class="lineno">  175</span>&#160;<span class="preprocessor">  REGISTER_KERNEL_HELPER(__COUNTER__, name__, kernel__)</span></div>
-<div class="line"><a name="l00176"></a><span class="lineno">  176</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00177"></a><span class="lineno">  177</span>&#160;<span class="preprocessor">#define REGISTER_KERNEL_HELPER(uid__, name__, kernel__) \</span></div>
-<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;<span class="preprocessor">  REGISTER_KERNEL_UID(uid__, name__, kernel__)</span></div>
-<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;<span class="preprocessor">#define REGISTER_KERNEL_UID(uid__, name__, kernel__)                         \</span></div>
-<div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160;<span class="preprocessor">  static ::scanner::internal::KernelRegistration kernel_registration_##uid__ \</span></div>
-<div class="line"><a name="l00182"></a><span class="lineno">  182</span>&#160;<span class="preprocessor">    __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \</span></div>
-<div class="line"><a name="l00183"></a><span class="lineno">  183</span>&#160;<span class="preprocessor">      #name__, [](const ::scanner::Kernel::Config&amp; config) {                 \</span></div>
-<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;<span class="preprocessor">        return new kernel__(config);                                         \</span></div>
-<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;<span class="preprocessor">      })</span></div>
-<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;<span class="preprocessor"></span>}</div>
-<div class="ttc" id="structscanner_1_1Row_html"><div class="ttname"><a href="structscanner_1_1Row.html">scanner::Row</a></div><div class="ttdef"><b>Definition:</b> kernel.h:31</div></div>
-<div class="ttc" id="structscanner_1_1RowList_html"><div class="ttname"><a href="structscanner_1_1RowList.html">scanner::RowList</a></div><div class="ttdef"><b>Definition:</b> kernel.h:36</div></div>
-<div class="ttc" id="classscanner_1_1VideoKernel_html"><div class="ttname"><a href="classscanner_1_1VideoKernel.html">scanner::VideoKernel</a></div><div class="ttdef"><b>Definition:</b> kernel.h:118</div></div>
-<div class="ttc" id="classscanner_1_1internal_1_1KernelRegistration_html"><div class="ttname"><a href="classscanner_1_1internal_1_1KernelRegistration.html">scanner::internal::KernelRegistration</a></div><div class="ttdef"><b>Definition:</b> kernel.h:144</div></div>
-<div class="ttc" id="classscanner_1_1internal_1_1KernelBuilder_html"><div class="ttname"><a href="classscanner_1_1internal_1_1KernelBuilder.html">scanner::internal::KernelBuilder</a></div><div class="ttdef"><b>Definition:</b> kernel.h:149</div></div>
-<div class="ttc" id="structscanner_1_1Kernel_1_1Config_html"><div class="ttname"><a href="structscanner_1_1Kernel_1_1Config.html">scanner::Kernel::Config</a></div><div class="ttdef"><b>Definition:</b> kernel.h:55</div></div>
+<div class="line"><a name="l00166"></a><span class="lineno">  166</span>&#160;  KernelBuilder&amp; device(DeviceType device_type) {</div>
+<div class="line"><a name="l00167"></a><span class="lineno">  167</span>&#160;    device_type_ = device_type;</div>
+<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;    <span class="keywordflow">return</span> *<span class="keyword">this</span>;</div>
+<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;  }</div>
+<div class="line"><a name="l00170"></a><span class="lineno">  170</span>&#160;</div>
+<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;  KernelBuilder&amp; num_devices(i32 devices) {</div>
+<div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;    num_devices_ = devices;</div>
+<div class="line"><a name="l00173"></a><span class="lineno">  173</span>&#160;    <span class="keywordflow">return</span> *<span class="keyword">this</span>;</div>
+<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;  }</div>
+<div class="line"><a name="l00175"></a><span class="lineno">  175</span>&#160;</div>
+<div class="line"><a name="l00176"></a><span class="lineno">  176</span>&#160; <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00177"></a><span class="lineno">  177</span>&#160;  std::string name_;</div>
+<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;  KernelConstructor constructor_;</div>
+<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160;  DeviceType device_type_;</div>
+<div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;  i32 num_devices_;</div>
+<div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160;};</div>
+<div class="line"><a name="l00182"></a><span class="lineno">  182</span>&#160;}</div>
+<div class="line"><a name="l00183"></a><span class="lineno">  183</span>&#160;</div>
+<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;<span class="preprocessor">#define REGISTER_KERNEL(name__, kernel__) \</span></div>
+<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;<span class="preprocessor">  REGISTER_KERNEL_HELPER(__COUNTER__, name__, kernel__)</span></div>
+<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;<span class="preprocessor">#define REGISTER_KERNEL_HELPER(uid__, name__, kernel__) \</span></div>
+<div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160;<span class="preprocessor">  REGISTER_KERNEL_UID(uid__, name__, kernel__)</span></div>
+<div class="line"><a name="l00189"></a><span class="lineno">  189</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160;<span class="preprocessor">#define REGISTER_KERNEL_UID(uid__, name__, kernel__)                         \</span></div>
+<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;<span class="preprocessor">  static ::scanner::internal::KernelRegistration kernel_registration_##uid__ \</span></div>
+<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160;<span class="preprocessor">    __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \</span></div>
+<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;<span class="preprocessor">      #name__, [](const ::scanner::Kernel::Config&amp; config) {                 \</span></div>
+<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;<span class="preprocessor">        return new kernel__(config);                                         \</span></div>
+<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;<span class="preprocessor">      })</span></div>
+<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;<span class="preprocessor"></span>}</div>
+<div class="ttc" id="structscanner_1_1Row_html"><div class="ttname"><a href="structscanner_1_1Row.html">scanner::Row</a></div><div class="ttdoc">Row in a Scanner table, byte buffer of arbitrary size. </div><div class="ttdef"><b>Definition:</b> kernel.h:28</div></div>
+<div class="ttc" id="structscanner_1_1RowList_html"><div class="ttname"><a href="structscanner_1_1RowList.html">scanner::RowList</a></div><div class="ttdoc">Each column is a RowList. </div><div class="ttdef"><b>Definition:</b> kernel.h:34</div></div>
+<div class="ttc" id="classscanner_1_1VideoKernel_html"><div class="ttname"><a href="classscanner_1_1VideoKernel.html">scanner::VideoKernel</a></div><div class="ttdoc">Kernel with support for frame and frame_info columns. </div><div class="ttdef"><b>Definition:</b> kernel.h:119</div></div>
+<div class="ttc" id="classscanner_1_1VideoKernel_html_ac71978adb7309445ec54d9f484c0a4a1"><div class="ttname"><a href="classscanner_1_1VideoKernel.html#ac71978adb7309445ec54d9f484c0a4a1">scanner::VideoKernel::check_frame_info</a></div><div class="ttdeci">void check_frame_info(const DeviceHandle &amp;device, const RowList &amp;row_list)</div><div class="ttdoc">Checks frame info column against cached data. </div><div class="ttdef"><b>Definition:</b> kernel.cpp:25</div></div>
+<div class="ttc" id="classscanner_1_1VideoKernel_html_a4bae7eb944b6099db1ff94db1eed616d"><div class="ttname"><a href="classscanner_1_1VideoKernel.html#a4bae7eb944b6099db1ff94db1eed616d">scanner::VideoKernel::new_frame_info</a></div><div class="ttdeci">virtual void new_frame_info()</div><div class="ttdoc">Callback for if frame info changes. </div><div class="ttdef"><b>Definition:</b> kernel.h:134</div></div>
+<div class="ttc" id="structscanner_1_1Kernel_1_1Config_html_a7121a3c2e4c074dbf5d215330cb3da94"><div class="ttname"><a href="structscanner_1_1Kernel_1_1Config.html#a7121a3c2e4c074dbf5d215330cb3da94">scanner::Kernel::Config::input_columns</a></div><div class="ttdeci">std::vector&lt; std::string &gt; input_columns</div><div class="ttdef"><b>Definition:</b> kernel.h:57</div></div>
+<div class="ttc" id="structscanner_1_1Kernel_1_1Config_html"><div class="ttname"><a href="structscanner_1_1Kernel_1_1Config.html">scanner::Kernel::Config</a></div><div class="ttdoc">Kernel parameters provided at instantiation. </div><div class="ttdef"><b>Definition:</b> kernel.h:54</div></div>
 <div class="ttc" id="classscanner_1_1Kernel_html_aa00bb120cfbc269db4456e2a3c2c3a9b"><div class="ttname"><a href="classscanner_1_1Kernel.html#aa00bb120cfbc269db4456e2a3c2c3a9b">scanner::Kernel::profiler_</a></div><div class="ttdeci">Profiler * profiler_</div><div class="ttdef"><b>Definition:</b> kernel.h:115</div></div>
-<div class="ttc" id="classscanner_1_1Kernel_html_a983fd890a5282d341aacdd84dcc69e73"><div class="ttname"><a href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">scanner::Kernel::validate</a></div><div class="ttdeci">virtual void validate(proto::Result *result)</div><div class="ttdoc">TODO. </div><div class="ttdef"><b>Definition:</b> kernel.h:72</div></div>
-<div class="ttc" id="classscanner_1_1Kernel_html_abd94a7909c3eca198e04460c2891272f"><div class="ttname"><a href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">scanner::Kernel::set_profiler</a></div><div class="ttdeci">virtual void set_profiler(Profiler *profiler)</div><div class="ttdef"><b>Definition:</b> kernel.h:108</div></div>
+<div class="ttc" id="classscanner_1_1Kernel_html_a983fd890a5282d341aacdd84dcc69e73"><div class="ttname"><a href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">scanner::Kernel::validate</a></div><div class="ttdeci">virtual void validate(proto::Result *result)</div><div class="ttdoc">Checks if kernel arguments are valid. </div><div class="ttdef"><b>Definition:</b> kernel.h:74</div></div>
+<div class="ttc" id="classscanner_1_1Kernel_html_abd94a7909c3eca198e04460c2891272f"><div class="ttname"><a href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">scanner::Kernel::set_profiler</a></div><div class="ttdeci">virtual void set_profiler(Profiler *profiler)</div><div class="ttdoc">Do not call this function. </div><div class="ttdef"><b>Definition:</b> kernel.h:108</div></div>
 <div class="ttc" id="classscanner_1_1Kernel_html_aee166f76d67a4bfbb2c3738bc01207af"><div class="ttname"><a href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">scanner::Kernel::execute</a></div><div class="ttdeci">virtual void execute(const BatchedColumns &amp;input_columns, BatchedColumns &amp;output_columns)=0</div><div class="ttdoc">Runs the op on input rows and produces equal number of output rows. </div></div>
-<div class="ttc" id="classscanner_1_1Kernel_html"><div class="ttname"><a href="classscanner_1_1Kernel.html">scanner::Kernel</a></div><div class="ttdoc">Interface for a unit of computation in a pipeline. </div><div class="ttdef"><b>Definition:</b> kernel.h:51</div></div>
-<div class="ttc" id="classscanner_1_1Kernel_html_a7fc6ff872855f9edc6456765ddf6a642"><div class="ttname"><a href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">scanner::Kernel::reset</a></div><div class="ttdeci">virtual void reset()</div><div class="ttdoc">Resets ops when about to receive non-consecutive inputs. </div><div class="ttdef"><b>Definition:</b> kernel.h:83</div></div>
+<div class="ttc" id="structscanner_1_1Kernel_1_1Config_html_a6e2dca08902d2395ede6f10e42e276ea"><div class="ttname"><a href="structscanner_1_1Kernel_1_1Config.html#a6e2dca08902d2395ede6f10e42e276ea">scanner::Kernel::Config::work_item_size</a></div><div class="ttdeci">i32 work_item_size</div><div class="ttdoc">Byte-string of proto args if given. </div><div class="ttdef"><b>Definition:</b> kernel.h:60</div></div>
+<div class="ttc" id="classscanner_1_1Kernel_html"><div class="ttname"><a href="classscanner_1_1Kernel.html">scanner::Kernel</a></div><div class="ttdoc">Interface for a unit of computation in a pipeline. </div><div class="ttdef"><b>Definition:</b> kernel.h:49</div></div>
+<div class="ttc" id="classscanner_1_1Kernel_html_a7fc6ff872855f9edc6456765ddf6a642"><div class="ttname"><a href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">scanner::Kernel::reset</a></div><div class="ttdeci">virtual void reset()</div><div class="ttdoc">Resets ops when about to receive non-consecutive inputs. </div><div class="ttdef"><b>Definition:</b> kernel.h:85</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

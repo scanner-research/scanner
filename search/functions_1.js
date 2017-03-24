@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['execute',['execute',['../classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af',1,'scanner::Kernel']]]
+  ['check_5fframe_5finfo',['check_frame_info',['../classscanner_1_1VideoKernel.html#ac71978adb7309445ec54d9f484c0a4a1',1,'scanner::VideoKernel']]]
 ];

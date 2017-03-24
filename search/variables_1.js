@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['ops',['ops',['../classscannerpy_1_1database_1_1Database.html#a77f1b14450c7cbd30607ef268e6b6a6c',1,'scannerpy::database::Database']]]
+  ['gpu_5fids',['gpu_ids',['../structscanner_1_1MachineParameters.html#ac15b074faf39ef8b1d92d45d3556b068',1,'scanner::MachineParameters']]]
 ];

@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -95,6 +94,11 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::VideoKernel Class Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p><a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a> with support for frame and frame_info columns.  
+ <a href="classscanner_1_1VideoKernel.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="kernel_8h_source.html">kernel.h</a>&gt;</code></p>
 <div class="dynheader">
 Inheritance diagram for scanner::VideoKernel:</div>
 <div class="dyncontent">
@@ -119,9 +123,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a4837532efb82bb06903b8e7436f7f8df inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a4837532efb82bb06903b8e7436f7f8df"></a>
 &#160;</td><td class="memItemRight" valign="bottom"><b>Kernel</b> (const <a class="el" href="structscanner_1_1Kernel_1_1Config.html">Config</a> &amp;config)</td></tr>
 <tr class="separator:a4837532efb82bb06903b8e7436f7f8df inherit pub_methods_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a983fd890a5282d341aacdd84dcc69e73 inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a983fd890a5282d341aacdd84dcc69e73"></a>
-virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">validate</a> (proto::Result *result)</td></tr>
-<tr class="memdesc:a983fd890a5282d341aacdd84dcc69e73 inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">TODO. <br/></td></tr>
+<tr class="memitem:a983fd890a5282d341aacdd84dcc69e73 inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">validate</a> (proto::Result *result)</td></tr>
+<tr class="memdesc:a983fd890a5282d341aacdd84dcc69e73 inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks if kernel arguments are valid.  <a href="#a983fd890a5282d341aacdd84dcc69e73">More...</a><br/></td></tr>
 <tr class="separator:a983fd890a5282d341aacdd84dcc69e73 inherit pub_methods_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7fc6ff872855f9edc6456765ddf6a642 inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">reset</a> ()</td></tr>
 <tr class="memdesc:a7fc6ff872855f9edc6456765ddf6a642 inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resets ops when about to receive non-consecutive inputs.  <a href="#a7fc6ff872855f9edc6456765ddf6a642">More...</a><br/></td></tr>
@@ -129,16 +132,19 @@ virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <tr class="memitem:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">execute</a> (const BatchedColumns &amp;input_columns, BatchedColumns &amp;output_columns)=0</td></tr>
 <tr class="memdesc:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the op on input rows and produces equal number of output rows.  <a href="#aee166f76d67a4bfbb2c3738bc01207af">More...</a><br/></td></tr>
 <tr class="separator:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abd94a7909c3eca198e04460c2891272f inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a> (Profiler *profiler)</td></tr>
+<tr class="memitem:abd94a7909c3eca198e04460c2891272f inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="abd94a7909c3eca198e04460c2891272f"></a>
+virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a> (Profiler *profiler)</td></tr>
+<tr class="memdesc:abd94a7909c3eca198e04460c2891272f inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Do not call this function. <br/></td></tr>
 <tr class="separator:abd94a7909c3eca198e04460c2891272f inherit pub_methods_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pro-methods"></a>
 Protected Member Functions</h2></td></tr>
-<tr class="memitem:ac71978adb7309445ec54d9f484c0a4a1"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ac71978adb7309445ec54d9f484c0a4a1"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>check_frame_info</b> (const DeviceHandle &amp;device, const <a class="el" href="structscanner_1_1RowList.html">RowList</a> &amp;row_list)</td></tr>
+<tr class="memitem:ac71978adb7309445ec54d9f484c0a4a1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1VideoKernel.html#ac71978adb7309445ec54d9f484c0a4a1">check_frame_info</a> (const DeviceHandle &amp;device, const <a class="el" href="structscanner_1_1RowList.html">RowList</a> &amp;row_list)</td></tr>
+<tr class="memdesc:ac71978adb7309445ec54d9f484c0a4a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks frame info column against cached data.  <a href="#ac71978adb7309445ec54d9f484c0a4a1">More...</a><br/></td></tr>
 <tr class="separator:ac71978adb7309445ec54d9f484c0a4a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4bae7eb944b6099db1ff94db1eed616d"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a4bae7eb944b6099db1ff94db1eed616d"></a>
-virtual void&#160;</td><td class="memItemRight" valign="bottom"><b>new_frame_info</b> ()</td></tr>
+virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1VideoKernel.html#a4bae7eb944b6099db1ff94db1eed616d">new_frame_info</a> ()</td></tr>
+<tr class="memdesc:a4bae7eb944b6099db1ff94db1eed616d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback for if frame info changes. <br/></td></tr>
 <tr class="separator:a4bae7eb944b6099db1ff94db1eed616d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pro-attribs"></a>
@@ -157,6 +163,46 @@ Additional Inherited Members</h2></td></tr>
 static const i32&#160;</td><td class="memItemRight" valign="bottom"><b>UnlimitedDevices</b> = 0</td></tr>
 <tr class="separator:a381928ec67f8e94a49ef340dbb72d2c6 inherit pub_static_attribs_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p><a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a> with support for frame and frame_info columns. </p>
+</div><h2 class="groupheader">Member Function Documentation</h2>
+<a class="anchor" id="ac71978adb7309445ec54d9f484c0a4a1"></a>
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void scanner::VideoKernel::check_frame_info </td>
+          <td>(</td>
+          <td class="paramtype">const DeviceHandle &amp;&#160;</td>
+          <td class="paramname"><em>device</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structscanner_1_1RowList.html">RowList</a> &amp;&#160;</td>
+          <td class="paramname"><em>row_list</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">protected</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Checks frame info column against cached data. </p>
+<p>This function should be called at the top of the execute function on the frame info column. If the frame info changes, e.g. the kernel is processing a new video, then this calls new_frame_info which you can override. </p>
+
+</div>
+</div>
 <hr/>The documentation for this class was generated from the following files:<ul>
 <li>scanner/api/<a class="el" href="kernel_8h_source.html">kernel.h</a></li>
 <li>scanner/api/kernel.cpp</li>

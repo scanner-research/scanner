@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -93,12 +92,17 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::JobParameters Struct Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p>Configuration for a Scanner job.  
+ <a href="structscanner_1_1JobParameters.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="database_8h_source.html">database.h</a>&gt;</code></p>
 <div class="dynheader">
 Collaboration diagram for scanner::JobParameters:</div>
 <div class="dyncontent">
 <div class="center"><img src="structscanner_1_1JobParameters__coll__graph.png" border="0" usemap="#scanner_1_1JobParameters_coll__map" alt="Collaboration graph"/></div>
 <map name="scanner_1_1JobParameters_coll__map" id="scanner_1_1JobParameters_coll__map">
-<area shape="rect" id="node2" href="structscanner_1_1TaskSet.html" title="scanner::TaskSet" alt="" coords="24,187,149,213"/><area shape="rect" id="node3" href="classscanner_1_1Op.html" title="scanner::Op" alt="" coords="40,96,133,123"/></map>
+<area shape="rect" id="node2" href="structscanner_1_1TaskSet.html" title="Set of tasks and a pipeline to run in a single job. " alt="" coords="24,187,149,213"/><area shape="rect" id="node3" href="classscanner_1_1Op.html" title="Interface for a computation unit implemented by a Kernel. " alt="" coords="40,96,133,123"/></map>
 <center><span class="legend">[<a href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
@@ -119,7 +123,9 @@ i32&#160;</td><td class="memItemRight" valign="bottom"><b>pipeline_instances_per
 i64&#160;</td><td class="memItemRight" valign="bottom"><b>work_item_size</b></td></tr>
 <tr class="separator:a92003c9b88cc2f9eb19127e473ca12d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<hr/>The documentation for this struct was generated from the following file:<ul>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Configuration for a Scanner job. </p>
+</div><hr/>The documentation for this struct was generated from the following file:<ul>
 <li>scanner/api/<a class="el" href="database_8h_source.html">database.h</a></li>
 </ul>
 </div><!-- contents -->

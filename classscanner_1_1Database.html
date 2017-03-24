@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -95,6 +94,11 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::Database Class Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p>Main entry point into Scanner.  
+ <a href="classscanner_1_1Database.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="database_8h_source.html">database.h</a>&gt;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="nested-classes"></a>
 Classes</h2></td></tr>
@@ -121,6 +125,9 @@ Result&#160;</td><td class="memItemRight" valign="bottom"><b>new_job</b> (<a cla
 <tr class="memitem:af537d1b1963cafded053d6ef8eab8b4c"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="af537d1b1963cafded053d6ef8eab8b4c"></a>
 Result&#160;</td><td class="memItemRight" valign="bottom"><b>new_table</b> (const std::string &amp;table_name, const std::vector&lt; std::string &gt; &amp;columns, const std::vector&lt; std::vector&lt; std::string &gt;&gt; &amp;rows)</td></tr>
 <tr class="separator:af537d1b1963cafded053d6ef8eab8b4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3d5e197599d90d523d6f3943f7e60424"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a3d5e197599d90d523d6f3943f7e60424"></a>
+Result&#160;</td><td class="memItemRight" valign="bottom"><b>delete_table</b> (const std::string &amp;table_name)</td></tr>
+<tr class="separator:a3d5e197599d90d523d6f3943f7e60424"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afad9939d88784047e200261df1292bd8"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="afad9939d88784047e200261df1292bd8"></a>
 Result&#160;</td><td class="memItemRight" valign="bottom"><b>shutdown_master</b> ()</td></tr>
 <tr class="separator:afad9939d88784047e200261df1292bd8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -140,7 +147,9 @@ Protected Member Functions</h2></td></tr>
 bool&#160;</td><td class="memItemRight" valign="bottom"><b>database_exists</b> ()</td></tr>
 <tr class="separator:ac88539a1dc4ccccca85b982cb4d658e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<hr/>The documentation for this class was generated from the following files:<ul>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Main entry point into Scanner. </p>
+</div><hr/>The documentation for this class was generated from the following files:<ul>
 <li>scanner/api/<a class="el" href="database_8h_source.html">database.h</a></li>
 <li>scanner/api/database.cpp</li>
 </ul>

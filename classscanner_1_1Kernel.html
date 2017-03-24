@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -106,7 +105,7 @@ Inheritance diagram for scanner::Kernel:</div>
 <div class="dyncontent">
 <div class="center"><img src="classscanner_1_1Kernel__inherit__graph.png" border="0" usemap="#scanner_1_1Kernel_inherit__map" alt="Inheritance graph"/></div>
 <map name="scanner_1_1Kernel_inherit__map" id="scanner_1_1Kernel_inherit__map">
-<area shape="rect" id="node2" href="classscanner_1_1VideoKernel.html" title="scanner::VideoKernel" alt="" coords="5,80,152,107"/></map>
+<area shape="rect" id="node2" href="classscanner_1_1VideoKernel.html" title="Kernel with support for frame and frame_info columns. " alt="" coords="5,80,152,107"/></map>
 <center><span class="legend">[<a href="graph_legend.html">legend</a>]</span></center></div>
 <div class="dynheader">
 Collaboration diagram for scanner::Kernel:</div>
@@ -119,6 +118,7 @@ Collaboration diagram for scanner::Kernel:</div>
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="nested-classes"></a>
 Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscanner_1_1Kernel_1_1Config.html">Config</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a> parameters provided at instantiation.  <a href="structscanner_1_1Kernel_1_1Config.html#details">More...</a><br/></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
@@ -126,9 +126,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a4837532efb82bb06903b8e7436f7f8df"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a4837532efb82bb06903b8e7436f7f8df"></a>
 &#160;</td><td class="memItemRight" valign="bottom"><b>Kernel</b> (const <a class="el" href="structscanner_1_1Kernel_1_1Config.html">Config</a> &amp;config)</td></tr>
 <tr class="separator:a4837532efb82bb06903b8e7436f7f8df"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a983fd890a5282d341aacdd84dcc69e73"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a983fd890a5282d341aacdd84dcc69e73"></a>
-virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">validate</a> (proto::Result *result)</td></tr>
-<tr class="memdesc:a983fd890a5282d341aacdd84dcc69e73"><td class="mdescLeft">&#160;</td><td class="mdescRight">TODO. <br/></td></tr>
+<tr class="memitem:a983fd890a5282d341aacdd84dcc69e73"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73">validate</a> (proto::Result *result)</td></tr>
+<tr class="memdesc:a983fd890a5282d341aacdd84dcc69e73"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks if kernel arguments are valid.  <a href="#a983fd890a5282d341aacdd84dcc69e73">More...</a><br/></td></tr>
 <tr class="separator:a983fd890a5282d341aacdd84dcc69e73"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7fc6ff872855f9edc6456765ddf6a642"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642">reset</a> ()</td></tr>
 <tr class="memdesc:a7fc6ff872855f9edc6456765ddf6a642"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resets ops when about to receive non-consecutive inputs.  <a href="#a7fc6ff872855f9edc6456765ddf6a642">More...</a><br/></td></tr>
@@ -136,7 +135,9 @@ virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <tr class="memitem:aee166f76d67a4bfbb2c3738bc01207af"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">execute</a> (const BatchedColumns &amp;input_columns, BatchedColumns &amp;output_columns)=0</td></tr>
 <tr class="memdesc:aee166f76d67a4bfbb2c3738bc01207af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the op on input rows and produces equal number of output rows.  <a href="#aee166f76d67a4bfbb2c3738bc01207af">More...</a><br/></td></tr>
 <tr class="separator:aee166f76d67a4bfbb2c3738bc01207af"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abd94a7909c3eca198e04460c2891272f"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a> (Profiler *profiler)</td></tr>
+<tr class="memitem:abd94a7909c3eca198e04460c2891272f"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="abd94a7909c3eca198e04460c2891272f"></a>
+virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a> (Profiler *profiler)</td></tr>
+<tr class="memdesc:abd94a7909c3eca198e04460c2891272f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Do not call this function. <br/></td></tr>
 <tr class="separator:abd94a7909c3eca198e04460c2891272f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-attribs"></a>
@@ -225,7 +226,7 @@ Protected Attributes</h2></td></tr>
 
 </div>
 </div>
-<a class="anchor" id="abd94a7909c3eca198e04460c2891272f"></a>
+<a class="anchor" id="a983fd890a5282d341aacdd84dcc69e73"></a>
 <div class="memitem">
 <div class="memproto">
 <table class="mlabels">
@@ -233,10 +234,10 @@ Protected Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">virtual void scanner::Kernel::set_profiler </td>
+          <td class="memname">virtual void scanner::Kernel::validate </td>
           <td>(</td>
-          <td class="paramtype">Profiler *&#160;</td>
-          <td class="paramname"><em>profiler</em></td><td>)</td>
+          <td class="paramtype">proto::Result *&#160;</td>
+          <td class="paramname"><em>result</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -246,7 +247,9 @@ Protected Attributes</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-<p>Do not call this function. </p>
+
+<p>Checks if kernel arguments are valid. </p>
+<p>Only useful if your kernel has its own custom Protobuf arguments. </p>
 
 </div>
 </div>

@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -94,6 +93,11 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::Op Class Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p>Interface for a computation unit implemented by a <a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a>.  
+ <a href="classscanner_1_1Op.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="op_8h_source.html">op.h</a>&gt;</code></p>
 <div class="dynheader">
 Collaboration diagram for scanner::Op:</div>
 <div class="dyncontent">
@@ -141,7 +145,9 @@ char *&#160;</td><td class="memItemRight" valign="bottom"><b>args_</b></td></tr>
 size_t&#160;</td><td class="memItemRight" valign="bottom"><b>args_size_</b></td></tr>
 <tr class="separator:aab86c4941d3a955ed2bff1322ff444d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<hr/>The documentation for this class was generated from the following files:<ul>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Interface for a computation unit implemented by a <a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a>. </p>
+</div><hr/>The documentation for this class was generated from the following files:<ul>
 <li>scanner/api/<a class="el" href="op_8h_source.html">op.h</a></li>
 <li>scanner/api/op.cpp</li>
 </ul>

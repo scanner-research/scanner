@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -93,14 +92,18 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::Kernel::Config Struct Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p><a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a> parameters provided at instantiation.  
+ <a href="structscanner_1_1Kernel_1_1Config.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="kernel_8h_source.html">kernel.h</a>&gt;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
 <tr class="memitem:a82fd2fecc6ac5e2df63447dd283150a5"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a82fd2fecc6ac5e2df63447dd283150a5"></a>
 std::vector&lt; DeviceHandle &gt;&#160;</td><td class="memItemRight" valign="bottom"><b>devices</b></td></tr>
 <tr class="separator:a82fd2fecc6ac5e2df63447dd283150a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7121a3c2e4c074dbf5d215330cb3da94"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a7121a3c2e4c074dbf5d215330cb3da94"></a>
-std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><b>input_columns</b></td></tr>
+<tr class="memitem:a7121a3c2e4c074dbf5d215330cb3da94"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscanner_1_1Kernel_1_1Config.html#a7121a3c2e4c074dbf5d215330cb3da94">input_columns</a></td></tr>
 <tr class="separator:a7121a3c2e4c074dbf5d215330cb3da94"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aecaaff760d40797970453dc7ec6e3f7d"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="aecaaff760d40797970453dc7ec6e3f7d"></a>
 std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><b>output_columns</b></td></tr>
@@ -109,7 +112,8 @@ std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bott
 std::vector&lt; u8 &gt;&#160;</td><td class="memItemRight" valign="bottom"><b>args</b></td></tr>
 <tr class="separator:a81ce46cdbd8d0425f464a8dfbd7b152e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6e2dca08902d2395ede6f10e42e276ea"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a6e2dca08902d2395ede6f10e42e276ea"></a>
-i32&#160;</td><td class="memItemRight" valign="bottom"><b>work_item_size</b></td></tr>
+i32&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscanner_1_1Kernel_1_1Config.html#a6e2dca08902d2395ede6f10e42e276ea">work_item_size</a></td></tr>
+<tr class="memdesc:a6e2dca08902d2395ede6f10e42e276ea"><td class="mdescLeft">&#160;</td><td class="mdescRight">Byte-string of proto args if given. <br/></td></tr>
 <tr class="separator:a6e2dca08902d2395ede6f10e42e276ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac6776704f7e8ff8de075b4c5da49c3e0"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ac6776704f7e8ff8de075b4c5da49c3e0"></a>
 i32&#160;</td><td class="memItemRight" valign="bottom"><b>node_id</b></td></tr>
@@ -118,6 +122,22 @@ i32&#160;</td><td class="memItemRight" valign="bottom"><b>node_id</b></td></tr>
 i32&#160;</td><td class="memItemRight" valign="bottom"><b>node_count</b></td></tr>
 <tr class="separator:ac3c34c62d27ebbdfc927c85710b8f2ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p><a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a> parameters provided at instantiation. </p>
+</div><h2 class="groupheader">Member Data Documentation</h2>
+<a class="anchor" id="a7121a3c2e4c074dbf5d215330cb3da94"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::vector&lt;std::string&gt; scanner::Kernel::Config::input_columns</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Non-empty set of devices provided to the kernel. </p>
+
+</div>
+</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li>scanner/api/<a class="el" href="kernel_8h_source.html">kernel.h</a></li>
 </ul>

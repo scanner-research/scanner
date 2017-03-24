@@ -37,7 +37,6 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li><a href="namespaces.html"><span>Namespaces</span></a></li>
       <li class="current"><a href="annotated.html"><span>Classes</span></a></li>
       <li><a href="files.html"><span>Files</span></a></li>
       <li>
@@ -71,7 +70,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
      onmouseover="return searchBox.OnSearchSelectShow()"
      onmouseout="return searchBox.OnSearchSelectHide()"
      onkeydown="return searchBox.OnSearchSelectKey(event)">
-<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Namespaces</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(4)"><span class="SelectionMark">&#160;</span>Variables</a></div>
+<a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(0)"><span class="SelectionMark">&#160;</span>All</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(1)"><span class="SelectionMark">&#160;</span>Classes</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(2)"><span class="SelectionMark">&#160;</span>Functions</a><a class="SelectItem" href="javascript:void(0)" onclick="searchBox.OnSelectItem(3)"><span class="SelectionMark">&#160;</span>Variables</a></div>
 
 <!-- iframe showing the search results (closed by default) -->
 <div id="MSearchResultsWindow">
@@ -93,6 +92,11 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">scanner::MachineParameters Struct Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p>Description of resources for a given machine.  
+ <a href="structscanner_1_1MachineParameters.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="database_8h_source.html">database.h</a>&gt;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
@@ -106,10 +110,13 @@ i32&#160;</td><td class="memItemRight" valign="bottom"><b>num_load_workers</b></
 i32&#160;</td><td class="memItemRight" valign="bottom"><b>num_save_workers</b></td></tr>
 <tr class="separator:a23844202b2293fe226472601fc6776c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac15b074faf39ef8b1d92d45d3556b068"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ac15b074faf39ef8b1d92d45d3556b068"></a>
-std::vector&lt; i32 &gt;&#160;</td><td class="memItemRight" valign="bottom"><b>gpu_ids</b></td></tr>
+std::vector&lt; i32 &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscanner_1_1MachineParameters.html#ac15b074faf39ef8b1d92d45d3556b068">gpu_ids</a></td></tr>
+<tr class="memdesc:ac15b074faf39ef8b1d92d45d3556b068"><td class="mdescLeft">&#160;</td><td class="mdescRight">List of CUDA device IDs that Scanner should use. <br/></td></tr>
 <tr class="separator:ac15b074faf39ef8b1d92d45d3556b068"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<hr/>The documentation for this struct was generated from the following file:<ul>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Description of resources for a given machine. </p>
+</div><hr/>The documentation for this struct was generated from the following file:<ul>
 <li>scanner/api/<a class="el" href="database_8h_source.html">database.h</a></li>
 </ul>
 </div><!-- contents -->
