@@ -286,8 +286,6 @@ class Database:
             return Popen(cmd, shell=True)
         else:
             cmd = cmd.replace('"', '\\"')
-            #cmd = cmd.replace('\'', '\\\'')
-            #print("ssh {} \"{}\"".format(host_ip, cmd))
             return Popen("ssh {} \"cd {} && {}\"".format(host_ip, os.getcwd(), cmd), shell=True)
 
     def start_cluster(self, master, workers):

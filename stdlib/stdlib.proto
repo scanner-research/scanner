@@ -34,3 +34,18 @@ message CPM2Args {
   CaffeArgs caffe_args = 1;
   float scale = 2;
 }
+
+message GipumaArgs {
+  message Camera {
+    repeated float p = 1 [packed=true];
+  }
+
+  repeated Camera cameras = 1;
+  float min_disparity = 2;
+  float max_disparity = 3;
+  float min_depth = 4;
+  float max_depth = 5;
+  float iterations = 6;
+  int32 kernel_width = 7;
+  int32 kernel_height = 8;
+}
