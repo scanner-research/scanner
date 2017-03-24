@@ -15,11 +15,12 @@ Scanner provides a Python API to organize your videos and run high-performance f
 ```python
 from scannerpy import Database, DeviceType
 from scannerpy.stdlib import parsers
-db = Database()
-videos = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
-hist = db.ops.Histogram(device=DeviceType.GPU)
-output = db.run(videos, hist, 'my_videos_hist')
-vid0_hists = output.tables(0).columns(0).load(parsers.histograms)
+
+with Database() as db:
+    videos = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
+    hist = db.ops.Histogram(device=DeviceType.GPU)
+    output = db.run(videos, hist, 'my_videos_hist')
+    vid0_hists = output.tables(0).columns(0).load(parsers.histograms)
 ```
 
 [Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
