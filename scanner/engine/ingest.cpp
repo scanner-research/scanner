@@ -112,10 +112,10 @@ bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
 
   size_t avio_context_buffer_size = 4096;
   u8* avio_context_buffer =
-      static_cast<u8*>(av_malloc(avio_context_buffer_size));
+    static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
-      avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
-                         &read_packet, NULL, &seek);
+    avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
+                       &read_packet, NULL, &seek);
   state.format_context->pb = state.io_context;
 
   // Read file header
@@ -134,15 +134,15 @@ bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
 
   // Find the best video stream in our input video
   state.video_stream_index = av_find_best_stream(
-      state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
-      -1 /* no related stream */, &state.in_codec, 0 /* flags */);
+    state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
+    -1 /* no related stream */, &state.in_codec, 0 /* flags */);
   if (state.video_stream_index < 0) {
     LOG(ERROR) << "could not find best stream";
     return false;
   }
 
   AVStream const* const in_stream =
-      state.format_context->streams[state.video_stream_index];
+    state.format_context->streams[state.video_stream_index];
 
   state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   if (state.in_codec == NULL) {
@@ -206,8 +206,8 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   table_desc.set_name(table_name);
   table_desc.set_job_id(-1);
   table_desc.set_timestamp(
-      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
-          .count());
+    std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+      .count());
 
   {
     Column* index_col = table_desc.add_columns();
@@ -337,9 +337,9 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
     u8* filtered_data;
     i32 filtered_data_size;
     if (av_bitstream_filter_filter(
-            state.annexb, state.in_cc, NULL, &filtered_data,
-            &filtered_data_size, state.av_packet.data, state.av_packet.size,
-            state.av_packet.flags & AV_PKT_FLAG_KEY) < 0) {
+          state.annexb, state.in_cc, NULL, &filtered_data, &filtered_data_size,
+          state.av_packet.data, state.av_packet.size,
+          state.av_packet.flags & AV_PKT_FLAG_KEY) < 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
       LOG(ERROR) << "Error while filtering " << frame << " (" << frame
@@ -436,6 +436,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
         gb.offset = 0;
         SPS sps;
         if (!parse_sps(gb, sps)) {
+          error_message = "Failed to parse sps";
           return false;
         }
         i32 sps_id = sps.sps_id;
@@ -455,6 +456,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
         gb.offset = 0;
         PPS pps;
         if (!parse_pps(gb, pps)) {
+          error_message = "Failed to parse pps";
           return false;
         }
         pps_map[pps.pps_id] = pps;
@@ -476,6 +478,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
         SliceHeader sh;
         if (!parse_slice_header(gb, sps_map.at(last_sps), pps_map,
                                 nal_unit_type, nal_ref_idc, sh)) {
+          error_message = "Failed to parse slice header";
           return false;
         }
         if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
@@ -910,10 +913,10 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
   av_register_all();
 
   std::unique_ptr<storehouse::StorageBackend> storage{
-      storehouse::StorageBackend::make_from_config(storage_config)};
+    storehouse::StorageBackend::make_from_config(storage_config)};
 
   internal::DatabaseMetadata meta = internal::read_database_metadata(
-      storage.get(), internal::DatabaseMetadata::descriptor_path());
+    storage.get(), internal::DatabaseMetadata::descriptor_path());
   std::vector<i32> table_ids;
   std::set<std::string> inserted_table_names;
   for (size_t i = 0; i < table_names.size(); ++i) {
@@ -941,7 +944,7 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
   i32 videos_allocated = 0;
   for (i32 t = 0; t < num_threads; ++t) {
     i32 to_allocate =
-        (table_names.size() - videos_allocated) / (num_threads - t);
+      (table_names.size() - videos_allocated) / (num_threads - t);
     i32 start = videos_allocated;
     videos_allocated += to_allocate;
     videos_allocated = std::min((size_t)videos_allocated, table_names.size());
@@ -987,7 +990,7 @@ void ingest_images(storehouse::StorageConfig* storage_config,
   internal::set_database_path(db_path);
 
   std::unique_ptr<storehouse::StorageBackend> storage{
-      storehouse::StorageBackend::make_from_config(storage_config)};
+    storehouse::StorageBackend::make_from_config(storage_config)};
 
   LOG(FATAL) << "Image ingest under construction!" << std::endl;
 

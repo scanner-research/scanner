@@ -83,6 +83,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
     std::vector<std::vector<std::string>> op_outputs;
     for (auto& op : task_set.ops()) {
       op_names.push_back(op.name());
+
       if (op_idx == 0) {
         if (op.name() != "InputTable") {
           RESULT_ERROR(result, "First Op is %s but must be Op InputTable",
@@ -114,6 +115,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                        (op.device_type() == DeviceType::CPU ? "CPU" : "GPU"));
         }
       }
+      i32 input_count = 0;
       for (auto& input : op.inputs()) {
         if (input.op_index() >= op_idx) {
           RESULT_ERROR(result,
@@ -123,6 +125,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
         } else {
           std::string& input_op_name = op_names.at(input.op_index());
           std::vector<std::string>& inputs = op_outputs.at(input.op_index());
+          input_count += input.columns().size();
           for (auto& col : input.columns()) {
             bool found = false;
             for (auto& out_col : inputs) {
@@ -139,6 +142,18 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                            op.name().c_str(), op_idx, col.c_str(),
                            input_op_name.c_str(), input.op_index());
             }
+          }
+        }
+      }
+      if (op.name() != "OutputTable") {
+        OpInfo* info = op_registry->get_op_info(op.name());
+        if (!info->variadic_inputs()) {
+          i32 expected_inputs = info->input_columns().size();
+          if (expected_inputs != input_count) {
+            RESULT_ERROR(
+              result,
+              "Op %s at index %d expects %d input columns, but received %d",
+              op.name().c_str(), op_idx, expected_inputs, input_count);
           }
         }
       }
