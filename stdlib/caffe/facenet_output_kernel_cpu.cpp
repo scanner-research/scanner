@@ -180,7 +180,9 @@ class FacenetOutputKernel : public VideoKernel {
   double threshold_;
 };
 
-REGISTER_OP(FacenetOutput).inputs({"facenet_output"}).outputs({"bboxes"});
+REGISTER_OP(FacenetOutput)
+  .inputs({"facenet_output", "frame_info"})
+  .outputs({"bboxes"});
 REGISTER_KERNEL(FacenetOutput, FacenetOutputKernel)
   .device(DeviceType::CPU)
   .num_devices(1);

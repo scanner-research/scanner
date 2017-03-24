@@ -84,9 +84,21 @@ class OpBuilder {
  public:
   friend class OpRegistration;
 
-  OpBuilder(const std::string& name) : name_(name) {}
+  OpBuilder(const std::string& name) : name_(name), variadic_inputs_(false) {}
+
+  OpBuilder& variadic_inputs() {
+    if (input_columns_.size() > 0) {
+      LOG(FATAL) << "Op " << name_ << " cannot have both fixed and variadic "
+                 << "inputs";
+    }
+    variadic_inputs_ = true;
+  }
 
   OpBuilder& inputs(const std::vector<std::string>& columns) {
+    if (variadic_inputs_) {
+      LOG(FATAL) << "Op " << name_ << " cannot have both fixed and variadic "
+                 << "inputs";
+    }
     input_columns_ = columns;
     return *this;
   }
@@ -98,6 +110,7 @@ class OpBuilder {
 
  private:
   std::string name_;
+  bool variadic_inputs_;
   std::vector<std::string> input_columns_;
   std::vector<std::string> output_columns_;
 };

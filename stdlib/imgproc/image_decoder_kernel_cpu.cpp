@@ -14,8 +14,8 @@ class ImageDecoderKernel : public Kernel {
     i32 input_count = input_columns[0].rows.size();
     for (i32 i = 0; i < input_count; ++i) {
       std::vector<u8> input_buf(
-          input_columns[0].rows[i].buffer,
-          input_columns[0].rows[i].buffer + input_columns[0].rows[i].size);
+        input_columns[0].rows[i].buffer,
+        input_columns[0].rows[i].buffer + input_columns[0].rows[i].size);
       cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
       LOG_IF(FATAL, img.empty() || !img.data) << "Failed to decode image";
       size_t size = img.total() * img.elemSize();
@@ -37,6 +37,6 @@ class ImageDecoderKernel : public Kernel {
 REGISTER_OP(ImageDecoder).inputs({"img"}).outputs({"frame", "frame_info"});
 
 REGISTER_KERNEL(ImageDecoder, ImageDecoderKernel)
-    .device(DeviceType::CPU)
-    .num_devices(1);
+  .device(DeviceType::CPU)
+  .num_devices(1);
 }

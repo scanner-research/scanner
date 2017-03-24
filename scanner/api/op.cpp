@@ -21,11 +21,11 @@ namespace scanner {
 
 Op::Op(const std::string& name, const std::vector<OpInput>& inputs,
        DeviceType device_type, char* args, size_t args_size)
-    : name_(name),
-      inputs_(inputs),
-      type_(device_type),
-      args_(args),
-      args_size_(args_size) {}
+  : name_(name),
+    inputs_(inputs),
+    type_(device_type),
+    args_(args),
+    args_size_(args_size) {}
 
 const std::string& Op::get_name() const { return name_; }
 
@@ -54,9 +54,11 @@ namespace internal {
 
 OpRegistration::OpRegistration(const OpBuilder& builder) {
   const std::string& name = builder.name_;
+  const bool variadic_inputs = builder.variadic_inputs_;
   const std::vector<std::string>& input_columns = builder.input_columns_;
   const std::vector<std::string>& output_columns = builder.output_columns_;
-  OpInfo* info = new OpInfo(name, input_columns, output_columns);
+  OpInfo* info =
+    new OpInfo(name, variadic_inputs, input_columns, output_columns);
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
 }

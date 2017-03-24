@@ -25,13 +25,17 @@ namespace internal {
 
 class OpInfo {
  public:
-  OpInfo(const std::string& name, const std::vector<std::string>& input_columns,
+  OpInfo(const std::string& name, bool variadic_inputs,
+         const std::vector<std::string>& input_columns,
          const std::vector<std::string>& output_columns)
-      : name_(name),
-        input_columns_(input_columns),
-        output_columns_(output_columns) {}
+    : name_(name),
+      variadic_inputs_(variadic_inputs),
+      input_columns_(input_columns),
+      output_columns_(output_columns) {}
 
   const std::string& name() const { return name_; }
+
+  const bool variadic_inputs() const { return variadic_inputs_; }
 
   const std::vector<std::string>& input_columns() const {
     return input_columns_;
@@ -43,6 +47,7 @@ class OpInfo {
 
  private:
   std::string name_;
+  bool variadic_inputs_;
   std::vector<std::string> input_columns_;
   std::vector<std::string> output_columns_;
 };
