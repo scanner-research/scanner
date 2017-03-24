@@ -24,6 +24,7 @@ namespace scanner {
 
 struct OpInput;
 
+//! Interface for a computation unit implemented by a Kernel.
 class Op {
  public:
   Op(const std::string& name, const std::vector<OpInput>& inputs,
@@ -49,10 +50,11 @@ class Op {
   size_t args_size_;
 };
 
+//! Set of inputs provded to an op in a computation DAG.
 class OpInput {
  public:
   OpInput(Op* op, const std::vector<std::string>& columns)
-      : op(op), columns(columns) {}
+    : op(op), columns(columns) {}
 
   Op* get_op() const;
 
@@ -105,5 +107,5 @@ class OpBuilder {
 
 #define REGISTER_OP_UID(uid__, name__)                               \
   static ::scanner::internal::OpRegistration op_registration_##uid__ \
-      __attribute__((unused)) = ::scanner::internal::OpBuilder(#name__)
+    __attribute__((unused)) = ::scanner::internal::OpBuilder(#name__)
 }

@@ -26,15 +26,19 @@
 
 namespace scanner {
 
+//! Description of resources for a given machine.
 struct MachineParameters {
   i32 num_cpus;
   i32 num_load_workers;
   i32 num_save_workers;
-  std::vector<i32> gpu_ids;
+  std::vector<i32>
+    gpu_ids;  //!< List of CUDA device IDs that Scanner should use.
 };
 
+//! Pick smart defaults for the current machine.
 MachineParameters default_machine_params();
 
+//! Set of frames to sample from a table.
 struct TableSample {
   std::string table_name;
   std::vector<std::string> column_names;
@@ -42,16 +46,19 @@ struct TableSample {
   std::vector<u8> sampling_args;
 };
 
+//! Set of table samples to compute at once.
 struct Task {
   std::string output_table_name;
   std::vector<TableSample> samples;
 };
 
+//! Set of tasks and a pipeline to run in a single job.
 struct TaskSet {
   std::vector<Task> tasks;
   Op* output_op;
 };
 
+//! Configuration for a Scanner job.
 struct JobParameters {
   std::string job_name;
   TaskSet task_set;
@@ -61,11 +68,13 @@ struct JobParameters {
   i64 work_item_size;
 };
 
+//! Info about a video that fails to ingest.
 struct FailedVideo {
   std::string path;
   std::string message;
 };
 
+//! Main entry point into Scanner.
 class Database {
  public:
   Database(storehouse::StorageConfig* storage_config,
@@ -89,6 +98,8 @@ class Database {
   Result new_table(const std::string& table_name,
                    const std::vector<std::string>& columns,
                    const std::vector<std::vector<std::string>>& rows);
+
+  Result delete_table(const std::string& table_name);
 
   Result shutdown_master();
 

@@ -142,8 +142,8 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
 }
 
 internal::DatabaseParameters machine_params_to_db_params(
-    const MachineParameters& params, storehouse::StorageConfig* sc,
-    const std::string db_path) {
+  const MachineParameters& params, storehouse::StorageConfig* sc,
+  const std::string db_path) {
   internal::DatabaseParameters db;
   db.storage_config = sc;
   db.db_path = db_path;
@@ -173,10 +173,10 @@ MachineParameters default_machine_params() {
 Database::Database(storehouse::StorageConfig* storage_config,
                    const std::string& db_path,
                    const std::string& master_address)
-    : storage_config_(storage_config),
-      storage_(storehouse::StorageBackend::make_from_config(storage_config)),
-      db_path_(db_path),
-      master_address_(master_address) {
+  : storage_config_(storage_config),
+    storage_(storehouse::StorageBackend::make_from_config(storage_config)),
+    db_path_(db_path),
+    master_address_(master_address) {
   internal::set_database_path(db_path);
   if (!database_exists()) {
     internal::DatabaseMetadata meta{};
@@ -196,9 +196,9 @@ Result Database::start_master(const MachineParameters& machine_params,
   }
   master_state_.reset(new ServerState);
   internal::DatabaseParameters params =
-      machine_params_to_db_params(machine_params, storage_config_, db_path_);
+    machine_params_to_db_params(machine_params, storage_config_, db_path_);
   master_state_->service.reset(scanner::internal::get_master_service(
-      params, master_state_->shutdown_flag));
+    params, master_state_->shutdown_flag));
   master_state_->server = start(master_state_->service, port);
 
   Result result;
@@ -209,11 +209,11 @@ Result Database::start_master(const MachineParameters& machine_params,
 Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port) {
   internal::DatabaseParameters params =
-      machine_params_to_db_params(machine_params, storage_config_, db_path_);
+    machine_params_to_db_params(machine_params, storage_config_, db_path_);
   ServerState* s = new ServerState;
   ServerState& state = *s;
   state.service.reset(scanner::internal::get_worker_service(
-      params, master_address_, port, state.shutdown_flag));
+    params, master_address_, port, state.shutdown_flag));
   state.server = start(state.service, port);
   worker_states_.emplace_back(s);
 
@@ -232,9 +232,9 @@ Result Database::ingest_videos(const std::vector<std::string>& table_names,
   return result;
 
   auto channel =
-      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
+    grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
-      proto::Master::NewStub(channel);
+    proto::Master::NewStub(channel);
 
   grpc::ClientContext context;
   proto::IngestParameters params;
@@ -247,7 +247,7 @@ Result Database::ingest_videos(const std::vector<std::string>& table_names,
   proto::IngestResult job_result;
   grpc::Status status = master_->IngestVideos(&context, params, &job_result);
   LOG_IF(FATAL, !status.ok())
-      << "Could not contact master server: " << status.error_message();
+    << "Could not contact master server: " << status.error_message();
   for (i32 i = 0; i < job_result.failed_paths().size(); ++i) {
     FailedVideo failed;
     failed.path = job_result.failed_paths(i);
@@ -259,22 +259,22 @@ Result Database::ingest_videos(const std::vector<std::string>& table_names,
 
 Result Database::new_job(JobParameters& params) {
   auto channel =
-      grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
+    grpc::CreateChannel(master_address_, grpc::InsecureChannelCredentials());
   std::unique_ptr<proto::Master::Stub> master_ =
-      proto::Master::NewStub(channel);
+    proto::Master::NewStub(channel);
 
   grpc::ClientContext context;
   proto::JobParameters job_params;
   job_params.set_job_name(params.job_name);
   job_params.set_pipeline_instances_per_node(
-      params.pipeline_instances_per_node);
+    params.pipeline_instances_per_node);
   job_params.set_work_item_size(params.work_item_size);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   Result job_result;
   grpc::Status status = master_->NewJob(&context, job_params, &job_result);
   LOG_IF(FATAL, !status.ok())
-      << "Could not contact master server: " << status.error_message();
+    << "Could not contact master server: " << status.error_message();
 
   return job_result;
 }
@@ -283,15 +283,15 @@ Result Database::new_table(const std::string& table_name,
                            const std::vector<std::string>& columns,
                            const std::vector<std::vector<std::string>>& rows) {
   internal::DatabaseMetadata meta = internal::read_database_metadata(
-      storage_.get(), internal::DatabaseMetadata::descriptor_path());
+    storage_.get(), internal::DatabaseMetadata::descriptor_path());
 
   i32 table_id = meta.add_table(table_name);
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
   table_desc.set_timestamp(
-      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
-          .count());
+    std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+      .count());
   for (size_t i = 0; i < columns.size(); ++i) {
     proto::Column* col = table_desc.add_columns();
     col->set_id(i);
@@ -308,7 +308,7 @@ Result Database::new_table(const std::string& table_name,
 
   for (size_t j = 0; j < columns.size(); ++j) {
     const std::string output_path =
-        internal::table_item_output_path(table_id, j, 0);
+      internal::table_item_output_path(table_id, j, 0);
 
     storehouse::WriteFile* output_file = nullptr;
     BACKOFF_FAIL(storage_->make_write_file(output_path, output_file));
@@ -331,6 +331,24 @@ Result Database::new_table(const std::string& table_name,
   proto::Result result;
   result.set_success(true);
   return result;
+}
+
+Result Database::delete_table(const std::string& table_name) {
+  Result result;
+  internal::DatabaseMetadata meta = internal::read_database_metadata(
+    storage_.get(), internal::DatabaseMetadata::descriptor_path());
+
+  i32 id = meta.get_table_id(table_name);
+  if (id == -1) {
+    RESULT_ERROR(&result, "Table %s does not exist", table_name.c_str());
+    return result;
+  }
+
+  meta.remove_table(id);
+  internal::write_database_metadata(storage_.get(), meta);
+
+  internal::TableMetadata table = internal::read_table_metadata(
+    storage_.get(), internal::TableMetadata::descriptor_path(id));
 }
 
 Result Database::shutdown_master() {
