@@ -58,6 +58,8 @@ class Kernel {
     std::vector<std::string> output_columns;
     std::vector<u8> args;
     i32 work_item_size;
+    i32 node_id;
+    i32 node_count;
   };
 
   Kernel(const Config& config);
@@ -149,7 +151,7 @@ class KernelBuilder {
   friend class KernelRegistration;
 
   KernelBuilder(const std::string& name, KernelConstructor constructor)
-      : name_(name), constructor_(constructor) {}
+    : name_(name), constructor_(constructor) {}
 
   KernelBuilder& device(DeviceType device_type) {
     device_type_ = device_type;
@@ -177,8 +179,8 @@ class KernelBuilder {
 
 #define REGISTER_KERNEL_UID(uid__, name__, kernel__)                         \
   static ::scanner::internal::KernelRegistration kernel_registration_##uid__ \
-      __attribute__((unused)) = ::scanner::internal::KernelBuilder(          \
-          #name__, [](const ::scanner::Kernel::Config& config) {             \
-            return new kernel__(config);                                     \
-          })
+    __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \
+      #name__, [](const ::scanner::Kernel::Config& config) {                 \
+        return new kernel__(config);                                         \
+      })
 }
