@@ -22,7 +22,7 @@ void OpRegistry::add_op(const std::string& name, OpInfo* info) {
   if (ops_.count(name) > 0) {
     LOG(FATAL) << "Attempted to re-register op " << name;
   }
-  if (info->input_columns().empty()) {
+  if (info->input_columns().empty() && !info->variadic_inputs()) {
     LOG(FATAL) << "Attempted to register op " << name
                << " with empty input columns.";
   }
