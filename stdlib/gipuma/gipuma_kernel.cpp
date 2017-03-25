@@ -26,6 +26,7 @@ public:
       return;
     }
 
+    num_cameras_ = args_.cameras_size();
     algo_params_->num_img_processed = args_.cameras_size();
     algo_params_->min_angle = 1.00;
     algo_params_->max_angle = 90.00;
@@ -39,6 +40,12 @@ public:
     algo_params_->box_vsize = args_.kernel_height();
 
     // Read camera calibration matrix from args
+    if (!args_.cameras_size() * 2 == config.input_columns.size()) {
+      RESULT_ERROR(&valid_, "GipumaKernel args specified %d cameras but "
+                            "received %lu columns as input",
+                   args_.cameras_size(), config.input_columns.size());
+      return;
+    }
     for (auto& cam : args_.cameras()) {
       camera_params_.cameras.emplace_back();
       auto& c = camera_params_.cameras.back();
@@ -57,6 +64,11 @@ public:
     delete algo_params_;
   }
 
+  void validate(proto::Result* result) {
+    result->set_msg(valid_.msg());
+    result->set_success(valid_.success());
+  }
+
   void new_frame_info() {
     i32 frame_width = frame_info_.width();
     i32 frame_height = frame_info_.height();
@@ -67,7 +79,7 @@ public:
     i32 selected_views = camera_params_.viewSelectionSubset.size();
     assert(selected_views > 0);
 
-    for (i32 i = 0; i < 2; ++i) {
+    for (i32 i = 0; i < num_cameras_; ++i) {
       camera_params_.cameras[i].depthMin = algo_params_->depthMin;
       camera_params_.cameras[i].depthMax = algo_params_->depthMax;
       state_->cameras->cameras[i].depthMin = algo_params_->depthMin;
@@ -106,40 +118,33 @@ public:
                BatchedColumns& output_columns) override {
     set_device();
 
-    auto& left_frame = input_columns[0];
-    auto& left_frame_info = input_columns[1];
-    auto& right_frame = input_columns[2];
-    auto& right_frame_info = input_columns[3];
-    check_frame_info(device_, left_frame_info);
+    auto& frame_info = input_columns[1];
+    check_frame_info(device_, frame_info);
 
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
 
     i32 input_count = (i32)input_columns[0].rows.size();
-    std::vector<cvc::GpuMat> grayscale_images_gpu(2);
-    std::vector<cvc::GpuMat> grayscale_images_gpu_f32(2);
-    std::vector<cv::Mat> grayscale_images(2);
+    std::vector<cvc::GpuMat> grayscale_images_gpu(num_cameras_);
+    std::vector<cvc::GpuMat> grayscale_images_gpu_f32(num_cameras_);
+    std::vector<cv::Mat> grayscale_images(num_cameras_);
     for (i32 i = 0; i < input_count; ++i) {
-      cvc::GpuMat left_input(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                             left_frame.rows[i].buffer);
-      cvc::GpuMat right_input(frame_info_.height(), frame_info_.width(),
-                              CV_8UC3, right_frame.rows[i].buffer);
-      assert(left_frame.rows[i].size == width * height * 3);
-      assert(right_frame.rows[i].size == width * height * 3);
+      for (i32 c = 0; c < num_cameras_; ++c) {
+        auto& frame_column = input_columns[c * 2];
+        cvc::GpuMat frame_input(frame_info_.height(), frame_info_.width(),
+                                CV_8UC3, frame_column.rows[i].buffer);
+        assert(frame_column.rows[i].size == width * height * 3);
 
-      grayscale_images[0] =
-          cv::Mat(frame_info_.height(), frame_info_.width(), CV_8UC3);
-      grayscale_images[1] =
-          cv::Mat(frame_info_.height(), frame_info_.width(), CV_8UC3);
-      left_input.download(grayscale_images[0]);
-      right_input.download(grayscale_images[1]);
-      cv::cvtColor(grayscale_images[0], grayscale_images[0], CV_BGR2GRAY, 0);
-      cv::cvtColor(grayscale_images[1], grayscale_images[1], CV_BGR2GRAY, 0);
-      grayscale_images[0].convertTo(grayscale_images[0], CV_32FC1);
-      grayscale_images[1].convertTo(grayscale_images[1], CV_32FC1);
+        grayscale_images[c] =
+            cv::Mat(frame_info_.height(), frame_info_.width(), CV_8UC3);
+        frame_input.download(grayscale_images[c]);
+        cv::cvtColor(grayscale_images[c], grayscale_images[c], CV_BGR2GRAY, 0);
+        grayscale_images[c].convertTo(grayscale_images[c], CV_32FC1);
+      }
 
       addImageToTextureFloatGray(grayscale_images, state_->imgs,
                                  state_->cuArray);
+
       runcuda(*state_.get());
       cv::Mat_<float> disparity = cv::Mat::zeros(height, width, CV_32FC1);
       cv::Mat_<cv::Vec3f> norm0 = cv::Mat::zeros(height, width, CV_32FC3);
@@ -148,9 +153,9 @@ public:
       for (int i = 0; i < grayscale_images[0].cols; i++) {
         for (int j = 0; j < grayscale_images[0].rows; j++) {
           int center = i + grayscale_images[0].cols * j;
-          //float4 n = state_->lines->norm4[center];
-          //norm0(j, i) = Vec3f(n.x, n.y, n.z);
-          //disparity(j, i) = state_->lines->norm4[center].w;
+          // float4 n = state_->lines->norm4[center];
+          // norm0(j, i) = Vec3f(n.x, n.y, n.z);
+          // disparity(j, i) = state_->lines->norm4[center].w;
           disparity(j, i) = state_->lines->norm4[center].w;
           float4 n = state_->lines->norm4[center];
           norm0(j, i) = cv::Vec3f(n.x, n.y, n.z);
@@ -173,8 +178,9 @@ public:
 
       std::vector<cv::Point3f> points;
       points.push_back(cv::Point3f(150, 150, 400));
-      delTexture(algo_params_->num_img_processed, state_->imgs, state_->cuArray);
-      u8* buf = new_buffer(device_, 1);
+      delTexture(algo_params_->num_img_processed, state_->imgs,
+                 state_->cuArray);
+      u8 *buf = new_buffer(device_, 1);
       INSERT_ROW(output_columns[0], buf, 1);
 
       printf("row\n");
@@ -193,13 +199,10 @@ private:
   CameraParameters camera_params_;
   AlgorithmParameters* algo_params_;
   std::unique_ptr<GlobalState> state_;
+  i32 num_cameras_;
 };
 
-REGISTER_OP(Gipuma)
-    .inputs({
-        "frame0", "frame_info0", "frame1", "frame_info1",
-    })
-    .outputs({"disparity"});
+REGISTER_OP(Gipuma).variadic_inputs().outputs({"disparity"});
 
 REGISTER_KERNEL(Gipuma, GipumaKernel)
     .device(DeviceType::GPU)
