@@ -194,20 +194,19 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;</div>
 <div class="line"><a name="l00115"></a><span class="lineno"><a class="line" href="structscanner_1_1Database_1_1ServerState.html">  115</a></span>&#160;  <span class="keyword">struct </span><a class="code" href="structscanner_1_1Database_1_1ServerState.html">ServerState</a> {</div>
 <div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;    std::unique_ptr&lt;grpc::Server&gt; server;</div>
-<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;    std::unique_ptr&lt;grpc::Service&gt; service;</div>
-<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;    Flag shutdown_flag;</div>
-<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160;  };</div>
-<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;</div>
-<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160; <span class="keyword">private</span>:</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;  storehouse::StorageConfig* storage_config_;</div>
-<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;  std::unique_ptr&lt;storehouse::StorageBackend&gt; storage_;</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;  std::string db_path_;</div>
-<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;  std::string master_address_;</div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;</div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;  std::unique_ptr&lt;ServerState&gt; master_state_;</div>
-<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;  std::vector&lt;std::unique_ptr&lt;ServerState&gt;&gt; worker_states_;</div>
-<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;};</div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;}</div>
+<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;    std::shared_ptr&lt;grpc::Service&gt; service;</div>
+<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;  };</div>
+<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160;</div>
+<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160; <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;  storehouse::StorageConfig* storage_config_;</div>
+<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;  std::unique_ptr&lt;storehouse::StorageBackend&gt; storage_;</div>
+<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;  std::string db_path_;</div>
+<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;  std::string master_address_;</div>
+<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;</div>
+<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;  std::unique_ptr&lt;ServerState&gt; master_state_;</div>
+<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;  std::vector&lt;std::unique_ptr&lt;ServerState&gt;&gt; worker_states_;</div>
+<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;};</div>
+<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;}</div>
 <div class="ttc" id="structscanner_1_1JobParameters_html"><div class="ttname"><a href="structscanner_1_1JobParameters.html">scanner::JobParameters</a></div><div class="ttdoc">Configuration for a Scanner job. </div><div class="ttdef"><b>Definition:</b> database.h:62</div></div>
 <div class="ttc" id="structscanner_1_1TableSample_html"><div class="ttname"><a href="structscanner_1_1TableSample.html">scanner::TableSample</a></div><div class="ttdoc">Set of frames to sample from a table. </div><div class="ttdef"><b>Definition:</b> database.h:42</div></div>
 <div class="ttc" id="classscanner_1_1Op_html"><div class="ttname"><a href="classscanner_1_1Op.html">scanner::Op</a></div><div class="ttdoc">Interface for a computation unit implemented by a Kernel. </div><div class="ttdef"><b>Definition:</b> op.h:28</div></div>
