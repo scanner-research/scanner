@@ -290,6 +290,22 @@ class Database:
             cmd = cmd.replace('"', '\\"')
             return Popen("ssh {} \"cd {} && {}\"".format(host_ip, os.getcwd(), cmd), shell=True)
 
+    def _start_heartbeat(self):
+        # Start up heartbeat to keep master alive
+        def heartbeat_task():
+            while not heartbeat_task.cancelled:
+                self._master.PokeWatchdog(self.protobufs.Empty())
+                time.sleep(1)
+        heartbeat_task.cancelled = False
+        self._heartbeat_task = heartbeat_task
+        self._heartbeat_thread = Thread(target=heartbeat_task)
+        self._heartbeat_thread.daemon = True
+        self._heartbeat_thread.start()
+
+    def _stop_heartbeat(self):
+        self._heartbeat_task.cancelled = True
+        self._heartbeat_thread.join()
+
     def start_cluster(self, master, workers):
         """
         Starts  a Scanner cluster.
@@ -326,16 +342,7 @@ class Database:
             res = self._connect_to_master()
             assert res
 
-            # Start up heartbeat to keep master alive
-            def heartbeat_task():
-                while not heartbeat_task.cancelled:
-                    self._master.PokeWatchdog(self.protobufs.Empty())
-                    time.sleep(1)
-            heartbeat_task.cancelled = False
-            self._heartbeat_task = heartbeat_task
-            self._heartbeat_thread = Thread(target=heartbeat_task)
-            self._heartbeat_thread.daemon = True
-            self._heartbeat_thread.start()
+            self._start_heartbeat()
 
             for i in range(len(self._worker_addresses)):
                 res = self._bindings.start_worker(
@@ -374,15 +381,7 @@ class Database:
                 self._master_conn = None
                 raise ScannerException('Timed out waiting to connect to master')
             # Start up heartbeat to keep master alive
-            def heartbeat_task():
-                while not heartbeat_task.cancelled:
-                    self._master.PokeWatchdog(self.protobufs.Empty())
-                    time.sleep(1)
-            heartbeat_task.cancelled = False
-            self._heartbeat_task = heartbeat_task
-            self._heartbeat_thread = Thread(target=heartbeat_task)
-            self._heartbeat_thread.daemon = True
-            self._heartbeat_thread.start()
+            self._start_heartbeat()
 
             # Start workers now that master is ready
             self._worker_conns = [
@@ -421,8 +420,7 @@ class Database:
     def stop_cluster(self):
         if self._master:
             # Stop heartbeat
-            self._heartbeat_task.cancelled = True
-            self._heartbeat_thread.join()
+            self._stop_heartbeat()
             try:
                 self._try_rpc(
                     lambda: self._master.Shutdown(self.protobufs.Empty()))
