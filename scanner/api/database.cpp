@@ -14,6 +14,8 @@
  */
 
 #include "scanner/api/database.h"
+#include "scanner/engine/master.h"
+#include "scanner/engine/worker.h"
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/rpc.grpc.pb.h"
@@ -197,9 +199,14 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_.reset(new ServerState);
   internal::DatabaseParameters params =
     machine_params_to_db_params(machine_params, storage_config_, db_path_);
-  master_state_->service.reset(scanner::internal::get_master_service(
-    params, master_state_->shutdown_flag));
+
+  auto master_service =
+    scanner::internal::get_master_service(params);
+  master_state_->service.reset(master_service);
   master_state_->server = start(master_state_->service, port);
+
+  // Setup watchdog
+  master_service->start_watchdog(master_state_->server.get());
 
   Result result;
   result.set_success(true);
@@ -212,10 +219,14 @@ Result Database::start_worker(const MachineParameters& machine_params,
     machine_params_to_db_params(machine_params, storage_config_, db_path_);
   ServerState* s = new ServerState;
   ServerState& state = *s;
-  state.service.reset(scanner::internal::get_worker_service(
-    params, master_address_, port, state.shutdown_flag));
+  auto worker_service = scanner::internal::get_worker_service(
+    params, master_address_, port);
+  state.service.reset(worker_service);
   state.server = start(state.service, port);
   worker_states_.emplace_back(s);
+
+  // Setup watchdog
+  worker_service->start_watchdog(state.server.get());
 
   Result result;
   result.set_success(true);
@@ -369,15 +380,13 @@ Result Database::shutdown_worker() {
 
 Result Database::wait_for_server_shutdown() {
   if (master_state_ != nullptr) {
-    master_state_->shutdown_flag.wait();
-    master_state_->server->Shutdown();
     master_state_->server->Wait();
+    master_state_.reset(nullptr);
   }
   for (auto& state : worker_states_) {
-    state->shutdown_flag.wait();
-    state->server->Shutdown();
     state->server->Wait();
   }
+  worker_states_.clear();
 
   Result result;
   result.set_success(true);

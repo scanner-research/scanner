@@ -101,6 +101,10 @@ class Flag {
     cv_.notify_all();
   }
 
+  bool raised() {
+    return bit_.load();
+  }
+
   void wait() {
     std::unique_lock<std::mutex> lock(m_);
     cv_.wait(lock, [&] { return bit_.load(); });

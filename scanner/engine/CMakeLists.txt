@@ -2,6 +2,7 @@ get_property(dirs DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 configure_file(python.in.cpp python.cpp)
 
 set(SOURCE_FILES
+  runtime.cpp
   master.cpp
   worker.cpp
   ingest.cpp
