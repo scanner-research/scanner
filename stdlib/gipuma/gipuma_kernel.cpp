@@ -57,7 +57,6 @@ public:
       }
     }
     camera_params_ = getCameraParameters(*(state_->cameras), camera_params_);
-
   }
 
   ~GipumaKernel() {
@@ -123,11 +122,13 @@ public:
 
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
+    i32 output_size = width * height * sizeof(float4);
 
     i32 input_count = (i32)input_columns[0].rows.size();
     std::vector<cvc::GpuMat> grayscale_images_gpu(num_cameras_);
-    std::vector<cvc::GpuMat> grayscale_images_gpu_f32(num_cameras_);
     std::vector<cv::Mat> grayscale_images(num_cameras_);
+    u8* output_buffer =
+      new_block_buffer(device_, output_size * input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {
       for (i32 c = 0; c < num_cameras_; ++c) {
         auto& frame_column = input_columns[c * 2];
@@ -146,44 +147,15 @@ public:
                                  state_->cuArray);
 
       runcuda(*state_.get());
-      cv::Mat_<float> disparity = cv::Mat::zeros(height, width, CV_32FC1);
-      cv::Mat_<cv::Vec3f> norm0 = cv::Mat::zeros(height, width, CV_32FC3);
-      float min = 10000000000;
-      float max = 0;
-      for (int i = 0; i < grayscale_images[0].cols; i++) {
-        for (int j = 0; j < grayscale_images[0].rows; j++) {
-          int center = i + grayscale_images[0].cols * j;
-          // float4 n = state_->lines->norm4[center];
-          // norm0(j, i) = Vec3f(n.x, n.y, n.z);
-          // disparity(j, i) = state_->lines->norm4[center].w;
-          disparity(j, i) = state_->lines->norm4[center].w;
-          float4 n = state_->lines->norm4[center];
-          norm0(j, i) = cv::Vec3f(n.x, n.y, n.z);
-        }
-      }
 
-      static int fr = 0;
-      cv::Mat display;
-      cv::normalize(disparity, display, 0, 65535, cv::NORM_MINMAX, CV_16U);
-      char fname[256];
-      sprintf(fname, "depth%05d.png", fr);
-      cv::imwrite(std::string(fname), display);
+      // Copy estiamted points to output buffer
+      cudaMemcpy(output_buffer + output_size * i, state_->lines->norm4,
+                 output_size, cudaMemcpyDefault);
+      INSERT_ROW(output_columns[0], output_buffer + output_size * i,
+                 output_size);
 
-      cv::Mat disp;
-      norm0.convertTo(disp, CV_16U, 32767, 32767);
-      cv::cvtColor(disp, disp, CV_RGB2BGR);
-      cv::normalize(disp, disp, 0, 65535, cv::NORM_MINMAX, CV_16U);
-      sprintf(fname, "normals%05d.png", fr++);
-      cv::imwrite(std::string(fname), disp);
-
-      std::vector<cv::Point3f> points;
-      points.push_back(cv::Point3f(150, 150, 400));
       delTexture(algo_params_->num_img_processed, state_->imgs,
                  state_->cuArray);
-      u8 *buf = new_buffer(device_, 1);
-      INSERT_ROW(output_columns[0], buf, 1);
-
-      printf("row\n");
     }
   }
 
@@ -202,7 +174,7 @@ private:
   i32 num_cameras_;
 };
 
-REGISTER_OP(Gipuma).variadic_inputs().outputs({"disparity"});
+REGISTER_OP(Gipuma).variadic_inputs().outputs({"points"});
 
 REGISTER_KERNEL(Gipuma, GipumaKernel)
     .device(DeviceType::GPU)
