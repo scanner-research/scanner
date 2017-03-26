@@ -114,8 +114,7 @@ class Database {
 
   struct ServerState {
     std::unique_ptr<grpc::Server> server;
-    std::unique_ptr<grpc::Service> service;
-    Flag shutdown_flag;
+    std::shared_ptr<grpc::Service> service;
   };
 
  private:

@@ -15,12 +15,14 @@ service Master {
   rpc LoadOp (OpInfo) returns (Result) {}
   rpc GetOpOutputInfo (OpOutputInfoArgs) returns (OpOutputInfo) {}
   rpc Shutdown (Empty) returns (Result) {}
+  rpc PokeWatchdog (Empty) returns (Empty) {}
 }
 
 service Worker {
   rpc NewJob (JobParameters) returns (Result) {}
   rpc LoadOp (OpInfo) returns (Empty) {}
   rpc Shutdown (Empty) returns (Result) {}
+  rpc PokeWatchdog (Empty) returns (Empty) {}
 }
 
 message Empty {}
