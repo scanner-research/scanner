@@ -1,6 +1,7 @@
 from common import *
 from column import Column
 import struct
+from itertools import izip
 
 
 class Table:
@@ -79,7 +80,7 @@ class Table:
 
     def load(self, columns, fn=None, rows=None):
         cols = [self.columns(c).load(rows=rows) for c in columns]
-        for tup in zip(*cols):
+        for tup in izip(*cols):
             row = tup[0][0]
             vals = [x for _, x in tup]
             if fn is not None:
