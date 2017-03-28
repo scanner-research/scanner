@@ -9,6 +9,7 @@ import ipaddress
 import pickle
 import struct
 import signal
+from multiprocessing import Process, Queue
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
@@ -292,19 +293,30 @@ class Database:
 
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
-        def heartbeat_task():
-            while not heartbeat_task.cancelled:
-                self._master.PokeWatchdog(self.protobufs.Empty())
+        def heartbeat_task(q, master_address):
+            import scanner.metadata_pb2 as metadata_types
+            import scanner.engine.rpc_pb2 as rpc_types
+            import scanner.types_pb2 as misc_types
+            import libscanner as bindings
+
+            channel = grpc.insecure_channel(
+                master_address,
+                options=[('grpc.max_message_length', 24499183 * 2)])
+            master = rpc_types.MasterStub(channel)
+            while q.empty():
+                master.PokeWatchdog(rpc_types.Empty())
                 time.sleep(1)
-        heartbeat_task.cancelled = False
-        self._heartbeat_task = heartbeat_task
-        self._heartbeat_thread = Thread(target=heartbeat_task)
-        self._heartbeat_thread.daemon = True
-        self._heartbeat_thread.start()
+
+        self._heartbeat_queue = Queue()
+        self._heartbeat_process = Process(target=heartbeat_task,
+                                          args=(self._heartbeat_queue,
+                                                self._master_address))
+        self._heartbeat_process.daemon = True
+        self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        self._heartbeat_task.cancelled = True
-        self._heartbeat_thread.join()
+        self._heartbeat_queue.put(0)
+        self._heartbeat_process.join()
 
     def start_cluster(self, master, workers):
         """
