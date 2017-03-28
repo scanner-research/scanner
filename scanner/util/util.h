@@ -110,6 +110,12 @@ class Flag {
     cv_.wait(lock, [&] { return bit_.load(); });
   }
 
+  void wait_for(int ms) {
+    std::unique_lock<std::mutex> lock(m_);
+    cv_.wait_for(lock, std::chrono::milliseconds(ms),
+                 [&] { return bit_.load(); });
+  }
+
  private:
   std::mutex m_;
   std::condition_variable cv_;

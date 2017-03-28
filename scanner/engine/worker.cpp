@@ -899,7 +899,7 @@ void WorkerImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
     // Wait until shutdown is triggered or watchdog isn't woken up
     while (!trigger_shutdown_.raised()) {
       auto sleep_start = now();
-      std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+      trigger_shutdown_.wait_for(timeout_ms);
       time_since_check += nano_since(sleep_start) / 1e6;
       if (time_since_check > timeout_ms) {
         if (!watchdog_awake_) {
