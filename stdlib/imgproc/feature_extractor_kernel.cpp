@@ -11,10 +11,9 @@
 namespace scanner {
 
 class FeatureExtractorKernel : public VideoKernel {
-public:
+ public:
   FeatureExtractorKernel(const Kernel::Config& config)
-    : VideoKernel(config),
-      device_(config.devices[0]) {
+    : VideoKernel(config), device_(config.devices[0]) {
     set_device();
 
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
@@ -50,41 +49,52 @@ public:
 
     std::vector<std::vector<cv::KeyPoint>> keypoints;
     std::vector<std::tuple<u8*, size_t>> features;
+
     keypoints.resize(input_count);
 
     std::vector<cvc::GpuMat> feat_gpus;
+    std::vector<cv::Mat> cv_features;
+    cv_features.resize(input_count);
+    cvc::GpuMat kp_gpu;
 
     if (device_.type == DeviceType::GPU) {
-      if(args_.feature_type() == proto::ExtractorType::SURF) {
-        cvc::SURF_CUDA* surf = (cvc::SURF_CUDA*) gpu_extractor_;
+      if (args_.feature_type() == proto::ExtractorType::SURF) {
+        cvc::SURF_CUDA* surf = (cvc::SURF_CUDA*)gpu_extractor_;
         feat_gpus.resize(input_count);
         for (i32 i = 0; i < input_count; ++i) {
-          cvc::GpuMat kp_gpu;
           cvc::GpuMat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
                           frame_col.rows[i].buffer);
           cvc::cvtColor(img, img, CV_RGB2GRAY);
           (*surf)(img, cvc::GpuMat(), kp_gpu, feat_gpus[i]);
           surf->downloadKeypoints(kp_gpu, keypoints[i]);
-          features.push_back(
-            std::make_tuple(
-              feat_gpus[i].data,
-              feat_gpus[i].rows * feat_gpus[i].cols * feat_gpus[i].elemSize()));
+
+          features.push_back(std::make_tuple(
+            feat_gpus[i].data,
+            feat_gpus[i].step * feat_gpus[i].rows));
+          if (i == 0) {
+            LOG(INFO) << i << " " << keypoints[i].size()
+                      << " " << feat_gpus[i].cols << " " << feat_gpus[i].step;
+          }
         }
+      } else {
+        LOG(FATAL) << "SIFT GPU not supported";
       }
     } else {
-      std::vector<cv::Mat> imgs;
       for (i32 i = 0; i < input_count; ++i) {
         cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
                     (u8*)frame_col.rows[i].buffer);
-        imgs.push_back(img);
-      }
 
-      std::vector<cv::Mat> cv_features;
-      cpu_extractor_->compute(imgs, keypoints, features);
+        cv::cvtColor(img, img, CV_RGB2GRAY);
 
-      for (i32 i = 0; i < input_count; ++i) {
-        cv::Mat m = cv_features[i];
-        features.push_back(std::make_tuple(m.data, m.total() * m.elemSize()));
+        cpu_extractor_->detectAndCompute(img, cv::Mat(), keypoints[i],
+                                         cv_features[i]);
+
+        if (i == 0) {
+          LOG(INFO) << keypoints[i].size();
+        }
+
+        features.push_back(std::make_tuple(
+          cv_features[i].data, cv_features[i].total() * cv_features[i].elemSize()));
       }
     }
 
@@ -94,9 +104,7 @@ public:
       u8* cv_buf = std::get<0>(features[i]);
       size_t size = std::get<1>(features[i]);
       u8* output_buf = new_buffer(device_, OR_4(size));
-      memcpy_buffer(output_buf, device_,
-                    cv_buf, device_,
-                    size);
+      memcpy_buffer(output_buf, device_, cv_buf, CPU_DEVICE, size);
       INSERT_ROW(output_columns[0], output_buf, OR_4(size));
 
       std::vector<proto::Keypoint> kps_proto;
@@ -123,16 +131,22 @@ public:
     cvc::setDevice(device_.id);
   }
 
-private:
+ private:
   DeviceHandle device_;
   proto::FeatureExtractorArgs args_;
   void* gpu_extractor_;
   cv::Ptr<cv::Feature2D> cpu_extractor_;
 };
 
-REGISTER_OP(FeatureExtractor).inputs({"frame", "frame_info"}).outputs({"features", "keypoints"});
+REGISTER_OP(FeatureExtractor)
+  .inputs({"frame", "frame_info"})
+  .outputs({"features", "keypoints"});
 
 REGISTER_KERNEL(FeatureExtractor, FeatureExtractorKernel)
-    .device(DeviceType::GPU)
-    .num_devices(1);
+  .device(DeviceType::GPU)
+  .num_devices(1);
+
+REGISTER_KERNEL(FeatureExtractor, FeatureExtractorKernel)
+  .device(DeviceType::CPU)
+  .num_devices(1);
 }
