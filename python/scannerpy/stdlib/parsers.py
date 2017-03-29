@@ -32,3 +32,9 @@ def flow(bufs, db):
     output = np.frombuffer(bufs[0], dtype=np.dtype(np.float32))
     info = frame_info(bufs[1], db)
     return output.reshape((info.height, info.width, 2))
+
+
+def array(ty):
+    def parser(bufs, db):
+        return np.frombuffer(bufs[0], dtype=np.dtype(ty))
+    return parser

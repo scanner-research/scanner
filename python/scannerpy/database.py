@@ -130,7 +130,7 @@ class Database:
         else:
             self.config = Config(config_path)
 
-        self._debug = debug
+        self._debug = debug or (master is None and workers is None)
 
         # Load all protobuf types
         import scanner.metadata_pb2 as metadata_types

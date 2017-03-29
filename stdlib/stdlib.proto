@@ -49,3 +49,17 @@ message GipumaArgs {
   int32 kernel_width = 7;
   int32 kernel_height = 8;
 }
+
+enum ExtractorType {
+  SIFT = 0;
+  SURF = 1;
+}
+
+message FeatureExtractorArgs {
+  ExtractorType feature_type = 1;
+}
+
+message Keypoint {
+  float x = 1;
+  float y = 2;
+}
