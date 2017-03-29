@@ -153,8 +153,8 @@ def&#160;</td><td class="memItemRight" valign="bottom"><b>has_table</b></td></tr
 <tr class="memitem:a3dac6d78758c9e59492f93e706058645"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a3dac6d78758c9e59492f93e706058645"></a>
 def&#160;</td><td class="memItemRight" valign="bottom"><b>delete_table</b></td></tr>
 <tr class="separator:a3dac6d78758c9e59492f93e706058645"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aee220a63e8a452d1646230948a46f949"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="aee220a63e8a452d1646230948a46f949"></a>
-def&#160;</td><td class="memItemRight" valign="bottom"><b>new_table</b></td></tr>
+<tr class="memitem:aee220a63e8a452d1646230948a46f949"><td class="memItemLeft" align="right" valign="top">def&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscannerpy_1_1database_1_1Database.html#aee220a63e8a452d1646230948a46f949">new_table</a></td></tr>
+<tr class="memdesc:aee220a63e8a452d1646230948a46f949"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new table from a list of rows.  <a href="#aee220a63e8a452d1646230948a46f949">More...</a><br/></td></tr>
 <tr class="separator:aee220a63e8a452d1646230948a46f949"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa70c28a68ff6ae521a66b563b30ecaaf"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="aa70c28a68ff6ae521a66b563b30ecaaf"></a>
 def&#160;</td><td class="memItemRight" valign="bottom"><b>table</b></td></tr>
@@ -456,6 +456,62 @@ Public Attributes</h2></td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The new Collection object. </dd></dl>
+
+</div>
+</div>
+<a class="anchor" id="aee220a63e8a452d1646230948a46f949"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">def scannerpy.database.Database.new_table </td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>self</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>columns</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>rows</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>force</em> = <code>False</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Creates a new table from a list of rows. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">name</td><td>String name of the table to create </td></tr>
+    <tr><td class="paramname">columns</td><td>List of names of table columns </td></tr>
+    <tr><td class="paramname">rows</td><td>List of rows with each row a list of elements corresponding to the specified columns. Elements must be strings of serialized representations of the data.</td></tr>
+    <tr><td class="paramname">force</td><td>TODO(apoms)</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The new table object. </dd></dl>
 
 </div>
 </div>
