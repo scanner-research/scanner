@@ -91,8 +91,8 @@ class Column:
                     i += 1
             rows_so_far += item_rows
 
-    def _decode_png(self, png, db):
-        return cv2.imdecode(np.frombuffer(png, dtype=np.dtype(np.uint8)),
+    def _decode_png(self, bufs, db):
+        return cv2.imdecode(np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)),
                             cv2.IMREAD_COLOR)
 
     # TODO(wcrichto): don't show progress bar when running decode png
@@ -121,7 +121,7 @@ class Column:
                    png_table.num_rows() == self._table.num_rows() and \
                    png_table._descriptor.timestamp > \
                    self._table._descriptor.timestamp:
-                    return png_table.columns(0).load(self._decode_png)
+                    return png_table.load(['png'], self._decode_png)
             pair = [(self._table.name(), png_table_name)]
             if rows is None:
                 tasks = sampler.all(pair)
@@ -129,6 +129,6 @@ class Column:
                 tasks = [sampler.gather(pair[0], rows)]
             [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
                                      force=True, show_progress=False)
-            return out_tbl.columns(0).load(self._decode_png)
+            return out_tbl.load(['png'], self._decode_png)
         else:
             return self._load(fn, rows=rows)
