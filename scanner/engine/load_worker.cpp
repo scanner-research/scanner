@@ -66,7 +66,7 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
       last_end_row = end_rows[i];
     }
     assert(i != end_rows.size());
-    return r - sum;
+    return r - last_end_row;
   };
 
   assert(!rows.empty());
