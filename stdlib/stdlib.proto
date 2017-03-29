@@ -35,12 +35,11 @@ message CPM2Args {
   float scale = 2;
 }
 
-message GipumaArgs {
-  message Camera {
-    repeated float p = 1 [packed=true];
-  }
+message Camera {
+  repeated float p = 1 [packed=true];
+}
 
-  repeated Camera cameras = 1;
+message GipumaArgs {
   float min_disparity = 2;
   float max_disparity = 3;
   float min_depth = 4;

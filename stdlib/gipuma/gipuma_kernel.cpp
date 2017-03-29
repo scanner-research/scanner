@@ -14,7 +14,7 @@ namespace scanner {
 class GipumaKernel : public VideoKernel {
 public:
   GipumaKernel(const Kernel::Config &config)
-      : VideoKernel(config), device_(config.devices[0]) {
+      : VideoKernel(config), device_(config.devices[0]), was_reset_(true) {
     set_device();
 
     state_.reset(new GlobalState);
@@ -26,10 +26,10 @@ public:
       return;
     }
 
-    num_cameras_ = args_.cameras_size();
-    algo_params_->num_img_processed = args_.cameras_size();
+    num_cameras_ = config.input_columns.size() / 3;
+    algo_params_->num_img_processed = num_cameras_;
     algo_params_->min_angle = 1.00;
-    algo_params_->max_angle = 90.00;
+    algo_params_->max_angle = 70.00;
 
     algo_params_->min_disparity = args_.min_disparity();
     algo_params_->max_disparity = args_.max_disparity();
@@ -39,24 +39,8 @@ public:
     algo_params_->box_hsize = args_.kernel_width();
     algo_params_->box_vsize = args_.kernel_height();
 
-    // Read camera calibration matrix from args
-    if (!args_.cameras_size() * 2 == config.input_columns.size()) {
-      RESULT_ERROR(&valid_, "GipumaKernel args specified %d cameras but "
-                            "received %lu columns as input",
-                   args_.cameras_size(), config.input_columns.size());
-      return;
-    }
-    for (auto& cam : args_.cameras()) {
-      camera_params_.cameras.emplace_back();
-      auto& c = camera_params_.cameras.back();
-      for (i32 i = 0; i < 3; ++i) {
-        for (i32 j = 0; j < 4; ++j) {
-          i32 idx = i * 4 + j;
-          c.P(i, j) = cam.p(idx);
-        }
-      }
-    }
-    camera_params_ = getCameraParameters(*(state_->cameras), camera_params_);
+    algo_params_->n_best = 3;
+    algo_params_->normTol = 0.1f;
   }
 
   ~GipumaKernel() {
@@ -68,15 +52,46 @@ public:
     result->set_success(valid_.success());
   }
 
-  void new_frame_info() {
+  void reset() {
+    camera_params_ = CameraParameters();
+    delete state_->cameras;
+    state_->cameras = new CameraParameters_cu;
+    was_reset_ = true;
+  }
+
+  void setup_gipuma(const BatchedColumns& input_columns) {
     i32 frame_width = frame_info_.width();
     i32 frame_height = frame_info_.height();
 
-    set_device();
+    // Read camera calibration matrix from columns
+    for (i32 i = 0; i < num_cameras_; ++i) {
+      i32 col_idx = 2 + 3 * i;
+      auto& calibration_col = input_columns[col_idx];
+      // Read camera parameters from camera calibration column
+
+      u8* buffer = new_buffer(CPU_DEVICE, calibration_col.rows[0].size);
+      memcpy_buffer((u8*)buffer, CPU_DEVICE, calibration_col.rows[0].buffer,
+                    device_, calibration_col.rows[0].size);
+      proto::Camera cam;
+      cam.ParseFromArray(buffer,
+                         calibration_col.rows[0].size);
+      delete_buffer(CPU_DEVICE, buffer);
+
+      camera_params_.cameras.emplace_back();
+      auto& c = camera_params_.cameras.back();
+      for (i32 i = 0; i < 3; ++i) {
+        for (i32 j = 0; j < 4; ++j) {
+          i32 idx = i * 4 + j;
+          c.P(i, j) = cam.p(idx);
+        }
+      }
+    }
+    camera_params_ = getCameraParameters(*(state_->cameras), camera_params_);
 
     selectViews(camera_params_, frame_width, frame_height, *algo_params_);
     i32 selected_views = camera_params_.viewSelectionSubset.size();
     assert(selected_views > 0);
+    printf("Num cameras selected %d\n", selected_views);
 
     for (i32 i = 0; i < num_cameras_; ++i) {
       camera_params_.cameras[i].depthMin = algo_params_->depthMin;
@@ -120,6 +135,10 @@ public:
     auto& frame_info = input_columns[1];
     check_frame_info(device_, frame_info);
 
+    if (was_reset_) {
+      setup_gipuma(input_columns);
+    }
+
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
     i32 output_size = width * height * sizeof(float4);
@@ -131,7 +150,7 @@ public:
       new_block_buffer(device_, output_size * input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {
       for (i32 c = 0; c < num_cameras_; ++c) {
-        auto& frame_column = input_columns[c * 2];
+        auto& frame_column = input_columns[c * 3];
         cvc::GpuMat frame_input(frame_info_.height(), frame_info_.width(),
                                 CV_8UC3, frame_column.rows[i].buffer);
         assert(frame_column.rows[i].size == width * height * 3);
@@ -172,6 +191,7 @@ private:
   AlgorithmParameters* algo_params_;
   std::unique_ptr<GlobalState> state_;
   i32 num_cameras_;
+  bool was_reset_;
 };
 
 REGISTER_OP(Gipuma).variadic_inputs().outputs({"points"});
