@@ -9,6 +9,7 @@ import ipaddress
 import pickle
 import struct
 import signal
+import copy
 from multiprocessing import Process, Queue
 from subprocess import Popen, PIPE
 from random import choice
@@ -132,6 +133,8 @@ class Database:
 
         self._debug = debug or (master is None and workers is None)
 
+        self._master = None
+
         # Load all protobuf types
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
@@ -246,7 +249,8 @@ class Database:
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
-        d.ParseFromString(self._storage.read('{}/{}'.format(self._db_path, path)))
+        d.ParseFromString(
+            self._storage.read('{}/{}'.format(self._db_path, path)))
         return d
 
     def _save_descriptor(self, descriptor, path):
@@ -630,21 +634,39 @@ class Database:
 
     def delete_table(self, name):
         self._delete_table(name)
-        self._save_descriptor(db_meta, 'db_metadata.bin')
+        self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
     def new_table(self, name, columns, rows, force=False):
+        """
+        Creates a new table from a list of rows.
+
+        Args:
+            name: String name of the table to create
+            columns: List of names of table columns
+            rows: List of rows with each row a list of elements corresponding
+                  to the specified columns. Elements must be strings of
+                  serialized representations of the data.
+
+        Kwargs:
+            force: TODO(apoms)
+
+        Returns:
+            The new table object.
+        """
+
         if self.has_table(name):
             if force:
-                #self.delete_table(name)
-                pass
+                self.delete_table(name)
             else:
                 raise ScannerException('Attempted to create table with existing '
                                        'name {}'.format(name))
-        columns.insert(0, "index")
+        cols = copy.copy(columns)
+        cols.insert(0, "index")
         for i, row in enumerate(rows):
             row.insert(0, struct.pack('=Q', i))
-        self._bindings.new_table(self._db, name, columns, rows)
+        self._bindings.new_table(self._db, name, cols, rows)
         self._cached_db_metadata = None
+        return self.table(name)
 
     def table(self, name):
         db_meta = self._load_db_metadata()
