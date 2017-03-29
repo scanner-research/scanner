@@ -7,6 +7,25 @@ import sys
 import random
 import json
 import time
+import os
+import os.path
+import struct
+
+def write_dmb_file(path, image):
+    with open(path, 'wb') as f:
+        # type
+        f.write(struct.pack('i', 1)) # type
+        # height
+        f.write(struct.pack('i', image.shape[0]))
+        # width
+        f.write(struct.pack('i', image.shape[1]))
+        # channels
+        if len(image.shape) > 2:
+            f.write(struct.pack('i', image.shape[2]))
+        else:
+            f.write(struct.pack('i', 1))
+        f.write(image.tobytes())
+
 
 def make_p_matrices(calib):
     cameras = calib['cameras']
@@ -93,11 +112,13 @@ def main():
 
         tasks = []
 
-        start = 4000
-        end = 4300
+        start_frame = 4300
+        end_frame = 4302
         item_size = 64
         sampler_args = db.protobufs.StridedRangeSamplerArgs()
         sampler_args.stride = 1
+        start = start_frame
+        end = end_frame
         while start < end:
             sampler_args.warmup_starts.append(start)
             sampler_args.starts.append(start)
@@ -107,10 +128,16 @@ def main():
         camera_groups = [
             [(1, 1), (1, 2), (5, 1), (16, 13)],
             [(3, 1), (3, 3), (5, 3), (1, 6)],
+            [(4, 2), (1, 3), (5, 3), (3, 3)],
+            [(7, 4), (7, 8), (6, 3), (8, 3)],
+            [(10, 4), (9, 3), (10, 3), (11, 3)],
+            [(13, 8), (13, 10), (12, 8), (14, 20)],
+            [(16, 4), (16, 16), (15, 2), (16, 8)],
         ]
         for group in camera_groups:
             first_idx = table_idx[group[0]]
             print(first_idx)
+            print(p_matrices[group[0]])
 
             first_table = collection.tables(first_idx)
             first_calib_table = calib_collection.tables(first_idx)
@@ -155,20 +182,79 @@ def main():
 
             tasks.append(task)
 
-        output_tables = db.run(tasks, op, pipeline_instances_per_node=4, force=True)
-        disparity_table = db.table('disparity_01_01')
-        for fi, tup in disparity_table.load(['points']):
-            points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
-            depth_img = points[:,:,3]
-            scipy.misc.toimage(depth_img).save('depth{:05d}_01_01.png'.format(fi))
-            print(fi)
+        # Output data for fusibile
+        top_folder = 'gipuma_results/'
+        frame_folder = top_folder + '{:08d}/'
+        images_folder = frame_folder + 'images/'
+        image_name = '{:03d}.png'
+        image_path = images_folder + image_name
+        krt_path = images_folder + 'cam.txt'
+        results_folder = frame_folder + 'results/'
+        cam_results_folder = results_folder + '2hat_cam_{:03d}/'
+        normals_path = cam_results_folder + 'normals.dmb'
+        depth_path = cam_results_folder + 'disp.dmb'
 
-        disparity_table = db.table('disparity_03_01')
-        for fi, tup in disparity_table.load(['points']):
-            points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
-            depth_img = points[:,:,3]
-            scipy.misc.toimage(depth_img).save('depth{:05d}_03_01.png'.format(fi))
-            print(fi)
+        output_tables = db.run(tasks, op, pipeline_instances_per_node=4, force=True)
+
+        # Export data directory corresponding to image files
+        # for i, table in enumerate(collection.tables()):
+        #     for fi, tup in table.load(['frame'], rows=range(start_frame,
+        #                                                     end_frame)):
+        #         if not os.path.exists(images_folder.format(fi)):
+        #             os.makedirs(images_folder.format(fi))
+        #         img = tup[0]
+        #         cv2.imwrite(image_path.format(fi, i), img)
+        # Export camera calibration params file (krt_file)
+        for fi in range(end_frame - start_frame):
+            with open(krt_path.format(fi), 'w') as f:
+                f.write(str(479) + '\n')
+                i = -1
+                offset = 0
+                cameras = calib['cameras']
+                for p in range(1, 21):
+                    for c in range(1, 25):
+                        i += 1
+                        if p == 14 and c == 18:
+                            continue
+                        f.write(image_name.format(i) + ' ')
+                        cam = cameras[offset]
+                        K = cam['K']
+                        for n in [item for sublist in K for item in sublist]:
+                            f.write(str(n) + ' ')
+                        R = cam['R']
+                        for n in [item for sublist in R for item in sublist]:
+                            f.write(str(n) + ' ')
+                        t = cam['t']
+                        for n in [item for sublist in t for item in sublist]:
+                            f.write(str(n) + ' ')
+                        f.write('\n')
+                        offset += 1
+
+        # Export normals and depth dmb files
+        for i, table in enumerate(output_tables):
+            for fi, tup in table.load(['points']):
+                if not os.path.exists(cam_results_folder.format(fi, i)):
+                    os.makedirs(cam_results_folder.format(fi, i))
+                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
+                depth_img = points[:,:,3]
+                write_dmb_file(depth_path.format(fi, i), depth_img)
+                normal_img = points[:,:,0:3]
+                write_dmb_file(normals_path.format(fi, i), normal_img)
+                #scipy.misc.toimage(depth_img).save('depth{:05d}_01_01.png'.format(fi))
+
+        # For visualizing depth maps
+        if False:
+            disparity_table = db.table('disparity_01_01')
+            for fi, tup in disparity_table.load(['points']):
+                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
+                depth_img = points[:,:,3]
+                scipy.misc.toimage(depth_img).save('depth{:05d}_01_01.png'.format(fi))
+
+            disparity_table = db.table('disparity_03_01')
+            for fi, tup in disparity_table.load(['points']):
+                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
+                depth_img = points[:,:,3]
+                scipy.misc.toimage(depth_img).save('depth{:05d}_03_01.png'.format(fi))
 
 
 if __name__ == "__main__":
