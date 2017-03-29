@@ -58,12 +58,12 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
 
   auto offset_from_row = [&end_rows](i64 r) -> i64 {
     i64 i = 0;
-    i64 sum = 0;
+    i64 last_end_row = 0;
     for (; i < end_rows.size(); ++i) {
       if (r < end_rows[i]) {
         break;
       }
-      sum += end_rows[i];
+      last_end_row = end_rows[i];
     }
     assert(i != end_rows.size());
     return r - sum;
