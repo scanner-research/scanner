@@ -17,15 +17,15 @@ class Constants:
 
     w = 24
     g = 4
-    # lam_s = 200
-    # lam_a = 80
-    lam_s = 1
-    lam_a = 1
+    lam_s = 200
+    lam_a = 80
+    # lam_s = .01
+    # lam_a = .01
     tau_s = 200
     tau_a = 200
 
     # Speedup should be user defined
-    v = 8
+    v = 12
 
 with Database(debug=True) as db:
     def create_database():
@@ -124,13 +124,13 @@ with Database(debug=True) as db:
             'hyperlapse.mkv',
             [f[0] for i, f in frames if i-1 in path],
             fps=12.0)
-        video.write_video(
-            'timelapse.mkv',
-            [f[0] for i, f in frames if i % 8 == 0],
-            fps=12.0)
+        # video.write_video(
+        #     'timelapse.mkv',
+        #     [f[0] for i, f in frames if i % 12 == 0],
+        #     fps=12.0)
 
-    create_database()
-    extract_features()
-    compute_matches()
+    # create_database()
+    # extract_features()
+    # compute_matches()
     path = build_path()
     encode_video(path)

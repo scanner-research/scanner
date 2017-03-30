@@ -49,8 +49,11 @@ class FeatureMatcherKernel : public VideoKernel {
   void reset() override {
     set_device();
 
+    LOG(INFO) << "reset";
     features_suffix_.clear();
     kps_suffix_.clear();
+    features_suffix_.resize(C_.w);
+    kps_suffix_.resize(C_.w);
   }
 
   void execute(const BatchedColumns& input_columns,
@@ -84,14 +87,15 @@ class FeatureMatcherKernel : public VideoKernel {
         features.push_back(cvc::GpuMat());
       } else {
         i32 step = size / kp.size();
-        i32 cols = step / (sizeof(f32) * 2);
-        features.push_back(
-          cvc::GpuMat(
-            kp.size(),
-            cols,
-            CV_32F,
-            features_col.rows[i].buffer,
-            step));
+        i32 cols;
+        if (kp.size() == 1) {
+          cols = step / sizeof(f32);
+        } else {
+          cols = step / (sizeof(f32) * 2);
+        }
+        LOG_IF(FATAL, cols != 64) << "Not 64 cols: " << cols;
+        features.push_back(cvc::GpuMat(kp.size(), cols, CV_32F,
+                                       features_col.rows[i].buffer, step));
       }
     }
 
@@ -116,12 +120,17 @@ class FeatureMatcherKernel : public VideoKernel {
 
     features_suffix_.clear();
     kps_suffix_.clear();
+    features_suffix_.resize(C_.w);
     for (i32 i = 0; i < C_.w; ++i) {
       i32 offset = C_.T - C_.w + i;
-      cvc::GpuMat feat;
-      features[offset].copyTo(feat);
-      features_suffix_.push_back(feat);
+      features[offset].copyTo(features_suffix_[i]);
+      LOG_IF(FATAL, features[offset].rows != features_suffix_[i].rows)
+        << "no really wtf";
+      LOG_IF(FATAL, features[offset].rows != kps[offset].size()) << "wtf";
       kps_suffix_.push_back(kps[offset]);
+      if (i == 0) {
+        LOG(INFO) << i << " " << kps[offset].size();
+      }
     }
   }
 
@@ -156,6 +165,11 @@ class FeatureMatcherKernel : public VideoKernel {
     if (kp1.size() == 0 || kp2.size() == 0) {
       return C_.gamma;
     }
+
+    LOG_IF(FATAL, kp1.size() != desc1_gpu.rows || kp2.size() != desc2_gpu.rows)
+      << "Malformed keypoints or features";
+    LOG_IF(FATAL, desc1_gpu.cols != desc2_gpu.cols)
+      << "Dimension mismatch: " << desc1_gpu.cols << ", " << desc2_gpu.cols;
 
     std::vector<cv::DMatch> matches;
     matcher_->match(desc1_gpu, desc2_gpu, matches);
@@ -193,8 +207,10 @@ class FeatureMatcherKernel : public VideoKernel {
     // }
 
     // cv::drawMatches( img_1, kp1_cv, img_2, kp2_cv,
-    //                  good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
-    //                  std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+    //                  good_matches, img_matches, cv::Scalar::all(-1),
+    //                  cv::Scalar::all(-1),
+    //                  std::vector<char>(),
+    //                  cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
     // cv::imwrite("out.jpg", img_matches);
     // LOG(FATAL) << "whelp";
 
@@ -215,7 +231,8 @@ class FeatureMatcherKernel : public VideoKernel {
     std::vector<cv::Point2f> center = {x, y};
     float co = reprojection_error(center, center, H);
 
-    // LOG(INFO) << "cr: " << cr << ", co: " << co << ", C_.tau_c: " << C_.tau_c;
+    // LOG(INFO) << "cr: " << cr << ", co: " << co << ", C_.tau_c: " <<
+    // C_.tau_c;
     if (cr < C_.tau_c) {
       return co;
     } else {

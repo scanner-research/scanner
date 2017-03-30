@@ -1,6 +1,6 @@
 # Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
-_To try out Scanner, [check out our Quick start](https://github.com/scanner-research/scanner#quick-start)._
+_To try out Scanner, [check out our Quick start](https://github.com/scanner-research/scanner#quick-start) and [browse our Wiki](https://github.com/scanner-research/scanner/wiki)._
 
 Scanner is like Spark for videos. It runs stateful functions across video frames using clusters of machines with CPUs and GPUs. For example, you could use Scanner to:
 
@@ -52,4 +52,12 @@ This runs a Scanner demo which detects faces in every frame of a short video fro
 nvidia-docker cp scanner:/opt/scanner/example_faces.mp4 .
 ```
 
-Then you can view the generated video on your own machine. That's it! For [build instructions](https://github.com/scanner-research/scanner/wiki/Building-Scanner), [tutorials](https://github.com/scanner-research/scanner/wiki/Getting-started), [documentation](https://github.com/scanner-research/scanner/wiki/Documentation), and [contributing guidelines](https://github.com/scanner-research/scanner/wiki/Contributing), visit the [Scanner wiki](https://github.com/scanner-research/scanner/wiki).
+Then you can view the generated video on your own machine. That's it!
+
+## Learning Scanner ##
+
+To get started building your own applications with Scanner, check out:
+
+* [Build instructions](https://github.com/scanner-research/scanner/wiki/Building-Scanner)
+* [Tutorials](https://github.com/scanner-research/scanner/wiki/Getting-started)
+* [Documentation](https://github.com/scanner-research/scanner/wiki/Documentation)

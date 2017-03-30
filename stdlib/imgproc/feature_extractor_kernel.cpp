@@ -68,13 +68,12 @@ class FeatureExtractorKernel : public VideoKernel {
           (*surf)(img, cvc::GpuMat(), kp_gpu, feat_gpus[i]);
           surf->downloadKeypoints(kp_gpu, keypoints[i]);
 
+          LOG_IF(FATAL, !feat_gpus[i].empty() && feat_gpus[i].cols != 64)
+            << "Not 64 SURF columns?";
+
           features.push_back(std::make_tuple(
             feat_gpus[i].data,
             feat_gpus[i].step * feat_gpus[i].rows));
-          if (i == 0) {
-            LOG(INFO) << i << " " << keypoints[i].size()
-                      << " " << feat_gpus[i].cols << " " << feat_gpus[i].step;
-          }
         }
       } else {
         LOG(FATAL) << "SIFT GPU not supported";
