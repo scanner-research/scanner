@@ -62,3 +62,7 @@ message Keypoint {
   float x = 1;
   float y = 2;
 }
+
+message PythonArgs {
+  bytes kernel = 1;
+}
