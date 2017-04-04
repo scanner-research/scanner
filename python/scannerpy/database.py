@@ -135,13 +135,7 @@ class Database:
 
         self._master = None
 
-        # Load all protobuf types
-        import scanner.metadata_pb2 as metadata_types
-        import scanner.engine.rpc_pb2 as rpc_types
-        import scanner.types_pb2 as misc_types
         import libscanner as bindings
-
-        self._protobufs = [misc_types, rpc_types, metadata_types]
         self._bindings = bindings
 
         # Setup database metadata
@@ -151,7 +145,7 @@ class Database:
         self._png_dump_prefix = '__png_dump_'
 
         self.ops = OpGenerator(self)
-        self.protobufs = ProtobufGenerator(self)
+        self.protobufs = ProtobufGenerator(self.config)
 
         self.start_cluster(master, workers)
 
@@ -479,11 +473,7 @@ class Database:
                         if one exists.
         """
         if proto_path is not None:
-            if not os.path.isfile(proto_path):
-                raise ScannerException('Protobuf path does not exist: {}'
-                                       .format(proto_path))
-            mod = imp.load_source('_ignore', proto_path)
-            self._protobufs.append(mod)
+            self.protobufs.add_module(proto_path)
         op_info = self.protobufs.OpInfo()
         op_info.so_path = so_path
         self._try_rpc(lambda: self._master.LoadOp(op_info))
@@ -921,11 +911,29 @@ class Database:
 
 
 class ProtobufGenerator:
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, cfg):
+        self._mods = []
+
+        import scanner.metadata_pb2 as metadata_types
+        import scanner.engine.rpc_pb2 as rpc_types
+        import scanner.types_pb2 as misc_types
+        for mod in [misc_types, rpc_types, metadata_types]:
+            self.add_module(mod)
+
+        self.add_module('{}/build/stdlib/stdlib_pb2.py'.format(cfg.module_dir))
+
+    def add_module(self, path):
+        if isinstance(path, basestring):
+            if not os.path.isfile(path):
+                raise ScannerException('Protobuf path does not exist: {}'
+                                       .format(path))
+            mod = imp.load_source('_ignore', path)
+        else:
+            mod = path
+        self._mods.append(mod)
 
     def __getattr__(self, name):
-        for mod in self._db._protobufs:
+        for mod in self._mods:
             if hasattr(mod, name):
                 return getattr(mod, name)
         raise ScannerException('No protobuf with name {}'.format(name))
