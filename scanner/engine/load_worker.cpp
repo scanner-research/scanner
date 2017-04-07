@@ -430,6 +430,7 @@ void* load_thread(void* arg) {
           proto::FrameInfo frame_info;
           frame_info.set_width(entry.width);
           frame_info.set_height(entry.height);
+          frame_info.set_channels(3);
 
           size_t frame_info_size = frame_info.ByteSize();
           size_t total_rows = 0;

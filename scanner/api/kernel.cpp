@@ -36,7 +36,8 @@ void VideoKernel::check_frame_info(const DeviceHandle& device,
   delete_buffer(CPU_DEVICE, buffer);
 
   if (frame_info.width() != frame_info_.width() ||
-      frame_info.height() != frame_info_.height()) {
+      frame_info.height() != frame_info_.height() ||
+      frame_info.channels() != frame_info_.channels()) {
     frame_info_ = frame_info;
     new_frame_info();
   }
