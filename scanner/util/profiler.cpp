@@ -15,6 +15,7 @@
 
 #include "scanner/util/profiler.h"
 #include "scanner/util/storehouse.h"
+#include "storehouse/storage_backend.h"
 
 #include <cmath>
 #include <map>

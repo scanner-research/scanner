@@ -16,13 +16,16 @@
 #pragma once
 
 #include "scanner/util/util.h"
-#include "storehouse/storage_backend.h"
 
 #include <atomic>
 #include <fstream>
 #include <map>
 #include <string>
 #include <vector>
+
+namespace storehouse {
+class WriteFile;
+}
 
 namespace scanner {
 
