@@ -8,6 +8,8 @@ import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
 
+util.download_video()
+
 with Database() as db:
 
     # TODO(wcrichto): comment the demo. Make the Scanner philosophy more clear.
@@ -49,7 +51,7 @@ with Database() as db:
         outputs.append(output)
 
     all_bboxes = [
-        [box for (_, box) in out.load([0], parsers.bboxes)]
+        [box for (_, box) in out.load(['bboxes'], parsers.bboxes)]
         for out in outputs]
 
     nms_bboxes = []
@@ -64,7 +66,7 @@ with Database() as db:
 
     print('Extracting frames...')
     video_faces = nms_bboxes
-    video_frames = [f[0] for _, f in db.table('example').load([0])]
+    video_frames = [f[0] for _, f in db.table('example').load(['frame'])]
 
     print('Writing output video...')
     frame_shape = video_frames[0].shape
@@ -76,7 +78,10 @@ with Database() as db:
 
     for (frame, frame_faces) in zip(video_frames, video_faces):
         for face in frame_faces:
-            if face[4] < 0.5: continue
-            face = map(int, face)
-            cv2.rectangle(frame, (face[0], face[1]), (face[2], face[3]), (255, 0, 0), 3)
+            if face.score < 0.5: continue
+            cv2.rectangle(
+                frame,
+                (int(face.x1), int(face.y1)),
+                (int(face.x2), int(face.y2)),
+                (255, 0, 0), 3)
         output.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
