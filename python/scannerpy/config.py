@@ -63,11 +63,7 @@ class Config(object):
         if storage_type == 'posix':
             storage_config = StorageConfig.make_posix_config()
         elif storage_type == 'gcs':
-            with open(storage['key_path']) as f:
-                key = f.read()
             storage_config = StorageConfig.make_gcs_config(
-                storage['cert_path'].encode('latin-1'),
-                key,
                 storage['bucket'].encode('latin-1'))
         else:
             raise ScannerException(
