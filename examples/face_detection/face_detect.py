@@ -1,5 +1,6 @@
 from scannerpy import Database, DeviceType
 from scannerpy.stdlib import NetDescriptor, parsers, bboxes
+import math
 import os
 import subprocess
 import cv2
@@ -20,7 +21,7 @@ with Database() as db:
     facenet_args.threshold = 0.5
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
-    caffe_args.batch_size = 5
+    caffe_args.batch_size = 2
 
     table_input = db.ops.Input()
     facenet_input = db.ops.FacenetInput(
@@ -38,13 +39,22 @@ with Database() as db:
     if not db.has_table('example'):
         print('Ingesting video into Scanner ...')
         db.ingest_videos([('example', util.download_video())], force=True)
+    base_batch = 4
+    base_size = 1280*720
+    # TODO(apoms): determine automatically from video
+    current_size = 1280*720
+    current_batch = math.floor(base_size / float(current_size) * base_batch)
 
     sampler = db.sampler()
     print('Running face detector...')
     outputs = []
-    for scale in [0.125, 0.25, 0.5, 1.0]:
+    scales = [0.125, 0.25, 0.5, 1.0]
+    batch_sizes = [int(current_batch * (2**i)) for i in range(len(scales))]
+    batch_sizes.reverse()
+    for scale, batch in zip(scales, batch_sizes):
         print('Scale {}...'.format(scale))
         facenet_args.scale = scale
+        caffe_args.batch_size = batch
         tasks = sampler.all([('example', 'example_faces_{}'.format(scale))],
                             item_size=50)
         [output] = db.run(tasks, facenet_output, force=True, work_item_size=5)
