@@ -151,8 +151,9 @@ class Database:
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
-        if not os.path.isdir(pydb_path):
-            os.mkdir(pydb_path)
+        
+        if not self._storage.check_file_exists(pydb_path+'/'):
+            self._storage.make_dir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
             self._update_collections()
 
@@ -160,7 +161,7 @@ class Database:
         self._collections = self._load_descriptor(
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
-
+        
     def __del__(self):
         self.stop_cluster()
 

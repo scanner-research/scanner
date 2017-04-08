@@ -47,7 +47,7 @@ class WorkerImpl final : public proto::Worker::Service {
   grpc::Status PokeWatchdog(grpc::ServerContext* context,
                             const proto::Empty* empty, proto::Empty* result);
 
-  void start_watchdog(grpc::Server* server, i32 timeout_ms=5000);
+  void start_watchdog(grpc::Server* server, i32 timeout_ms=50000);
 
  private:
   std::thread watchdog_thread_;
