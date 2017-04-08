@@ -148,6 +148,9 @@ inline bool parse_sps(GetBitsState& gb, SPS& info) {
       info.profile_idc == 118 ||  // Stereo High profile (MVC)
       info.profile_idc == 128 ||  // Multiview High profile (MVC)
       info.profile_idc == 138 ||  // Multiview Depth High profile (MVCD)
+      info.profile_idc == 139 ||
+      info.profile_idc == 134 ||
+      info.profile_idc == 135 ||
       info.profile_idc == 144) {
     // chroma_format_idc
     u32 chroma_format_idc = get_ue_golomb(gb);
@@ -206,6 +209,9 @@ inline bool parse_sps(GetBitsState& gb, SPS& info) {
         // offset_for_ref_frame[ i ];
         get_se_golomb(gb);
       }
+    } break;
+    case 2: {
+      // NOTE(apoms): Nothing to do here
     } break;
     default: {
       LOG(WARNING) << "Illegal picture_order_count type: " << info.poc_type;
