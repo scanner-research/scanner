@@ -92,6 +92,7 @@ class OpBuilder {
                  << "inputs";
     }
     variadic_inputs_ = true;
+    return *this;
   }
 
   OpBuilder& inputs(const std::vector<std::string>& columns) {
