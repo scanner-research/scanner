@@ -525,8 +525,6 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     }
   }
 
-  cudaDeviceReset();
-
   return grpc::Status::OK;
 }
 

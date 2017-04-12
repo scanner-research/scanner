@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType
+from scannerpy import Database, DeviceType, TableJob
 from scannerpy.stdlib import parsers
 import numpy as np
 import cv2
@@ -16,12 +16,8 @@ import util
 # ~/.scanner.toml configuration file.
 with Database() as db:
 
-    # Create an operator to run on our video. This computes a histogram with 16 bins
-    # for each color channel in a given frame.
-    hist_op = db.ops.Histogram()
 
     # Create a Scanner table from our video in the format (table name, video path).
-
     # If any videos fail to ingest, they'll show up in the failed list. If force
     # is true, it will overwrite existing tables of the same name.
     example_video_path = util.download_video()
@@ -32,14 +28,21 @@ with Database() as db:
     print(db.summarize())
     print('Failures:', failed)
 
+    # Create an operator to run on our video. This computes a histogram with 16 bins
+    # for each color channel in a given frame.
+    frame, frame_info = input_table.as_op()
+    histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
+
     # Define which frames we're going to run the operator on (all of them, in this
     # case). The sampler takes in pairs of (input table name, output table name).
-    sampler = db.sampler()
-    tasks = sampler.all([(input_table.name(), 'example_hist')])
+    job = TableJob(
+        rows = input_table.rows().all(),
+        columns = [histogram],
+        name = 'example_hist')
 
     # Run the operator on the input and get an output table. The columns of the
     # output table are written to disk by the Scanner runtime.
-    [output_table] = db.run(tasks, hist_op, force=True)
+    [output_table] = db.run([job], force=True)
 
     # Load the histograms from a column of the output table. The parsers.histograms
     # function  converts the raw bytes output by Scanner into a numpy array for each
