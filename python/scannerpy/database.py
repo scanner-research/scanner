@@ -19,7 +19,7 @@ from threading import Thread
 from common import *
 from profiler import Profiler
 from config import Config
-from op import OpGenerator, Op
+from op import OpGenerator, Op, OpColumn
 from sampler import Sampler
 from collection import Collection
 from table import Table
@@ -477,9 +477,9 @@ class Database:
         """
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
-        op_info = self.protobufs.OpInfo()
-        op_info.so_path = so_path
-        self._try_rpc(lambda: self._master.LoadOp(op_info))
+        op_path = self.protobufs.OpPath()
+        op_path.path = so_path
+        self._try_rpc(lambda: self._master.LoadOp(op_path))
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -704,6 +704,26 @@ class Database:
 
         return Profiler(self, job_id)
 
+    def _get_op_info(self, op_name):
+        op_info_args = self.protobufs.OpInfoArgs()
+        op_info_args.op_name = op_name
+
+        op_info = self._try_rpc (lambda: self._master.GetOpInfo(op_info_args))
+
+        if not op_info.result.success:
+            raise ScannerException(op_info.result.msg)
+
+        return op_info
+
+    def _check_has_op(self, op_name):
+        self._get_op_info(op_name)
+
+    def _get_input_columns(self, op_name):
+        return self._get_op_info(op_name).input_columns
+
+    def _get_output_columns(self, op_name):
+        return self._get_op_info(op_name).output_columns
+
     def _toposort(self, op):
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
@@ -714,15 +734,14 @@ class Database:
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
+            print c, c._name, c._inputs
+
             if (c._name == "InputTable"):
                 start_node = c
                 continue
-            elif len(c._inputs) == 0:
-                input = Op.input(self)
-                # TODO(wcrichto): allow non-frame input
-                c._inputs = [(input, ["frame", "frame_info"])]
-                start_node = input
-            for (parent, _) in c._inputs:
+
+            for input in c._inputs:
+                parent = input._op
                 edges[parent].append(c)
                 in_edges_left[c] += 1
 
@@ -741,49 +760,9 @@ class Database:
                 if in_edges_left[child] == 0:
                     stack.append(child)
 
-        eval_sorted[-1]._inputs.insert(0, (eval_sorted[0], ["index"]))
+        eval_sorted[-1]._inputs.insert(0, OpColumn(eval_sorted[0], "index"))
 
         return [e.to_proto(eval_index) for e in eval_sorted]
-
-    def _get_op_output_info(self, op_name):
-        op_output_info_args = self.protobufs.OpOutputInfoArgs()
-        op_output_info_args.op_name = op_name
-
-        op_output_info = self._try_rpc (lambda: self._master.GetOpOutputInfo(op_output_info_args))
-
-        if not op_output_info.result.success:
-            raise ScannerException(op_output_info.result.msg)
-
-        return op_output_info
-
-    def _check_has_op(self, op_name):
-        self._get_op_output_info(op_name)
-
-    def _get_output_columns(self, op_name):
-        return self._get_op_output_info(op_name).output_columns
-
-    def _process_dag(self, op):
-        # If ops are passed as a list (e.g. [transform, caffe])
-        # then hook up inputs to outputs of adjacent ops
-
-        if isinstance(op, list):
-            for i in range(len(op) - 1):
-                if len(op[i+1]._inputs) > 0:
-                    continue
-                if op[i]._name == "InputTable":
-                    out_cols = ["frame", "frame_info"]
-                else:
-                    out_cols = self._get_output_columns(op[i]._name)
-                op[i+1]._inputs = [(op[i], out_cols)]
-            op = op[-1]
-
-        # If the user doesn't explicitly specify an OutputTable, assume that
-        # it's all the output columns of the last op.
-        if op._name != "OutputTable":
-            out_cols = self._get_output_columns(str(op._name))
-            op = Op.output(self, [(op, out_cols)])
-
-        return self._toposort(op)
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -796,14 +775,13 @@ class Database:
             raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
 
-    def run(self, tasks, op,
+    def run(self, jobs,
             output_collection=None,
-            job_name=None,
             force=False,
             work_item_size=250,
             cpu_pool=None,
             gpu_pool=None,
-            pipeline_instances_per_node=-1,
+            pipeline_instances_per_node=None,
             show_progress=True):
         """
         Runs a computation over a set of inputs.
@@ -813,16 +791,12 @@ class Database:
                    Collection, then the computation is run on all frames of all
                    tables in the collection. Otherwise, tasks should be generated
                    by the Sampler.
-            op: The computation to run. Op is either a list of
-                   ops to run in sequence, or a DAG with the output node
-                   passed in as the argument.
+            outputs: TODO(wcrichto)
 
         Kwargs:
             output_collection: If this is not None, then a new collection with
                                this name will be created for all the output
                                tables.
-            job_name: An optional name to assign the job. It will be randomly
-                      generated if none is given.
             force: TODO(wcrichto)
             work_item_size: TODO(wcrichto)
             cpu_pool: TODO(wcrichto)
@@ -835,27 +809,34 @@ class Database:
             or a list of Table objects.
         """
 
-        # If the input is a collection, assume user is running over all frames
-        input_is_collection = isinstance(tasks, Collection)
-        if input_is_collection:
-            if output_collection is None:
-                raise ScannerException(
-                    'If Database.run input is a collection, output_collection_name '
-                    'must be specified')
-            sampler = self.sampler()
-            tasks = sampler.all(tasks)
+        tasks = []
+        for job in jobs:
+            tasks.append(job.task())
 
-        # If the output should be a collection, then set the table names
-        if output_collection is not None:
-            if self.has_collection(output_collection) and not force:
-                raise ScannerException(
-                    'Collection with name {} already exists'
-                    .format(output_collection))
-            for task in tasks:
-                new_name = '{}:{}'.format(
-                    output_collection,
-                    task.samples[0].table_name.split(':')[-1])
-                task.output_table_name = new_name
+        op = jobs[0].op(self)
+
+
+        # # If the input is a collection, assume user is running over all frames
+        # input_is_collection = isinstance(tasks, Collection)
+        # if input_is_collection:
+        #     if output_collection is None:
+        #         raise ScannerException(
+        #             'If Database.run input is a collection, output_collection_name '
+        #             'must be specified')
+        #     sampler = self.sampler()
+        #     tasks = sampler.all(tasks)
+
+        # # If the output should be a collection, then set the table names
+        # if output_collection is not None:
+        #     if self.has_collection(output_collection) and not force:
+        #         raise ScannerException(
+        #             'Collection with name {} already exists'
+        #             .format(output_collection))
+        #     for task in tasks:
+        #         new_name = '{}:{}'.format(
+        #             output_collection,
+        #             task.samples[0].table_name.split(':')[-1])
+        #         task.output_table_name = new_name
 
         for task in tasks:
             if self.has_table(task.output_table_name):
@@ -867,12 +848,11 @@ class Database:
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
         job_params = self.protobufs.JobParameters()
-        # Generate a random job name if none given
-        job_name = job_name or ''.join(choice(ascii_uppercase) for _ in range(12))
+        job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
-        job_params.task_set.ops.extend(self._process_dag(op))
-        job_params.pipeline_instances_per_node = pipeline_instances_per_node
+        job_params.task_set.ops.extend(self._toposort(op))
+        job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress
 
@@ -940,3 +920,19 @@ class ProtobufGenerator:
             if hasattr(mod, name):
                 return getattr(mod, name)
         raise ScannerException('No protobuf with name {}'.format(name))
+
+
+class TableJob:
+    def __init__(self, rows, columns, name):
+        self._rows = rows
+        self._columns = columns
+        self._rows.output_table_name = name
+
+    def task(self):
+        return self._rows
+
+    def op(self, db):
+        return db.ops.Output(inputs=self._columns)
+
+# class CollectionJob:
+#     def __init__(self):
