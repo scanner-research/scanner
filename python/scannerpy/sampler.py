@@ -8,74 +8,43 @@ class Sampler:
     to run a computation over.
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, table):
+        self._table = table
+        self._db = table._db
 
-    def _convert_collection(self, videos):
-        if isinstance(videos, Collection):
-            return [(t, '') for t in videos.table_names()]
-        else:
-            return videos
-
-    def all(self, videos, item_size=1000, warmup_size=0):
+    def all(self, item_size=1000, warmup_size=0):
         sampler_args = self._db.protobufs.AllSamplerArgs()
         sampler_args.sample_size = item_size
         sampler_args.warmup_size = warmup_size
-        videos = self._convert_collection(videos)
-        tasks = []
-        for video in videos:
-            (input_table_name, output_table_name) = video
-            table = self._db.table(video[0])
-            task = self._db.protobufs.Task()
-            task.output_table_name = output_table_name
-            input_table = self._db.table(input_table_name)
-            column_names = [c.name() for c in input_table.columns()]
-            sample = task.samples.add()
-            sample.table_name = input_table_name
-            sample.column_names.extend(column_names)
-            sample.sampling_function = "All"
-            sample.sampling_args = sampler_args.SerializeToString()
-            tasks.append(task)
-        return tasks
+        task = self._db.protobufs.Task()
+        #task.output_table_name = output_table_name
+        column_names = [c.name() for c in self._table.columns()]
+        sample = task.samples.add()
+        sample.table_name = self._table.name()
+        sample.column_names.extend(column_names)
+        sample.sampling_function = "All"
+        sample.sampling_args = sampler_args.SerializeToString()
+        return task
 
-    def strided(self, videos, stride, item_size=1000):
-        videos = self._convert_collection(videos)
-        tasks = []
-        for video in videos:
-            table = self._db.table(video[0])
-            task = self.strided_range(video, 0, table.num_rows(), stride,
-                                      item_size=item_size)
-            tasks.append(task)
-        return tasks
+    def strided(self, stride, item_size=1000):
+        return self.strided_range(0, self._table.num_rows(), stride, item_size=item_size)
 
-    def range(self, videos, start, end, item_size=1000, warmup_size=0):
-        return self.ranges(videos, [(start, end)], item_size=item_size,
+    def range(self, start, end, item_size=1000, warmup_size=0):
+        return self.ranges([(start, end)], item_size=item_size,
                            warmup_size=warmup_size)
 
-    def ranges(self, videos, intervals, item_size=1000, warmup_size=0):
-        videos = self._convert_collection(videos)
-        tasks = []
-        for video in videos:
-            task = self.strided_ranges(video, intervals, 1,
-                                      item_size=item_size,
-                                      warmup_size=warmup_size)
-            tasks.append(task)
-        return tasks
+    def ranges(self, intervals, item_size=1000, warmup_size=0):
+        return self.strided_ranges(
+            intervals, 1,
+            item_size=item_size,
+            warmup_size=warmup_size)
 
-    def gather(self, video, rows, item_size=1000):
-        if isinstance(video, list) or isinstance(video, Collection):
-            raise ScannerException('Sampler.gather only takes a single video')
-        if not isinstance(video, tuple):
-            raise ScannerException("""Error: sampler input must either be a collection \
-or (input_table, output_table) pair')""")
-
-        (input_table_name, output_table_name) = video
+    def gather(self, rows, item_size=1000):
         task = self._db.protobufs.Task()
-        task.output_table_name = output_table_name
-        input_table = self._db.table(input_table_name)
-        column_names = [c.name() for c in input_table.columns()]
+        #task.output_table_name = output_table_name
+        column_names = [c.name() for c in self._table.columns()]
         sample = task.samples.add()
-        sample.table_name = input_table_name
+        sample.table_name = self._table.name()
         sample.column_names.extend(column_names)
         sample.sampling_function = "Gather"
         sampler_args = self._db.protobufs.GatherSamplerArgs()
@@ -88,28 +57,20 @@ or (input_table, output_table) pair')""")
         sample.sampling_args = sampler_args.SerializeToString()
         return task
 
-    def strided_range(self, video, start, end, stride, item_size=1000,
+    def strided_range(self, start, end, stride, item_size=1000,
                       warmup_size=0):
-        return self.strided_ranges(video, [(start, end)], stride,
+        return self.strided_ranges([(start, end)], stride,
                                    item_size=item_size,
                                    warmup_size=warmup_size)
 
-    def strided_ranges(self, video, intervals, stride, item_size=1000,
+    def strided_ranges(self, intervals, stride, item_size=1000,
                       warmup_size=0):
-        if isinstance(video, list) or isinstance(video, Collection):
-            raise ScannerException('Sampler.strided_range only takes a single video')
-        if not isinstance(video, tuple):
-            raise ScannerException("""Error: sampler input must either be a collection \
-or (input_table, output_table) pair')""")
-
-        (input_table_name, output_table_name) = video
         task = self._db.protobufs.Task()
-        task.output_table_name = output_table_name
-        input_table = self._db.table(input_table_name)
-        num_rows = input_table.num_rows()
-        column_names = [c.name() for c in input_table.columns()]
+        #task.output_table_name = output_table_name
+        num_rows = self._table.num_rows()
+        column_names = [c.name() for c in self._table.columns()]
         sample = task.samples.add()
-        sample.table_name = input_table_name
+        sample.table_name = self._table.name()
         sample.column_names.extend(column_names)
         sample.sampling_function = "StridedRange"
         sampler_args = self._db.protobufs.StridedRangeSamplerArgs()

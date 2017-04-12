@@ -13,14 +13,14 @@
  * limitations under the License.
  */
 
-#include <grpc/support/log.h>
-#include "scanner/engine/ingest.h"
 #include "scanner/engine/master.h"
+#include <grpc/support/log.h>
+#include <mutex>
+#include "scanner/engine/ingest.h"
 #include "scanner/engine/sampler.h"
+#include "scanner/util/cuda.h"
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
-
-#include <mutex>
 namespace scanner {
 namespace internal {
 namespace {
@@ -204,13 +204,10 @@ Result get_task_end_rows(
 }
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
-  : watchdog_awake_(true),
-    db_params_(params),
-    bar_(nullptr) {
+  : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
   storage_ =
     storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   set_database_path(params.db_path);
-
 }
 
 MasterImpl::~MasterImpl() {
@@ -528,6 +525,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     }
   }
 
+  cudaDeviceReset();
+
   return grpc::Status::OK;
 }
 
@@ -537,32 +536,33 @@ grpc::Status MasterImpl::Ping(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status MasterImpl::GetOpOutputInfo(
-  grpc::ServerContext* context,
-  const proto::OpOutputInfoArgs* op_output_info_args,
-  proto::OpOutputInfo* op_output_info) {
+grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
+                                   const proto::OpInfoArgs* op_info_args,
+                                   proto::OpInfo* op_info) {
   OpRegistry* registry = get_op_registry();
-  std::string op_name = op_output_info_args->op_name();
+  std::string op_name = op_info_args->op_name();
   if (!registry->has_op(op_name)) {
-    op_output_info->mutable_result()->set_success(false);
-    op_output_info->mutable_result()->set_msg("Op " + op_name +
-                                              " does not exist");
+    op_info->mutable_result()->set_success(false);
+    op_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
     return grpc::Status::OK;
   }
 
   OpInfo* info = registry->get_op_info(op_name);
 
-  for (auto& output_column : info->output_columns()) {
-    op_output_info->add_output_columns(output_column);
+  for (auto& input_column : info->input_columns()) {
+    op_info->add_input_columns(input_column);
   }
-  op_output_info->mutable_result()->set_success(true);
+  for (auto& output_column : info->output_columns()) {
+    op_info->add_output_columns(output_column);
+  }
+  op_info->mutable_result()->set_success(true);
 
   return grpc::Status::OK;
 }
 
 grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
-                                const proto::OpInfo* op_info, Result* result) {
-  const std::string& so_path = op_info->so_path();
+                                const proto::OpPath* op_path, Result* result) {
+  const std::string& so_path = op_path->path();
   {
     std::ifstream infile(so_path);
     if (!infile.good()) {
@@ -580,7 +580,7 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   for (auto& worker : workers_) {
     grpc::ClientContext ctx;
     proto::Empty empty;
-    worker->LoadOp(&ctx, *op_info, &empty);
+    worker->LoadOp(&ctx, *op_path, &empty);
   }
 
   result->set_success(true);
