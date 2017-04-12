@@ -63,10 +63,15 @@ class Op:
 
     def outputs(self):
         if self._name == "InputTable":
-            return tuple([OpColumn(self, c) for c in self._inputs])
+            cols = [OpColumn(self, c) for c in self._inputs][1:]
         else:
             cols = self._db._get_output_columns(self._name)
-            return tuple([OpColumn(self, c) for c in ['index'] + list(cols)])
+            cols = [OpColumn(self, c) for c in cols]
+        if len(cols) == 1:
+            return cols[0]
+        else:
+            return tuple(cols)
+
 
     def to_proto(self, indices):
         e = self._db.protobufs.Op()

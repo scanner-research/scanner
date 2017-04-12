@@ -734,7 +734,6 @@ class Database:
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
-            print c, c._name, c._inputs
 
             if (c._name == "InputTable"):
                 start_node = c

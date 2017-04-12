@@ -65,7 +65,7 @@ class Column:
         # Integer divide, round up
         num_items = len(table_descriptor.end_rows)
         bufs = []
-        input_rows = self._table.rows()
+        input_rows = list(range(self._table.num_rows()))
         assert len(input_rows) == total_rows
         i = 0
         rows_so_far = 0
