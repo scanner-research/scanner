@@ -18,6 +18,28 @@ def bboxes(bufs, db):
     return bboxes
 
 
+def poses(buf, db):
+    (num_bodies,) = struct.unpack("=Q", buf[:8])
+    buf = buf[8:]
+    bodies = []
+    for i in range(num_bodies):
+        (num_joints,) = struct.unpack("=Q", buf[:8])
+        assert(num_joints == 15)
+        buf = buf[8:]
+        joints = np.zeros((15, 3))
+        for i in range(num_joints):
+            point_size, = struct.unpack("=i", buf[:4])
+            buf = buf[4:]
+            point = db.protobufs.Point()
+            point.ParseFromString(buf[:point_size])
+            buf = buf[point_size:]
+            joints[i, 0] = point.y
+            joints[i, 1] = point.x
+            joints[i, 2] = point.score
+        bodies.append(joints)
+    return bodies
+
+
 def histograms(bufs, db):
     return np.split(np.frombuffer(bufs[0], dtype=np.dtype(np.int32)), 3)
 
