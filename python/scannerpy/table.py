@@ -13,6 +13,7 @@ class Table:
     def __init__(self, db, descriptor):
         self._db = db
         self._descriptor = descriptor
+        self._collection = None
         job_id = self._descriptor.job_id
         if job_id != -1:
             self._job = self._db._load_descriptor(
