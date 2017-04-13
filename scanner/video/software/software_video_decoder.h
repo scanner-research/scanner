@@ -59,6 +59,8 @@ class SoftwareVideoDecoder : public VideoDecoder {
   void wait_until_frames_copied() override;
 
  private:
+  void feed_packet(bool flush);
+
   int device_id_;
   DeviceType output_type_;
   AVPacket packet_;

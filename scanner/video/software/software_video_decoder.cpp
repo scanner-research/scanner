@@ -132,66 +132,23 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     }
   }
 #endif
-  static thread_local i32 what = 0;
   if (discontinuity) {
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 25, 0)
-    // printf("what %d, frames %d\n",
-    //        what,
-    //        decoded_frame_queue_.size() + frame_pool_.size());
     while (decoded_frame_queue_.size() > 0) {
       AVFrame* frame;
       decoded_frame_queue_.pop(frame);
       av_frame_free(&frame);
-      what--;
     }
     while (frame_pool_.size() > 0) {
       AVFrame* frame;
       frame_pool_.pop(frame);
       av_frame_free(&frame);
-      what--;
     }
+
     packet_.data = NULL;
     packet_.size = 0;
-    int error = avcodec_send_packet(cc_, &packet_);
-
-    bool done = false;
-    while (!done) {
-      AVFrame* frame;
-      {
-        if (frame_pool_.size() <= 0) {
-          // Create a new frame if our pool is empty
-          frame_pool_.push(av_frame_alloc());
-          what++;
-          // printf("what %d, frame pool %d, decoded %d\n", what,
-          // frame_pool_.size(),
-          //        decoded_frame_queue_.size());
-        }
-        frame_pool_.pop(frame);
-      }
-
-      error = avcodec_receive_frame(cc_, frame);
-      if (error == AVERROR_EOF) {
-        frame_pool_.push(frame);
-        break;
-      }
-      if (error == 0) {
-        // printf("decoded_frame_queue %d\n", decoded_frame_queue_.size());
-        av_frame_unref(frame);
-        frame_pool_.push(frame);
-      } else {
-        char err_msg[256];
-        av_strerror(error, err_msg, 256);
-        fprintf(stderr, "Error while receiving frame (%d): %s\n", error,
-                err_msg);
-        exit(1);
-      }
-    }
-    avcodec_flush_buffers(cc_);
+    feed_packet(true);
 
     return false;
-#else
-    LOG(FATAL) << "Not supported";
-#endif
   }
   if (encoded_size > 0) {
     if (av_new_packet(&packet_, encoded_size) < 0) {
@@ -203,114 +160,9 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     packet_.data = NULL;
     packet_.size = 0;
   }
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 25, 0)
-  auto send_start = now();
-  int error = avcodec_send_packet(cc_, &packet_);
-  if (error != AVERROR_EOF) {
-    if (error < 0) {
-      char err_msg[256];
-      av_strerror(error, err_msg, 256);
-      fprintf(stderr, "Error while sending packet (%d): %s\n", error, err_msg);
-      assert(false);
-    }
-  }
-  auto send_end = now();
 
-  auto received_start = now();
-  bool done = false;
-  while (!done) {
-    AVFrame* frame;
-    {
-      if (frame_pool_.size() <= 0) {
-        // Create a new frame if our pool is empty
-        frame_pool_.push(av_frame_alloc());
-        what++;
-        // printf("what %d, frame pool %d, decoded %d\n", what,
-        // frame_pool_.size(),
-        //        decoded_frame_queue_.size());
-      }
-      frame_pool_.pop(frame);
-    }
+  feed_packet(false);
 
-    error = avcodec_receive_frame(cc_, frame);
-    if (error == AVERROR_EOF) {
-      frame_pool_.push(frame);
-      break;
-    }
-    if (error == 0) {
-      // printf("decoded_frame_queue %d\n", decoded_frame_queue_.size());
-      decoded_frame_queue_.push(frame);
-    } else if (error == AVERROR(EAGAIN)) {
-      done = true;
-      frame_pool_.push(frame);
-    } else {
-      char err_msg[256];
-      av_strerror(error, err_msg, 256);
-      fprintf(stderr, "Error while receiving frame (%d): %s\n", error, err_msg);
-      exit(1);
-    }
-  }
-  if (encoded_size == 0) {
-    avcodec_flush_buffers(cc_);
-  }
-
-  auto received_end = now();
-  if (profiler_) {
-    profiler_->add_interval("ffmpeg:send_packet", send_start, send_end);
-    profiler_->add_interval("ffmpeg:receive_frame", received_start,
-                            received_end);
-  }
-#else
-  uint8_t* orig_data = packet_.data;
-  int orig_size = packet_.size;
-  int got_picture = 0;
-  do {
-    // Get frame from pool of allocated frames to decode video into
-    AVFrame* frame;
-    {
-      if (frame_pool_.size() <= 0) {
-        // Create a new frame if our pool is empty
-        frame_pool_.push(av_frame_alloc());
-      }
-      frame_pool_.pop(frame);
-    }
-
-    auto decode_start = now();
-    int consumed_length =
-        avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
-    if (profiler_) {
-      profiler_->add_interval("ffmpeg:decode_video", decode_start, now());
-    }
-    if (consumed_length < 0) {
-      char err_msg[256];
-      av_strerror(consumed_length, err_msg, 256);
-      fprintf(stderr, "Error while decoding frame (%d): %s\n", consumed_length,
-              err_msg);
-      assert(false);
-    }
-    if (got_picture) {
-      if (frame->buf[0] == NULL) {
-        // Must copy packet as data is stored statically
-        AVFrame* cloned_frame = av_frame_clone(frame);
-        if (cloned_frame == NULL) {
-          fprintf(stderr, "could not clone frame\n");
-          assert(false);
-        }
-        decoded_frame_queue_.push(cloned_frame);
-        av_frame_free(&frame);
-      } else {
-        // Frame is reference counted so we can just take it directly
-        decoded_frame_queue_.push(frame);
-      }
-    } else {
-      frame_pool_.push(frame);
-    }
-    packet_.data += consumed_length;
-    packet_.size -= consumed_length;
-  } while (packet_.size > 0 || (orig_size == 0 && got_picture));
-  packet_.data = orig_data;
-  packet_.size = orig_size;
-#endif
   av_packet_unref(&packet_);
 
   return decoded_frame_queue_.size() > 0;
@@ -395,5 +247,121 @@ int SoftwareVideoDecoder::decoded_frames_buffered() {
 }
 
 void SoftwareVideoDecoder::wait_until_frames_copied() {}
+
+void SoftwareVideoDecoder::feed_packet(bool flush) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 25, 0)
+  auto send_start = now();
+  int error = avcodec_send_packet(cc_, &packet_);
+  if (error != AVERROR_EOF) {
+    if (error < 0) {
+      char err_msg[256];
+      av_strerror(error, err_msg, 256);
+      fprintf(stderr, "Error while sending packet (%d): %s\n", error, err_msg);
+      assert(false);
+    }
+  }
+  auto send_end = now();
+
+  auto received_start = now();
+  bool done = false;
+  while (!done) {
+    AVFrame* frame;
+    {
+      if (frame_pool_.size() <= 0) {
+        // Create a new frame if our pool is empty
+        frame_pool_.push(av_frame_alloc());
+      }
+      frame_pool_.pop(frame);
+    }
+
+    error = avcodec_receive_frame(cc_, frame);
+    if (error == AVERROR_EOF) {
+      frame_pool_.push(frame);
+      break;
+    }
+    if (error == 0) {
+      if (!flush) {
+        decoded_frame_queue_.push(frame);
+      } else {
+        av_frame_unref(frame);
+        frame_pool_.push(frame);
+      }
+    } else if (error == AVERROR(EAGAIN)) {
+      done = true;
+      frame_pool_.push(frame);
+    } else {
+      char err_msg[256];
+      av_strerror(error, err_msg, 256);
+      fprintf(stderr, "Error while receiving frame (%d): %s\n", error, err_msg);
+      exit(1);
+    }
+  }
+  auto received_end = now();
+  if (profiler_) {
+    profiler_->add_interval("ffmpeg:send_packet", send_start, send_end);
+    profiler_->add_interval("ffmpeg:receive_frame", received_start,
+                            received_end);
+  }
+#else
+  uint8_t* orig_data = packet_.data;
+  int orig_size = packet_.size;
+  int got_picture = 0;
+  do {
+    // Get frame from pool of allocated frames to decode video into
+    AVFrame* frame;
+    {
+      if (frame_pool_.size() <= 0) {
+        // Create a new frame if our pool is empty
+        frame_pool_.push(av_frame_alloc());
+      }
+      frame_pool_.pop(frame);
+    }
+
+    auto decode_start = now();
+    int consumed_length =
+      avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
+    if (profiler_) {
+      profiler_->add_interval("ffmpeg:decode_video", decode_start, now());
+    }
+    if (consumed_length < 0) {
+      char err_msg[256];
+      av_strerror(consumed_length, err_msg, 256);
+      fprintf(stderr, "Error while decoding frame (%d): %s\n", consumed_length,
+              err_msg);
+      assert(false);
+    }
+    if (got_picture) {
+      if (!flush) {
+        if (frame->buf[0] == NULL) {
+          // Must copy packet as data is stored statically
+          AVFrame* cloned_frame = av_frame_clone(frame);
+          if (cloned_frame == NULL) {
+            fprintf(stderr, "could not clone frame\n");
+            assert(false);
+          }
+          decoded_frame_queue_.push(cloned_frame);
+          av_frame_free(&frame);
+        } else {
+          // Frame is reference counted so we can just take it directly
+          decoded_frame_queue_.push(frame);
+        }
+      } else {
+        av_frame_unref(frame);
+        frame_pool_.push(frame);
+      }
+    } else {
+      frame_pool_.push(frame);
+    }
+    packet_.data += consumed_length;
+    packet_.size -= consumed_length;
+  } while (packet_.size > 0 || (orig_size == 0 && got_picture));
+  packet_.data = orig_data;
+  packet_.size = orig_size;
+#endif
+  if (packet_.size == 0) {
+    avcodec_flush_buffers(cc_);
+  }
+}
+
 }
 }
