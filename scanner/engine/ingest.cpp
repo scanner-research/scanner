@@ -54,18 +54,35 @@ struct FFStorehouseState {
   std::unique_ptr<RandomReadFile> file = nullptr;
   size_t size = 0;  // total file size
   u64 pos = 0;
+
+  u64 buffer_start = 0;
+  u64 buffer_end = 0;
+  std::vector<u8> buffer;
 };
 
 // For custom AVIOContext that loads from memory
 i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
   FFStorehouseState* fs = (FFStorehouseState*)opaque;
-  size_t size_read;
-  storehouse::StoreResult result;
-  EXP_BACKOFF(fs->file->read(fs->pos, buf_size, buf, size_read), result);
-  if (result != storehouse::StoreResult::EndOfFile) {
-    exit_on_error(result);
+  if (!(fs->buffer_start <= fs->pos &&
+        fs->pos + buf_size < fs->buffer_end)) {
+    // Not in cache
+    size_t buffer_size = 64 * 1024 * 1024;
+    fs->buffer.resize(buffer_size);
+    size_t size_read;
+    storehouse::StoreResult result;
+    EXP_BACKOFF(
+      fs->file->read(fs->pos, buffer_size, fs->buffer.data(), size_read),
+      result);
+    if (result != storehouse::StoreResult::EndOfFile) {
+      exit_on_error(result);
+    }
+
+    fs->buffer_start = fs->pos;
+    fs->buffer_end = fs->pos + size_read;
   }
 
+  size_t size_read = std::min((size_t)buf_size, fs->buffer_end - fs->pos);
+  memcpy(buf, fs->buffer.data() + (fs->pos - fs->buffer_start), size_read);
   fs->pos += size_read;
   return static_cast<i32>(size_read);
 }
@@ -481,6 +498,8 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
           error_message = "Failed to parse slice header";
           return false;
         }
+        //printf("ref_idx_l0 %d, ref_idx_l1 %d\n",
+        // sh.num_ref_idx_l0_active, sh.num_ref_idx_l1_active);
         if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
           frame++;
           size_t bytestream_offset;
