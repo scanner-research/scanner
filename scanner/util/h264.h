@@ -237,6 +237,10 @@ struct PPS {
   u32 sps_id;
   bool pic_order_present_flag;
   bool redundant_pic_cnt_present_flag;
+  u32 num_ref_idx_l0_default_active;
+  u32 num_ref_idx_l1_default_active;
+  bool weighted_pred_flag;
+  u8 weighted_bipred_idc;
 };
 
 inline bool parse_pps(GetBitsState& gb, PPS& info) {
@@ -258,13 +262,13 @@ inline bool parse_pps(GetBitsState& gb, PPS& info) {
     return false;
   }
   // num_ref_idx_l0_active_minus1
-  u32 num_ref_idx_l0_active_minus1 = get_ue_golomb(gb);
+  info.num_ref_idx_l0_default_active = get_ue_golomb(gb) + 1;
   // num_ref_idx_l1_active_minus1
-  u32 num_ref_idx_l1_active_minus1 = get_ue_golomb(gb);
+  info.num_ref_idx_l1_default_active = get_ue_golomb(gb) + 1;
   // weighted_pred_flag
-  bool weighted_pred_flag = get_bit(gb);
+  info.weighted_pred_flag = get_bit(gb);
   // weighted_bipred_idc
-  bool weighted_bipred_idc = get_bits(gb, 2);
+  info.weighted_bipred_idc = get_bits(gb, 2);
   // pic_init_qp_minus26 /* relative to 26 */
   u32 pic_init_qp_minus26 = get_se_golomb(gb);
   // pic_init_qs_minus26 /* relative to 26 */
@@ -296,6 +300,8 @@ struct SliceHeader {
   i32 delta_pic_order_cnt_bottom;
   u32 delta_pic_order_cnt[2];
   u32 redundant_pic_cnt;
+  u32 num_ref_idx_l0_active;
+  u32 num_ref_idx_l1_active;
 };
 
 inline bool parse_slice_header(GetBitsState& gb, SPS& sps,
@@ -354,6 +360,25 @@ inline bool parse_slice_header(GetBitsState& gb, SPS& sps,
   }
   info.redundant_pic_cnt =
       pps.redundant_pic_cnt_present_flag ? get_ue_golomb(gb) : 0;
+  if (info.slice_type == 1 || info.slice_type == 6) {
+    bool direct_spatial_mv_pred_flag = get_bit(gb);
+  }
+  if (info.slice_type == 0 || info.slice_type == 5 ||  // P
+      info.slice_type == 1 || info.slice_type == 6 ||  // B
+      info.slice_type == 3 || info.slice_type == 8     // SP
+      ) {
+    bool num_ref_idx_active_override_flag = get_bit(gb);
+    if (num_ref_idx_active_override_flag) {
+      info.num_ref_idx_l0_active = get_ue_golomb(gb);
+      if (info.slice_type == 1 || info.slice_type == 6) {
+        info.num_ref_idx_l1_active = get_ue_golomb(gb);
+      }
+    } else {
+      info.num_ref_idx_l0_active = pps.num_ref_idx_l0_default_active;
+      info.num_ref_idx_l1_active = pps.num_ref_idx_l1_default_active;
+      ;
+    }
+  }
   return true;
 }
 
