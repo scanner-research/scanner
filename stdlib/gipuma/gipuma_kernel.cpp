@@ -141,13 +141,16 @@ public:
 
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
-    i32 output_size = width * height * sizeof(float4);
+    i32 points_output_size = width * height * sizeof(float4);
+    i32 cost_output_size = width * height * sizeof(float);
 
     i32 input_count = (i32)input_columns[0].rows.size();
     std::vector<cvc::GpuMat> grayscale_images_gpu(num_cameras_);
     std::vector<cv::Mat> grayscale_images(num_cameras_);
-    u8* output_buffer =
-      new_block_buffer(device_, output_size * input_count, input_count);
+    u8* points_output_buffer =
+      new_block_buffer(device_, points_output_size * input_count, input_count);
+    u8* cost_output_buffer =
+      new_block_buffer(device_, cost_output_size * input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {
       for (i32 c = 0; c < num_cameras_; ++c) {
         auto& frame_column = input_columns[c * 3];
@@ -168,10 +171,17 @@ public:
       runcuda(*state_.get());
 
       // Copy estiamted points to output buffer
-      cudaMemcpy(output_buffer + output_size * i, state_->lines->norm4,
-                 output_size, cudaMemcpyDefault);
-      INSERT_ROW(output_columns[0], output_buffer + output_size * i,
-                 output_size);
+      cudaMemcpy(points_output_buffer + points_output_size * i,
+                 state_->lines->norm4, points_output_size, cudaMemcpyDefault);
+      INSERT_ROW(output_columns[0],
+                 points_output_buffer + points_output_size * i,
+                 points_output_size);
+
+      // Copy costs to output buffer
+      cudaMemcpy(cost_output_buffer + cost_output_size * i, state_->lines->c,
+                 cost_output_size, cudaMemcpyDefault);
+      INSERT_ROW(output_columns[1], cost_output_buffer + cost_output_size * i,
+                 cost_output_size);
 
       delTexture(algo_params_->num_img_processed, state_->imgs,
                  state_->cuArray);
@@ -194,7 +204,7 @@ private:
   bool was_reset_;
 };
 
-REGISTER_OP(Gipuma).variadic_inputs().outputs({"points"});
+REGISTER_OP(Gipuma).variadic_inputs().outputs({"points", "cost"});
 
 REGISTER_KERNEL(Gipuma, GipumaKernel)
     .device(DeviceType::GPU)
