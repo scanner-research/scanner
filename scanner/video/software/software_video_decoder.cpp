@@ -134,6 +134,7 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
 #endif
   static thread_local i32 what = 0;
   if (discontinuity) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 25, 0)
     // printf("what %d, frames %d\n",
     //        what,
     //        decoded_frame_queue_.size() + frame_pool_.size());
@@ -149,9 +150,48 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
       av_frame_free(&frame);
       what--;
     }
-    // printf("disc, what %d\n", what);
+    packet_.data = NULL;
+    packet_.size = 0;
+    int error = avcodec_send_packet(cc_, &packet_);
+
+    bool done = false;
+    while (!done) {
+      AVFrame* frame;
+      {
+        if (frame_pool_.size() <= 0) {
+          // Create a new frame if our pool is empty
+          frame_pool_.push(av_frame_alloc());
+          what++;
+          // printf("what %d, frame pool %d, decoded %d\n", what,
+          // frame_pool_.size(),
+          //        decoded_frame_queue_.size());
+        }
+        frame_pool_.pop(frame);
+      }
+
+      error = avcodec_receive_frame(cc_, frame);
+      if (error == AVERROR_EOF) {
+        frame_pool_.push(frame);
+        break;
+      }
+      if (error == 0) {
+        // printf("decoded_frame_queue %d\n", decoded_frame_queue_.size());
+        av_frame_unref(frame);
+        frame_pool_.push(frame);
+      } else {
+        char err_msg[256];
+        av_strerror(error, err_msg, 256);
+        fprintf(stderr, "Error while receiving frame (%d): %s\n", error,
+                err_msg);
+        exit(1);
+      }
+    }
     avcodec_flush_buffers(cc_);
+
     return false;
+#else
+    LOG(FATAL) << "Not supported";
+#endif
   }
   if (encoded_size > 0) {
     if (av_new_packet(&packet_, encoded_size) < 0) {
@@ -210,6 +250,10 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
       exit(1);
     }
   }
+  if (encoded_size == 0) {
+    avcodec_flush_buffers(cc_);
+  }
+
   auto received_end = now();
   if (profiler_) {
     profiler_->add_interval("ffmpeg:send_packet", send_start, send_end);
