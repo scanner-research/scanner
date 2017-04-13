@@ -104,6 +104,11 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
   }
 
+  if (seeking_) {
+    decoder_->feed(nullptr, 0, true);
+    seeking_ = false;
+  }
+
   // Start up feeder thread
   {
     std::unique_lock<std::mutex> lk(feeder_mutex_);
@@ -129,6 +134,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
         assert(current_frame_ <= valid_frames.Get(retriever_valid_idx_));
         // printf("has buffered frames, curr %d, next %d\n",
         //        current_frame_, valid_frames.Get(retriever_valid_idx_));
+
         if (current_frame_ == valid_frames.Get(retriever_valid_idx_)) {
           u8* decoded_buffer = buffer + frames_retrieved_ * frame_size_;
           more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
@@ -154,6 +160,11 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
                 // skip_frames_ = false;
               }
 
+              if (seeking_) {
+                decoder_->feed(nullptr, 0, true);
+                seeking_ = false;
+              }
+
               {
                 std::unique_lock<std::mutex> lk(feeder_mutex_);
                 feeder_waiting_ = false;
@@ -161,6 +172,10 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
                   encoded_data_[retriever_data_idx_].keyframes(0) - 1;
               }
               wake_feeder_.notify_one();
+
+              // We reset the decoder, so we should wait until there are more
+              // frames in the buffer
+              more_frames = false;
             } else {
               assert(frames_retrieved_ + 1 == frames_to_get_);
             }
