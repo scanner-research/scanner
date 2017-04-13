@@ -12,7 +12,7 @@ class TableSampler:
         self._db = table._db
 
     def _outputs(self, task):
-        return self._db.ops.Input([c.name() for c in self._table.columns()], task).outputs()
+        return self._db.ops.Input([c.name() for c in self._table.columns()], task, self._table._collection).outputs()
 
     def all(self, item_size=1000, warmup_size=0):
         sampler_args = self._db.protobufs.AllSamplerArgs()
@@ -88,15 +88,3 @@ class TableSampler:
                 s = e
         sample.sampling_args = sampler_args.SerializeToString()
         return self._outputs(task)
-
-
-class CollectionSampler:
-    def __init__(self, collection):
-        self._samplers = [TableSampler(t) for t in collection.tables()]
-
-    def __getattr__(self, name):
-        def wrapper(*args, **kwargs):
-            print name, args, kwargs
-            return [getattr(s, name)(*args, **kwargs)
-                    for s in self._samplers]
-        return wrapper

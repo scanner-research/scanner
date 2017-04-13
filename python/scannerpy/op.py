@@ -20,7 +20,7 @@ class OpGenerator:
 
     def __getattr__(self, name):
         if name == 'Input':
-            return lambda inputs, task: Op.input(self._db, inputs, task)
+            return lambda inputs, task, collection: Op.input(self._db, inputs, task, collection)
         elif name == 'Output':
             return lambda inputs: Op.output(self._db, inputs)
 
@@ -57,9 +57,10 @@ class Op:
         self._task = None
 
     @classmethod
-    def input(cls, db, inputs, task):
+    def input(cls, db, inputs, task, collection):
         c = cls(db, "InputTable", inputs, DeviceType.CPU, {})
         c._task = task
+        c._collection = collection
         return c
 
     @classmethod

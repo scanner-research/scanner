@@ -1,4 +1,4 @@
-from scannerpy import Database, CollectionJob, TableJob
+from scannerpy import Database, Job
 import sys
 import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
@@ -21,10 +21,9 @@ with Database() as db:
     print(db.summarize())
 
     jobs = []
-    for frame, frame_info in input_collection.as_op().range(0, 100):
-        histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
-        jobs.append(TableJob(columns=[histogram]))
-    job = CollectionJob(jobs = jobs, name = 'example_hist_collection')
+    frame, frame_info = input_collection.as_op().range(0, 100)
+    histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
+    job = Job(columns = [histogram], name = 'example_hist_collection')
 
     # We can also provide collections directly to the run function which will run
     # the op over all frames in all videos in the collection.

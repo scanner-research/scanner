@@ -728,7 +728,7 @@ class Database:
         input_tables = []
 
         # Coalesce multiple inputs into a single table
-        start_node = self.ops.Input([], None)
+        start_node = self.ops.Input([], None, None)
         explored_nodes = set()
         stack = [op]
         while len(stack) > 0:
@@ -794,7 +794,8 @@ class Database:
         for t in input_tables[1:]:
             task.samples.extend(t._task.samples)
 
-        return [e.to_proto(eval_index) for e in eval_sorted], task
+        return [e.to_proto(eval_index) for e in eval_sorted], \
+          task, input_tables[0]._collection
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -841,23 +842,26 @@ class Database:
         """
 
         output_collection = None
-        if isinstance(jobs, CollectionJob):
-            output_collection = jobs._name
+        if isinstance(jobs, list):
+            ops, task, _ = self._toposort(jobs[0])
+            tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
+        else:
+            job = jobs
+            output_collection = job.name()
             if self.has_collection(output_collection) and not force:
                 raise ScannerException(
                     'Collection with name {} already exists'
                     .format(output_collection))
-            jobs = jobs._jobs
-
-        ops, task = self._toposort(jobs[0])
-        tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
-
-        if output_collection is not None:
-            for task in tasks:
-                new_name = '{}:{}'.format(
+            ops, task, collection = self._toposort(job)
+            tasks = [task]
+            for t in collection.tables()[1:]:
+                t_task = self._db.protobufs.Task()
+                t_task.CopyFrom(task)
+                t_task.table_name = t.name()
+                t_task.output_table_name = '{}:{}'.format(
                     output_collection,
-                    task.samples[0].table_name.split(':')[-1])
-                task.output_table_name = new_name
+                    t.name().split(':')[-1])
+                t_task.samples[0].table_name = t.name()
 
         for task in tasks:
             if self.has_table(task.output_table_name):
@@ -943,7 +947,7 @@ class ProtobufGenerator:
         raise ScannerException('No protobuf with name {}'.format(name))
 
 
-class TableJob:
+class Job:
     def __init__(self, columns, name=None):
         self._columns = columns
         self._name = name
@@ -953,8 +957,3 @@ class TableJob:
 
     def op(self, db):
         return db.ops.Output(inputs=self._columns)
-
-class CollectionJob:
-    def __init__(self, jobs, name):
-        self._jobs = jobs
-        self._name = name
