@@ -73,11 +73,22 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
   i32 current_item = item_from_row(rows[0]);
   i64 item_start = offset_from_row(rows[0]);
   i64 item_end = item_start + 1;
+  i64 prev_row = -1;
   std::vector<i64> valid_offsets;
   for (i64 row : rows) {
     i32 item = item_from_row(row);
     i64 item_offset = offset_from_row(row);
-    if (item != current_item) {
+    // We check two cases:
+    //   1. if the row is in a new item, then we have found all the consecutive
+    //      increasing rows that will be in this item and we should move on
+    //      to the next one.
+    //   2. if the row we are asking for is the same as the existing row or
+    //      before it, we end the current item and start back with the item
+    //      for this new row, even if the item is the same as the current item.
+    //      NOTE(apoms): We could fuse these together and only load the item
+    //      once, but to do so requires reordering the data after it is read
+    //      from disk to match the ordering requested.
+    if (item != current_item || row <= prev_row) {
       // Start a new item and push the current one into the list
       info.item_ids.push_back(current_item);
       info.item_intervals.push_back(std::make_tuple(item_start, item_end));
@@ -91,6 +102,7 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
 
     valid_offsets.push_back(item_offset);
     item_end = item_offset + 1;
+    prev_row = row;
   }
   info.item_ids.push_back(current_item);
   info.item_intervals.push_back(std::make_tuple(item_start, item_end));

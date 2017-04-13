@@ -273,26 +273,6 @@ class GatherSampler : public Sampler {
     }
     for (i32 i = 0; i < args_.samples_size(); ++i) {
       auto& s = args_.samples(i);
-      i64 max = -1;
-      for (i32 j = 0; j < s.warmup_rows_size(); ++j) {
-        if (s.warmup_rows(j) <= max) {
-          RESULT_ERROR(
-              &valid_,
-              "Gather sampler warmup row (%ld) less than previous row (%ld)",
-              s.warmup_rows(j), max);
-          return;
-        }
-        max = s.warmup_rows(j);
-      }
-      for (i32 j = 0; j < s.rows_size(); ++j) {
-        if (s.rows(j) <= max) {
-          RESULT_ERROR(&valid_,
-                       "Gather sampler row (%ld) less than previous row (%ld)",
-                       s.rows(j), max);
-          return;
-        }
-        max = s.rows(j);
-      }
       total_rows_ += args_.samples(i).rows_size();
     }
   }
