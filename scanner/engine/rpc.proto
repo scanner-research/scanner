@@ -93,6 +93,7 @@ message OpInfoArgs {
 
 message OpInfo {
   Result result = 1;
-  repeated string input_columns = 2;
-  repeated string output_columns = 3;
+  bool variadic_inputs = 2;
+  repeated string input_columns = 3;
+  repeated string output_columns = 4;
 }

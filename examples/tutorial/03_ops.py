@@ -1,4 +1,4 @@
-from scannerpy import Database, TableJob
+from scannerpy import Database, TableJob, DeviceType
 
 ################################################################################
 # This tutorial shows how to combine multiple operators into a computation     #
@@ -15,7 +15,7 @@ with Database() as db:
 
     jobs = []
     for t in tables:
-        frame, frame_info = t.as_op()
+        frame, frame_info = t.as_op().range(0, 1000)
 
         blurred_frame, _ = db.ops.Blur(
             frame = frame,
@@ -28,7 +28,6 @@ with Database() as db:
             frame_info = frame_info)
 
         jobs.append(TableJob(
-            rows=t.rows().all(),
             columns=[histogram],
             name='output_table_name'))
 

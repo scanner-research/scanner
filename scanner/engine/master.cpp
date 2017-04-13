@@ -547,6 +547,7 @@ grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
 
   OpInfo* info = registry->get_op_info(op_name);
 
+  op_info->set_variadic_inputs(info->variadic_inputs());
   for (auto& input_column : info->input_columns()) {
     op_info->add_input_columns(input_column);
   }

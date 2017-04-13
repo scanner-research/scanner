@@ -2,7 +2,7 @@ from common import *
 from column import Column
 import struct
 from itertools import izip
-from sampler import Sampler
+from sampler import TableSampler
 
 class Table:
     """
@@ -57,13 +57,10 @@ class Table:
             return columns
 
     def as_op(self):
-        return self._db.ops.Input([c.name() for c in self.columns()])
+        return TableSampler(self)
 
     def num_rows(self):
         return self._descriptor.end_rows[-1]
-
-    def rows(self):
-        return Sampler(self)
 
     def _parse_index(self, bufs, db):
         return struct.unpack("=Q", bufs[0])[0]
