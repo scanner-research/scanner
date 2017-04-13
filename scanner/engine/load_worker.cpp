@@ -192,7 +192,7 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   return index_entry;
 }
 
-void read_video_column(Profiler& profiler, VideoIndexEntry& index_entry,
+void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
                        const std::vector<i64>& rows, RowList& row_list) {
   RandomReadFile* video_file = index_entry.file.get();
   u64 file_size = index_entry.file_size;
@@ -340,7 +340,7 @@ void* load_thread(void* arg) {
 
   // To ammortize opening files
   i32 last_table_id = -1;
-  std::vector<VideoIndexEntry> index;
+  std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index;
 
   args.profiler.add_interval("setup", setup_start, now());
   while (true) {
@@ -412,10 +412,11 @@ void* load_thread(void* arg) {
             i32 item_id = intervals.item_ids[i];
             const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
-            // TODO(apoms): cache this so we avoid the IO and recompute for each
-            //   request
-            VideoIndexEntry entry =
-                read_video_index(storage, table_id, col_id, item_id);
+            auto key = std::make_tuple(table_id, col_id, item_id);
+            if (index.count(key) == 0) {
+              index[key] = read_video_index(storage, table_id, col_id, item_id);
+            }
+            const VideoIndexEntry& entry = index.at(key);
             read_video_column(args.profiler, entry, valid_offsets,
                               eval_work_entry.columns[out_col_idx]);
           }
@@ -425,8 +426,12 @@ void* load_thread(void* arg) {
                    // after frame column
                    table_meta.column_type(col_id - 1) == ColumnType::Video) {
           // video meta column
-          VideoIndexEntry entry =
-              read_video_index(storage, table_id, col_id - 1, 0);
+          auto key = std::make_tuple(table_id, col_id - 1, 0);
+          if (index.count(key) == 0) {
+            index[key] = read_video_index(storage, table_id, col_id - 1, 0);
+          }
+          const VideoIndexEntry& entry = index.at(key);
+
           proto::FrameInfo frame_info;
           frame_info.set_width(entry.width);
           frame_info.set_height(entry.height);
