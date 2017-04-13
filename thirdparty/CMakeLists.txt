@@ -53,7 +53,7 @@ if (NOT STOREHOUSE_FOUND)
   ProcessorCount(N)
   ExternalProject_Add(Storehouse
     GIT_REPOSITORY "https://github.com/scanner-research/storehouse"
-    GIT_TAG "14c6a529eee73580a178e2a699fc07c94d9d1119"
+    GIT_TAG "3bdef9465f413f993e85e19c711f632e492f7e86"
 
     UPDATE_COMMAND mkdir -p thirdparty/build && cd thirdparty/build &&
     cmake ${THIRDPARTY_SOURCE_DIR}/storehouse/thirdparty && make -j${N}

@@ -406,6 +406,6 @@ bool Database::database_exists() {
   std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
   storehouse::FileInfo info;
   storehouse::StoreResult result = storage_->get_file_info(db_meta_path, info);
-  return (result != storehouse::StoreResult::FileDoesNotExist);
+  return (result == storehouse::StoreResult::Success);
 }
 }
