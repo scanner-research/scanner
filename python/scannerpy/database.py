@@ -20,7 +20,7 @@ from common import *
 from profiler import Profiler
 from config import Config
 from op import OpGenerator, Op, OpColumn
-from sampler import Sampler
+from sampler import TableSampler
 from collection import Collection
 from table import Table
 from column import Column
@@ -686,9 +686,6 @@ class Database:
             'tables/{}/descriptor.bin'.format(table_id))
         return Table(self, descriptor)
 
-    def sampler(self):
-        return Sampler(self)
-
     def profiler(self, job_name):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, basestring):
@@ -724,29 +721,52 @@ class Database:
     def _get_output_columns(self, op_name):
         return self._get_op_info(op_name).output_columns
 
-    def _toposort(self, op):
+    def _toposort(self, job):
+        op = job.op(self)
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
-        start_node = None
+        input_tables = []
 
+        # Coalesce multiple inputs into a single table
+        start_node = self.ops.Input([], None)
         explored_nodes = set()
         stack = [op]
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
 
-            if (c._name == "InputTable"):
-                start_node = c
-                continue
+            for input in c._inputs:
+                if input._op._name == "InputTable" and input._op != start_node:
+                    if not input._op in input_tables:
+                        input_tables.append(input._op)
+                    idx = input_tables.index(input._op)
+                    input._col = "{}{:d}".format(input._col, idx)
+                    input._op = start_node
+
+                if input._op not in explored_nodes:
+                    stack.append(input._op)
+
+        start_node._inputs = \
+          ['{}{:d}'.format(c, i)
+           for i, t in enumerate(input_tables) for c in t._inputs]
+
+        # Perform DFS on modified graph
+        explored_nodes = set([start_node])
+        stack = [op]
+        while len(stack) > 0:
+            c = stack.pop()
+            explored_nodes.add(c)
+
+            if c._name == "InputTable": continue
 
             for input in c._inputs:
-                parent = input._op
-                edges[parent].append(c)
+                edges[input._op].append(c)
                 in_edges_left[c] += 1
 
-                if parent not in explored_nodes:
-                    stack.append(parent)
+                if input._op not in explored_nodes:
+                    stack.append(input._op)
 
+        # Compute sorted list
         eval_sorted = []
         eval_index = {}
         stack = [start_node]
@@ -759,9 +779,22 @@ class Database:
                 if in_edges_left[child] == 0:
                     stack.append(child)
 
-        eval_sorted[-1]._inputs.insert(0, OpColumn(eval_sorted[0], "index"))
+        for c in eval_sorted[1:]:
+            for i in c._inputs:
+                if i._op in input_tables:
+                    idx = input_tables.index(i._op)
+                    i._col = '{}{:d}'.format(i._col , idx)
 
-        return [e.to_proto(eval_index) for e in eval_sorted]
+        eval_sorted[-1]._inputs.insert(0, OpColumn(eval_sorted[0], "index0"))
+
+        task = input_tables[0]._task
+        if job.name() is not None:
+            task.output_table_name = job.name()
+
+        for t in input_tables[1:]:
+            task.samples.extend(t._task.samples)
+
+        return [e.to_proto(eval_index) for e in eval_sorted], task
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -775,7 +808,6 @@ class Database:
         return int(prefix) * mults[suffix]
 
     def run(self, jobs,
-            output_collection=None,
             force=False,
             work_item_size=250,
             cpu_pool=None,
@@ -808,34 +840,24 @@ class Database:
             or a list of Table objects.
         """
 
-        tasks = []
-        for job in jobs:
-            tasks.append(job.task())
+        output_collection = None
+        if isinstance(jobs, CollectionJob):
+            output_collection = jobs._name
+            if self.has_collection(output_collection) and not force:
+                raise ScannerException(
+                    'Collection with name {} already exists'
+                    .format(output_collection))
+            jobs = jobs._jobs
 
-        op = jobs[0].op(self)
+        ops, task = self._toposort(jobs[0])
+        tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
 
-
-        # # If the input is a collection, assume user is running over all frames
-        # input_is_collection = isinstance(tasks, Collection)
-        # if input_is_collection:
-        #     if output_collection is None:
-        #         raise ScannerException(
-        #             'If Database.run input is a collection, output_collection_name '
-        #             'must be specified')
-        #     sampler = self.sampler()
-        #     tasks = sampler.all(tasks)
-
-        # # If the output should be a collection, then set the table names
-        # if output_collection is not None:
-        #     if self.has_collection(output_collection) and not force:
-        #         raise ScannerException(
-        #             'Collection with name {} already exists'
-        #             .format(output_collection))
-        #     for task in tasks:
-        #         new_name = '{}:{}'.format(
-        #             output_collection,
-        #             task.samples[0].table_name.split(':')[-1])
-        #         task.output_table_name = new_name
+        if output_collection is not None:
+            for task in tasks:
+                new_name = '{}:{}'.format(
+                    output_collection,
+                    task.samples[0].table_name.split(':')[-1])
+                task.output_table_name = new_name
 
         for task in tasks:
             if self.has_table(task.output_table_name):
@@ -850,7 +872,7 @@ class Database:
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
-        job_params.task_set.ops.extend(self._toposort(op))
+        job_params.task_set.ops.extend(ops)
         job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress
@@ -922,16 +944,17 @@ class ProtobufGenerator:
 
 
 class TableJob:
-    def __init__(self, rows, columns, name):
-        self._rows = rows
+    def __init__(self, columns, name=None):
         self._columns = columns
-        self._rows.output_table_name = name
+        self._name = name
 
-    def task(self):
-        return self._rows
+    def name(self):
+        return self._name
 
     def op(self, db):
         return db.ops.Output(inputs=self._columns)
 
-# class CollectionJob:
-#     def __init__(self):
+class CollectionJob:
+    def __init__(self, jobs, name):
+        self._jobs = jobs
+        self._name = name

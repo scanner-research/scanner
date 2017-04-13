@@ -20,22 +20,24 @@ class OpGenerator:
 
     def __getattr__(self, name):
         if name == 'Input':
-            return lambda inputs: Op.input(self._db, inputs).outputs()
+            return lambda inputs, task: Op.input(self._db, inputs, task)
         elif name == 'Output':
             return lambda inputs: Op.output(self._db, inputs)
 
         # This will raise an exception if the op does not exist.
-        self._db._check_has_op(name)
-        input_columns = self._db._get_input_columns(name)
+        op_info = self._db._get_op_info(name)
 
-        def make_op(**kwargs):
+        def make_op(*args, **kwargs):
             inputs = []
-            for c in input_columns:
-                val = kwargs.pop(c, None)
-                if val is None:
-                    raise ScannerException('Op {} required column {} as input'
-                                           .format(name, c))
-                inputs.append(val)
+            if op_info.variadic_inputs:
+                inputs.extend(args)
+            else:
+                for c in op_info.input_columns:
+                    val = kwargs.pop(c, None)
+                    if val is None:
+                        raise ScannerException('Op {} required column {} as input'
+                                               .format(name, c))
+                    inputs.append(val)
             device = kwargs.pop('device', DeviceType.CPU)
             args = kwargs.pop('args', None)
             op = Op(self._db, name, inputs, device,
@@ -52,10 +54,13 @@ class Op:
         self._inputs = inputs
         self._device = device
         self._args = args
+        self._task = None
 
     @classmethod
-    def input(cls, db, inputs):
-        return cls(db, "InputTable", inputs, DeviceType.CPU, {})
+    def input(cls, db, inputs, task):
+        c = cls(db, "InputTable", inputs, DeviceType.CPU, {})
+        c._task = task
+        return c
 
     @classmethod
     def output(cls, db, inputs):

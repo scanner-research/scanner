@@ -1,8 +1,7 @@
 from common import *
-from collection import Collection
 
 
-class Sampler:
+class TableSampler:
     """
     Utility for specifying which frames of a video (or which rows of a table)
     to run a computation over.
@@ -11,6 +10,9 @@ class Sampler:
     def __init__(self, table):
         self._table = table
         self._db = table._db
+
+    def _outputs(self, task):
+        return self._db.ops.Input([c.name() for c in self._table.columns()], task).outputs()
 
     def all(self, item_size=1000, warmup_size=0):
         sampler_args = self._db.protobufs.AllSamplerArgs()
@@ -24,7 +26,7 @@ class Sampler:
         sample.column_names.extend(column_names)
         sample.sampling_function = "All"
         sample.sampling_args = sampler_args.SerializeToString()
-        return task
+        return self._outputs(task)
 
     def strided(self, stride, item_size=1000):
         return self.strided_range(0, self._table.num_rows(), stride, item_size=item_size)
@@ -55,7 +57,7 @@ class Sampler:
             sampler_args_sample.rows[:] = rows[s:e]
             s = e
         sample.sampling_args = sampler_args.SerializeToString()
-        return task
+        return self._outputs(task)
 
     def strided_range(self, start, end, stride, item_size=1000,
                       warmup_size=0):
@@ -85,4 +87,16 @@ class Sampler:
                 sampler_args.ends.append(e)
                 s = e
         sample.sampling_args = sampler_args.SerializeToString()
-        return task
+        return self._outputs(task)
+
+
+class CollectionSampler:
+    def __init__(self, collection):
+        self._samplers = [TableSampler(t) for t in collection.tables()]
+
+    def __getattr__(self, name):
+        def wrapper(*args, **kwargs):
+            print name, args, kwargs
+            return [getattr(s, name)(*args, **kwargs)
+                    for s in self._samplers]
+        return wrapper
