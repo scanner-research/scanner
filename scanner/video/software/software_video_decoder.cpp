@@ -147,7 +147,6 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
     packet_.data = NULL;
     packet_.size = 0;
     feed_packet(true);
-
     return false;
   }
   if (encoded_size > 0) {
@@ -162,7 +161,6 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   }
 
   feed_packet(false);
-
   av_packet_unref(&packet_);
 
   return decoded_frame_queue_.size() > 0;

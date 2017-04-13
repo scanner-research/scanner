@@ -104,9 +104,12 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
   }
 
-  if (seeking_) {
-    decoder_->feed(nullptr, 0, true);
-    seeking_ = false;
+  if (encoded_data_.size() > feeder_data_idx_) {
+    // Make sure to not feed seek packet if we reached end of stream
+    if (seeking_) {
+      decoder_->feed(nullptr, 0, true);
+      seeking_ = false;
+    }
   }
 
   // Start up feeder thread
@@ -132,9 +135,6 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
           encoded_data_[retriever_data_idx_].valid_frames();
         assert(valid_frames.size() > retriever_valid_idx_.load());
         assert(current_frame_ <= valid_frames.Get(retriever_valid_idx_));
-        // printf("has buffered frames, curr %d, next %d\n",
-        //        current_frame_, valid_frames.Get(retriever_valid_idx_));
-
         if (current_frame_ == valid_frames.Get(retriever_valid_idx_)) {
           u8* decoded_buffer = buffer + frames_retrieved_ * frame_size_;
           more_frames = decoder_->get_frame(decoded_buffer, frame_size_);
@@ -172,9 +172,6 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
                   encoded_data_[retriever_data_idx_].keyframes(0) - 1;
               }
               wake_feeder_.notify_one();
-
-              // We reset the decoder, so we should wait until there are more
-              // frames in the buffer
               more_frames = false;
             } else {
               assert(frames_retrieved_ + 1 == frames_to_get_);
@@ -237,11 +234,6 @@ void DecoderAutomata::feeder() {
     // Ignore requests to feed if we have alredy fed all data
     if (encoded_data_.size() <= feeder_data_idx_) {
       continue;
-    }
-
-    if (seeking_) {
-      decoder_->feed(nullptr, 0, true);
-      seeking_ = false;
     }
 
     if (profiler_) {
