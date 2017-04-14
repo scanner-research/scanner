@@ -100,7 +100,10 @@ def main():
     print('Detecting shots in movie {}'.format(movie_path))
     movie_name = os.path.basename(movie_path)
 
-    with Database() as db:
+    with Database(master='crissy.pdl.local.cmu.edu:5001',
+                  workers=['crissy.pdl.local.cmu.edu:5002',
+                           'stinson.pdl.local.cmu.edu:5002']) as db:
+    # with Database(debug=True) as db:
         print('Loading movie into Scanner database...')
         s = time.time()
         [movie_table], _ = db.ingest_videos([(movie_name, movie_path)], force=True)
@@ -108,6 +111,7 @@ def main():
 
         s = time.time()
         print('Computing a color histogram for each frame...')
+<<<<<<< Updated upstream
         frame, frame_info = movie_table.as_op().all()
         histogram = db.ops.Histogram(
             frame = frame, frame_info = frame_info,
@@ -115,6 +119,16 @@ def main():
         job = Job(columns = [histogram], name = movie_name + '_hist')
         hists_table = db.run(job, force=True)
         print('\nTime: {:.1f}s'.format(time.time() - s))
+=======
+        db.run(
+            db.sampler().all([(movie_table.name(), movie_name + '_hist')],
+                             item_size=250),
+            db.ops.Histogram(device=DeviceType.GPU),
+            force=True)
+        hists_table = db.table(movie_name + '_hist')
+        print('')
+        print('Time: {:.1f}s'.format(time.time() - s))
+>>>>>>> Stashed changes
 
         s = time.time()
         print('Computing shot boundaries...')

@@ -127,17 +127,16 @@ def main():
 
         camera_groups = [
             [(1, 1), (1, 2), (5, 1), (16, 13)],
-            [(3, 1), (3, 3), (5, 3), (1, 6)],
-            [(4, 2), (1, 3), (5, 3), (3, 3)],
-            [(7, 4), (7, 8), (6, 3), (8, 3)],
-            [(10, 4), (9, 3), (10, 3), (11, 3)],
-            [(13, 8), (13, 10), (12, 8), (14, 20)],
-            [(16, 4), (16, 16), (15, 2), (16, 8)],
+            # [(3, 1), (3, 3), (5, 3), (1, 6)],
+            # [(4, 2), (1, 3), (5, 3), (3, 3)],
+            # [(7, 4), (7, 8), (6, 3), (8, 3)],
+            # [(10, 4), (9, 3), (10, 3), (11, 3)],
+            # [(13, 8), (13, 10), (12, 8), (14, 20)],
+            # [(16, 4), (16, 16), (15, 2), (16, 8)],
         ]
         for group in camera_groups:
             first_idx = table_idx[group[0]]
             print(first_idx)
-            print(p_matrices[group[0]])
 
             first_table = collection.tables(first_idx)
             first_calib_table = calib_collection.tables(first_idx)
@@ -232,13 +231,22 @@ def main():
 
         # Export normals and depth dmb files
         for i, table in enumerate(output_tables):
-            for fi, tup in table.load(['points']):
+            for fi, tup in table.load(['points', 'cost']):
                 if not os.path.exists(cam_results_folder.format(fi, i)):
                     os.makedirs(cam_results_folder.format(fi, i))
                 points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
-                depth_img = points[:,:,3]
+                cost = np.frombuffer(tup[1], dtype=np.float32).reshape(480, 640, 1)
+                avg = np.median(cost[:])
+                mask = np.where(cost > avg)
+                print(len(mask))
+                print
+
+                depth_img = points[:,:,3].copy()
+                depth_img[mask[0], mask[1]] = 0
                 write_dmb_file(depth_path.format(fi, i), depth_img)
-                normal_img = points[:,:,0:3]
+
+                normal_img = points[:,:,0:3].copy()
+                normal_img[mask[0],mask[1],:] = 0
                 write_dmb_file(normals_path.format(fi, i), normal_img)
                 #scipy.misc.toimage(depth_img).save('depth{:05d}_01_01.png'.format(fi))
 
@@ -246,15 +254,18 @@ def main():
         if False:
             disparity_table = db.table('disparity_01_01')
             for fi, tup in disparity_table.load(['points']):
-                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
-                depth_img = points[:,:,3]
-                scipy.misc.toimage(depth_img).save('depth{:05d}_01_01.png'.format(fi))
+                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 1)
+                avg = np.median(points[:])
+                depth_img = points[:,:,0].copy()
+                depth_img[np.where(depth_img > avg)] = avg * 10
+                print('avg', avg)
+                scipy.misc.toimage(depth_img).save('cost{:05d}_01_01.png'.format(fi))
 
             disparity_table = db.table('disparity_03_01')
             for fi, tup in disparity_table.load(['points']):
-                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 4)
-                depth_img = points[:,:,3]
-                scipy.misc.toimage(depth_img).save('depth{:05d}_03_01.png'.format(fi))
+                points = np.frombuffer(tup[0], dtype=np.float32).reshape(480, 640, 1)
+                depth_img = points[:,:,0]
+                scipy.misc.toimage(depth_img).save('cost{:05d}_03_01.png'.format(fi))
 
 
 if __name__ == "__main__":

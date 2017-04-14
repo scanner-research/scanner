@@ -125,7 +125,7 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
 }
 
 bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
-  assert(encoded_size > 0);
+  assert(frame_size > 0);
   if (was_reset_) {
     avcodec_flush_buffers(cc_);
   }
