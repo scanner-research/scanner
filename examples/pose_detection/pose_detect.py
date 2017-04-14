@@ -20,11 +20,38 @@ with Database() as db:
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
     caffe_args.batch_size = 1
 
+<<<<<<< Updated upstream
     video_path = util.download_video()
     if not db.has_table('example'):
         print('Ingesting video into Scanner ...')
         db.ingest_videos([('example', video_path)], force=True)
     input_table = db.table('example')
+=======
+
+    input_op = db.ops.Input()
+    cpm2_input = db.ops.CPM2Input(
+        inputs=[(input_op, ["frame", "frame_info"])],
+        args=cpm2_args,
+        device=DeviceType.GPU)
+    cpm2 = db.ops.CPM2(
+        inputs=[(cpm2_input, ["cpm2_input"]), (input_op, ["frame_info"])],
+        args=cpm2_args,
+        device=DeviceType.GPU)
+    cpm2_output = db.ops.CPM2Output(
+        inputs=[(cpm2, ["cpm2_resized_map", "cpm2_joints"]),
+                (input_op, ["frame_info"])],
+        args=cpm2_args)
+
+    video_paths = [
+        '/n/scanner/datasets/kcam/20150207_154033_788.mp4',
+        '/n/scanner/datasets/kcam/20150307_120624_341.mp4',
+        '/n/scanner/datasets/kcam/20141028_151111_219.mp4',
+        '/n/scanner/datasets/kcam/20150101_130918_979.mp4'
+    ]
+    if False and not db.has_table('example'):
+        print('Ingesting video into Scanner ...')
+        collection, _ = db.ingest_video_collection('kcam_dfouhey', video_paths, force=True)
+>>>>>>> Stashed changes
 
     frame, frame_info = input_table.as_op().all(item_size = 50)
     cpm2_input = db.ops.CPM2Input(
@@ -42,8 +69,30 @@ with Database() as db:
         frame_info = frame_info,
         args = cpm2_args)
 
+<<<<<<< Updated upstream
     job = Job(columns = [poses], name = 'example_poses')
     output = db.run(job, True)
+=======
+    #tasks = sampler.all(collection, item_size=50)
+    #collection = db.run(tasks, cpm2_output, 'kcam_dfouhey_poses', force=True)
+    collection = db.collection('kcam_dfouhey_poses')
+    for path, table in zip(video_paths, collection.tables()):
+        poses = [pose for (_, pose) in table.columns('poses').load(parsers.poses)]
+        with open(os.path.splitext(os.path.basename(path))[0], 'w') as f:
+            for list_pose in poses:
+                for p in list_pose:
+                    for i in range(15):
+                        f.write('{:f} {:f} {:f} '.format(p[i, 1],
+                                                         p[i, 0],
+                                                         p[i, 2]))
+                    f.seek(-1, 1)
+                    f.write(', ')
+                if len(list_pose) > 0:
+                    f.seek(-1, 1)
+                f.write('\n')
+
+    exit(1)
+>>>>>>> Stashed changes
 
     print('Extracting frames...')
     video_poses = [pose for (_, pose) in output.columns('poses').load(parsers.poses)]
