@@ -586,6 +586,14 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
     // Post evaluate worker
     {
+      auto& output_op = ops.Get(0);
+      std::vector<std::string> column_names;
+      for (auto& op_input : output_op.inputs()) {
+        for (auto& input : op_input.columns()) {
+          column_names.push_back(input);
+        }
+      }
+
       Queue<std::tuple<IOItem, EvalWorkEntry>>* input_work_queue =
         &work_queues.back();
       Queue<std::tuple<IOItem, EvalWorkEntry>>* output_work_queue = &save_work;
@@ -595,6 +603,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
         // Per worker arguments
         ki, eval_thread_profilers.back(), column_mapping.back(),
+
+            column_names,
 
         // Queues
         *input_work_queue, *output_work_queue});
