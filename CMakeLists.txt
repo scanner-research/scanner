@@ -20,7 +20,6 @@ project(Scanner)
 option(BUILD_CUDA "" ON)
 option(BUILD_TESTS "" ON)
 option(BUILD_SERVER "" OFF)
-option(BUILD_EXAMPLES "" ON)
 option(ENABLE_PROFILING "" OFF)
 
 if (BUILD_TESTS)
@@ -235,10 +234,6 @@ foreach(FIL ${PROTO_FILES} ${GRPC_PROTO_FILES})
 endforeach()
 
 add_subdirectory(stdlib)
-
-if (BUILD_EXAMPLES)
-  add_subdirectory(examples)
-endif()
 
 if (BUILD_TESTS)
   add_subdirectory(tests)

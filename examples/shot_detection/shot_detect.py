@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers
 from scipy.spatial import distance
 import numpy as np
@@ -72,18 +72,22 @@ def make_montage_scanner(db, table, shot_starts):
     rows_per_item = 1
     target_width = 256
 
-    montage_args = db.protobufs.MontageArgs()
-    montage_args.num_frames = row_length * rows_per_item
-    montage_args.target_width = target_width
-    montage_args.frames_per_row = row_length
-    montage_op = db.ops.Montage(args=montage_args, device=DeviceType.GPU)
-    selected_frames = [db.sampler().gather((table, 'mont'), shot_starts,
-                                           item_size=(row_length * rows_per_item))]
-    montage_collection = db.run(selected_frames, montage_op, 'montage_image',
-                                force=True)
+    frame, frame_info = table.as_op().gather(
+        shot_starts, item_size = row_length * rows_per_item)
+
+    montage = db.ops.Montage(
+        frame = frame,
+        frame_info = frame_info,
+        num_frames = row_length * rows_per_item,
+        target_width = target_width,
+        frames_per_row = row_length,
+        device = DeviceType.GPU)
+
+    job = Job(columns = [montage], name = 'montage_image')
+    montage_table = db.run(job, force=True)
 
     montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
-    for _, img in montage_collection.tables(0).load(['montage']):
+    for _, img in montage_table.load(['montage']):
         if len(img[0]) > 100:
             img = np.frombuffer(img[0], dtype=np.uint8)
             img = np.flip(np.reshape(img, (-1, target_width * row_length, 3)), 2)
@@ -99,19 +103,18 @@ def main():
     with Database() as db:
         print('Loading movie into Scanner database...')
         s = time.time()
-        db.ingest_videos([(movie_name, movie_path)], force=True)
-        movie_table = db.table(movie_name)
+        [movie_table], _ = db.ingest_videos([(movie_name, movie_path)], force=True)
         print('Time: {:.1f}s'.format(time.time() - s))
 
         s = time.time()
         print('Computing a color histogram for each frame...')
-        db.run(
-            db.sampler().all([(movie_table.name(), movie_name + '_hist')]),
-            db.ops.Histogram(device=DeviceType.GPU),
-            force=True)
-        hists_table = db.table(movie_name + '_hist')
-        print('')
-        print('Time: {:.1f}s'.format(time.time() - s))
+        frame, frame_info = movie_table.as_op().all()
+        histogram = db.ops.Histogram(
+            frame = frame, frame_info = frame_info,
+            device=DeviceType.GPU)
+        job = Job(columns = [histogram], name = movie_name + '_hist')
+        hists_table = db.run(job, force=True)
+        print('\nTime: {:.1f}s'.format(time.time() - s))
 
         s = time.time()
         print('Computing shot boundaries...')
@@ -124,7 +127,7 @@ def main():
         s = time.time()
         print('Creating shot montage...')
         # Make montage in scanner
-        montage_img = make_montage_scanner(db, movie_table.name(), boundaries)
+        montage_img = make_montage_scanner(db, movie_table, boundaries)
         print('')
         print('Time: {:.1f}s'.format(time.time() - s))
 
