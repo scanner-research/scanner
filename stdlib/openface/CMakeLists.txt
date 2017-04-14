@@ -4,6 +4,8 @@ set(SOURCE_FILES openface_kernel.cpp)
 
 add_library(openface OBJECT ${SOURCE_FILES})
 
+message(STATUS "${OpenFace_LIBRARIES}")
+
 target_include_directories(openface PUBLIC "${OpenFace_INCLUDE_DIRS}")
 list(APPEND STDLIB_LIBRARIES "${OpenFace_LIBRARIES}")
 
