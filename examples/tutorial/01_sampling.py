@@ -1,4 +1,4 @@
-from scannerpy import Database, TableJob
+from scannerpy import Database, Job
 
 ################################################################################
 # This tutorial shows how to use the Sampler class to select which parts of a  #
@@ -12,7 +12,7 @@ with Database() as db:
 
     frame, frame_info = input_table.as_op().strided(8)
     histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
-    job = TableJob(columns=[histogram], name='example_hist_strided')
+    job = Job(columns = [histogram], name = 'example_hist_strided')
 
     # The sampler lets you run operators over subsets of frames from your videos.
     # Here, the "strided" sampling mode will run over every 8th frame, i.e. frames
@@ -20,7 +20,7 @@ with Database() as db:
 
     # We pass the tasks to the database same as before, and can process the output
     # same as before.
-    [output_table] = db.run([job], force=True)
+    output_table = db.run(job, force=True)
 
     # Here's some examples of other sampling modes.
 
