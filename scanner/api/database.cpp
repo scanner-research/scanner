@@ -297,6 +297,7 @@ Result Database::new_table(const std::string& table_name,
     storage_.get(), internal::DatabaseMetadata::descriptor_path());
 
   i32 table_id = meta.add_table(table_name);
+  assert(table_id != -1);
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
@@ -317,6 +318,7 @@ Result Database::new_table(const std::string& table_name,
                                  internal::TableMetadata(table_desc));
   internal::write_database_metadata(storage_.get(), meta);
 
+  assert(rows[0].size() == columns.size());
   for (size_t j = 0; j < columns.size(); ++j) {
     const std::string output_path =
       internal::table_item_output_path(table_id, j, 0);
