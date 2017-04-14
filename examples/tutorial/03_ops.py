@@ -1,4 +1,4 @@
-from scannerpy import Database, TableJob, DeviceType
+from scannerpy import Database, Job, DeviceType
 
 ################################################################################
 # This tutorial shows how to combine multiple operators into a computation     #
@@ -11,27 +11,23 @@ with Database() as db:
     # between them. Each graph has an Input node at the beginning that represents
     # the data from the input table.
 
-    tables, _ = db.ingest_videos([('example', '/tmp/example.mp4')], force=True)
+    frame, frame_info = db.table('example').as_op().all()
 
-    jobs = []
-    for t in tables:
-        frame, frame_info = t.as_op().range(0, 1000)
+    blurred_frame, _ = db.ops.Blur(
+        frame = frame,
+        frame_info = frame_info,
+        kernel_size = 3,
+        sigma = 0.5)
 
-        blurred_frame, _ = db.ops.Blur(
-            frame = frame,
-            frame_info = frame_info,
-            kernel_size = 3,
-            sigma = 0.5)
+    histogram = db.ops.Histogram(
+        frame = blurred_frame,
+        frame_info = frame_info)
 
-        histogram = db.ops.Histogram(
-            frame = blurred_frame,
-            frame_info = frame_info)
+    job = Job(
+        columns = [histogram],
+        name = 'output_table_name')
 
-        jobs.append(TableJob(
-            columns=[histogram],
-            name='output_table_name'))
-
-    db.run(jobs, force=True)
+    db.run(job, force=True)
 
     # Note: if you don't explicitly include an Input or Output node in your op graph
     # they will be automatically added for you. This is how the previous examples

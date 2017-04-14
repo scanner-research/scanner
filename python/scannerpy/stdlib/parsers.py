@@ -60,3 +60,8 @@ def array(ty):
     def parser(bufs, db):
         return np.frombuffer(bufs[0], dtype=np.dtype(ty))
     return parser
+
+
+def image(bufs, db):
+    return cv2.imdecode(np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)),
+                        cv2.IMREAD_COLOR)

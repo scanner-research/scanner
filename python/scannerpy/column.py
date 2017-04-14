@@ -2,7 +2,7 @@ import struct
 import cv2
 import math
 from common import *
-
+from stdlib import parsers
 
 class Column:
     """
@@ -91,10 +91,6 @@ class Column:
                     i += 1
             rows_so_far += item_rows
 
-    def _decode_png(self, png, db):
-        return cv2.imdecode(np.frombuffer(png, dtype=np.dtype(np.uint8)),
-                            cv2.IMREAD_COLOR)
-
     # TODO(wcrichto): don't show progress bar when running decode png
     def load(self, fn=None, rows=None):
         """
@@ -113,7 +109,6 @@ class Column:
         # If the column is a video, then dump the requested frames to disk as
         # PNGs and return the decoded PNGs
         if self._descriptor.type == self._db.protobufs.Video:
-            sampler = self._db.sampler()
             png_table_name = self._db._png_dump_prefix.format(self._table.name())
             if self._db.has_table(png_table_name):
                 png_table = self._db.table(png_table_name)
@@ -121,14 +116,15 @@ class Column:
                    png_table.num_rows() == self._table.num_rows() and \
                    png_table._descriptor.timestamp > \
                    self._table._descriptor.timestamp:
-                    return png_table.columns('png').load(self._decode_png)
+                    return png_table.load(['png'], parsers.image)
             pair = [(self._table.name(), png_table_name)]
             if rows is None:
-                tasks = sampler.all(pair)
+                frame, frame_info = self._table.as_op().all()
             else:
-                tasks = [sampler.gather(pair[0], rows)]
-            [out_tbl] = self._db.run(tasks, self._db.ops.ImageEncoder(),
-                                     force=True, show_progress=False)
-            return out_tbl.columns('png').load(self._decode_png)
+                frame, frame_info = self._table.as_op().gather(rows)
+            img = self._db.ops.ImageEncoder(frame = frame, frame_info = frame_info)
+            job = Job(columns = [img], name = png_table_name)
+            [out_tbl] = self._db.run([job], force=True, show_progress=False)
+            return out_tbl.load(['png'], parsers.image)
         else:
             return self._load(fn, rows=rows)

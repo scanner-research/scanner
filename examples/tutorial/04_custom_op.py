@@ -1,4 +1,4 @@
-from scannerpy import Database
+from scannerpy import Database, Job
 import os.path
 
 ################################################################################
@@ -19,9 +19,12 @@ with Database() as db:
     # takes a path to the generated python file for the arg protobuf.
     db.load_op('resize_op/build/libresize_op.so', 'resize_op/build/resize_pb2.py')
 
-    # Then we use our op just like in the other examples.
-    resize = db.ops.Resize(width=200, height=300)
+    frame, frame_info = db.table('example').as_op().all()
 
-    sampler = db.sampler()
-    tasks = sampler.all([('example', 'example_resized')])
-    db.run(tasks, resize, force=True)
+    # Then we use our op just like in the other examples.
+    resize = db.ops.Resize(
+        frame = frame, frame_info = frame_info,
+        width = 200, height = 300)
+
+    job = Job(columns = [resize, frame_info], name = 'example_resized')
+    db.run(job, force=True)

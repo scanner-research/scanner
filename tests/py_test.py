@@ -1,4 +1,4 @@
-from scannerpy import Database, Config, DeviceType
+from scannerpy import Database, Config, DeviceType, Job
 from scannerpy.stdlib import parsers
 import tempfile
 import toml
@@ -102,13 +102,14 @@ def test_make_collection(db):
     db.new_collection('test', ['test'])
 
 def test_load_video_column(db):
-    next(db.table('test').columns(1).load())
+    next(db.table('test').load(['frame']))
 
 def test_profiler(db):
-    [output] = db.run(
-        db.sampler().all([('test', '_ignore')]),
-        db.ops.Histogram(),
-        show_progress=False)
+    frame, frame_info = db.table('test').as_op().all()
+    job = Job(
+        columns = [db.ops.Histogram(frame = frame, frame_info = frame_info)],
+        name = '_ignore')
+    output = db.run(job, show_progress=False)
     profiler = output.profiler()
     f = tempfile.NamedTemporaryFile(delete=False)
     f.close()
@@ -121,35 +122,34 @@ def builder(cls):
 
     class Generated:
         def test_cpu(self, db):
-            inst.run(db, inst.op(db, DeviceType.CPU))
+            inst.run(db, inst.job(db, DeviceType.CPU))
 
         @gpu
         def test_gpu(self, db):
-            inst.run(db, inst.op(db, DeviceType.GPU))
+            inst.run(db, inst.job(db, DeviceType.GPU))
 
     return Generated
 
 @builder
 class TestHistogram:
-    def op(self, db, ty):
-        return db.ops.Histogram(device=ty)
+    def job(self, db, ty):
+        frame, frame_info = db.table('test').as_op().all()
+        histogram = db.ops.Histogram(frame = frame, frame_info = frame_info, device = ty)
+        return Job(columns = [histogram], name = 'test_hist')
 
-    def run(self, db, op):
-        [table] = db.run(db.sampler().all([('test', 'test_hist')]), op,
-                         force=True, show_progress=False)
+    def run(self, db, job):
+        table = db.run(job, force=True, show_progress=False)
         next(table.load([1], parsers.histograms))
 
 @builder
 class TestOpticalFlow:
-    def op(self, db, ty):
-        input = db.ops.Input()
+    def job(self, db, ty):
+        frame, frame_info = db.table('test').as_op().range(0, 50, warmup_size=1)
         flow = db.ops.OpticalFlow(
-            inputs=[(input,['frame', 'frame_info'])],
-            device=ty)
-        output = db.ops.Output(inputs=[(flow, ['flow']), (input, ['frame_info'])])
-        return output
+            frame = frame, frame_info = frame_info,
+            device = ty)
+        return Job(columns = [flow, frame_info], name = 'test_flow')
 
-    def run(self, db, op):
-        tasks = db.sampler().range([('test', 'test_flow')], 0, 50, warmup_size=1)
-        [table] = db.run(tasks, op, force=True, show_progress=False)
-        next(table.load([1, 2], parsers.flow))
+    def run(self, db, job):
+        table = db.run(job, force=True, show_progress=False)
+        next(table.load(['flow', 'frame_info'], parsers.flow))

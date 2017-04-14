@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, TableJob
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers
 import numpy as np
 import cv2
@@ -30,19 +30,16 @@ with Database() as db:
 
     # Create an operator to run on our video. This computes a histogram with 16 bins
     # for each color channel in a given frame.
-    frame, frame_info = input_table.as_op()
+    frame, frame_info = input_table.as_op().all()
     histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
 
     # Define which frames we're going to run the operator on (all of them, in this
     # case). The sampler takes in pairs of (input table name, output table name).
-    job = TableJob(
-        rows = input_table.rows().all(),
-        columns = [histogram],
-        name = 'example_hist')
+    job = Job(columns = [histogram], name = 'example_hist')
 
     # Run the operator on the input and get an output table. The columns of the
     # output table are written to disk by the Scanner runtime.
-    [output_table] = db.run([job], force=True)
+    output_table = db.run(job, force=True)
 
     # Load the histograms from a column of the output table. The parsers.histograms
     # function  converts the raw bytes output by Scanner into a numpy array for each

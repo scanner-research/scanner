@@ -151,7 +151,7 @@ class Database:
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
-        
+
         pydbpath_info = self._storage.get_file_info(pydb_path+'/')
 
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
@@ -163,7 +163,7 @@ class Database:
         self._collections = self._load_descriptor(
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
-        
+
     def __del__(self):
         self.stop_cluster()
 
@@ -731,6 +731,7 @@ class Database:
         start_node = self.ops.Input([], None, None)
         explored_nodes = set()
         stack = [op]
+        to_change = []
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
@@ -740,14 +741,23 @@ class Database:
                     if not input._op in input_tables:
                         input_tables.append(input._op)
                     idx = input_tables.index(input._op)
-                    input._col = "{}{:d}".format(input._col, idx)
+                    to_change.append((input, idx))
                     input._op = start_node
 
                 if input._op not in explored_nodes:
                     stack.append(input._op)
 
+        def input_col_name(col, idx):
+            if len(input_tables) > 1:
+                return '{}{:d}'.format(col, idx)
+            else:
+                return col
+
+        for (input, idx) in to_change:
+            input._col = input_col_name(input._col, idx)
+
         start_node._inputs = \
-          ['{}{:d}'.format(c, i)
+          [input_col_name(c, i)
            for i, t in enumerate(input_tables) for c in t._inputs]
 
         # Perform DFS on modified graph
@@ -783,9 +793,11 @@ class Database:
             for i in c._inputs:
                 if i._op in input_tables:
                     idx = input_tables.index(i._op)
-                    i._col = '{}{:d}'.format(i._col , idx)
+                    i._col = input_col_name(i._col, idx)
 
-        eval_sorted[-1]._inputs.insert(0, OpColumn(eval_sorted[0], "index0"))
+        eval_sorted[-1]._inputs.insert(
+            0, OpColumn(
+                eval_sorted[0], "index0" if len(input_tables) > 1 else "index"))
 
         task = input_tables[0]._task
         if job.name() is not None:
@@ -847,21 +859,22 @@ class Database:
             tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
         else:
             job = jobs
-            output_collection = job.name()
-            if self.has_collection(output_collection) and not force:
-                raise ScannerException(
-                    'Collection with name {} already exists'
-                    .format(output_collection))
             ops, task, collection = self._toposort(job)
             tasks = [task]
-            for t in collection.tables()[1:]:
-                t_task = self._db.protobufs.Task()
-                t_task.CopyFrom(task)
-                t_task.table_name = t.name()
-                t_task.output_table_name = '{}:{}'.format(
-                    output_collection,
-                    t.name().split(':')[-1])
-                t_task.samples[0].table_name = t.name()
+            if collection is not None:
+                output_collection = job.name()
+                if self.has_collection(output_collection) and not force:
+                    raise ScannerException(
+                        'Collection with name {} already exists'
+                        .format(output_collection))
+                for t in collection.tables()[1:]:
+                    t_task = self._db.protobufs.Task()
+                    t_task.CopyFrom(task)
+                    t_task.table_name = t.name()
+                    t_task.output_table_name = '{}:{}'.format(
+                        output_collection,
+                        t.name().split(':')[-1])
+                    t_task.samples[0].table_name = t.name()
 
         for task in tasks:
             if self.has_table(task.output_table_name):
@@ -915,7 +928,10 @@ class Database:
         if output_collection is not None:
             return self.new_collection(output_collection, table_names, force, job_id)
         else:
-            return [self.table(t) for t in table_names]
+            if isinstance(jobs, list):
+                return [self.table(t) for t in table_names]
+            else:
+                return self.table(table_names[0])
 
 
 class ProtobufGenerator:
@@ -945,15 +961,3 @@ class ProtobufGenerator:
             if hasattr(mod, name):
                 return getattr(mod, name)
         raise ScannerException('No protobuf with name {}'.format(name))
-
-
-class Job:
-    def __init__(self, columns, name=None):
-        self._columns = columns
-        self._name = name
-
-    def name(self):
-        return self._name
-
-    def op(self, db):
-        return db.ops.Output(inputs=self._columns)
