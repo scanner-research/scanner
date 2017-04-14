@@ -79,6 +79,7 @@ struct PostEvaluateThreadArgs {
   Profiler& profiler;
   // Index in columns for inputs
   std::vector<i32> column_mapping;
+  std::vector<std::string> column_names;
 
   // Queues for communicating work
   Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;

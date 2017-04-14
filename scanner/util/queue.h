@@ -39,6 +39,8 @@ class Queue {
 
   void pop(T& item);
 
+  void peek(T& item);
+
   void clear();
 
  private:
