@@ -629,7 +629,7 @@ class Database:
         self._delete_table(name)
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
-    def new_table(self, name, columns, rows, force=False):
+    def new_table(self, name, columns, rows, fn=None, force=False):
         """
         Creates a new table from a list of rows.
 
@@ -641,6 +641,7 @@ class Database:
                   serialized representations of the data.
 
         Kwargs:
+            fn: TODO(wcrichto)
             force: TODO(apoms)
 
         Returns:
@@ -653,6 +654,8 @@ class Database:
             else:
                 raise ScannerException('Attempted to create table with existing '
                                        'name {}'.format(name))
+        if fn is not None:
+            rows = [fn(row) for row in rows]
         cols = copy.copy(columns)
         cols.insert(0, "index")
         for i, row in enumerate(rows):

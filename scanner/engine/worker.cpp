@@ -60,7 +60,7 @@ void analyze_dag(
   {
     auto& input_op = ops.Get(0);
     for (const std::string& input_col : input_op.inputs(0).columns()) {
-      intermediates[0].push_back(std::make_tuple(input_col, 0));
+      intermediates[0].push_back(std::make_tuple(input_col, 1));
     }
   }
   for (size_t i = 1; i < ops.size(); ++i) {

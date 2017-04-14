@@ -12,23 +12,24 @@
 
 namespace scanner {
 
-class OpenFaceEvaluator : public VideoKernel {
+class OpenFaceKernel : public VideoKernel {
  public:
-  OpenFaceEvaluator(const Kernel::Config& config)
-      : VideoKernel(config), clnf_model(det_parameters.model_location) {
+  OpenFaceKernel(const Kernel::Config& config)
+    : VideoKernel(config), clnf_model(det_parameters.model_location) {
     boost::filesystem::path au_loc_path =
-        boost::filesystem::path("AU_predictors/AU_all_static.txt");
+      boost::filesystem::path("AU_predictors/AU_all_static.txt");
     boost::filesystem::path tri_loc_path =
-        boost::filesystem::path("model/tris_68_full.txt");
+      boost::filesystem::path("model/tris_68_full.txt");
     face_analyser_ =
-        FaceAnalysis::FaceAnalyser(vector<cv::Vec3d>(), 0.7, 112, 112,
-                                   au_loc_path.string(), tri_loc_path.string());
+      FaceAnalysis::FaceAnalyser(vector<cv::Vec3d>(), 0.7, 112, 112,
+                                 au_loc_path.string(), tri_loc_path.string());
   }
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& frame_info_col = input_columns[1];
+    auto& bbox_col = input_columns[2];
     check_frame_info(CPU_DEVICE, frame_info_col);
 
     i32 width = frame_info_.width();
@@ -47,8 +48,9 @@ class OpenFaceEvaluator : public VideoKernel {
       cv::Mat grey;
       cv::cvtColor(img, grey, CV_BGR2GRAY);
       std::vector<BoundingBox> all_bboxes =
-          deserialize_proto_vector<BoundingBox>(input_columns[1].rows[b].buffer,
-                                                input_columns[1].rows[b].size);
+        deserialize_proto_vector<BoundingBox>(bbox_col.rows[b].buffer,
+                                              bbox_col.rows[b].size);
+
       for (auto& bbox : all_bboxes) {
         f64 x1 = bbox.x1(), y1 = bbox.y1(), x2 = bbox.x2(), y2 = bbox.y2();
         f64 w = x2 - x1, h = y2 - y1;
@@ -61,10 +63,10 @@ class OpenFaceEvaluator : public VideoKernel {
         cv::rectangle(img, cv_bbox, cv::Scalar(0, 255, 0));
 
         bool success = LandmarkDetector::DetectLandmarksInImage(
-            grey, cv_bbox, clnf_model, det_parameters);
+          grey, cv_bbox, clnf_model, det_parameters);
         if (success) {
           std::vector<cv::Point2d> landmarks =
-              LandmarkDetector::CalculateLandmarks(clnf_model);
+            LandmarkDetector::CalculateLandmarks(clnf_model);
 
           cv::Point3f gazeDirection0(0, 0, -1);
           cv::Point3f gazeDirection1(0, 0, -1);
@@ -74,10 +76,10 @@ class OpenFaceEvaluator : public VideoKernel {
                                      false);
 
           auto ActionUnits =
-              face_analyser_.PredictStaticAUs(grey, clnf_model, false);
+            face_analyser_.PredictStaticAUs(grey, clnf_model, false);
 
-          cv::Vec6d headPose = LandmarkDetector::GetCorrectedPoseWorld(
-              clnf_model, fx, fy, cx, cy);
+          cv::Vec6d headPose =
+            LandmarkDetector::GetCorrectedPoseWorld(clnf_model, fx, fy, cx, cy);
 
           LandmarkDetector::DrawBox(img, headPose, cv::Scalar(255.0, 0, 0), 3,
                                     fx, fy, cx, cy);
@@ -87,7 +89,11 @@ class OpenFaceEvaluator : public VideoKernel {
         }
       }
 
-      INSERT_ROW(output_columns[0], img.data, frame_col.rows[b].size);
+      size_t size = frame_col.rows[b].size;
+      u8* output_buf = new_buffer(CPU_DEVICE, size);
+      memcpy_buffer(output_buf, CPU_DEVICE, frame_col.rows[b].buffer,
+                    CPU_DEVICE, size);
+      INSERT_ROW(output_columns[0], output_buf, size);
     }
   }
 
@@ -95,10 +101,17 @@ class OpenFaceEvaluator : public VideoKernel {
   LandmarkDetector::FaceModelParameters det_parameters;
   LandmarkDetector::CLNF clnf_model;
   std::vector<std::string> files, depth_files, output_images,
-      output_landmark_locations, output_pose_locations;
+    output_landmark_locations, output_pose_locations;
   std::vector<cv::Rect_<double>> bounding_boxes;
   int device;
   float fx, fy, cx, cy;
   FaceAnalysis::FaceAnalyser face_analyser_;
 };
+
+REGISTER_OP(OpenFace)
+  .inputs({"frame", "frame_info", "faces"})
+  .outputs({"features"});
+REGISTER_KERNEL(OpenFace, OpenFaceKernel)
+  .device(DeviceType::CPU)
+  .num_devices(1);
 }
