@@ -60,6 +60,9 @@ void analyze_dag(
   {
     auto& input_op = ops.Get(0);
     for (const std::string& input_col : input_op.inputs(0).columns()) {
+      // Set last used to first op so that all input ops are live to start
+      // with. We could eliminate input columns which aren't used, but this
+      // also requires modifying the samples.
       intermediates[0].push_back(std::make_tuple(input_col, 1));
     }
   }

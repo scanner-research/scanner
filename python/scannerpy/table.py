@@ -15,7 +15,8 @@ class Table:
         self._descriptor = descriptor
         self._collection = None
         job_id = self._descriptor.job_id
-        if job_id != -1:
+        if False:
+        #if job_id != -1:
             self._job = self._db._load_descriptor(
                 self._db.protobufs.JobDescriptor,
                 'jobs/{}/descriptor.bin'.format(job_id))
