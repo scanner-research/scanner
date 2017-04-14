@@ -89,6 +89,18 @@ void Queue<T>::pop(T& item) {
 }
 
 template <typename T>
+void Queue<T>::peek(T& item) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  pop_waiters_++;
+  not_empty_.wait(lock, [this]{ return data_.size() > 0; });
+  pop_waiters_--;
+
+  item = data_.front();
+
+  lock.unlock();
+}
+
+template <typename T>
 void Queue<T>::clear() {
   std::unique_lock<std::mutex> lock(mutex_);
   data_.clear();

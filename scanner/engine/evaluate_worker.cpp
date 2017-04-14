@@ -3,6 +3,7 @@
 #include "scanner/engine/op_registry.h"
 #include "scanner/util/cuda.h"
 #include "scanner/video/decoder_automata.h"
+#include "scanner/video/video_encoder.h"
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -420,6 +421,31 @@ void* post_evaluate_thread(void* arg) {
       *reinterpret_cast<PostEvaluateThreadArgs*>(arg);
   std::set<i32> column_set(args.column_mapping.begin(),
                            args.column_mapping.end());
+  // Infer which columns are video columns by finding any column name with the
+  // prefix "frame_info" and asserting the previous column is a video column
+  std::vector<ColumnType> column_types;
+  for (size_t i = 0; i < args.column_names.size() - 1; ++i) {
+    const std::string info_prefix = "frame_info";
+    const std::string& column_name = args.column_names[i + 1];
+    ColumnType type = ColumnType::Other;
+    if (column_name.compare(0, info_prefix.size(), info_prefix) == 0) {
+      type = ColumnType::Video;
+    }
+    column_types.push_back(type);
+  }
+  column_types.push_back(ColumnType::Other);
+
+  // Setup video encoders
+  DeviceHandle encoder_handle = CPU_DEVICE;
+  VideoEncoderType encoder_type = VideoEncoderType::SOFTWARE;
+  std::vector<std::unique_ptr<VideoEncoder>> encoders;
+  std::vector<bool> encoder_configured;
+  for (ColumnType type : column_types) {
+    if (type != ColumnType::Video) continue;
+    encoders.emplace_back(
+      VideoEncoder::make_from_config(encoder_handle, 1, encoder_type));
+    encoder_configured.push_back(false);
+  }
 
   EvalWorkEntry buffered_entry;
   i64 current_offset = 0;
@@ -442,31 +468,80 @@ void* post_evaluate_thread(void* arg) {
 
     auto work_start = now();
 
+    // Setup row buffer if it was emptied
     if (buffered_entry.columns.size() == 0) {
       buffered_entry.io_item_index = work_entry.io_item_index;
       buffered_entry.columns.resize(args.column_mapping.size());
+      buffered_entry.column_types = column_types;
       for (i32 col_idx : args.column_mapping) {
         buffered_entry.column_handles.push_back(
             work_entry.column_handles[col_idx]);
+      }
+      if (work_entry.needs_configure) {
+        for (size_t i = 0; i < encoder_configured.size(); ++i) {
+          encoder_configured[i] = false;
+        }
       }
     }
 
     i64 num_rows = work_entry.columns[0].rows.size();
     i32 warmup_frames = work_entry.warmup_rows;
     current_offset += num_rows;
+
+    i32 encoder_idx = 0;
     // Swizzle columns correctly
     for (size_t i = 0; i < args.column_mapping.size(); ++i) {
       i32 col_idx = args.column_mapping[i];
+      ColumnType column_type = column_types[i];
       // Delete warmup frame outputs
       for (i32 w = 0; w < warmup_frames; ++w) {
         delete_buffer(work_entry.column_handles[col_idx],
                       work_entry.columns[col_idx].rows[w].buffer);
       }
-      // Keep non-warmup frame outputs
-      buffered_entry.columns[i].rows.insert(
+      // Encode video frames
+      if (column_type == ColumnType::Video) {
+        auto start = work_entry.columns[col_idx].rows.begin() + warmup_frames;
+        auto end = work_entry.columns[col_idx].rows.end();
+        auto& encoder = encoders[encoder_idx];
+        if (!encoder_configured[encoder_idx]) {
+          // Configure encoder
+          encoder_configured[encoder_idx] = true;
+          // Read frame info column
+
+          auto& rows = work_entry.columns[col_idx + 1].rows;
+          u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
+          memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer,
+                        work_entry.column_handles[col_idx + 1], rows[0].size);
+          FrameInfo frame_info;
+          bool parsed = frame_info.ParseFromArray(buffer, rows[0].size);
+          LOG_IF(FATAL, !parsed) << "Invalid frame info";
+          delete_buffer(CPU_DEVICE, buffer);
+          encoder->configure(frame_info);
+        }
+
+        // Pass frames into encoder
+        for (auto r = start; r != end; ++r) {
+          auto& row = *r;
+          bool new_packet = encoder->feed(row.buffer, row.size);
+          while (new_packet) {
+            size_t buffer_size = 1 * 1024 * 1024;
+            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+            size_t actual_size;
+            new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
+            LOG_IF(FATAL, new_packet && actual_size > buffer_size)
+              << "Packet buffer not large enough (" << buffer_size << " vs "
+              << actual_size << ")";
+            buffered_entry.columns[i].rows.push_back(Row{buffer, buffer_size});
+          }
+        }
+        encoder_idx++;
+      } else {
+        // Keep non-warmup frame outputs
+        buffered_entry.columns[i].rows.insert(
           buffered_entry.columns[i].rows.end(),
           work_entry.columns[col_idx].rows.begin() + warmup_frames,
           work_entry.columns[col_idx].rows.end());
+      }
     }
     // Delete unused columns
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
@@ -479,7 +554,31 @@ void* post_evaluate_thread(void* arg) {
       }
     }
 
+    encoder_idx = 0;
+    // Flush row buffer
     if (work_entry.last_in_io_item) {
+      // Flush video encoder and get rest of packets
+      for (size_t i = 0; i < args.column_mapping.size(); ++i) {
+        ColumnType column_type = column_types[i];
+        if (column_type == ColumnType::Video) {
+          auto& encoder = encoders[encoder_idx];
+
+          // Get last packets in encoder
+          bool new_packet = encoder->flush();
+          while (new_packet) {
+            size_t buffer_size = 1 * 1024 * 1024;
+            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+            size_t actual_size;
+            new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
+            LOG_IF(FATAL, new_packet && actual_size > buffer_size)
+              << "Packet buffer not large enough (" << buffer_size << " vs "
+              << actual_size << ")";
+            buffered_entry.columns[i].rows.push_back(Row{buffer, buffer_size});
+          }
+          encoder_idx++;
+        }
+      }
+
       args.output_work.push(std::make_tuple(io_item, buffered_entry));
       buffered_entry.columns.clear();
     }

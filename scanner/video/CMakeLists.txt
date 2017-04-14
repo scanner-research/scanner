@@ -1,6 +1,7 @@
 set(SOURCE_FILES
   decoder_automata.cpp
-  video_decoder.cpp)
+  video_decoder.cpp
+  video_encoder.cpp)
 
 if (BUILD_CUDA)
   add_definitions(-DHAVE_NVIDIA_VIDEO_HARDWARE)
@@ -15,7 +16,8 @@ if (MFX_FOUND)
 endif()
 
 list(APPEND SOURCE_FILES
-  software/software_video_decoder.cpp)
+  software/software_video_decoder.cpp
+  software/software_video_encoder.cpp)
 
 add_library(video OBJECT
   ${SOURCE_FILES})
