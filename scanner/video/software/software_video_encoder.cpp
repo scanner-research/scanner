@@ -32,6 +32,15 @@ extern "C" {
 
 #include <cassert>
 
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 53, 0)
+#define PACKET_FREE(pkt) \
+  av_packet_free(&pkt);
+#else
+#define PACKET_FREE(pkt) \
+  av_packet_unref(&pkt);  \
+  av_freep(&pkt);
+#endif
+
 namespace scanner {
 namespace internal {
 
@@ -89,7 +98,7 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
     while (ready_packet_queue_.size() > 0) {
       AVPacket* packet;
       ready_packet_queue_.pop(packet);
-      av_packet_free(&packet);
+      PACKET_FREE(packet);
     }
   }
 
@@ -225,7 +234,7 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
 
   // Only pop packet when we know we can copy it out
   ready_packet_queue_.pop(packet);
-  av_packet_free(&packet);
+  PACKET_FREE(packet);
 
   return ready_packet_queue_.size() > 0;
 }
@@ -259,9 +268,9 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
     if (ret == 0) {
       ready_packet_queue_.push(packet);
     } else if (ret == AVERROR(EAGAIN)) {
-      av_packet_free(&packet);
+      PACKET_FREE(packet);
     } else if (ret == AVERROR_EOF) {
-      av_packet_free(&packet);
+      PACKET_FREE(packet);
     } else {
       char err_msg[256];
       av_strerror(ret, err_msg, 256);
