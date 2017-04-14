@@ -1,4 +1,5 @@
 set(SOURCE_FILES
+  h264_byte_stream_index_creator.cpp
   decoder_automata.cpp
   video_decoder.cpp
   video_encoder.cpp)

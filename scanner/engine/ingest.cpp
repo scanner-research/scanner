@@ -15,6 +15,7 @@
 
 #include "scanner/api/database.h"
 #include "scanner/engine/metadata.h"
+#include "scanner/video/h264_byte_stream_index_creator.h"
 
 #include "scanner/util/common.h"
 #include "scanner/util/h264.h"
@@ -287,29 +288,9 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   std::unique_ptr<WriteFile> demuxed_bytestream{};
   BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream));
 
-  u64 bytestream_pos = 0;
-  std::vector<u8> metadata_bytes;
-  std::vector<i64> keyframe_positions;
-  std::vector<i64> keyframe_timestamps;
-  std::vector<i64> keyframe_byte_offsets;
-
   bool succeeded = true;
-  i64 frame = 0;
   bool extradata_extracted = false;
-  bool in_meta_packet_sequence = false;
-  i64 meta_packet_sequence_start_offset = 0;
-  bool saw_sps_nal = false;
-  bool saw_pps_nal = false;
-  std::map<u32, SPS> sps_map;
-  std::map<u32, PPS> pps_map;
-  u32 last_sps = -1;
-  u32 last_pps = -1;
-  std::map<u32, std::vector<u8>> sps_nal_bytes;
-  std::map<u32, std::vector<u8>> pps_nal_bytes;
-  SliceHeader prev_sh;
-
-  i64 num_non_ref_frames = 0;
-  i64 avcodec_frame = 0;
+  H264ByteStreamIndexCreator index_creator(demuxed_bytestream.get());
   while (true) {
     // Read from format context
     i32 err = av_read_frame(state.format_context, &state.av_packet);
@@ -319,6 +300,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
     } else if (err != 0) {
       char err_msg[256];
       av_strerror(err, err_msg, 256);
+      int frame = index_creator.frames();
       LOG(ERROR) << "Error while decoding frame " << frame << " (" << err
                  << "): " << err_msg;
       cleanup_video_codec(state);
@@ -353,17 +335,19 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 
     u8* filtered_data;
     i32 filtered_data_size;
-    if (av_bitstream_filter_filter(
-          state.annexb, state.in_cc, NULL, &filtered_data, &filtered_data_size,
-          state.av_packet.data, state.av_packet.size,
-          state.av_packet.flags & AV_PKT_FLAG_KEY) < 0) {
+    err = av_bitstream_filter_filter(
+      state.annexb, state.in_cc, NULL, &filtered_data, &filtered_data_size,
+      state.av_packet.data, state.av_packet.size,
+      state.av_packet.flags & AV_PKT_FLAG_KEY);
+    if (err < 0) {
+      int frame = index_creator.frames();
       char err_msg[256];
       av_strerror(err, err_msg, 256);
       LOG(ERROR) << "Error while filtering " << frame << " (" << frame
                  << "): " << err_msg;
       cleanup_video_codec(state);
       error_message = "Error while filtering frame " + std::to_string(frame) +
-                      " (" + std::to_string(err) + "): " + std::string(err_msg);
+          " (" + std::to_string(err) + "): " + std::string(err_msg);
       return false;
     }
 
@@ -371,8 +355,8 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
       const u8* extradata = state.in_cc->extradata;
       i32 extradata_size_left = state.in_cc->extradata_size;
 
-      metadata_bytes.resize(extradata_size_left);
-      memcpy(metadata_bytes.data(), extradata, extradata_size_left);
+      // metadata_bytes.resize(extradata_size_left);
+      // memcpy(metadata_bytes.data(), extradata, extradata_size_left);
 
       while (extradata_size_left > 3) {
         const u8* nal_start = nullptr;
@@ -386,177 +370,24 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
       extradata_extracted = true;
     }
 
-    i64 nal_bytestream_offset = bytestream_pos;
-
-    VLOG(2) << "new packet " << nal_bytestream_offset;
-    bool insert_sps_nal = false;
-    // Parse NAL unit
-    const u8* nal_parse = filtered_data;
-    i32 size_left = filtered_data_size;
-    i32 nals_parsed = 0;
-    while (size_left > 3) {
-      const u8* nal_start = nullptr;
-      i32 nal_size = 0;
-      next_nal(nal_parse, size_left, nal_start, nal_size);
-
-      i32 nal_ref_idc = (*nal_start >> 5);
-      i32 nal_unit_type = (*nal_start) & 0x1F;
-      VLOG(2) << "frame " << frame << ", nal size " << nal_size
-              << ", nal_ref_idc " << nal_ref_idc << ", nal unit "
-              << nal_unit_type;
-      if (nal_ref_idc == 0) {
-        num_non_ref_frames += 1;
-      }
-      if (nal_unit_type > 4) {
-        if (!in_meta_packet_sequence) {
-          meta_packet_sequence_start_offset = nal_bytestream_offset;
-          filtered_data_size - size_left;
-          VLOG(2) << "in meta sequence " << nal_bytestream_offset;
-          in_meta_packet_sequence = true;
-          saw_sps_nal = false;
-        }
-      }
-      std::vector<u8> rbsp_buffer;
-      rbsp_buffer.reserve(64 * 1024);
-      u32 consecutive_zeros = 0;
-      i32 bytes = nal_size - 1;
-      const u8* pb = nal_start + 1;
-      while (bytes > 0) {
-        /* Copy the byte into the rbsp, unless it
-         * is the 0x03 in a 0x000003 */
-        if (consecutive_zeros < 2 || *pb != 0x03) {
-          rbsp_buffer.push_back(*pb);
-        }
-        if (*pb == 0) {
-          ++consecutive_zeros;
-        } else {
-          consecutive_zeros = 0;
-        }
-        ++pb;
-        --bytes;
-      }
-
-      // We need to track the last SPS NAL because some streams do
-      // not insert an SPS every keyframe and we need to insert it
-      // ourselves.
-      // fprintf(stderr, "nal_size %d, rbsp size %lu\n", nal_size,
-      // rbsp_buffer.size());
-      const u8* rbsp_start = rbsp_buffer.data();
-      i32 rbsp_size = rbsp_buffer.size();
-
-      // SPS
-      if (nal_unit_type == 7) {
-        saw_sps_nal = true;
-        i32 offset = 8;
-        GetBitsState gb;
-        gb.buffer = rbsp_start;
-        gb.offset = 0;
-        SPS sps;
-        if (!parse_sps(gb, sps)) {
-          error_message = "Failed to parse sps";
-          return false;
-        }
-        i32 sps_id = sps.sps_id;
-        sps_map[sps_id] = sps;
-        last_sps = sps.sps_id;
-
-        sps_nal_bytes[sps_id].clear();
-        sps_nal_bytes[sps_id].insert(sps_nal_bytes[sps_id].end(), nal_start - 3,
-                                     nal_start + nal_size + 3);
-        VLOG(2) << "Last SPS NAL (" << sps_id << ", " << offset << ")"
-                << " seen at frame " << frame;
-      }
-      // PPS
-      if (nal_unit_type == 8) {
-        GetBitsState gb;
-        gb.buffer = rbsp_start;
-        gb.offset = 0;
-        PPS pps;
-        if (!parse_pps(gb, pps)) {
-          error_message = "Failed to parse pps";
-          return false;
-        }
-        pps_map[pps.pps_id] = pps;
-        last_pps = pps.pps_id;
-        saw_pps_nal = true;
-        i32 pps_id = pps.pps_id;
-        pps_nal_bytes[pps_id].clear();
-        pps_nal_bytes[pps_id].insert(pps_nal_bytes[pps_id].end(), nal_start - 3,
-                                     nal_start + nal_size + 3);
-        VLOG(2) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
-                << ", frame " << frame;
-      }
-      if (is_vcl_nal(nal_unit_type)) {
-        assert(last_pps != -1);
-        assert(last_sps != -1);
-        GetBitsState gb;
-        gb.buffer = nal_start;
-        gb.offset = 8;
-        SliceHeader sh;
-        if (!parse_slice_header(gb, sps_map.at(last_sps), pps_map,
-                                nal_unit_type, nal_ref_idc, sh)) {
-          error_message = "Failed to parse slice header";
-          return false;
-        }
-        //printf("ref_idx_l0 %d, ref_idx_l1 %d\n",
-        // sh.num_ref_idx_l0_active, sh.num_ref_idx_l1_active);
-        if (frame == 0 || is_new_access_unit(sps_map, pps_map, prev_sh, sh)) {
-          frame++;
-          size_t bytestream_offset;
-          if (nal_unit_type == 5) {
-            // Insert an SPS NAL if we did not see one in the meta packet
-            // sequence
-            keyframe_byte_offsets.push_back(nal_bytestream_offset);
-            keyframe_positions.push_back(frame - 1);
-            keyframe_timestamps.push_back(state.av_packet.pts);
-            saw_sps_nal = false;
-            VLOG(2) << "keyframe " << frame - 1 << ", byte offset "
-                    << meta_packet_sequence_start_offset;
-
-            // Insert metadata
-            VLOG(2) << "inserting sps and pss nals";
-            i32 size = filtered_data_size;
-            for (auto& kv : sps_nal_bytes) {
-              auto& sps_nal = kv.second;
-              size += static_cast<i32>(sps_nal.size());
-            }
-            for (auto& kv : pps_nal_bytes) {
-              auto& pps_nal = kv.second;
-              size += static_cast<i32>(pps_nal.size());
-            }
-
-            s_write(demuxed_bytestream.get(), size);
-            for (auto& kv : sps_nal_bytes) {
-              auto& sps_nal = kv.second;
-              s_write(demuxed_bytestream.get(), sps_nal.data(), sps_nal.size());
-            }
-            for (auto& kv : pps_nal_bytes) {
-              auto& pps_nal = kv.second;
-              s_write(demuxed_bytestream.get(), pps_nal.data(), pps_nal.size());
-            }
-            // Append the packet to the stream
-            s_write(demuxed_bytestream.get(), filtered_data,
-                    filtered_data_size);
-
-            bytestream_pos += sizeof(size) + size;
-          } else {
-            s_write(demuxed_bytestream.get(), filtered_data_size);
-            bytestream_pos += sizeof(filtered_data_size) + filtered_data_size;
-            // Append the packet to the stream
-            s_write(demuxed_bytestream.get(), filtered_data,
-                    filtered_data_size);
-          }
-        }
-        in_meta_packet_sequence = false;
-        prev_sh = sh;
-      }
-      nals_parsed++;
+    if (!index_creator.feed_packet(filtered_data, filtered_data_size)) {
+      error_message = index_creator.error_message();
+      return false;
     }
-
     free(filtered_data);
 
     av_packet_unref(&state.av_packet);
   }
+  i64 frame = index_creator.frames();
+  i32 num_non_ref_frames = index_creator.num_non_ref_frames();
+  const std::vector<u8>& metadata_bytes = index_creator.metadata_bytes();
+  const std::vector<i64>& keyframe_positions =
+    index_creator.keyframe_positions();
+  const std::vector<i64>& keyframe_timestamps =
+    index_creator.keyframe_timestamps();
+  const std::vector<i64>& keyframe_byte_offsets =
+    index_creator.keyframe_byte_offsets();
+
   VLOG(1) << "Num frames: " << frame;
   VLOG(1) << "Num non-reference frames: " << num_non_ref_frames;
   VLOG(1) << "% non-reference frames: " << num_non_ref_frames / (float)frame;
@@ -572,7 +403,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   std::string index_path = table_item_output_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_file{};
   BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
-  s_write(index_file.get(), frame);
+  s_write<i64>(index_file.get(), frame);
   for (i64 i = 0; i < frame; ++i) {
     s_write(index_file.get(), sizeof(i64));
   }

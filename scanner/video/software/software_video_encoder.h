@@ -65,6 +65,7 @@ class SoftwareVideoEncoder : public VideoEncoder {
   DeviceType output_type_;
   AVCodec* codec_;
   AVCodecContext* cc_;
+  AVBitStreamFilterContext* annexb_;
 
   FrameInfo metadata_;
   i32 frame_width_;

@@ -18,6 +18,7 @@
 #include "scanner/api/database.h"
 #include "scanner/util/common.h"
 
+#include "storehouse/storage_backend.h"
 #include "storehouse/storage_config.h"
 
 #include <string>
