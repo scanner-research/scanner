@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import NetDescriptor, parsers, bboxes
 import math
 import os
@@ -23,29 +23,14 @@ with Database() as db:
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
     caffe_args.batch_size = 2
 
-    table_input = db.ops.Input()
-    facenet_input = db.ops.FacenetInput(
-        inputs=[(table_input, ["frame", "frame_info"])],
-        args=facenet_args,
-        device=DeviceType.GPU)
-    facenet = db.ops.Facenet(
-        inputs=[(facenet_input, ["facenet_input"]), (table_input, ["frame_info"])],
-        args=facenet_args,
-        device=DeviceType.GPU)
-    facenet_output = db.ops.FacenetOutput(
-        inputs=[(facenet, ["facenet_output"]), (table_input, ["frame_info"])],
-        args=facenet_args)
-
-    if not db.has_table('example'):
-        print('Ingesting video into Scanner ...')
-        db.ingest_videos([('example', util.download_video())], force=True)
+    print('Ingesting video into Scanner ...')
+    [input_table], _ = db.ingest_videos([('example', util.download_video())], force=True)
     base_batch = 4
     base_size = 1280*720
     # TODO(apoms): determine automatically from video
     current_size = 1280*720
     current_batch = math.floor(base_size / float(current_size) * base_batch)
 
-    sampler = db.sampler()
     print('Running face detector...')
     outputs = []
     scales = [0.125, 0.25, 0.5, 1.0]
@@ -55,9 +40,25 @@ with Database() as db:
         print('Scale {}...'.format(scale))
         facenet_args.scale = scale
         caffe_args.batch_size = batch
-        tasks = sampler.all([('example', 'example_faces_{}'.format(scale))],
-                            item_size=50)
-        [output] = db.run(tasks, facenet_output, force=True, work_item_size=5)
+        frame, frame_info = input_table.as_op().all(item_size = 50)
+
+        facenet_input = db.ops.FacenetInput(
+            frame = frame, frame_info = frame_info,
+            args = facenet_args,
+            device = DeviceType.GPU)
+        facenet = db.ops.Facenet(
+            facenet_input = facenet_input,
+            frame_info = frame_info,
+            args = facenet_args,
+            device = DeviceType.GPU)
+        facenet_output = db.ops.FacenetOutput(
+            facenet_output = facenet,
+            frame_info = frame_info,
+            args = facenet_args)
+
+        job = Job(columns = [facenet_output], name = 'example_faces_{}'.format(scale))
+
+        output = db.run(job, force=True, work_item_size=5)
         outputs.append(output)
 
     all_bboxes = [

@@ -22,8 +22,8 @@
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
 
-#include <thread>
 #include <mutex>
+#include <thread>
 
 namespace scanner {
 namespace internal {
@@ -63,13 +63,12 @@ class MasterImpl final : public proto::Master::Service {
   grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty1,
                     proto::Empty* empty2);
 
-  grpc::Status GetOpOutputInfo(
-    grpc::ServerContext* context,
-    const proto::OpOutputInfoArgs* op_output_info_args,
-    proto::OpOutputInfo* op_output_info);
+  grpc::Status GetOpInfo(grpc::ServerContext* context,
+                         const proto::OpInfoArgs* op_info_args,
+                         proto::OpInfo* op_info);
 
   grpc::Status LoadOp(grpc::ServerContext* context,
-                      const proto::OpInfo* op_info, Result* result);
+                      const proto::OpPath* op_path, Result* result);
 
   grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
                         Result* result);
@@ -101,6 +100,5 @@ class MasterImpl final : public proto::Master::Service {
   i64 samples_left_;
   Result task_result_;
 };
-
 }
 }

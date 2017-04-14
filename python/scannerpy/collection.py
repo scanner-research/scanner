@@ -1,4 +1,5 @@
 from common import *
+from sampler import TableSampler
 
 
 class Collection:
@@ -25,3 +26,8 @@ class Collection:
 
     def profiler(self):
         return self._db.profiler(self._descriptor.job_id)
+
+    def as_op(self):
+        t = self.tables(0)
+        t._collection = self
+        return TableSampler(t)

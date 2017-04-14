@@ -21,11 +21,11 @@
 #include "scanner/engine/save_worker.h"
 
 #include <arpa/inet.h>
+#include <grpc/grpc_posix.h>
+#include <grpc/support/log.h>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <sys/socket.h>
-#include <grpc/grpc_posix.h>
-#include <grpc/support/log.h>
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -187,7 +187,7 @@ void analyze_dag(
 
 WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
                        std::string master_address, std::string worker_port)
-    : watchdog_awake_(true), db_params_(db_params) {
+  : watchdog_awake_(true), db_params_(db_params) {
   set_database_path(db_params.db_path);
 
 #ifdef DEBUG
@@ -870,9 +870,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 }
 
 grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
-                                const proto::OpInfo* op_info,
+                                const proto::OpPath* op_path,
                                 proto::Empty* empty) {
-  const std::string& so_path = op_info->so_path();
+  const std::string& so_path = op_path->path();
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == nullptr)
     << "dlopen of " << so_path << " failed: " << dlerror();
@@ -905,7 +905,7 @@ void WorkerImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
         if (!watchdog_awake_) {
           // Watchdog not woken, time to bail out
           LOG(ERROR) << "Worker did not receive heartbeat in " << timeout_ms
-                       << "ms. Shutting down.";
+                     << "ms. Shutting down.";
           trigger_shutdown_.set();
         }
         watchdog_awake_ = false;
@@ -916,6 +916,5 @@ void WorkerImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
     server->Shutdown();
   });
 }
-
 }
 }
