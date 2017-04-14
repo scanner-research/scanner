@@ -54,18 +54,28 @@ SoftwareVideoEncoder::SoftwareVideoEncoder(i32 device_id,
     fprintf(stderr, "could not find h264 encoder\n");
     exit(EXIT_FAILURE);
   }
+
+  annexb_ = av_bitstream_filter_init("h264_mp4toannexb");
 }
 
 SoftwareVideoEncoder::~SoftwareVideoEncoder() {
+  if (cc_) {
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 53, 0)
-  avcodec_free_context(&cc_);
+    avcodec_free_context(&cc_);
 #else
-  avcodec_close(cc_);
-  av_freep(&cc_);
+    avcodec_close(cc_);
+    av_freep(&cc_);
 #endif
-  av_frame_free(&frame_);
+  }
+  if (frame_) {
+    av_frame_free(&frame_);
+  }
 
-  sws_freeContext(sws_context_);
+  if (sws_context_) {
+    sws_freeContext(sws_context_);
+  }
+
+  av_bitstream_filter_close(annexb_);
 }
 
 void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
@@ -188,19 +198,33 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
   AVPacket* packet;
   if (ready_packet_queue_.size() > 0) {
     ready_packet_queue_.peek(packet);
-    actual_packet_size = packet->size;
-    // Make sure we have space for this packet, otherwise return
-    if (actual_packet_size > packet_size) {
-      return true;
-    }
-
-    // Only pop packet when we know we can copy it out
-    ready_packet_queue_.pop(packet);
   } else {
     return false;
   }
 
-  memcpy(packet_buffer, packet->data, packet->size);
+  u8* filtered_data;
+  i32 filtered_data_size;
+  int err = av_bitstream_filter_filter(
+    annexb_, cc_, NULL, &filtered_data, &filtered_data_size, packet->data,
+    packet->size, packet->flags & AV_PKT_FLAG_KEY);
+  if (err < 0) {
+    char err_msg[256];
+    av_strerror(err, err_msg, 256);
+    LOG(ERROR) << "Error while filtering: " << err_msg;
+    exit(1);
+  }
+
+  // Make sure we have space for this packet, otherwise return
+  actual_packet_size = filtered_data_size;
+  if (actual_packet_size > packet_size) {
+    return true;
+  }
+
+  memcpy(packet_buffer, filtered_data, filtered_data_size);
+  free(filtered_data);
+
+  // Only pop packet when we know we can copy it out
+  ready_packet_queue_.pop(packet);
   av_packet_free(&packet);
 
   return ready_packet_queue_.size() > 0;

@@ -589,7 +589,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
     // Post evaluate worker
     {
-      auto& output_op = ops.Get(0);
+      auto& output_op = ops.Get(ops.size() - 1);
       std::vector<std::string> column_names;
       for (auto& op_input : output_op.inputs()) {
         for (auto& input : op_input.columns()) {
