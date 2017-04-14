@@ -19,8 +19,8 @@ from threading import Thread
 from common import *
 from profiler import Profiler
 from config import Config
-from op import OpGenerator, Op
-from sampler import Sampler
+from op import OpGenerator, Op, OpColumn
+from sampler import TableSampler
 from collection import Collection
 from table import Table
 from column import Column
@@ -151,7 +151,7 @@ class Database:
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
-        
+
         pydbpath_info = self._storage.get_file_info(pydb_path+'/')
 
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
@@ -163,7 +163,7 @@ class Database:
         self._collections = self._load_descriptor(
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
-        
+
     def __del__(self):
         self.stop_cluster()
 
@@ -477,9 +477,9 @@ class Database:
         """
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
-        op_info = self.protobufs.OpInfo()
-        op_info.so_path = so_path
-        self._try_rpc(lambda: self._master.LoadOp(op_info))
+        op_path = self.protobufs.OpPath()
+        op_path.path = so_path
+        self._try_rpc(lambda: self._master.LoadOp(op_path))
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
@@ -686,9 +686,6 @@ class Database:
             'tables/{}/descriptor.bin'.format(table_id))
         return Table(self, descriptor)
 
-    def sampler(self):
-        return Sampler(self)
-
     def profiler(self, job_name):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, basestring):
@@ -704,31 +701,82 @@ class Database:
 
         return Profiler(self, job_id)
 
-    def _toposort(self, op):
+    def _get_op_info(self, op_name):
+        op_info_args = self.protobufs.OpInfoArgs()
+        op_info_args.op_name = op_name
+
+        op_info = self._try_rpc (lambda: self._master.GetOpInfo(op_info_args))
+
+        if not op_info.result.success:
+            raise ScannerException(op_info.result.msg)
+
+        return op_info
+
+    def _check_has_op(self, op_name):
+        self._get_op_info(op_name)
+
+    def _get_input_columns(self, op_name):
+        return self._get_op_info(op_name).input_columns
+
+    def _get_output_columns(self, op_name):
+        return self._get_op_info(op_name).output_columns
+
+    def _toposort(self, job):
+        op = job.op(self)
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
-        start_node = None
+        input_tables = []
 
+        # Coalesce multiple inputs into a single table
+        start_node = self.ops.Input([], None, None)
         explored_nodes = set()
+        stack = [op]
+        to_change = []
+        while len(stack) > 0:
+            c = stack.pop()
+            explored_nodes.add(c)
+
+            for input in c._inputs:
+                if input._op._name == "InputTable" and input._op != start_node:
+                    if not input._op in input_tables:
+                        input_tables.append(input._op)
+                    idx = input_tables.index(input._op)
+                    to_change.append((input, idx))
+                    input._op = start_node
+
+                if input._op not in explored_nodes:
+                    stack.append(input._op)
+
+        def input_col_name(col, idx):
+            if len(input_tables) > 1:
+                return '{}{:d}'.format(col, idx)
+            else:
+                return col
+
+        for (input, idx) in to_change:
+            input._col = input_col_name(input._col, idx)
+
+        start_node._inputs = \
+          [input_col_name(c, i)
+           for i, t in enumerate(input_tables) for c in t._inputs]
+
+        # Perform DFS on modified graph
+        explored_nodes = set([start_node])
         stack = [op]
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
-            if (c._name == "InputTable"):
-                start_node = c
-                continue
-            elif len(c._inputs) == 0:
-                input = Op.input(self)
-                # TODO(wcrichto): allow non-frame input
-                c._inputs = [(input, ["frame", "frame_info"])]
-                start_node = input
-            for (parent, _) in c._inputs:
-                edges[parent].append(c)
+
+            if c._name == "InputTable": continue
+
+            for input in c._inputs:
+                edges[input._op].append(c)
                 in_edges_left[c] += 1
 
-                if parent not in explored_nodes:
-                    stack.append(parent)
+                if input._op not in explored_nodes:
+                    stack.append(input._op)
 
+        # Compute sorted list
         eval_sorted = []
         eval_index = {}
         stack = [start_node]
@@ -741,49 +789,25 @@ class Database:
                 if in_edges_left[child] == 0:
                     stack.append(child)
 
-        eval_sorted[-1]._inputs.insert(0, (eval_sorted[0], ["index"]))
+        for c in eval_sorted[1:]:
+            for i in c._inputs:
+                if i._op in input_tables:
+                    idx = input_tables.index(i._op)
+                    i._col = input_col_name(i._col, idx)
 
-        return [e.to_proto(eval_index) for e in eval_sorted]
+        eval_sorted[-1]._inputs.insert(
+            0, OpColumn(
+                eval_sorted[0], "index0" if len(input_tables) > 1 else "index"))
 
-    def _get_op_output_info(self, op_name):
-        op_output_info_args = self.protobufs.OpOutputInfoArgs()
-        op_output_info_args.op_name = op_name
+        task = input_tables[0]._task
+        if job.name() is not None:
+            task.output_table_name = job.name()
 
-        op_output_info = self._try_rpc (lambda: self._master.GetOpOutputInfo(op_output_info_args))
+        for t in input_tables[1:]:
+            task.samples.extend(t._task.samples)
 
-        if not op_output_info.result.success:
-            raise ScannerException(op_output_info.result.msg)
-
-        return op_output_info
-
-    def _check_has_op(self, op_name):
-        self._get_op_output_info(op_name)
-
-    def _get_output_columns(self, op_name):
-        return self._get_op_output_info(op_name).output_columns
-
-    def _process_dag(self, op):
-        # If ops are passed as a list (e.g. [transform, caffe])
-        # then hook up inputs to outputs of adjacent ops
-
-        if isinstance(op, list):
-            for i in range(len(op) - 1):
-                if len(op[i+1]._inputs) > 0:
-                    continue
-                if op[i]._name == "InputTable":
-                    out_cols = ["frame", "frame_info"]
-                else:
-                    out_cols = self._get_output_columns(op[i]._name)
-                op[i+1]._inputs = [(op[i], out_cols)]
-            op = op[-1]
-
-        # If the user doesn't explicitly specify an OutputTable, assume that
-        # it's all the output columns of the last op.
-        if op._name != "OutputTable":
-            out_cols = self._get_output_columns(str(op._name))
-            op = Op.output(self, [(op, out_cols)])
-
-        return self._toposort(op)
+        return [e.to_proto(eval_index) for e in eval_sorted], \
+          task, input_tables[0]._collection
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -796,14 +820,12 @@ class Database:
             raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
 
-    def run(self, tasks, op,
-            output_collection=None,
-            job_name=None,
+    def run(self, jobs,
             force=False,
             work_item_size=250,
             cpu_pool=None,
             gpu_pool=None,
-            pipeline_instances_per_node=-1,
+            pipeline_instances_per_node=None,
             show_progress=True):
         """
         Runs a computation over a set of inputs.
@@ -813,16 +835,12 @@ class Database:
                    Collection, then the computation is run on all frames of all
                    tables in the collection. Otherwise, tasks should be generated
                    by the Sampler.
-            op: The computation to run. Op is either a list of
-                   ops to run in sequence, or a DAG with the output node
-                   passed in as the argument.
+            outputs: TODO(wcrichto)
 
         Kwargs:
             output_collection: If this is not None, then a new collection with
                                this name will be created for all the output
                                tables.
-            job_name: An optional name to assign the job. It will be randomly
-                      generated if none is given.
             force: TODO(wcrichto)
             work_item_size: TODO(wcrichto)
             cpu_pool: TODO(wcrichto)
@@ -835,27 +853,28 @@ class Database:
             or a list of Table objects.
         """
 
-        # If the input is a collection, assume user is running over all frames
-        input_is_collection = isinstance(tasks, Collection)
-        if input_is_collection:
-            if output_collection is None:
-                raise ScannerException(
-                    'If Database.run input is a collection, output_collection_name '
-                    'must be specified')
-            sampler = self.sampler()
-            tasks = sampler.all(tasks)
-
-        # If the output should be a collection, then set the table names
-        if output_collection is not None:
-            if self.has_collection(output_collection) and not force:
-                raise ScannerException(
-                    'Collection with name {} already exists'
-                    .format(output_collection))
-            for task in tasks:
-                new_name = '{}:{}'.format(
-                    output_collection,
-                    task.samples[0].table_name.split(':')[-1])
-                task.output_table_name = new_name
+        output_collection = None
+        if isinstance(jobs, list):
+            ops, task, _ = self._toposort(jobs[0])
+            tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
+        else:
+            job = jobs
+            ops, task, collection = self._toposort(job)
+            tasks = [task]
+            if collection is not None:
+                output_collection = job.name()
+                if self.has_collection(output_collection) and not force:
+                    raise ScannerException(
+                        'Collection with name {} already exists'
+                        .format(output_collection))
+                for t in collection.tables()[1:]:
+                    t_task = self._db.protobufs.Task()
+                    t_task.CopyFrom(task)
+                    t_task.table_name = t.name()
+                    t_task.output_table_name = '{}:{}'.format(
+                        output_collection,
+                        t.name().split(':')[-1])
+                    t_task.samples[0].table_name = t.name()
 
         for task in tasks:
             if self.has_table(task.output_table_name):
@@ -867,12 +886,11 @@ class Database:
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
         job_params = self.protobufs.JobParameters()
-        # Generate a random job name if none given
-        job_name = job_name or ''.join(choice(ascii_uppercase) for _ in range(12))
+        job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
-        job_params.task_set.ops.extend(self._process_dag(op))
-        job_params.pipeline_instances_per_node = pipeline_instances_per_node
+        job_params.task_set.ops.extend(ops)
+        job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress
 
@@ -910,7 +928,10 @@ class Database:
         if output_collection is not None:
             return self.new_collection(output_collection, table_names, force, job_id)
         else:
-            return [self.table(t) for t in table_names]
+            if isinstance(jobs, list):
+                return [self.table(t) for t in table_names]
+            else:
+                return self.table(table_names[0])
 
 
 class ProtobufGenerator:

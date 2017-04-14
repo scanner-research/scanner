@@ -15,14 +15,14 @@
 
 #pragma once
 
-#include "scanner/engine/runtime.h"
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/rpc.grpc.pb.h"
+#include "scanner/engine/runtime.h"
 
-#include <atomic>
-#include <thread>
 #include <grpc/grpc_posix.h>
 #include <grpc/support/log.h>
+#include <atomic>
+#include <thread>
 
 namespace scanner {
 namespace internal {
@@ -39,7 +39,7 @@ class WorkerImpl final : public proto::Worker::Service {
                       proto::Result* job_result);
 
   grpc::Status LoadOp(grpc::ServerContext* context,
-                      const proto::OpInfo* op_info, proto::Empty* empty);
+                      const proto::OpPath* op_path, proto::Empty* empty);
 
   grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
                         Result* result);
@@ -62,6 +62,5 @@ class WorkerImpl final : public proto::Worker::Service {
   bool memory_pool_initialized_ = false;
   MemoryPoolConfig cached_memory_pool_config_;
 };
-
 }
 }

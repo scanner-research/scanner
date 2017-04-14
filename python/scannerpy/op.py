@@ -1,6 +1,11 @@
 from common import *
 import grpc
 
+class OpColumn:
+    def __init__(self, op, col):
+        self._op = op
+        self._col = col
+
 class OpGenerator:
     """
     Creates Op instances to define a computation.
@@ -15,21 +20,30 @@ class OpGenerator:
 
     def __getattr__(self, name):
         if name == 'Input':
-            def make_op(inputs=None):
-                return Op.input(self._db, inputs)
-            return make_op
+            return lambda inputs, task, collection: Op.input(self._db, inputs, task, collection)
         elif name == 'Output':
             return lambda inputs: Op.output(self._db, inputs)
 
         # This will raise an exception if the op does not exist.
-        self._db._check_has_op(name)
+        op_info = self._db._get_op_info(name)
 
-        def make_op(**kwargs):
-            inputs = kwargs.pop('inputs', [])
+        def make_op(*args, **kwargs):
+            inputs = []
+            if op_info.variadic_inputs:
+                inputs.extend(args)
+            else:
+                for c in op_info.input_columns:
+                    val = kwargs.pop(c, None)
+                    if val is None:
+                        raise ScannerException('Op {} required column {} as input'
+                                               .format(name, c))
+                    inputs.append(val)
             device = kwargs.pop('device', DeviceType.CPU)
             args = kwargs.pop('args', None)
-            return Op(self._db, name, inputs, device,
-                             kwargs if args is None else args)
+            op = Op(self._db, name, inputs, device,
+                    kwargs if args is None else args)
+            return op.outputs()
+
         return make_op
 
 
@@ -40,25 +54,45 @@ class Op:
         self._inputs = inputs
         self._device = device
         self._args = args
+        self._task = None
 
     @classmethod
-    def input(cls, db, inputs=None):
-        inputs = inputs or ["index", "frame", "frame_info"]
-        return cls(db, "InputTable", [(None, inputs)], DeviceType.CPU, {})
+    def input(cls, db, inputs, task, collection):
+        c = cls(db, "InputTable", inputs, DeviceType.CPU, {})
+        c._task = task
+        c._collection = collection
+        return c
 
     @classmethod
     def output(cls, db, inputs):
         return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
 
+    def outputs(self):
+        if self._name == "InputTable":
+            cols = [OpColumn(self, c) for c in self._inputs][1:]
+        else:
+            cols = self._db._get_output_columns(self._name)
+            cols = [OpColumn(self, c) for c in cols]
+        if len(cols) == 1:
+            return cols[0]
+        else:
+            return tuple(cols)
+
+
     def to_proto(self, indices):
         e = self._db.protobufs.Op()
         e.name = self._name
 
-        for (in_eval, cols) in self._inputs:
+        if e.name == "InputTable":
             inp = e.inputs.add()
-            idx = indices[in_eval] if in_eval is not None else -1
-            inp.op_index = idx
-            inp.columns.extend(cols)
+            inp.columns.extend(self._inputs)
+            inp.op_index = 0
+        else:
+            for i in self._inputs:
+                inp = e.inputs.add()
+                idx = indices[i._op] if i._op is not None else -1
+                inp.op_index = idx
+                inp.columns.append(i._col)
 
         e.device_type = DeviceType.to_proto(self._db, self._device)
 

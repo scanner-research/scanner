@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import NetDescriptor, parsers, bboxes
 import math
 import os
@@ -13,9 +13,6 @@ util.download_video()
 
 with Database() as db:
 
-    # TODO(wcrichto): comment the demo. Make the Scanner philosophy more clear.
-    # Add some figures to the wiki perhaps explaining the high level
-
     descriptor = NetDescriptor.from_file(db, 'nets/cpm2.toml')
     cpm2_args = db.protobufs.CPM2Args()
     cpm2_args.scale = 368.0/720.0
@@ -23,32 +20,30 @@ with Database() as db:
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
     caffe_args.batch_size = 1
 
-
-    input_op = db.ops.Input()
-    cpm2_input = db.ops.CPM2Input(
-        inputs=[(input_op, ["frame", "frame_info"])],
-        args=cpm2_args,
-        device=DeviceType.GPU)
-    cpm2 = db.ops.CPM2(
-        inputs=[(cpm2_input, ["cpm2_input"]), (input_op, ["frame_info"])],
-        args=cpm2_args,
-        device=DeviceType.GPU)
-    cpm2_output = db.ops.CPM2Output(
-        inputs=[(cpm2, ["cpm2_resized_map", "cpm2_joints"]),
-                (input_op, ["frame_info"])],
-        args=cpm2_args)
-
     video_path = util.download_video()
-    if True or not db.has_table('example'):
+    if not db.has_table('example'):
         print('Ingesting video into Scanner ...')
         db.ingest_videos([('example', video_path)], force=True)
+    input_table = db.table('example')
 
-    sampler = db.sampler()
-    print('Running pose detector...')
-    outputs = []
+    frame, frame_info = input_table.as_op().all(item_size = 50)
+    cpm2_input = db.ops.CPM2Input(
+        frame = frame, frame_info = frame_info,
+        args = cpm2_args,
+        device = DeviceType.GPU)
+    cpm2_resized_map, cpm2_joints = db.ops.CPM2(
+        cpm2_input = cpm2_input,
+        frame_info = frame_info,
+        args = cpm2_args,
+        device = DeviceType.GPU)
+    poses = db.ops.CPM2Output(
+        cpm2_resized_map = cpm2_resized_map,
+        cpm2_joints = cpm2_joints,
+        frame_info = frame_info,
+        args = cpm2_args)
 
-    tasks = sampler.all([('example', 'example_poses')], item_size=50)
-    [output] = db.run(tasks, cpm2_output, force=True)
+    job = Job(columns = [poses], name = 'example_poses')
+    output = db.run(job, True)
 
     print('Extracting frames...')
     video_poses = [pose for (_, pose) in output.columns('poses').load(parsers.poses)]

@@ -2,7 +2,7 @@ from common import *
 from column import Column
 import struct
 from itertools import izip
-
+from sampler import TableSampler
 
 class Table:
     """
@@ -13,6 +13,7 @@ class Table:
     def __init__(self, db, descriptor):
         self._db = db
         self._descriptor = descriptor
+        self._collection = None
         job_id = self._descriptor.job_id
         if job_id != -1:
             self._job = self._db._load_descriptor(
@@ -56,11 +57,11 @@ class Table:
         else:
             return columns
 
+    def as_op(self):
+        return TableSampler(self)
+
     def num_rows(self):
         return self._descriptor.end_rows[-1]
-
-    def rows(self):
-        return list(range(self.num_rows()))
 
     def _parse_index(self, bufs, db):
         return struct.unpack("=Q", bufs[0])[0]
@@ -87,3 +88,6 @@ class Table:
                 yield (row, fn(vals, self._db))
             else:
                 yield (row, vals)
+
+    def frames(self):
+        return Sampler()

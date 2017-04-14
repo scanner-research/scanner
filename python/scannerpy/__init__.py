@@ -1,3 +1,3 @@
-from common import ScannerException, DeviceType
-from database import Database, start_master, start_worker, ProtobufGenerator
+from common import ScannerException, DeviceType, Job
+from database import Database, ProtobufGenerator, start_master, start_worker
 from config import Config
