@@ -15,5 +15,5 @@ def download_video():
             'outtmpl': u'/tmp/example.%(ext)s'
         }
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            ydl.download(["https://www.youtube.com/watch?v=tFMo3UJ4B4g"])
+            ydl.download(["https://www.youtube.com/watch?v=yvtb9A9ai9Q"])
     return VID_PATH
