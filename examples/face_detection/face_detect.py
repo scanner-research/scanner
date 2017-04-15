@@ -25,28 +25,8 @@ with Database(master='crissy.pdl.local.cmu.edu:5001',
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
     caffe_args.batch_size = 2
 
-<<<<<<< Updated upstream
     print('Ingesting video into Scanner ...')
     [input_table], _ = db.ingest_videos([('example', util.download_video())], force=True)
-=======
-    table_input = db.ops.Input()
-    facenet_input = db.ops.FacenetInput(
-        inputs=[(table_input, ["frame", "frame_info"])],
-        args=facenet_args,
-        device=DeviceType.GPU)
-    facenet = db.ops.Facenet(
-        inputs=[(facenet_input, ["facenet_input"]), (table_input, ["frame_info"])],
-        args=facenet_args,
-        device=DeviceType.GPU)
-    facenet_output = db.ops.FacenetOutput(
-        inputs=[(facenet, ["facenet_output"]), (table_input, ["frame_info"])],
-        args=facenet_args)
-
-    video_path = '/n/scanner/datasets/movies/private/american_sniper_2014.mkv'
-    if True or not db.has_table('example'):
-        print('Ingesting video into Scanner ...')
-        db.ingest_videos([('example', video_path)], force=True)
->>>>>>> Stashed changes
     base_batch = 4
     base_size = 1280*720
     # TODO(apoms): determine automatically from video

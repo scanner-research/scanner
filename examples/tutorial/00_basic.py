@@ -14,7 +14,6 @@ import util
 
 # Initialize a connection to the Scanner database. Loads configuration from the
 # ~/.scanner.toml configuration file.
-<<<<<<< Updated upstream
 with Database() as db:
 
     # Create a Scanner table from our video in the format (table name, video path).
