@@ -37,7 +37,7 @@ extern "C" {
   av_packet_free(&pkt);
 #else
 #define PACKET_FREE(pkt) \
-  av_packet_unref(&pkt);  \
+  av_packet_unref(pkt);  \
   av_freep(&pkt);
 #endif
 
