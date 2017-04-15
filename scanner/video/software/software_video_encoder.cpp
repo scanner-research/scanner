@@ -287,6 +287,10 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
     frame_ = nullptr;
   }
 #else
+  auto send_start = now();
+  auto send_end = now();
+  auto receive_start = now();
+  auto receive_end = now();
   LOG(FATAL) << "Not supported";
 #endif
   if (profiler_) {
