@@ -436,6 +436,7 @@ void* post_evaluate_thread(void* arg) {
   column_types.push_back(ColumnType::Other);
 
   // Setup video encoders
+  // TODO(apoms): Make this dynamic based on the encoded column type
   DeviceHandle encoder_handle = CPU_DEVICE;
   VideoEncoderType encoder_type = VideoEncoderType::SOFTWARE;
   std::vector<std::unique_ptr<VideoEncoder>> encoders;
@@ -500,8 +501,12 @@ void* post_evaluate_thread(void* arg) {
       }
       // Encode video frames
       if (column_type == ColumnType::Video) {
-        auto start = work_entry.columns[col_idx].rows.begin() + warmup_frames;
-        auto end = work_entry.columns[col_idx].rows.end();
+        {
+          auto start = work_entry.columns[col_idx].rows.begin();
+          auto warmup_end =
+            work_entry.columns[col_idx].rows.begin() + warmup_frames;
+          work_entry.columns[col_idx].rows.erase(start, warmup_end);
+        }
         auto& encoder = encoders[encoder_idx];
         if (!encoder_configured[encoder_idx]) {
           // Configure encoder
@@ -518,9 +523,14 @@ void* post_evaluate_thread(void* arg) {
           encoder->configure(frame_info);
         }
 
+        // Move frames to device for the encoder
+        move_if_different_address_space(args.profiler,
+                                        work_entry.column_handles[col_idx],
+                                        encoder_handle,
+                                        work_entry.columns[col_idx]);
+
         // Pass frames into encoder
-        for (auto r = start; r != end; ++r) {
-          auto& row = *r;
+        for (auto& row : work_entry.columns[col_idx].rows) {
           bool new_packet = encoder->feed(row.buffer, row.size);
           while (new_packet) {
             size_t buffer_size = 1 * 1024 * 1024;
