@@ -20,13 +20,12 @@ with Database() as db:
         'example_collection', [example_video_path], force=True)
     print(db.summarize())
 
-    jobs = []
+    # You can use a collection the same way you use a table when defining a
+    # computation. This will run your computation over every table in the
+    # collection using the sampling mode you specify.
     frame, frame_info = input_collection.as_op().range(0, 100)
     histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
     job = Job(columns = [histogram], name = 'example_hist_collection')
-
-    # We can also provide collections directly to the run function which will run
-    # the op over all frames in all videos in the collection.
     output_collection = db.run(job, force=True)
 
     # You can retrieve table objects off the collection.

@@ -16,7 +16,6 @@ import util
 # ~/.scanner.toml configuration file.
 with Database() as db:
 
-
     # Create a Scanner table from our video in the format (table name, video path).
     # If any videos fail to ingest, they'll show up in the failed list. If force
     # is true, it will overwrite existing tables of the same name.
@@ -28,17 +27,22 @@ with Database() as db:
     print(db.summarize())
     print('Failures:', failed)
 
-    # Create an operator to run on our video. This computes a histogram with 16 bins
-    # for each color channel in a given frame.
+    # To process our video, first we have to define the inputs. The input_table
+    # has two columns frame and frame_info, which we can access via .as_op().
+    # The .all() means to include all frames of the video.
     frame, frame_info = input_table.as_op().all()
+
+    # These frames are input into a Histogram op that computes a color histogram
+    # for each frame.
     histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
 
-    # Define which frames we're going to run the operator on (all of them, in this
-    # case). The sampler takes in pairs of (input table name, output table name).
+    # A job defines a table you want to create. Here, we have a single column
+    # which is the output of the Histogram op, and we'll name the table
+    # 'example_hist'.
     job = Job(columns = [histogram], name = 'example_hist')
 
-    # Run the operator on the input and get an output table. The columns of the
-    # output table are written to disk by the Scanner runtime.
+    # This executes the job and produces the output table. You'll see a progress
+    # bar while Scanner is computing the outputs.
     output_table = db.run(job, force=True)
 
     # Load the histograms from a column of the output table. The parsers.histograms

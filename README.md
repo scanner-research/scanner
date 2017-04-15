@@ -13,14 +13,16 @@ Scanner is like Spark for videos. It runs stateful functions across video frames
 Scanner provides a Python API to organize your videos and run high-performance functions written in C++. For example, this program computes a histogram of colors for each frame in a set of videos on the GPU:
 
 ```python
-from scannerpy import Database, DeviceType
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers
 
 with Database() as db:
     videos = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
-    hist = db.ops.Histogram(device=DeviceType.GPU)
-    output = db.run(videos, hist, 'my_videos_hist')
-    vid0_hists = output.tables(0).columns(0).load(parsers.histograms)
+    frame, frame_info = videos.as_op().all()
+    histograms = db.ops.Histogram(frame = frame, frame_info = frame_info, device=DeviceType.GPU)
+    job = Job(columns = [histograms], name = 'my_videos_hist')
+    output = db.run(job)
+    vid0_hists = output.tables(0).load(['histogram'], parsers.histograms)
 ```
 
 [Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
