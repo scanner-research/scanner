@@ -879,6 +879,7 @@ class Database:
                         output_collection,
                         t.name().split(':')[-1])
                     t_task.samples[0].table_name = t.name()
+                    tasks.append(t_task)
 
         for task in tasks:
             if self.has_table(task.output_table_name):
