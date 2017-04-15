@@ -174,7 +174,7 @@ class TestOpticalFlow:
         flow = db.ops.OpticalFlow(
             frame = frame, frame_info = frame_info,
             device = ty)
-        return Job(columns = [flow, frame_info], name = 'test_flow')
+        return Job(columns = [flow], name = 'test_flow')
 
     def run(self, db, job):
         table = db.run(job, force=True, show_progress=False)
