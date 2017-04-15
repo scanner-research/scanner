@@ -32,7 +32,7 @@ extern "C" {
 
 #include <cassert>
 
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 53, 0)
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 5, 0)
 #define PACKET_FREE(pkt) \
   av_packet_free(&pkt);
 #else
@@ -55,7 +55,8 @@ SoftwareVideoEncoder::SoftwareVideoEncoder(i32 device_id,
       cc_(nullptr),
       sws_context_(nullptr),
       was_reset_(false),
-      ready_packet_queue_(1024) {
+      ready_packet_queue_(1024),
+      frame_(nullptr) {
   avcodec_register_all();
 
   codec_ = avcodec_find_encoder(AV_CODEC_ID_H264);
@@ -283,6 +284,7 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
 
   if (f) {
     av_frame_free(&frame_);
+    frame_ = nullptr;
   }
 #else
   LOG(FATAL) << "Not supported";

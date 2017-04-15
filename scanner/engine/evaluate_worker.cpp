@@ -507,7 +507,6 @@ void* post_evaluate_thread(void* arg) {
           // Configure encoder
           encoder_configured[encoder_idx] = true;
           // Read frame info column
-
           auto& rows = work_entry.columns[col_idx + 1].rows;
           u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
           memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer,
@@ -531,7 +530,7 @@ void* post_evaluate_thread(void* arg) {
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-            buffered_entry.columns[i].rows.push_back(Row{buffer, buffer_size});
+            buffered_entry.columns[i].rows.push_back(Row{buffer, actual_size});
           }
         }
         encoder_idx++;
@@ -573,7 +572,7 @@ void* post_evaluate_thread(void* arg) {
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-            buffered_entry.columns[i].rows.push_back(Row{buffer, buffer_size});
+            buffered_entry.columns[i].rows.push_back(Row{buffer, actual_size});
           }
           encoder_idx++;
         }
