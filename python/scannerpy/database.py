@@ -142,7 +142,7 @@ class Database:
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._cached_db_metadata = None
-        self._png_dump_prefix = '__png_dump_'
+        self._png_dump_prefix = '__png_dump_{:s}'
 
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self.config)

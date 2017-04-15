@@ -411,10 +411,16 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
         .count());
     // Set columns equal to the last op's output columns
     for (size_t i = 0; i < output_columns.size(); ++i) {
+      const std::string info_prefix = "frame_info";
       Column* col = table_desc.add_columns();
       col->set_id(i);
       col->set_name(output_columns[i]);
       col->set_type(ColumnType::Other);
+      if (i + 1 < output_columns.size() &&
+          output_columns[i + 1].compare(0, info_prefix.size(), info_prefix) ==
+            0) {
+        col->set_type(ColumnType::Video);
+      }
     }
     table_metas_[task.output_table_name()] = TableMetadata(table_desc);
     std::vector<i64> end_rows;
