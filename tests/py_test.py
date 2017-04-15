@@ -100,6 +100,7 @@ def test_table_properties(db):
 
 def test_make_collection(db):
     db.new_collection('test', ['test'])
+    db.delete_collection('test')
 
 def test_load_video_column(db):
     next(db.table('test').load(['frame']))
