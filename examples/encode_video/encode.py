@@ -8,13 +8,15 @@ import sys
 import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
+from itertools import izip
+import numpy as np
 
 util.download_video()
 
 with Database() as db:
-
     video_paths = [util.download_video()]
-    if not db.has_collection('example'):
+    #if not db.has_collection('example'):
+    if True:
         print('Ingesting videos into Scanner ...')
         in_collection, _ = db.ingest_video_collection('example', video_paths,
                                                    force=True)

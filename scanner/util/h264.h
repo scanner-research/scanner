@@ -76,8 +76,12 @@ inline u32 get_se_golomb(GetBitsState& gb) {
 
 inline void next_nal(const u8*& buffer, i32& buffer_size_left,
                      const u8*& nal_start, i32& nal_size) {
-  while (buffer_size_left > 2 &&
-         !(buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x01)) {
+  bool found = false;
+  while (buffer_size_left > 2) {
+    if (buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x01) {
+      found = true;
+      break;
+    }
     buffer++;
     buffer_size_left--;
   }
@@ -87,19 +91,24 @@ inline void next_nal(const u8*& buffer, i32& buffer_size_left,
 
   nal_start = buffer;
   nal_size = 0;
-  if (buffer_size_left > 2) {
-    while (!(buffer[0] == 0x00 && buffer[1] == 0x00 &&
-             (buffer[2] == 0x00 || buffer[2] == 0x01))) {
-      buffer++;
-      buffer_size_left--;
-      nal_size++;
-      if (buffer_size_left < 3) {
-        nal_size += buffer_size_left;
-        break;
-      }
-    }
+
+  if (!found) {
+    return;
+  }
+  while (buffer_size_left > 2 &&
+         !(buffer[0] == 0x00 && buffer[1] == 0x00 &&
+           (buffer[2] == 0x00 || buffer[2] == 0x01))) {
+    buffer++;
+    buffer_size_left--;
+    nal_size++;
+  }
+  if (!(buffer_size_left > 3)) {
+    nal_size += buffer_size_left;
+    // buffer += buffer_size_left;
+    // buffer_size_left = 0;
   }
 }
+
 
 inline i32 get_nal_unit_type(const u8* nal_start) {
   return (*nal_start) & 0x1F;

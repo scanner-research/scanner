@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-#pragma once
-
 #include "scanner/video/h264_byte_stream_index_creator.h"
 #include "scanner/util/common.h"
 #include "scanner/util/util.h"
@@ -64,10 +62,16 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
   const u8* nal_parse = data;
   i32 size_left = size;
   i32 nals_parsed = 0;
+
+  i32 write_size = 0;
   while (size_left > 3) {
     const u8* nal_start = nullptr;
     i32 nal_size = 0;
     next_nal(nal_parse, size_left, nal_start, nal_size);
+
+    if (size_left < 0 || nal_size < 1) {
+      continue;
+    }
 
     i32 nal_ref_idc = (*nal_start >> 5);
     i32 nal_unit_type = (*nal_start) & 0x1F;
@@ -210,9 +214,10 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
           bytestream_pos_ += sizeof(size) + size;
         } else {
           s_write(demuxed_bytestream_, orig_size);
-          bytestream_pos_ += sizeof(orig_size) + orig_size;
           // Append the packet to the stream
           s_write(demuxed_bytestream_, orig_data, orig_size);
+
+          bytestream_pos_ += sizeof(orig_size) + orig_size;
         }
       }
       in_meta_packet_sequence_ = false;

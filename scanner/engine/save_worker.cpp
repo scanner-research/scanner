@@ -16,6 +16,7 @@
 #include "scanner/engine/save_worker.h"
 
 #include "scanner/engine/metadata.h"
+#include "scanner/video/h264_byte_stream_index_creator.h"
 #include "scanner/util/common.h"
 #include "scanner/util/storehouse.h"
 
@@ -59,6 +60,7 @@ void* save_thread(void* arg) {
     args.profiler.add_interval("idle", idle_start, now());
 
     auto work_start = now();
+
 
     // Write out each output column to an individual data file
     for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
@@ -111,21 +113,86 @@ void* save_thread(void* arg) {
         }
       }
 
-      // Write number of rows in the file
-      s_write(output_file, num_rows);
-      // Write out all output sizes first so we can easily index into the file
+      // If this is a video...
       i64 size_written = 0;
-      for (size_t i = 0; i < num_rows; ++i) {
-        i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-        s_write(output_file, buffer_size);
-        size_written += sizeof(i64);
-      }
-      // Write actual output data
-      for (size_t i = 0; i < num_rows; ++i) {
-        i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-        u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
-        s_write(output_file, buffer, buffer_size);
-        size_written += buffer_size;
+      if (work_entry.column_types[out_idx] == ColumnType::Video) {
+        // Read frame info column
+        FrameInfo frame_info;
+        {
+          auto& rows = work_entry.columns[out_idx + 1].rows;
+          u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
+          memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer,
+                        work_entry.column_handles[out_idx + 1], rows[0].size);
+          bool parsed = frame_info.ParseFromArray(buffer, rows[0].size);
+          LOG_IF(FATAL, !parsed) << "Invalid frame info";
+          delete_buffer(CPU_DEVICE, buffer);
+        }
+
+        H264ByteStreamIndexCreator index_creator(output_file);
+        for (size_t i = 0; i < num_rows; ++i) {
+          i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
+          u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
+          if (!index_creator.feed_packet(buffer, buffer_size)) {
+            LOG(FATAL) << "Error in save worker h264 index creator: "
+                       << index_creator.error_message();
+          }
+          size_written += buffer_size;
+        }
+
+        i64 frame = index_creator.frames();
+        i32 num_non_ref_frames = index_creator.num_non_ref_frames();
+        const std::vector<u8>& metadata_bytes = index_creator.metadata_bytes();
+        const std::vector<i64>& keyframe_positions =
+          index_creator.keyframe_positions();
+        const std::vector<i64>& keyframe_timestamps =
+          index_creator.keyframe_timestamps();
+        const std::vector<i64>& keyframe_byte_offsets =
+          index_creator.keyframe_byte_offsets();
+
+        // Create index column
+        VideoMetadata video_meta;
+        proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
+        video_descriptor.set_table_id(io_item.table_id());
+        video_descriptor.set_column_id(out_idx);
+        video_descriptor.set_item_id(io_item.item_id());
+
+        video_descriptor.set_width(frame_info.width());
+        video_descriptor.set_height(frame_info.height());
+        video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
+        video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
+
+        video_descriptor.set_frames(frame);
+        video_descriptor.set_metadata_packets(metadata_bytes.data(),
+                                              metadata_bytes.size());
+
+        for (i64 v : keyframe_positions) {
+          video_descriptor.add_keyframe_positions(v);
+        }
+        for (i64 v : keyframe_timestamps) {
+          video_descriptor.add_keyframe_timestamps(v);
+        }
+        for (i64 v : keyframe_byte_offsets) {
+          video_descriptor.add_keyframe_byte_offsets(v);
+        }
+
+        // Save our metadata for the frame column
+        write_video_metadata(storage, video_meta);
+      } else {
+        // Write number of rows in the file
+        s_write(output_file, num_rows);
+        // Write out all output sizes first so we can easily index into the file
+        for (size_t i = 0; i < num_rows; ++i) {
+          i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
+          s_write(output_file, buffer_size);
+          size_written += sizeof(i64);
+        }
+        // Write actual output data
+        for (size_t i = 0; i < num_rows; ++i) {
+          i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
+          u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
+          s_write(output_file, buffer, buffer_size);
+          size_written += buffer_size;
+        }
       }
 
       BACKOFF_FAIL(output_file->save());

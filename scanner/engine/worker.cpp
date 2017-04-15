@@ -465,8 +465,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
-  std::vector<Profiler> load_thread_profilers(num_load_workers,
-                                              Profiler(base_time));
+  std::vector<Profiler> load_thread_profilers;
+  for (i32 i = 0; i < num_load_workers; ++i) {
+    load_thread_profilers.emplace_back(Profiler(base_time));
+  }
   std::vector<LoadThreadArgs> load_thread_args;
   for (i32 i = 0; i < num_load_workers; ++i) {
     // Create IO thread for reading and decoding data

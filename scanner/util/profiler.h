@@ -35,8 +35,6 @@ class Profiler {
 
   Profiler(const Profiler& other);
 
-  ~Profiler(void);
-
   void add_interval(const std::string& key, timepoint_t start, timepoint_t end);
 
   void increment(const std::string& key, int64_t value);
