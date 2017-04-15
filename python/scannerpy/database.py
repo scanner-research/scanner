@@ -495,7 +495,7 @@ class Database:
         del self._collections.names[index]
         del self._collections.ids[index]
 
-        os.remove('{}/pydb/collection_{}.bin'.format(self._db_path, id))
+        self._storage.delete_file('{}/pydb/collection_{}.bin'.format(self._db_path, id))
 
     def new_collection(self, collection_name, table_names, force=False, job_id=None):
         """
