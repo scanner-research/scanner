@@ -630,6 +630,7 @@ class Database:
         self._delete_table(name)
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
+
     def new_table(self, name, columns, rows, fn=None, force=False):
         """
         Creates a new table from a list of rows.
@@ -872,9 +873,8 @@ class Database:
                         'Collection with name {} already exists'
                         .format(output_collection))
                 for t in collection.tables()[1:]:
-                    t_task = self._db.protobufs.Task()
+                    t_task = self.protobufs.Task()
                     t_task.CopyFrom(task)
-                    t_task.table_name = t.name()
                     t_task.output_table_name = '{}:{}'.format(
                         output_collection,
                         t.name().split(':')[-1])
