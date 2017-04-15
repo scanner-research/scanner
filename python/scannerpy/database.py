@@ -404,7 +404,8 @@ class Database:
                     worker_port=w.partition(':')[2]))
                 for w in self._worker_addresses]
             slept_so_far = 0
-            sleep_time = 20
+            # Has to be this long for GCS
+            sleep_time = 60
             while slept_so_far < sleep_time:
                 active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
                 if (len(active_workers.workers) > len(self._worker_addresses)):
@@ -417,9 +418,9 @@ class Database:
                 time.sleep(0.3)
                 slept_so_far += 0.3
             if slept_so_far >= sleep_time:
-                self._master_conn.wait()
+                self._master_conn.kill()
                 for wc in self._worker_conns:
-                    wc.wait()
+                    wc.kill()
                 self._master_conn = None
                 self._worker_conns = None
                 raise ScannerException(
