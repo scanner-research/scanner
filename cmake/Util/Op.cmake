@@ -1,4 +1,4 @@
-OB# Op.cmake should be included by a CMake script that will build a custom Scanner
+# Op.cmake should be included by a CMake script that will build a custom Scanner
 # op. It sets a few default flags and exposes a function build_op for simplifying
 # the build process. See examples/tutorial/04_custom_op.py for an example usage.
 
@@ -35,7 +35,6 @@ function(build_op)
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS} ${PROTO_SRCS})
     add_dependencies(${args_LIB_NAME} ${args_LIB_NAME}_proto_files)
     target_link_libraries(${args_LIB_NAME} PUBLIC "${PROTOBUF_LIBRARY}")
-
   else()
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
