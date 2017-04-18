@@ -73,6 +73,7 @@ class SoftwareVideoEncoder : public VideoEncoder {
   SwsContext* sws_context_;
   bool was_reset_;
 
+  i32 frame_id_;
   AVFrame* frame_;
   Queue<AVPacket*> ready_packet_queue_;
 };

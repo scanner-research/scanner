@@ -81,6 +81,8 @@ message VideoDescriptor {
 
   VideoCodecType codec_type = 7;
   VideoChromaFormat chroma_format = 8;
+  int32 time_base_num = 15;
+  int32 time_base_denom = 16;
 
   repeated int64 keyframe_positions = 9 [packed=true];
   repeated int64 keyframe_timestamps = 10 [packed=true];

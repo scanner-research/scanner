@@ -376,6 +376,10 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 
     av_packet_unref(&state.av_packet);
   }
+
+  video_descriptor.set_time_base_num(state.in_cc->time_base.num);
+  video_descriptor.set_time_base_denom(state.in_cc->time_base.den);
+
   i64 frame = index_creator.frames();
   i32 num_non_ref_frames = index_creator.num_non_ref_frames();
   const std::vector<u8>& metadata_bytes = index_creator.metadata_bytes();

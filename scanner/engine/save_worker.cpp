@@ -102,6 +102,10 @@ void* save_thread(void* arg) {
         video_descriptor.set_height(frame_info.height());
         video_descriptor.set_channels(frame_info.channels());
         video_descriptor.set_frame_type(frame_info.type);
+
+        video_descriptor.set_time_base_num(1);
+        video_descriptor.set_time_base_denom(25);
+
         if (frame_info.type == FrameType::U8 && frame_info.channels() == 3) {
           H264ByteStreamIndexCreator index_creator(output_file);
           for (size_t i = 0; i < num_elements; ++i) {

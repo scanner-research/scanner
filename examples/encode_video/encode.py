@@ -24,7 +24,7 @@ with Database() as db:
     print('Running blur + encode...')
     in_collection = db.collection('example')
 
-    frame = in_collection.tables(0).as_op().range(0, 100)
+    frame = in_collection.tables(0).as_op().all(item_size=250)
     print(frame)
     blur_frame = db.ops.Blur(frame = frame, kernel_size = 5, sigma = 1)
     #compressed_frame = blur_frame.compress(bitrate = 10 * 1024)
@@ -41,11 +41,13 @@ with Database() as db:
 
     # blur_frames = [f[1] for f in blurred_table.columns('frame').load()]
 
+    blurred_table.columns('frame').save_mp4('blur.mp4', fps=23.976)
+
     i = 0
     flow_frames = [f[1] for f in flow_table.columns('flow').load()]
     for f in flow_frames:
-        cv2.imwrite('flow_left{:d}.png'.format(i), f[:,:,0])
-        cv2.imwrite('flow_right{:d}.png'.format(i), f[:,:,1])
+        cv2.imwrite('flow_left{:d}.png'.format(i), f[:,:,0] * 255)
+        cv2.imwrite('flow_right{:d}.png'.format(i), f[:,:,1] * 255)
         i += 1
 
     #blur2_frames = [f[1] for f in blurred_table2.columns('frame').load()]
