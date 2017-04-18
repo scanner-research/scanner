@@ -27,28 +27,35 @@ with Database() as db:
     frame = in_collection.tables(0).as_op().range(0, 100)
     print(frame)
     blur_frame = db.ops.Blur(frame = frame, kernel_size = 5, sigma = 1)
-    # compressed_frame = blur_frame.compress(bitrate = 10 * 1024)
-    # job = Job(columns = [compressed_frame], name = 'encode_example')
+    #compressed_frame = blur_frame.compress(bitrate = 10 * 1024)
+    #job = Job(columns = [compressed_frame], name = 'encode_example')
     job = Job(columns = [blur_frame], name = 'encode_example')
     blurred_table = db.run(job, True)
 
     frame = blurred_table.as_op().range(0, 100)
-    blur_frame = db.ops.Blur(frame = frame, kernel_size = 5, sigma = 1)
-    job = Job(columns = [blur_frame], name = 'encode_example2')
-    blurred_table2 = db.run(job, True)
+    flow_frame = db.ops.OpticalFlow(frame = frame)
+    job = Job(columns = [flow_frame], name = 'encode_example2')
+    flow_table = db.run(job, True)
 
-    orig_frames = [f[1] for f in in_collection.tables(0).columns('frame').load()]
+    # orig_frames = [f[1] for f in in_collection.tables(0).columns('frame').load(rows=range(0, 100))]
 
-    blur_frames = [f[1] for f in blurred_table.columns('frame').load()]
-
-    blur2_frames = [f[1] for f in blurred_table2.columns('frame').load()]
+    # blur_frames = [f[1] for f in blurred_table.columns('frame').load()]
 
     i = 0
-    for o, b1, b2 in izip(orig_frames, blur_frames, blur2_frames):
-        f1 = o
-        f2 = b1
-        f3 = b2
-
-        f = np.vstack((f1, f2, f3))
-        cv2.imwrite('blur_{:04d}.png'.format(i), f)
+    flow_frames = [f[1] for f in flow_table.columns('flow').load()]
+    for f in flow_frames:
+        cv2.imwrite('flow_left{:d}.png'.format(i), f[:,:,0])
+        cv2.imwrite('flow_right{:d}.png'.format(i), f[:,:,1])
         i += 1
+
+    #blur2_frames = [f[1] for f in blurred_table2.columns('frame').load()]
+
+    # i = 0
+    # for o, b1, b2 in izip(orig_frames, blur_frames, blur2_frames):
+    #     f1 = o
+    #     f2 = b1
+    #     f3 = b2
+
+    #     f = np.vstack((f1, f2, f3))
+    #     cv2.imwrite('blur_{:04d}.png'.format(i), f)
+    #     i += 1

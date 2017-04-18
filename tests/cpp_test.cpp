@@ -62,7 +62,7 @@ class ScannerTest : public ::testing::Test {
     blur_args.SerializeToArray(blur_args_buff, blur_args_size);
 
     return new scanner::Op("Blur",
-                           {scanner::OpInput(input, {"frame", "frame_info"})},
+                           {scanner::OpInput(input, {"frame"})},
                            device_type, blur_args_buff, blur_args_size);
   }
 
@@ -96,7 +96,7 @@ class ScannerTest : public ::testing::Test {
     task.output_table_name = output_table_name;
     scanner::TableSample sample;
     sample.table_name = "test";
-    sample.column_names = {"index", "frame", "frame_info"};
+    sample.column_names = {"index", "frame"};
     sample.sampling_function = "Gather";
     scanner::proto::GatherSamplerArgs args;
     auto& gather_sample = *args.add_samples();
@@ -117,12 +117,11 @@ class ScannerTest : public ::testing::Test {
 };
 
 TEST_F(ScannerTest, NonLinearDAG) {
-  scanner::Op* input = scanner::make_input_op({"index", "frame", "frame_info"});
+  scanner::Op* input = scanner::make_input_op({"index", "frame"});
 
   scanner::Op* hist = new scanner::Op(
       "Histogram",
-      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"}),
-       scanner::OpInput(input, {"frame_info"})},
+      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"})},
       scanner::DeviceType::CPU);
 
   scanner::Op* output =
@@ -135,12 +134,11 @@ TEST_F(ScannerTest, NonLinearDAG) {
 #ifdef HAVE_CUDA
 
 TEST_F(ScannerTest, CPUToGPU) {
-  scanner::Op* input = scanner::make_input_op({"index", "frame", "frame_info"});
+  scanner::Op* input = scanner::make_input_op({"index", "frame"});
 
   scanner::Op* hist = new scanner::Op(
       "Histogram",
-      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"}),
-       scanner::OpInput(input, {"frame_info"})},
+      {scanner::OpInput(blur_op(input, DeviceType::CPU), {"frame"})},
       scanner::DeviceType::GPU);
 
   scanner::Op* output =

@@ -65,3 +65,9 @@ def array(ty):
 def image(bufs, db):
     return cv2.imdecode(np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)),
                         cv2.IMREAD_COLOR)
+
+def raw_frame_gen(shape0, shape1, shape2, typ):
+    def parser(bufs, db):
+        output = np.frombuffer(bufs, dtype=typ)
+        return output.reshape((shape0, shape1, shape2))
+    return parser

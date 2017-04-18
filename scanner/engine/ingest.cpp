@@ -14,6 +14,7 @@
  */
 
 #include "scanner/api/database.h"
+#include "scanner/api/frame.h"
 #include "scanner/engine/metadata.h"
 #include "scanner/video/h264_byte_stream_index_creator.h"
 
@@ -276,6 +277,8 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 
   video_descriptor.set_width(state.in_cc->width);
   video_descriptor.set_height(state.in_cc->height);
+  video_descriptor.set_channels(3);
+  video_descriptor.set_frame_type(FrameType::U8);
   video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
   video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
 

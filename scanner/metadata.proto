@@ -44,6 +44,12 @@ enum ColumnType {
   Image = 2;
 }
 
+enum FrameType {
+  U8 = 0;
+  F32 = 1;
+  F64 = 2;
+}
+
 message Column {
   int32 id = 1;
   string name = 2;
@@ -53,6 +59,7 @@ message Column {
 message VideoDescriptor {
   enum VideoCodecType {
     H264 = 0;
+    RAW = 1;
   }
 
   enum VideoChromaFormat {
@@ -69,6 +76,8 @@ message VideoDescriptor {
   int64 frames = 4;
   int32 width = 5;
   int32 height = 6;
+  int32 channels = 14;
+  FrameType frame_type = 13;
 
   VideoCodecType codec_type = 7;
   VideoChromaFormat chroma_format = 8;
