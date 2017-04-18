@@ -42,8 +42,8 @@ class CPM2InputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    frame_width_ = frame_info_.width();
-    frame_height_ = frame_info_.height();
+    frame_width_ = frame_info_.shape[1];
+    frame_height_ = frame_info_.shape[2];
 
     resize_width_ = frame_width_ * scale_;
     resize_height_ = frame_height_ * scale_;
@@ -92,30 +92,28 @@ class CPM2InputKernel : public VideoKernel {
     auto eval_start = now();
 
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(device_, frame_info_col);
+    check_frame(device_, frame_col[0]);
 
-    i32 input_count = frame_col.rows.size();
+    i32 input_count = NUM_ROWS(frame_col);
 
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
 
-    size_t net_input_size =
-        net_input_width_ * net_input_height_ * 3 * sizeof(f32);
-    u8* output_block =
-        new_block_buffer(device_, input_count * net_input_size, input_count);
+    FrameInfo net_input_info(net_input_width_, net_input_height_, 3,
+                             FrameType::F32);
+    i32 net_input_size = net_input_info.size();
+    std::vector<Frame*> output_frames =
+        new_frames(device_, net_input_info, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
-      f32* net_input =
-          reinterpret_cast<f32*>(output_block + net_input_size * i);
+      Frame* output_frame = output_frames[i];
+      f32* net_input = reinterpret_cast<f32*>(output_frame->data);
 
       int sid = i % num_cuda_streams_;
       cv::cuda::Stream& cv_stream = streams_[sid];
 
-      u8* buffer = frame_col.rows[i].buffer;
-      assert(frame_col.rows[i].size == frame_height_ * frame_width_ * 3);
-      frame_input_[sid] =
-          cv::cuda::GpuMat(frame_height_, frame_width_, CV_8UC3, buffer);
+      const Frame* input_frame = frame_col[i].as_const_frame();
+      frame_input_[sid] = frame_to_gpu_mat(input_frame);
       cv::cuda::cvtColor(frame_input_[sid], bgr_input_[sid], cv::COLOR_RGB2BGR,
                          0, cv_stream);
       cv::cuda::resize(bgr_input_[sid], resized_input_[sid],
@@ -146,7 +144,7 @@ class CPM2InputKernel : public VideoKernel {
           planar_input.step, net_input_width_ * sizeof(float),
           net_input_height_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      INSERT_ROW(output_columns[0], (u8*)net_input, net_input_size);
+      INSERT_FRAME(output_columns[0], output_frame);
     }
     for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();
@@ -183,7 +181,8 @@ class CPM2InputKernel : public VideoKernel {
   std::vector<cv::cuda::GpuMat> planar_input_;
 };
 
-REGISTER_OP(CPM2Input).inputs({"frame", "frame_info"}).outputs({"cpm2_input"});
+REGISTER_OP(CPM2Input).frame_input("frame").frame_output("cpm2_input");
+
 REGISTER_KERNEL(CPM2Input, CPM2InputKernel)
     .device(DeviceType::GPU)
     .num_devices(1);

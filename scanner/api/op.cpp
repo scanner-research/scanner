@@ -55,8 +55,8 @@ namespace internal {
 OpRegistration::OpRegistration(const OpBuilder& builder) {
   const std::string& name = builder.name_;
   const bool variadic_inputs = builder.variadic_inputs_;
-  const std::vector<std::string>& input_columns = builder.input_columns_;
-  const std::vector<std::string>& output_columns = builder.output_columns_;
+  const std::vector<Column>& input_columns = builder.input_columns_;
+  const std::vector<Column>& output_columns = builder.output_columns_;
   OpInfo* info =
     new OpInfo(name, variadic_inputs, input_columns, output_columns);
   OpRegistry* registry = get_op_registry();

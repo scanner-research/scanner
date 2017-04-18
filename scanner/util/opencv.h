@@ -20,9 +20,16 @@
 #include <opencv2/opencv.hpp>
 
 namespace scanner {
-namespace proto {
-class FrameInfo;
-}
+
+int frame_to_cv_type(FrameType type, int channels = 1);
+
+FrameType cv_to_frame_type(int type);
+
+FrameInfo mat_to_frame_info(const cv::Mat& mat);
+
+cv::Mat frame_to_mat(const Frame* frame);
+
+cv::Mat frame_to_mat(Frame* frame);
 
 cv::Mat bytesToImage(u8* buf, const proto::FrameInfo& metadata);
 }
@@ -36,6 +43,10 @@ namespace cvc = cv::cuda;
 namespace scanner {
 
 class InputFormat;
+
+cvc::GpuMat frame_to_gpu_mat(const Frame* frame);
+
+cvc::GpuMat frame_to_gpu_mat(Frame* frame);
 
 cvc::GpuMat bytesToImage_gpu(u8* buf, const proto::FrameInfo& metadata);
 

@@ -68,9 +68,8 @@ void DecoderAutomata::initialize(
   retriever_data_idx_.store(0, std::memory_order_release);
   retriever_valid_idx_ = 0;
 
-  FrameInfo info;
-  info.set_width(encoded_data[0].width());
-  info.set_height(encoded_data[0].height());
+  FrameInfo info(3, encoded_data[0].width(), encoded_data[0].height(),
+                 FrameType::U8);
 
   while (decoder_->discard_frame()) {
   }
@@ -78,7 +77,7 @@ void DecoderAutomata::initialize(
   std::unique_lock<std::mutex> lk(feeder_mutex_);
   wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
 
-  if (info_.width() != info.width() || info_.height() != info.height()) {
+  if (info_ != info) {
     decoder_->configure(info);
   }
   if (frames_retrieved_ > 0) {

@@ -95,29 +95,49 @@ class OpBuilder {
     return *this;
   }
 
-  OpBuilder& inputs(const std::vector<std::string>& columns) {
+  OpBuilder& input(const std::string& name,
+                   ColumnType type = ColumnType::Other) {
     if (variadic_inputs_) {
       LOG(FATAL) << "Op " << name_ << " cannot have both fixed and variadic "
                  << "inputs";
     }
-    input_columns_ = columns;
+    Column col;
+    col.set_id(input_columns_.size());
+    col.set_name(name);
+    col.set_type(type);
+    input_columns_.push_back(col);
     return *this;
   }
 
-  OpBuilder& outputs(const std::vector<std::string>& columns) {
-    output_columns_ = columns;
+  OpBuilder& frame_input(const std::string& name) {
+    return input(name, ColumnType::Video);
+  }
+
+  OpBuilder& output(const std::string& name,
+                    ColumnType type = ColumnType::Other) {
+    Column col;
+    col.set_id(input_columns_.size());
+    col.set_name(name);
+    col.set_type(type);
+    output_columns_.push_back(col);
     return *this;
+  }
+
+  OpBuilder& frame_output(const std::string& name) {
+    return output(name, ColumnType::Video);
   }
 
  private:
   std::string name_;
   bool variadic_inputs_;
-  std::vector<std::string> input_columns_;
-  std::vector<std::string> output_columns_;
+  std::vector<Column> input_columns_;
+  std::vector<Column> output_columns_;
 };
 }
 
-#define REGISTER_OP(name__) REGISTER_OP_UID(__COUNTER__, name__)
+#define REGISTER_OP(name__) REGISTER_OP_HELPER(__COUNTER__, name__)
+
+#define REGISTER_OP_HELPER(uid__, name__) REGISTER_OP_UID(uid__, name__)
 
 #define REGISTER_OP_UID(uid__, name__)                               \
   static ::scanner::internal::OpRegistration op_registration_##uid__ \

@@ -96,8 +96,8 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
 
 void SoftwareVideoDecoder::configure(const FrameInfo& metadata) {
   metadata_ = metadata;
-  frame_width_ = metadata_.width();
-  frame_height_ = metadata_.height();
+  frame_width_ = metadata_.shape[1];
+  frame_height_ = metadata_.shape[2];
   reset_context_ = true;
 
   int required_size = av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame_width_,

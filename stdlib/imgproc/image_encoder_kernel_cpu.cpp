@@ -12,24 +12,22 @@ class ImageEncoderKernel : public VideoKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(CPU_DEVICE, frame_info_col);
+    check_frame(CPU_DEVICE, frame_col[0]);
 
-    i32 input_count = frame_col.rows.size();
+    i32 input_count = NUM_ROWS(frame_col);
     for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                  (u8*)frame_col.rows[i].buffer);
+      cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
       std::vector<u8> buf;
       bool success = cv::imencode(".png", img, buf);
       LOG_IF(FATAL, !success) << "Failed to encode image";
       u8* output_buf = new_buffer(CPU_DEVICE, buf.size());
       std::memcpy(output_buf, buf.data(), buf.size());
-      output_columns[0].rows.push_back(Row{output_buf, buf.size()});
+      INSERT_ELEMENT(output_columns[0], output_buf, buf.size());
     }
   }
 };
 
-REGISTER_OP(ImageEncoder).inputs({"frame", "frame_info"}).outputs({"png"});
+REGISTER_OP(ImageEncoder).frame_input("frame").output("png");
 
 REGISTER_KERNEL(ImageEncoder, ImageEncoderKernel)
     .device(DeviceType::CPU)

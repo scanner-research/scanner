@@ -124,8 +124,8 @@ class CPM2OutputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    resize_width_ = frame_info_.width() * scale_;
-    resize_height_ = frame_info_.height() * scale_;
+    resize_width_ = frame_info_.shape[1] * scale_;
+    resize_height_ = frame_info_.shape[2] * scale_;
 
     width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
     height_padding_ = (resize_height_ % 8) ? 8 - (resize_height_ % 8) : 0;
@@ -147,19 +147,20 @@ class CPM2OutputKernel : public VideoKernel {
     i32 joints_idx = 1;
     i32 frame_info_idx = 2;
 
-    check_frame_info(CPU_DEVICE, input_columns[frame_info_idx]);
+    check_frame_info(CPU_DEVICE, input_columns[frame_info_idx][0]);
 
-    i32 input_count = (i32)input_columns[0].rows.size();
+    i32 input_count = (i32)NUM_ROWS(input_columns[0]);
 
     for (i32 b = 0; b < input_count; ++b) {
-      assert(input_columns[heatmap_idx].rows[b].size ==
+      const Frame* heatmap_frame =
+        input_columns[heatmap_idx][b].as_const_frame();
+      const Frame* joints_frame = input_columns[joints_idx][b].as_const_frame();
+      assert(heatmap_frame->size() ==
              feature_width_ * feature_height_ * feature_channels_ *
-                 sizeof(f32));
+               sizeof(f32));
 
-      float* heatmap =
-          reinterpret_cast<float*>(input_columns[heatmap_idx].rows[b].buffer);
-      float* peaks =
-          reinterpret_cast<float*>(input_columns[joints_idx].rows[b].buffer);
+      const float* heatmap = reinterpret_cast<float*>(heatmap_frame->data);
+      const float* peaks = reinterpret_cast<float*>(joints_frame->data);
 
       std::vector<std::vector<double>> subset;
       std::vector<std::vector<std::vector<double>>> connection;
@@ -185,7 +186,7 @@ class CPM2OutputKernel : public VideoKernel {
       size_t size;
       u8* buffer;
       serialize_proto_vector_of_vectors(bodies, buffer, size);
-      output_columns.at(heatmap_idx).rows.push_back(Row{buffer, size});
+      INSERT_ELEMENT(output_columns.at(heatmap_idx), buffer, size);
     }
   }
 
@@ -438,10 +439,10 @@ class CPM2OutputKernel : public VideoKernel {
           if (idx) {
             joints[cnt * NUM_PARTS * 3 + j * 3 + 2] = peaks[idx];
             joints[cnt * NUM_PARTS * 3 + j * 3 + 1] = peaks[idx - 1] *
-                                                      frame_info_.height() /
+                                                      frame_info_.shape[2] /
                                                       (float)net_input_height_;
             joints[cnt * NUM_PARTS * 3 + j * 3] =
-                peaks[idx - 2] * frame_info_.width() / (float)net_input_width_;
+                peaks[idx - 2] * frame_info_.shape[1] / (float)net_input_width_;
           } else {
             joints[cnt * NUM_PARTS * 3 + j * 3 + 2] = 0;
             joints[cnt * NUM_PARTS * 3 + j * 3 + 1] = 0;
@@ -488,8 +489,11 @@ class CPM2OutputKernel : public VideoKernel {
 };
 
 REGISTER_OP(CPM2Output)
-    .inputs({"cpm2_resized_map", "cpm2_joints", "frame_info"})
-    .outputs({"poses"});
+    .frame_input("cpm2_resized_map")
+    .frame_input("cpm2_joints")
+    .input("original_frame_info")
+    .output("poses");
+
 REGISTER_KERNEL(CPM2Output, CPM2OutputKernel)
     .device(DeviceType::CPU)
     .num_devices(1);

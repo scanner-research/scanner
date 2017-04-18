@@ -20,27 +20,46 @@
 
 namespace scanner {
 
+Element::Element(u8* _buffer, size_t _size)
+  : buffer(_buffer), size(_size), is_frame(false) {}
+
+Element::Element(Frame* frame)
+  : buffer((u8*)frame), size(sizeof(Frame)), is_frame(true) {}
+
 Kernel::Kernel(const Config& config) {}
 
-void VideoKernel::check_frame_info(const DeviceHandle& device,
-                                   const RowList& row_list) {
-  auto& rows = row_list.rows;
-  assert(rows.size() > 0);
-
-  // Assume that all the FrameInfos in the same batch are the same
-  u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
-  memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer, device, rows[0].size);
-  FrameInfo frame_info;
-  bool parsed = frame_info.ParseFromArray(buffer, rows[0].size);
-  LOG_IF(FATAL, !parsed) << "Invalid frame info";
-  delete_buffer(CPU_DEVICE, buffer);
-
-  if (frame_info.width() != frame_info_.width() ||
-      frame_info.height() != frame_info_.height() ||
-      frame_info.channels() != frame_info_.channels()) {
-    frame_info_ = frame_info;
+void VideoKernel::check_frame(const DeviceHandle& device,
+                              const Element& element) {
+  const Frame* frame = element.as_const_frame();
+  bool same = (frame->type == frame_info_.type);
+  for (i32 i = 0; i < 3; ++i) {
+    same &= (frame->shape[i] == frame_info_.shape[i]);
+  }
+  if (!same) {
+    memcpy(frame_info_.shape, frame->shape, sizeof(int) * 3);
+    frame_info_.type = frame->type;
     new_frame_info();
   }
+}
+
+void VideoKernel::check_frame_info(const DeviceHandle& device,
+                                   const Element& element) {
+  // Assume that all the FrameInfos in the same batch are the same
+  u8* buffer = new_buffer(CPU_DEVICE, element.size);
+  memcpy_buffer((u8*)buffer, CPU_DEVICE, element.buffer, device,
+                element.size);
+  FrameInfo* frame_info = reinterpret_cast<FrameInfo*>(buffer);
+
+  bool same = (frame_info->type == frame_info_.type);
+  for (i32 i = 0; i < 3; ++i) {
+    same &= (frame_info->shape[i] == frame_info_.shape[i]);
+  }
+  if (!same) {
+    memcpy(frame_info_.shape, frame_info->shape, sizeof(int) * 3);
+    frame_info_.type = frame_info->type;
+    new_frame_info();
+  }
+  delete_buffer(CPU_DEVICE, buffer);
 }
 
 namespace internal {

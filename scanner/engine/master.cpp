@@ -104,8 +104,10 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
         if (!op_registry->has_op(op.name())) {
           RESULT_ERROR(result, "Op %s is not registered.", op.name().c_str());
         } else {
-          op_outputs.back() =
-            op_registry->get_op_info(op.name())->output_columns();
+          for (auto& col :
+               op_registry->get_op_info(op.name())->output_columns()) {
+            op_outputs.back().push_back(col.name());
+          }
         }
         if (!kernel_registry->has_kernel(op.name(), op.device_type())) {
           RESULT_ERROR(result,
@@ -555,10 +557,12 @@ grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
 
   op_info->set_variadic_inputs(info->variadic_inputs());
   for (auto& input_column : info->input_columns()) {
-    op_info->add_input_columns(input_column);
+    Column* info = op_info->add_input_columns();
+    info->CopyFrom(input_column);
   }
   for (auto& output_column : info->output_columns()) {
-    op_info->add_output_columns(output_column);
+    Column* info = op_info->add_output_columns();
+    info->CopyFrom(output_column);
   }
   op_info->mutable_result()->set_success(true);
 

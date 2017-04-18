@@ -15,24 +15,24 @@ namespace {
 void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     RowList& column) {
+                                     ElementList& column) {
   if (!current_handle.is_same_address_space(target_handle)) {
     std::vector<u8*> dest_buffers, src_buffers;
     std::vector<size_t> sizes;
 
     size_t total_size = 0;
-    for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-      total_size += column.rows[b].size;
+    for (i32 b = 0; b < (i32)column.size(); ++b) {
+      total_size += column[b].size;
     }
 
-    if (column.rows.size() > 0) {
+    if (column.size() > 0) {
       u8* block =
-          new_block_buffer(target_handle, total_size, column.rows.size());
-      for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-        size_t size = column.rows[b].size;
+          new_block_buffer(target_handle, total_size, column.size());
+      for (i32 b = 0; b < (i32)column.size(); ++b) {
+        size_t size = column[b].size;
         dest_buffers.push_back(block);
         block += size;
-        src_buffers.push_back(column.rows[b].buffer);
+        src_buffers.push_back(column[b].buffer);
         sizes.push_back(size);
       }
 
@@ -42,9 +42,9 @@ void move_if_different_address_space(Profiler& profiler,
       profiler.add_interval("memcpy", memcpy_start, now());
 
       auto delete_start = now();
-      for (i32 b = 0; b < (i32)column.rows.size(); ++b) {
-        delete_buffer(current_handle, column.rows[b].buffer);
-        column.rows[b].buffer = dest_buffers[b];
+      for (i32 b = 0; b < (i32)column.size(); ++b) {
+        DELETE_ELEMENT(current_handle, column[b]);
+        column[b].buffer = dest_buffers[b];
       }
     }
   }
@@ -56,7 +56,7 @@ void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle target_handle,
                                      BatchedColumns& columns) {
   for (i32 i = 0; i < (i32)columns.size(); ++i) {
-    RowList& column = columns[i];
+    ElementList& column = columns[i];
     move_if_different_address_space(profiler, current_handle, target_handle,
                                     column);
   }
@@ -97,7 +97,7 @@ void* pre_evaluate_thread(void* arg) {
     // NOTE(apoms): for avoiding warmup
     // needs_configure || !(io_item.item_id() == last_item_id ||
     //       (io_item.table_id() == last_table_id &&
-    //        io_item.start_row() == last_end_row));
+    //        io_item.start_element() == last_end_element));
 
     last_table_id = io_item.table_id();
     last_end_row = io_item.end_row();
@@ -147,16 +147,16 @@ void* pre_evaluate_thread(void* arg) {
       if (work_entry.column_types[c] == ColumnType::Video) {
         decode_args.emplace_back();
         auto& args = decode_args.back();
-        for (Row row : work_entry.columns[c].rows) {
+        for (Element element : work_entry.columns[c]) {
           args.emplace_back();
           proto::DecodeArgs& da = args.back();
-          google::protobuf::io::ArrayInputStream in_stream(row.buffer,
-                                                           row.size);
+          google::protobuf::io::ArrayInputStream in_stream(element.buffer,
+                                                           element.size);
           google::protobuf::io::CodedInputStream cstream(&in_stream);
-          cstream.SetTotalBytesLimit(row.size + 1, row.size + 1);
+          cstream.SetTotalBytesLimit(element.size + 1, element.size + 1);
           bool result = da.ParseFromCodedStream(&cstream);
           assert(result);
-          delete_buffer(CPU_DEVICE, row.buffer);
+          DELETE_ELEMENT(CPU_DEVICE, element);
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
@@ -186,14 +186,14 @@ void* pre_evaluate_thread(void* arg) {
                                         num_rows * frame_size, num_rows);
           decoders[media_col_idx]->get_frames(buffer, num_rows);
           for (i64 n = 0; n < num_rows; ++n) {
-            INSERT_ROW(entry.columns[c], buffer + frame_size * n, frame_size);
+            INSERT_ELEMENT(entry.columns[c], buffer + frame_size * n, frame_size);
           }
           entry.column_handles.push_back(decoder_output_handle);
           media_col_idx++;
         } else {
-          entry.columns[c].rows =
-              std::vector<Row>(work_entry.columns[c].rows.begin() + start,
-                               work_entry.columns[c].rows.begin() + end);
+          entry.columns[c] =
+              std::vector<Element>(work_entry.columns[c].begin() + start,
+                               work_entry.columns[c].begin() + end);
           entry.column_handles.push_back(work_entry.column_handles[c]);
         }
       }
@@ -293,7 +293,7 @@ void* evaluate_thread(void* arg) {
     i32 total_inputs = 0;
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       total_inputs =  // io_item.end_row - io_item.start_row;
-          std::max(total_inputs, (i32)work_entry.columns[i].rows.size());
+          std::max(total_inputs, (i32)work_entry.columns[i].size());
     }
     while (current_input < total_inputs) {
       i32 batch_size = std::min(total_inputs - current_input,
@@ -309,12 +309,12 @@ void* evaluate_thread(void* arg) {
       side_output_columns.resize(work_entry.columns.size());
       for (size_t i = 0; i < work_entry.columns.size(); ++i) {
         i32 batch =
-            std::min(batch_size, (i32)work_entry.columns[i].rows.size());
+            std::min(batch_size, (i32)work_entry.columns[i].size());
         assert(batch > 0);
-        side_output_columns[i].rows.insert(
-            side_output_columns[i].rows.end(),
-            work_entry.columns[i].rows.begin() + current_input,
-            work_entry.columns[i].rows.begin() + current_input + batch);
+        side_output_columns[i].insert(
+            side_output_columns[i].end(),
+            work_entry.columns[i].begin() + current_input,
+            work_entry.columns[i].begin() + current_input + batch);
       }
       for (size_t k = 0; k < kernels.size(); ++k) {
         DeviceHandle current_handle = kernel_devices[k];
@@ -354,33 +354,31 @@ void* evaluate_thread(void* arg) {
         for (size_t y = 0; y < unused_outputs[k].size(); ++y) {
           i32 unused_col_idx =
               unused_outputs[k][unused_outputs[k].size() - 1 - y];
-          RowList& column = output_columns[unused_col_idx];
-          for (Row& row : column.rows) {
-            u8* buff = row.buffer;
-            delete_buffer(current_handle, buff);
+          ElementList& column = output_columns[unused_col_idx];
+          for (Element& element : column) {
+            DELETE_ELEMENT(current_handle, element);
           }
           output_columns.erase(output_columns.begin() + unused_col_idx);
         }
         // Verify the kernel produced the correct amount of output
         for (size_t i = 0; i < output_columns.size(); ++i) {
-          LOG_IF(FATAL, output_columns[i].rows.size() != batch_size)
-              << "Op " << k << " produced " << output_columns[i].rows.size()
-              << " output rows for column " << i << ". Expected " << batch_size
+          LOG_IF(FATAL, output_columns[i].size() != batch_size)
+              << "Op " << k << " produced " << output_columns[i].size()
+              << " output elements for column " << i << ". Expected " << batch_size
               << " outputs.";
         }
         // Delete dead columns
         for (size_t y = 0; y < dead_columns[k].size(); ++y) {
           i32 dead_col_idx = dead_columns[k][dead_columns[k].size() - 1 - y];
-          RowList& column = side_output_columns[dead_col_idx];
-          for (Row& row : column.rows) {
-            u8* buff = row.buffer;
-            delete_buffer(side_output_handles[dead_col_idx], buff);
+          ElementList& column = side_output_columns[dead_col_idx];
+          for (Element& element : column) {
+            DELETE_ELEMENT(side_output_handles[dead_col_idx], element);
           }
           side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
           side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
         }
         // Add new output columns
-        for (const RowList& column : output_columns) {
+        for (const ElementList& column : output_columns) {
           side_output_columns.push_back(column);
           side_output_handles.push_back(current_handle);
         }
@@ -392,12 +390,12 @@ void* evaluate_thread(void* arg) {
       }
       assert(num_final_output_columns == side_output_columns.size());
       for (i32 i = 0; i < num_final_output_columns; ++i) {
-        i32 num_output_rows =
-            static_cast<i32>(side_output_columns[i].rows.size());
-        work_item_output_columns[i].rows.insert(
-            work_item_output_columns[i].rows.end(),
-            side_output_columns[i].rows.begin(),
-            side_output_columns[i].rows.end());
+        i32 num_output_elements =
+            static_cast<i32>(side_output_columns[i].size());
+        work_item_output_columns[i].insert(
+            work_item_output_columns[i].end(),
+            side_output_columns[i].begin(),
+            side_output_columns[i].end());
       }
       current_input += batch_size;
     }
@@ -485,7 +483,7 @@ void* post_evaluate_thread(void* arg) {
       }
     }
 
-    i64 num_rows = work_entry.columns[0].rows.size();
+    i64 num_rows = work_entry.columns[0].size();
     i32 warmup_frames = work_entry.warmup_rows;
     current_offset += num_rows;
 
@@ -496,31 +494,23 @@ void* post_evaluate_thread(void* arg) {
       ColumnType column_type = column_types[i];
       // Delete warmup frame outputs
       for (i32 w = 0; w < warmup_frames; ++w) {
-        delete_buffer(work_entry.column_handles[col_idx],
-                      work_entry.columns[col_idx].rows[w].buffer);
+        DELETE_ELEMENT(work_entry.column_handles[col_idx],
+                       work_entry.columns[col_idx][w]);
       }
       // Encode video frames
       if (column_type == ColumnType::Video) {
         {
-          auto start = work_entry.columns[col_idx].rows.begin();
+          auto start = work_entry.columns[col_idx].begin();
           auto warmup_end =
-            work_entry.columns[col_idx].rows.begin() + warmup_frames;
-          work_entry.columns[col_idx].rows.erase(start, warmup_end);
+            work_entry.columns[col_idx].begin() + warmup_frames;
+          work_entry.columns[col_idx].erase(start, warmup_end);
         }
         auto& encoder = encoders[encoder_idx];
         if (!encoder_configured[encoder_idx]) {
           // Configure encoder
           encoder_configured[encoder_idx] = true;
-          // Read frame info column
-          auto& rows = work_entry.columns[col_idx + 1].rows;
-          u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
-          memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer,
-                        work_entry.column_handles[col_idx + 1], rows[0].size);
-          FrameInfo frame_info;
-          bool parsed = frame_info.ParseFromArray(buffer, rows[0].size);
-          LOG_IF(FATAL, !parsed) << "Invalid frame info";
-          delete_buffer(CPU_DEVICE, buffer);
-          encoder->configure(frame_info);
+          Frame* frame = work_entry.columns[col_idx][0].as_frame();
+          encoder->configure(frame->as_frame_info());
         }
 
         // Move frames to device for the encoder
@@ -530,7 +520,7 @@ void* post_evaluate_thread(void* arg) {
                                         work_entry.columns[col_idx]);
 
         // Pass frames into encoder
-        for (auto& row : work_entry.columns[col_idx].rows) {
+        for (auto& row : work_entry.columns[col_idx]) {
           bool new_packet = encoder->feed(row.buffer, row.size);
           while (new_packet) {
             size_t buffer_size = 1 * 1024 * 1024;
@@ -540,16 +530,16 @@ void* post_evaluate_thread(void* arg) {
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-            buffered_entry.columns[i].rows.push_back(Row{buffer, actual_size});
+            INSERT_ELEMENT(buffered_entry.columns[i], buffer, actual_size);
           }
         }
         encoder_idx++;
       } else {
         // Keep non-warmup frame outputs
-        buffered_entry.columns[i].rows.insert(
-          buffered_entry.columns[i].rows.end(),
-          work_entry.columns[col_idx].rows.begin() + warmup_frames,
-          work_entry.columns[col_idx].rows.end());
+        buffered_entry.columns[i].insert(
+          buffered_entry.columns[i].end(),
+          work_entry.columns[col_idx].begin() + warmup_frames,
+          work_entry.columns[col_idx].end());
       }
     }
     // Delete unused columns
@@ -557,9 +547,8 @@ void* post_evaluate_thread(void* arg) {
       if (column_set.count(i) > 0) {
         continue;
       }
-      for (i32 b = 0; b < work_entry.columns[i].rows.size(); ++b) {
-        delete_buffer(work_entry.column_handles[i],
-                      work_entry.columns[i].rows[b].buffer);
+      for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
+        DELETE_ELEMENT(work_entry.column_handles[i], work_entry.columns[i][b]);
       }
     }
 
@@ -582,7 +571,7 @@ void* post_evaluate_thread(void* arg) {
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-            buffered_entry.columns[i].rows.push_back(Row{buffer, actual_size});
+            INSERT_ELEMENT(buffered_entry.columns[i], buffer, actual_size);
           }
           encoder_idx++;
         }

@@ -29,8 +29,8 @@ class FacenetInputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    net_input_width_ = std::floor(frame_info_.width() * scale_);
-    net_input_height_ = std::floor(frame_info_.height() * scale_);
+    net_input_width_ = std::floor(frame_info_.shape[1] * scale_);
+    net_input_height_ = std::floor(frame_info_.shape[2] * scale_);
     if (net_input_width_ % 8 != 0) {
       net_input_width_ += 8 - (net_input_width_ % 8);
     };
@@ -57,7 +57,7 @@ class FacenetInputKernel : public VideoKernel {
     flipped_planes_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
       frame_input_g_.push_back(
-          cv::cuda::GpuMat(frame_info_.height(), frame_info_.width(), CV_8UC3));
+          cv::cuda::GpuMat(frame_info_.shape[2], frame_info_.shape[1], CV_8UC3));
       resized_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
       float_input_g_.push_back(
@@ -84,15 +84,14 @@ class FacenetInputKernel : public VideoKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(device_, frame_info_col);
+    check_frame(device_, frame_col[0]);
 
-    i32 input_count = (i32)frame_col.rows.size();
-    size_t frame_size = net_input_width_ * net_input_height_ * 3;
-    i32 net_input_size = frame_size * sizeof(f32);
-
-    u8* output_block =
-        new_block_buffer(device_, input_count * net_input_size, input_count);
+    i32 input_count = (i32)frame_col.size();
+    FrameInfo net_input_info(net_input_width_, net_input_height_, 3,
+                             FrameType::F32);
+    i32 net_input_size = net_input_info.size();
+    std::vector<Frame*> output_frames =
+        new_frames(device_, net_input_info, input_count);
 
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
@@ -101,11 +100,12 @@ class FacenetInputKernel : public VideoKernel {
       int sid = i % num_cuda_streams_;
       cv::cuda::Stream& cv_stream = streams_[sid];
 
-      f32* net_input = (f32*)(output_block + i * net_input_size);
+      Frame* output_frame = output_frames[i];
+      f32* net_input = (f32*)output_frame->data;
 
-      u8* buffer = frame_col.rows[i].buffer;
-      frame_input_g_[sid] = cv::cuda::GpuMat(
-          frame_info_.height(), frame_info_.width(), CV_8UC3, buffer);
+      // Convert input frame to gpu mat
+      frame_input_g_[sid] = frame_to_gpu_mat(frame_col[i].as_const_frame());
+
       cv::cuda::resize(frame_input_g_[sid], resized_input_g_[sid],
                        cv::Size(net_input_width_, net_input_height_), 0, 0,
                        cv::INTER_LINEAR, cv_stream);
@@ -139,7 +139,7 @@ class FacenetInputKernel : public VideoKernel {
           planar_input.step, net_input_height_ * sizeof(float),
           net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      INSERT_ROW(output_columns[0], (u8*)net_input, net_input_size);
+      INSERT_FRAME(output_columns[0], output_frame);
     }
     for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();
@@ -166,8 +166,9 @@ class FacenetInputKernel : public VideoKernel {
 };
 
 REGISTER_OP(FacenetInput)
-    .inputs({"frame", "frame_info"})
-    .outputs({"facenet_input"});
+    .frame_input("frame")
+    .frame_output("facenet_input");
+
 REGISTER_KERNEL(FacenetInput, FacenetInputKernel)
     .device(DeviceType::GPU)
     .num_devices(1);

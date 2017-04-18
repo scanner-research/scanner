@@ -21,23 +21,26 @@ class FasterRCNNOutputKernel : public Kernel {
                BatchedColumns& output_columns) override {
     assert(input_columns.size() == 3);
 
-    i32 input_count = input_columns[0].rows.size();
+    i32 input_count = NUM_ROWS(input_columns[0]);
     i32 cls_prob_idx = 0;
     i32 rois_idx = 1;
     i32 fc7_idx = 2;
-    const std::vector<Row>&cls_prob = input_columns[cls_prob_idx].rows,
-          &rois = input_columns[rois_idx].rows,
-          &fc7 = input_columns[fc7_idx].rows;
+    const ElementList& cls_prob = input_columns[cls_prob_idx],
+          &rois = input_columns[rois_idx],
+          &fc7 = input_columns[fc7_idx];
 
     for (i32 i = 0; i < input_count; ++i) {
-      i32 proposal_count =
-          input_columns[rois_idx].rows[i].size / (BOX_SIZE * sizeof(f32));
-      assert(rois[i].size == BOX_SIZE * sizeof(f32) * proposal_count);
-      assert(cls_prob[i].size == CLASSES * sizeof(f32) * proposal_count);
+      const Frame* cls = cls_prob[i].as_const_frame();
+      const Frame* roi = rois[i].as_const_frame();
+      const Frame* fc = fc7[i].as_const_frame();
+
+      i32 proposal_count = roi->size() / (BOX_SIZE * sizeof(f32));
+      assert(roi->size() == BOX_SIZE * sizeof(f32) * proposal_count);
+      assert(cls->size() == CLASSES * sizeof(f32) * proposal_count);
       std::vector<BoundingBox> bboxes;
       for (i32 j = 0; j < proposal_count; ++j) {
-        f32* roi = (f32*)(rois[i].buffer + (j * BOX_SIZE * sizeof(f32)));
-        f32 x1 = roi[1], y1 = roi[2], x2 = roi[3], y2 = roi[4];
+        f32* ro = (f32*)(roi->data + (j * BOX_SIZE * sizeof(f32)));
+        f32 x1 = ro[1], y1 = ro[2], x2 = ro[3], y2 = ro[4];
 
         BoundingBox bbox;
         bbox.set_x1(x1);
@@ -74,7 +77,7 @@ class FasterRCNNOutputKernel : public Kernel {
         size_t size;
         u8* buffer;
         serialize_bbox_vector(best_bboxes, buffer, size);
-        output_columns[0].rows.push_back(Row{buffer, size});
+        INSERT_ELEMENT(output_columns[0], buffer, size);
       }
 
       {
@@ -87,15 +90,17 @@ class FasterRCNNOutputKernel : public Kernel {
           std::memcpy(buffer + (k * FEATURES * sizeof(f32)), fvec,
                       FEATURES * sizeof(f32));
         }
-        output_columns[1].rows.push_back(Row{buffer, size});
+        INSERT_ELEMENT(output_columns[1], buffer, size);
       }
     }
   }
 };
 
 REGISTER_OP(FasterRCNNOutput)
-    .inputs({"caffe_output"})
-    .outputs({"bboxes", "features"});
+  .frame_input("caffe_output")
+  .output("bboxes")
+  .output("features");
+
 REGISTER_KERNEL(FasterRCNNOutput, FasterRCNNOutputKernel)
     .device(DeviceType::CPU)
     .num_devices(1);
