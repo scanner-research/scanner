@@ -224,6 +224,14 @@ i32 VideoMetadata::width() const { return descriptor_.width(); }
 
 i32 VideoMetadata::height() const { return descriptor_.height(); }
 
+i32 VideoMetadata::channels() const { return descriptor_.channels(); }
+
+FrameType VideoMetadata::frame_type() const { return descriptor_.frame_type(); }
+
+VideoDescriptor::VideoCodecType VideoMetadata::codec_type() const {
+  return descriptor_.codec_type();
+}
+
 std::vector<i64> VideoMetadata::keyframe_positions() const {
   return std::vector<i64>(descriptor_.keyframe_positions().begin(),
                           descriptor_.keyframe_positions().end());

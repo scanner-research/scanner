@@ -14,6 +14,17 @@ class Table:
         self._db = db
         self._descriptor = descriptor
         self._collection = None
+        self._columns = []
+        for c in self._descriptor.columns:
+            video_descriptor = None
+            if c.type == self._db.protobufs.Video:
+                video_descriptor = self._db._load_descriptor(
+                    self._db.protobufs.VideoDescriptor,
+                    'tables/{:d}/{:d}_0_video_metadata.bin'.format(
+                        self._descriptor.id,
+                        c.id))
+            self._columns.append(Column(self, c, video_descriptor))
+
         job_id = self._descriptor.job_id
         if job_id != -1:
             self._job = self._db._load_descriptor(
@@ -36,7 +47,7 @@ class Table:
         return self._descriptor.name
 
     def columns(self, index=None):
-        columns = [Column(self, c) for c in self._descriptor.columns]
+        columns = self._columns
         if index is not None:
             col = None
             if isinstance(index, basestring):

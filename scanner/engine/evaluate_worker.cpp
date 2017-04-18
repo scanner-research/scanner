@@ -94,7 +94,9 @@ void* pre_evaluate_thread(void* arg) {
     std::vector<EvalWorkEntry> work_items;
     auto setup_start = now();
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
-      if (work_entry.column_types[c] == ColumnType::Video) {
+      if (work_entry.column_types[c] == ColumnType::Video &&
+          work_entry.video_encoding_type[media_col_idx] ==
+          proto::VideoDescriptor::H264) {
         decode_args.emplace_back();
         auto& args = decode_args.back();
         for (Element element : work_entry.columns[c]) {
@@ -130,17 +132,32 @@ void* pre_evaluate_thread(void* arg) {
         if (work_entry.column_types[c] == ColumnType::Video) {
           // Perform decoding
           i64 num_rows = end - start;
-          FrameInfo frame_info(decode_args[media_col_idx][0].height(),
-                               decode_args[media_col_idx][0].width(), 3,
-                               FrameType::U8);
-          u8* buffer = new_block_buffer(decoder_output_handle,
-                                        num_rows * frame_info.size(), num_rows);
-          decoders[media_col_idx]->get_frames(buffer, num_rows);
-          for (i64 n = 0; n < num_rows; ++n) {
-            insert_frame(entry.columns[c],
-                         new Frame(frame_info, buffer + frame_info.size() * n));
+          if (work_entry.video_encoding_type[media_col_idx] ==
+              proto::VideoDescriptor::H264) {
+            // Encoded as video
+            FrameInfo frame_info(decode_args[media_col_idx][0].height(),
+                                 decode_args[media_col_idx][0].width(), 3,
+                                 FrameType::U8);
+            u8* buffer = new_block_buffer(
+              decoder_output_handle, num_rows * frame_info.size(), num_rows);
+            decoders[media_col_idx]->get_frames(buffer, num_rows);
+            for (i64 n = 0; n < num_rows; ++n) {
+              insert_frame(
+                entry.columns[c],
+                new Frame(frame_info, buffer + frame_info.size() * n));
+            }
+            entry.column_handles.push_back(decoder_output_handle);
+          } else {
+            // Encoded as raw data
+            FrameInfo frame_info = work_entry.frame_sizes[media_col_idx];
+            for (i64 n = 0; n < num_rows; ++n) {
+              Element& e = work_entry.columns[c][start + n];
+              assert(e.size == frame_info.size());
+              insert_frame(
+                entry.columns[c],
+                new Frame(frame_info, e.buffer));
+            }
           }
-          entry.column_handles.push_back(decoder_output_handle);
           media_col_idx++;
         } else {
           entry.columns[c] =
@@ -446,7 +463,8 @@ void* post_evaluate_thread(void* arg) {
                        work_entry.columns[col_idx][w]);
       }
       // Encode video frames
-      if (column_type == ColumnType::Video) {
+      if (column_type == ColumnType::Video &&
+          buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
         {
           auto start = work_entry.columns[col_idx].begin();
           auto warmup_end =
@@ -507,7 +525,8 @@ void* post_evaluate_thread(void* arg) {
       // Flush video encoder and get rest of packets
       for (size_t i = 0; i < args.column_mapping.size(); ++i) {
         ColumnType column_type = args.columns[i].type();
-        if (column_type == ColumnType::Video) {
+        if (column_type == ColumnType::Video &&
+            buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
           auto& encoder = encoders[encoder_idx];
 
           // Get last packets in encoder

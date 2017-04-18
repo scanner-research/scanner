@@ -50,7 +50,9 @@ struct EvalWorkEntry {
   bool needs_reset;
   bool last_in_io_item;
   i64 warmup_rows;
-  // Only for save worker
+  // Only for pre worker
+  std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
+  // For save and pre worker
   std::vector<FrameInfo> frame_sizes;
 };
 

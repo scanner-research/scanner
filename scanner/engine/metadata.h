@@ -137,6 +137,9 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
   i32 frames() const;
   i32 width() const;
   i32 height() const;
+  i32 channels() const;
+  proto::FrameType frame_type() const;
+  proto::VideoDescriptor::VideoCodecType codec_type() const;
   std::vector<i64> keyframe_positions() const;
   std::vector<i64> keyframe_byte_offsets() const;
 };

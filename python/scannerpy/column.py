@@ -9,12 +9,13 @@ class Column:
     A column of a Table.
     """
 
-    def __init__(self, table, descriptor):
+    def __init__(self, table, descriptor, video_descriptor):
         self._table = table
         self._descriptor = descriptor
         self._db = table._db
         self._storage = table._db.config.storage
         self._db_path = table._db.config.db_path
+        self._video_descriptor = video_descriptor
 
     def name(self):
         return self._descriptor.name
@@ -108,7 +109,9 @@ class Column:
 
         # If the column is a video, then dump the requested frames to disk as
         # PNGs and return the decoded PNGs
-        if self._descriptor.type == self._db.protobufs.Video:
+        if (self._descriptor.type == self._db.protobufs.Video and
+            self._video_descriptor.codec_type ==
+            self._db.protobufs.VideoDescriptor.H264):
             png_table_name = self._db._png_dump_prefix.format(self._table.name())
             if self._db.has_table(png_table_name):
                 png_table = self._db.table(png_table_name)
@@ -126,5 +129,18 @@ class Column:
             job = Job(columns = [img], name = png_table_name)
             [out_tbl] = self._db.run([job], force=True, show_progress=False)
             return out_tbl.load(['png'], parsers.image)
+        elif self._descriptor.type == self._db.protobufs.Video:
+            frame_type = self._video_descriptor.frame_type
+            if frame_type == self._db.protobufs.U8:
+                dtype = np.u8
+            elif frame_type == self._db.protobufs.F32:
+                dtype = np.float32
+            elif frame_type == self._db.protobufs.F64:
+                dtype = np.float64
+            parser_fn = parsers.raw_frame_gen(self._video_descriptor.height,
+                                              self._video_descriptor.width,
+                                              self._video_descriptor.channels,
+                                              dtype)
+            return self._load(fn=parser_fn, rows=rows)
         else:
             return self._load(fn, rows=rows)

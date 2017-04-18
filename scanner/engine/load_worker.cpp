@@ -174,6 +174,9 @@ std::tuple<size_t, size_t> find_keyframe_indices(
 struct VideoIndexEntry {
   i32 width;
   i32 height;
+  i32 channels;
+  FrameType frame_type;
+  proto::VideoDescriptor::VideoCodecType codec_type;
   std::unique_ptr<RandomReadFile> file;
   u64 file_size;
   std::vector<i64> keyframe_positions;
@@ -189,6 +192,10 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   // Open the video file for reading
   index_entry.width = video_meta.width();
   index_entry.height = video_meta.height();
+  index_entry.channels = video_meta.channels();
+  index_entry.frame_type = video_meta.frame_type();
+  index_entry.codec_type = video_meta.codec_type();
+
   BACKOFF_FAIL(storehouse::make_unique_random_read_file(
       storage, table_item_output_path(table_id, column_id, item_id),
       index_entry.file));
@@ -422,6 +429,8 @@ void* load_thread(void* arg) {
         if (table_meta.column_type(col_id) == ColumnType::Video) {
           column_type = ColumnType::Video;
           // video frame column
+          FrameInfo info;
+          proto::VideoDescriptor::VideoCodecType encoding_type;
           for (size_t i = 0; i < num_items; ++i) {
             i32 item_id = intervals.item_ids[i];
             const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
@@ -431,9 +440,28 @@ void* load_thread(void* arg) {
               index[key] = read_video_index(storage, table_id, col_id, item_id);
             }
             const VideoIndexEntry& entry = index.at(key);
-            read_video_column(args.profiler, entry, valid_offsets,
-                              eval_work_entry.columns[out_col_idx]);
+            info = FrameInfo(entry.height, entry.width, entry.channels,
+                             entry.frame_type);
+            encoding_type = entry.codec_type;
+            if (entry.codec_type == proto::VideoDescriptor::H264) {
+              // Video was encoded using h264
+              read_video_column(args.profiler, entry, valid_offsets,
+                                eval_work_entry.columns[out_col_idx]);
+            } else {
+              // Video was encoded as individual images
+              i32 item_id = intervals.item_ids[i];
+              i64 item_start;
+              i64 item_end;
+              std::tie(item_start, item_end) = intervals.item_intervals[i];
+
+              read_other_column(storage, table_id, col_id, item_id, item_start,
+                                item_end, valid_offsets,
+                                eval_work_entry.columns[out_col_idx]);
+            }
           }
+          assert(num_items > 0);
+          eval_work_entry.frame_sizes.push_back(info);
+          eval_work_entry.video_encoding_type.push_back(encoding_type);
           media_col_idx++;
         } else {
           // regular column
