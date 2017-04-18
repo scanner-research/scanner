@@ -59,16 +59,14 @@ class MontageKernelGPU : public VideoKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(device_, frame_info_col);
+    check_frame(device_, frame_col[0]);
 
     set_device();
 
     assert(montage_buffer_ != nullptr);
-    i32 input_count = frame_col.rows.size();
+    i32 input_count = num_rows(frame_col);
     for (i32 i = 0; i < input_count; ++i) {
-      cvc::GpuMat img(frame_height_, frame_width_, CV_8UC3,
-                      frame_col.rows[i].buffer);
+      cvc::GpuMat img = frame_to_gpu_mat(frame_col[i].as_const_frame());
       i64 x = frames_seen_ % frames_per_row_;
       i64 y = frames_seen_ / frames_per_row_;
       cvc::GpuMat montage_subimg =
@@ -79,12 +77,12 @@ class MontageKernelGPU : public VideoKernel {
       frames_seen_++;
       if (frames_seen_ == num_frames_) {
         assert(montage_buffer_ != nullptr);
-        output_columns[0].rows.push_back(
-            Row{montage_buffer_, montage_width_ * montage_height_ * 3});
+        FrameInfo info(montage_height_, montage_width_, 3, FrameType::U8);
+        insert_frame(output_columns[0], new Frame(info, montage_buffer_));
         montage_image_ = cvc::GpuMat();
         montage_buffer_ = nullptr;
       } else {
-        output_columns[0].rows.push_back(Row{new_buffer(device_, 1), 1});
+        insert_element(output_columns[0], new_buffer(device_, 1), 1);
       }
     }
   }
@@ -113,9 +111,9 @@ class MontageKernelGPU : public VideoKernel {
   i64 frames_seen_;
 };
 
-REGISTER_OP(Montage).inputs({"frame", "frame_info"}).outputs({"montage"});
+REGISTER_OP(Montage).frame_input("frame").frame_output("montage");
 
 REGISTER_KERNEL(Montage, MontageKernelGPU)
-    .device(DeviceType::GPU)
-    .num_devices(1);
+  .device(DeviceType::GPU)
+  .num_devices(1);
 }

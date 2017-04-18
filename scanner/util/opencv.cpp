@@ -10,28 +10,28 @@
 
 namespace scanner {
 
-cv::DataType frame_to_cv_type(FrameType type, int channels) {
-  cv::DataType cv_type;
+int frame_to_cv_type(FrameType type, int channels) {
+  int cv_type;
   switch (type) {
-    case U8: {
+    case FrameType::U8: {
       cv_type = CV_8U;
       break;
     }
-    case F32: {
+    case FrameType::F32: {
       cv_type = CV_32F;
       break;
     }
-    case F64: {
+    case FrameType::F64: {
       cv_type = CV_64F;
-      break
+      break;
     }
   }
   return CV_MAKETYPE(cv_type, channels);
 }
 
-FrameType cv_to_frame_type(int type) {
+FrameType cv_to_frame_type(int t) {
   FrameType type;
-  switch (type) {
+  switch (t) {
     case CV_8U: {
       type = FrameType::U8;
       break;
@@ -45,7 +45,7 @@ FrameType cv_to_frame_type(int type) {
       break;
     }
     default: {
-      LOG(FATAL) << "Unsupported OpenCV type: " << type;
+      LOG(FATAL) << "Unsupported OpenCV type: " << t;
     }
   }
   return type;
@@ -72,12 +72,12 @@ cv::Mat bytesToImage(u8* buf, const FrameInfo& metadata) {
 
 #ifdef HAVE_CUDA
 
-cv::GpuMat frame_to_gpu_mat(const Frame* frame) {
+cvc::GpuMat frame_to_gpu_mat(const Frame* frame) {
   return frame_to_gpu_mat((Frame*)frame);
 }
 
-cv::GpuMat frame_to_gpu_mat(Frame* frame) {
-  return cv::GpuMat(frame->shape[1], frame->shape[2],
+cvc::GpuMat frame_to_gpu_mat(Frame* frame) {
+  return cvc::GpuMat(frame->shape[1], frame->shape[2],
                     frame_to_cv_type(frame->type, frame->shape[0]),
                     frame->data);
 }
