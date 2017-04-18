@@ -66,6 +66,19 @@ size_t FrameInfo::size() const {
   return s;
 }
 
+int FrameInfo::width() const {
+  return shape[1];
+}
+
+int FrameInfo::height() const {
+  return shape[0];
+}
+
+//! Only valid when the dimensions are (height, width, channels)
+int FrameInfo::channels() const {
+  return shape[2];
+}
+
 Frame::Frame(FrameInfo info, u8* b) : data(b) {
   memcpy(shape, info.shape, sizeof(int) * FRAME_DIMS);
   type = info.type;
@@ -78,6 +91,19 @@ FrameInfo Frame::as_frame_info() const {
 
 size_t Frame::size() const {
   return as_frame_info().size();
+}
+
+int Frame::width() const {
+  return shape[1];
+}
+
+int Frame::height() const {
+  return shape[0];
+}
+
+//! Only valid when the dimensions are (height, width, channels)
+int Frame::channels() const {
+  return shape[2];
 }
 
 Frame* new_frame(DeviceHandle device, FrameInfo info) {

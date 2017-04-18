@@ -13,7 +13,7 @@ class InfoFromFrameKernel : public Kernel {
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    i32 input_count = (i32)NUM_ROWS(input_columns);
+    i32 input_count = (i32)num_rows(input_columns[0]);
     u8* output_block =
       new_block_buffer(device_, sizeof(FrameInfo) * input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {
@@ -22,7 +22,7 @@ class InfoFromFrameKernel : public Kernel {
       u8* buffer = output_block + i * sizeof(FrameInfo);
       FrameInfo* info = reinterpret_cast<FrameInfo*>(buffer);
       *info = frame->as_frame_info();
-      INSERT_ELEMENT(output_columns[0], buffer, sizeof(FrameInfo));
+      insert_element(output_columns[0], buffer, sizeof(FrameInfo));
     }
   }
 

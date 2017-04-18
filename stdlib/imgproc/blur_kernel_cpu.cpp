@@ -44,8 +44,8 @@ class BlurKernel : public VideoKernel {
   void validate(Result* result) override { result->CopyFrom(valid_); }
 
   void new_frame_info() {
-    frame_width_ = frame_info_.shape[1];
-    frame_height_ = frame_info_.shape[2];
+    frame_width_ = frame_info_.width();
+    frame_height_ = frame_info_.height();
   }
 
   void execute(const BatchedColumns& input_columns,
@@ -53,7 +53,7 @@ class BlurKernel : public VideoKernel {
     auto& frame_col = input_columns[0];
     check_frame(CPU_DEVICE, frame_col[0]);
 
-    i32 input_count = (i32)NUM_ROWS(frame_col);
+    i32 input_count = (i32)num_rows(frame_col);
     i32 width = frame_width_;
     i32 height = frame_height_;
     size_t frame_size = width * height * 3 * sizeof(u8);
@@ -79,7 +79,7 @@ class BlurKernel : public VideoKernel {
           }
         }
       }
-      INSERT_FRAME(output_columns[0], output_frames[i]);
+      insert_frame(output_columns[0], output_frames[i]);
     }
   }
 

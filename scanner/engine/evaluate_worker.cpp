@@ -43,7 +43,7 @@ void move_if_different_address_space(Profiler& profiler,
 
       auto delete_start = now();
       for (i32 b = 0; b < (i32)column.size(); ++b) {
-        DELETE_ELEMENT(current_handle, column[b]);
+        delete_element(current_handle, column[b]);
         column[b].buffer = dest_buffers[b];
       }
     }
@@ -156,7 +156,7 @@ void* pre_evaluate_thread(void* arg) {
           cstream.SetTotalBytesLimit(element.size + 1, element.size + 1);
           bool result = da.ParseFromCodedStream(&cstream);
           assert(result);
-          DELETE_ELEMENT(CPU_DEVICE, element);
+          delete_element(CPU_DEVICE, element);
         }
         decoders[media_col_idx]->initialize(args);
         media_col_idx++;
@@ -186,7 +186,7 @@ void* pre_evaluate_thread(void* arg) {
                                         num_rows * frame_size, num_rows);
           decoders[media_col_idx]->get_frames(buffer, num_rows);
           for (i64 n = 0; n < num_rows; ++n) {
-            INSERT_ELEMENT(entry.columns[c], buffer + frame_size * n, frame_size);
+            insert_element(entry.columns[c], buffer + frame_size * n, frame_size);
           }
           entry.column_handles.push_back(decoder_output_handle);
           media_col_idx++;
@@ -356,7 +356,7 @@ void* evaluate_thread(void* arg) {
               unused_outputs[k][unused_outputs[k].size() - 1 - y];
           ElementList& column = output_columns[unused_col_idx];
           for (Element& element : column) {
-            DELETE_ELEMENT(current_handle, element);
+            delete_element(current_handle, element);
           }
           output_columns.erase(output_columns.begin() + unused_col_idx);
         }
@@ -372,7 +372,7 @@ void* evaluate_thread(void* arg) {
           i32 dead_col_idx = dead_columns[k][dead_columns[k].size() - 1 - y];
           ElementList& column = side_output_columns[dead_col_idx];
           for (Element& element : column) {
-            DELETE_ELEMENT(side_output_handles[dead_col_idx], element);
+            delete_element(side_output_handles[dead_col_idx], element);
           }
           side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
           side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
@@ -494,7 +494,7 @@ void* post_evaluate_thread(void* arg) {
       ColumnType column_type = column_types[i];
       // Delete warmup frame outputs
       for (i32 w = 0; w < warmup_frames; ++w) {
-        DELETE_ELEMENT(work_entry.column_handles[col_idx],
+        delete_element(work_entry.column_handles[col_idx],
                        work_entry.columns[col_idx][w]);
       }
       // Encode video frames
@@ -530,7 +530,7 @@ void* post_evaluate_thread(void* arg) {
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-            INSERT_ELEMENT(buffered_entry.columns[i], buffer, actual_size);
+            insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
         }
         encoder_idx++;
@@ -548,7 +548,7 @@ void* post_evaluate_thread(void* arg) {
         continue;
       }
       for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
-        DELETE_ELEMENT(work_entry.column_handles[i], work_entry.columns[i][b]);
+        delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
       }
     }
 
@@ -571,7 +571,7 @@ void* post_evaluate_thread(void* arg) {
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-            INSERT_ELEMENT(buffered_entry.columns[i], buffer, actual_size);
+            insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
           encoder_idx++;
         }

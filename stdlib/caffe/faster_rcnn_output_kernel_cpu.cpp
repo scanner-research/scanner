@@ -21,7 +21,7 @@ class FasterRCNNOutputKernel : public Kernel {
                BatchedColumns& output_columns) override {
     assert(input_columns.size() == 3);
 
-    i32 input_count = NUM_ROWS(input_columns[0]);
+    i32 input_count = num_rows(input_columns[0]);
     i32 cls_prob_idx = 0;
     i32 rois_idx = 1;
     i32 fc7_idx = 2;
@@ -77,7 +77,7 @@ class FasterRCNNOutputKernel : public Kernel {
         size_t size;
         u8* buffer;
         serialize_bbox_vector(best_bboxes, buffer, size);
-        INSERT_ELEMENT(output_columns[0], buffer, size);
+        insert_element(output_columns[0], buffer, size);
       }
 
       {
@@ -90,7 +90,7 @@ class FasterRCNNOutputKernel : public Kernel {
           std::memcpy(buffer + (k * FEATURES * sizeof(f32)), fvec,
                       FEATURES * sizeof(f32));
         }
-        INSERT_ELEMENT(output_columns[1], buffer, size);
+        insert_element(output_columns[1], buffer, size);
       }
     }
   }

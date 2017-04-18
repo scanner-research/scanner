@@ -115,7 +115,7 @@ class FeatureMatcherKernel : public VideoKernel {
       }
       u8* output_buf = new_buffer(device_, size);
       memcpy_buffer(output_buf, device_, (u8*)cost_buf, CPU_DEVICE, size);
-      INSERT_ELEMENT(output_columns[0], output_buf, size);
+      insert_element(output_columns[0], output_buf, size);
     }
 
     features_suffix_.clear();

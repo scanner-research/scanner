@@ -148,10 +148,10 @@ void* save_thread(void* arg) {
         video_descriptor.set_column_id(out_idx);
         video_descriptor.set_item_id(io_item.item_id());
 
-        assert(frame_info.shape[0] == 3);
+        assert(frame_info.channels() == 3);
         assert(frame_info.type == FrameType::U8);
-        video_descriptor.set_width(frame_info.shape[1]);
-        video_descriptor.set_height(frame_info.shape[2]);
+        video_descriptor.set_width(frame_info.width());
+        video_descriptor.set_height(frame_info.height());
         video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
         video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
 

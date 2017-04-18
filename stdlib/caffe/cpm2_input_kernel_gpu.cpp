@@ -94,7 +94,7 @@ class CPM2InputKernel : public VideoKernel {
     auto& frame_col = input_columns[0];
     check_frame(device_, frame_col[0]);
 
-    i32 input_count = NUM_ROWS(frame_col);
+    i32 input_count = num_rows(frame_col);
 
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
@@ -144,7 +144,7 @@ class CPM2InputKernel : public VideoKernel {
           planar_input.step, net_input_width_ * sizeof(float),
           net_input_height_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      INSERT_FRAME(output_columns[0], output_frame);
+      insert_frame(output_columns[0], output_frame);
     }
     for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();

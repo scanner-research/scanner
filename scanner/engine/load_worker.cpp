@@ -276,7 +276,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);
     bool result = decode_args.SerializeToArray(decode_args_buffer, size);
     assert(result);
-    INSERT_ELEMENT(element_list, decode_args_buffer, size);
+    insert_element(element_list, decode_args_buffer, size);
 
     delete_buffer(CPU_DEVICE, buffer);
   }
@@ -329,7 +329,7 @@ void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
     if (i == valid_offsets[valid_idx]) {
       u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
       memcpy(buffer, element_data.data() + offset, buffer_size);
-      INSERT_ELEMENT(element_list, buffer, buffer_size);
+      insert_element(element_list, buffer, buffer_size);
       valid_idx++;
     }
     offset += buffer_size;

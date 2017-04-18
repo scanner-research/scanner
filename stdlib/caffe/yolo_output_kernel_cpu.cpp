@@ -43,7 +43,7 @@ class YoloOutputKernel : public VideoKernel {
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    i32 input_count = (i32)NUM_ROWS(input_columns[0]);
+    i32 input_count = (i32)num_rows(input_columns[0]);
     for (i32 i = 0; i < input_count; ++i) {
       assert(input_columns[0][i].as_const_frame()->size() ==
              (feature_vector_sizes_[0] + feature_vector_sizes_[1] +
@@ -147,7 +147,7 @@ class YoloOutputKernel : public VideoKernel {
       size_t size;
       u8* buffer;
       serialize_bbox_vector(bboxes, buffer, size);
-      INSERT_ELEMENT(output_columns[0], buffer, size);
+      insert_element(output_columns[0], buffer, size);
     }
   }
 

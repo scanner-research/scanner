@@ -33,8 +33,8 @@ CaffeInputKernel::~CaffeInputKernel() {
 
 void CaffeInputKernel::new_frame_info() {
   if (args_.net_descriptor().input_width() == -1) {
-    net_input_width_ = frame_info_.shape[1];
-    net_input_height_ = frame_info_.shape[2];
+    net_input_width_ = frame_info_.width();
+    net_input_height_ = frame_info_.height();
   } else {
     net_input_width_ = args_.net_descriptor().input_width();
     net_input_height_ = args_.net_descriptor().input_height();
@@ -73,8 +73,8 @@ void CaffeInputKernel::unset_halide_buf(buffer_t& halide_buf) {
 
 void CaffeInputKernel::transform_halide(const u8* input_buffer,
                                         u8* output_buffer) {
-  i32 frame_width = frame_info_.shape[1];
-  i32 frame_height = frame_info_.shape[2];
+  i32 frame_width = frame_info_.width();
+  i32 frame_height = frame_info_.height();
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
@@ -123,8 +123,8 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
 }
 
 void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
-  i32 frame_width = frame_info_.shape[1];
-  i32 frame_height = frame_info_.shape[2];
+  i32 frame_width = frame_info_.width();
+  i32 frame_height = frame_info_.height();
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
@@ -162,22 +162,19 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
   check_frame(device_, frame_col[0]);
 
   auto eval_start = now();
-  i32 input_count = NUM_ROWS(frame_col);
+  i32 input_count = num_rows(frame_col);
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   set_device();
 
-  u8* output_block =
-    new_block_buffer(device_, net_input_size * input_count, input_count);
-
+  FrameInfo info(3, net_input_height_, net_input_width_, FrameType::F32);
+  std::vector<Frame*> frames = new_frames(device_, info, input_count);
   for (i32 frame = 0; frame < input_count; frame++) {
     const u8* input_buffer = frame_col[frame].as_const_frame()->data;
-    u8* output_buffer = output_block + frame * net_input_size;
+    transform_halide(input_buffer, frames[frame]->data);
 
-    transform_halide(input_buffer, output_buffer);
-
-    INSERT_ELEMENT(output_columns[0], output_buffer, net_input_size);
+    insert_frame(output_columns[0], frames[frame]);
   }
 
   extra_inputs(input_columns, output_columns);

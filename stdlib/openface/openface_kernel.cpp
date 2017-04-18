@@ -93,7 +93,7 @@ class OpenFaceKernel : public VideoKernel {
       u8* output_buf = new_buffer(CPU_DEVICE, size);
       memcpy_buffer(output_buf, CPU_DEVICE, frame_col.rows[b].buffer,
                     CPU_DEVICE, size);
-      INSERT_ELEMENT(output_columns[0], output_buf, size);
+      insert_element(output_columns[0], output_buf, size);
     }
   }
 
