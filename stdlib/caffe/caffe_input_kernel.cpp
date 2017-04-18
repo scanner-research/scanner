@@ -33,8 +33,8 @@ CaffeInputKernel::~CaffeInputKernel() {
 
 void CaffeInputKernel::new_frame_info() {
   if (args_.net_descriptor().input_width() == -1) {
-    net_input_width_ = frame_info_.width();
-    net_input_height_ = frame_info_.height();
+    net_input_width_ = frame_info_.shape[1];
+    net_input_height_ = frame_info_.shape[2];
   } else {
     net_input_width_ = args_.net_descriptor().input_width();
     net_input_height_ = args_.net_descriptor().input_height();
@@ -71,15 +71,17 @@ void CaffeInputKernel::unset_halide_buf(buffer_t& halide_buf) {
   }
 }
 
-void CaffeInputKernel::transform_halide(u8* input_buffer, u8* output_buffer) {
-  i32 frame_width = frame_info_.width();
-  i32 frame_height = frame_info_.height();
+void CaffeInputKernel::transform_halide(const u8* input_buffer,
+                                        u8* output_buffer) {
+  i32 frame_width = frame_info_.shape[1];
+  i32 frame_height = frame_info_.shape[2];
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   buffer_t input_buf = {0}, output_buf = {0};
 
-  set_halide_buf(input_buf, input_buffer, frame_width * frame_height * 3);
+  set_halide_buf(input_buf, const_cast<u8*>(input_buffer),
+                 frame_width * frame_height * 3);
   set_halide_buf(output_buf, output_buffer, net_input_size);
 
   // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
@@ -121,8 +123,8 @@ void CaffeInputKernel::transform_halide(u8* input_buffer, u8* output_buffer) {
 }
 
 void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
-  i32 frame_width = frame_info_.width();
-  i32 frame_height = frame_info_.height();
+  i32 frame_width = frame_info_.shape[1];
+  i32 frame_height = frame_info_.shape[2];
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
@@ -157,11 +159,10 @@ void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
 void CaffeInputKernel::execute(const BatchedColumns& input_columns,
                                BatchedColumns& output_columns) {
   auto& frame_col = input_columns[0];
-  auto& frame_info_col = input_columns[1];
-  check_frame_info(device_, frame_info_col);
+  check_frame(device_, frame_col[0]);
 
   auto eval_start = now();
-  i32 input_count = frame_col.rows.size();
+  i32 input_count = NUM_ROWS(frame_col);
   size_t net_input_size =
     net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
@@ -171,12 +172,12 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
     new_block_buffer(device_, net_input_size * input_count, input_count);
 
   for (i32 frame = 0; frame < input_count; frame++) {
-    u8* input_buffer = frame_col.rows[frame].buffer;
+    const u8* input_buffer = frame_col[frame].as_const_frame()->data;
     u8* output_buffer = output_block + frame * net_input_size;
 
     transform_halide(input_buffer, output_buffer);
 
-    INSERT_ROW(output_columns[0], output_buffer, net_input_size);
+    INSERT_ELEMENT(output_columns[0], output_buffer, net_input_size);
   }
 
   extra_inputs(input_columns, output_columns);

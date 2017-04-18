@@ -32,8 +32,8 @@ class FacenetOutputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    net_input_width_ = std::floor(frame_info_.width() * scale_);
-    net_input_height_ = std::floor(frame_info_.height() * scale_);
+    net_input_width_ = std::floor(frame_info_.shape[1] * scale_);
+    net_input_height_ = std::floor(frame_info_.shape[2] * scale_);
 
     if (net_input_width_ % 8 != 0) {
       net_input_width_ += 8 - (net_input_width_ % 8);
@@ -58,10 +58,10 @@ class FacenetOutputKernel : public VideoKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(CPU_DEVICE, frame_info_col);
+    auto& orig_frame_info_col = input_columns[1];
+    check_frame_info(CPU_DEVICE, orig_frame_info_col[0]);
 
-    i32 input_count = (i32)frame_col.rows.size();
+    i32 input_count = (i32)frame_col.size();
 
     std::vector<i32> valid_templates = regular_valid_templates_;
     if (scale_ > 1.0) {
@@ -70,14 +70,16 @@ class FacenetOutputKernel : public VideoKernel {
     // Get bounding box data from output feature vector and turn it
     // into canonical center x, center y, width, height
     for (i32 b = 0; b < input_count; ++b) {
-      assert(frame_col.rows[b].size ==
+      const Frame* frame = frame_col[b].as_const_frame();
+
+      assert(frame->type == FrameType::F32);
+      assert(frame->size() ==
              (feature_vector_sizes_[0] + feature_vector_sizes_[1]));
 
       std::vector<BoundingBox> bboxes;
       // Track confidence per pixel for each category so we can calculate
       // uncertainty across the frame
-      f32* template_confidences =
-        reinterpret_cast<f32*>(frame_col.rows[b].buffer);
+      f32* template_confidences = reinterpret_cast<f32*>(frame->data);
       f32* template_adjustments =
         template_confidences + feature_vector_lengths_[0];
 
@@ -119,11 +121,11 @@ class FacenetOutputKernel : public VideoKernel {
                                            vec_offset];
             height *= std::exp(dch);
 
-            x = (x / net_input_width_) * frame_info_.width();
-            y = (y / net_input_height_) * frame_info_.height();
+            x = (x / net_input_width_) * frame_info_.shape[1];
+            y = (y / net_input_height_) * frame_info_.shape[2];
 
-            width = (width / net_input_width_) * frame_info_.width();
-            height = (height / net_input_height_) * frame_info_.height();
+            width = (width / net_input_width_) * frame_info_.shape[1];
+            height = (height / net_input_height_) * frame_info_.shape[2];
 
             if (width < 0 || height < 0 || std::isnan(width) ||
                 std::isnan(height) || std::isnan(x) || std::isnan(y))
@@ -156,7 +158,7 @@ class FacenetOutputKernel : public VideoKernel {
       size_t size;
       u8* buffer;
       serialize_bbox_vector(best_bboxes, buffer, size);
-      output_columns[0].rows.push_back(Row{buffer, size});
+      output_columns[0].push_back(Element{buffer, size});
     }
   }
 
@@ -181,8 +183,10 @@ class FacenetOutputKernel : public VideoKernel {
 };
 
 REGISTER_OP(FacenetOutput)
-  .inputs({"facenet_output", "frame_info"})
-  .outputs({"bboxes"});
+  .frame_input("facenet_output")
+  .input("original_frame_info")
+  .output("bboxes");
+
 REGISTER_KERNEL(FacenetOutput, FacenetOutputKernel)
   .device(DeviceType::CPU)
   .num_devices(1);

@@ -42,7 +42,7 @@ class PythonKernel : public Kernel {
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    i32 input_count = (i32)input_columns[0].rows.size();
+    i32 input_count = (i32)NUM_ROWS(input_columns[0]);
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -59,8 +59,8 @@ class PythonKernel : public Kernel {
         for (i32 j = 0; j < input_columns.size(); ++j) {
           cols.append(
             py::str(
-              (char const*) input_columns[j].rows[i].buffer,
-              input_columns[j].rows[i].size));
+              (char const*) input_columns[j][i].buffer,
+              input_columns[j][i].size));
         }
         main.attr("columns") = cols;
 
@@ -79,7 +79,7 @@ class PythonKernel : public Kernel {
           memcpy_buffer(buf, device_,
                         (u8*) field.data(), CPU_DEVICE,
                         size);
-          INSERT_ROW(output_columns[j], buf, size);
+          INSERT_ELEMENT(output_columns[j], buf, size);
         }
       }
     } catch (py::error_already_set& e) {
@@ -94,7 +94,9 @@ class PythonKernel : public Kernel {
   proto::PythonArgs args_;
 };
 
-REGISTER_OP(Python).inputs({"frame", "frame_info"}).outputs({"dummy"});
+REGISTER_OP(Python)
+  .frame_input("frame")
+  .output("dummy");
 
 REGISTER_KERNEL(Python, PythonKernel).device(DeviceType::CPU).num_devices(1);
 

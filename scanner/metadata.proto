@@ -194,9 +194,8 @@ message CollectionsDescriptor {
 }
 
 message FrameInfo {
-  int32 width = 1;
-  int32 height = 2;
-  int32 channels = 3;
+  repeated int32 shape = 1;
+  int32 type = 2;
 }
 
 message MachineParameters {

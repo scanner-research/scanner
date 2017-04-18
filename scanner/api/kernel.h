@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "scanner/api/frame.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 
@@ -22,26 +23,64 @@
 
 namespace scanner {
 
-using proto::FrameInfo;
+//! Element in a Scanner table, byte buffer of arbitrary size.
+struct Element {
+  inline Frame* as_frame() { return reinterpret_cast<Frame*>(buffer); }
+  inline const Frame* as_const_frame() const {
+    return reinterpret_cast<Frame*>(buffer);
+  }
+  inline FrameInfo* as_frame_info() {
+    return reinterpret_cast<FrameInfo*>(buffer);
+  }
+  inline const FrameInfo* as_const_frame_info() const {
+    return reinterpret_cast<FrameInfo*>(buffer);
+  }
 
-//! Row in a Scanner table, byte buffer of arbitrary size.
-struct Row {
+  Element() = default;
+  Element(const Element&) = default;
+  Element(Element&&) = default;
+  Element& operator=(const Element&) = default;
+
+  Element(u8* buffer, size_t size);
+  Element(Frame* frame);
+
   u8* buffer;
   size_t size;
+  bool is_frame;
 };
 
-//! Each column is a RowList.
-struct RowList {
-  std::vector<Row> rows;
-};
+using ElementList = std::vector<Element>;
+using BatchedColumns = std::vector<ElementList>;
 
-using BatchedColumns = std::vector<RowList>;
+#define NUM_ROWS(column__) (column__.size())
+
+#define ROW_BUFFER(column__, element__) (column__[element__].buffer)
+
+#define ROW_SIZE(column__, element__) (column__[element__].size)
+
+#define INSERT_ELEMENT(column__, buffer__, size__) \
+  column__.push_back(::scanner::Element{buffer__, size__})
+
+#define INSERT_FRAME(column__, frame__) \
+  column__.push_back(::scanner::Element{frame__})
+
+#define DELETE_ELEMENT(device__, element__)      \
+  do {                                           \
+    if (element__.is_frame) {                    \
+      Frame* frame = element__.as_frame();       \
+      delete_buffer(device__, frame->data);      \
+      delete frame;                              \
+    } else {                                     \
+      delete_buffer(device__, element__.buffer); \
+    }                                            \
+  } while (0);
 
 /**
  * @brief Interface for a unit of computation in a pipeline.
  *
  * Kernels form the core of Scanner's interface. They are essentially
- * functions that take rows of inputs and produce an equal number rows of
+ * functions that take elements of inputs and produce an equal number elements
+ * of
  * outputs. Kernels are stateful operators that get reset when provided
  * non-contiguous batches of input. See KernelFactory for how an op
  * defines what hardware it can use for its computation.
@@ -85,17 +124,19 @@ class Kernel {
   virtual void reset(){};
 
   /**
-   * @brief Runs the op on input rows and produces equal number of
-   *        output rows.
+   * @brief Runs the op on input elements and produces equal number of
+   *        output elements.
    *
    * @param input_columns
-   *        vector of columns, where each column is a vector of inputs and each
+   *        vector of columns, where each column is a vector of inputs and
+   * each
    *        input is a byte array
    * @param output_columns
    *        op output, each column must have same length as the number of
-   *        input rows
+   *        input elements
    *
-   * Evaluate gets run on batches of inputs. At the beginning of a pipeline this
+   * Evaluate gets run on batches of inputs. At the beginning of a pipeline
+   * this
    * is raw RGB images from the input images/videos, and after that the input
    * becomes whatever was returned by the previous op.
    *
@@ -128,20 +169,15 @@ class VideoKernel : public Kernel {
    * frame info column. If the frame info changes, e.g. the kernel is processing
    * a new video, then this calls new_frame_info which you can override.
    */
-  void check_frame_info(const DeviceHandle& device, const RowList& row_list);
+  void check_frame(const DeviceHandle& device, const Element& element);
+
+  void check_frame_info(const DeviceHandle& device, const Element& element);
 
   //! Callback for if frame info changes.
   virtual void new_frame_info(){};
 
   FrameInfo frame_info_;
 };
-
-#define ROW_BUFFER(column__, row__) (column__.rows[row__].buffer)
-
-#define ROW_SIZE(column__, row__) (column__.rows[row__].size)
-
-#define INSERT_ROW(column__, buffer__, size__) \
-  column__.rows.push_back(::scanner::Row{buffer__, size__})
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Implementation Details

@@ -10,8 +10,8 @@ class FacenetKernel : public CaffeKernel {
 
   void net_config() override {
     // Calculate width by scaling by box size
-    int resize_width = std::floor(frame_info_.width() * scale_);
-    int resize_height = std::floor(frame_info_.height() * scale_);
+    int resize_width = std::floor(frame_info_.shape[1] * scale_);
+    int resize_height = std::floor(frame_info_.shape[2] * scale_);
 
     if (resize_width % 8 != 0) {
       resize_width += 8 - (resize_width % 8);
@@ -46,8 +46,9 @@ class FacenetKernel : public CaffeKernel {
 };
 
 REGISTER_OP(Facenet)
-    .inputs({"facenet_input", "frame_info"})
-    .outputs({"facenet_output"});
+  .frame_input("facenet_input")
+  .frame_output("facenet_output");
+
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::GPU).num_devices(1);
 }

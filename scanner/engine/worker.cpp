@@ -90,7 +90,7 @@ void analyze_dag(
     }
     const auto& op_info = op_registry->get_op_info(op.name());
     for (const auto& output_column : op_info->output_columns()) {
-      intermediates[i].push_back(std::make_tuple(output_column, i));
+      intermediates[i].push_back(std::make_tuple(output_column.name(), i));
     }
   }
 
@@ -137,10 +137,10 @@ void analyze_dag(
             if (j == i) {
               // This op has an unused output
               i32 col_index = -1;
-              const std::vector<std::string>& op_cols =
+              const std::vector<Column>& op_cols =
                 op_registry->get_op_info(op.name())->output_columns();
               for (size_t k = 0; k < op_cols.size(); k++) {
-                if (col_name == op_cols[k]) {
+                if (col_name == op_cols[k].name()) {
                   col_index = k;
                   break;
                 }
@@ -322,9 +322,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     kernel_config.node_count = node_count;
     kernel_config.args =
       std::vector<u8>(op.kernel_args().begin(), op.kernel_args().end());
-    const std::vector<std::string>& output_columns = op_info->output_columns();
-    kernel_config.output_columns =
-      std::vector<std::string>(output_columns.begin(), output_columns.end());
+    const std::vector<Column>& output_columns = op_info->output_columns();
+    for (auto& col : output_columns) {
+      kernel_config.output_columns.push_back(col.name());
+    }
 
     for (auto& input : op.inputs()) {
       const proto::Op& input_op = ops.Get(input.op_index());

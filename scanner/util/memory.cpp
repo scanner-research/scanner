@@ -48,14 +48,14 @@ namespace scanner {
 //
 // 3. Block allocations allow ops to allocate a single block of memory
 // for
-//    their returned rows instead of allocating individually for each row. This
+//    their returned elements instead of allocating individually for each element. This
 //    again reduces the number of cudaMallocs if not using a memory pool.
 //    Regardless of pool usage, blocks can also be copied in a single memcpy
 //    instead of many, which reduces memcpy calls. To avoid complexity in the
-//    core Scanner engine, it is oblivious to whether a u8* in an output row
+//    core Scanner engine, it is oblivious to whether a u8* in an output element
 //    is from a block or an individual allocation. Instead, the allocation
 //    runtime does reference counting when the engine calls free on a memory
-//    block, e.g. if a memory block is allocated for 96 rows (96 different
+//    block, e.g. if a memory block is allocated for 96 elements (96 different
 //    pointers in the same block), then each free to a pointer into the block
 //    decrements a reference counter until freeing the block at 0 refs.
 //
