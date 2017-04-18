@@ -346,41 +346,10 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   i32 warmup_size = 0;
   i32 total_rows = 0;
 
-  proto::JobDescriptor job_descriptor;
-  job_descriptor.set_io_item_size(io_item_size);
-  job_descriptor.set_work_item_size(work_item_size);
-  job_descriptor.set_num_nodes(workers_.size());
-
-  // Get output columns from last output op
-  auto& ops = job_params->task_set().ops();
-  // OpRegistry* op_registry = get_op_registry();
-  // OpInfo* output_op = op_registry->get_op_info(
-  //   ops.Get(ops.size()-1).name());
-  // const std::vector<std::string>& output_columns =
-  //   output_op->output_columns();
-  auto& last_op = ops.Get(ops.size() - 1);
-  assert(last_op.name() == "OutputTable");
-  std::vector<std::string> output_columns;
-  for (const auto& eval_input : last_op.inputs()) {
-    for (const std::string& name : eval_input.columns()) {
-      output_columns.push_back(name);
-    }
-  }
-  for (size_t i = 0; i < output_columns.size(); ++i) {
-    auto& col_name = output_columns[i];
-    Column* col = job_descriptor.add_columns();
-    col->set_id(i);
-    col->set_name(col_name);
-    col->set_type(ColumnType::Other);
-  }
-
   DatabaseMetadata meta =
     read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   DatabaseMetadata meta_copy =
     read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-
-  auto& tasks = job_params->task_set().tasks();
-  job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
   validate_task_set(meta, job_params->task_set(), job_result);
   if (!job_result->success()) {
@@ -388,18 +357,80 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     return grpc::Status::OK;
   }
 
-  // Add job name into database metadata so we can look up what jobs have
-  // been ran
-  i32 job_id = meta.add_job(job_params->job_name());
-  job_descriptor.set_id(job_id);
-  job_descriptor.set_name(job_params->job_name());
-
   // Read all table metadata
   for (const std::string& table_name : meta.table_names()) {
     std::string table_path =
       TableMetadata::descriptor_path(meta.get_table_id(table_name));
     table_metas_[table_name] = read_table_metadata(storage_, table_path);
   }
+
+  // Get output columns from last output op
+  std::vector<Column> input_table_columns;
+  {
+    for (auto& sample : job_params->task_set().tasks(0).samples()) {
+      TableMetadata& table = table_metas_[sample.table_name()];
+      std::vector<Column> table_columns = table.columns();
+      for (const std::string& c : sample.column_names()) {
+        for (Column& col : table_columns) {
+          if (c == col.name()) {
+            Column new_col;
+            new_col.CopyFrom(col);
+            new_col.set_id(input_table_columns.size());
+            input_table_columns.push_back(new_col);
+          }
+        }
+      }
+    }
+  }
+
+  auto& ops = job_params->task_set().ops();
+  OpRegistry* op_registry = get_op_registry();
+  auto& last_op = ops.Get(ops.size() - 1);
+  assert(last_op.name() == "OutputTable");
+  std::vector<Column> output_columns;
+  for (const auto& eval_input : last_op.inputs()) {
+    auto& input_op = ops.Get(eval_input.op_index());
+    std::vector<Column> input_columns;
+    if (input_op.name() == "InputTable") {
+      input_columns = input_table_columns;
+    } else {
+      OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
+      input_columns = input_op_info->output_columns();
+    }
+    for (const std::string& name : eval_input.columns()) {
+      bool found = false;
+      for (auto& col : input_columns) {
+        if (col.name() == name) {
+          Column c;
+          c.set_id(output_columns.size());
+          c.set_name(name);
+          c.set_type(col.type());
+          output_columns.push_back(c);
+          found = true;
+          break;
+        }
+      }
+      assert(found);
+    }
+  }
+  proto::JobDescriptor job_descriptor;
+  job_descriptor.set_io_item_size(io_item_size);
+  job_descriptor.set_work_item_size(work_item_size);
+  job_descriptor.set_num_nodes(workers_.size());
+
+  for (size_t i = 0; i < output_columns.size(); ++i) {
+    Column* col = job_descriptor.add_columns();
+    col->CopyFrom(output_columns[i]);
+  }
+
+  auto& tasks = job_params->task_set().tasks();
+  job_descriptor.mutable_tasks()->CopyFrom(tasks);
+
+  // Add job name into database metadata so we can look up what jobs have
+  // been ran
+  i32 job_id = meta.add_job(job_params->job_name());
+  job_descriptor.set_id(job_id);
+  job_descriptor.set_name(job_params->job_name());
 
   total_samples_used_ = 0;
   total_samples_ = 0;
@@ -413,16 +444,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
         .count());
     // Set columns equal to the last op's output columns
     for (size_t i = 0; i < output_columns.size(); ++i) {
-      const std::string info_prefix = "frame_info";
       Column* col = table_desc.add_columns();
-      col->set_id(i);
-      col->set_name(output_columns[i]);
-      col->set_type(ColumnType::Other);
-      if (i + 1 < output_columns.size() &&
-          output_columns[i + 1].compare(0, info_prefix.size(), info_prefix) ==
-            0) {
-        col->set_type(ColumnType::Video);
-      }
+      col->CopyFrom(output_columns[i]);
     }
     table_metas_[task.output_table_name()] = TableMetadata(table_desc);
     std::vector<i64> end_rows;

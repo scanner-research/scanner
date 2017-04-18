@@ -63,6 +63,7 @@ void* save_thread(void* arg) {
 
 
     // Write out each output column to an individual data file
+    i32 video_col_idx = 0;
     for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
       u64 num_elements = static_cast<u64>(work_entry.columns[out_idx].size());
 
@@ -87,19 +88,19 @@ void* save_thread(void* arg) {
       i64 size_written = 0;
       if (work_entry.column_types[out_idx] == ColumnType::Video) {
         // Read frame info column
-        FrameInfo frame_info =
-          work_entry.columns[out_idx][0].as_frame()->as_frame_info();
+        assert(work_entry.columns[out_idx].size() > 0);
+        FrameInfo frame_info = work_entry.frame_sizes[video_col_idx];
         assert(frame_info.channels() == 3);
         assert(frame_info.type == FrameType::U8);
 
         H264ByteStreamIndexCreator index_creator(output_file);
         for (size_t i = 0; i < num_elements; ++i) {
-          Frame* frame = work_entry.columns[out_idx][i].as_frame();
-          if (!index_creator.feed_packet(frame->data, frame->size())) {
+          Element& element = work_entry.columns[out_idx][i];
+          if (!index_creator.feed_packet(element.buffer, element.size)) {
             LOG(FATAL) << "Error in save worker h264 index creator: "
                        << index_creator.error_message();
           }
-          size_written += frame->size();
+          size_written += element.size;
         }
 
         i64 frame = index_creator.frames();
@@ -140,6 +141,7 @@ void* save_thread(void* arg) {
 
         // Save our metadata for the frame column
         write_video_metadata(storage, video_meta);
+        video_col_idx++;
       } else {
         // Write number of elements in the file
         s_write(output_file, num_elements);

@@ -62,8 +62,8 @@ cv::Mat frame_to_mat(const Frame* frame) {
 }
 
 cv::Mat frame_to_mat(Frame* frame) {
-  return cv::Mat(frame->shape[1], frame->shape[2],
-                 frame_to_cv_type(frame->type, frame->shape[0]), frame->data);
+  return cv::Mat(frame->height(), frame->width(),
+                 frame_to_cv_type(frame->type, frame->channels()), frame->data);
 }
 
 cv::Mat bytesToImage(u8* buf, const FrameInfo& metadata) {
@@ -77,9 +77,9 @@ cvc::GpuMat frame_to_gpu_mat(const Frame* frame) {
 }
 
 cvc::GpuMat frame_to_gpu_mat(Frame* frame) {
-  return cvc::GpuMat(frame->shape[1], frame->shape[2],
-                    frame_to_cv_type(frame->type, frame->shape[0]),
-                    frame->data);
+  return cvc::GpuMat(frame->height(), frame->width(),
+                     frame_to_cv_type(frame->type, frame->channels()),
+                     frame->data);
 }
 
 cvc::GpuMat bytesToImage_gpu(u8* buf, const FrameInfo& metadata) {

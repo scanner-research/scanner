@@ -243,6 +243,17 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
+  // Load table metadata for use in other operations
+  // TODO(apoms): only load needed tables
+  DatabaseMetadata meta =
+    read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+  std::map<std::string, TableMetadata> table_meta;
+  for (const std::string& table_name : meta.table_names()) {
+    std::string table_path =
+      TableMetadata::descriptor_path(meta.get_table_id(table_name));
+    table_meta[table_name] = read_table_metadata(storage_, table_path);
+  }
+
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
   i32 node_count = job_params->global_total();
@@ -267,6 +278,16 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<std::vector<i32>> column_mapping;
   analyze_dag(job_params->task_set(), live_columns, dead_columns,
               unused_outputs, column_mapping);
+
+  // Read final output columns for use in post-evaluate worker
+  // (needed for determining column types)
+  std::vector<Column> final_output_columns;
+  {
+    std::string output_name =
+      job_params->task_set().tasks(0).output_table_name();
+    TableMetadata& table = table_meta[output_name];
+    final_output_columns = table.columns();
+  }
 
   // Setup kernel factories and the kernel configs that will be used
   // to instantiate instances of the op pipeline
@@ -445,16 +466,6 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     memory_pool_initialized_ = true;
   }
 
-  // Load table metadata for use in constructing io items
-  DatabaseMetadata meta =
-    read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-  std::map<std::string, TableMetadata> table_meta;
-  for (const std::string& table_name : meta.table_names()) {
-    std::string table_path =
-      TableMetadata::descriptor_path(meta.get_table_id(table_name));
-    table_meta[table_name] = read_table_metadata(storage_, table_path);
-  }
-
   // Setup shared resources for distributing work to processing threads
   i64 accepted_items = 0;
   Queue<std::tuple<IOItem, LoadWorkEntry>> load_work;
@@ -609,8 +620,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
         // Per worker arguments
         ki, eval_thread_profilers.back(), column_mapping.back(),
-
-            column_names,
+        final_output_columns,
 
         // Queues
         *input_work_queue, *output_work_queue});

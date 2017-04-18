@@ -119,10 +119,10 @@ class Column:
                     return png_table.load(['png'], parsers.image)
             pair = [(self._table.name(), png_table_name)]
             if rows is None:
-                frame, frame_info = self._table.as_op().all()
+                frame = self._table.as_op().all()
             else:
-                frame, frame_info = self._table.as_op().gather(rows)
-            img = self._db.ops.ImageEncoder(frame = frame, frame_info = frame_info)
+                frame = self._table.as_op().gather(rows)
+            img = self._db.ops.ImageEncoder(frame = frame)
             job = Job(columns = [img], name = png_table_name)
             [out_tbl] = self._db.run([job], force=True, show_progress=False)
             return out_tbl.load(['png'], parsers.image)
