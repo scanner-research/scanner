@@ -50,6 +50,8 @@ struct EvalWorkEntry {
   bool needs_reset;
   bool last_in_io_item;
   i64 warmup_rows;
+  // Only for save worker
+  std::vector<FrameInfo> frame_sizes;
 };
 
 struct DatabaseParameters {

@@ -24,42 +24,31 @@ with Database() as db:
     print('Running blur + encode...')
     in_collection = db.collection('example')
 
-    frame, frame_info = in_collection.tables(0).as_op().range(0, 100)
-    blur_frame, blur_info = db.ops.Blur(frame = frame,
-                       frame_info = frame_info,
-                       kernel_size = 5,
-                       sigma = 1)
-    job = Job(columns = [blur_frame, blur_info], name = 'encode_example')
+    frame = in_collection.tables(0).as_op().range(0, 100)
+    print(frame)
+    blur_frame = db.ops.Blur(frame = frame, kernel_size = 5, sigma = 1)
+    # compressed_frame = blur_frame.compress(bitrate = 10 * 1024)
+    # job = Job(columns = [compressed_frame], name = 'encode_example')
+    job = Job(columns = [blur_frame], name = 'encode_example')
     blurred_table = db.run(job, True)
 
+    frame = blurred_table.as_op().range(0, 100)
+    blur_frame = db.ops.Blur(frame = frame, kernel_size = 5, sigma = 1)
+    job = Job(columns = [blur_frame], name = 'encode_example2')
+    blurred_table2 = db.run(job, True)
 
-    frame, frame_info = blurred_table.as_op().range(0, 100)
-    blur_frame, blur_info = db.ops.Blur(frame = frame,
-                       frame_info = frame_info,
-                       kernel_size = 5,
-                       sigma = 1)
-    job = Job(columns = [blur_frame, blur_info], name = 'encode_example2')
-    collection2 =  db.run(job, True)
+    orig_frames = [f[1] for f in in_collection.tables(0).columns('frame').load()]
 
-    # collection_double = db.run(in_collection, out,
-    #                     'encode_example_double', force=True)
+    blur_frames = [f[1] for f in blurred_table.columns('frame').load()]
 
-    # collection2 = db.run(collection, out,
-    #                      'encode_example2', force=True)
+    blur2_frames = [f[1] for f in blurred_table2.columns('frame').load()]
 
+    i = 0
+    for o, b1, b2 in izip(orig_frames, blur_frames, blur2_frames):
+        f1 = o
+        f2 = b1
+        f3 = b2
 
-    # orig_frames = [f[1] for f in in_collection.tables(0).columns('frame').load()]
-
-    # blur_frames = [f[1] for f in collection.tables(0).columns('frame').load()]
-
-    # blur2_frames = [f[1] for f in collection2.tables(0).columns('frame').load()]
-
-    # i = 0
-    # for o, b1, b2 in izip(orig_frames, blur_frames, blur2_frames):
-    #     f1 = o
-    #     f2 = b1
-    #     f3 = b2
-
-    #     f = np.vstack((f1, f2, f3))
-    #     cv2.imwrite('blur_{:04d}.png'.format(i), f)
-    #     i += 1
+        f = np.vstack((f1, f2, f3))
+        cv2.imwrite('blur_{:04d}.png'.format(i), f)
+        i += 1

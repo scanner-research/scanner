@@ -33,10 +33,10 @@ class OpGenerator:
                 inputs.extend(args)
             else:
                 for c in op_info.input_columns:
-                    val = kwargs.pop(c, None)
+                    val = kwargs.pop(c.name, None)
                     if val is None:
                         raise ScannerException('Op {} required column {} as input'
-                                               .format(name, c))
+                                               .format(name, c.name))
                     inputs.append(val)
             device = kwargs.pop('device', DeviceType.CPU)
             args = kwargs.pop('args', None)
@@ -72,7 +72,7 @@ class Op:
             cols = [OpColumn(self, c) for c in self._inputs][1:]
         else:
             cols = self._db._get_output_columns(self._name)
-            cols = [OpColumn(self, c) for c in cols]
+            cols = [OpColumn(self, c.name) for c in cols]
         if len(cols) == 1:
             return cols[0]
         else:

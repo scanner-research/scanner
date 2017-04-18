@@ -96,8 +96,8 @@ SoftwareVideoDecoder::~SoftwareVideoDecoder() {
 
 void SoftwareVideoDecoder::configure(const FrameInfo& metadata) {
   metadata_ = metadata;
-  frame_width_ = metadata_.shape[1];
-  frame_height_ = metadata_.shape[2];
+  frame_width_ = metadata_.width();
+  frame_height_ = metadata_.height();
   reset_context_ = true;
 
   int required_size = av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame_width_,
@@ -203,8 +203,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   }
 
   if (sws_context_ == NULL) {
-    fprintf(stderr, "Could not get sws_context for rgb conversion\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Could not get sws_context for rgb conversion";
   }
 
   u8* scale_buffer = decoded_buffer;
@@ -215,18 +214,15 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
       av_image_fill_arrays(out_slices, out_linesizes, scale_buffer,
                            AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
   if (required_size < 0) {
-    fprintf(stderr, "Error in av_image_fill_arrays\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Error in av_image_fill_arrays";
   }
   if (required_size > decoded_size) {
-    fprintf(stderr, "Decode buffer not large enough for image\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Decode buffer not large enough for image";
   }
   auto scale_start = now();
   if (sws_scale(sws_context_, frame->data, frame->linesize, 0, frame->height,
                 out_slices, out_linesizes) < 0) {
-    fprintf(stderr, "sws_scale failed\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "sws_scale failed";
   }
   auto scale_end = now();
 
@@ -255,7 +251,7 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
       char err_msg[256];
       av_strerror(error, err_msg, 256);
       fprintf(stderr, "Error while sending packet (%d): %s\n", error, err_msg);
-      assert(false);
+      LOG(FATAL) << "Error while sending packet";
     }
   }
   auto send_end = now();
@@ -291,7 +287,7 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
       char err_msg[256];
       av_strerror(error, err_msg, 256);
       fprintf(stderr, "Error while receiving frame (%d): %s\n", error, err_msg);
-      exit(1);
+      LOG(FATAL) << "Error while receiving frame";
     }
   }
   auto received_end = now();
@@ -326,7 +322,7 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
       av_strerror(consumed_length, err_msg, 256);
       fprintf(stderr, "Error while decoding frame (%d): %s\n", consumed_length,
               err_msg);
-      assert(false);
+      LOG(FATAL) << "Error while decoding frame";
     }
     if (got_picture) {
       if (!flush) {
