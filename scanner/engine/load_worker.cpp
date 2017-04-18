@@ -205,7 +205,8 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
 }
 
 void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
-                       const std::vector<i64>& rows, RowList& row_list) {
+                       const std::vector<i64>& rows,
+                       ElementList& element_list) {
   RandomReadFile* video_file = index_entry.file.get();
   u64 file_size = index_entry.file_size;
   const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
@@ -275,7 +276,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);
     bool result = decode_args.SerializeToArray(decode_args_buffer, size);
     assert(result);
-    INSERT_ROW(row_list, decode_args_buffer, size);
+    INSERT_ELEMENT(element_list, decode_args_buffer, size);
 
     delete_buffer(CPU_DEVICE, buffer);
   }
@@ -283,7 +284,8 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
 
 void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
                        i32 column_id, i32 item_id, i32 item_start, i32 item_end,
-                       const std::vector<i64>& rows, RowList& row_list) {
+                       const std::vector<i64>& rows,
+                       ElementList& element_list) {
   const std::vector<i64>& valid_offsets = rows;
 
   std::unique_ptr<RandomReadFile> file;
@@ -294,40 +296,40 @@ void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
   u64 file_size = 0;
   BACKOFF_FAIL(file->get_size(file_size));
 
-  // Read number of rows in file
+  // Read number of elements in file
   u64 pos = 0;
-  u64 num_rows = s_read<u64>(file.get(), pos);
+  u64 num_elements = s_read<u64>(file.get(), pos);
 
-  // Read row sizes from work item file header
-  std::vector<i64> row_sizes(num_rows);
-  s_read(file.get(), reinterpret_cast<u8*>(row_sizes.data()),
-         row_sizes.size() * sizeof(i64), pos);
+  // Read element sizes from work item file header
+  std::vector<i64> element_sizes(num_elements);
+  s_read(file.get(), reinterpret_cast<u8*>(element_sizes.data()),
+         element_sizes.size() * sizeof(i64), pos);
 
-  // Determine start and end position of rows to read in file
+  // Determine start and end position of elements to read in file
   u64 start_offset = 0;
   for (i64 i = 0; i < item_start; ++i) {
-    start_offset += row_sizes[i];
+    start_offset += element_sizes[i];
   }
   u64 end_offset = start_offset;
   for (i64 i = item_start; i < item_end; ++i) {
-    end_offset += row_sizes[i];
+    end_offset += element_sizes[i];
   }
-  u64 row_data_size = end_offset - start_offset;
-  std::vector<u8> row_data(row_data_size);
+  u64 element_data_size = end_offset - start_offset;
+  std::vector<u8> element_data(element_data_size);
 
-  // Read chunk of file corresponding to requested rows
+  // Read chunk of file corresponding to requested elements
   pos += start_offset;
-  s_read(file.get(), row_data.data(), row_data.size(), pos);
+  s_read(file.get(), element_data.data(), element_data.size(), pos);
 
-  // Extract individual rows and insert into output work entry
+  // Extract individual elements and insert into output work entry
   u64 offset = 0;
   size_t valid_idx = 0;
   for (i32 i = item_start; i < item_end; ++i) {
-    size_t buffer_size = static_cast<size_t>(row_sizes[i]);
+    size_t buffer_size = static_cast<size_t>(element_sizes[i]);
     if (i == valid_offsets[valid_idx]) {
       u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-      memcpy(buffer, row_data.data() + offset, buffer_size);
-      INSERT_ROW(row_list, buffer, buffer_size);
+      memcpy(buffer, element_data.data() + offset, buffer_size);
+      INSERT_ELEMENT(element_list, buffer, buffer_size);
       valid_idx++;
     }
     offset += buffer_size;
@@ -433,39 +435,6 @@ void* load_thread(void* arg) {
                               eval_work_entry.columns[out_col_idx]);
           }
           media_col_idx++;
-        } else if (col_id > 0 &&
-                   // Convention is that frame info column is immediately
-                   // after frame column
-                   table_meta.column_type(col_id - 1) == ColumnType::Video) {
-          // video meta column
-          auto key = std::make_tuple(table_id, col_id - 1, 0);
-          if (index.count(key) == 0) {
-            index[key] = read_video_index(storage, table_id, col_id - 1, 0);
-          }
-          const VideoIndexEntry& entry = index.at(key);
-
-          proto::FrameInfo frame_info;
-          frame_info.set_width(entry.width);
-          frame_info.set_height(entry.height);
-          frame_info.set_channels(3);
-
-          size_t frame_info_size = frame_info.ByteSize();
-          size_t total_rows = 0;
-          for (size_t i = 0; i < num_items; ++i) {
-            total_rows += intervals.valid_offsets[i].size();
-          }
-          u8* buffer = new_block_buffer(
-              CPU_DEVICE, frame_info_size * total_rows, total_rows);
-          total_rows = 0;
-          for (size_t i = 0; i < num_items; ++i) {
-            for (size_t j = 0; j < intervals.valid_offsets[i].size(); ++j) {
-              u8* b = buffer + frame_info_size * (j + total_rows);
-              frame_info.SerializeToArray(b, frame_info_size);
-              INSERT_ROW(eval_work_entry.columns[out_col_idx], b,
-                         frame_info_size);
-            }
-            total_rows += intervals.valid_offsets[i].size();
-          }
         } else {
           // regular column
           for (size_t i = 0; i < num_items; ++i) {

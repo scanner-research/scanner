@@ -44,27 +44,26 @@ class BlurKernel : public VideoKernel {
   void validate(Result* result) override { result->CopyFrom(valid_); }
 
   void new_frame_info() {
-    frame_width_ = frame_info_.width();
-    frame_height_ = frame_info_.height();
+    frame_width_ = frame_info_.shape[1];
+    frame_height_ = frame_info_.shape[2];
   }
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(CPU_DEVICE, frame_info_col);
+    check_frame(CPU_DEVICE, frame_col[0]);
 
-    i32 input_count = (i32)frame_col.rows.size();
+    i32 input_count = (i32)NUM_ROWS(frame_col);
     i32 width = frame_width_;
     i32 height = frame_height_;
     size_t frame_size = width * height * 3 * sizeof(u8);
+    FrameInfo info = frame_col[0].as_const_frame()->as_frame_info();
 
+    std::vector<Frame*> output_frames =
+      new_frames(CPU_DEVICE, info, input_count);
     for (i32 i = 0; i < input_count; ++i) {
-      u8* input_buffer = frame_col.rows[i].buffer;
-      u8* output_buffer = new u8[frame_size];
-
-      u8* frame_buffer = input_buffer;
-      u8* blurred_buffer = (output_buffer);
+      const u8* frame_buffer = frame_col[i].as_const_frame()->data;
+      u8* blurred_buffer = output_frames[i]->data;
       for (i32 y = filter_left_; y < height - filter_right_; ++y) {
         for (i32 x = filter_left_; x < width - filter_right_; ++x) {
           for (i32 c = 0; c < 3; ++c) {
@@ -80,19 +79,7 @@ class BlurKernel : public VideoKernel {
           }
         }
       }
-      output_columns[0].rows.push_back(Row{output_buffer, frame_size});
-    }
-    FrameInfo info;
-    info.set_width(frame_width_);
-    info.set_height(frame_height_);
-    u8* buffer = new_block_buffer(CPU_DEVICE, info.ByteSize() * input_count,
-                                  input_count);
-    for (i32 i = 0; i < input_count; ++i) {
-      Row row;
-      row.buffer = buffer + i * info.ByteSize();
-      row.size = info.ByteSize();
-      info.SerializeToArray(row.buffer, row.size);
-      output_columns[1].rows.push_back(row);
+      INSERT_FRAME(output_columns[0], output_frames[i]);
     }
   }
 
@@ -108,8 +95,8 @@ class BlurKernel : public VideoKernel {
 };
 
 REGISTER_OP(Blur)
-    .inputs({"frame", "frame_info"})
-    .outputs({"frame", "frame_info"});
+  .frame_input("frame")
+  .frame_output("frame");
 
 REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 }

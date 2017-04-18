@@ -280,8 +280,8 @@ void CaffeKernel::validate(proto::Result* result) {
 }
 
 void CaffeKernel::new_frame_info() {
-  i32 frame_width = frame_info_.width();
-  i32 frame_height = frame_info_.height();
+  i32 frame_width = frame_info_.shape[0];
+  i32 frame_height = frame_info_.shape[1];
 
   set_device();
 
@@ -332,7 +332,7 @@ void CaffeKernel::new_frame_info() {
 
 void CaffeKernel::execute(const BatchedColumns& input_columns,
                           BatchedColumns& output_columns) {
-  check_frame_info(device_, input_columns.back());
+  check_frame(device_, input_columns[0][0]);
   set_device();
 
   auto& descriptor = args_.net_descriptor();
@@ -348,7 +348,7 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
   }
 
   size_t num_outputs = descriptor.output_layer_names().size();
-  i32 input_count = (i32)input_columns[0].rows.size();
+  i32 input_count = (i32)input_columns[0].size();
   i32 batch_size = args_.batch_size();
   for (i32 frame = 0; frame < input_count; frame += batch_size) {
     i32 batch_count = std::min(input_count - frame, batch_size);
@@ -368,10 +368,10 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
 
       size_t offset = 0;
       for (i32 j = 0; j < batch_count; ++j) {
-        memcpy_buffer((u8*)net_input_buffer + offset, device_,
-                      input_columns[i].rows[frame + j].buffer, device_,
-                      input_columns[i].rows[frame + j].size);
-        offset += input_columns[i].rows[frame + j].size;
+        const Frame* fr = input_columns[i][frame + j].as_const_frame();
+        memcpy_buffer((u8*)net_input_buffer + offset, device_, fr->data,
+                      device_, fr->size());
+        offset += fr->size();
       }
     }
 
@@ -396,19 +396,22 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       const std::string& output_layer_name = descriptor.output_layer_names(i);
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
-      size_t output_length = output_blob->count() / batch_count;
-      size_t output_size = output_length * sizeof(float);
-      size_t total_size = output_size * batch_count;
 
-      u8* output_block = new_block_buffer(device_, total_size, batch_count);
+      FrameInfo info(output_blob->shape(3),
+                     output_blob->shape(2),
+                     output_blob->shape(1),
+                     FrameType::F32);
+      u8* output_block =
+        new_block_buffer(device_, info.size() * batch_count, batch_count);
 
       u8* src_buffer =
           (u8*)(device_.type == DeviceType::CPU ? output_blob->cpu_data()
                                                 : output_blob->gpu_data());
-      memcpy_buffer(output_block, device_, src_buffer, device_, total_size);
+      memcpy_buffer(output_block, device_, src_buffer, device_,
+                    info.size() * batch_count);
       for (i32 b = 0; b < batch_count; b++) {
-        output_columns[i].rows.push_back(
-            Row{output_block + output_size * b, output_size});
+        INSERT_FRAME(output_columns[i],
+                     new Frame(info, output_block + info.size() * b));
       }
     }
   }

@@ -64,7 +64,7 @@ void* save_thread(void* arg) {
 
     // Write out each output column to an individual data file
     for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
-      u64 num_rows = static_cast<u64>(work_entry.columns[out_idx].rows.size());
+      u64 num_elements = static_cast<u64>(work_entry.columns[out_idx].size());
 
       const std::string output_path = table_item_output_path(
           io_item.table_id(), out_idx, io_item.item_id());
@@ -74,8 +74,8 @@ void* save_thread(void* arg) {
       WriteFile* output_file = nullptr;
       BACKOFF_FAIL(storage->make_write_file(output_path, output_file));
 
-      if (work_entry.columns[out_idx].rows.size() != num_rows) {
-        LOG(FATAL) << "Output layer's row vector has wrong length";
+      if (work_entry.columns[out_idx].size() != num_elements) {
+        LOG(FATAL) << "Output layer's element vector has wrong length";
       }
 
       if (!work_entry.column_handles[out_idx].is_same_address_space(
@@ -83,17 +83,17 @@ void* save_thread(void* arg) {
         std::vector<u8*> dest_buffers, src_buffers;
         std::vector<size_t> sizes;
         size_t total_size = 0;
-        for (i32 f = 0; f < num_rows; ++f) {
-          Row& row = work_entry.columns[out_idx].rows[f];
-          total_size += row.size;
+        for (i32 f = 0; f < num_elements; ++f) {
+          Element& element = work_entry.columns[out_idx][f];
+          total_size += element.size;
         }
 
-        if (num_rows > 0) {
-          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_rows);
-          for (i32 f = 0; f < num_rows; ++f) {
-            Row& row = work_entry.columns[out_idx].rows[f];
-            size_t size = row.size;
-            u8* src_buffer = row.buffer;
+        if (num_elements > 0) {
+          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_elements);
+          for (i32 f = 0; f < num_elements; ++f) {
+            Element& element = work_entry.columns[out_idx][f];
+            size_t size = element.size;
+            u8* src_buffer = element.buffer;
             u8* dest_buffer = output_block;
 
             dest_buffers.push_back(dest_buffer);
@@ -106,9 +106,9 @@ void* save_thread(void* arg) {
           memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
                      work_entry.column_handles[out_idx], sizes);
 
-          for (i32 f = 0; f < num_rows; ++f) {
+          for (i32 f = 0; f < num_elements; ++f) {
             delete_buffer(work_entry.column_handles[out_idx], src_buffers[f]);
-            work_entry.columns[out_idx].rows[f].buffer = dest_buffers[f];
+            work_entry.columns[out_idx][f].buffer = dest_buffers[f];
           }
         }
       }
@@ -117,21 +117,13 @@ void* save_thread(void* arg) {
       i64 size_written = 0;
       if (work_entry.column_types[out_idx] == ColumnType::Video) {
         // Read frame info column
-        FrameInfo frame_info;
-        {
-          auto& rows = work_entry.columns[out_idx + 1].rows;
-          u8* buffer = new_buffer(CPU_DEVICE, rows[0].size);
-          memcpy_buffer((u8*)buffer, CPU_DEVICE, rows[0].buffer,
-                        work_entry.column_handles[out_idx + 1], rows[0].size);
-          bool parsed = frame_info.ParseFromArray(buffer, rows[0].size);
-          LOG_IF(FATAL, !parsed) << "Invalid frame info";
-          delete_buffer(CPU_DEVICE, buffer);
-        }
+        FrameInfo frame_info =
+          work_entry.columns[out_idx][0].as_frame()->as_frame_info();
 
         H264ByteStreamIndexCreator index_creator(output_file);
-        for (size_t i = 0; i < num_rows; ++i) {
-          i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-          u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
+        for (size_t i = 0; i < num_elements; ++i) {
+          i64 buffer_size = work_entry.columns[out_idx][i].size;
+          u8* buffer = work_entry.columns[out_idx][i].buffer;
           if (!index_creator.feed_packet(buffer, buffer_size)) {
             LOG(FATAL) << "Error in save worker h264 index creator: "
                        << index_creator.error_message();
@@ -156,8 +148,10 @@ void* save_thread(void* arg) {
         video_descriptor.set_column_id(out_idx);
         video_descriptor.set_item_id(io_item.item_id());
 
-        video_descriptor.set_width(frame_info.width());
-        video_descriptor.set_height(frame_info.height());
+        assert(frame_info.shape[0] == 3);
+        assert(frame_info.type == FrameType::U8);
+        video_descriptor.set_width(frame_info.shape[1]);
+        video_descriptor.set_height(frame_info.shape[2]);
         video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
         video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
 
@@ -178,18 +172,18 @@ void* save_thread(void* arg) {
         // Save our metadata for the frame column
         write_video_metadata(storage, video_meta);
       } else {
-        // Write number of rows in the file
-        s_write(output_file, num_rows);
+        // Write number of elements in the file
+        s_write(output_file, num_elements);
         // Write out all output sizes first so we can easily index into the file
-        for (size_t i = 0; i < num_rows; ++i) {
-          i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
+        for (size_t i = 0; i < num_elements; ++i) {
+          i64 buffer_size = work_entry.columns[out_idx][i].size;
           s_write(output_file, buffer_size);
           size_written += sizeof(i64);
         }
         // Write actual output data
-        for (size_t i = 0; i < num_rows; ++i) {
-          i64 buffer_size = work_entry.columns[out_idx].rows[i].size;
-          u8* buffer = work_entry.columns[out_idx].rows[i].buffer;
+        for (size_t i = 0; i < num_elements; ++i) {
+          i64 buffer_size = work_entry.columns[out_idx][i].size;
+          u8* buffer = work_entry.columns[out_idx][i].buffer;
           s_write(output_file, buffer, buffer_size);
           size_written += buffer_size;
         }
@@ -199,8 +193,8 @@ void* save_thread(void* arg) {
 
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
-      for (size_t i = 0; i < num_rows; ++i) {
-        delete_buffer(CPU_DEVICE, work_entry.columns[out_idx].rows[i].buffer);
+      for (size_t i = 0; i < num_elements; ++i) {
+        delete_buffer(CPU_DEVICE, work_entry.columns[out_idx][i].buffer);
       }
 
       delete output_file;

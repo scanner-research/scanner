@@ -24,20 +24,19 @@ class HistogramKernelGPU : public VideoKernel {
     planes_.clear();
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
-          cvc::GpuMat(frame_info_.height(), frame_info_.width(), CV_8UC1));
+          cvc::GpuMat(frame_info_.shape[2], frame_info_.shape[1], CV_8UC1));
     }
   }
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
 
     set_device();
-    check_frame_info(device_, frame_info_col);
+    check_frame(device_, frame_col[0]);
 
     size_t hist_size = BINS * 3 * sizeof(float);
-    i32 input_count = frame_col.rows.size();
+    i32 input_count = NUM_ROWS(frame_col);
     u8* output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
@@ -46,8 +45,7 @@ class HistogramKernelGPU : public VideoKernel {
       cv::cuda::Stream& s = streams_[sid];
 
       // TODO(wcrichto): implement correctly w/ streams
-      cvc::GpuMat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                      frame_col.rows[i].buffer);
+      cvc::GpuMat img = frame_to_gpu_mat(frame_col[i].as_const_frame());
       cvc::split(img, planes_);
 
       u8* output_buf = output_block + i * hist_size;
@@ -58,7 +56,7 @@ class HistogramKernelGPU : public VideoKernel {
                       0, 256);
       }
 
-      output_columns[0].rows.push_back(Row{output_buf, hist_size});
+      INSERT_ELEMENT(output_columns[0], output_buf, hist_size);
     }
 
     for (cv::cuda::Stream& s : streams_) {

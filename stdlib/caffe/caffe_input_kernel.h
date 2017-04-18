@@ -31,7 +31,7 @@ class CaffeInputKernel : public VideoKernel {
  protected:
   void set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size);
   void unset_halide_buf(buffer_t& halide_buf);
-  void transform_halide(u8* input_buffer, u8* output_buffer);
+  void transform_halide(const u8* input_buffer, u8* output_buffer);
   void transform_caffe(u8* input_buffer, u8* output_buffer);
 
   DeviceHandle device_;

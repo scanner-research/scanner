@@ -82,8 +82,8 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
 }
 
 void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
-  frame_width_ = metadata.width();
-  frame_height_ = metadata.height();
+  frame_width_ = metadata.shape[1];
+  frame_height_ = metadata.shape[2];
 
   CUcontext dummy;
 

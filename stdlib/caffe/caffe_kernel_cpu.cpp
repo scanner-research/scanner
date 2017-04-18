@@ -3,7 +3,8 @@
 namespace scanner {
 
 REGISTER_OP(Caffe)
-    .inputs({"caffe_frame", "frame_info"})
-    .outputs({"caffe_output"});
+    .frame_input("caffe_frame")
+    .frame_output("caffe_output");
+
 REGISTER_KERNEL(Caffe, CaffeKernel).device(DeviceType::CPU).num_devices(1);
 }

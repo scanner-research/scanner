@@ -11,15 +11,8 @@ class CPM2Kernel : public CaffeKernel {
       : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
-    // Calculate width by scaling by box size
-    int resize_width = frame_info_.width() * scale_;
-    int resize_height = frame_info_.height() * scale_;
-
-    int width_padding = (resize_width % 8) ? 8 - (resize_width % 8) : 0;
-    int height_padding = (resize_height % 8) ? 8 - (resize_height % 8) : 0;
-
-    int net_input_width = resize_width + width_padding;
-    int net_input_height = resize_height + height_padding;
+    int net_input_width = frame_info_.shape[0];
+    int net_input_height = frame_info_.shape[1];
 
     caffe::ImResizeLayer<float>* resize_layer =
         (caffe::ImResizeLayer<float>*)net_->layer_by_name("resize").get();
@@ -51,8 +44,10 @@ class CPM2Kernel : public CaffeKernel {
 };
 
 REGISTER_OP(CPM2)
-    .inputs({"cpm2_input", "frame_info"})
-    .outputs({"cpm2_resized_map", "cpm2_joints"});
+    .frame_input("cpm2_input")
+    .frame_output("cpm2_resized_map")
+    .frame_output("cpm2_joints");
+
 REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::GPU).num_devices(1);
 }

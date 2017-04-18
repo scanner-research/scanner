@@ -54,7 +54,7 @@ class KernelFactory {
 
   i32 get_warmup_size() const { return warmup_size_; }
 
-  /* @brief Constructs a kernel to be used for processing rows of data.
+  /* @brief Constructs a kernel to be used for processing elements of data.
    */
   Kernel* new_instance(const Kernel::Config& config) {
     return constructor_(config);

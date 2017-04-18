@@ -43,13 +43,13 @@ class YoloOutputKernel : public VideoKernel {
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    i32 input_count = input_columns[0].rows.size();
+    i32 input_count = (i32)NUM_ROWS(input_columns[0]);
     for (i32 i = 0; i < input_count; ++i) {
-      assert(input_columns[0].rows[i].size ==
+      assert(input_columns[0][i].as_const_frame()->size() ==
              (feature_vector_sizes_[0] + feature_vector_sizes_[1] +
               feature_vector_sizes_[2]));
       f32* category_confidences_vector =
-          reinterpret_cast<f32*>(input_columns[0].rows[i].buffer);
+          reinterpret_cast<f32*>(input_columns[0][i].as_const_frame()->data);
       f32* objectness_vector =
           category_confidences_vector + feature_vector_lengths_[0];
       f32* bbox_vector = objectness_vector += feature_vector_lengths_[1];
@@ -147,7 +147,7 @@ class YoloOutputKernel : public VideoKernel {
       size_t size;
       u8* buffer;
       serialize_bbox_vector(bboxes, buffer, size);
-      output_columns[0].rows.push_back(Row{buffer, size});
+      INSERT_ELEMENT(output_columns[0], buffer, size);
     }
   }
 
@@ -167,7 +167,8 @@ class YoloOutputKernel : public VideoKernel {
   double threshold_;
 };
 
-REGISTER_OP(YoloOutput).inputs({"caffe_output"}).outputs({"bboxes"});
+REGISTER_OP(YoloOutput).frame_input("caffe_output").output("bboxes");
+
 REGISTER_KERNEL(YoloOutput, YoloOutputKernel)
     .device(DeviceType::CPU)
     .num_devices(1);
