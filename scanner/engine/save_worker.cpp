@@ -78,40 +78,10 @@ void* save_thread(void* arg) {
         LOG(FATAL) << "Output layer's element vector has wrong length";
       }
 
-      if (!work_entry.column_handles[out_idx].is_same_address_space(
-              CPU_DEVICE)) {
-        std::vector<u8*> dest_buffers, src_buffers;
-        std::vector<size_t> sizes;
-        size_t total_size = 0;
-        for (i32 f = 0; f < num_elements; ++f) {
-          Element& element = work_entry.columns[out_idx][f];
-          total_size += element.size;
-        }
-
-        if (num_elements > 0) {
-          u8* output_block = new_block_buffer(CPU_DEVICE, total_size, num_elements);
-          for (i32 f = 0; f < num_elements; ++f) {
-            Element& element = work_entry.columns[out_idx][f];
-            size_t size = element.size;
-            u8* src_buffer = element.buffer;
-            u8* dest_buffer = output_block;
-
-            dest_buffers.push_back(dest_buffer);
-            src_buffers.push_back(src_buffer);
-            sizes.push_back(size);
-
-            output_block += size;
-          }
-
-          memcpy_vec(dest_buffers, CPU_DEVICE, src_buffers,
-                     work_entry.column_handles[out_idx], sizes);
-
-          for (i32 f = 0; f < num_elements; ++f) {
-            delete_buffer(work_entry.column_handles[out_idx], src_buffers[f]);
-            work_entry.columns[out_idx][f].buffer = dest_buffers[f];
-          }
-        }
-      }
+      // Ensure the data is on the CPU
+      move_if_different_address_space(args.profiler,
+                                      work_entry.column_handles[out_idx],
+                                      CPU_DEVICE, work_entry.columns[out_idx]);
 
       // If this is a video...
       i64 size_written = 0;
@@ -119,16 +89,17 @@ void* save_thread(void* arg) {
         // Read frame info column
         FrameInfo frame_info =
           work_entry.columns[out_idx][0].as_frame()->as_frame_info();
+        assert(frame_info.channels() == 3);
+        assert(frame_info.type == FrameType::U8);
 
         H264ByteStreamIndexCreator index_creator(output_file);
         for (size_t i = 0; i < num_elements; ++i) {
-          i64 buffer_size = work_entry.columns[out_idx][i].size;
-          u8* buffer = work_entry.columns[out_idx][i].buffer;
-          if (!index_creator.feed_packet(buffer, buffer_size)) {
+          Frame* frame = work_entry.columns[out_idx][i].as_frame();
+          if (!index_creator.feed_packet(frame->data, frame->size())) {
             LOG(FATAL) << "Error in save worker h264 index creator: "
                        << index_creator.error_message();
           }
-          size_written += buffer_size;
+          size_written += frame->size();
         }
 
         i64 frame = index_creator.frames();
@@ -148,8 +119,6 @@ void* save_thread(void* arg) {
         video_descriptor.set_column_id(out_idx);
         video_descriptor.set_item_id(io_item.item_id());
 
-        assert(frame_info.channels() == 3);
-        assert(frame_info.type == FrameType::U8);
         video_descriptor.set_width(frame_info.width());
         video_descriptor.set_height(frame_info.height());
         video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
@@ -194,7 +163,7 @@ void* save_thread(void* arg) {
       // TODO(apoms): For now, all evaluators are expected to return CPU
       //   buffers as output so just assume CPU
       for (size_t i = 0; i < num_elements; ++i) {
-        delete_buffer(CPU_DEVICE, work_entry.columns[out_idx][i].buffer);
+        delete_element(CPU_DEVICE, work_entry.columns[out_idx][i]);
       }
 
       delete output_file;

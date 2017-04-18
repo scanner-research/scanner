@@ -31,29 +31,24 @@ class OpticalFlowKernelCPU : public VideoKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    check_frame_info(device_, frame_info_col);
+    check_frame(device_, frame_col[0]);
 
-    i32 input_count = (i32)frame_col.rows.size();
-    size_t out_buf_size =
-        frame_info_.width() * frame_info_.height() * 2 * sizeof(float);
+    i32 input_count = (i32)num_rows(frame_col);
 
-    u8* output_block =
-        new_block_buffer(device_, out_buf_size * input_count, input_count);
+    FrameInfo out_frame_info(frame_info_.height(), frame_info_.width(), 2,
+                             FrameType::F32);
+    std::vector<Frame*> frames =
+      new_frames(device_, out_frame_info, input_count);
 
     double start = CycleTimer::currentSeconds();
 
     for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                    input_columns[0].rows[i].buffer);
+      cv::Mat input = frame_to_mat(input_columns[0][i].as_const_frame());
       cv::cvtColor(input, grayscale_[i % 2], CV_BGR2GRAY);
-
-      cv::Mat flow(frame_info_.height(), frame_info_.width(), CV_32FC2,
-                   output_block + i * out_buf_size);
-
+      cv::Mat flow = frame_to_mat(frames[i]);
       if (i == 0) {
         if (initial_frame_.empty()) {
-          output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
+          insert_frame(output_columns[0], frames[i]);
           continue;
         } else {
           flow_finder_->calc(initial_frame_, grayscale_[0], flow);
@@ -61,8 +56,7 @@ class OpticalFlowKernelCPU : public VideoKernel {
       } else {
         flow_finder_->calc(grayscale_[(i - 1) % 2], grayscale_[i % 2], flow);
       }
-
-      output_columns[0].rows.push_back(Row{flow.data, out_buf_size});
+      insert_frame(output_columns[0], frames[i]);
     }
 
     grayscale_[(input_count - 1) % 2].copyTo(initial_frame_);
@@ -76,9 +70,9 @@ class OpticalFlowKernelCPU : public VideoKernel {
   i32 work_item_size_;
 };
 
-REGISTER_OP(OpticalFlow).inputs({"frame", "frame_info"}).outputs({"flow"});
+REGISTER_OP(OpticalFlow).frame_input("frame").frame_output("flow");
 
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
-    .device(DeviceType::CPU)
-    .num_devices(1);
+  .device(DeviceType::CPU)
+  .num_devices(1);
 }
