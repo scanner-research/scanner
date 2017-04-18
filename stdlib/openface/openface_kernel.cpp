@@ -28,9 +28,8 @@ class OpenFaceKernel : public VideoKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
-    auto& frame_info_col = input_columns[1];
-    auto& bbox_col = input_columns[2];
-    check_frame_info(CPU_DEVICE, frame_info_col);
+    auto& bbox_col = input_columns[1];
+    check_frame(CPU_DEVICE, frame_col);
 
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
@@ -43,8 +42,10 @@ class OpenFaceKernel : public VideoKernel {
 
     i32 input_count = frame_col.rows.size();
     for (i32 b = 0; b < input_count; ++b) {
-      cv::Mat img(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                  (u8*)frame_col.rows[b].buffer);
+      Frame* output_frame = new_frame(device_, frame_info_);
+      memcpy(output_frame->data, frame_col[b].as_const_frame()->data,
+             output_frame->size());
+      cv::Mat img = frame_to_mat(output_frame);
       cv::Mat grey;
       cv::cvtColor(img, grey, CV_BGR2GRAY);
       std::vector<BoundingBox> all_bboxes =
@@ -89,11 +90,7 @@ class OpenFaceKernel : public VideoKernel {
         }
       }
 
-      size_t size = frame_col.rows[b].size;
-      u8* output_buf = new_buffer(CPU_DEVICE, size);
-      memcpy_buffer(output_buf, CPU_DEVICE, frame_col.rows[b].buffer,
-                    CPU_DEVICE, size);
-      insert_element(output_columns[0], output_buf, size);
+      insert_frame(output_columns[0], output_frame);
     }
   }
 
@@ -108,9 +105,8 @@ class OpenFaceKernel : public VideoKernel {
   FaceAnalysis::FaceAnalyser face_analyser_;
 };
 
-REGISTER_OP(OpenFace)
-  .inputs({"frame", "frame_info", "faces"})
-  .outputs({"features"});
+REGISTER_OP(OpenFace).frame_input("frame").input("faces").output("features");
+
 REGISTER_KERNEL(OpenFace, OpenFaceKernel)
   .device(DeviceType::CPU)
   .num_devices(1);
