@@ -113,7 +113,7 @@ def test_table_properties(db):
     assert table.id() == 0
     assert table.name() == 'test1'
     assert table.num_rows() == 720
-    assert [c.name() for c in table.columns()] == ['index', 'frame', 'frame_info']
+    assert [c.name() for c in table.columns()] == ['index', 'frame']
 
 def test_collection(db):
     c = db.new_collection('test', ['test1', 'test2'])
@@ -131,9 +131,9 @@ def test_load_video_column(db):
     next(db.table('test1').load(['frame']))
 
 def test_profiler(db):
-    frame, frame_info = db.table('test1').as_op().all()
+    frame = db.table('test1').as_op().all()
     job = Job(
-        columns = [db.ops.Histogram(frame = frame, frame_info = frame_info)],
+        columns = [db.ops.Histogram(frame = frame)],
         name = '_ignore')
     output = db.run(job, show_progress=False, force=True)
     profiler = output.profiler()
@@ -159,8 +159,8 @@ def builder(cls):
 @builder
 class TestHistogram:
     def job(self, db, ty):
-        frame, frame_info = db.table('test1').as_op().all()
-        histogram = db.ops.Histogram(frame = frame, frame_info = frame_info, device = ty)
+        frame = db.table('test1').as_op().all()
+        histogram = db.ops.Histogram(frame = frame, device = ty)
         return Job(columns = [histogram], name = 'test_hist')
 
     def run(self, db, job):
@@ -170,12 +170,12 @@ class TestHistogram:
 @builder
 class TestOpticalFlow:
     def job(self, db, ty):
-        frame, frame_info = db.table('test1').as_op().range(0, 50, warmup_size=1)
+        frame = db.table('test1').as_op().range(0, 50, warmup_size=1)
         flow = db.ops.OpticalFlow(
-            frame = frame, frame_info = frame_info,
+            frame = frame,
             device = ty)
         return Job(columns = [flow], name = 'test_flow')
 
     def run(self, db, job):
         table = db.run(job, force=True, show_progress=False)
-        next(table.load(['flow', 'frame_info'], parsers.flow))
+        next(table.load(['flow'], parsers.flow))

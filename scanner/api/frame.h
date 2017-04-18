@@ -17,16 +17,13 @@
 
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
+#include "scanner/metadata.pb.h"
 
 #include <vector>
 
 namespace scanner {
 
-enum class FrameType {
-  U8,
-  F32,
-  F64,
-};
+using proto::FrameType;
 
 size_t size_of_frame_type(FrameType type);
 
