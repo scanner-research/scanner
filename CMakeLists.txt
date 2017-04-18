@@ -95,6 +95,7 @@ find_package(Storehouse REQUIRED CONFIG
   PATHS "thirdparty/build/bin/storehouse")
 find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
+find_package(OpenCV COMPONENTS core highgui imgproc cudaimgproc cudaarithm)
 
 set(GTEST_INCLUDE_DIRS
   "${THIRDPARTY_OUTPUT_PATH}/googletest/include")
@@ -138,6 +139,11 @@ include_directories(
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
   "${PYTHON_INCLUDE_DIRS}")
+
+if (OPENCV_FOUND)
+  list(APPEND SCANNER_LIBRARIES ${OpenCV_LIBRARIES})
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
 
 if (BUILD_TESTS)
   include_directories("${GTEST_INCLUDE_DIRS}")

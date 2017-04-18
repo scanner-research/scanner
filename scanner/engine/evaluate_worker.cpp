@@ -11,56 +11,6 @@
 
 namespace scanner {
 namespace internal {
-namespace {
-void move_if_different_address_space(Profiler& profiler,
-                                     DeviceHandle current_handle,
-                                     DeviceHandle target_handle,
-                                     ElementList& column) {
-  if (!current_handle.is_same_address_space(target_handle)) {
-    std::vector<u8*> dest_buffers, src_buffers;
-    std::vector<size_t> sizes;
-
-    size_t total_size = 0;
-    for (i32 b = 0; b < (i32)column.size(); ++b) {
-      total_size += column[b].size;
-    }
-
-    if (column.size() > 0) {
-      u8* block =
-          new_block_buffer(target_handle, total_size, column.size());
-      for (i32 b = 0; b < (i32)column.size(); ++b) {
-        size_t size = column[b].size;
-        dest_buffers.push_back(block);
-        block += size;
-        src_buffers.push_back(column[b].buffer);
-        sizes.push_back(size);
-      }
-
-      auto memcpy_start = now();
-      memcpy_vec(dest_buffers, target_handle, src_buffers, current_handle,
-                 sizes);
-      profiler.add_interval("memcpy", memcpy_start, now());
-
-      auto delete_start = now();
-      for (i32 b = 0; b < (i32)column.size(); ++b) {
-        delete_element(current_handle, column[b]);
-        column[b].buffer = dest_buffers[b];
-      }
-    }
-  }
-}
-}
-
-void move_if_different_address_space(Profiler& profiler,
-                                     DeviceHandle current_handle,
-                                     DeviceHandle target_handle,
-                                     BatchedColumns& columns) {
-  for (i32 i = 0; i < (i32)columns.size(); ++i) {
-    ElementList& column = columns[i];
-    move_if_different_address_space(profiler, current_handle, target_handle,
-                                    column);
-  }
-}
 
 void* pre_evaluate_thread(void* arg) {
   PreEvaluateThreadArgs& args = *reinterpret_cast<PreEvaluateThreadArgs*>(arg);

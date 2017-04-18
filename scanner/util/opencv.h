@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/util/common.h"
+#include "scanner/api/frame.h"
 
 #include <opencv2/opencv.hpp>
 

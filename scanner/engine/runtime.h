@@ -69,5 +69,16 @@ MasterImpl* get_master_service(DatabaseParameters& param);
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                const std::string& master_address,
                                const std::string& worker_port);
+
+// Utilities
+void move_if_different_address_space(Profiler& profiler,
+                                     DeviceHandle current_handle,
+                                     DeviceHandle target_handle,
+                                     ElementList& column);
+
+void move_if_different_address_space(Profiler& profiler,
+                                     DeviceHandle current_handle,
+                                     DeviceHandle target_handle,
+                                     BatchedColumns& columns);
 }
 }
