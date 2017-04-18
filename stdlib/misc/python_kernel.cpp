@@ -42,7 +42,7 @@ class PythonKernel : public Kernel {
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    i32 input_count = (i32)NUM_ROWS(input_columns[0]);
+    i32 input_count = (i32)num_rows(input_columns[0]);
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -79,7 +79,7 @@ class PythonKernel : public Kernel {
           memcpy_buffer(buf, device_,
                         (u8*) field.data(), CPU_DEVICE,
                         size);
-          INSERT_ELEMENT(output_columns[j], buf, size);
+          insert_element(output_columns[j], buf, size);
         }
       }
     } catch (py::error_already_set& e) {

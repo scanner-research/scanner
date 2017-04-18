@@ -18,7 +18,7 @@ class HistogramKernelCPU : public Kernel {
     auto& frame_col = input_columns[0];
 
     size_t hist_size = BINS * 3 * sizeof(float);
-    i32 input_count = NUM_ROWS(frame_col);
+    i32 input_count = num_rows(frame_col);
     u8* output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
@@ -38,7 +38,7 @@ class HistogramKernelCPU : public Kernel {
         out.convertTo(out, CV_32S);
       }
 
-      INSERT_ELEMENT(output_columns[0], output_buf, hist_size);
+      insert_element(output_columns[0], output_buf, hist_size);
     }
   }
 

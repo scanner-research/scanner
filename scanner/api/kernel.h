@@ -18,6 +18,7 @@
 #include "scanner/api/frame.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
+#include "scanner/util/memory.h"
 
 #include <vector>
 
@@ -52,28 +53,27 @@ struct Element {
 using ElementList = std::vector<Element>;
 using BatchedColumns = std::vector<ElementList>;
 
-#define NUM_ROWS(column__) (column__.size())
+inline size_t num_rows(const ElementList& column) {
+  return column.size();
+}
 
-#define ROW_BUFFER(column__, element__) (column__[element__].buffer)
+inline void insert_element(ElementList& column, u8* buffer, size_t size) {
+  column.push_back(::scanner::Element{buffer, size});
+}
 
-#define ROW_SIZE(column__, element__) (column__[element__].size)
+inline void insert_frame(ElementList& column, Frame* frame) {
+  column.push_back(::scanner::Element{frame});
+}
 
-#define INSERT_ELEMENT(column__, buffer__, size__) \
-  column__.push_back(::scanner::Element{buffer__, size__})
-
-#define INSERT_FRAME(column__, frame__) \
-  column__.push_back(::scanner::Element{frame__})
-
-#define DELETE_ELEMENT(device__, element__)      \
-  do {                                           \
-    if (element__.is_frame) {                    \
-      Frame* frame = element__.as_frame();       \
-      delete_buffer(device__, frame->data);      \
-      delete frame;                              \
-    } else {                                     \
-      delete_buffer(device__, element__.buffer); \
-    }                                            \
-  } while (0);
+inline void delete_element(DeviceHandle device, Element& element) {
+  if (element.is_frame) {
+    Frame* frame = element.as_frame();
+    delete_buffer(device, frame->data);
+    delete frame;
+  } else {
+    delete_buffer(device, element.buffer);
+  }
+}
 
 /**
  * @brief Interface for a unit of computation in a pipeline.

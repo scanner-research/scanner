@@ -11,7 +11,7 @@ class ImageDecoderKernel : public Kernel {
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
-    i32 input_count = NUM_ROWS(input_columns[0]);
+    i32 input_count = num_rows(input_columns[0]);
 
     for (i32 i = 0; i < input_count; ++i) {
       std::vector<u8> input_buf(
@@ -22,7 +22,7 @@ class ImageDecoderKernel : public Kernel {
       size_t size = img.total() * img.elemSize();
       Frame* frame = new_frame(CPU_DEVICE, mat_to_frame_info(img));
       std::memcpy(frame->data, img.data, size);
-      INSERT_FRAME(output_columns[0], frame);
+      insert_frame(output_columns[0], frame);
     }
   }
 };

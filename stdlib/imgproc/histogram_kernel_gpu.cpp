@@ -24,7 +24,7 @@ class HistogramKernelGPU : public VideoKernel {
     planes_.clear();
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
-          cvc::GpuMat(frame_info_.shape[2], frame_info_.shape[1], CV_8UC1));
+        cvc::GpuMat(frame_info_.width(), frame_info_.height(), CV_8UC1));
     }
   }
 
@@ -36,7 +36,7 @@ class HistogramKernelGPU : public VideoKernel {
     check_frame(device_, frame_col[0]);
 
     size_t hist_size = BINS * 3 * sizeof(float);
-    i32 input_count = NUM_ROWS(frame_col);
+    i32 input_count = num_rows(frame_col);
     u8* output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
@@ -56,7 +56,7 @@ class HistogramKernelGPU : public VideoKernel {
                       0, 256);
       }
 
-      INSERT_ELEMENT(output_columns[0], output_buf, hist_size);
+      insert_element(output_columns[0], output_buf, hist_size);
     }
 
     for (cv::cuda::Stream& s : streams_) {
