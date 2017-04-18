@@ -3,6 +3,9 @@ import cv2
 import math
 from common import *
 from stdlib import parsers
+from subprocess import Popen, PIPE
+import tempfile
+import os
 
 class Column:
     """
@@ -144,3 +147,41 @@ class Column:
             return self._load(fn=parser_fn, rows=rows)
         else:
             return self._load(fn, rows=rows)
+
+    def save_mp4(self, path, fps=None, rows=None):
+        if not (self._descriptor.type == self._db.protobufs.Video and
+                self._video_descriptor.codec_type ==
+                self._db.protobufs.VideoDescriptor.H264):
+            raise ScannerException('Attempted to save a non-h264-compressed '
+                                   'column as an mp4. Try compressing the '
+                                   'column first by saving the output as '
+                                   'an RGB24 frame')
+        num_items = len(self._table._descriptor.end_rows)
+
+        paths = ['{}/tables/{:d}/{:d}_{:d}.bin'.format(
+            self._db._db_path,
+            self._table._descriptor.id, self._descriptor.id, item_id)
+                          for item_id in range(num_items)]
+        temp_paths = []
+        for _ in range(len(paths)):
+            fd, p = tempfile.mkstemp()
+            os.close(fd)
+            temp_paths.append(p)
+        # Copy all files locally before calling ffmpeg
+        for in_path, temp_path in zip(paths, temp_paths):
+            with open(temp_path, 'w') as f:
+                f.write(self._storage.read(in_path))
+
+        files = '|'.join(temp_paths)
+
+        vid_fps = (fps or
+                   (1.0/(self._video_descriptor.time_base_num /
+                         float(self._video_descriptor.time_base_denom))))
+        cmd = (
+            'ffmpeg -y '
+            '-r {:f} '
+            '-i "concat:{:s}" '
+            '-filter:v "setpts=N" '
+            '-bsf:a aac_adtstoasc '
+            '{:s}'.format(fps, files, path))
+        Popen(cmd, shell=True).wait()

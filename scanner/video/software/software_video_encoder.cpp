@@ -56,6 +56,7 @@ SoftwareVideoEncoder::SoftwareVideoEncoder(i32 device_id,
       sws_context_(nullptr),
       was_reset_(false),
       ready_packet_queue_(1024),
+      frame_id_(0),
       frame_(nullptr) {
   avcodec_register_all();
 
@@ -111,6 +112,7 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
   metadata_ = metadata;
   frame_width_ = metadata_.width();
   frame_height_ = metadata_.height();
+  frame_id_ = 0;
 
   int required_size = av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame_width_,
                                                frame_height_, 1);
@@ -156,7 +158,6 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   frame_->format = cc_->pix_fmt;
   frame_->width = frame_width_;
   frame_->height = frame_height_;
-
   if (av_frame_get_buffer(frame_, 32) < 0) {
     LOG(FATAL) << "Could not get frame buffer";
   }
@@ -182,6 +183,7 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
     profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
   }
 
+  frame_->pts = frame_id_++;
   feed_frame(false);
 
   return ready_packet_queue_.size() > 0;
