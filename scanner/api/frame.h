@@ -46,6 +46,15 @@ struct FrameInfo {
 
   size_t size() const;
 
+  //! Only valid when the dimensions are (height, width, channels)
+  int width() const;
+
+  //! Only valid when the dimensions are (height, width, channels)
+  int height() const;
+
+  //! Only valid when the dimensions are (height, width, channels)
+  int channels() const;
+
   int shape[FRAME_DIMS];
   FrameType type;
 };
@@ -58,6 +67,15 @@ public:
   FrameInfo as_frame_info() const;
 
   size_t size() const;
+
+  //! Only valid when the dimensions are (height, width, channels)
+  int width() const;
+
+  //! Only valid when the dimensions are (height, width, channels)
+  int height() const;
+
+  //! Only valid when the dimensions are (height, width, channels)
+  int channels() const;
 
   int shape[FRAME_DIMS];
   FrameType type;

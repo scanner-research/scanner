@@ -104,7 +104,7 @@ class FeatureExtractorKernel : public VideoKernel {
       size_t size = std::get<1>(features[i]);
       u8* output_buf = new_buffer(device_, OR_4(size));
       memcpy_buffer(output_buf, device_, cv_buf, CPU_DEVICE, size);
-      INSERT_ELEMENT(output_columns[0], output_buf, OR_4(size));
+      insert_element(output_columns[0], output_buf, OR_4(size));
 
       std::vector<proto::Keypoint> kps_proto;
       for (auto& kp : keypoints[i]) {
@@ -121,7 +121,7 @@ class FeatureExtractorKernel : public VideoKernel {
         delete_buffer(CPU_DEVICE, output_buf);
         output_buf = gpu_buf;
       }
-      INSERT_ELEMENT(output_columns[1], output_buf, OR_4(size));
+      insert_element(output_columns[1], output_buf, OR_4(size));
     }
   }
 

@@ -139,7 +139,7 @@ class FacenetInputKernel : public VideoKernel {
           planar_input.step, net_input_height_ * sizeof(float),
           net_input_width_ * 3, cudaMemcpyDeviceToDevice, s));
 
-      INSERT_FRAME(output_columns[0], output_frame);
+      insert_frame(output_columns[0], output_frame);
     }
     for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();

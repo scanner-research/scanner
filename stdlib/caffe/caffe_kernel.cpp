@@ -410,7 +410,7 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       memcpy_buffer(output_block, device_, src_buffer, device_,
                     info.size() * batch_count);
       for (i32 b = 0; b < batch_count; b++) {
-        INSERT_FRAME(output_columns[i],
+        insert_frame(output_columns[i],
                      new Frame(info, output_block + info.size() * b));
       }
     }

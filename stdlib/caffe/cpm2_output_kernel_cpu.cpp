@@ -149,7 +149,7 @@ class CPM2OutputKernel : public VideoKernel {
 
     check_frame_info(CPU_DEVICE, input_columns[frame_info_idx][0]);
 
-    i32 input_count = (i32)NUM_ROWS(input_columns[0]);
+    i32 input_count = (i32)num_rows(input_columns[0]);
 
     for (i32 b = 0; b < input_count; ++b) {
       const Frame* heatmap_frame =
@@ -186,7 +186,7 @@ class CPM2OutputKernel : public VideoKernel {
       size_t size;
       u8* buffer;
       serialize_proto_vector_of_vectors(bodies, buffer, size);
-      INSERT_ELEMENT(output_columns.at(heatmap_idx), buffer, size);
+      insert_element(output_columns.at(heatmap_idx), buffer, size);
     }
   }
 

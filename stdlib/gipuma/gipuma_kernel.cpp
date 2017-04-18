@@ -173,14 +173,14 @@ public:
       // Copy estiamted points to output buffer
       cudaMemcpy(points_output_buffer + points_output_size * i,
                  state_->lines->norm4, points_output_size, cudaMemcpyDefault);
-      INSERT_ELEMENT(output_columns[0],
+      insert_element(output_columns[0],
                  points_output_buffer + points_output_size * i,
                  points_output_size);
 
       // Copy costs to output buffer
       cudaMemcpy(cost_output_buffer + cost_output_size * i, state_->lines->c,
                  cost_output_size, cudaMemcpyDefault);
-      INSERT_ELEMENT(output_columns[1], cost_output_buffer + cost_output_size * i,
+      insert_element(output_columns[1], cost_output_buffer + cost_output_size * i,
                  cost_output_size);
 
       delTexture(algo_params_->num_img_processed, state_->imgs,
