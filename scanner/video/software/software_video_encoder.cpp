@@ -105,13 +105,12 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
 
   cc_ = avcodec_alloc_context3(codec_);
   if (!cc_) {
-    fprintf(stderr, "could not alloc codec context");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "could not alloc codec context";
   }
 
   metadata_ = metadata;
-  frame_width_ = metadata_.shape[1];
-  frame_height_ = metadata_.shape[2];
+  frame_width_ = metadata_.width();
+  frame_height_ = metadata_.height();
 
   int required_size = av_image_get_buffer_size(AV_PIX_FMT_RGB24, frame_width_,
                                                frame_height_, 1);
@@ -128,8 +127,7 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
     AV_PIX_FMT_YUV420P;  // Do not change this, H264 needs YUV format not RGB
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
-    fprintf(stderr, "could not open codec\n");
-    assert(false);
+    LOG(FATAL) << "could not open codec";
   }
 
   AVPixelFormat encoder_pixel_format = cc_->pix_fmt;
@@ -138,8 +136,7 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
     frame_width_, frame_height_, encoder_pixel_format,
     SWS_BICUBIC, NULL, NULL, NULL);
   if (sws_context_ == NULL) {
-    fprintf(stderr, "Could not get sws_context for rgb conversion\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Could not get sws_context for rgb conversion";
   }
 
 }
@@ -153,8 +150,7 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   // Convert image into YUV format from RGB
   frame_ = av_frame_alloc();
   if (!frame_) {
-    fprintf(stderr, "Could not alloc frame\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Could not alloc frame";
   }
 
   frame_->format = cc_->pix_fmt;
@@ -162,8 +158,7 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   frame_->height = frame_height_;
 
   if (av_frame_get_buffer(frame_, 32) < 0) {
-    fprintf(stderr, "Could not get frame buffer\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Could not get frame buffer";
   }
 
   uint8_t* out_slices[4];
@@ -172,18 +167,15 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
     av_image_fill_arrays(out_slices, out_linesizes, frame_buffer,
                          AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
   if (required_size < 0) {
-    fprintf(stderr, "Error in av_image_fill_arrays\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Error in av_image_fill_arrays";
   }
   if (required_size > frame_size) {
-    fprintf(stderr, "Encode buffer not large enough for image\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "Encode buffer not large enough for image";
   }
   auto scale_start = now();
   if (sws_scale(sws_context_, out_slices, out_linesizes, 0, frame_height_,
                 frame_->data, frame_->linesize) < 0) {
-    fprintf(stderr, "sws_scale failed\n");
-    exit(EXIT_FAILURE);
+    LOG(FATAL) << "sws_scale failed";
   }
   auto scale_end = now();
   if (profiler_) {
@@ -256,7 +248,7 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
       char err_msg[256];
       av_strerror(ret, err_msg, 256);
       fprintf(stderr, "Error while sending frame (%d): %s\n", ret, err_msg);
-      exit(1);
+      LOG(FATAL) << "Error while sending frame";
     }
   }
 
@@ -277,7 +269,7 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
       av_strerror(ret, err_msg, 256);
       fprintf(stderr, "Error while receiving packet (%d): %s\n", ret,
               err_msg);
-      exit(1);
+      LOG(FATAL) << "Error while receiving packet";
     }
   }
   auto receive_end = now();

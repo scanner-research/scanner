@@ -68,7 +68,7 @@ void DecoderAutomata::initialize(
   retriever_data_idx_.store(0, std::memory_order_release);
   retriever_valid_idx_ = 0;
 
-  FrameInfo info(3, encoded_data[0].width(), encoded_data[0].height(),
+  FrameInfo info(encoded_data[0].height(), encoded_data[0].width(), 3,
                  FrameType::U8);
 
   while (decoder_->discard_frame()) {

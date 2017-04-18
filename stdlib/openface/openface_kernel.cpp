@@ -1,5 +1,6 @@
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
+#include "scanner/util/opencv.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/serialize.h"
 
@@ -29,7 +30,7 @@ class OpenFaceKernel : public VideoKernel {
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& bbox_col = input_columns[1];
-    check_frame(CPU_DEVICE, frame_col);
+    check_frame(CPU_DEVICE, frame_col[0]);
 
     i32 width = frame_info_.width();
     i32 height = frame_info_.height();
@@ -40,17 +41,17 @@ class OpenFaceKernel : public VideoKernel {
     fx = (fx + fy) / 2.0;
     fy = fx;
 
-    i32 input_count = frame_col.rows.size();
+    i32 input_count = num_rows(frame_col);
     for (i32 b = 0; b < input_count; ++b) {
-      Frame* output_frame = new_frame(device_, frame_info_);
+      Frame* output_frame = new_frame(CPU_DEVICE, frame_info_);
       memcpy(output_frame->data, frame_col[b].as_const_frame()->data,
              output_frame->size());
       cv::Mat img = frame_to_mat(output_frame);
       cv::Mat grey;
       cv::cvtColor(img, grey, CV_BGR2GRAY);
       std::vector<BoundingBox> all_bboxes =
-        deserialize_proto_vector<BoundingBox>(bbox_col.rows[b].buffer,
-                                              bbox_col.rows[b].size);
+        deserialize_proto_vector<BoundingBox>(bbox_col[b].buffer,
+                                              bbox_col[b].size);
 
       for (auto& bbox : all_bboxes) {
         f64 x1 = bbox.x1(), y1 = bbox.y1(), x2 = bbox.x2(), y2 = bbox.y2();
