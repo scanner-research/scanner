@@ -178,4 +178,4 @@ class TestOpticalFlow:
 
     def run(self, db, job):
         table = db.run(job, force=True, show_progress=False)
-        next(table.load(['flow'], parsers.flow))
+        next(table.load(['flow']))

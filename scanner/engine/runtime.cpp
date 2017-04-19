@@ -71,9 +71,6 @@ void move_if_different_address_space(Profiler& profiler,
     profiler.add_interval("memcpy", memcpy_start, now());
 
     auto delete_start = now();
-    for (i32 b = 0; b < (i32)column.size(); ++b) {
-      column[b].buffer = dest_buffers[b];
-    }
     if (is_frame) {
       for (i32 b = 0; b < (i32)column.size(); ++b) {
         Frame* frame = column[b].as_frame();
