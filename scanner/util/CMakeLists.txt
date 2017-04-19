@@ -20,8 +20,7 @@ set(SOURCE_FILES
   bbox.cpp
   progress_bar.cpp)
 
-message("${OPENCV_FOUND}")
-if (OPENCV_FOUND)
+if (OpenCV_FOUND)
   list(APPEND SOURCE_FILES opencv.cpp)
 endif()
 

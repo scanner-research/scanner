@@ -140,9 +140,10 @@ include_directories(
   "${LIBLZMA_INCLUDE_DIRS}"
   "${PYTHON_INCLUDE_DIRS}")
 
-if (OPENCV_FOUND)
+if (OpenCV_FOUND)
   list(APPEND SCANNER_LIBRARIES ${OpenCV_LIBRARIES})
   include_directories(${OpenCV_INCLUDE_DIRS})
+  add_definitions(-DHAVE_OPENCV)
 endif()
 
 if (BUILD_TESTS)
