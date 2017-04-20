@@ -133,7 +133,7 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:a7fc6ff872855f9edc6456765ddf6a642"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resets ops when about to receive non-consecutive inputs.  <a href="#a7fc6ff872855f9edc6456765ddf6a642">More...</a><br/></td></tr>
 <tr class="separator:a7fc6ff872855f9edc6456765ddf6a642"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aee166f76d67a4bfbb2c3738bc01207af"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">execute</a> (const BatchedColumns &amp;input_columns, BatchedColumns &amp;output_columns)=0</td></tr>
-<tr class="memdesc:aee166f76d67a4bfbb2c3738bc01207af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the op on input rows and produces equal number of output rows.  <a href="#aee166f76d67a4bfbb2c3738bc01207af">More...</a><br/></td></tr>
+<tr class="memdesc:aee166f76d67a4bfbb2c3738bc01207af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the op on input elements and produces equal number of output elements.  <a href="#aee166f76d67a4bfbb2c3738bc01207af">More...</a><br/></td></tr>
 <tr class="separator:aee166f76d67a4bfbb2c3738bc01207af"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd94a7909c3eca198e04460c2891272f"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="abd94a7909c3eca198e04460c2891272f"></a>
 virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a> (Profiler *profiler)</td></tr>
@@ -153,7 +153,7 @@ Protected Attributes</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Interface for a unit of computation in a pipeline. </p>
-<p>Kernels form the core of Scanner's interface. They are essentially functions that take rows of inputs and produce an equal number rows of outputs. Kernels are stateful operators that get reset when provided non-contiguous batches of input. See KernelFactory for how an op defines what hardware it can use for its computation. </p>
+<p>Kernels form the core of Scanner's interface. They are essentially functions that take elements of inputs and produce an equal number elements of outputs. Kernels are stateful operators that get reset when provided non-contiguous batches of input. See KernelFactory for how an op defines what hardware it can use for its computation. </p>
 </div><h2 class="groupheader">Member Function Documentation</h2>
 <a class="anchor" id="aee166f76d67a4bfbb2c3738bc01207af"></a>
 <div class="memitem">
@@ -187,11 +187,11 @@ Protected Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>Runs the op on input rows and produces equal number of output rows. </p>
+<p>Runs the op on input elements and produces equal number of output elements. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">input_columns</td><td>vector of columns, where each column is a vector of inputs and each input is a byte array </td></tr>
-    <tr><td class="paramname">output_columns</td><td>op output, each column must have same length as the number of input rows</td></tr>
+    <tr><td class="paramname">output_columns</td><td>op output, each column must have same length as the number of input elements</td></tr>
   </table>
   </dd>
 </dl>

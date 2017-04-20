@@ -111,7 +111,7 @@ Collaboration diagram for scanner::VideoKernel:</div>
 <div class="dyncontent">
 <div class="center"><img src="classscanner_1_1VideoKernel__coll__graph.png" border="0" usemap="#scanner_1_1VideoKernel_coll__map" alt="Collaboration graph"/></div>
 <map name="scanner_1_1VideoKernel_coll__map" id="scanner_1_1VideoKernel_coll__map">
-<area shape="rect" id="node2" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. " alt="" coords="5,96,117,123"/></map>
+<area shape="rect" id="node2" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. " alt="" coords="5,96,117,123"/><area shape="rect" id="node4" href="structscanner_1_1FrameInfo.html" title="FrameInfo. " alt="" coords="142,96,276,123"/></map>
 <center><span class="legend">[<a href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
@@ -130,7 +130,7 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:a7fc6ff872855f9edc6456765ddf6a642 inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resets ops when about to receive non-consecutive inputs.  <a href="#a7fc6ff872855f9edc6456765ddf6a642">More...</a><br/></td></tr>
 <tr class="separator:a7fc6ff872855f9edc6456765ddf6a642 inherit pub_methods_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#aee166f76d67a4bfbb2c3738bc01207af">execute</a> (const BatchedColumns &amp;input_columns, BatchedColumns &amp;output_columns)=0</td></tr>
-<tr class="memdesc:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the op on input rows and produces equal number of output rows.  <a href="#aee166f76d67a4bfbb2c3738bc01207af">More...</a><br/></td></tr>
+<tr class="memdesc:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the op on input elements and produces equal number of output elements.  <a href="#aee166f76d67a4bfbb2c3738bc01207af">More...</a><br/></td></tr>
 <tr class="separator:aee166f76d67a4bfbb2c3738bc01207af inherit pub_methods_classscanner_1_1Kernel"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd94a7909c3eca198e04460c2891272f inherit pub_methods_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="abd94a7909c3eca198e04460c2891272f"></a>
 virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f">set_profiler</a> (Profiler *profiler)</td></tr>
@@ -139,9 +139,12 @@ virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pro-methods"></a>
 Protected Member Functions</h2></td></tr>
-<tr class="memitem:ac71978adb7309445ec54d9f484c0a4a1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1VideoKernel.html#ac71978adb7309445ec54d9f484c0a4a1">check_frame_info</a> (const DeviceHandle &amp;device, const <a class="el" href="structscanner_1_1RowList.html">RowList</a> &amp;row_list)</td></tr>
-<tr class="memdesc:ac71978adb7309445ec54d9f484c0a4a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks frame info column against cached data.  <a href="#ac71978adb7309445ec54d9f484c0a4a1">More...</a><br/></td></tr>
-<tr class="separator:ac71978adb7309445ec54d9f484c0a4a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3093e09ccb435487a4a57ce9486b3c21"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1VideoKernel.html#a3093e09ccb435487a4a57ce9486b3c21">check_frame</a> (const DeviceHandle &amp;device, const <a class="el" href="structscanner_1_1Element.html">Element</a> &amp;element)</td></tr>
+<tr class="memdesc:a3093e09ccb435487a4a57ce9486b3c21"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks frame info column against cached data.  <a href="#a3093e09ccb435487a4a57ce9486b3c21">More...</a><br/></td></tr>
+<tr class="separator:a3093e09ccb435487a4a57ce9486b3c21"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acf32ac694f329209ab31ba2d11ffb713"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="acf32ac694f329209ab31ba2d11ffb713"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>check_frame_info</b> (const DeviceHandle &amp;device, const <a class="el" href="structscanner_1_1Element.html">Element</a> &amp;element)</td></tr>
+<tr class="separator:acf32ac694f329209ab31ba2d11ffb713"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4bae7eb944b6099db1ff94db1eed616d"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a4bae7eb944b6099db1ff94db1eed616d"></a>
 virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1VideoKernel.html#a4bae7eb944b6099db1ff94db1eed616d">new_frame_info</a> ()</td></tr>
 <tr class="memdesc:a4bae7eb944b6099db1ff94db1eed616d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback for if frame info changes. <br/></td></tr>
@@ -150,7 +153,7 @@ virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pro-attribs"></a>
 Protected Attributes</h2></td></tr>
 <tr class="memitem:aefd8ef810bda7c5b95ded43419a4fab4"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="aefd8ef810bda7c5b95ded43419a4fab4"></a>
-FrameInfo&#160;</td><td class="memItemRight" valign="bottom"><b>frame_info_</b></td></tr>
+<a class="el" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&#160;</td><td class="memItemRight" valign="bottom"><b>frame_info_</b></td></tr>
 <tr class="separator:aefd8ef810bda7c5b95ded43419a4fab4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="inherit_header pro_attribs_classscanner_1_1Kernel"><td colspan="2" onclick="javascript:toggleInherit('pro_attribs_classscanner_1_1Kernel')"><img src="closed.png" alt="-"/>&#160;Protected Attributes inherited from <a class="el" href="classscanner_1_1Kernel.html">scanner::Kernel</a></td></tr>
 <tr class="memitem:aa00bb120cfbc269db4456e2a3c2c3a9b inherit pro_attribs_classscanner_1_1Kernel"><td class="memItemLeft" align="right" valign="top">Profiler *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1Kernel.html#aa00bb120cfbc269db4456e2a3c2c3a9b">profiler_</a> = nullptr</td></tr>
@@ -166,7 +169,7 @@ static const i32&#160;</td><td class="memItemRight" valign="bottom"><b>Unlimited
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p><a class="el" href="classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. ">Kernel</a> with support for frame and frame_info columns. </p>
 </div><h2 class="groupheader">Member Function Documentation</h2>
-<a class="anchor" id="ac71978adb7309445ec54d9f484c0a4a1"></a>
+<a class="anchor" id="a3093e09ccb435487a4a57ce9486b3c21"></a>
 <div class="memitem">
 <div class="memproto">
 <table class="mlabels">
@@ -174,7 +177,7 @@ static const i32&#160;</td><td class="memItemRight" valign="bottom"><b>Unlimited
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">void scanner::VideoKernel::check_frame_info </td>
+          <td class="memname">void scanner::VideoKernel::check_frame </td>
           <td>(</td>
           <td class="paramtype">const DeviceHandle &amp;&#160;</td>
           <td class="paramname"><em>device</em>, </td>
@@ -182,8 +185,8 @@ static const i32&#160;</td><td class="memItemRight" valign="bottom"><b>Unlimited
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structscanner_1_1RowList.html">RowList</a> &amp;&#160;</td>
-          <td class="paramname"><em>row_list</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structscanner_1_1Element.html">Element</a> &amp;&#160;</td>
+          <td class="paramname"><em>element</em>&#160;</td>
         </tr>
         <tr>
           <td></td>

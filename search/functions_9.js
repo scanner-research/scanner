@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['validate',['validate',['../classscanner_1_1Kernel.html#a983fd890a5282d341aacdd84dcc69e73',1,'scanner::Kernel']]]
+  ['set_5fprofiler',['set_profiler',['../classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f',1,'scanner::Kernel']]],
+  ['start_5fcluster',['start_cluster',['../classscannerpy_1_1database_1_1Database.html#a2ad31e38ecaf4beb29a2a3342be15d07',1,'scannerpy::database::Database']]]
 ];

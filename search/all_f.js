@@ -1,7 +1,5 @@
 var searchData=
 [
-  ['scannerexception',['ScannerException',['../classscannerpy_1_1common_1_1ScannerException.html',1,'scannerpy::common']]],
-  ['serverstate',['ServerState',['../structscanner_1_1Database_1_1ServerState.html',1,'scanner::Database']]],
-  ['set_5fprofiler',['set_profiler',['../classscanner_1_1Kernel.html#abd94a7909c3eca198e04460c2891272f',1,'scanner::Kernel']]],
-  ['start_5fcluster',['start_cluster',['../classscannerpy_1_1database_1_1Database.html#a2ad31e38ecaf4beb29a2a3342be15d07',1,'scannerpy::database::Database']]]
+  ['reset',['reset',['../classscanner_1_1Kernel.html#a7fc6ff872855f9edc6456765ddf6a642',1,'scanner::Kernel']]],
+  ['run',['run',['../classscannerpy_1_1database_1_1Database.html#a16c7b6f6ecdd975c3392d77012319448',1,'scannerpy::database::Database']]]
 ];
