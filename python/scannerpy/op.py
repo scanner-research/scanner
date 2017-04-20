@@ -14,9 +14,9 @@ class OpColumn:
 
     def compress(self, codec = 'video', **kwargs):
         self._assert_is_video()
-        codecs = {'video': compress_video,
-                  'default': compress_default,
-                  'raw': lossless}
+        codecs = {'video': self.compress_video,
+                  'default': self.compress_default,
+                  'raw': self.lossless}
         if codec in codecs:
             return codecs[codec](self, **kwargs)
         else:

@@ -138,7 +138,7 @@ class Column:
         elif self._descriptor.type == self._db.protobufs.Video:
             frame_type = self._video_descriptor.frame_type
             if frame_type == self._db.protobufs.U8:
-                dtype = np.u8
+                dtype = np.uint8
             elif frame_type == self._db.protobufs.F32:
                 dtype = np.float32
             elif frame_type == self._db.protobufs.F64:
@@ -186,5 +186,5 @@ class Column:
             '-i "concat:{:s}" '
             '-filter:v "setpts=N" '
             '-bsf:a aac_adtstoasc '
-            '{:s}'.format(fps, files, path))
+            '{:s}'.format(vid_fps, files, path))
         Popen(cmd, shell=True).wait()

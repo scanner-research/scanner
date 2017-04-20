@@ -8,6 +8,7 @@ import requests
 import imp
 import os.path
 import socket
+import numpy as np
 
 try:
     run(['nvidia-smi'])
@@ -117,9 +118,9 @@ def test_table_properties(db):
 
 def test_collection(db):
     c = db.new_collection('test', ['test1', 'test2'])
-    frame, frame_info = c.as_op().strided(2)
+    frame = c.as_op().strided(2)
     job = Job(
-        columns = [db.ops.Histogram(frame = frame, frame_info = frame_info)],
+        columns = [db.ops.Histogram(frame = frame)],
         name = '_ignore')
     db.run(job, show_progress=False, force=True)
     db.delete_collection('test')
@@ -178,4 +179,49 @@ class TestOpticalFlow:
 
     def run(self, db, job):
         table = db.run(job, force=True, show_progress=False)
-        next(table.load(['flow']))
+        fid, flows = next(table.load(['flow']))
+        flow_array = flows[0]
+        assert fid == 0
+        assert flow_array.dtype == np.float32
+        assert flow_array.shape[0] == 480
+        assert flow_array.shape[1] == 640
+        assert flow_array.shape[2] == 2
+
+def test_blur(db):
+    frame = db.table('test1').as_op().range(0, 30)
+    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3)
+    job = Job(columns = [blurred_frame], name = 'test_blur')
+    table = db.run(job, force=True, show_progress=False)
+    fid, frames = next(table.load(['frame']))
+    frame_array = frames[0]
+    assert fid == 0
+    assert frame_array.dtype == np.uint8
+    assert frame_array.shape[0] == 480
+    assert frame_array.shape[1] == 640
+    assert frame_array.shape[2] == 3
+
+def test_lossless(db):
+    frame = db.table('test1').as_op().range(0, 30)
+    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
+    job = Job(columns = [blurred_frame.lossless()],
+              name = 'test_blur_lossless')
+    table = db.run(job, force=True, show_progress=False)
+    next(table.load(['frame']))
+
+def test_compress(db):
+    frame = db.table('test1').as_op().range(0, 30)
+    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
+    compressed_frame = blurred_frame.compress(
+        'video', bitrate = 1 * 1024 * 1024)
+    job = Job(columns = [compressed_frame], name = 'test_blur_compressed')
+    table = db.run(job, force=True, show_progress=False)
+    next(table.load(['frame']))
+
+def test_save_mp4(db):
+    frame = db.table('test1').as_op().range(0, 30, item_size=10)
+    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
+    job = Job(columns = [blurred_frame], name = 'test_save_mp4')
+    table = db.run(job, force=True, show_progress=False)
+    f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    f.close()
+    table.columns('frame').save_mp4(f.name)
