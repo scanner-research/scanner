@@ -202,6 +202,9 @@ class Database:
     def summarize(self):
         summary = ''
         db_meta = self._load_db_metadata()
+        if len(db_meta.tables) == 0:
+            return 'Your database is empty!'
+
         tables = [
             ('TABLES', [
                 ('Name', [t.name for t in db_meta.tables]),
@@ -228,12 +231,12 @@ class Database:
             if table_idx > 0:
                 summary += '\n\n'
             num_cols = len(cols)
-            max_col_lens = [max(max([len(s) for s in c]), len(name))
+            max_col_lens = [max(max([len(s) for s in c] or [0]), len(name))
                             for name, c in cols]
             table_width = sum(max_col_lens) + 3*(num_cols-1)
             label = '** {} **'.format(label)
             summary += ' ' * (table_width/2 - len(label)/2) + label + '\n'
-            summary += '-'*table_width + '\n'
+            summary += '-' * table_width + '\n'
             col_name_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
             col_name_fmt = col_name_fmt.format(*max_col_lens)
             summary += col_name_fmt.format(*[s for s, _ in cols]) + '\n'
