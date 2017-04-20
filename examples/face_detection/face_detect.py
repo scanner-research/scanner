@@ -11,10 +11,7 @@ import util
 
 util.download_video()
 
-with Database(master='crissy.pdl.local.cmu.edu:5001',
-              workers=['crissy.pdl.local.cmu.edu:5002',
-                       'pismo.pdl.local.cmu.edu:5002']) as db:
-
+with Database() as db:
     # TODO(wcrichto): comment the demo. Make the Scanner philosophy more clear.
     # Add some figures to the wiki perhaps explaining the high level
 

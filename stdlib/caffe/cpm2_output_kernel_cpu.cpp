@@ -124,8 +124,8 @@ class CPM2OutputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    resize_width_ = frame_info_.shape[1] * scale_;
-    resize_height_ = frame_info_.shape[2] * scale_;
+    resize_width_ = frame_info_.width() * scale_;
+    resize_height_ = frame_info_.height() * scale_;
 
     width_padding_ = (resize_width_ % 8) ? 8 - (resize_width_ % 8) : 0;
     height_padding_ = (resize_height_ % 8) ? 8 - (resize_height_ % 8) : 0;

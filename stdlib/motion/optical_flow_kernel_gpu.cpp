@@ -19,7 +19,8 @@ class OpticalFlowKernelGPU : public VideoKernel {
     set_device();
     streams_.resize(num_cuda_streams_);
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
-      flow_finders_.push_back(cvc::FarnebackOpticalFlow::create());
+      flow_finders_.push_back(
+          cvc::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0));
     }
   }
 
@@ -39,7 +40,8 @@ class OpticalFlowKernelGPU : public VideoKernel {
     initial_frame_ = cvc::GpuMat();
     flow_finders_.resize(0);
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
-      flow_finders_.push_back(cvc::FarnebackOpticalFlow::create());
+      flow_finders_.push_back(
+        cvc::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0));
     }
   }
 

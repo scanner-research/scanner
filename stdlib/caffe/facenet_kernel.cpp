@@ -10,8 +10,8 @@ class FacenetKernel : public CaffeKernel {
 
   void net_config() override {
     // Calculate width by scaling by box size
-    int resize_width = std::floor(frame_info_.shape[1] * scale_);
-    int resize_height = std::floor(frame_info_.shape[2] * scale_);
+    int resize_width = std::floor(frame_info_.shape[2] * scale_);
+    int resize_height = std::floor(frame_info_.shape[1] * scale_);
 
     if (resize_width % 8 != 0) {
       resize_width += 8 - (resize_width % 8);

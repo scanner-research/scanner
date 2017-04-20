@@ -86,6 +86,11 @@ class ScannerTest : public ::testing::Test {
     params_.task_set.tasks.clear();
     params_.task_set.tasks.push_back(task);
     params_.task_set.output_op = op;
+    for (auto& op_input : op->get_inputs()) {
+      OutputColumnCompression compress;
+      compress.codec = "default";
+      params_.task_set.compression.push_back(compress);
+    }
 
     scanner::Result result = db_->new_job(params_);
     ASSERT_TRUE(result.success()) << "Run job failed: " << result.msg();

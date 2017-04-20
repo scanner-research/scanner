@@ -42,8 +42,8 @@ class CPM2InputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    frame_width_ = frame_info_.shape[1];
-    frame_height_ = frame_info_.shape[2];
+    frame_width_ = frame_info_.shape[2];
+    frame_height_ = frame_info_.shape[1];
 
     resize_width_ = frame_width_ * scale_;
     resize_height_ = frame_height_ * scale_;
