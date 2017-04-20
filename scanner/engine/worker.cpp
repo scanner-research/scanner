@@ -288,6 +288,16 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     TableMetadata& table = table_meta[output_name];
     final_output_columns = table.columns();
   }
+  std::vector<ColumnCompressionOptions> final_compression_options;
+  for (auto& opts : job_params->task_set().compression()) {
+    ColumnCompressionOptions o;
+    o.codec = opts.codec();
+    for (auto& kv : opts.options()) {
+      o.options[kv.first] = kv.second;
+    }
+    final_compression_options.push_back(o);
+  }
+  assert(final_output_columns.size() == final_compression_options.size());
 
   // Setup kernel factories and the kernel configs that will be used
   // to instantiate instances of the op pipeline
@@ -620,7 +630,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
         // Per worker arguments
         ki, eval_thread_profilers.back(), column_mapping.back(),
-        final_output_columns,
+            final_output_columns, final_compression_options,
 
         // Queues
         *input_work_queue, *output_work_queue});

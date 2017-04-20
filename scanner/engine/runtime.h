@@ -54,6 +54,7 @@ struct EvalWorkEntry {
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
   // For save and pre worker
   std::vector<FrameInfo> frame_sizes;
+  std::vector<bool> compressed;
 };
 
 struct DatabaseParameters {

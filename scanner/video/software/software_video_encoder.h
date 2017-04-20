@@ -45,7 +45,7 @@ class SoftwareVideoEncoder : public VideoEncoder {
 
   ~SoftwareVideoEncoder();
 
-  void configure(const FrameInfo& metadata) override;
+  void configure(const FrameInfo& metadata, const EncodeOptions& opts) override;
 
   bool feed(const u8* frame_buffer, size_t frame_size) override;
 

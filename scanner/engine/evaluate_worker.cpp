@@ -397,12 +397,31 @@ void* post_evaluate_thread(void* arg) {
   VideoEncoderType encoder_type = VideoEncoderType::SOFTWARE;
   std::vector<std::unique_ptr<VideoEncoder>> encoders;
   std::vector<bool> encoder_configured;
-  for (auto& col : args.columns) {
+  std::vector<EncodeOptions> encode_options;
+  for (size_t i = 0; i < args.columns.size(); ++i) {
+    auto& col = args.columns[i];
+    auto& compression_opts = args.column_compression[i];
     ColumnType type = col.type();
-    if (type != ColumnType::Video) continue;
+    if (type != ColumnType::Video || compression_opts.codec == "raw") continue;
     encoders.emplace_back(
       VideoEncoder::make_from_config(encoder_handle, 1, encoder_type));
     encoder_configured.push_back(false);
+
+    EncodeOptions opts;
+    if (compression_opts.codec == "h264") {
+      opts.quality = std::atoi(compression_opts.options.at("quality").c_str());
+      opts.bitrate = std::atoi(compression_opts.options.at("bitrate").c_str());
+    }
+    encode_options.push_back(opts);
+  }
+  std::vector<bool> compression_enabled;
+  for (auto& compression_opts : args.column_compression) {
+    auto& codec = compression_opts.codec;
+    bool enabled = true;
+    if (codec == "raw") {
+      enabled = false;
+    }
+    compression_enabled.push_back(enabled);
   }
 
   EvalWorkEntry buffered_entry;
@@ -440,6 +459,7 @@ void* post_evaluate_thread(void* arg) {
           Frame* frame = work_entry.columns[i][0].as_frame();
           buffered_entry.frame_sizes.push_back(frame->as_frame_info());
         }
+        buffered_entry.compressed.push_back(compression_enabled[i]);
       }
       if (work_entry.needs_configure) {
         for (size_t i = 0; i < encoder_configured.size(); ++i) {
@@ -463,7 +483,8 @@ void* post_evaluate_thread(void* arg) {
                        work_entry.columns[col_idx][w]);
       }
       // Encode video frames
-      if (column_type == ColumnType::Video &&
+      if (compression_enabled[i] &&
+          column_type == ColumnType::Video &&
           buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
         {
           auto start = work_entry.columns[col_idx].begin();
@@ -476,7 +497,8 @@ void* post_evaluate_thread(void* arg) {
           // Configure encoder
           encoder_configured[encoder_idx] = true;
           Frame* frame = work_entry.columns[col_idx][0].as_frame();
-          encoder->configure(frame->as_frame_info());
+          encoder->configure(frame->as_frame_info(),
+                             encode_options[encoder_idx]);
         }
 
         // Move frames to device for the encoder
@@ -525,7 +547,8 @@ void* post_evaluate_thread(void* arg) {
       // Flush video encoder and get rest of packets
       for (size_t i = 0; i < args.column_mapping.size(); ++i) {
         ColumnType column_type = args.columns[i].type();
-        if (column_type == ColumnType::Video &&
+        if (compression_enabled[i] &&
+            column_type == ColumnType::Video &&
             buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
           auto& encoder = encoders[encoder_idx];
 

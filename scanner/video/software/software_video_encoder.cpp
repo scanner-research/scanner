@@ -89,7 +89,8 @@ SoftwareVideoEncoder::~SoftwareVideoEncoder() {
   av_bitstream_filter_close(annexb_);
 }
 
-void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
+void SoftwareVideoEncoder::configure(const FrameInfo& metadata,
+                                     const EncodeOptions& opts) {
   if (cc_ != NULL) {
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 53, 0)
     avcodec_free_context(&cc_);
@@ -118,7 +119,6 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
                                                frame_height_, 1);
 
   cc_->thread_count = 4;
-  cc_->bit_rate = 8 * 1024 * 1024;  // Bits Per Second
   cc_->width = frame_width_;     // Note Resolution must be a multiple of 2!!
   cc_->height = frame_height_;   // Note Resolution must be a multiple of 2!!
   // TODO(apoms): figure out this fps from the input video automatically
@@ -127,6 +127,14 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata) {
   cc_->gop_size = 120;  // Intra frames per x P frames
   cc_->pix_fmt =
     AV_PIX_FMT_YUV420P;  // Do not change this, H264 needs YUV format not RGB
+  if (opts.quality != -1) {
+    if (av_opt_set_int(cc_->priv_data, "crf", opts.quality, 0) < 0) {
+      LOG(FATAL) << "Could not set CRF on codec context";
+    }
+  }
+  if (opts.bitrate != -1) {
+    cc_->bit_rate = opts.bitrate;
+  }
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     LOG(FATAL) << "could not open codec";
