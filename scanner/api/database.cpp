@@ -64,6 +64,16 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
                                 ts.sampling_args.size());
     }
   }
+
+  // Parse compression ptions
+  for (auto& compression_opts : ts.compression) {
+    auto com = task_set.add_compression();
+    com->set_codec(compression_opts.codec);
+    for (auto& kv : compression_opts.options) {
+      (*com->mutable_options())[kv.first] = kv.second;
+    }
+  }
+
   // Parse ops
   std::map<Op*, std::vector<Op*>> edges;  // parent -> child
   std::map<Op*, i32> in_edges_left;       // parent -> child

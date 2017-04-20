@@ -100,9 +100,7 @@ def main():
     print('Detecting shots in movie {}'.format(movie_path))
     movie_name = os.path.basename(movie_path)
 
-    with Database(master='crissy.pdl.local.cmu.edu:5001',
-                  workers=['crissy.pdl.local.cmu.edu:5002',
-                           'stinson.pdl.local.cmu.edu:5002']) as db:
+    with Database() as db:
     # with Database(debug=True) as db:
         print('Loading movie into Scanner database...')
         s = time.time()
