@@ -61,7 +61,6 @@ inline void print_trace() {
 
 inline void cuAssert(cudaError_t code, const char* file, int line) {
   if (code != cudaSuccess) {
-    print_trace();
     LOG(FATAL) << "GPUassert: "
                << cudaGetErrorString(code) << " "
                << file << " "
@@ -74,7 +73,6 @@ inline void cuAssert(cudaError_t code, const char* file, int line) {
 
 inline void cudAssert(CUresult code, const char* file, int line) {
   if (code != CUDA_SUCCESS) {
-    print_trace();
     const char *err_str;
     cuGetErrorString(code, &err_str);
     LOG(FATAL) << "GPUassert: " << err_str << " " << file << " " << line;

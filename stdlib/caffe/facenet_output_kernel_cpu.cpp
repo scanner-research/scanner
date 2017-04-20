@@ -32,8 +32,8 @@ class FacenetOutputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    net_input_width_ = std::floor(frame_info_.shape[1] * scale_);
-    net_input_height_ = std::floor(frame_info_.shape[2] * scale_);
+    net_input_width_ = std::floor(frame_info_.width() * scale_);
+    net_input_height_ = std::floor(frame_info_.height() * scale_);
 
     if (net_input_width_ % 8 != 0) {
       net_input_width_ += 8 - (net_input_width_ % 8);

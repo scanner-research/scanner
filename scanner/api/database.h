@@ -46,6 +46,12 @@ struct TableSample {
   std::vector<u8> sampling_args;
 };
 
+
+struct OutputColumnCompression {
+  std::string codec;
+  std::map<std::string, std::string> options;
+};
+
 //! Set of table samples to compute at once.
 struct Task {
   std::string output_table_name;
@@ -56,6 +62,7 @@ struct Task {
 struct TaskSet {
   std::vector<Task> tasks;
   Op* output_op;
+  std::vector<OutputColumnCompression> compression;
 };
 
 //! Configuration for a Scanner job.
