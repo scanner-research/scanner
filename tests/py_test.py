@@ -124,6 +124,9 @@ def test_collection(db):
     db.run(job, show_progress=False, force=True)
     db.delete_collection('test')
 
+def test_summarize(db):
+    db.summarize()
+
 def test_load_video_column(db):
     next(db.table('test1').load(['frame']))
 
