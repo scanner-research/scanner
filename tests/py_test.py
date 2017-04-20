@@ -93,7 +93,7 @@ def db():
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
             vid2_path = f.name
         run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
-             '00:00:10', vid2_path])
+             '00:00:10', '-c:v', 'libx264', vid2_path])
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
