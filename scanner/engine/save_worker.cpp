@@ -84,6 +84,7 @@ void* save_thread(void* arg) {
                                       work_entry.column_handles[out_idx],
                                       CPU_DEVICE, work_entry.columns[out_idx]);
 
+      bool compressed = work_entry.compressed[out_idx];
       // If this is a video...
       i64 size_written = 0;
       if (work_entry.column_types[out_idx] == ColumnType::Video) {
@@ -106,7 +107,9 @@ void* save_thread(void* arg) {
         video_descriptor.set_time_base_num(1);
         video_descriptor.set_time_base_denom(25);
 
-        if (frame_info.type == FrameType::U8 && frame_info.channels() == 3) {
+        if (compressed &&
+            frame_info.type == FrameType::U8 &&
+            frame_info.channels() == 3) {
           H264ByteStreamIndexCreator index_creator(output_file);
           for (size_t i = 0; i < num_elements; ++i) {
             Element& element = work_entry.columns[out_idx][i];

@@ -805,7 +805,10 @@ class Database:
 
         eval_sorted[-1]._inputs.insert(
             0, OpColumn(
-                eval_sorted[0], "index0" if len(input_tables) > 1 else "index"))
+                self,
+                eval_sorted[0],
+                "index0" if len(input_tables) > 1 else "index",
+                self.protobufs.Other))
 
         task = input_tables[0]._generator()
         if job.name() is not None:
@@ -861,6 +864,25 @@ class Database:
             or a list of Table objects.
         """
 
+        # Get compression annotations
+
+        compression_options = []
+        # For index column
+        opts = self.protobufs.OutputColumnCompression()
+        opts.codec = 'default'
+        compression_options.append(opts)
+        output_op = jobs[0].op(self) if isinstance(jobs, list) else jobs.op(self)
+        for out_col in output_op.inputs():
+            opts = self.protobufs.OutputColumnCompression()
+            opts.codec = 'default'
+            if out_col._type == self.protobufs.Video:
+                for k, v in out_col._encode_options.iteritems():
+                    if k == 'codec':
+                        opts.codec = v
+                    else:
+                        opts.options[k] = str(v)
+            compression_options.append(opts)
+
         output_collection = None
         if isinstance(jobs, list):
             ops, task, _ = self._toposort(jobs[0])
@@ -897,6 +919,7 @@ class Database:
         job_params.job_name = job_name
         job_params.task_set.tasks.extend(tasks)
         job_params.task_set.ops.extend(ops)
+        job_params.task_set.compression.extend(compression_options)
         job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress

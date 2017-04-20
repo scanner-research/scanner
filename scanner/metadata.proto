@@ -135,9 +135,15 @@ message Op {
   bytes kernel_args = 4;
 }
 
+message OutputColumnCompression {
+  string codec = 1;
+  map<string, string> options = 2;
+}
+
 message TaskSet {
   repeated Task tasks = 1;
   repeated Op ops = 2;
+  repeated OutputColumnCompression compression = 3;
 }
 
 message JobDescriptor {

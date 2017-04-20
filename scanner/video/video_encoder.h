@@ -25,12 +25,15 @@
 namespace scanner {
 namespace internal {
 
-class InputFormat;
-
 enum class VideoEncoderType {
   NVIDIA,
   INTEL,
   SOFTWARE,
+};
+
+struct EncodeOptions {
+  i32 quality = -1;
+  i64 bitrate = -1;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -46,7 +49,8 @@ class VideoEncoder {
 
   virtual ~VideoEncoder(){};
 
-  virtual void configure(const FrameInfo& metadata) = 0;
+  virtual void configure(const FrameInfo& metadata,
+                         const EncodeOptions& opts) = 0;
 
   virtual bool feed(const u8* frame_buffer, size_t frame_size) = 0;
 

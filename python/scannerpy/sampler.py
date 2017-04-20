@@ -94,6 +94,6 @@ class SamplerOp:
         def fn(*args, **kwargs):
             def task_generator(t=self._table):
                 return getattr(TableSampler(t), attr)(*args, **kwargs)
-            return self._table._db.ops.Input([c.name() for c in self._table.columns()],
+            return self._table._db.ops.Input(self._table.columns(),
                                              task_generator, self._table._collection).outputs()
         return fn
