@@ -101,11 +101,7 @@ class OpBuilder {
       LOG(FATAL) << "Op " << name_ << " cannot have both fixed and variadic "
                  << "inputs";
     }
-    Column col;
-    col.set_id(input_columns_.size());
-    col.set_name(name);
-    col.set_type(type);
-    input_columns_.push_back(col);
+    input_columns_.push_back(std::make_tuple(name, type));
     return *this;
   }
 
@@ -115,11 +111,7 @@ class OpBuilder {
 
   OpBuilder& output(const std::string& name,
                     ColumnType type = ColumnType::Other) {
-    Column col;
-    col.set_id(input_columns_.size());
-    col.set_name(name);
-    col.set_type(type);
-    output_columns_.push_back(col);
+    output_columns_.push_back(std::make_tuple(name, type));
     return *this;
   }
 
@@ -130,8 +122,8 @@ class OpBuilder {
  private:
   std::string name_;
   bool variadic_inputs_;
-  std::vector<Column> input_columns_;
-  std::vector<Column> output_columns_;
+  std::vector<std::tuple<std::string, ColumnType>> input_columns_;
+  std::vector<std::tuple<std::string, ColumnType>> output_columns_;
 };
 }
 
