@@ -70,6 +70,11 @@ struct EvaluateThreadArgs {
   Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
 };
 
+struct ColumnCompressionOptions {
+  std::string codec;
+  std::map<std::string, std::string> options;
+};
+
 struct PostEvaluateThreadArgs {
   // Uniform arguments
   i32 node_id;
@@ -80,6 +85,7 @@ struct PostEvaluateThreadArgs {
   // Index in columns for inputs
   std::vector<i32> column_mapping;
   std::vector<Column> columns;
+  std::vector<ColumnCompressionOptions> column_compression;
 
   // Queues for communicating work
   Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;

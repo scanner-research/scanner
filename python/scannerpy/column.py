@@ -23,6 +23,9 @@ class Column:
     def name(self):
         return self._descriptor.name
 
+    def type(self):
+        return self._descriptor.type
+
     def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
 
