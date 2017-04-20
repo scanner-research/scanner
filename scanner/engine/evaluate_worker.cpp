@@ -566,6 +566,7 @@ void* post_evaluate_thread(void* arg) {
             // a frame so that we can communicate the frame size downstream
             insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
+          encoder_configured[encoder_idx] = false;
           encoder_idx++;
         }
       }
