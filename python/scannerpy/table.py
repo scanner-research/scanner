@@ -2,7 +2,7 @@ from common import *
 from column import Column
 import struct
 from itertools import izip
-from sampler import TableSampler
+from sampler import SamplerOp
 
 class Table:
     """
@@ -58,7 +58,7 @@ class Table:
             return columns
 
     def as_op(self):
-        return TableSampler(self)
+        return SamplerOp(self)
 
     def num_rows(self):
         return self._descriptor.end_rows[-1]
@@ -88,6 +88,3 @@ class Table:
                 yield (row, fn(vals, self._db))
             else:
                 yield (row, vals)
-
-    def frames(self):
-        return Sampler()
