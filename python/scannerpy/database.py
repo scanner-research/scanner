@@ -804,15 +804,15 @@ class Database:
             0, OpColumn(
                 eval_sorted[0], "index0" if len(input_tables) > 1 else "index"))
 
-        task = input_tables[0]._task
+        task = input_tables[0]._generator()
         if job.name() is not None:
             task.output_table_name = job.name()
 
         for t in input_tables[1:]:
-            task.samples.extend(t._task.samples)
+            task.samples.extend(t._generator().samples)
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
-          task, input_tables[0]._collection
+          task, input_tables[0]
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -864,8 +864,9 @@ class Database:
             tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
         else:
             job = jobs
-            ops, task, collection = self._toposort(job)
+            ops, task, input_op = self._toposort(job)
             tasks = [task]
+            collection = input_op._collection
             if collection is not None:
                 output_collection = job.name()
                 if self.has_collection(output_collection) and not force:
@@ -873,12 +874,10 @@ class Database:
                         'Collection with name {} already exists'
                         .format(output_collection))
                 for t in collection.tables()[1:]:
-                    t_task = self.protobufs.Task()
-                    t_task.CopyFrom(task)
+                    t_task = input_op._generator(t)
                     t_task.output_table_name = '{}:{}'.format(
                         output_collection,
                         t.name().split(':')[-1])
-                    t_task.samples[0].table_name = t.name()
                     tasks.append(t_task)
 
         for task in tasks:

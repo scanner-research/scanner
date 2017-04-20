@@ -11,9 +11,6 @@ class TableSampler:
         self._table = table
         self._db = table._db
 
-    def _outputs(self, task):
-        return self._db.ops.Input([c.name() for c in self._table.columns()], task, self._table._collection).outputs()
-
     def all(self, item_size=1000, warmup_size=0):
         sampler_args = self._db.protobufs.AllSamplerArgs()
         sampler_args.sample_size = item_size
@@ -26,7 +23,7 @@ class TableSampler:
         sample.column_names.extend(column_names)
         sample.sampling_function = "All"
         sample.sampling_args = sampler_args.SerializeToString()
-        return self._outputs(task)
+        return task
 
     def strided(self, stride, item_size=1000):
         return self.strided_range(0, self._table.num_rows(), stride, item_size=item_size)
@@ -57,7 +54,7 @@ class TableSampler:
             sampler_args_sample.rows[:] = rows[s:e]
             s = e
         sample.sampling_args = sampler_args.SerializeToString()
-        return self._outputs(task)
+        return task
 
     def strided_range(self, start, end, stride, item_size=1000,
                       warmup_size=0):
@@ -87,4 +84,16 @@ class TableSampler:
                 sampler_args.ends.append(e)
                 s = e
         sample.sampling_args = sampler_args.SerializeToString()
-        return self._outputs(task)
+        return task
+
+class SamplerOp:
+    def __init__(self, table):
+        self._table = table
+
+    def __getattr__(self, attr):
+        def fn(*args, **kwargs):
+            def task_generator(t=self._table):
+                return getattr(TableSampler(t), attr)(*args, **kwargs)
+            return self._table._db.ops.Input([c.name() for c in self._table.columns()],
+                                             task_generator, self._table._collection).outputs()
+        return fn

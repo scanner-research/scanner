@@ -1,5 +1,5 @@
 from common import *
-from sampler import TableSampler
+from sampler import SamplerOp
 
 
 class Collection:
@@ -30,4 +30,4 @@ class Collection:
     def as_op(self):
         t = self.tables(0)
         t._collection = self
-        return TableSampler(t)
+        return SamplerOp(t)
