@@ -44,7 +44,8 @@ def test_tutorial():
         '01_sampling',
         '02_collections',
         '03_ops',
-        '04_custom_op']
+        '04_compression',
+        '05_custom_op']
 
     for t in tutorials:
         run_py(t)
@@ -225,3 +226,4 @@ def test_save_mp4(db):
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
     table.columns('frame').save_mp4(f.name)
+    run(['rm', '-rf', f.name])

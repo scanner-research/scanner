@@ -229,6 +229,7 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
   // Make sure we have space for this packet, otherwise return
   actual_packet_size = filtered_data_size;
   if (actual_packet_size > packet_size) {
+    free(filtered_data);
     return true;
   }
 

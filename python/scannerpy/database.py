@@ -756,7 +756,7 @@ class Database:
                     stack.append(input._op)
 
         def input_col_name(col, idx):
-            if len(input_tables) > 1:
+            if len(input_tables) > 1 and idx != 0:
                 return '{}{:d}'.format(col, idx)
             else:
                 return col
@@ -764,9 +764,13 @@ class Database:
         for (input, idx) in to_change:
             input._col = input_col_name(input._col, idx)
 
-        start_node._inputs = \
-          [input_col_name(c, i)
-           for i, t in enumerate(input_tables) for c in t._inputs]
+        new_start_node_inputs = []
+        for i, t in enumerate(input_tables):
+            for c in t._inputs:
+                col = Column(c._table, c._descriptor, c._video_descriptor)
+                col._name = input_col_name(c._descriptor.name, i)
+                new_start_node_inputs.append(col)
+        start_node._inputs = new_start_node_inputs
 
         # Perform DFS on modified graph
         explored_nodes = set([start_node])
@@ -807,7 +811,7 @@ class Database:
             0, OpColumn(
                 self,
                 eval_sorted[0],
-                "index0" if len(input_tables) > 1 else "index",
+                "index",
                 self.protobufs.Other))
 
         task = input_tables[0]._generator()

@@ -104,6 +104,7 @@ inline void next_nal(const u8*& buffer, i32& buffer_size_left,
   }
   if (!(buffer_size_left > 3)) {
     nal_size += buffer_size_left;
+    // Not sure if this is needed or not...
     // buffer += buffer_size_left;
     // buffer_size_left = 0;
   }

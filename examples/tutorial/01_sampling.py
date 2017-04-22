@@ -12,11 +12,11 @@ with Database() as db:
     # You can tell Scanner which frames of the video (or which rows of a video
     # table) you want to sample. Here, the "strided" sampling mode will run over
     # every 8th frame, i.e. frames [0, 8, 16, ...]
-    frame, frame_info = input_table.as_op().strided(8)
+    frame = input_table.as_op().strided(8)
 
     # We pass the job to the database same as before, and can process the output
     # same as before.
-    histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
+    histogram = db.ops.Histogram(frame = frame)
     job = Job(columns = [histogram], name = 'example_hist_strided')
     output_table = db.run(job, force=True)
 

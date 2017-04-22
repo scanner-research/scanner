@@ -94,16 +94,16 @@ size_t Frame::size() const {
 }
 
 int Frame::width() const {
-  return shape[1];
+  return as_frame_info().width();
 }
 
 int Frame::height() const {
-  return shape[0];
+  return as_frame_info().height();
 }
 
 //! Only valid when the dimensions are (height, width, channels)
 int Frame::channels() const {
-  return shape[2];
+  return as_frame_info().channels();
 }
 
 Frame* new_frame(DeviceHandle device, FrameInfo info) {

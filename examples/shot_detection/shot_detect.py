@@ -100,8 +100,8 @@ def main():
     print('Detecting shots in movie {}'.format(movie_path))
     movie_name = os.path.basename(movie_path)
 
+    scanner_montage = True
     with Database() as db:
-    # with Database(debug=True) as db:
         print('Loading movie into Scanner database...')
         s = time.time()
         [movie_table], _ = db.ingest_videos([(movie_name, movie_path)], force=True)
@@ -127,14 +127,17 @@ def main():
 
         s = time.time()
         print('Creating shot montage...')
-        # Make montage in scanner
-        montage_img = make_montage_scanner(db, movie_table, boundaries)
+        if scanner_montage:
+            # Make montage in scanner
+            montage_img = make_montage_scanner(db, movie_table, boundaries)
+        else:
+            # Make montage in python
+            # Loading the frames for each shot boundary
+            frames = movie_table.load([0], rows=boundaries)
+            montage_img = make_montage(len(boundaries), frames)
+
         print('')
         print('Time: {:.1f}s'.format(time.time() - s))
-
-        # Loading the frames for each shot boundary
-        # frames = movie_table.load([0], rows=boundaries)
-        # montage_img = make_montage(len(boundaries), frames)
 
         cv2.imwrite('shots.jpg', montage_img)
         print('Successfully generated shots.jpg')
