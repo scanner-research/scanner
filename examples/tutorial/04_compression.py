@@ -55,5 +55,3 @@ with Database() as db:
     # file by calling save_mp4 on the column. This will output a file called
     # 'low_quality_video.mp4' in the current directory.
     db.table('low_quality_table').column('frame').save_mp4('low_quality_video')
-
-    db.run(job, force=True)
