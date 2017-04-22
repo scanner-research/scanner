@@ -19,8 +19,12 @@ class Column:
         self._storage = table._db.config.storage
         self._db_path = table._db.config.db_path
         self._video_descriptor = video_descriptor
+        # Used for overriding name
+        self._name = None
 
     def name(self):
+        if self._name:
+            return self._name
         return self._descriptor.name
 
     def type(self):
@@ -151,7 +155,7 @@ class Column:
         else:
             return self._load(fn, rows=rows)
 
-    def save_mp4(self, path, fps=None, rows=None):
+    def save_mp4(self, output_name, fps=None, scale=None):
         if not (self._descriptor.type == self._db.protobufs.Video and
                 self._video_descriptor.codec_type ==
                 self._db.protobufs.VideoDescriptor.H264):
@@ -180,11 +184,21 @@ class Column:
         vid_fps = (fps or
                    (1.0/(self._video_descriptor.time_base_num /
                          float(self._video_descriptor.time_base_denom))))
+
+        args = ''
+        if scale:
+            args += '-filter:v "scale={:d}x{:d}" '.format(scale[0], scale[1])
+
         cmd = (
             'ffmpeg -y '
-            '-r {:f} '
-            '-i "concat:{:s}" '
-            '-filter:v "setpts=N" '
-            '-bsf:a aac_adtstoasc '
-            '{:s}'.format(vid_fps, files, path))
+            '-r {fps:f} ' # set the input fps
+            '-i "concat:{input_files:s}" ' # concatenate the h264 files
+            '-c:v libx264 '
+            '-filter:v "setpts=N" ' # h264 does not have pts' in it
+            '{extra_args:s}'
+            '{output_name:s}.mp4'.format(
+                input_files = files,
+                fps = vid_fps,
+                extra_args = args,
+                output_name=output_name))
         Popen(cmd, shell=True).wait()

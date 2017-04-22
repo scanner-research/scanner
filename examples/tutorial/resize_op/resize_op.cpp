@@ -34,32 +34,35 @@ class ResizeKernel : public scanner::VideoKernel {
 
   // Execute is the core computation of the kernel. It maps a batch of rows
   // from an input table to a batch of rows of the output table. Here, we map
-  // from two input columns from the video, "frame" and "frame_info", and return
+  // from one input column from the video, "frame", and return
   // a single column, "frame".
   void execute(const scanner::BatchedColumns& input_columns,
                scanner::BatchedColumns& output_columns) override {
-    int input_count = input_columns[0].rows.size();
+    auto& frame_column = input_columns[0];
+    int input_count = num_rows(frame_column);
 
     // This must be called at the top of the execute method in any VideoKernel.
     // See the VideoKernel for the implementation check_frame_info.
-    check_frame_info(scanner::CPU_DEVICE, input_columns[1]);
+    check_frame(scanner::CPU_DEVICE, frame_column[0]);
 
+    auto& resized_frame_column = output_columns[0];
+    FrameInfo output_frame_info(height_, width_, 3, FrameType::U8);
     for (int i = 0; i < input_count; ++i) {
-      // Convert the raw input buffer into an OpenCV matrix
-      cv::Mat input(frame_info_.height(), frame_info_.width(), CV_8UC3,
-                    input_columns[0].rows[i].buffer);
+      // Get a frame from the batch of input frames
+      const Frame* frame = frame_column[i].as_const_frame();
+      // Convert the input frame into an OpenCV matrix
+      cv::Mat input = frame_to_mat(frame);
 
-      // Allocate a buffer for the output
-      size_t output_size = width_ * height_ * 3;
-      unsigned char* output_buf =
-          scanner::new_buffer(scanner::CPU_DEVICE, output_size);
-      cv::Mat output(height_, width_, CV_8UC3, output_buf);
+      // Allocate a frame for the resized output frame
+      Frame* resized_frame = new_frame(scanner::CPU_DEVICE, output_frame_info);
+      // Convert the output frame to an OpenCV matrix
+      cv::Mat output = frame_to_mat(resized_frame);
 
       // Call to OpenCV for the resize
       cv::resize(input, output, cv::Size(width_, height_));
 
-      // Add the buffer to an output column
-      INSERT_ROW(output_columns[0], output_buf, output_size);
+      // Add the resized frame to an output column
+      insert_frame(resized_frame_column, resized_frame);
     }
   }
 
@@ -71,7 +74,7 @@ class ResizeKernel : public scanner::VideoKernel {
 // These functions run statically when the shared library is loaded to tell the
 // Scanner runtime about your custom op.
 
-REGISTER_OP(Resize).inputs({"frame", "frame_info"}).outputs({"frame"});
+REGISTER_OP(Resize).frame_input("frame").frame_output("frame");
 
 REGISTER_KERNEL(Resize, ResizeKernel)
     .device(scanner::DeviceType::CPU)

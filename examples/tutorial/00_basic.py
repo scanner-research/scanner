@@ -28,13 +28,13 @@ with Database() as db:
     print('Failures:', failed)
 
     # To process our video, first we have to define the inputs. The input_table
-    # has two columns frame and frame_info, which we can access via .as_op().
+    # has one column, frame, which we can access via .as_op().
     # The .all() means to include all frames of the video.
-    frame, frame_info = input_table.as_op().all()
+    frame = input_table.as_op().all()
 
     # These frames are input into a Histogram op that computes a color histogram
     # for each frame.
-    histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
+    histogram = db.ops.Histogram(frame = frame)
 
     # A job defines a table you want to create. Here, we have a single column
     # which is the output of the Histogram op, and we'll name the table
