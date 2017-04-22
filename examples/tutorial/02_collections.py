@@ -23,8 +23,8 @@ with Database() as db:
     # You can use a collection the same way you use a table when defining a
     # computation. This will run your computation over every table in the
     # collection using the sampling mode you specify.
-    frame, frame_info = input_collection.as_op().range(0, 100)
-    histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
+    frame = input_collection.as_op().range(0, 100)
+    histogram = db.ops.Histogram(frame = frame)
     job = Job(columns = [histogram], name = 'example_hist_collection')
     output_collection = db.run(job, force=True)
 

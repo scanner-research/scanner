@@ -157,6 +157,7 @@ void* pre_evaluate_thread(void* arg) {
                 entry.columns[c],
                 new Frame(frame_info, e.buffer));
             }
+            entry.column_handles.push_back(work_entry.column_handles[c]);
           }
           media_col_idx++;
         } else {
@@ -286,6 +287,8 @@ void* evaluate_thread(void* arg) {
             work_entry.columns[i].begin() + current_input + batch);
       }
       for (size_t k = 0; k < kernels.size(); ++k) {
+        const std::string& op_name =
+          std::get<0>(args.kernel_factories[k])->get_op_name();
         DeviceHandle current_handle = kernel_devices[k];
         std::unique_ptr<Kernel>& kernel = kernels[k];
         i32 num_outputs = kernel_num_outputs[k];
@@ -318,7 +321,7 @@ void* evaluate_thread(void* arg) {
 
         auto eval_start = now();
         kernel->execute(input_columns, output_columns);
-        args.profiler.add_interval("evaluate", eval_start, now());
+        args.profiler.add_interval("evaluate:" + op_name, eval_start, now());
         // Delete unused outputs
         for (size_t y = 0; y < unused_outputs[k].size(); ++y) {
           i32 unused_col_idx =
@@ -508,11 +511,12 @@ void* post_evaluate_thread(void* arg) {
                                         work_entry.columns[col_idx]);
 
         // Pass frames into encoder
+        auto encode_start = now();
         for (auto& row : work_entry.columns[col_idx]) {
           Frame* frame = row.as_frame();
           bool new_packet = encoder->feed(frame->data, frame->size());
           while (new_packet) {
-            size_t buffer_size = 1 * 1024 * 1024;
+            size_t buffer_size = 4 * 1024 * 1024;
             u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
             size_t actual_size;
             new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
@@ -522,6 +526,7 @@ void* post_evaluate_thread(void* arg) {
             insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
         }
+        args.profiler.add_interval("encode", work_start, now());
         encoder_idx++;
       } else {
         // Keep non-warmup frame outputs
@@ -553,9 +558,10 @@ void* post_evaluate_thread(void* arg) {
           auto& encoder = encoders[encoder_idx];
 
           // Get last packets in encoder
+          auto encode_flush_start = now();
           bool new_packet = encoder->flush();
           while (new_packet) {
-            size_t buffer_size = 1 * 1024 * 1024;
+            size_t buffer_size = 4 * 1024 * 1024;
             u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
             size_t actual_size;
             new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
@@ -566,6 +572,7 @@ void* post_evaluate_thread(void* arg) {
             // a frame so that we can communicate the frame size downstream
             insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
+          args.profiler.add_interval("encode_flush", encode_flush_start, now());
           encoder_configured[encoder_idx] = false;
           encoder_idx++;
         }
@@ -574,6 +581,8 @@ void* post_evaluate_thread(void* arg) {
       args.output_work.push(std::make_tuple(io_item, buffered_entry));
       buffered_entry.columns.clear();
     }
+
+    args.profiler.add_interval("task", work_start, now());
   }
 
   VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id

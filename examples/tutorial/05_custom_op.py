@@ -19,12 +19,12 @@ with Database() as db:
     # takes a path to the generated python file for the arg protobuf.
     db.load_op('resize_op/build/libresize_op.so', 'resize_op/build/resize_pb2.py')
 
-    frame, frame_info = db.table('example').as_op().all()
+    frame = db.table('example').as_op().all()
 
     # Then we use our op just like in the other examples.
     resize = db.ops.Resize(
-        frame = frame, frame_info = frame_info,
+        frame = frame,
         width = 200, height = 300)
 
-    job = Job(columns = [resize, frame_info], name = 'example_resized')
+    job = Job(columns = [resize], name = 'example_resized')
     db.run(job, force=True)

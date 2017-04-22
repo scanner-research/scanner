@@ -6,8 +6,8 @@ from scannerpy import Database, Job, DeviceType
 
 with Database() as db:
 
-    frame, frame_info = db.table('example').as_op().all()
-    histogram = db.ops.Histogram(frame = frame, frame_info = frame_info)
+    frame = db.table('example').as_op().all()
+    histogram = db.ops.Histogram(frame = frame)
     job = Job(columns = [histogram], name = 'example_hist_profile')
     output_table = db.run(job, force=True)
 

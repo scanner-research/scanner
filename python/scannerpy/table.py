@@ -46,6 +46,9 @@ class Table:
     def name(self):
         return self._descriptor.name
 
+    def column(self, index):
+        return self.columns(index)
+
     def columns(self, index=None):
         columns = self._columns
         if index is not None:
