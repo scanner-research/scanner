@@ -30,7 +30,7 @@ using SamplerFactory =
 class AllSampler : public Sampler {
  public:
   AllSampler(const std::vector<u8>& args, const TableMetadata& table)
-      : Sampler("All", table) {
+    : Sampler("All", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_, "All sampler provided with invalid protobuf args");
@@ -89,7 +89,7 @@ class AllSampler : public Sampler {
 class StridedRangeSampler : public Sampler {
  public:
   StridedRangeSampler(const std::vector<u8>& args, const TableMetadata& table)
-      : Sampler("StridedRange", table) {
+    : Sampler("StridedRange", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_,
@@ -170,7 +170,7 @@ class StridedRangeSampler : public Sampler {
 class StencilSampler : public Sampler {
  public:
   StencilSampler(const std::vector<u8>& args, const TableMetadata& table)
-      : Sampler("Stencil", table) {
+    : Sampler("Stencil", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_,
@@ -264,7 +264,7 @@ class StencilSampler : public Sampler {
 class GatherSampler : public Sampler {
  public:
   GatherSampler(const std::vector<u8>& args, const TableMetadata& table)
-      : Sampler("Gather", table) {
+    : Sampler("Gather", table) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_,
@@ -347,7 +347,7 @@ Result make_sampler_instance(const std::string& sampler_type,
 TaskSampler::TaskSampler(
     const std::map<std::string, TableMetadata>& table_metas,
     const proto::Task& task)
-    : table_metas_(table_metas), task_(task) {
+  : table_metas_(table_metas), task_(task) {
   valid_.set_success(true);
   if (table_metas.count(task.output_table_name()) == 0) {
     RESULT_ERROR(&valid_, "Output table %s does not exist.",

@@ -12,10 +12,10 @@ namespace scanner {
 class OpticalFlowKernelGPU : public VideoKernel {
  public:
   OpticalFlowKernelGPU(const Kernel::Config& config)
-      : VideoKernel(config),
-        device_(config.devices[0]),
-        work_item_size_(config.work_item_size),
-        num_cuda_streams_(4) {
+    : VideoKernel(config),
+      device_(config.devices[0]),
+      work_item_size_(config.work_item_size),
+      num_cuda_streams_(4) {
     set_device();
     streams_.resize(num_cuda_streams_);
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
@@ -41,7 +41,7 @@ class OpticalFlowKernelGPU : public VideoKernel {
     flow_finders_.resize(0);
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
       flow_finders_.push_back(
-        cvc::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0));
+          cvc::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0));
     }
   }
 
@@ -55,7 +55,7 @@ class OpticalFlowKernelGPU : public VideoKernel {
     FrameInfo out_frame_info(frame_info_.height(), frame_info_.width(), 2,
                              FrameType::F32);
     std::vector<Frame*> frames =
-      new_frames(device_, out_frame_info, input_count);
+        new_frames(device_, out_frame_info, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
       i32 sid = i % num_cuda_streams_;

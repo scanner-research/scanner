@@ -1,7 +1,7 @@
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
-#include "scanner/util/opencv.h"
 #include "scanner/util/memory.h"
+#include "scanner/util/opencv.h"
 #include "scanner/util/serialize.h"
 
 #include "OpenFace/FaceAnalyser.h"
@@ -18,12 +18,12 @@ class OpenFaceKernel : public VideoKernel {
   OpenFaceKernel(const Kernel::Config& config)
     : VideoKernel(config), clnf_model(det_parameters.model_location) {
     boost::filesystem::path au_loc_path =
-      boost::filesystem::path("AU_predictors/AU_all_static.txt");
+        boost::filesystem::path("AU_predictors/AU_all_static.txt");
     boost::filesystem::path tri_loc_path =
-      boost::filesystem::path("model/tris_68_full.txt");
+        boost::filesystem::path("model/tris_68_full.txt");
     face_analyser_ =
-      FaceAnalysis::FaceAnalyser(vector<cv::Vec3d>(), 0.7, 112, 112,
-                                 au_loc_path.string(), tri_loc_path.string());
+        FaceAnalysis::FaceAnalyser(vector<cv::Vec3d>(), 0.7, 112, 112,
+                                   au_loc_path.string(), tri_loc_path.string());
   }
 
   void execute(const BatchedColumns& input_columns,
@@ -50,8 +50,8 @@ class OpenFaceKernel : public VideoKernel {
       cv::Mat grey;
       cv::cvtColor(img, grey, CV_BGR2GRAY);
       std::vector<BoundingBox> all_bboxes =
-        deserialize_proto_vector<BoundingBox>(bbox_col[b].buffer,
-                                              bbox_col[b].size);
+          deserialize_proto_vector<BoundingBox>(bbox_col[b].buffer,
+                                                bbox_col[b].size);
 
       for (auto& bbox : all_bboxes) {
         f64 x1 = bbox.x1(), y1 = bbox.y1(), x2 = bbox.x2(), y2 = bbox.y2();
@@ -65,10 +65,10 @@ class OpenFaceKernel : public VideoKernel {
         cv::rectangle(img, cv_bbox, cv::Scalar(0, 255, 0));
 
         bool success = LandmarkDetector::DetectLandmarksInImage(
-          grey, cv_bbox, clnf_model, det_parameters);
+            grey, cv_bbox, clnf_model, det_parameters);
         if (success) {
           std::vector<cv::Point2d> landmarks =
-            LandmarkDetector::CalculateLandmarks(clnf_model);
+              LandmarkDetector::CalculateLandmarks(clnf_model);
 
           cv::Point3f gazeDirection0(0, 0, -1);
           cv::Point3f gazeDirection1(0, 0, -1);
@@ -78,10 +78,10 @@ class OpenFaceKernel : public VideoKernel {
                                      false);
 
           auto ActionUnits =
-            face_analyser_.PredictStaticAUs(grey, clnf_model, false);
+              face_analyser_.PredictStaticAUs(grey, clnf_model, false);
 
-          cv::Vec6d headPose =
-            LandmarkDetector::GetCorrectedPoseWorld(clnf_model, fx, fy, cx, cy);
+          cv::Vec6d headPose = LandmarkDetector::GetCorrectedPoseWorld(
+              clnf_model, fx, fy, cx, cy);
 
           LandmarkDetector::DrawBox(img, headPose, cv::Scalar(255.0, 0, 0), 3,
                                     fx, fy, cx, cy);
@@ -99,7 +99,7 @@ class OpenFaceKernel : public VideoKernel {
   LandmarkDetector::FaceModelParameters det_parameters;
   LandmarkDetector::CLNF clnf_model;
   std::vector<std::string> files, depth_files, output_images,
-    output_landmark_locations, output_pose_locations;
+      output_landmark_locations, output_pose_locations;
   std::vector<cv::Rect_<double>> bounding_boxes;
   int device;
   float fx, fy, cx, cy;
@@ -109,6 +109,6 @@ class OpenFaceKernel : public VideoKernel {
 REGISTER_OP(OpenFace).frame_input("frame").input("faces").output("features");
 
 REGISTER_KERNEL(OpenFace, OpenFaceKernel)
-  .device(DeviceType::CPU)
-  .num_devices(1);
+    .device(DeviceType::CPU)
+    .num_devices(1);
 }

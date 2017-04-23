@@ -16,9 +16,9 @@
 #include "scanner/engine/save_worker.h"
 
 #include "scanner/engine/metadata.h"
-#include "scanner/video/h264_byte_stream_index_creator.h"
 #include "scanner/util/common.h"
 #include "scanner/util/storehouse.h"
+#include "scanner/video/h264_byte_stream_index_creator.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -60,7 +60,6 @@ void* save_thread(void* arg) {
     args.profiler.add_interval("idle", idle_start, now());
 
     auto work_start = now();
-
 
     // Write out each output column to an individual data file
     i32 video_col_idx = 0;
@@ -107,8 +106,7 @@ void* save_thread(void* arg) {
         video_descriptor.set_time_base_num(1);
         video_descriptor.set_time_base_denom(25);
 
-        if (compressed &&
-            frame_info.type == FrameType::U8 &&
+        if (compressed && frame_info.type == FrameType::U8 &&
             frame_info.channels() == 3) {
           H264ByteStreamIndexCreator index_creator(output_file);
           for (size_t i = 0; i < num_elements; ++i) {
@@ -123,13 +121,13 @@ void* save_thread(void* arg) {
           i64 frame = index_creator.frames();
           i32 num_non_ref_frames = index_creator.num_non_ref_frames();
           const std::vector<u8>& metadata_bytes =
-            index_creator.metadata_bytes();
+              index_creator.metadata_bytes();
           const std::vector<i64>& keyframe_positions =
-            index_creator.keyframe_positions();
+              index_creator.keyframe_positions();
           const std::vector<i64>& keyframe_timestamps =
-            index_creator.keyframe_timestamps();
+              index_creator.keyframe_timestamps();
           const std::vector<i64>& keyframe_byte_offsets =
-            index_creator.keyframe_byte_offsets();
+              index_creator.keyframe_byte_offsets();
 
           video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
           video_descriptor.set_codec_type(proto::VideoDescriptor::H264);

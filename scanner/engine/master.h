@@ -38,7 +38,7 @@ class MasterImpl final : public proto::Master::Service {
   // ipv4:<peer_address>:<random_port>
   // Returns the <peer_address> from the above format.
   static std::string get_worker_address_from_grpc_context(
-    grpc::ServerContext* context);
+      grpc::ServerContext* context);
 
   grpc::Status RegisterWorker(grpc::ServerContext* context,
                               const proto::WorkerParams* worker_info,
@@ -76,7 +76,7 @@ class MasterImpl final : public proto::Master::Service {
   grpc::Status PokeWatchdog(grpc::ServerContext* context,
                             const proto::Empty* empty, proto::Empty* result);
 
-  void start_watchdog(grpc::Server* server, i32 timeout_ms=50000);
+  void start_watchdog(grpc::Server* server, i32 timeout_ms = 50000);
 
  private:
   std::thread watchdog_thread_;

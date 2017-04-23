@@ -17,8 +17,8 @@
 
 #include "scanner/api/frame.h"
 #include "scanner/util/common.h"
-#include "scanner/util/profiler.h"
 #include "scanner/util/memory.h"
+#include "scanner/util/profiler.h"
 
 #include <vector>
 
@@ -53,9 +53,7 @@ struct Element {
 using ElementList = std::vector<Element>;
 using BatchedColumns = std::vector<ElementList>;
 
-inline size_t num_rows(const ElementList& column) {
-  return column.size();
-}
+inline size_t num_rows(const ElementList& column) { return column.size(); }
 
 inline void insert_element(ElementList& column, u8* buffer, size_t size) {
   column.push_back(::scanner::Element{buffer, size});
@@ -225,8 +223,8 @@ class KernelBuilder {
 
 #define REGISTER_KERNEL_UID(uid__, name__, kernel__)                         \
   static ::scanner::internal::KernelRegistration kernel_registration_##uid__ \
-    __attribute__((unused)) = ::scanner::internal::KernelBuilder(            \
-      #name__, [](const ::scanner::Kernel::Config& config) {                 \
-        return new kernel__(config);                                         \
-      })
+      __attribute__((unused)) = ::scanner::internal::KernelBuilder(          \
+          #name__, [](const ::scanner::Kernel::Config& config) {             \
+            return new kernel__(config);                                     \
+          })
 }

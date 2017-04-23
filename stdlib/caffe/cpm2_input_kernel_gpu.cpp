@@ -27,12 +27,12 @@ namespace scanner {
 class CPM2InputKernel : public VideoKernel {
  public:
   CPM2InputKernel(const Kernel::Config& config)
-      : VideoKernel(config),
-        device_(config.devices[0])
+    : VideoKernel(config),
+      device_(config.devices[0])
 #ifdef HAVE_CUDA
-        ,
-        num_cuda_streams_(32),
-        streams_(num_cuda_streams_)
+      ,
+      num_cuda_streams_(32),
+      streams_(num_cuda_streams_)
 #endif
   {
     proto::CPM2Args args;

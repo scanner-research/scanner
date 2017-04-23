@@ -25,9 +25,9 @@ class FasterRCNNOutputKernel : public Kernel {
     i32 cls_prob_idx = 0;
     i32 rois_idx = 1;
     i32 fc7_idx = 2;
-    const ElementList& cls_prob = input_columns[cls_prob_idx],
-          &rois = input_columns[rois_idx],
-          &fc7 = input_columns[fc7_idx];
+    const ElementList &cls_prob = input_columns[cls_prob_idx],
+                      &rois = input_columns[rois_idx],
+                      &fc7 = input_columns[fc7_idx];
 
     for (i32 i = 0; i < input_count; ++i) {
       const Frame* cls = cls_prob[i].as_const_frame();
@@ -97,9 +97,9 @@ class FasterRCNNOutputKernel : public Kernel {
 };
 
 REGISTER_OP(FasterRCNNOutput)
-  .frame_input("caffe_output")
-  .output("bboxes")
-  .output("features");
+    .frame_input("caffe_output")
+    .output("bboxes")
+    .output("features");
 
 REGISTER_KERNEL(FasterRCNNOutput, FasterRCNNOutputKernel)
     .device(DeviceType::CPU)

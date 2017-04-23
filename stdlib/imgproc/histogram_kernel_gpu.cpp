@@ -12,10 +12,10 @@ const i32 BINS = 16;
 class HistogramKernelGPU : public VideoKernel {
  public:
   HistogramKernelGPU(const Kernel::Config& config)
-      : VideoKernel(config),
-        device_(config.devices[0]),
-        num_cuda_streams_(32),
-        streams_(num_cuda_streams_) {}
+    : VideoKernel(config),
+      device_(config.devices[0]),
+      num_cuda_streams_(32),
+      streams_(num_cuda_streams_) {}
 
   void new_frame_info() override {
     set_device();
@@ -24,7 +24,7 @@ class HistogramKernelGPU : public VideoKernel {
     planes_.clear();
     for (i32 i = 0; i < 3; ++i) {
       planes_.push_back(
-        cvc::GpuMat(frame_info_.width(), frame_info_.height(), CV_8UC1));
+          cvc::GpuMat(frame_info_.width(), frame_info_.height(), CV_8UC1));
     }
   }
 

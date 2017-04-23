@@ -60,7 +60,7 @@ class BlurKernel : public VideoKernel {
     FrameInfo info = frame_col[0].as_const_frame()->as_frame_info();
 
     std::vector<Frame*> output_frames =
-      new_frames(CPU_DEVICE, info, input_count);
+        new_frames(CPU_DEVICE, info, input_count);
     for (i32 i = 0; i < input_count; ++i) {
       const u8* frame_buffer = frame_col[i].as_const_frame()->data;
       u8* blurred_buffer = output_frames[i]->data;
@@ -94,9 +94,7 @@ class BlurKernel : public VideoKernel {
   Result valid_;
 };
 
-REGISTER_OP(Blur)
-  .frame_input("frame")
-  .frame_output("frame");
+REGISTER_OP(Blur).frame_input("frame").frame_output("frame");
 
 REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 }

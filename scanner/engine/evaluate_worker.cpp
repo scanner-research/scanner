@@ -96,7 +96,7 @@ void* pre_evaluate_thread(void* arg) {
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video &&
           work_entry.video_encoding_type[media_col_idx] ==
-          proto::VideoDescriptor::H264) {
+              proto::VideoDescriptor::H264) {
         decode_args.emplace_back();
         auto& args = decode_args.back();
         for (Element element : work_entry.columns[c]) {
@@ -139,12 +139,12 @@ void* pre_evaluate_thread(void* arg) {
                                  decode_args[media_col_idx][0].width(), 3,
                                  FrameType::U8);
             u8* buffer = new_block_buffer(
-              decoder_output_handle, num_rows * frame_info.size(), num_rows);
+                decoder_output_handle, num_rows * frame_info.size(), num_rows);
             decoders[media_col_idx]->get_frames(buffer, num_rows);
             for (i64 n = 0; n < num_rows; ++n) {
               insert_frame(
-                entry.columns[c],
-                new Frame(frame_info, buffer + frame_info.size() * n));
+                  entry.columns[c],
+                  new Frame(frame_info, buffer + frame_info.size() * n));
             }
             entry.column_handles.push_back(decoder_output_handle);
           } else {
@@ -153,9 +153,7 @@ void* pre_evaluate_thread(void* arg) {
             for (i64 n = 0; n < num_rows; ++n) {
               Element& e = work_entry.columns[c][start + n];
               assert(e.size == frame_info.size());
-              insert_frame(
-                entry.columns[c],
-                new Frame(frame_info, e.buffer));
+              insert_frame(entry.columns[c], new Frame(frame_info, e.buffer));
             }
             entry.column_handles.push_back(work_entry.column_handles[c]);
           }
@@ -163,7 +161,7 @@ void* pre_evaluate_thread(void* arg) {
         } else {
           entry.columns[c] =
               std::vector<Element>(work_entry.columns[c].begin() + start,
-                               work_entry.columns[c].begin() + end);
+                                   work_entry.columns[c].begin() + end);
           entry.column_handles.push_back(work_entry.column_handles[c]);
         }
       }
@@ -278,8 +276,7 @@ void* evaluate_thread(void* arg) {
       BatchedColumns side_output_columns;
       side_output_columns.resize(work_entry.columns.size());
       for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-        i32 batch =
-            std::min(batch_size, (i32)work_entry.columns[i].size());
+        i32 batch = std::min(batch_size, (i32)work_entry.columns[i].size());
         assert(batch > 0);
         side_output_columns[i].insert(
             side_output_columns[i].end(),
@@ -288,7 +285,7 @@ void* evaluate_thread(void* arg) {
       }
       for (size_t k = 0; k < kernels.size(); ++k) {
         const std::string& op_name =
-          std::get<0>(args.kernel_factories[k])->get_op_name();
+            std::get<0>(args.kernel_factories[k])->get_op_name();
         DeviceHandle current_handle = kernel_devices[k];
         std::unique_ptr<Kernel>& kernel = kernels[k];
         i32 num_outputs = kernel_num_outputs[k];
@@ -336,8 +333,8 @@ void* evaluate_thread(void* arg) {
         for (size_t i = 0; i < output_columns.size(); ++i) {
           LOG_IF(FATAL, output_columns[i].size() != batch_size)
               << "Op " << k << " produced " << output_columns[i].size()
-              << " output elements for column " << i << ". Expected " << batch_size
-              << " outputs.";
+              << " output elements for column " << i << ". Expected "
+              << batch_size << " outputs.";
         }
         // Delete dead columns
         for (size_t y = 0; y < dead_columns[k].size(); ++y) {
@@ -364,10 +361,9 @@ void* evaluate_thread(void* arg) {
       for (i32 i = 0; i < num_final_output_columns; ++i) {
         i32 num_output_elements =
             static_cast<i32>(side_output_columns[i].size());
-        work_item_output_columns[i].insert(
-            work_item_output_columns[i].end(),
-            side_output_columns[i].begin(),
-            side_output_columns[i].end());
+        work_item_output_columns[i].insert(work_item_output_columns[i].end(),
+                                           side_output_columns[i].begin(),
+                                           side_output_columns[i].end());
       }
       current_input += batch_size;
     }
@@ -407,7 +403,7 @@ void* post_evaluate_thread(void* arg) {
     ColumnType type = col.type();
     if (type != ColumnType::Video || compression_opts.codec == "raw") continue;
     encoders.emplace_back(
-      VideoEncoder::make_from_config(encoder_handle, 1, encoder_type));
+        VideoEncoder::make_from_config(encoder_handle, 1, encoder_type));
     encoder_configured.push_back(false);
 
     EncodeOptions opts;
@@ -455,8 +451,7 @@ void* post_evaluate_thread(void* arg) {
       assert(work_entry.column_handles.size() == args.columns.size());
       for (size_t i = 0; i < args.columns.size(); ++i) {
         buffered_entry.column_types.push_back(args.columns[i].type());
-        buffered_entry.column_handles.push_back(
-          work_entry.column_handles[i]);
+        buffered_entry.column_handles.push_back(work_entry.column_handles[i]);
         if (args.columns[i].type() == ColumnType::Video) {
           assert(work_entry.columns[i].size() > 0);
           Frame* frame = work_entry.columns[i][0].as_frame();
@@ -486,13 +481,11 @@ void* post_evaluate_thread(void* arg) {
                        work_entry.columns[col_idx][w]);
       }
       // Encode video frames
-      if (compression_enabled[i] &&
-          column_type == ColumnType::Video &&
+      if (compression_enabled[i] && column_type == ColumnType::Video &&
           buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
         {
           auto start = work_entry.columns[col_idx].begin();
-          auto warmup_end =
-            work_entry.columns[col_idx].begin() + warmup_frames;
+          auto warmup_end = work_entry.columns[col_idx].begin() + warmup_frames;
           work_entry.columns[col_idx].erase(start, warmup_end);
         }
         auto& encoder = encoders[encoder_idx];
@@ -505,10 +498,9 @@ void* post_evaluate_thread(void* arg) {
         }
 
         // Move frames to device for the encoder
-        move_if_different_address_space(args.profiler,
-                                        work_entry.column_handles[col_idx],
-                                        encoder_handle,
-                                        work_entry.columns[col_idx]);
+        move_if_different_address_space(
+            args.profiler, work_entry.column_handles[col_idx], encoder_handle,
+            work_entry.columns[col_idx]);
 
         // Pass frames into encoder
         auto encode_start = now();
@@ -521,8 +513,8 @@ void* post_evaluate_thread(void* arg) {
             size_t actual_size;
             new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
-              << "Packet buffer not large enough (" << buffer_size << " vs "
-              << actual_size << ")";
+                << "Packet buffer not large enough (" << buffer_size << " vs "
+                << actual_size << ")";
             insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
         }
@@ -531,9 +523,9 @@ void* post_evaluate_thread(void* arg) {
       } else {
         // Keep non-warmup frame outputs
         buffered_entry.columns[i].insert(
-          buffered_entry.columns[i].end(),
-          work_entry.columns[col_idx].begin() + warmup_frames,
-          work_entry.columns[col_idx].end());
+            buffered_entry.columns[i].end(),
+            work_entry.columns[col_idx].begin() + warmup_frames,
+            work_entry.columns[col_idx].end());
       }
     }
     // Delete unused columns
@@ -552,8 +544,7 @@ void* post_evaluate_thread(void* arg) {
       // Flush video encoder and get rest of packets
       for (size_t i = 0; i < args.column_mapping.size(); ++i) {
         ColumnType column_type = args.columns[i].type();
-        if (compression_enabled[i] &&
-            column_type == ColumnType::Video &&
+        if (compression_enabled[i] && column_type == ColumnType::Video &&
             buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
           auto& encoder = encoders[encoder_idx];
 
@@ -566,8 +557,8 @@ void* post_evaluate_thread(void* arg) {
             size_t actual_size;
             new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
             LOG_IF(FATAL, new_packet && actual_size > buffer_size)
-              << "Packet buffer not large enough (" << buffer_size << " vs "
-              << actual_size << ")";
+                << "Packet buffer not large enough (" << buffer_size << " vs "
+                << actual_size << ")";
             // HACK(apoms): this is really hacky but we put the encoded data in
             // a frame so that we can communicate the frame size downstream
             insert_element(buffered_entry.columns[i], buffer, actual_size);

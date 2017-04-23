@@ -46,8 +46,7 @@ void VideoKernel::check_frame_info(const DeviceHandle& device,
                                    const Element& element) {
   // Assume that all the FrameInfos in the same batch are the same
   u8* buffer = new_buffer(CPU_DEVICE, element.size);
-  memcpy_buffer((u8*)buffer, CPU_DEVICE, element.buffer, device,
-                element.size);
+  memcpy_buffer((u8*)buffer, CPU_DEVICE, element.buffer, device, element.size);
   FrameInfo* frame_info = reinterpret_cast<FrameInfo*>(buffer);
 
   bool same = (frame_info->type == frame_info_.type);

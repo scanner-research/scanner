@@ -15,8 +15,8 @@
 
 #include "scanner/video/h264_byte_stream_index_creator.h"
 #include "scanner/util/common.h"
-#include "scanner/util/util.h"
 #include "scanner/util/storehouse.h"
+#include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
 #include "storehouse/storage_config.h"
@@ -42,7 +42,6 @@ extern "C" {
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
-
 
 namespace scanner {
 namespace internal {
@@ -155,7 +154,7 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
       i32 pps_id = pps.pps_id;
       pps_nal_bytes_[pps_id].clear();
       pps_nal_bytes_[pps_id].insert(pps_nal_bytes_[pps_id].end(), nal_start - 3,
-                                   nal_start + nal_size + 3);
+                                    nal_start + nal_size + 3);
       VLOG(2) << "PPS id " << pps.pps_id << ", SPS id " << pps.sps_id
               << ", frame " << frame_;
     }
@@ -227,7 +226,5 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
   }
   return true;
 }
-
-
 }
 }

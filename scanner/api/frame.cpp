@@ -34,8 +34,7 @@ size_t size_of_frame_type(FrameType type) {
   return s;
 }
 
-FrameInfo::FrameInfo(int shape0, int shape1, int shape2,
-                     FrameType t) {
+FrameInfo::FrameInfo(int shape0, int shape1, int shape2, FrameType t) {
   assert(shape0 >= 0);
   assert(shape1 >= 0);
   assert(shape2 >= 0);
@@ -66,45 +65,30 @@ size_t FrameInfo::size() const {
   return s;
 }
 
-int FrameInfo::width() const {
-  return shape[1];
-}
+int FrameInfo::width() const { return shape[1]; }
 
-int FrameInfo::height() const {
-  return shape[0];
-}
+int FrameInfo::height() const { return shape[0]; }
 
 //! Only valid when the dimensions are (height, width, channels)
-int FrameInfo::channels() const {
-  return shape[2];
-}
+int FrameInfo::channels() const { return shape[2]; }
 
 Frame::Frame(FrameInfo info, u8* b) : data(b) {
   memcpy(shape, info.shape, sizeof(int) * FRAME_DIMS);
   type = info.type;
 }
 
-
 FrameInfo Frame::as_frame_info() const {
   return FrameInfo(shape[0], shape[1], shape[2], type);
 }
 
-size_t Frame::size() const {
-  return as_frame_info().size();
-}
+size_t Frame::size() const { return as_frame_info().size(); }
 
-int Frame::width() const {
-  return as_frame_info().width();
-}
+int Frame::width() const { return as_frame_info().width(); }
 
-int Frame::height() const {
-  return as_frame_info().height();
-}
+int Frame::height() const { return as_frame_info().height(); }
 
 //! Only valid when the dimensions are (height, width, channels)
-int Frame::channels() const {
-  return as_frame_info().channels();
-}
+int Frame::channels() const { return as_frame_info().channels(); }
 
 Frame* new_frame(DeviceHandle device, FrameInfo info) {
   u8* buffer = new_buffer(device, info.size());
@@ -119,5 +103,4 @@ std::vector<Frame*> new_frames(DeviceHandle device, FrameInfo info, i32 num) {
   }
   return frames;
 }
-
 }

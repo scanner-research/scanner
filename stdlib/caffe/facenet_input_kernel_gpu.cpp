@@ -14,12 +14,12 @@ namespace scanner {
 class FacenetInputKernel : public VideoKernel {
  public:
   FacenetInputKernel(const Kernel::Config& config)
-      : VideoKernel(config),
-        device_(config.devices[0])
+    : VideoKernel(config),
+      device_(config.devices[0])
 #ifdef HAVE_CUDA
-        ,
-        num_cuda_streams_(32),
-        streams_(num_cuda_streams_)
+      ,
+      num_cuda_streams_(32),
+      streams_(num_cuda_streams_)
 #endif
   {
     proto::FacenetArgs args;
@@ -56,8 +56,8 @@ class FacenetInputKernel : public VideoKernel {
     planar_input_g_.clear();
     flipped_planes_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
-      frame_input_g_.push_back(
-          cv::cuda::GpuMat(frame_info_.shape[2], frame_info_.shape[1], CV_8UC3));
+      frame_input_g_.push_back(cv::cuda::GpuMat(frame_info_.shape[2],
+                                                frame_info_.shape[1], CV_8UC3));
       resized_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
       float_input_g_.push_back(
@@ -165,9 +165,7 @@ class FacenetInputKernel : public VideoKernel {
   std::vector<cv::cuda::GpuMat> planar_input_g_;
 };
 
-REGISTER_OP(FacenetInput)
-    .frame_input("frame")
-    .frame_output("facenet_input");
+REGISTER_OP(FacenetInput).frame_input("frame").frame_output("facenet_input");
 
 REGISTER_KERNEL(FacenetInput, FacenetInputKernel)
     .device(DeviceType::GPU)

@@ -69,11 +69,10 @@ class FeatureExtractorKernel : public VideoKernel {
           surf->downloadKeypoints(kp_gpu, keypoints[i]);
 
           LOG_IF(FATAL, !feat_gpus[i].empty() && feat_gpus[i].cols != 64)
-            << "Not 64 SURF columns?";
+              << "Not 64 SURF columns?";
 
           features.push_back(std::make_tuple(
-            feat_gpus[i].data,
-            feat_gpus[i].step * feat_gpus[i].rows));
+              feat_gpus[i].data, feat_gpus[i].step * feat_gpus[i].rows));
         }
       } else {
         LOG(FATAL) << "SIFT GPU not supported";
@@ -93,7 +92,8 @@ class FeatureExtractorKernel : public VideoKernel {
         }
 
         features.push_back(std::make_tuple(
-          cv_features[i].data, cv_features[i].total() * cv_features[i].elemSize()));
+            cv_features[i].data,
+            cv_features[i].total() * cv_features[i].elemSize()));
       }
     }
 
@@ -138,14 +138,14 @@ class FeatureExtractorKernel : public VideoKernel {
 };
 
 REGISTER_OP(FeatureExtractor)
-  .inputs({"frame", "frame_info"})
-  .outputs({"features", "keypoints"});
+    .inputs({"frame", "frame_info"})
+    .outputs({"features", "keypoints"});
 
 REGISTER_KERNEL(FeatureExtractor, FeatureExtractorKernel)
-  .device(DeviceType::GPU)
-  .num_devices(1);
+    .device(DeviceType::GPU)
+    .num_devices(1);
 
 REGISTER_KERNEL(FeatureExtractor, FeatureExtractorKernel)
-  .device(DeviceType::CPU)
-  .num_devices(1);
+    .device(DeviceType::CPU)
+    .num_devices(1);
 }

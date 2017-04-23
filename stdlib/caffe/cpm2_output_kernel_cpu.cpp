@@ -59,12 +59,12 @@ struct MPIModelDescriptor : public ModelDescriptor {
   virtual const std::string name() { return "MPI_15"; }
 
   MPIModelDescriptor()
-      : part2name{
-            {0, "Head"},   {1, "Neck"},      {2, "RShoulder"}, {3, "RElbow"},
-            {4, "RWrist"}, {5, "LShoulder"}, {6, "LElbow"},    {7, "LWrist"},
-            {8, "RHip"},   {9, "RKnee"},     {10, "RAnkle"},   {11, "LHip"},
-            {12, "LKnee"}, {13, "LAnkle"},   {14, "Chest"},    {15, "Bkg"},
-        } /* End initializers */ {
+    : part2name{
+          {0, "Head"},   {1, "Neck"},      {2, "RShoulder"}, {3, "RElbow"},
+          {4, "RWrist"}, {5, "LShoulder"}, {6, "LElbow"},    {7, "LWrist"},
+          {8, "RHip"},   {9, "RKnee"},     {10, "RAnkle"},   {11, "LHip"},
+          {12, "LKnee"}, {13, "LAnkle"},   {14, "Chest"},    {15, "Bkg"},
+      } /* End initializers */ {
     for (int l = 0; l < num_limb_seq(); l++) {
       int la = limbSeq[2 * l + 0];
       int lb = limbSeq[2 * l + 1];
@@ -92,13 +92,13 @@ struct COCOModelDescriptor : public ModelDescriptor {
   virtual const std::string name() { return "COCO_18"; }
 
   COCOModelDescriptor()
-      : part2name{
-            {0, "Nose"},   {1, "Neck"},      {2, "RShoulder"}, {3, "RElbow"},
-            {4, "RWrist"}, {5, "LShoulder"}, {6, "LElbow"},    {7, "LWrist"},
-            {8, "RHip"},   {9, "RKnee"},     {10, "RAnkle"},   {11, "LHip"},
-            {12, "LKnee"}, {13, "LAnkle"},   {14, "REye"},     {15, "LEye"},
-            {16, "REar"},  {17, "LEar"},     {18, "Bkg"},
-        } /* End initializers */ {
+    : part2name{
+          {0, "Nose"},   {1, "Neck"},      {2, "RShoulder"}, {3, "RElbow"},
+          {4, "RWrist"}, {5, "LShoulder"}, {6, "LElbow"},    {7, "LWrist"},
+          {8, "RHip"},   {9, "RKnee"},     {10, "RAnkle"},   {11, "LHip"},
+          {12, "LKnee"}, {13, "LAnkle"},   {14, "REye"},     {15, "LEye"},
+          {16, "REar"},  {17, "LEar"},     {18, "Bkg"},
+      } /* End initializers */ {
     for (int l = 0; l < num_limb_seq(); l++) {
       int la = limbSeq[2 * l + 0];
       int lb = limbSeq[2 * l + 1];
@@ -153,11 +153,11 @@ class CPM2OutputKernel : public VideoKernel {
 
     for (i32 b = 0; b < input_count; ++b) {
       const Frame* heatmap_frame =
-        input_columns[heatmap_idx][b].as_const_frame();
+          input_columns[heatmap_idx][b].as_const_frame();
       const Frame* joints_frame = input_columns[joints_idx][b].as_const_frame();
       assert(heatmap_frame->size() ==
              feature_width_ * feature_height_ * feature_channels_ *
-               sizeof(f32));
+                 sizeof(f32));
 
       const float* heatmap = reinterpret_cast<float*>(heatmap_frame->data);
       const float* peaks = reinterpret_cast<float*>(joints_frame->data);

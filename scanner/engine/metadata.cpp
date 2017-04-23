@@ -247,7 +247,7 @@ std::vector<i64> VideoMetadata::keyframe_byte_offsets() const {
 ImageFormatGroupMetadata::ImageFormatGroupMetadata() {}
 
 ImageFormatGroupMetadata::ImageFormatGroupMetadata(
-  const ImageFormatGroupDescriptor& descriptor)
+    const ImageFormatGroupDescriptor& descriptor)
   : Metadata(descriptor) {}
 
 i32 ImageFormatGroupMetadata::num_images() const {

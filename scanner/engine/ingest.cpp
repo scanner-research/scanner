@@ -65,16 +65,15 @@ struct FFStorehouseState {
 // For custom AVIOContext that loads from memory
 i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
   FFStorehouseState* fs = (FFStorehouseState*)opaque;
-  if (!(fs->buffer_start <= fs->pos &&
-        fs->pos + buf_size < fs->buffer_end)) {
+  if (!(fs->buffer_start <= fs->pos && fs->pos + buf_size < fs->buffer_end)) {
     // Not in cache
     size_t buffer_size = 64 * 1024 * 1024;
     fs->buffer.resize(buffer_size);
     size_t size_read;
     storehouse::StoreResult result;
     EXP_BACKOFF(
-      fs->file->read(fs->pos, buffer_size, fs->buffer.data(), size_read),
-      result);
+        fs->file->read(fs->pos, buffer_size, fs->buffer.data(), size_read),
+        result);
     if (result != storehouse::StoreResult::EndOfFile) {
       exit_on_error(result);
     }
@@ -131,10 +130,10 @@ bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
 
   size_t avio_context_buffer_size = 4096;
   u8* avio_context_buffer =
-    static_cast<u8*>(av_malloc(avio_context_buffer_size));
+      static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
-    avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
-                       &read_packet, NULL, &seek);
+      avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
+                         &read_packet, NULL, &seek);
   state.format_context->pb = state.io_context;
 
   // Read file header
@@ -153,15 +152,15 @@ bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
 
   // Find the best video stream in our input video
   state.video_stream_index = av_find_best_stream(
-    state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
-    -1 /* no related stream */, &state.in_codec, 0 /* flags */);
+      state.format_context, AVMEDIA_TYPE_VIDEO, -1 /* auto select */,
+      -1 /* no related stream */, &state.in_codec, 0 /* flags */);
   if (state.video_stream_index < 0) {
     LOG(ERROR) << "could not find best stream";
     return false;
   }
 
   AVStream const* const in_stream =
-    state.format_context->streams[state.video_stream_index];
+      state.format_context->streams[state.video_stream_index];
 
   state.in_codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   if (state.in_codec == NULL) {
@@ -225,8 +224,8 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   table_desc.set_name(table_name);
   table_desc.set_job_id(-1);
   table_desc.set_timestamp(
-    std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
-      .count());
+      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count());
 
   {
     Column* index_col = table_desc.add_columns();
@@ -333,10 +332,10 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 
     u8* filtered_data;
     i32 filtered_data_size;
-    err = av_bitstream_filter_filter(
-      state.annexb, state.in_cc, NULL, &filtered_data, &filtered_data_size,
-      state.av_packet.data, state.av_packet.size,
-      state.av_packet.flags & AV_PKT_FLAG_KEY);
+    err = av_bitstream_filter_filter(state.annexb, state.in_cc, NULL,
+                                     &filtered_data, &filtered_data_size,
+                                     state.av_packet.data, state.av_packet.size,
+                                     state.av_packet.flags & AV_PKT_FLAG_KEY);
     if (err < 0) {
       int frame = index_creator.frames();
       char err_msg[256];
@@ -345,7 +344,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
                  << "): " << err_msg;
       cleanup_video_codec(state);
       error_message = "Error while filtering frame " + std::to_string(frame) +
-          " (" + std::to_string(err) + "): " + std::string(err_msg);
+                      " (" + std::to_string(err) + "): " + std::string(err_msg);
       return false;
     }
 
@@ -384,11 +383,11 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   i32 num_non_ref_frames = index_creator.num_non_ref_frames();
   const std::vector<u8>& metadata_bytes = index_creator.metadata_bytes();
   const std::vector<i64>& keyframe_positions =
-    index_creator.keyframe_positions();
+      index_creator.keyframe_positions();
   const std::vector<i64>& keyframe_timestamps =
-    index_creator.keyframe_timestamps();
+      index_creator.keyframe_timestamps();
   const std::vector<i64>& keyframe_byte_offsets =
-    index_creator.keyframe_byte_offsets();
+      index_creator.keyframe_byte_offsets();
 
   VLOG(1) << "Num frames: " << frame;
   VLOG(1) << "Num non-reference frames: " << num_non_ref_frames;
@@ -765,10 +764,10 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
   av_register_all();
 
   std::unique_ptr<storehouse::StorageBackend> storage{
-    storehouse::StorageBackend::make_from_config(storage_config)};
+      storehouse::StorageBackend::make_from_config(storage_config)};
 
   internal::DatabaseMetadata meta = internal::read_database_metadata(
-    storage.get(), internal::DatabaseMetadata::descriptor_path());
+      storage.get(), internal::DatabaseMetadata::descriptor_path());
   std::vector<i32> table_ids;
   std::set<std::string> inserted_table_names;
   for (size_t i = 0; i < table_names.size(); ++i) {
@@ -796,7 +795,7 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
   i32 videos_allocated = 0;
   for (i32 t = 0; t < num_threads; ++t) {
     i32 to_allocate =
-      (table_names.size() - videos_allocated) / (num_threads - t);
+        (table_names.size() - videos_allocated) / (num_threads - t);
     i32 start = videos_allocated;
     videos_allocated += to_allocate;
     videos_allocated = std::min((size_t)videos_allocated, table_names.size());
@@ -842,7 +841,7 @@ void ingest_images(storehouse::StorageConfig* storage_config,
   internal::set_database_path(db_path);
 
   std::unique_ptr<storehouse::StorageBackend> storage{
-    storehouse::StorageBackend::make_from_config(storage_config)};
+      storehouse::StorageBackend::make_from_config(storage_config)};
 
   LOG(FATAL) << "Image ingest under construction!" << std::endl;
 

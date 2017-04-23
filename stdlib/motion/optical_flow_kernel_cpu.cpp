@@ -11,9 +11,9 @@ namespace scanner {
 class OpticalFlowKernelCPU : public VideoKernel {
  public:
   OpticalFlowKernelCPU(const Kernel::Config& config)
-      : VideoKernel(config),
-        device_(config.devices[0]),
-        work_item_size_(config.work_item_size) {
+    : VideoKernel(config),
+      device_(config.devices[0]),
+      work_item_size_(config.work_item_size) {
     flow_finder_ =
         cv::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0);
   }
@@ -38,7 +38,7 @@ class OpticalFlowKernelCPU : public VideoKernel {
     FrameInfo out_frame_info(frame_info_.height(), frame_info_.width(), 2,
                              FrameType::F32);
     std::vector<Frame*> frames =
-      new_frames(device_, out_frame_info, input_count);
+        new_frames(device_, out_frame_info, input_count);
 
     double start = CycleTimer::currentSeconds();
 
@@ -73,6 +73,6 @@ class OpticalFlowKernelCPU : public VideoKernel {
 REGISTER_OP(OpticalFlow).frame_input("frame").frame_output("flow");
 
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
-  .device(DeviceType::CPU)
-  .num_devices(1);
+    .device(DeviceType::CPU)
+    .num_devices(1);
 }

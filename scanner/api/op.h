@@ -133,5 +133,5 @@ class OpBuilder {
 
 #define REGISTER_OP_UID(uid__, name__)                               \
   static ::scanner::internal::OpRegistration op_registration_##uid__ \
-    __attribute__((unused)) = ::scanner::internal::OpBuilder(#name__)
+      __attribute__((unused)) = ::scanner::internal::OpBuilder(#name__)
 }

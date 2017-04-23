@@ -153,9 +153,9 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
           i32 expected_inputs = info->input_columns().size();
           if (expected_inputs != input_count) {
             RESULT_ERROR(
-              result,
-              "Op %s at index %d expects %d input columns, but received %d",
-              op.name().c_str(), op_idx, expected_inputs, input_count);
+                result,
+                "Op %s at index %d expects %d input columns, but received %d",
+                op.name().c_str(), op_idx, expected_inputs, input_count);
           }
         }
       }
@@ -181,8 +181,8 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
 }
 
 Result get_task_end_rows(
-  const std::map<std::string, TableMetadata>& table_metas,
-  const proto::Task& task, std::vector<i64>& rows) {
+    const std::map<std::string, TableMetadata>& table_metas,
+    const proto::Task& task, std::vector<i64>& rows) {
   Result result;
   result.set_success(true);
 
@@ -208,7 +208,7 @@ Result get_task_end_rows(
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
   storage_ =
-    storehouse::StorageBackend::make_from_config(db_params_.storage_config);
+      storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   set_database_path(params.db_path);
 }
 
@@ -222,7 +222,7 @@ MasterImpl::~MasterImpl() {
 // ipv4:<peer_address>:<random_port>
 // Returns the <peer_address> from the above format.
 std::string MasterImpl::get_worker_address_from_grpc_context(
-  grpc::ServerContext* context) {
+    grpc::ServerContext* context) {
   std::string worker_address = context->peer();
   std::size_t portSep = worker_address.find_last_of(':');
   if (portSep == std::string::npos) {
@@ -250,7 +250,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
 
   VLOG(1) << "Adding worker: " << worker_address;
   workers_.push_back(proto::Worker::NewStub(
-    grpc::CreateChannel(worker_address, grpc::InsecureChannelCredentials())));
+      grpc::CreateChannel(worker_address, grpc::InsecureChannelCredentials())));
   registration->set_node_id(workers_.size() - 1);
   addresses_.push_back(worker_address);
 
@@ -258,8 +258,8 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
 }
 
 grpc::Status MasterImpl::ActiveWorkers(
-  grpc::ServerContext* context, const proto::Empty* empty,
-  proto::RegisteredWorkers* registered_workers) {
+    grpc::ServerContext* context, const proto::Empty* empty,
+    proto::RegisteredWorkers* registered_workers) {
   std::unique_lock<std::mutex> lk(work_mutex_);
 
   set_database_path(db_params_.db_path);
@@ -278,12 +278,12 @@ grpc::Status MasterImpl::IngestVideos(grpc::ServerContext* context,
                                       proto::IngestResult* result) {
   std::vector<FailedVideo> failed_videos;
   result->mutable_result()->CopyFrom(
-    ingest_videos(db_params_.storage_config, db_params_.db_path,
-                  std::vector<std::string>(params->table_names().begin(),
-                                           params->table_names().end()),
-                  std::vector<std::string>(params->video_paths().begin(),
-                                           params->video_paths().end()),
-                  failed_videos));
+      ingest_videos(db_params_.storage_config, db_params_.db_path,
+                    std::vector<std::string>(params->table_names().begin(),
+                                             params->table_names().end()),
+                    std::vector<std::string>(params->video_paths().begin(),
+                                             params->video_paths().end()),
+                    failed_videos));
   for (auto& failed : failed_videos) {
     result->add_failed_paths(failed.path);
     result->add_failed_messages(failed.message);
@@ -299,7 +299,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     if (next_task_ < num_tasks_ && task_result_.success()) {
       // More tasks left
       task_sampler_.reset(new TaskSampler(
-        table_metas_, job_params_.task_set().tasks(next_task_)));
+          table_metas_, job_params_.task_set().tasks(next_task_)));
       task_result_ = task_sampler_->validate();
       if (task_result_.success()) {
         samples_left_ = task_sampler_->total_samples();
@@ -347,9 +347,9 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   i32 total_rows = 0;
 
   DatabaseMetadata meta =
-    read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   DatabaseMetadata meta_copy =
-    read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
   validate_task_set(meta, job_params->task_set(), job_result);
   if (!job_result->success()) {
@@ -360,7 +360,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   // Read all table metadata
   for (const std::string& table_name : meta.table_names()) {
     std::string table_path =
-      TableMetadata::descriptor_path(meta.get_table_id(table_name));
+        TableMetadata::descriptor_path(meta.get_table_id(table_name));
     table_metas_[table_name] = read_table_metadata(storage_, table_path);
   }
 
@@ -439,9 +439,9 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     proto::TableDescriptor table_desc;
     table_desc.set_id(table_id);
     table_desc.set_name(task.output_table_name());
-    table_desc.set_timestamp(
-      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
-        .count());
+    table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
+                                 now().time_since_epoch())
+                                 .count());
     // Set columns equal to the last op's output columns
     for (size_t i = 0; i < output_columns.size(); ++i) {
       Column* col = table_desc.add_columns();
@@ -486,7 +486,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   std::vector<grpc::Status> statuses(workers_.size());
   std::vector<proto::Result> replies(workers_.size());
   std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
-    rpcs;
+      rpcs;
 
   if (bar_) {
     delete bar_;
@@ -521,7 +521,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     w_job_params.set_local_total(local_totals[sans_port]);
     local_ids[sans_port] += 1;
     rpcs.emplace_back(
-      worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
+        worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
     rpcs[i]->Finish(&replies[i], &statuses[i], (void*)i);
   }
 
