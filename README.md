@@ -18,11 +18,11 @@ from scannerpy.stdlib import parsers
 
 with Database() as db:
     videos = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
-    frame, frame_info = videos.as_op().all()
-    histograms = db.ops.Histogram(frame = frame, frame_info = frame_info, device=DeviceType.GPU)
+    frame = videos.as_op().all()
+    histograms = db.ops.Histogram(frame = frame, device=DeviceType.GPU)
     job = Job(columns = [histograms], name = 'my_videos_hist')
     output = db.run(job)
-    vid0_hists = output.tables(0).load(['histogram'], parsers.histograms)
+    vid0_hists = output.load(['histogram'], parsers.histograms)
 ```
 
 [Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
