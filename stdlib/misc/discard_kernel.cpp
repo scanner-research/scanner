@@ -7,9 +7,9 @@ namespace scanner {
 class DiscardKernel : public Kernel {
  public:
   DiscardKernel(const Kernel::Config& config)
-      : Kernel(config),
-        device_(config.devices[0]),
-        work_item_size_(config.work_item_size) {}
+    : Kernel(config),
+      device_(config.devices[0]),
+      work_item_size_(config.work_item_size) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
@@ -34,10 +34,10 @@ REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::GPU).num_devices(1);
 
 REGISTER_KERNEL(DiscardFrame, DiscardKernel)
-  .device(DeviceType::CPU)
-  .num_devices(1);
+    .device(DeviceType::CPU)
+    .num_devices(1);
 
 REGISTER_KERNEL(DiscardFrame, DiscardKernel)
-  .device(DeviceType::GPU)
-  .num_devices(1);
+    .device(DeviceType::GPU)
+    .num_devices(1);
 }

@@ -37,13 +37,9 @@ class OpInfo {
 
   const bool variadic_inputs() const { return variadic_inputs_; }
 
-  const std::vector<Column>& input_columns() const {
-    return input_columns_;
-  }
+  const std::vector<Column>& input_columns() const { return input_columns_; }
 
-  const std::vector<Column>& output_columns() const {
-    return output_columns_;
-  }
+  const std::vector<Column>& output_columns() const { return output_columns_; }
 
  private:
   std::string name_;

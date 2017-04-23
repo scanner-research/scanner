@@ -33,19 +33,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <sys/prctl.h>
 
 #define CU_CHECK(ans) \
   { cuAssert((ans), __FILE__, __LINE__); }
 
 inline void cuAssert(cudaError_t code, const char* file, int line) {
   if (code != cudaSuccess) {
-    LOG(FATAL) << "GPUassert: "
-               << cudaGetErrorString(code) << " "
-               << file << " "
-               << line;
+    LOG(FATAL) << "GPUassert: " << cudaGetErrorString(code) << " " << file
+               << " " << line;
   }
 }
 
@@ -54,7 +52,7 @@ inline void cuAssert(cudaError_t code, const char* file, int line) {
 
 inline void cudAssert(CUresult code, const char* file, int line) {
   if (code != CUDA_SUCCESS) {
-    const char *err_str;
+    const char* err_str;
     cuGetErrorString(code, &err_str);
     LOG(FATAL) << "GPUassert: " << err_str << " " << file << " " << line;
   }

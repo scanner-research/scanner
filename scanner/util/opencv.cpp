@@ -44,9 +44,7 @@ FrameType cv_to_frame_type(int t) {
       type = FrameType::F64;
       break;
     }
-    default: {
-      LOG(FATAL) << "Unsupported OpenCV type: " << t;
-    }
+    default: { LOG(FATAL) << "Unsupported OpenCV type: " << t; }
   }
   return type;
 }
@@ -56,10 +54,7 @@ FrameInfo mat_to_frame_info(const cv::Mat& mat) {
                    cv_to_frame_type(mat.depth()));
 }
 
-
-cv::Mat frame_to_mat(const Frame* frame) {
-  return frame_to_mat((Frame*)frame);
-}
+cv::Mat frame_to_mat(const Frame* frame) { return frame_to_mat((Frame*)frame); }
 
 cv::Mat frame_to_mat(Frame* frame) {
   return cv::Mat(frame->height(), frame->width(),

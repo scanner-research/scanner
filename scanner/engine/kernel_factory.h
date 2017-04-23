@@ -39,11 +39,11 @@ class KernelFactory {
  public:
   KernelFactory(const std::string& op_name, DeviceType type, i32 max_devices,
                 i32 warmup_size, KernelConstructor constructor)
-      : op_name_(op_name),
-        type_(type),
-        max_devices_(max_devices),
-        warmup_size_(warmup_size),
-        constructor_(constructor) {}
+    : op_name_(op_name),
+      type_(type),
+      max_devices_(max_devices),
+      warmup_size_(warmup_size),
+      constructor_(constructor) {}
 
   const std::string& get_op_name() const { return op_name_; }
 

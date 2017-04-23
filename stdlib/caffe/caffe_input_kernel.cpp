@@ -52,7 +52,7 @@ void CaffeInputKernel::set_halide_buf(buffer_t& halide_buf, u8* buf,
       halide_buf.dev_dirty = true;
 
       i32 err =
-        halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
+          halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
       LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
 
       // "You'll need to set the host field of the buffer_t structs to
@@ -76,7 +76,7 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
   size_t net_input_size =
-    net_input_width_ * net_input_height_ * 3 * sizeof(float);
+      net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   buffer_t input_buf = {0}, output_buf = {0};
 
@@ -113,9 +113,9 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
   }
   auto descriptor = args_.net_descriptor();
   int error =
-    func(&input_buf, frame_width, frame_height, net_input_width_,
-         net_input_height_, descriptor.normalize(), descriptor.mean_colors(2),
-         descriptor.mean_colors(1), descriptor.mean_colors(0), &output_buf);
+      func(&input_buf, frame_width, frame_height, net_input_width_,
+           net_input_height_, descriptor.normalize(), descriptor.mean_colors(2),
+           descriptor.mean_colors(1), descriptor.mean_colors(0), &output_buf);
   LOG_IF(FATAL, error != 0) << "Halide error " << error;
 
   unset_halide_buf(input_buf);
@@ -126,7 +126,7 @@ void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
   size_t net_input_size =
-    net_input_width_ * net_input_height_ * 3 * sizeof(float);
+      net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   cv::Mat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
   cv::Mat resized_input;
@@ -164,7 +164,7 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
   auto eval_start = now();
   i32 input_count = num_rows(frame_col);
   size_t net_input_size =
-    net_input_width_ * net_input_height_ * 3 * sizeof(float);
+      net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
   set_device();
 

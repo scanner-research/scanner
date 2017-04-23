@@ -18,7 +18,11 @@
 #include <glog/logging.h>
 #include <libgen.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -27,10 +31,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <sys/prctl.h>
 
 namespace scanner {
 
@@ -105,9 +105,7 @@ class Flag {
     cv_.notify_all();
   }
 
-  bool raised() {
-    return bit_.load();
-  }
+  bool raised() { return bit_.load(); }
 
   void wait() {
     std::unique_lock<std::mutex> lock(m_);
@@ -134,18 +132,17 @@ inline void print_trace() {
   char pid_buf[30];
   sprintf(pid_buf, "%d", getpid());
   char name_buf[512];
-  name_buf[readlink("/proc/self/exe", name_buf, 511)]=0;
+  name_buf[readlink("/proc/self/exe", name_buf, 511)] = 0;
   prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
   int child_pid = fork();
   if (!child_pid) {
-    dup2(2,1); // redirect output to stderr
-    fprintf(stdout,"stack trace for %s pid=%s\n",name_buf,pid_buf);
-    execlp("gdb", "gdb", "--batch", "-n",
-           "-ex", "thread apply all bt",
+    dup2(2, 1);  // redirect output to stderr
+    fprintf(stdout, "stack trace for %s pid=%s\n", name_buf, pid_buf);
+    execlp("gdb", "gdb", "--batch", "-n", "-ex", "thread apply all bt",
            name_buf, pid_buf, NULL);
     abort(); /* If gdb failed to start */
   } else {
-    waitpid(child_pid,NULL,0);
+    waitpid(child_pid, NULL, 0);
   }
 }
 }

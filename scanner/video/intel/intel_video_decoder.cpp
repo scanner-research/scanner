@@ -37,12 +37,12 @@ namespace scanner {
 ///////////////////////////////////////////////////////////////////////////////
 /// IntelVideoDecoder
 IntelVideoDecoder::IntelVideoDecoder(int device_id, DeviceType output_type)
-    : device_id_(device_id),
-      output_type_(output_type),
-      codec_(nullptr),
-      cc_(nullptr),
-      reset_context_(true),
-      sws_context_(nullptr) {
+  : device_id_(device_id),
+    output_type_(output_type),
+    codec_(nullptr),
+    cc_(nullptr),
+    reset_context_(true),
+    sws_context_(nullptr) {
   if (output_type != DeviceType::CPU && output_type != DeviceType::GPU) {
     LOG(FATAL) << "Unsupported output type for intel decoder";
   }

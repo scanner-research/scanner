@@ -1,8 +1,8 @@
-#include "scanner/api/op.h"
-#include "scanner/api/kernel.h"
-#include "scanner/util/memory.h"
-#include "scanner/util/cuda.h"
 #include <opencv2/imgproc.hpp>
+#include "scanner/api/kernel.h"
+#include "scanner/api/op.h"
+#include "scanner/util/cuda.h"
+#include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
 #include "stdlib/stdlib.pb.h"
 
@@ -12,9 +12,9 @@
 namespace scanner {
 
 class GipumaKernel : public VideoKernel {
-public:
-  GipumaKernel(const Kernel::Config &config)
-      : VideoKernel(config), device_(config.devices[0]), was_reset_(true) {
+ public:
+  GipumaKernel(const Kernel::Config& config)
+    : VideoKernel(config), device_(config.devices[0]), was_reset_(true) {
     set_device();
 
     state_.reset(new GlobalState);
@@ -43,9 +43,7 @@ public:
     algo_params_->normTol = 0.1f;
   }
 
-  ~GipumaKernel() {
-    delete algo_params_;
-  }
+  ~GipumaKernel() { delete algo_params_; }
 
   void validate(proto::Result* result) {
     result->set_msg(valid_.msg());
@@ -73,8 +71,7 @@ public:
       memcpy_buffer((u8*)buffer, CPU_DEVICE, calibration_col.rows[0].buffer,
                     device_, calibration_col.rows[0].size);
       proto::Camera cam;
-      cam.ParseFromArray(buffer,
-                         calibration_col.rows[0].size);
+      cam.ParseFromArray(buffer, calibration_col.rows[0].size);
       delete_buffer(CPU_DEVICE, buffer);
 
       camera_params_.cameras.emplace_back();
@@ -147,10 +144,10 @@ public:
     i32 input_count = (i32)input_columns[0].rows.size();
     std::vector<cvc::GpuMat> grayscale_images_gpu(num_cameras_);
     std::vector<cv::Mat> grayscale_images(num_cameras_);
-    u8* points_output_buffer =
-      new_block_buffer(device_, points_output_size * input_count, input_count);
+    u8* points_output_buffer = new_block_buffer(
+        device_, points_output_size * input_count, input_count);
     u8* cost_output_buffer =
-      new_block_buffer(device_, cost_output_size * input_count, input_count);
+        new_block_buffer(device_, cost_output_size * input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {
       for (i32 c = 0; c < num_cameras_; ++c) {
         auto& frame_column = input_columns[c * 3];
@@ -174,14 +171,15 @@ public:
       cudaMemcpy(points_output_buffer + points_output_size * i,
                  state_->lines->norm4, points_output_size, cudaMemcpyDefault);
       insert_element(output_columns[0],
-                 points_output_buffer + points_output_size * i,
-                 points_output_size);
+                     points_output_buffer + points_output_size * i,
+                     points_output_size);
 
       // Copy costs to output buffer
       cudaMemcpy(cost_output_buffer + cost_output_size * i, state_->lines->c,
                  cost_output_size, cudaMemcpyDefault);
-      insert_element(output_columns[1], cost_output_buffer + cost_output_size * i,
-                 cost_output_size);
+      insert_element(output_columns[1],
+                     cost_output_buffer + cost_output_size * i,
+                     cost_output_size);
 
       delTexture(algo_params_->num_img_processed, state_->imgs,
                  state_->cuArray);
@@ -193,7 +191,7 @@ public:
     cvc::setDevice(device_.id);
   }
 
-private:
+ private:
   DeviceHandle device_;
   proto::Result valid_;
   proto::GipumaArgs args_;
@@ -206,9 +204,7 @@ private:
 
 REGISTER_OP(Gipuma).variadic_inputs().outputs({"points", "cost"});
 
-REGISTER_KERNEL(Gipuma, GipumaKernel)
-    .device(DeviceType::GPU)
-    .num_devices(1);
+REGISTER_KERNEL(Gipuma, GipumaKernel).device(DeviceType::GPU).num_devices(1);
 }
 
 // {
@@ -238,7 +234,8 @@ REGISTER_KERNEL(Gipuma, GipumaKernel)
 //   // left_t.at<float>(0, 0) = -49.73322;
 //   // left_t.at<float>(1, 0) = 142.7355424;
 //   // left_t.at<float>(2, 0) = 288.2857244;
-//   cv::decomposeProjectionMatrix(camera_params_.cameras[0].P, left_cam, left_rot,
+//   cv::decomposeProjectionMatrix(camera_params_.cameras[0].P, left_cam,
+//   left_rot,
 //                                 left_t);
 //   left_rot.convertTo(left_rot, CV_64F);
 //   cv::Mat_<float> t(3, 1);
@@ -253,7 +250,8 @@ REGISTER_KERNEL(Gipuma, GipumaKernel)
 //   dist.at<float>(3) = 0.000917149;
 //   dist.at<float>(4) = 0.054014;
 //   cv::projectPoints(points, left_rot, t, left_cam, dist, project_points);
-//   cv::circle(grayscale_images[0], project_points[0], 10, cv::Scalar(255, 0, 0),
+//   cv::circle(grayscale_images[0], project_points[0], 10, cv::Scalar(255, 0,
+//   0),
 //              3);
 //   cv::imwrite("left.png", grayscale_images[0]);
 // }

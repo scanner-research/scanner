@@ -145,7 +145,7 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
 };
 
 class ImageFormatGroupMetadata
-  : public Metadata<proto::ImageFormatGroupDescriptor> {
+    : public Metadata<proto::ImageFormatGroupDescriptor> {
  public:
   ImageFormatGroupMetadata();
   ImageFormatGroupMetadata(const Descriptor& descriptor);
@@ -251,8 +251,8 @@ template <typename T>
 void write_db_proto(storehouse::StorageBackend* storage, T db_proto) {
   std::unique_ptr<storehouse::WriteFile> output_file;
   BACKOFF_FAIL(make_unique_write_file(
-    storage, db_proto.Metadata<typename T::Descriptor>::descriptor_path(),
-    output_file));
+      storage, db_proto.Metadata<typename T::Descriptor>::descriptor_path(),
+      output_file));
   serialize_db_proto<typename T::Descriptor>(output_file.get(),
                                              db_proto.get_descriptor());
   BACKOFF_FAIL(output_file->save());
@@ -274,21 +274,21 @@ using ReadFn = T (*)(storehouse::StorageBackend* storage,
                      const std::string& path);
 
 constexpr WriteFn<DatabaseMetadata> write_database_metadata =
-  write_db_proto<DatabaseMetadata>;
+    write_db_proto<DatabaseMetadata>;
 constexpr ReadFn<DatabaseMetadata> read_database_metadata =
-  read_db_proto<DatabaseMetadata>;
+    read_db_proto<DatabaseMetadata>;
 
 constexpr WriteFn<JobMetadata> write_job_metadata = write_db_proto<JobMetadata>;
 constexpr ReadFn<JobMetadata> read_job_metadata = read_db_proto<JobMetadata>;
 
 constexpr WriteFn<TableMetadata> write_table_metadata =
-  write_db_proto<TableMetadata>;
+    write_db_proto<TableMetadata>;
 constexpr ReadFn<TableMetadata> read_table_metadata =
-  read_db_proto<TableMetadata>;
+    read_db_proto<TableMetadata>;
 
 constexpr WriteFn<VideoMetadata> write_video_metadata =
-  write_db_proto<VideoMetadata>;
+    write_db_proto<VideoMetadata>;
 constexpr ReadFn<VideoMetadata> read_video_metadata =
-  read_db_proto<VideoMetadata>;
+    read_db_proto<VideoMetadata>;
 }
 }

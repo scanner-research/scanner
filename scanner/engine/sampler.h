@@ -43,7 +43,7 @@ struct RowSample {
 class Sampler {
  public:
   Sampler(const std::string& name, const TableMetadata& table)
-      : name_(name), table_(table) {}
+    : name_(name), table_(table) {}
 
   const std::string& name() const { return name_; }
 

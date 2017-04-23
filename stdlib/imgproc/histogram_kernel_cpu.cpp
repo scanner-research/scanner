@@ -11,7 +11,7 @@ const i32 BINS = 16;
 class HistogramKernelCPU : public Kernel {
  public:
   HistogramKernelCPU(const Kernel::Config& config)
-      : Kernel(config), device_(config.devices[0]) {}
+    : Kernel(config), device_(config.devices[0]) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {

@@ -34,7 +34,7 @@ void set_halide_buf_ptr(const DeviceHandle& device, buffer_t& halide_buf,
       halide_buf.dev_dirty = true;
 
       i32 err =
-        halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
+          halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
       LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
 
       // "You'll need to set the host field of the buffer_t structs to

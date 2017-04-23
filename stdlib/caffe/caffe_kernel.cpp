@@ -222,7 +222,7 @@ bool file_exists(const std::string& path) {
 }
 
 CaffeKernel::CaffeKernel(const Kernel::Config& config)
-    : VideoKernel(config), device_(config.devices[0]) {
+  : VideoKernel(config), device_(config.devices[0]) {
   valid_.set_success(true);
 
   if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
@@ -397,12 +397,10 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
 
-      FrameInfo info(output_blob->shape(3),
-                     output_blob->shape(2),
-                     output_blob->shape(1),
-                     FrameType::F32);
+      FrameInfo info(output_blob->shape(3), output_blob->shape(2),
+                     output_blob->shape(1), FrameType::F32);
       u8* output_block =
-        new_block_buffer(device_, info.size() * batch_count, batch_count);
+          new_block_buffer(device_, info.size() * batch_count, batch_count);
 
       u8* src_buffer =
           (u8*)(device_.type == DeviceType::CPU ? output_blob->cpu_data()

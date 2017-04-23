@@ -46,12 +46,13 @@ class FacenetOutputKernel : public VideoKernel {
     grid_height_ = std::ceil(float(net_input_height_) / cell_height_);
 
     feature_vector_lengths_ = {
-      grid_width_ * grid_height_ * num_templates_,  // template probabilities
-      grid_width_ * grid_height_ * num_templates_ * 4,  // template adjustments
+        grid_width_ * grid_height_ * num_templates_,  // template probabilities
+        grid_width_ * grid_height_ * num_templates_ *
+            4,  // template adjustments
     };
     feature_vector_sizes_ = {
-      sizeof(f32) * feature_vector_lengths_[0],
-      sizeof(f32) * feature_vector_lengths_[1],
+        sizeof(f32) * feature_vector_lengths_[0],
+        sizeof(f32) * feature_vector_lengths_[1],
     };
   }
 
@@ -81,7 +82,7 @@ class FacenetOutputKernel : public VideoKernel {
       // uncertainty across the frame
       f32* template_confidences = reinterpret_cast<f32*>(frame->data);
       f32* template_adjustments =
-        template_confidences + feature_vector_lengths_[0];
+          template_confidences + feature_vector_lengths_[0];
 
       for (i32 t : valid_templates) {
         for (i32 xi = 0; xi < grid_width_; ++xi) {
@@ -89,7 +90,8 @@ class FacenetOutputKernel : public VideoKernel {
             i32 vec_offset = xi * grid_height_ + yi;
 
             f32 confidence =
-              template_confidences[t * grid_width_ * grid_height_ + vec_offset];
+                template_confidences[t * grid_width_ * grid_height_ +
+                                     vec_offset];
             // Apply sigmoid to confidence
             confidence = 1.0 / (1.0 + std::exp(-confidence));
 
@@ -102,22 +104,22 @@ class FacenetOutputKernel : public VideoKernel {
             f32 height = templates_[t][3] - templates_[t][1] + 1;
 
             f32 dcx = template_adjustments[(num_templates_ * 0 + t) *
-                                             grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             x += width * dcx;
 
             f32 dcy = template_adjustments[(num_templates_ * 1 + t) *
-                                             grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             y += height * dcy;
 
             f32 dcw = template_adjustments[(num_templates_ * 2 + t) *
-                                             grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             width *= std::exp(dcw);
 
             f32 dch = template_adjustments[(num_templates_ * 3 + t) *
-                                             grid_width_ * grid_height_ +
+                                               grid_width_ * grid_height_ +
                                            vec_offset];
             height *= std::exp(dch);
 
@@ -165,7 +167,7 @@ class FacenetOutputKernel : public VideoKernel {
  private:
   f32 scale_;
   const std::vector<i32> regular_valid_templates_ = {
-    4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 21, 22, 23, 24};
+      4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 21, 22, 23, 24};
   const std::vector<i32> big_valid_templates_ = {4, 5, 6, 7, 8, 9, 10, 11};
   const i32 num_templates_ = 25;
   const i32 min_template_idx_ = 4;
@@ -183,11 +185,11 @@ class FacenetOutputKernel : public VideoKernel {
 };
 
 REGISTER_OP(FacenetOutput)
-  .frame_input("facenet_output")
-  .input("original_frame_info")
-  .output("bboxes");
+    .frame_input("facenet_output")
+    .input("original_frame_info")
+    .output("bboxes");
 
 REGISTER_KERNEL(FacenetOutput, FacenetOutputKernel)
-  .device(DeviceType::CPU)
-  .num_devices(1);
+    .device(DeviceType::CPU)
+    .num_devices(1);
 }

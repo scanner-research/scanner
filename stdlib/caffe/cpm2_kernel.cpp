@@ -8,7 +8,7 @@ namespace scanner {
 class CPM2Kernel : public CaffeKernel {
  public:
   CPM2Kernel(const Kernel::Config& config)
-      : CaffeKernel(get_caffe_config(config)) {}
+    : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
     int net_input_width = frame_info_.shape[0];
