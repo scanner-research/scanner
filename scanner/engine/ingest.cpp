@@ -286,7 +286,6 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream));
 
   bool succeeded = true;
-  bool extradata_extracted = false;
   H264ByteStreamIndexCreator index_creator(demuxed_bytestream.get());
   while (true) {
     // Read from format context
@@ -346,25 +345,6 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
       error_message = "Error while filtering frame " + std::to_string(frame) +
                       " (" + std::to_string(err) + "): " + std::string(err_msg);
       return false;
-    }
-
-    if (!extradata_extracted) {
-      const u8* extradata = state.in_cc->extradata;
-      i32 extradata_size_left = state.in_cc->extradata_size;
-
-      // metadata_bytes.resize(extradata_size_left);
-      // memcpy(metadata_bytes.data(), extradata, extradata_size_left);
-
-      while (extradata_size_left > 3) {
-        const u8* nal_start = nullptr;
-        i32 nal_size = 0;
-        next_nal(extradata, extradata_size_left, nal_start, nal_size);
-        i32 nal_ref_idc = (*nal_start >> 5);
-        i32 nal_unit_type = (*nal_start) & 0x1F;
-        VLOG(2) << "extradata nal size: " << nal_size << ", nal ref "
-                << nal_ref_idc << ", nal unit " << nal_unit_type;
-      }
-      extradata_extracted = true;
     }
 
     if (!index_creator.feed_packet(filtered_data, filtered_data_size)) {
