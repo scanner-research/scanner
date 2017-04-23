@@ -130,9 +130,9 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;<span class="preprocessor"></span></div>
 <div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;<span class="preprocessor">#define REGISTER_USER_FUNCTION_UID(uid__, name__, function__) \</span></div>
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;<span class="preprocessor">  static ::scaner::internal::UserFunctionRegistration         \</span></div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;<span class="preprocessor">    user_function_registration_##uid__ =                      \</span></div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="preprocessor">      ::scanner::internal::UserFunctionRegistration(          \</span></div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="preprocessor">        #name__, static_cast&lt;const void*&gt;(function__));</span></div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;<span class="preprocessor">      user_function_registration_##uid__ =                    \</span></div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="preprocessor">          ::scanner::internal::UserFunctionRegistration(      \</span></div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="preprocessor">              #name__, static_cast&lt;const void*&gt;(function__));</span></div>
 <div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;<span class="preprocessor"></span>}</div>
 <div class="ttc" id="classscanner_1_1UserFunctionRegistry_html"><div class="ttname"><a href="classscanner_1_1UserFunctionRegistry.html">scanner::UserFunctionRegistry</a></div><div class="ttdoc">Convenience for dynamic registration of C++ functions. </div><div class="ttdef"><b>Definition:</b> user_function.h:10</div></div>
 </div><!-- fragment --></div><!-- contents -->
