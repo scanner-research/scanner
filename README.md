@@ -22,7 +22,7 @@ with Database() as db:
     histograms = db.ops.Histogram(frame = frame, device=DeviceType.GPU)
     job = Job(columns = [histograms], name = 'my_videos_hist')
     output = db.run(job)
-    vid0_hists = output.load(['histogram'], parsers.histograms)
+    vid0_hists = output.tables(0).load(['histogram'], parsers.histograms)
 ```
 
 [Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
