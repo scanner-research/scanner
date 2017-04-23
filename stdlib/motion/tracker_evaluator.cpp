@@ -34,11 +34,11 @@ namespace scanner {
 TrackerEvaluator::TrackerEvaluator(const EvaluatorConfig& config,
                                    DeviceType device_type, i32 device_id,
                                    i32 warmup_count, i32 max_tracks)
-    : config_(config),
-      device_type_(device_type),
-      device_id_(device_id),
-      warmup_count_(warmup_count),
-      max_tracks_(max_tracks) {
+  : config_(config),
+    device_type_(device_type),
+    device_id_(device_id),
+    warmup_count_(warmup_count),
+    max_tracks_(max_tracks) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU tracker support not implemented yet";
   }
@@ -245,9 +245,9 @@ float TrackerEvaluator::iou(const BoundingBox& bl, const BoundingBox& br) {
 TrackerEvaluatorFactory::TrackerEvaluatorFactory(DeviceType device_type,
                                                  i32 warmup_count,
                                                  i32 max_tracks)
-    : device_type_(device_type),
-      warmup_count_(warmup_count),
-      max_tracks_(max_tracks) {
+  : device_type_(device_type),
+    warmup_count_(warmup_count),
+    max_tracks_(max_tracks) {
   if (device_type_ == DeviceType::GPU) {
     LOG(FATAL) << "GPU tracker support not implemented yet";
   }

@@ -10,11 +10,11 @@ namespace scanner {
 class MontageKernelGPU : public VideoKernel {
  public:
   MontageKernelGPU(const Kernel::Config& config)
-      : VideoKernel(config),
-        device_(config.devices[0]),
-        frames_seen_(0),
-        montage_width_(0),
-        montage_buffer_(nullptr) {
+    : VideoKernel(config),
+      device_(config.devices[0]),
+      frames_seen_(0),
+      montage_width_(0),
+      montage_buffer_(nullptr) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
       RESULT_ERROR(&valid_, "MontageKernel could not parse protobuf args");
@@ -114,6 +114,6 @@ class MontageKernelGPU : public VideoKernel {
 REGISTER_OP(Montage).frame_input("frame").frame_output("montage");
 
 REGISTER_KERNEL(Montage, MontageKernelGPU)
-  .device(DeviceType::GPU)
-  .num_devices(1);
+    .device(DeviceType::GPU)
+    .num_devices(1);
 }

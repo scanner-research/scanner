@@ -32,7 +32,7 @@ struct MachineParameters {
   i32 num_load_workers;
   i32 num_save_workers;
   std::vector<i32>
-    gpu_ids;  //!< List of CUDA device IDs that Scanner should use.
+      gpu_ids;  //!< List of CUDA device IDs that Scanner should use.
 };
 
 //! Pick smart defaults for the current machine.
@@ -45,7 +45,6 @@ struct TableSample {
   std::string sampling_function;
   std::vector<u8> sampling_args;
 };
-
 
 struct OutputColumnCompression {
   std::string codec;

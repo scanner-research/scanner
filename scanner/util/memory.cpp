@@ -48,7 +48,8 @@ namespace scanner {
 //
 // 3. Block allocations allow ops to allocate a single block of memory
 // for
-//    their returned elements instead of allocating individually for each element. This
+//    their returned elements instead of allocating individually for each
+//    element. This
 //    again reduces the number of cudaMallocs if not using a memory pool.
 //    Regardless of pool usage, blocks can also be copied in a single memcpy
 //    instead of many, which reduces memcpy calls. To avoid complexity in the
@@ -75,7 +76,7 @@ class Allocator {
 class SystemAllocator : public Allocator {
  public:
   SystemAllocator(DeviceHandle device, bool pinned = false)
-      : device_(device), pinned_(pinned) {}
+    : device_(device), pinned_(pinned) {}
 
   u8* allocate(size_t size) {
     if (device_.type == DeviceType::CPU) {
@@ -136,7 +137,7 @@ class PoolAllocator : public Allocator {
  public:
   PoolAllocator(DeviceHandle device, SystemAllocator* allocator,
                 size_t pool_size)
-      : device_(device), system_allocator(allocator), pool_size_(pool_size) {
+    : device_(device), system_allocator(allocator), pool_size_(pool_size) {
     pool_ = system_allocator->allocate(pool_size_);
   }
 

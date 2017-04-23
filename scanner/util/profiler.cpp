@@ -26,7 +26,7 @@ namespace scanner {
 Profiler::Profiler(timepoint_t base_time) : base_time_(base_time), lock_(0) {}
 
 Profiler::Profiler(const Profiler& other)
-    : base_time_(other.base_time_), records_(other.records_), lock_(0) {}
+  : base_time_(other.base_time_), records_(other.records_), lock_(0) {}
 
 const std::vector<Profiler::TaskRecord>& Profiler::get_records() const {
   return records_;
@@ -98,4 +98,3 @@ void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
   }
 }
 }
-

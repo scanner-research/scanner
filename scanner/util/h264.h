@@ -110,7 +110,6 @@ inline void next_nal(const u8*& buffer, i32& buffer_size_left,
   }
 }
 
-
 inline i32 get_nal_unit_type(const u8* nal_start) {
   return (*nal_start) & 0x1F;
 }
@@ -158,10 +157,8 @@ inline bool parse_sps(GetBitsState& gb, SPS& info) {
       info.profile_idc == 118 ||  // Stereo High profile (MVC)
       info.profile_idc == 128 ||  // Multiview High profile (MVC)
       info.profile_idc == 138 ||  // Multiview Depth High profile (MVCD)
-      info.profile_idc == 139 ||
-      info.profile_idc == 134 ||
-      info.profile_idc == 135 ||
-      info.profile_idc == 144) {
+      info.profile_idc == 139 || info.profile_idc == 134 ||
+      info.profile_idc == 135 || info.profile_idc == 144) {
     // chroma_format_idc
     u32 chroma_format_idc = get_ue_golomb(gb);
     if (chroma_format_idc > 3U) {

@@ -74,7 +74,7 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
     output_columns.push_back(col);
   }
   OpInfo* info =
-    new OpInfo(name, variadic_inputs, input_columns, output_columns);
+      new OpInfo(name, variadic_inputs, input_columns, output_columns);
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
 }

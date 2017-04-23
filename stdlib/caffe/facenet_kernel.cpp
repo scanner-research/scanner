@@ -6,7 +6,7 @@ namespace scanner {
 class FacenetKernel : public CaffeKernel {
  public:
   FacenetKernel(const Kernel::Config& config)
-      : CaffeKernel(get_caffe_config(config)) {}
+    : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
     // Calculate width by scaling by box size
@@ -46,8 +46,8 @@ class FacenetKernel : public CaffeKernel {
 };
 
 REGISTER_OP(Facenet)
-  .frame_input("facenet_input")
-  .frame_output("facenet_output");
+    .frame_input("facenet_input")
+    .frame_output("facenet_output");
 
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::CPU).num_devices(1);
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::GPU).num_devices(1);

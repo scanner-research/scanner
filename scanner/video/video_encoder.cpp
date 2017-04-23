@@ -34,7 +34,7 @@ namespace internal {
 std::vector<VideoEncoderType> VideoEncoder::get_supported_encoder_types() {
   std::vector<VideoEncoderType> encoder_types;
 #ifdef HAVE_NVIDIA_VIDEO_HARDWARE
-  //encoder_types.push_back(VideoEncoderType::NVIDIA);
+// encoder_types.push_back(VideoEncoderType::NVIDIA);
 #endif
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
   encoder_types.push_back(VideoEncoderType::INTEL);
@@ -77,8 +77,8 @@ VideoEncoder* VideoEncoder::make_from_config(DeviceHandle device_handle,
       CUcontext cuda_context;
       CUD_CHECK(cuDevicePrimaryCtxRetain(&cuda_context, device_handle.id));
 
-      // encoder = new NVIDIAVideoEncoder(device_handle.id, device_handle.type,
-      //                                  cuda_context);
+// encoder = new NVIDIAVideoEncoder(device_handle.id, device_handle.type,
+//                                  cuda_context);
 #else
 #endif
       break;

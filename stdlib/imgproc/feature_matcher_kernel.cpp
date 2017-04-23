@@ -79,7 +79,7 @@ class FeatureMatcherKernel : public VideoKernel {
       memcpy_buffer(buf, CPU_DEVICE, keypoints_col.rows[i].buffer, device_,
                     size);
       std::vector<proto::Keypoint> kp =
-        deserialize_proto_vector<proto::Keypoint>(buf, size);
+          deserialize_proto_vector<proto::Keypoint>(buf, size);
       kps.push_back(kp);
 
       size = features_col.rows[i].size;
@@ -125,7 +125,7 @@ class FeatureMatcherKernel : public VideoKernel {
       i32 offset = C_.T - C_.w + i;
       features[offset].copyTo(features_suffix_[i]);
       LOG_IF(FATAL, features[offset].rows != features_suffix_[i].rows)
-        << "no really wtf";
+          << "no really wtf";
       LOG_IF(FATAL, features[offset].rows != kps[offset].size()) << "wtf";
       kps_suffix_.push_back(kps[offset]);
       if (i == 0) {
@@ -167,9 +167,9 @@ class FeatureMatcherKernel : public VideoKernel {
     }
 
     LOG_IF(FATAL, kp1.size() != desc1_gpu.rows || kp2.size() != desc2_gpu.rows)
-      << "Malformed keypoints or features";
+        << "Malformed keypoints or features";
     LOG_IF(FATAL, desc1_gpu.cols != desc2_gpu.cols)
-      << "Dimension mismatch: " << desc1_gpu.cols << ", " << desc2_gpu.cols;
+        << "Dimension mismatch: " << desc1_gpu.cols << ", " << desc2_gpu.cols;
 
     std::vector<cv::DMatch> matches;
     matcher_->match(desc1_gpu, desc2_gpu, matches);
@@ -188,9 +188,9 @@ class FeatureMatcherKernel : public VideoKernel {
       if (match.distance <= std::max(2 * min_dist, 0.02)) {
         good_matches.push_back(match);
         fr1.push_back(
-          cv::Point2f(kp1[match.queryIdx].x(), kp1[match.queryIdx].y()));
+            cv::Point2f(kp1[match.queryIdx].x(), kp1[match.queryIdx].y()));
         fr2.push_back(
-          cv::Point2f(kp2[match.trainIdx].x(), kp2[match.trainIdx].y()));
+            cv::Point2f(kp2[match.trainIdx].x(), kp2[match.trainIdx].y()));
       }
     }
 
@@ -248,10 +248,10 @@ class FeatureMatcherKernel : public VideoKernel {
 };
 
 REGISTER_OP(FeatureMatcher)
-  .inputs({"features", "keypoints", "frame_info"})
-  .outputs({"cost_matrix"});
+    .inputs({"features", "keypoints", "frame_info"})
+    .outputs({"cost_matrix"});
 
 REGISTER_KERNEL(FeatureMatcher, FeatureMatcherKernel)
-  .device(DeviceType::GPU)
-  .num_devices(1);
+    .device(DeviceType::GPU)
+    .num_devices(1);
 }

@@ -40,14 +40,14 @@ namespace internal {
 SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
                                            DeviceType output_type,
                                            i32 thread_count)
-    : device_id_(device_id),
-      output_type_(output_type),
-      codec_(nullptr),
-      cc_(nullptr),
-      reset_context_(true),
-      sws_context_(nullptr),
-      frame_pool_(1024),
-      decoded_frame_queue_(1024) {
+  : device_id_(device_id),
+    output_type_(output_type),
+    codec_(nullptr),
+    cc_(nullptr),
+    reset_context_(true),
+    sws_context_(nullptr),
+    frame_pool_(1024),
+    decoded_frame_queue_(1024) {
   avcodec_register_all();
 
   av_init_packet(&packet_);
@@ -64,7 +64,7 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
     exit(EXIT_FAILURE);
   }
 
-  //cc_->thread_count = thread_count;
+  // cc_->thread_count = thread_count;
   cc_->thread_count = 4;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
@@ -313,7 +313,7 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
 
     auto decode_start = now();
     int consumed_length =
-      avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
+        avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
     if (profiler_) {
       profiler_->add_interval("ffmpeg:decode_video", decode_start, now());
     }
@@ -356,6 +356,5 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
     avcodec_flush_buffers(cc_);
   }
 }
-
 }
 }

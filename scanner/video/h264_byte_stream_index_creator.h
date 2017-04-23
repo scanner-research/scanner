@@ -28,7 +28,7 @@ namespace scanner {
 namespace internal {
 
 class H264ByteStreamIndexCreator {
-public:
+ public:
   H264ByteStreamIndexCreator(storehouse::WriteFile* demuxed_bytestream);
 
   bool feed_packet(u8* data, size_t size);
@@ -73,6 +73,5 @@ public:
   i32 num_non_ref_frames_ = 0;
   i32 nals_parsed_ = 0;
 };
-
 }
 }

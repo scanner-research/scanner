@@ -33,8 +33,7 @@ extern "C" {
 #include <cassert>
 
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 5, 0)
-#define PACKET_FREE(pkt) \
-  av_packet_free(&pkt);
+#define PACKET_FREE(pkt) av_packet_free(&pkt);
 #else
 #define PACKET_FREE(pkt) \
   av_packet_unref(pkt);  \
@@ -49,15 +48,15 @@ namespace internal {
 SoftwareVideoEncoder::SoftwareVideoEncoder(i32 device_id,
                                            DeviceType output_type,
                                            i32 thread_count)
-    : device_id_(device_id),
-      output_type_(output_type),
-      codec_(nullptr),
-      cc_(nullptr),
-      sws_context_(nullptr),
-      was_reset_(false),
-      ready_packet_queue_(1024),
-      frame_id_(0),
-      frame_(nullptr) {
+  : device_id_(device_id),
+    output_type_(output_type),
+    codec_(nullptr),
+    cc_(nullptr),
+    sws_context_(nullptr),
+    was_reset_(false),
+    ready_packet_queue_(1024),
+    frame_id_(0),
+    frame_(nullptr) {
   avcodec_register_all();
 
   codec_ = avcodec_find_encoder(AV_CODEC_ID_H264);
@@ -119,14 +118,14 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata,
                                                frame_height_, 1);
 
   cc_->thread_count = 4;
-  cc_->width = frame_width_;     // Note Resolution must be a multiple of 2!!
-  cc_->height = frame_height_;   // Note Resolution must be a multiple of 2!!
+  cc_->width = frame_width_;    // Note Resolution must be a multiple of 2!!
+  cc_->height = frame_height_;  // Note Resolution must be a multiple of 2!!
   // TODO(apoms): figure out this fps from the input video automatically
   cc_->time_base.den = 24;
   cc_->time_base.num = 1;
   cc_->gop_size = 120;  // Intra frames per x P frames
   cc_->pix_fmt =
-    AV_PIX_FMT_YUV420P;  // Do not change this, H264 needs YUV format not RGB
+      AV_PIX_FMT_YUV420P;  // Do not change this, H264 needs YUV format not RGB
   if (opts.quality != -1) {
     if (av_opt_set_int(cc_->priv_data, "crf", opts.quality, 0) < 0) {
       LOG(FATAL) << "Could not set CRF on codec context";
@@ -142,13 +141,11 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata,
 
   AVPixelFormat encoder_pixel_format = cc_->pix_fmt;
   sws_context_ = sws_getContext(
-    frame_width_, frame_height_, AV_PIX_FMT_RGB24,
-    frame_width_, frame_height_, encoder_pixel_format,
-    SWS_BICUBIC, NULL, NULL, NULL);
+      frame_width_, frame_height_, AV_PIX_FMT_RGB24, frame_width_,
+      frame_height_, encoder_pixel_format, SWS_BICUBIC, NULL, NULL, NULL);
   if (sws_context_ == NULL) {
     LOG(FATAL) << "Could not get sws_context for rgb conversion";
   }
-
 }
 
 bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
@@ -173,8 +170,8 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size =
-    av_image_fill_arrays(out_slices, out_linesizes, frame_buffer,
-                         AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
+      av_image_fill_arrays(out_slices, out_linesizes, frame_buffer,
+                           AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
   if (required_size < 0) {
     LOG(FATAL) << "Error in av_image_fill_arrays";
   }
@@ -217,8 +214,8 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
   u8* filtered_data;
   i32 filtered_data_size;
   int err = av_bitstream_filter_filter(
-    annexb_, cc_, NULL, &filtered_data, &filtered_data_size, packet->data,
-    packet->size, packet->flags & AV_PKT_FLAG_KEY);
+      annexb_, cc_, NULL, &filtered_data, &filtered_data_size, packet->data,
+      packet->size, packet->flags & AV_PKT_FLAG_KEY);
   if (err < 0) {
     char err_msg[256];
     av_strerror(err, err_msg, 256);
@@ -278,8 +275,7 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
     } else {
       char err_msg[256];
       av_strerror(ret, err_msg, 256);
-      fprintf(stderr, "Error while receiving packet (%d): %s\n", ret,
-              err_msg);
+      fprintf(stderr, "Error while receiving packet (%d): %s\n", ret, err_msg);
       LOG(FATAL) << "Error while receiving packet";
     }
   }
@@ -302,6 +298,5 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
                             receive_end);
   }
 }
-
 }
 }

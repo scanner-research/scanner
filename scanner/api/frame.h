@@ -15,9 +15,9 @@
 
 #pragma once
 
+#include "scanner/metadata.pb.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
-#include "scanner/metadata.pb.h"
 
 #include <vector>
 
@@ -58,7 +58,7 @@ struct FrameInfo {
 
 //! Frame
 class Frame {
-public:
+ public:
   Frame(FrameInfo info, u8* buffer);
 
   FrameInfo as_frame_info() const;
@@ -84,5 +84,4 @@ Frame* new_frame(DeviceHandle device, FrameInfo info);
 void delete_frame(DeviceHandle device, u8* buffer);
 
 std::vector<Frame*> new_frames(DeviceHandle device, FrameInfo info, i32 num);
-
 }

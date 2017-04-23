@@ -29,8 +29,8 @@ DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
   : device_handle_(device_handle),
     num_devices_(num_devices),
     decoder_type_(decoder_type),
-    decoder_(
-      VideoDecoder::make_from_config(device_handle, num_devices, decoder_type)),
+    decoder_(VideoDecoder::make_from_config(device_handle, num_devices,
+                                            decoder_type)),
     feeder_waiting_(false),
     not_done_(true),
     frames_retrieved_(0),
@@ -59,7 +59,7 @@ DecoderAutomata::~DecoderAutomata() {
 }
 
 void DecoderAutomata::initialize(
-  const std::vector<proto::DecodeArgs>& encoded_data) {
+    const std::vector<proto::DecodeArgs>& encoded_data) {
   assert(!encoded_data.empty());
   encoded_data_ = encoded_data;
   frame_size_ = encoded_data[0].width() * encoded_data[0].height() * 3;
@@ -131,7 +131,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
       bool more_frames = true;
       while (more_frames && frames_retrieved_ < frames_to_get_) {
         const auto& valid_frames =
-          encoded_data_[retriever_data_idx_].valid_frames();
+            encoded_data_[retriever_data_idx_].valid_frames();
         assert(valid_frames.size() > retriever_valid_idx_.load());
         assert(current_frame_ <= valid_frames.Get(retriever_valid_idx_));
         if (current_frame_ == valid_frames.Get(retriever_valid_idx_)) {
@@ -168,7 +168,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
                 std::unique_lock<std::mutex> lk(feeder_mutex_);
                 feeder_waiting_ = false;
                 current_frame_ =
-                  encoded_data_[retriever_data_idx_].keyframes(0) - 1;
+                    encoded_data_[retriever_data_idx_].keyframes(0) - 1;
               }
               wake_feeder_.notify_one();
               more_frames = false;
@@ -178,7 +178,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
           }
           if (retriever_data_idx_ < encoded_data_.size()) {
             next_frame_.store(encoded_data_[retriever_data_idx_].valid_frames(
-                                retriever_valid_idx_),
+                                  retriever_valid_idx_),
                               std::memory_order_release);
           }
           // printf("got frame %d\n", frames_retrieved_.load());
@@ -257,14 +257,14 @@ void DecoderAutomata::feeder() {
 
       i32 fdi = feeder_data_idx_.load(std::memory_order_acquire);
       const u8* encoded_buffer =
-        (const u8*)encoded_data_[fdi].mutable_encoded_video()->data();
+          (const u8*)encoded_data_[fdi].mutable_encoded_video()->data();
       size_t encoded_buffer_size =
-        encoded_data_[fdi].mutable_encoded_video()->size();
+          encoded_data_[fdi].mutable_encoded_video()->size();
       i32 encoded_packet_size = 0;
       const u8* encoded_packet = NULL;
       if (feeder_buffer_offset_ < encoded_buffer_size) {
-        encoded_packet_size =
-          *reinterpret_cast<const i32*>(encoded_buffer + feeder_buffer_offset_);
+        encoded_packet_size = *reinterpret_cast<const i32*>(
+            encoded_buffer + feeder_buffer_offset_);
         feeder_buffer_offset_ += sizeof(i32);
         encoded_packet = encoded_buffer + feeder_buffer_offset_;
         assert(encoded_packet_size < encoded_buffer_size);
@@ -301,7 +301,7 @@ void DecoderAutomata::feeder() {
         if (feeder_valid_idx_ <
             encoded_data_[feeder_data_idx_].valid_frames_size()) {
           feeder_next_frame_ =
-            encoded_data_[feeder_data_idx_].valid_frames(feeder_valid_idx_);
+              encoded_data_[feeder_data_idx_].valid_frames(feeder_valid_idx_);
         } else {
           // Done
           feeder_next_frame_ = -1;

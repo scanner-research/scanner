@@ -94,6 +94,5 @@ void move_if_different_address_space(Profiler& profiler,
                                     column);
   }
 }
-
 }
 }
