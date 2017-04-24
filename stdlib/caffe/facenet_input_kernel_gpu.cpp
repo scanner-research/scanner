@@ -11,10 +11,10 @@
 
 namespace scanner {
 
-class FacenetInputKernel : public VideoKernel {
+class FacenetInputKernel : public BatchedKernel, public VideoKernel {
  public:
-  FacenetInputKernel(const Kernel::Config& config)
-    : VideoKernel(config),
+  FacenetInputKernel(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0])
 #ifdef HAVE_CUDA
       ,

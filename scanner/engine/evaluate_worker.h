@@ -54,7 +54,7 @@ struct EvaluateThreadArgs {
   // Per worker arguments
   i32 ki;
   i32 kg;
-  std::vector<std::tuple<KernelFactory*, Kernel::Config>> kernel_factories;
+  std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   // Discarded after kernel use
   std::vector<std::vector<i32>> dead_columns;

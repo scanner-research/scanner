@@ -13,7 +13,7 @@ namespace scanner {
 
 class GipumaKernel : public VideoKernel {
  public:
-  GipumaKernel(const Kernel::Config& config)
+  GipumaKernel(const KernelConfig& config)
     : VideoKernel(config), device_(config.devices[0]), was_reset_(true) {
     set_device();
 

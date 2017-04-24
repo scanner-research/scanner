@@ -18,9 +18,9 @@ namespace scanner {
 using CustomNetConfiguration = void (*)(const FrameInfo& frame_info,
                                         caffe::Net<float>* net);
 
-class CaffeKernel : public VideoKernel {
+class CaffeKernel : public BatchedKernel, public VideoKernel {
  public:
-  CaffeKernel(const Kernel::Config& config);
+  CaffeKernel(const KernelConfig& config);
   void validate(proto::Result* result) override;
   void new_frame_info() override;
   void execute(const BatchedColumns& input_columns,

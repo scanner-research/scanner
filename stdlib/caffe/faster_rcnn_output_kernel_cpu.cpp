@@ -13,9 +13,9 @@ namespace scanner {
 #define BOX_SIZE 5
 #define FEATURES 4096
 
-class FasterRCNNOutputKernel : public Kernel {
+class FasterRCNNOutputKernel : public BatchedKernel {
  public:
-  FasterRCNNOutputKernel(const Kernel::Config& config) : Kernel(config) {}
+  FasterRCNNOutputKernel(const KernelConfig& config) : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {

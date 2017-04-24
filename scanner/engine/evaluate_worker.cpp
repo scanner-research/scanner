@@ -190,12 +190,12 @@ void* evaluate_thread(void* arg) {
   const std::vector<std::vector<i32>>& column_mapping = args.column_mapping;
   std::vector<DeviceHandle> kernel_devices;
   std::vector<i32> kernel_num_outputs;
-  std::vector<std::unique_ptr<Kernel>> kernels;
+  std::vector<std::unique_ptr<BaseKernel>> kernels;
   {
     OpRegistry* registry = get_op_registry();
     for (size_t i = 0; i < args.kernel_factories.size(); ++i) {
       KernelFactory* factory = std::get<0>(args.kernel_factories[i]);
-      const Kernel::Config& config = std::get<1>(args.kernel_factories[i]);
+      const KernelConfig& config = std::get<1>(args.kernel_factories[i]);
       kernel_devices.push_back(config.devices[0]);
       kernel_num_outputs.push_back(registry->get_op_info(factory->get_op_name())
                                        ->output_columns()
@@ -266,10 +266,10 @@ void* evaluate_thread(void* arg) {
           std::max(total_inputs, (i32)work_entry.columns[i].size());
     }
     while (current_input < total_inputs) {
-      i32 batch_size = std::min(total_inputs - current_input,
-                                args.job_params->work_item_size());
+      // i32 batch_size = std::min(total_inputs - current_input,
+      //                           args.job_params->work_item_size());
+      i32 batch_size = 1;
 
-      BatchedColumns side_input_columns;
       DeviceHandle input_handle;
       // Initialize the output buffers with the frame input because we
       // perform a swap from output to input on each iterator to pass outputs
@@ -289,12 +289,12 @@ void* evaluate_thread(void* arg) {
         const std::string& op_name =
             std::get<0>(args.kernel_factories[k])->get_op_name();
         DeviceHandle current_handle = kernel_devices[k];
-        std::unique_ptr<Kernel>& kernel = kernels[k];
+        std::unique_ptr<BaseKernel>& kernel = kernels[k];
         i32 num_outputs = kernel_num_outputs[k];
 
         // Map from previous output columns to the set of input columns needed
         // by the kernel
-        BatchedColumns input_columns;
+        StenciledBatchedColumns input_columns;
         for (i32 in_col_idx : column_mapping[k]) {
           assert(in_col_idx < side_output_columns.size());
 
@@ -310,7 +310,15 @@ void* evaluate_thread(void* arg) {
           input_handle = current_handle;
           args.profiler.add_interval("op_marshal", copy_start, now());
 
-          input_columns.push_back(side_output_columns[in_col_idx]);
+
+          input_columns.emplace_back();
+          auto& cols = input_columns.back();
+          cols.resize(side_output_columns[in_col_idx].size());
+          // Place element as first element in "stencil" dimension of input
+          // columns
+          for (size_t i = 0; i < side_output_columns[in_col_idx].size(); ++i) {
+            cols[i].push_back(side_output_columns[in_col_idx][i]);
+          }
         }
 
         // Setup output buffers to receive op output
@@ -319,7 +327,7 @@ void* evaluate_thread(void* arg) {
         output_columns.resize(num_outputs);
 
         auto eval_start = now();
-        kernel->execute(input_columns, output_columns);
+        kernel->execute_kernel(input_columns, output_columns);
         args.profiler.add_interval("evaluate:" + op_name, eval_start, now());
         // Delete unused outputs
         for (size_t y = 0; y < unused_outputs[k].size(); ++y) {

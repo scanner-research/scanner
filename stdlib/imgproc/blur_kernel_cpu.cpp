@@ -22,9 +22,9 @@
 
 namespace scanner {
 
-class BlurKernel : public VideoKernel {
+class BlurKernel : public Kernel, public VideoKernel {
  public:
-  BlurKernel(const Kernel::Config& config) : VideoKernel(config) {
+  BlurKernel(const KernelConfig& config) : Kernel(config) {
     scanner::proto::BlurArgs args;
     bool parsed = args.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed || config.args.size() == 0) {
@@ -48,39 +48,35 @@ class BlurKernel : public VideoKernel {
     frame_height_ = frame_info_.height();
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const Columns& input_columns,
+               Columns& output_columns) override {
     auto& frame_col = input_columns[0];
-    check_frame(CPU_DEVICE, frame_col[0]);
+    check_frame(CPU_DEVICE, frame_col);
 
-    i32 input_count = (i32)num_rows(frame_col);
     i32 width = frame_width_;
     i32 height = frame_height_;
     size_t frame_size = width * height * 3 * sizeof(u8);
-    FrameInfo info = frame_col[0].as_const_frame()->as_frame_info();
+    FrameInfo info = frame_col.as_const_frame()->as_frame_info();
+    Frame* output_frame = new_frame(CPU_DEVICE, info);
 
-    std::vector<Frame*> output_frames =
-        new_frames(CPU_DEVICE, info, input_count);
-    for (i32 i = 0; i < input_count; ++i) {
-      const u8* frame_buffer = frame_col[i].as_const_frame()->data;
-      u8* blurred_buffer = output_frames[i]->data;
-      for (i32 y = filter_left_; y < height - filter_right_; ++y) {
-        for (i32 x = filter_left_; x < width - filter_right_; ++x) {
-          for (i32 c = 0; c < 3; ++c) {
-            u32 value = 0;
-            for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
-              for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
-                value += frame_buffer[(y + ry) * width * 3 + (x + rx) * 3 + c];
-              }
+    const u8* frame_buffer = frame_col.as_const_frame()->data;
+    u8* blurred_buffer = output_frame->data;
+    for (i32 y = filter_left_; y < height - filter_right_; ++y) {
+      for (i32 x = filter_left_; x < width - filter_right_; ++x) {
+        for (i32 c = 0; c < 3; ++c) {
+          u32 value = 0;
+          for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
+            for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
+              value += frame_buffer[(y + ry) * width * 3 + (x + rx) * 3 + c];
             }
-            blurred_buffer[y * width * 3 + x * 3 + c] =
-                value / ((filter_right_ + filter_left_ + 1) *
-                         (filter_right_ + filter_left_ + 1));
           }
+          blurred_buffer[y * width * 3 + x * 3 + c] =
+              value / ((filter_right_ + filter_left_ + 1) *
+                       (filter_right_ + filter_left_ + 1));
         }
       }
-      insert_frame(output_columns[0], output_frames[i]);
     }
+    insert_frame(output_columns[0], output_frame);
   }
 
  private:

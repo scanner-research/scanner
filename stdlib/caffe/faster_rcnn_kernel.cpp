@@ -5,7 +5,7 @@ namespace scanner {
 
 class FasterRCNNKernel : public CaffeKernel {
  public:
-  FasterRCNNKernel(const Kernel::Config& config) : CaffeKernel(config) {}
+  FasterRCNNKernel(const KernelConfig& config) : CaffeKernel(config) {}
 
   void net_config() override {
     boost::shared_ptr<caffe::Blob<float>> blob = net_->blob_by_name("im_info");

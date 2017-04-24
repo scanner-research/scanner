@@ -31,7 +31,7 @@ class Constants {
 
 class FeatureMatcherKernel : public VideoKernel {
  public:
-  FeatureMatcherKernel(const Kernel::Config& config)
+  FeatureMatcherKernel(const KernelConfig& config)
     : VideoKernel(config), device_(config.devices[0]), C_(0, 0, 0) {
     set_device();
 

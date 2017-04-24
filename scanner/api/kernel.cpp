@@ -26,7 +26,73 @@ Element::Element(u8* _buffer, size_t _size)
 Element::Element(Frame* frame)
   : buffer((u8*)frame), size(sizeof(Frame)), is_frame(true) {}
 
-Kernel::Kernel(const Config& config) {}
+BaseKernel::BaseKernel(const KernelConfig& config) {}
+
+StenciledBatchedKernel::StenciledBatchedKernel(const KernelConfig& config)
+    : BaseKernel(config) {}
+
+void StenciledBatchedKernel::execute_kernel(
+    const StenciledBatchedColumns& input_columns,
+    BatchedColumns& output_columns) {
+  execute(input_columns, output_columns);
+}
+
+StenciledKernel::StenciledKernel(const KernelConfig& config)
+  : BaseKernel(config) {}
+
+void StenciledKernel::execute_kernel(
+    const StenciledBatchedColumns& input_columns,
+    BatchedColumns& output_columns) {
+  StenciledColumns in;
+  for (auto& col : input_columns) {
+    in.emplace_back();
+    std::vector<Element>& b = in.back();
+    b = col[0];
+  }
+
+  Columns out_cols(output_columns.size());
+  execute(in, out_cols);
+  for (size_t i = 0; i < out_cols.size(); ++i) {
+    output_columns[i].push_back(out_cols[i]);
+  }
+}
+
+BatchedKernel::BatchedKernel(const KernelConfig& config)
+    : BaseKernel(config) {}
+
+void BatchedKernel::execute_kernel(
+    const StenciledBatchedColumns& input_columns,
+    BatchedColumns& output_columns) {
+  BatchedColumns in;
+  for (auto& col : input_columns) {
+    in.emplace_back();
+    std::vector<Element>& b = in.back();
+    for (auto& stencil : col) {
+      b.push_back(stencil[0]);
+    }
+  }
+
+  execute(in, output_columns);
+}
+
+Kernel::Kernel(const KernelConfig& config)
+    : BaseKernel(config) {}
+
+void Kernel::execute_kernel(
+    const StenciledBatchedColumns& input_columns,
+    BatchedColumns& output_columns) {
+
+  Columns in_cols;
+  for (auto& col : input_columns) {
+    in_cols.push_back(col[0][0]);
+  }
+
+  Columns out_cols(output_columns.size());
+  execute(in_cols, out_cols);
+  for (size_t i = 0; i < out_cols.size(); ++i) {
+    output_columns[i].push_back(out_cols[i]);
+  }
+}
 
 void VideoKernel::check_frame(const DeviceHandle& device,
                               const Element& element) {

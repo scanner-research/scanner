@@ -7,10 +7,10 @@
 
 namespace scanner {
 
-class MontageKernelGPU : public VideoKernel {
+class MontageKernelGPU : public BatchedKernel, public VideoKernel {
  public:
-  MontageKernelGPU(const Kernel::Config& config)
-    : VideoKernel(config),
+  MontageKernelGPU(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0]),
       frames_seen_(0),
       montage_width_(0),

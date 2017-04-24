@@ -8,10 +8,10 @@
 
 namespace scanner {
 
-class OpticalFlowKernelCPU : public VideoKernel {
+class OpticalFlowKernelCPU : public BatchedKernel, public VideoKernel {
  public:
-  OpticalFlowKernelCPU(const Kernel::Config& config)
-    : VideoKernel(config),
+  OpticalFlowKernelCPU(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size) {
     flow_finder_ =

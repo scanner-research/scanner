@@ -24,10 +24,10 @@
 
 namespace scanner {
 
-class CPM2InputKernel : public VideoKernel {
+class CPM2InputKernel : public BatchedKernel, public VideoKernel {
  public:
-  CPM2InputKernel(const Kernel::Config& config)
-    : VideoKernel(config),
+  CPM2InputKernel(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0])
 #ifdef HAVE_CUDA
       ,

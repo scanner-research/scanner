@@ -8,9 +8,9 @@
 
 namespace scanner {
 
-class YoloOutputKernel : public VideoKernel {
+class YoloOutputKernel : public BatchedKernel, public VideoKernel {
  public:
-  YoloOutputKernel(const Kernel::Config& config) : VideoKernel(config) {
+  YoloOutputKernel(const KernelConfig& config) : BatchedKernel(config) {
     categories_ = {
         "aeroplane",   "bicycle", "bird",  "boat",      "bottle",
         "bus",         "car",     "cat",   "chair",     "cow",

@@ -11,8 +11,8 @@
 
 namespace scanner {
 
-CaffeInputKernel::CaffeInputKernel(const Kernel::Config& config)
-  : VideoKernel(config), device_(config.devices[0]) {
+CaffeInputKernel::CaffeInputKernel(const KernelConfig& config)
+  : BatchedKernel(config), device_(config.devices[0]) {
   args_.ParseFromArray(config.args.data(), config.args.size());
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({

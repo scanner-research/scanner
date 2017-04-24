@@ -5,9 +5,9 @@
 
 namespace scanner {
 
-class ImageDecoderKernel : public Kernel {
+class ImageDecoderKernel : public BatchedKernel {
  public:
-  ImageDecoderKernel(const Kernel::Config& config) : Kernel(config) {}
+  ImageDecoderKernel(const KernelConfig& config) : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
