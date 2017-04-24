@@ -230,6 +230,7 @@ CaffeKernel::CaffeKernel(const Kernel::Config& config)
     return;
   }
 
+  cudaSetDevice(0);
   set_device();
   // Initialize our network
   auto& descriptor = args_.net_descriptor();
@@ -280,7 +281,7 @@ void CaffeKernel::validate(proto::Result* result) {
 }
 
 void CaffeKernel::new_frame_info() {
-  i32 frame_width = frame_info_.shape[0];
+  i32 frame_width = frame_info_.shape[2];
   i32 frame_height = frame_info_.shape[1];
 
   set_device();
@@ -397,8 +398,8 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
 
-      FrameInfo info(output_blob->shape(3), output_blob->shape(2),
-                     output_blob->shape(1), FrameType::F32);
+      FrameInfo info(output_blob->shape(1), output_blob->shape(2),
+                     output_blob->shape(3), FrameType::F32);
       u8* output_block =
           new_block_buffer(device_, info.size() * batch_count, batch_count);
 

@@ -11,7 +11,7 @@ class CPM2Kernel : public CaffeKernel {
     : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
-    int net_input_width = frame_info_.shape[0];
+    int net_input_width = frame_info_.shape[2];
     int net_input_height = frame_info_.shape[1];
 
     caffe::ImResizeLayer<float>* resize_layer =

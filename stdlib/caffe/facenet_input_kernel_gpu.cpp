@@ -56,10 +56,10 @@ class FacenetInputKernel : public VideoKernel {
     planar_input_g_.clear();
     flipped_planes_g_.clear();
     for (size_t i = 0; i < num_cuda_streams_; ++i) {
-      frame_input_g_.push_back(cv::cuda::GpuMat(frame_info_.shape[2],
-                                                frame_info_.shape[1], CV_8UC3));
+      frame_input_g_.push_back(
+          cv::cuda::GpuMat(frame_info_.height(), frame_info_.width(), CV_8UC3));
       resized_input_g_.push_back(
-          cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
+        cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_8UC3));
       float_input_g_.push_back(
           cv::cuda::GpuMat(net_input_height_, net_input_width_, CV_32FC3));
       normalized_input_g_.push_back(
@@ -87,7 +87,7 @@ class FacenetInputKernel : public VideoKernel {
     check_frame(device_, frame_col[0]);
 
     i32 input_count = (i32)frame_col.size();
-    FrameInfo net_input_info(net_input_width_, net_input_height_, 3,
+    FrameInfo net_input_info(3, net_input_width_, net_input_height_,
                              FrameType::F32);
     i32 net_input_size = net_input_info.size();
     std::vector<Frame*> output_frames =

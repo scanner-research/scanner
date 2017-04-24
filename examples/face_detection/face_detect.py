@@ -27,35 +27,35 @@ with Database() as db:
     base_batch = 4
     base_size = 1280*720
     # TODO(apoms): determine automatically from video
-    current_size = 1280*720
+    current_size = 640*480
     current_batch = math.floor(base_size / float(current_size) * base_batch)
 
     print('Running face detector...')
     outputs = []
-    scales = [0.125, 0.25, 0.5, 1.0]
-    batch_sizes = [int(current_batch * (2**i)) for i in range(len(scales))]
-    batch_sizes.reverse()
+    scales = [1.0, 0.5, 0.25, 0.125]
+    batch_sizes = [int(current_batch * (2**i))
+                   for i in range(len(scales))]
     for scale, batch in zip(scales, batch_sizes):
         print('Scale {}...'.format(scale))
         facenet_args.scale = scale
         caffe_args.batch_size = batch
-        frame, frame_info = input_table.as_op().all(item_size = 50)
-
+        frame = input_table.as_op().all(item_size = 50)
+        frame_info = db.ops.InfoFromFrame(frame = frame)
         facenet_input = db.ops.FacenetInput(
-            frame = frame, frame_info = frame_info,
+            frame = frame,
             args = facenet_args,
             device = DeviceType.GPU)
         facenet = db.ops.Facenet(
             facenet_input = facenet_input,
-            frame_info = frame_info,
             args = facenet_args,
             device = DeviceType.GPU)
         facenet_output = db.ops.FacenetOutput(
             facenet_output = facenet,
-            frame_info = frame_info,
+            original_frame_info = frame_info,
             args = facenet_args)
 
-        job = Job(columns = [facenet_output], name = 'example_faces_{}'.format(scale))
+        job = Job(columns = [facenet_output],
+                  name = 'example_faces_{}'.format(scale))
 
         output = db.run(job, force=True, work_item_size=5)
         outputs.append(output)

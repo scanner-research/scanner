@@ -58,7 +58,7 @@ class DecoderAutomata {
   std::thread feeder_thread_;
   std::atomic<bool> not_done_;
 
-  FrameInfo info_;
+  FrameInfo info_{};
   size_t frame_size_;
   i32 current_frame_;
   std::atomic<i32> reset_current_frame_;

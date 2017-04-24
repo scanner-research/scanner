@@ -74,10 +74,12 @@ void move_if_different_address_space(Profiler& profiler,
     if (is_frame) {
       for (i32 b = 0; b < (i32)column.size(); ++b) {
         Frame* frame = column[b].as_frame();
+        delete_buffer(current_handle, frame->data);
         frame->data = dest_buffers[b];
       }
     } else {
       for (i32 b = 0; b < (i32)column.size(); ++b) {
+        delete_buffer(current_handle, column[b].buffer);
         column[b].buffer = dest_buffers[b];
       }
     }
