@@ -13,10 +13,10 @@
 
 namespace scanner {
 
-class OpenFaceKernel : public VideoKernel {
+class OpenFaceKernel : public BatchedKernel, public VideoKernel {
  public:
   OpenFaceKernel(const KernelConfig& config)
-    : VideoKernel(config), clnf_model(det_parameters.model_location) {
+    : BatchedKernel(config), clnf_model(det_parameters.model_location) {
     boost::filesystem::path au_loc_path =
         boost::filesystem::path("AU_predictors/AU_all_static.txt");
     boost::filesystem::path tri_loc_path =
