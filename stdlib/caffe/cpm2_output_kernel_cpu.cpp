@@ -112,9 +112,9 @@ struct COCOModelDescriptor : public ModelDescriptor {
 };
 }
 
-class CPM2OutputKernel : public VideoKernel {
+class CPM2OutputKernel : public BatchedKernel, public VideoKernel {
  public:
-  CPM2OutputKernel(const Kernel::Config& config) : VideoKernel(config) {
+  CPM2OutputKernel(const KernelConfig& config) : BatchedKernel(config) {
     proto::CPM2Args args;
     args.ParseFromArray(config.args.data(), config.args.size());
     scale_ = args.scale();

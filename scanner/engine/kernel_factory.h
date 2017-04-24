@@ -56,7 +56,7 @@ class KernelFactory {
 
   /* @brief Constructs a kernel to be used for processing elements of data.
    */
-  Kernel* new_instance(const Kernel::Config& config) {
+  BaseKernel* new_instance(const KernelConfig& config) {
     return constructor_(config);
   }
 

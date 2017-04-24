@@ -12,7 +12,7 @@ namespace scanner {
 
 class FeatureExtractorKernel : public VideoKernel {
  public:
-  FeatureExtractorKernel(const Kernel::Config& config)
+  FeatureExtractorKernel(const KernelConfig& config)
     : VideoKernel(config), device_(config.devices[0]) {
     set_device();
 

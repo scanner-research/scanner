@@ -4,10 +4,10 @@
 
 namespace scanner {
 
-class DiscardKernel : public Kernel {
+class DiscardKernel : public BatchedKernel {
  public:
-  DiscardKernel(const Kernel::Config& config)
-    : Kernel(config),
+  DiscardKernel(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size) {}
 

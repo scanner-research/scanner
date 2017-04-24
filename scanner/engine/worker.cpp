@@ -310,7 +310,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   // to instantiate instances of the op pipeline
   KernelRegistry* kernel_registry = get_kernel_registry();
   std::vector<KernelFactory*> kernel_factories;
-  std::vector<Kernel::Config> kernel_configs;
+  std::vector<KernelConfig> kernel_configs;
   i32 num_cpus = db_params_.num_cpus;
   assert(num_cpus > 0);
 
@@ -354,7 +354,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         kernel_registry->get_kernel(name, requested_device_type);
     kernel_factories.push_back(kernel_factory);
 
-    Kernel::Config kernel_config;
+    KernelConfig kernel_config;
     kernel_config.work_item_size = work_item_size;
     kernel_config.node_id = node_id_;
     kernel_config.node_count = node_count;
@@ -381,7 +381,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   }
 
   // Break up kernels into groups that run on the same device
-  std::vector<std::vector<std::tuple<KernelFactory*, Kernel::Config>>>
+  std::vector<std::vector<std::tuple<KernelFactory*, KernelConfig>>>
       kernel_groups;
   std::vector<std::vector<std::vector<std::tuple<i32, std::string>>>>
       kg_live_columns;
@@ -562,7 +562,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
           i32 device_id = 0;
           next_cpu_num++ % num_cpus;
           for (size_t i = 0; i < group.size(); ++i) {
-            Kernel::Config& config = std::get<1>(group[i]);
+            KernelConfig& config = std::get<1>(group[i]);
             config.devices.clear();
             config.devices.push_back({device_type, device_id});
           }
@@ -571,7 +571,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         for (i32 i = 0; i < factory->get_max_devices(); ++i) {
           i32 device_id = gpu_ids[next_gpu_idx++ % num_gpus];
           for (size_t i = 0; i < group.size(); ++i) {
-            Kernel::Config& config = std::get<1>(group[i]);
+            KernelConfig& config = std::get<1>(group[i]);
             config.devices.clear();
             config.devices.push_back({device_type, device_id});
           }

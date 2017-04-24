@@ -51,7 +51,15 @@ struct Element {
 };
 
 using ElementList = std::vector<Element>;
+
 using BatchedColumns = std::vector<ElementList>;
+
+using StenciledColumns = std::vector<ElementList>;
+
+//! Column -> Batch -> Stencil
+using StenciledBatchedColumns = std::vector<std::vector<ElementList>>;
+
+using Columns = std::vector<Element>;
 
 inline size_t num_rows(const ElementList& column) { return column.size(); }
 
@@ -61,6 +69,14 @@ inline void insert_element(ElementList& column, u8* buffer, size_t size) {
 
 inline void insert_frame(ElementList& column, Frame* frame) {
   column.push_back(::scanner::Element{frame});
+}
+
+inline void insert_element(Element& element, u8* buffer, size_t size) {
+  element = ::scanner::Element{buffer, size};
+}
+
+inline void insert_frame(Element& element, Frame* frame) {
+  element = ::scanner::Element{frame};
 }
 
 inline void delete_element(DeviceHandle device, Element& element) {
@@ -73,6 +89,18 @@ inline void delete_element(DeviceHandle device, Element& element) {
   }
 }
 
+//! Kernel parameters provided at instantiation.
+struct KernelConfig {
+  std::vector<DeviceHandle> devices;  //! Non-empty set of devices provided to
+                                      //! the kernel.
+  std::vector<std::string> input_columns;
+  std::vector<std::string> output_columns;
+  std::vector<u8> args;  //! Byte-string of proto args if given.
+  i32 work_item_size;
+  i32 node_id;
+  i32 node_count;
+};
+
 /**
  * @brief Interface for a unit of computation in a pipeline.
  *
@@ -83,25 +111,12 @@ inline void delete_element(DeviceHandle device, Element& element) {
  * non-contiguous batches of input. See KernelFactory for how an op
  * defines what hardware it can use for its computation.
  */
-class Kernel {
+class BaseKernel {
  public:
   static const i32 UnlimitedDevices = 0;
+  BaseKernel(const KernelConfig& config);
 
-  //! Kernel parameters provided at instantiation.
-  struct Config {
-    std::vector<DeviceHandle> devices;  //! Non-empty set of devices provided to
-                                        //! the kernel.
-    std::vector<std::string> input_columns;
-    std::vector<std::string> output_columns;
-    std::vector<u8> args;  //! Byte-string of proto args if given.
-    i32 work_item_size;
-    i32 node_id;
-    i32 node_count;
-  };
-
-  Kernel(const Config& config);
-
-  virtual ~Kernel(){};
+  virtual ~BaseKernel(){};
 
   /**
    * @brief Checks if kernel arguments are valid.
@@ -121,6 +136,119 @@ class Kernel {
    */
   virtual void reset(){};
 
+  /**
+   * @brief For internal use
+   **/
+  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
+                              BatchedColumns& output_columns) = 0;
+
+  //! Do not call this function.
+  virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
+
+  /**
+   * The profiler allows an op to save profiling data for later
+   * visualization. It is not guaranteed to be non-null, so check before use.
+   */
+  Profiler* profiler_ = nullptr;
+};
+
+
+/**
+ * @brief Interface for a unit of computation in a pipeline.
+ *
+ * Kernels form the core of Scanner's interface. They are essentially
+ * functions that take elements of inputs and produce an equal number elements
+ * of
+ * outputs. Kernels are stateful operators that get reset when provided
+ * non-contiguous batches of input. See KernelFactory for how an op
+ * defines what hardware it can use for its computation.
+ */
+class StenciledBatchedKernel : public BaseKernel {
+ public:
+  static const i32 UnlimitedDevices = 0;
+  StenciledBatchedKernel(const KernelConfig& config);
+
+  virtual ~StenciledBatchedKernel(){};
+
+  /**
+   * @brief Checks if kernel arguments are valid.
+   *
+   * Only useful if your kernel has its own custom Protobuf arguments.
+   */
+  virtual void validate(proto::Result* result) { result->set_success(true); }
+
+  /**
+   * @brief Resets ops when about to receive non-consecutive inputs.
+   *
+   * Scanner tries to run ops on consecutive blocks of inputs to
+   * maximize the accuracy of stateful algorithms like video trackers.
+   * However, when the runtime provides an op with a non-consecutive
+   * input (because of work imbalance or other reasons), it will call reset
+   * to allow the op to reset its state.
+   */
+  virtual void reset(){};
+
+  /**
+   * @brief For internal use
+   **/
+  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
+                              BatchedColumns& output_columns) override;
+
+  //! Do not call this function.
+  virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
+
+ protected:
+  /**
+   * @brief Runs the op on input elements and produces equal number of
+   *        output elements.
+   *
+   * @param input_columns
+   *        vector of columns, where each column is a vector of inputs and
+   * each
+   *        input is a byte array
+   * @param output_columns
+   *        op output, each column must have same length as the number of
+   *        input elements
+   *
+   * Evaluate gets run on batches of inputs. At the beginning of a pipeline
+   * this
+   * is raw RGB images from the input images/videos, and after that the input
+   * becomes whatever was returned by the previous op.
+   *
+   * Number of output columns must be non-zero.
+   */
+  virtual void execute(const StenciledBatchedColumns& input_columns,
+                       BatchedColumns& output_columns) = 0;
+
+  /**
+   * The profiler allows an op to save profiling data for later
+   * visualization. It is not guaranteed to be non-null, so check before use.
+   */
+  Profiler* profiler_ = nullptr;
+};
+
+/**
+ * @brief Interface for a unit of computation in a pipeline.
+ *
+ * Kernels form the core of Scanner's interface. They are essentially
+ * functions that take elements of inputs and produce an equal number elements
+ * of
+ * outputs. Kernels are stateful operators that get reset when provided
+ * non-contiguous batches of input. See KernelFactory for how an op
+ * defines what hardware it can use for its computation.
+ */
+class BatchedKernel : public BaseKernel {
+ public:
+  BatchedKernel(const KernelConfig& config);
+
+  virtual ~BatchedKernel(){};
+
+  /**
+   * @brief For internal use
+   **/
+  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
+                              BatchedColumns& output_columns);
+ protected:
   /**
    * @brief Runs the op on input elements and produces equal number of
    *        output elements.
@@ -142,23 +270,78 @@ class Kernel {
    */
   virtual void execute(const BatchedColumns& input_columns,
                        BatchedColumns& output_columns) = 0;
+};
 
-  //! Do not call this function.
-  virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
+class StenciledKernel : public BaseKernel {
+ public:
+  StenciledKernel(const KernelConfig& config);
 
+  virtual ~StenciledKernel(){};
+
+  /**
+   * @brief For internal use
+   **/
+  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
+                              BatchedColumns& output_columns);
  protected:
   /**
-   * The profiler allows an op to save profiling data for later
-   * visualization. It is not guaranteed to be non-null, so check before use.
+   * @brief Runs the op on input elements and produces equal number of
+   *        output elements.
+   *
+   * @param input_columns
+   *        vector of columns, where each column is a vector of inputs and
+   * each
+   *        input is a byte array
+   * @param output_columns
+   *        op output, each column must have same length as the number of
+   *        input elements
+   *
+   * Evaluate gets run on batches of inputs. At the beginning of a pipeline
+   * this
+   * is raw RGB images from the input images/videos, and after that the input
+   * becomes whatever was returned by the previous op.
+   *
+   * Number of output columns must be non-zero.
    */
-  Profiler* profiler_ = nullptr;
+  virtual void execute(const StenciledColumns& input_columns,
+                       Columns& output_columns) = 0;
+};
+
+class Kernel : public BaseKernel {
+ public:
+  Kernel(const KernelConfig& config);
+
+  virtual ~Kernel(){};
+
+  /**
+   * @brief For internal use
+   **/
+  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
+                              BatchedColumns& output_columns);
+ protected:
+  /**
+   * @brief Runs the op on input elements and produces equal number of
+   *        output elements.
+   *
+   * @param input_columns
+   *        vector of elements, where each element is from a different column
+   * @param output_columns
+   *        op output, vector of elements, where each element is from a
+   *        different column
+   *
+   * Evaluate gets run on batches of inputs. At the beginning of a pipeline
+   * this
+   * is raw RGB images from the input images/videos, and after that the input
+   * becomes whatever was returned by the previous op.
+   *
+   * Number of output columns must be non-zero.
+   */
+  virtual void execute(const Columns& input_columns,
+                       Columns& output_columns) = 0;
 };
 
 //! Kernel with support for frame and frame_info columns.
-class VideoKernel : public Kernel {
- public:
-  VideoKernel(const Config& config) : Kernel(config){};
-
+class VideoKernel {
  protected:
   /**
    * @brief Checks frame info column against cached data.
@@ -183,7 +366,8 @@ namespace internal {
 
 class KernelBuilder;
 
-using KernelConstructor = std::function<Kernel*(const Kernel::Config& config)>;
+using KernelConstructor =
+    std::function<BaseKernel*(const KernelConfig& config)>;
 
 class KernelRegistration {
  public:
@@ -195,7 +379,11 @@ class KernelBuilder {
   friend class KernelRegistration;
 
   KernelBuilder(const std::string& name, KernelConstructor constructor)
-    : name_(name), constructor_(constructor) {}
+    : name_(name),
+      constructor_(constructor),
+      device_type_(DeviceType::CPU),
+      num_devices_(1),
+      preferred_batch_size_(1) {}
 
   KernelBuilder& device(DeviceType device_type) {
     device_type_ = device_type;
@@ -207,11 +395,17 @@ class KernelBuilder {
     return *this;
   }
 
+  KernelBuilder& batch(i32 preferred_batch_size = 1) {
+    preferred_batch_size = preferred_batch_size;
+    return *this;
+  }
+
  private:
   std::string name_;
   KernelConstructor constructor_;
   DeviceType device_type_;
   i32 num_devices_;
+  i32 preferred_batch_size_;
 };
 }
 
@@ -224,7 +418,7 @@ class KernelBuilder {
 #define REGISTER_KERNEL_UID(uid__, name__, kernel__)                         \
   static ::scanner::internal::KernelRegistration kernel_registration_##uid__ \
       __attribute__((unused)) = ::scanner::internal::KernelBuilder(          \
-          #name__, [](const ::scanner::Kernel::Config& config) {             \
+          #name__, [](const ::scanner::KernelConfig& config) {             \
             return new kernel__(config);                                     \
           })
 }

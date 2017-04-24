@@ -8,9 +8,9 @@
 
 namespace scanner {
 
-class FacenetOutputKernel : public VideoKernel {
+class FacenetOutputKernel : public BatchedKernel, public VideoKernel {
  public:
-  FacenetOutputKernel(const Kernel::Config& config) : VideoKernel(config) {
+  FacenetOutputKernel(const KernelConfig& config) : BatchedKernel(config) {
     proto::FacenetArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
 

@@ -5,7 +5,7 @@ namespace scanner {
 
 class FacenetKernel : public CaffeKernel {
  public:
-  FacenetKernel(const Kernel::Config& config)
+  FacenetKernel(const KernelConfig& config)
     : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
@@ -18,12 +18,12 @@ class FacenetKernel : public CaffeKernel {
                          net_input_width, net_input_height});
   }
 
-  Kernel::Config get_caffe_config(const Kernel::Config& config) {
+  KernelConfig get_caffe_config(const KernelConfig& config) {
     proto::FacenetArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
     scale_ = args.scale();
 
-    Kernel::Config new_config(config);
+    KernelConfig new_config(config);
     std::string caffe_string;
     args.caffe_args().SerializeToString(&caffe_string);
     new_config.args = std::vector<u8>(caffe_string.begin(), caffe_string.end());

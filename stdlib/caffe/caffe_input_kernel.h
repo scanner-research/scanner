@@ -13,9 +13,9 @@
 
 namespace scanner {
 
-class CaffeInputKernel : public VideoKernel {
+class CaffeInputKernel : public BatchedKernel, public VideoKernel {
  public:
-  CaffeInputKernel(const Kernel::Config& config);
+  CaffeInputKernel(const KernelConfig& config);
   ~CaffeInputKernel();
 
   void new_frame_info() override;

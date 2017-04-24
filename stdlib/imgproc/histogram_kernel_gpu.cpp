@@ -9,10 +9,10 @@ namespace {
 const i32 BINS = 16;
 }
 
-class HistogramKernelGPU : public VideoKernel {
+class HistogramKernelGPU : public BatchedKernel, public VideoKernel {
  public:
-  HistogramKernelGPU(const Kernel::Config& config)
-    : VideoKernel(config),
+  HistogramKernelGPU(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0]),
       num_cuda_streams_(32),
       streams_(num_cuda_streams_) {}

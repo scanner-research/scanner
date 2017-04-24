@@ -9,10 +9,10 @@
 
 namespace scanner {
 
-class OpticalFlowKernelGPU : public VideoKernel {
+class OpticalFlowKernelGPU : public BatchedKernel, public VideoKernel {
  public:
-  OpticalFlowKernelGPU(const Kernel::Config& config)
-    : VideoKernel(config),
+  OpticalFlowKernelGPU(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size),
       num_cuda_streams_(4) {

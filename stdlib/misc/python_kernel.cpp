@@ -31,11 +31,10 @@ std::string handle_pyerror() {
   return extract<std::string>(formatted);
 }
 
-class PythonKernel : public Kernel {
+class PythonKernel : public BatchedKernel {
  public:
-  PythonKernel(const Kernel::Config& config)
-    : Kernel(config), device_(config.devices[0]), config_(config) {
-
+  PythonKernel(const KernelConfig& config)
+    : BatchedKernel(config), device_(config.devices[0]) {
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
       LOG(FATAL) << "Failed to parse args";
     }

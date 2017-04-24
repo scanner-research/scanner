@@ -4,10 +4,10 @@
 
 namespace scanner {
 
-class InfoFromFrameKernel : public Kernel {
+class InfoFromFrameKernel : public BatchedKernel {
  public:
-  InfoFromFrameKernel(const Kernel::Config& config)
-    : Kernel(config),
+  InfoFromFrameKernel(const KernelConfig& config)
+    : BatchedKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size) {}
 

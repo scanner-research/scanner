@@ -7,7 +7,7 @@ namespace scanner {
 
 class CPM2Kernel : public CaffeKernel {
  public:
-  CPM2Kernel(const Kernel::Config& config)
+  CPM2Kernel(const KernelConfig& config)
     : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
@@ -27,12 +27,12 @@ class CPM2Kernel : public CaffeKernel {
                          net_input_height, net_input_width});
   }
 
-  Kernel::Config get_caffe_config(const Kernel::Config& config) {
+  KernelConfig get_caffe_config(const KernelConfig& config) {
     proto::CPM2Args args;
     args.ParseFromArray(config.args.data(), config.args.size());
     scale_ = args.scale();
 
-    Kernel::Config new_config(config);
+    KernelConfig new_config(config);
     std::string caffe_string;
     args.caffe_args().SerializeToString(&caffe_string);
     new_config.args = std::vector<u8>(caffe_string.begin(), caffe_string.end());
