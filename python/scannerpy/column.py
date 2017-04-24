@@ -60,7 +60,7 @@ class Column:
         rows_idx = 0
         i = 8 + num_rows * 8 + start_pos
         for j, buf_len in enumerate(lens):
-            if j == rows[rows_idx]:
+            if j < len(rows) and j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]
                 if fn is not None:
                     yield fn(buf, self._db)

@@ -26,20 +26,20 @@ with Database() as db:
         db.ingest_videos([('example', video_path)], force=True)
     input_table = db.table('example')
 
-    frame, frame_info = input_table.as_op().all(item_size = 50)
+    frame = input_table.as_op().all(item_size = 50)
+    frame_info = db.ops.InfoFromFrame(frame = frame)
     cpm2_input = db.ops.CPM2Input(
-        frame = frame, frame_info = frame_info,
+        frame = frame,
         args = cpm2_args,
         device = DeviceType.GPU)
     cpm2_resized_map, cpm2_joints = db.ops.CPM2(
         cpm2_input = cpm2_input,
-        frame_info = frame_info,
         args = cpm2_args,
         device = DeviceType.GPU)
     poses = db.ops.CPM2Output(
         cpm2_resized_map = cpm2_resized_map,
         cpm2_joints = cpm2_joints,
-        frame_info = frame_info,
+        original_frame_info = frame_info,
         args = cpm2_args)
 
     job = Job(columns = [poses], name = 'example_poses')

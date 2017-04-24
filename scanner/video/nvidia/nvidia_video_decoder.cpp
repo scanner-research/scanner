@@ -43,6 +43,7 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
   CUcontext dummy;
 
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+  cudaSetDevice(device_id_);
 
   for (int i = 0; i < max_mapped_frames_; ++i) {
     cudaStreamCreate(&streams_[i]);
@@ -53,9 +54,15 @@ NVIDIAVideoDecoder::NVIDIAVideoDecoder(int device_id, DeviceType output_type,
     undisplayed_frames_[i] = false;
     invalid_frames_[i] = false;
   }
+
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
+
 }
 
 NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+  cudaSetDevice(device_id_);
+
   for (int i = 0; i < max_mapped_frames_; ++i) {
     if (mapped_frames_[i] != 0) {
       CUD_CHECK(cuvidUnmapVideoFrame(decoder_, mapped_frames_[i]));
@@ -63,17 +70,19 @@ NVIDIAVideoDecoder::~NVIDIAVideoDecoder() {
   }
 
   if (parser_) {
-    cuvidDestroyVideoParser(parser_);
+    CUD_CHECK(cuvidDestroyVideoParser(parser_));
   }
 
   if (decoder_) {
-    cuvidDestroyDecoder(decoder_);
+    CUD_CHECK(cuvidDestroyDecoder(decoder_));
   }
 
   for (int i = 0; i < max_mapped_frames_; ++i) {
-    cudaStreamDestroy(streams_[i]);
+    CU_CHECK(cudaStreamDestroy(streams_[i]));
   }
 
+  CUcontext dummy;
+  CUD_CHECK(cuCtxPopCurrent(&dummy));
   // HACK(apoms): We are only using the primary context right now instead of
   //   allowing the user to specify their own CUcontext. Thus we need to release
   //   the primary context we retained when using the factory function to create
@@ -86,6 +95,8 @@ void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
   frame_height_ = metadata.height();
 
   CUcontext dummy;
+  CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+  cudaSetDevice(device_id_);
 
   for (int i = 0; i < max_mapped_frames_; ++i) {
     if (mapped_frames_[i] != 0) {
@@ -94,11 +105,11 @@ void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
   }
 
   if (parser_) {
-    cuvidDestroyVideoParser(parser_);
+    CUD_CHECK(cuvidDestroyVideoParser(parser_));
   }
 
   if (decoder_) {
-    cuvidDestroyDecoder(decoder_);
+    CUD_CHECK(cuvidDestroyDecoder(decoder_));
   }
 
   for (int i = 0; i < max_mapped_frames_; ++i) {
@@ -169,6 +180,7 @@ void NVIDIAVideoDecoder::configure(const FrameInfo& metadata) {
 bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
                               bool discontinuity) {
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+  cudaSetDevice(device_id_);
 
   if (discontinuity) {
     {
@@ -200,6 +212,8 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
       frame_queue_elements_--;
     }
 
+    CUcontext dummy;
+    CUD_CHECK(cuCtxPopCurrent(&dummy));
     return false;
   }
   CUVIDSOURCEDATAPACKET cupkt = {};
@@ -234,6 +248,7 @@ bool NVIDIAVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
 bool NVIDIAVideoDecoder::discard_frame() {
   std::unique_lock<std::mutex> lock(frame_queue_mutex_);
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+  cudaSetDevice(device_id_);
 
   if (frame_queue_elements_ > 0) {
     const auto& dispinfo = frame_queue_[frame_queue_read_pos_];
@@ -252,6 +267,7 @@ bool NVIDIAVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   auto start = now();
   std::unique_lock<std::mutex> lock(frame_queue_mutex_);
   CUD_CHECK(cuCtxPushCurrent(cuda_context_));
+  cudaSetDevice(device_id_);
   if (frame_queue_elements_ > 0) {
     CUVIDPARSERDISPINFO dispinfo = frame_queue_[frame_queue_read_pos_];
     frame_queue_read_pos_ = (frame_queue_read_pos_ + 1) % max_output_frames_;

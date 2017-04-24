@@ -42,8 +42,8 @@ class CPM2InputKernel : public VideoKernel {
   }
 
   void new_frame_info() override {
-    frame_width_ = frame_info_.shape[2];
-    frame_height_ = frame_info_.shape[1];
+    frame_width_ = frame_info_.shape[1];
+    frame_height_ = frame_info_.shape[0];
 
     resize_width_ = frame_width_ * scale_;
     resize_height_ = frame_height_ * scale_;
@@ -99,7 +99,7 @@ class CPM2InputKernel : public VideoKernel {
     streams_.resize(0);
     streams_.resize(num_cuda_streams_);
 
-    FrameInfo net_input_info(net_input_width_, net_input_height_, 3,
+    FrameInfo net_input_info(3, net_input_height_, net_input_width_,
                              FrameType::F32);
     i32 net_input_size = net_input_info.size();
     std::vector<Frame*> output_frames =

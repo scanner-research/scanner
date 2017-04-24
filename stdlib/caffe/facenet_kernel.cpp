@@ -9,24 +9,13 @@ class FacenetKernel : public CaffeKernel {
     : CaffeKernel(get_caffe_config(config)) {}
 
   void net_config() override {
-    // Calculate width by scaling by box size
-    int resize_width = std::floor(frame_info_.shape[2] * scale_);
-    int resize_height = std::floor(frame_info_.shape[1] * scale_);
-
-    if (resize_width % 8 != 0) {
-      resize_width += 8 - (resize_width % 8);
-    }
-    if (resize_height % 8 != 0) {
-      resize_height += 8 - (resize_height % 8);
-    }
-
-    int net_input_width = resize_height;
-    int net_input_height = resize_width;
+    int net_input_width = frame_info_.shape[1];
+    int net_input_height = frame_info_.shape[2];
 
     const boost::shared_ptr<caffe::Blob<float>> input_blob{
         net_->blob_by_name("data")};
     input_blob->Reshape({input_blob->shape(0), input_blob->shape(1),
-                         net_input_height, net_input_width});
+                         net_input_width, net_input_height});
   }
 
   Kernel::Config get_caffe_config(const Kernel::Config& config) {

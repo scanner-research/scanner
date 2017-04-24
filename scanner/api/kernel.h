@@ -174,7 +174,7 @@ class VideoKernel : public Kernel {
   //! Callback for if frame info changes.
   virtual void new_frame_info(){};
 
-  FrameInfo frame_info_;
+  FrameInfo frame_info_{};
 };
 
 ///////////////////////////////////////////////////////////////////////////////

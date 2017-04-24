@@ -486,7 +486,7 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
   if (streams.size() == 0) {
     streams.resize(NUM_CUDA_STREAMS);
     for (i32 i = 0; i < NUM_CUDA_STREAMS; ++i) {
-      cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking);
+      CU_CHECK(cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking));
     }
   }
 
@@ -521,7 +521,7 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
     }
 
     for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
-      cudaStreamSynchronize(streams[i]);
+      CU_CHECK(cudaStreamSynchronize(streams[i]));
     }
   }
 #else
