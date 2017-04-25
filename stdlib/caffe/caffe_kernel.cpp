@@ -230,7 +230,6 @@ CaffeKernel::CaffeKernel(const Kernel::Config& config)
     return;
   }
 
-  cudaSetDevice(0);
   set_device();
   // Initialize our network
   auto& descriptor = args_.net_descriptor();
