@@ -166,8 +166,10 @@ void* pre_evaluate_thread(void* arg) {
         }
       }
       // Push entry to kernels
+      auto queue_start = now();
       args.output_work.push(std::make_tuple(io_item, entry));
       first_item = false;
+      args.profiler.add_interval("queue", queue_start, now());
     }
     args.profiler.add_interval("decode", decode_start, now());
   }
