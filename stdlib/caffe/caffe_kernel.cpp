@@ -385,9 +385,9 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       exit(0);
     }
     if (profiler_) {
-#ifdef SCANNER_PROFILING
-      CUDA_PROTECT({ cudaDeviceSynchronize(); });
-#endif
+      // #ifdef SCANNER_PROFILING
+      //      CUDA_PROTECT({ cudaDeviceSynchronize(); });
+      // #endif
       profiler_->add_interval("caffe:net", net_start, now());
     }
 
@@ -398,8 +398,10 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       const boost::shared_ptr<caffe::Blob<float>> output_blob{
           net_->blob_by_name(output_layer_name)};
 
-      FrameInfo info(output_blob->shape(1), output_blob->shape(2),
-                     output_blob->shape(3), FrameType::F32);
+      i32 num_axes = output_blob->num_axes();
+      FrameInfo info(output_blob->shape(1),
+                     num_axes >= 3 ? output_blob->shape(2) : 1,
+                     num_axes >= 4 ? output_blob->shape(3) : 1, FrameType::F32);
       u8* output_block =
           new_block_buffer(device_, info.size() * batch_count, batch_count);
 
