@@ -45,6 +45,7 @@ _Note: if you don't have a GPU, then run `docker` instead of `nvidia-docker` and
 Then inside your Docker container, run:
 
 ```bash
+./nets/get_caffe_facenet.sh # To downlaod the face detector model
 python examples/face_detection/face_detect.py
 ```
 
