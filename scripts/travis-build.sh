@@ -7,7 +7,7 @@ set -e
 
 build_docker() {
     # We add -local to make sure it doesn't run the remote image if the build fails.
-    if [[ "$1" -eq "cpu" ]]
+    if [ "$1" = "cpu" ]
     then
          docker build -t $DOCKER_REPO:$1-local . --build-arg gpu=OFF
          docker run $DOCKER_REPO:$1-local /bin/bash \
