@@ -1,6 +1,6 @@
 [net]
-    model = "features/resnet/ResNet-50-deploy.prototxt"
-    weights = "features/resnet/ResNet-50-model.caffemodel"
+    model = "nets/resnet/ResNet-50-deploy.prototxt"
+    weights = "nets/resnet/ResNet-50-model.caffemodel"
     source = "https://github.com/KaimingHe/deep-residual-networks"
     input_layers = ["data"]
     output_layers = ["fc1000"]
