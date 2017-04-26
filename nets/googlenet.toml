@@ -1,6 +1,6 @@
 [net]
-    model = "features/googlenet/deploy.prototxt"
-    weights = "features/googlenet/bvlc_googlenet.caffemodel"
+    model = "nets/googlenet/deploy.prototxt"
+    weights = "nets/googlenet/bvlc_googlenet.caffemodel"
     source = "https://github.com/BVLC/caffe/tree/master/models/bvlc_googlenet"
     input_layers = ["data"]
     output_layers = ["loss3/classifier"]

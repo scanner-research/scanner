@@ -1,6 +1,6 @@
 [net]
-    model = "features/cpm2/mpi_pose_deploy_linvec.prototxt"
-    weights = "features/cpm2/mpi_pose_iter_160000.caffemodel"
+    model = "nets/cpm2/mpi_pose_deploy_linevec.prototxt"
+    weights = "nets/cpm2/mpi_pose_iter_160000.caffemodel"
     input_layers = ["image"]
     output_layers = ["resized_map", "joints"]
     input_height = 368
