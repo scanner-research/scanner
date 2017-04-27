@@ -122,6 +122,11 @@ inline void serialize_bbox_vector(const std::vector<BoundingBox>& bboxes,
   serialize_proto_vector(bboxes, buffer, size);
 }
 
+inline std::vector<BoundingBox> deserialize_bbox_vector(const u8* buffer,
+                                                         size_t size) {
+  return deserialize_proto_vector<BoundingBox>(buffer, size);
+}
+
 // inline void serialize_decode_args(const DecodeArgs& args, u8*& buffer,
 //                                   size_t& size) {
 //   size = args.ByteSize();

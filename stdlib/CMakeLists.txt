@@ -5,6 +5,7 @@ option(BUILD_IMGPROC_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
 option(BUILD_CPM2_OPS "" OFF)
 option(BUILD_MOTION_OPS "" ON)
+option(BUILD_VIZ_OPS "" ON)
 option(BUILD_OPENFACE_OPS "" OFF)
 option(BUILD_GIPUMA_OPS "" OFF)
 
@@ -69,6 +70,12 @@ if (BUILD_MOTION_OPS)
   add_subdirectory(motion)
   list(APPEND TARGETS motion)
 endif()
+
+if (BUILD_VIZ_OPS)
+  add_subdirectory(viz)
+  list(APPEND TARGETS viz)
+endif()
+
 
 add_subdirectory(misc)
 list(APPEND TARGETS misc)
