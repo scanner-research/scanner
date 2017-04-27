@@ -123,11 +123,11 @@ class FacenetOutputKernel : public VideoKernel {
                                            vec_offset];
             height *= std::exp(dch);
 
-            x = (x / net_input_width_) * frame_info_.shape[1];
-            y = (y / net_input_height_) * frame_info_.shape[2];
+            x = (x / net_input_width_) * frame_info_.width();
+            y = (y / net_input_height_) * frame_info_.height();
 
-            width = (width / net_input_width_) * frame_info_.shape[1];
-            height = (height / net_input_height_) * frame_info_.shape[2];
+            width = (width / net_input_width_) * frame_info_.width();
+            height = (height / net_input_height_) * frame_info_.height();
 
             if (width < 0 || height < 0 || std::isnan(width) ||
                 std::isnan(height) || std::isnan(x) || std::isnan(y))
