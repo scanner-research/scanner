@@ -46,7 +46,7 @@ class DrawBoxKernelCPU : public Kernel {
   DeviceHandle device_;
 };
 
-REGISTER_OP(DrawBox).frame_input("frame").input("bboxes").output("frame");
+REGISTER_OP(DrawBox).frame_input("frame").input("bboxes").frame_output("frame");
 
 REGISTER_KERNEL(DrawBox, DrawBoxKernelCPU)
     .device(DeviceType::CPU)

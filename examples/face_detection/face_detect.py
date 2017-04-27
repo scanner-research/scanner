@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType, Job
-from scannerpy.stdlib import NetDescriptor, parsers, bboxes
+from scannerpy.stdlib import NetDescriptor, parsers, bboxes, writers
 import math
 import os
 import subprocess
@@ -8,8 +8,6 @@ import sys
 import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
-
-util.download_video()
 
 with Database() as db:
     # TODO(wcrichto): comment the demo. Make the Scanner philosophy more clear.
@@ -20,7 +18,6 @@ with Database() as db:
     facenet_args.threshold = 0.5
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
-    caffe_args.batch_size = 2
 
     print('Ingesting video into Scanner ...')
     [input_table], _ = db.ingest_videos([('example', util.download_video())], force=True)
@@ -39,7 +36,7 @@ with Database() as db:
         print('Scale {}...'.format(scale))
         facenet_args.scale = scale
         caffe_args.batch_size = batch
-        frame = input_table.as_op().all(item_size = 50)
+        frame = input_table.as_op().all()
         frame_info = db.ops.InfoFromFrame(frame = frame)
         facenet_input = db.ops.FacenetInput(
             frame = frame,
@@ -54,10 +51,10 @@ with Database() as db:
             original_frame_info = frame_info,
             args = facenet_args)
 
-        job = Job(columns = [facenet_output],
-                  name = 'example_faces_{}'.format(scale))
-
-        output = db.run(job, force=True, work_item_size=5)
+        job = Job(
+            columns = [facenet_output],
+            name = 'example_faces_{}'.format(scale))
+        output = db.run(job, force=True)
         outputs.append(output)
 
     all_bboxes = [
@@ -74,24 +71,16 @@ with Database() as db:
         frame_bboxes = bboxes.nms(frame_bboxes, 0.3)
         nms_bboxes.append(frame_bboxes)
 
-    print('Extracting frames...')
-    video_faces = nms_bboxes
-    video_frames = [f[0] for _, f in db.table('example').load(['frame'])]
+    bboxes_table = db.new_table(
+        'example_bboxes',
+        ['bboxes'],
+        [[bb] for bb in nms_bboxes],
+        writers.bboxes,
+        force=True)
 
-    print('Writing output video...')
-    frame_shape = video_frames[0].shape
-    output = cv2.VideoWriter(
-        'example_faces.mkv',
-        cv2.VideoWriter_fourcc(*'X264'),
-        24.0,
-        (frame_shape[1], frame_shape[0]))
-
-    for (frame, frame_faces) in zip(video_frames, video_faces):
-        for face in frame_faces:
-            if face.score < 0.5: continue
-            cv2.rectangle(
-                frame,
-                (int(face.x1), int(face.y1)),
-                (int(face.x2), int(face.y2)),
-                (255, 0, 0), 3)
-        output.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    frame = input_table.as_op().all()
+    bboxes = bboxes_table.as_op().all()
+    out_frame = db.ops.DrawBox(frame = frame, bboxes = bboxes)
+    job = Job(columns = [out_frame], name = 'example_bboxes_overlay')
+    out_table = db.run(job, force=True)
+    out_table.column('frame').save_mp4('example_faces')
