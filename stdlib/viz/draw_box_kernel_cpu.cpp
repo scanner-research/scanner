@@ -31,12 +31,10 @@ class DrawBoxKernelCPU : public Kernel {
 
       // Draw all bboxes
       for (auto& bbox : bboxes) {
-        i32 cx = (bbox.x1() + bbox.x2()) / 2;
-        i32 cy = (bbox.y1() + bbox.y2()) / 2;
         i32 width = bbox.x2() - bbox.x1();
         i32 height = bbox.y2() - bbox.y1();
-        cv::rectangle(out_img, cv::Rect(cx, cy, width, height),
-                      cv::Scalar(255, 0, 0));
+        cv::rectangle(out_img, cv::Rect(bbox.x1(), bbox.y1(), width, height),
+                      cv::Scalar(255, 0, 0), 2);
       }
       insert_frame(output_columns[0], output_frames[i]);
     }
