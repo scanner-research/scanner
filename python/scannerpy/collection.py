@@ -28,6 +28,4 @@ class Collection:
         return self._db.profiler(self._descriptor.job_id)
 
     def as_op(self):
-        t = self.tables(0)
-        t._collection = self
-        return SamplerOp(t)
+        return SamplerOp(self)

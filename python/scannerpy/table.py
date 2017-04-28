@@ -13,7 +13,6 @@ class Table:
     def __init__(self, db, descriptor):
         self._db = db
         self._descriptor = descriptor
-        self._collection = None
         self._columns = []
         for c in self._descriptor.columns:
             video_descriptor = None

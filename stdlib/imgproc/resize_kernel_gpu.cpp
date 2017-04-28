@@ -32,7 +32,7 @@ class ResizeKernelGPU : public VideoKernel {
       insert_frame(output_columns[0], output_frames[i]);
     }
 
-    LOG(WARNING) << "resize: " << (void*)output_frames[0];
+    LOG(FATAL) << "Not yet implemented";
 
     // cvc::GpuMat img = frame_to_gpu_mat(frame_col[i].as_const_frame());
     // cvc::GpuMat out_mat = frame_to_gpu_mat(output_frames[i]);
