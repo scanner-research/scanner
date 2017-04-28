@@ -22,21 +22,58 @@
 namespace scanner {
 namespace internal {
 
-struct LoadThreadArgs {
+struct LoadWorkerArgs {
   // Uniform arguments
   i32 node_id;
-  const proto::JobParameters* job_params;
-
   // Per worker arguments
-  int id;
+  int worker_id;
   storehouse::StorageConfig* storage_config;
   Profiler& profiler;
-
-  // Queues for communicating work
-  Queue<std::tuple<IOItem, LoadWorkEntry>>& load_work;  // in
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& eval_work;  // out
 };
 
-void* load_thread(void* arg);
+class LoadWorker {
+ public:
+  LoadWorker(const LoadWorkerArgs& args);
+
+  std::tuple<IOItem, EvalWorkEntry> execute(
+      std::tuple<IOItem, LoadWorkEntry>& entry);
+
+ private:
+  struct VideoIndexEntry {
+    i32 width;
+    i32 height;
+    i32 channels;
+    FrameType frame_type;
+    proto::VideoDescriptor::VideoCodecType codec_type;
+    std::unique_ptr<storehouse::RandomReadFile> file;
+    u64 file_size;
+    std::vector<i64> keyframe_positions;
+    std::vector<i64> keyframe_byte_offsets;
+  };
+
+  VideoIndexEntry read_video_index(i32 table_id, i32 column_id, i32 item_id);
+
+  void read_other_column(i32 table_id, i32 column_id, i32 item_id,
+                         i32 item_start, i32 item_end,
+                         const std::vector<i64>& rows,
+                         ElementList& element_list);
+
+  void read_video_column(const LoadWorker::VideoIndexEntry& index_entry,
+                         const std::vector<i64>& rows,
+                         ElementList& element_list);
+  const i32 node_id_;
+  const i32 worker_id_;
+  Profiler& profiler_;
+  // Setup a distinct storage backend for each IO thread
+  std::unique_ptr<storehouse::StorageBackend> storage_;
+  // Caching table metadata
+  std::map<i32, TableMetadata> table_metadata_;
+  // To ammortize opening files
+  i32 last_table_id_ = -1;
+  std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index_;
+
+
+};
+
 }
 }

@@ -27,11 +27,14 @@ class OpInfo {
  public:
   OpInfo(const std::string& name, bool variadic_inputs,
          const std::vector<Column>& input_columns,
-         const std::vector<Column>& output_columns)
+         const std::vector<Column>& output_columns, bool can_stencil,
+         const std::vector<i32> preferred_stencil)
     : name_(name),
       variadic_inputs_(variadic_inputs),
       input_columns_(input_columns),
-      output_columns_(output_columns) {}
+      output_columns_(output_columns),
+      can_stencil_(can_stencil),
+      preferred_stencil_(preferred_stencil) {}
 
   const std::string& name() const { return name_; }
 
@@ -41,11 +44,19 @@ class OpInfo {
 
   const std::vector<Column>& output_columns() const { return output_columns_; }
 
+  const bool can_stencil() const { return can_stencil_; }
+
+  const std::vector<i32>& preferred_stencil() const {
+    return preferred_stencil_;
+  }
+
  private:
   std::string name_;
   bool variadic_inputs_;
   std::vector<Column> input_columns_;
   std::vector<Column> output_columns_;
+  bool can_stencil_;
+  std::vector<i32> preferred_stencil_;
 };
 }
 }

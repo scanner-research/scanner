@@ -133,6 +133,9 @@ message Op {
   repeated OpInput inputs = 2;
   DeviceType device_type = 3;
   bytes kernel_args = 4;
+  repeated int32 stencil = 5;
+  int32 batch = 6;
+  int32 warmup = 7;
 }
 
 message OutputColumnCompression {

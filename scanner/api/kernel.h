@@ -383,6 +383,7 @@ class KernelBuilder {
       constructor_(constructor),
       device_type_(DeviceType::CPU),
       num_devices_(1),
+      can_batch_(false),
       preferred_batch_size_(1) {}
 
   KernelBuilder& device(DeviceType device_type) {
@@ -396,6 +397,7 @@ class KernelBuilder {
   }
 
   KernelBuilder& batch(i32 preferred_batch_size = 1) {
+    can_batch_ = true;
     preferred_batch_size = preferred_batch_size;
     return *this;
   }
@@ -405,6 +407,7 @@ class KernelBuilder {
   KernelConstructor constructor_;
   DeviceType device_type_;
   i32 num_devices_;
+  bool can_batch_;
   i32 preferred_batch_size_;
 };
 }

@@ -43,9 +43,12 @@ class Queue {
 
   void clear();
 
+  void wait_until_empty();
+
  private:
   i32 max_size_;
   std::mutex mutex_;
+  std::condition_variable empty_;
   std::condition_variable not_empty_;
   std::condition_variable not_full_;
   std::deque<T> data_;

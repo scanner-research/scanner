@@ -170,24 +170,132 @@ std::tuple<size_t, size_t> find_keyframe_indices(
   assert(end_keyframe_index != 0);
   return std::make_tuple(start_keyframe_index, end_keyframe_index);
 }
+}
 
-struct VideoIndexEntry {
-  i32 width;
-  i32 height;
-  i32 channels;
-  FrameType frame_type;
-  proto::VideoDescriptor::VideoCodecType codec_type;
-  std::unique_ptr<RandomReadFile> file;
-  u64 file_size;
-  std::vector<i64> keyframe_positions;
-  std::vector<i64> keyframe_byte_offsets;
-};
+LoadWorker::LoadWorker(const LoadWorkerArgs& args)
+  : node_id_(args.node_id),
+    worker_id_(args.worker_id),
+    profiler_(args.profiler) {
+  storage_.reset(
+      storehouse::StorageBackend::make_from_config(args.storage_config));
+}
 
-VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
-                                 i32 table_id, i32 column_id, i32 item_id) {
+std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
+    std::tuple<IOItem, LoadWorkEntry>& entry) {
+
+  IOItem& io_item = std::get<0>(entry);
+  LoadWorkEntry& load_work_entry = std::get<1>(entry);
+
+  const auto& samples = load_work_entry.samples();
+
+  if (io_item.table_id() != last_table_id_) {
+    // Not from the same task so clear cached data
+    last_table_id_ = io_item.table_id();
+    index_.clear();
+  }
+
+  EvalWorkEntry eval_work_entry;
+  eval_work_entry.io_item_index = load_work_entry.io_item_index();
+
+  // Aggregate all sample columns so we know the tuple size
+  assert(!samples.empty());
+  eval_work_entry.warmup_rows = samples.Get(0).warmup_rows_size();
+
+  i32 num_columns = 0;
+  for (size_t i = 0; i < samples.size(); ++i) {
+    num_columns += samples.Get(i).column_ids_size();
+  }
+  eval_work_entry.columns.resize(num_columns);
+
+  i32 media_col_idx = 0;
+  i32 out_col_idx = 0;
+  for (const proto::LoadSample& sample : samples) {
+    i32 table_id = sample.table_id();
+    auto it = table_metadata_.find(table_id);
+    if (it == table_metadata_.end()) {
+      table_metadata_[table_id] = read_table_metadata(
+          storage_.get(), TableMetadata::descriptor_path(table_id));
+      it = table_metadata_.find(table_id);
+    }
+    const TableMetadata& table_meta = it->second;
+
+    const google::protobuf::RepeatedField<i64>& sample_warmup_rows =
+        sample.warmup_rows();
+    const google::protobuf::RepeatedField<i64>& sample_rows = sample.rows();
+    std::vector<i64> rows(sample_warmup_rows.begin(), sample_warmup_rows.end());
+    rows.insert(rows.end(), sample_rows.begin(), sample_rows.end());
+    RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
+    size_t num_items = intervals.item_ids.size();
+    for (i32 col_id : sample.column_ids()) {
+      ColumnType column_type = ColumnType::Other;
+      if (table_meta.column_type(col_id) == ColumnType::Video) {
+        column_type = ColumnType::Video;
+        // video frame column
+        FrameInfo info;
+        proto::VideoDescriptor::VideoCodecType encoding_type;
+        for (size_t i = 0; i < num_items; ++i) {
+          i32 item_id = intervals.item_ids[i];
+          const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
+
+          auto key = std::make_tuple(table_id, col_id, item_id);
+          if (index_.count(key) == 0) {
+            index_[key] =
+                read_video_index(table_id, col_id, item_id);
+          }
+          const VideoIndexEntry& entry = index_.at(key);
+          info = FrameInfo(entry.height, entry.width, entry.channels,
+                           entry.frame_type);
+          encoding_type = entry.codec_type;
+          if (entry.codec_type == proto::VideoDescriptor::H264) {
+            // Video was encoded using h264
+            read_video_column(entry, valid_offsets,
+                              eval_work_entry.columns[out_col_idx]);
+          } else {
+            // Video was encoded as individual images
+            i32 item_id = intervals.item_ids[i];
+            i64 item_start;
+            i64 item_end;
+            std::tie(item_start, item_end) = intervals.item_intervals[i];
+
+            read_other_column(table_id, col_id, item_id, item_start, item_end,
+                              valid_offsets,
+                              eval_work_entry.columns[out_col_idx]);
+          }
+        }
+        assert(num_items > 0);
+        eval_work_entry.frame_sizes.push_back(info);
+        eval_work_entry.video_encoding_type.push_back(encoding_type);
+        media_col_idx++;
+      } else {
+        // regular column
+        for (size_t i = 0; i < num_items; ++i) {
+          i32 item_id = intervals.item_ids[i];
+          i64 item_start;
+          i64 item_end;
+          std::tie(item_start, item_end) = intervals.item_intervals[i];
+          const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
+
+          read_other_column(table_id, col_id, item_id, item_start,
+                            item_end, valid_offsets,
+                            eval_work_entry.columns[out_col_idx]);
+        }
+      }
+      eval_work_entry.column_types.push_back(column_type);
+      eval_work_entry.column_handles.push_back(CPU_DEVICE);
+      out_col_idx++;
+    }
+  }
+
+  return std::make_tuple(io_item, eval_work_entry);
+}
+
+LoadWorker::VideoIndexEntry LoadWorker::read_video_index(i32 table_id,
+                                                         i32 column_id,
+                                                         i32 item_id) {
   VideoIndexEntry index_entry;
   VideoMetadata video_meta = read_video_metadata(
-      storage, VideoMetadata::descriptor_path(table_id, column_id, item_id));
+      storage_.get(),
+      VideoMetadata::descriptor_path(table_id, column_id, item_id));
 
   // Open the video file for reading
   index_entry.width = video_meta.width();
@@ -197,7 +305,7 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   index_entry.codec_type = video_meta.codec_type();
 
   BACKOFF_FAIL(storehouse::make_unique_random_read_file(
-      storage, table_item_output_path(table_id, column_id, item_id),
+      storage_.get(), table_item_output_path(table_id, column_id, item_id),
       index_entry.file));
   BACKOFF_FAIL(index_entry.file->get_size(index_entry.file_size));
   index_entry.keyframe_positions = video_meta.keyframe_positions();
@@ -211,9 +319,9 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   return index_entry;
 }
 
-void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
-                       const std::vector<i64>& rows,
-                       ElementList& element_list) {
+void LoadWorker::read_video_column(
+    const LoadWorker::VideoIndexEntry& index_entry,
+    const std::vector<i64>& rows, ElementList& element_list) {
   RandomReadFile* video_file = index_entry.file.get();
   u64 file_size = index_entry.file_size;
   const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
@@ -260,8 +368,8 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     u64 pos = start_keyframe_byte_offset;
     s_read(video_file, buffer, buffer_size, pos);
 
-    profiler.add_interval("io", io_start, now());
-    profiler.increment("io_read", static_cast<i64>(buffer_size));
+    profiler_.add_interval("io", io_start, now());
+    profiler_.increment("io_read", static_cast<i64>(buffer_size));
 
     proto::DecodeArgs decode_args;
     decode_args.set_width(index_entry.width);
@@ -288,16 +396,17 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
   }
 }
 
-void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
-                       i32 column_id, i32 item_id, i32 item_start, i32 item_end,
-                       const std::vector<i64>& rows,
-                       ElementList& element_list) {
+void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
+                                   i32 item_start, i32 item_end,
+                                   const std::vector<i64>& rows,
+                                   ElementList& element_list) {
   const std::vector<i64>& valid_offsets = rows;
 
   std::unique_ptr<RandomReadFile> file;
   StoreResult result;
   BACKOFF_FAIL(make_unique_random_read_file(
-      storage, table_item_output_path(table_id, column_id, item_id), file));
+      storage_.get(), table_item_output_path(table_id, column_id, item_id),
+      file));
 
   u64 file_size = 0;
   BACKOFF_FAIL(file->get_size(file_size));
@@ -342,158 +451,6 @@ void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
   }
   assert(valid_idx == valid_offsets.size());
 }
-}
 
-void* load_thread(void* arg) {
-  LoadThreadArgs& args = *reinterpret_cast<LoadThreadArgs*>(arg);
-
-  auto setup_start = now();
-
-  const i32 work_item_size = args.job_params->work_item_size();
-
-  // Setup a distinct storage backend for each IO thread
-  storehouse::StorageBackend* storage =
-      storehouse::StorageBackend::make_from_config(args.storage_config);
-
-  // Caching table metadata
-  std::map<i32, TableMetadata> table_metadata;
-
-  // To ammortize opening files
-  i32 last_table_id = -1;
-  std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index;
-
-  args.profiler.add_interval("setup", setup_start, now());
-  while (true) {
-    auto idle_start = now();
-
-    std::tuple<IOItem, LoadWorkEntry> entry;
-    args.load_work.pop(entry);
-    IOItem& io_item = std::get<0>(entry);
-    LoadWorkEntry& load_work_entry = std::get<1>(entry);
-
-    if (load_work_entry.io_item_index() == -1) {
-      break;
-    }
-
-    VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.id
-            << "): processing item " << load_work_entry.io_item_index();
-
-    args.profiler.add_interval("idle", idle_start, now());
-
-    auto work_start = now();
-
-    const auto& samples = load_work_entry.samples();
-
-    if (io_item.table_id() != last_table_id) {
-      // Not from the same task so clear cached data
-      last_table_id = io_item.table_id();
-      index.clear();
-    }
-
-    EvalWorkEntry eval_work_entry;
-    eval_work_entry.io_item_index = load_work_entry.io_item_index();
-
-    // Aggregate all sample columns so we know the tuple size
-    assert(!samples.empty());
-    eval_work_entry.warmup_rows = samples.Get(0).warmup_rows_size();
-
-    i32 num_columns = 0;
-    for (size_t i = 0; i < samples.size(); ++i) {
-      num_columns += samples.Get(i).column_ids_size();
-    }
-    eval_work_entry.columns.resize(num_columns);
-
-    i32 media_col_idx = 0;
-    i32 out_col_idx = 0;
-    for (const proto::LoadSample& sample : samples) {
-      i32 table_id = sample.table_id();
-      auto it = table_metadata.find(table_id);
-      if (it == table_metadata.end()) {
-        table_metadata[table_id] = read_table_metadata(
-            storage, TableMetadata::descriptor_path(table_id));
-        it = table_metadata.find(table_id);
-      }
-      const TableMetadata& table_meta = it->second;
-
-      const google::protobuf::RepeatedField<i64>& sample_warmup_rows =
-          sample.warmup_rows();
-      const google::protobuf::RepeatedField<i64>& sample_rows = sample.rows();
-      std::vector<i64> rows(sample_warmup_rows.begin(),
-                            sample_warmup_rows.end());
-      rows.insert(rows.end(), sample_rows.begin(), sample_rows.end());
-      RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
-      size_t num_items = intervals.item_ids.size();
-      for (i32 col_id : sample.column_ids()) {
-        ColumnType column_type = ColumnType::Other;
-        if (table_meta.column_type(col_id) == ColumnType::Video) {
-          column_type = ColumnType::Video;
-          // video frame column
-          FrameInfo info;
-          proto::VideoDescriptor::VideoCodecType encoding_type;
-          for (size_t i = 0; i < num_items; ++i) {
-            i32 item_id = intervals.item_ids[i];
-            const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
-
-            auto key = std::make_tuple(table_id, col_id, item_id);
-            if (index.count(key) == 0) {
-              index[key] = read_video_index(storage, table_id, col_id, item_id);
-            }
-            const VideoIndexEntry& entry = index.at(key);
-            info = FrameInfo(entry.height, entry.width, entry.channels,
-                             entry.frame_type);
-            encoding_type = entry.codec_type;
-            if (entry.codec_type == proto::VideoDescriptor::H264) {
-              // Video was encoded using h264
-              read_video_column(args.profiler, entry, valid_offsets,
-                                eval_work_entry.columns[out_col_idx]);
-            } else {
-              // Video was encoded as individual images
-              i32 item_id = intervals.item_ids[i];
-              i64 item_start;
-              i64 item_end;
-              std::tie(item_start, item_end) = intervals.item_intervals[i];
-
-              read_other_column(storage, table_id, col_id, item_id, item_start,
-                                item_end, valid_offsets,
-                                eval_work_entry.columns[out_col_idx]);
-            }
-          }
-          assert(num_items > 0);
-          eval_work_entry.frame_sizes.push_back(info);
-          eval_work_entry.video_encoding_type.push_back(encoding_type);
-          media_col_idx++;
-        } else {
-          // regular column
-          for (size_t i = 0; i < num_items; ++i) {
-            i32 item_id = intervals.item_ids[i];
-            i64 item_start;
-            i64 item_end;
-            std::tie(item_start, item_end) = intervals.item_intervals[i];
-            const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
-
-            read_other_column(storage, table_id, col_id, item_id, item_start,
-                              item_end, valid_offsets,
-                              eval_work_entry.columns[out_col_idx]);
-          }
-        }
-        eval_work_entry.column_types.push_back(column_type);
-        eval_work_entry.column_handles.push_back(CPU_DEVICE);
-        out_col_idx++;
-      }
-    }
-
-    args.profiler.add_interval("task", work_start, now());
-
-    args.eval_work.push(std::make_tuple(io_item, eval_work_entry));
-  }
-
-  VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.id
-          << "): thread finished";
-
-  // Cleanup
-  delete storage;
-
-  THREAD_RETURN_SUCCESS();
-}
 }
 }

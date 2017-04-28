@@ -67,9 +67,11 @@ bool Queue<T>::try_pop(T& item) {
   } else {
     item = data_.front();
     data_.pop_front();
-
     lock.unlock();
     not_full_.notify_one();
+    if (size() <= 0) {
+      empty_.notify_all();
+    }
     return true;
   }
 }
@@ -85,6 +87,9 @@ void Queue<T>::pop(T& item) {
   data_.pop_front();
 
   lock.unlock();
+  if (size() <= 0) {
+    empty_.notify_all();
+  }
   not_full_.notify_one();
 }
 
@@ -107,6 +112,12 @@ void Queue<T>::clear() {
 
   lock.unlock();
   not_full_.notify_one();
+}
+
+template <typename T>
+void Queue<T>::wait_until_empty() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  empty_.wait(lock, [this]{ return data_.size() <= 0; });
 }
 
 }
