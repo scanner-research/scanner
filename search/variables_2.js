@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['input_5fcolumns',['input_columns',['../structscanner_1_1Kernel_1_1Config.html#a7121a3c2e4c074dbf5d215330cb3da94',1,'scanner::Kernel::Config']]]
+  ['input_5fcolumns',['input_columns',['../structscanner_1_1KernelConfig.html#adc5a8f0a076010ededcf76d79fc432eb',1,'scanner::KernelConfig']]]
 ];

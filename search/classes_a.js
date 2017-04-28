@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['samplerop',['SamplerOp',['../classscannerpy_1_1sampler_1_1SamplerOp.html',1,'scannerpy::sampler']]],
-  ['scannerexception',['ScannerException',['../classscannerpy_1_1common_1_1ScannerException.html',1,'scannerpy::common']]],
-  ['serverstate',['ServerState',['../structscanner_1_1Database_1_1ServerState.html',1,'scanner::Database']]]
+  ['profiler',['Profiler',['../classscannerpy_1_1profiler_1_1Profiler.html',1,'scannerpy::profiler']]],
+  ['protobufgenerator',['ProtobufGenerator',['../classscannerpy_1_1database_1_1ProtobufGenerator.html',1,'scannerpy::database']]]
 ];
