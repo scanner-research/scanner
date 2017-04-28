@@ -1,6 +1,5 @@
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
-#include "scanner/util/cycle_timer.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
 
@@ -8,10 +7,10 @@
 
 namespace scanner {
 
-class OpticalFlowKernelCPU : public BatchedKernel, public VideoKernel {
+class OpticalFlowKernelCPU : public StenciledKernel, public VideoKernel {
  public:
   OpticalFlowKernelCPU(const KernelConfig& config)
-    : BatchedKernel(config),
+    : StenciledKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size) {
     flow_finder_ =
@@ -26,51 +25,35 @@ class OpticalFlowKernelCPU : public BatchedKernel, public VideoKernel {
     }
   }
 
-  void reset() override { initial_frame_ = cv::Mat(); }
-
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const StenciledColumns& input_columns,
+               Columns& output_columns) override {
     auto& frame_col = input_columns[0];
     check_frame(device_, frame_col[0]);
 
-    i32 input_count = (i32)num_rows(frame_col);
-
     FrameInfo out_frame_info(frame_info_.height(), frame_info_.width(), 2,
                              FrameType::F32);
-    std::vector<Frame*> frames =
-        new_frames(device_, out_frame_info, input_count);
+    Frame* output_frame = new_frame(device_, out_frame_info);
 
-    double start = CycleTimer::currentSeconds();
-
-    for (i32 i = 0; i < input_count; ++i) {
-      cv::Mat input = frame_to_mat(input_columns[0][i].as_const_frame());
-      cv::cvtColor(input, grayscale_[i % 2], CV_BGR2GRAY);
-      cv::Mat flow = frame_to_mat(frames[i]);
-      if (i == 0) {
-        if (initial_frame_.empty()) {
-          insert_frame(output_columns[0], frames[i]);
-          continue;
-        } else {
-          flow_finder_->calc(initial_frame_, grayscale_[0], flow);
-        }
-      } else {
-        flow_finder_->calc(grayscale_[(i - 1) % 2], grayscale_[i % 2], flow);
-      }
-      insert_frame(output_columns[0], frames[i]);
-    }
-
-    grayscale_[(input_count - 1) % 2].copyTo(initial_frame_);
+    cv::Mat input0 = frame_to_mat(frame_col[0].as_const_frame());
+    cv::Mat input1 = frame_to_mat(frame_col[1].as_const_frame());
+    cv::cvtColor(input0, grayscale_[0], CV_BGR2GRAY);
+    cv::cvtColor(input1, grayscale_[1], CV_BGR2GRAY);
+    cv::Mat flow = frame_to_mat(output_frame);
+    flow_finder_->calc(grayscale_[0], grayscale_[1], flow);
+    insert_frame(output_columns[0], output_frame);
   }
 
  private:
   DeviceHandle device_;
   cv::Ptr<cv::DenseOpticalFlow> flow_finder_;
-  cv::Mat initial_frame_;
   std::vector<cv::Mat> grayscale_;
   i32 work_item_size_;
 };
 
-REGISTER_OP(OpticalFlow).frame_input("frame").frame_output("flow");
+REGISTER_OP(OpticalFlow)
+    .frame_input("frame")
+    .frame_output("flow")
+    .stencil({0, 1});
 
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
     .device(DeviceType::CPU)

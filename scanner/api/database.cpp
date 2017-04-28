@@ -135,6 +135,10 @@ proto::TaskSet consume_task_set(TaskSet& ts) {
     proto_eval->set_name(eval->get_name());
     proto_eval->set_device_type(eval->get_device_type());
     proto_eval->set_kernel_args(eval->get_args(), eval->get_args_size());
+    for (i32 stencil_idx : eval->get_stencil()) {
+      proto_eval->add_stencil(stencil_idx);
+    }
+    proto_eval->set_batch(eval->get_batch_size());
     for (const OpInput& input : eval->get_inputs()) {
       proto::OpInput* proto_input = proto_eval->add_inputs();
       i32 parent_index;

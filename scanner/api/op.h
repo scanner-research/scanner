@@ -28,7 +28,8 @@ struct OpInput;
 class Op {
  public:
   Op(const std::string& name, const std::vector<OpInput>& inputs,
-     DeviceType device_type, char* args = nullptr, size_t args_size = 0);
+     DeviceType device_type, char* args = nullptr, size_t args_size = 0,
+     const std::vector<i32>& stencil = {}, i32 batch_size = -1);
 
   virtual ~Op(){};
 
@@ -42,10 +43,16 @@ class Op {
 
   size_t get_args_size() const;
 
+  const std::vector<i32>& get_stencil() const;
+
+  i32 get_batch_size() const;
+
  protected:
   std::string name_;
   std::vector<OpInput> inputs_;
   DeviceType type_;
+  std::vector<i32> stencil_;
+  i32 batch_size_;
   char* args_;
   size_t args_size_;
 };
@@ -84,7 +91,8 @@ class OpBuilder {
  public:
   friend class OpRegistration;
 
-  OpBuilder(const std::string& name) : name_(name), variadic_inputs_(false) {}
+  OpBuilder(const std::string& name)
+    : name_(name), variadic_inputs_(false), can_stencil_(false) {}
 
   OpBuilder& variadic_inputs() {
     if (input_columns_.size() > 0) {
@@ -119,11 +127,19 @@ class OpBuilder {
     return output(name, ColumnType::Video);
   }
 
+  OpBuilder& stencil(const std::vector<int>& stencil = {0}) {
+    can_stencil_ = true;
+    preferred_stencil_ = stencil;
+    return *this;
+  }
+
  private:
   std::string name_;
   bool variadic_inputs_;
   std::vector<std::tuple<std::string, ColumnType>> input_columns_;
   std::vector<std::tuple<std::string, ColumnType>> output_columns_;
+  bool can_stencil_;
+  std::vector<int> preferred_stencil_;
 };
 }
 

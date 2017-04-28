@@ -149,6 +149,10 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
       }
       if (op.name() != "OutputTable") {
         OpInfo* info = op_registry->get_op_info(op.name());
+        KernelFactory* factory =
+            kernel_registry->get_kernel(op.name(), op.device_type());
+        // Check that the # of inputs match up
+        // TODO(apoms): type check for frame
         if (!info->variadic_inputs()) {
           i32 expected_inputs = info->input_columns().size();
           if (expected_inputs != input_count) {
@@ -157,6 +161,29 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                 "Op %s at index %d expects %d input columns, but received %d",
                 op.name().c_str(), op_idx, expected_inputs, input_count);
           }
+        }
+
+        // Check that a stencil is not set on a non-stenciling kernel
+        // If can't stencil, then should have a zero size stencil or a size 1
+        // stencil with the element 0
+        if (!info->can_stencil() &&
+            !((op.stencil_size() == 0) ||
+              (op.stencil_size() == 1 && op.stencil(0) == 0))) {
+          RESULT_ERROR(
+              result,
+              "Op %s at index %d specified stencil but that Op was not "
+              "declared to support stenciling. Add .stencil() to the Op "
+              "declaration to support stenciling.",
+              op.name().c_str(), op_idx);
+        }
+        // Check that a stencil is not set on a non-stenciling kernel
+        if (!factory->can_batch() && op.batch() > 1) {
+          RESULT_ERROR(
+              result,
+              "Op %s at index %d specified a batch size but the Kernel for "
+              "that Op was not declared to support batching. Add .batch() to "
+              "the Kernel declaration to support batching.",
+              op.name().c_str(), op_idx);
         }
       }
       op_idx++;
@@ -427,7 +454,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   job_descriptor.mutable_tasks()->CopyFrom(tasks);
 
   // Add job name into database metadata so we can look up what jobs have
-  // been ran
+  // been run
   i32 job_id = meta.add_job(job_params->job_name());
   job_descriptor.set_id(job_id);
   job_descriptor.set_name(job_params->job_name());

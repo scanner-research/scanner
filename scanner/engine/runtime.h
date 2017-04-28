@@ -48,7 +48,7 @@ struct EvalWorkEntry {
   std::vector<ColumnType> column_types;
   bool needs_configure;
   bool needs_reset;
-  bool last_in_io_item;
+  bool last_in_task;
   i64 warmup_rows;
   // Only for pre worker
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;

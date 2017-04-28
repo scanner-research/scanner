@@ -20,12 +20,15 @@
 namespace scanner {
 
 Op::Op(const std::string& name, const std::vector<OpInput>& inputs,
-       DeviceType device_type, char* args, size_t args_size)
+       DeviceType device_type, char* args, size_t args_size,
+       const std::vector<i32>& stencil, i32 batch_size)
   : name_(name),
     inputs_(inputs),
     type_(device_type),
     args_(args),
-    args_size_(args_size) {}
+    args_size_(args_size),
+    stencil_(stencil),
+    batch_size_(batch_size) {}
 
 const std::string& Op::get_name() const { return name_; }
 
@@ -36,6 +39,15 @@ DeviceType Op::get_device_type() const { return type_; }
 char* Op::get_args() const { return args_; }
 
 size_t Op::get_args_size() const { return args_size_; }
+
+const std::vector<i32>& Op::get_stencil() const {
+  return stencil_;
+}
+
+i32 Op::get_batch_size() const {
+  return batch_size_;
+}
+
 
 Op* OpInput::get_op() const { return op; }
 
@@ -73,8 +85,11 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
     col.set_type(std::get<1>(name_type));
     output_columns.push_back(col);
   }
+  bool can_stencil = builder.can_stencil_;
+  const std::vector<i32>& stencil = builder.preferred_stencil_;
   OpInfo* info =
-      new OpInfo(name, variadic_inputs, input_columns, output_columns);
+      new OpInfo(name, variadic_inputs, input_columns, output_columns,
+                 can_stencil, stencil);
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
 }

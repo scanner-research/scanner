@@ -103,10 +103,10 @@ def db():
 
         # Tear down
         run(['rm', '-rf',
-             cfg['storage']['db_path'],
-             cfg_path,
-             vid1_path,
-             vid2_path])
+            cfg['storage']['db_path'],
+            cfg_path,
+            vid1_path,
+            vid2_path])
 
 def test_new_database(db): pass
 
@@ -169,24 +169,24 @@ class TestHistogram:
         table = db.run(job, force=True, show_progress=False)
         next(table.load([1], parsers.histograms))
 
-@builder
-class TestOpticalFlow:
-    def job(self, db, ty):
-        frame = db.table('test1').as_op().range(0, 50, warmup_size=1)
-        flow = db.ops.OpticalFlow(
-            frame = frame,
-            device = ty)
-        return Job(columns = [flow], name = 'test_flow')
+# @builder
+# class TestOpticalFlow:
+#     def job(self, db, ty):
+#         frame = db.table('test1').as_op().range(0, 50, warmup_size=1)
+#         flow = db.ops.OpticalFlow(
+#             frame = frame,
+#             device = ty)
+#         return Job(columns = [flow], name = 'test_flow')
 
-    def run(self, db, job):
-        table = db.run(job, force=True, show_progress=False)
-        fid, flows = next(table.load(['flow']))
-        flow_array = flows[0]
-        assert fid == 0
-        assert flow_array.dtype == np.float32
-        assert flow_array.shape[0] == 480
-        assert flow_array.shape[1] == 640
-        assert flow_array.shape[2] == 2
+#     def run(self, db, job):
+#         table = db.run(job, force=True, show_progress=False)
+#         fid, flows = next(table.load(['flow']))
+#         flow_array = flows[0]
+#         assert fid == 0
+#         assert flow_array.dtype == np.float32
+#         assert flow_array.shape[0] == 480
+#         assert flow_array.shape[1] == 640
+#         assert flow_array.shape[2] == 2
 
 def test_blur(db):
     frame = db.table('test1').as_op().range(0, 30)

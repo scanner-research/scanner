@@ -19,6 +19,8 @@
 #include "scanner/engine/runtime.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
+#include "scanner/video/decoder_automata.h"
+#include "scanner/video/video_encoder.h"
 
 namespace scanner {
 namespace internal {
@@ -30,26 +32,54 @@ void move_if_different_address_space(Profiler& profiler,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments
-struct PreEvaluateThreadArgs {
+struct PreEvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
   i32 num_cpus;
-  const proto::JobParameters* job_params;
 
   // Per worker arguments
-  i32 id;
+  i32 worker_id;
   DeviceHandle device_handle;
   Profiler& profiler;
-
-  // Queues for communicating work
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
 };
 
-struct EvaluateThreadArgs {
+class PreEvaluateWorker {
+ public:
+  PreEvaluateWorker(const PreEvaluateWorkerArgs& args);
+
+  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+
+  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
+
+ private:
+  const i32 node_id_;
+  const i32 worker_id_;
+  const DeviceHandle device_handle_;
+  const i32 num_cpus_;
+
+  Profiler& profiler_;
+
+  i32 last_table_id_ = -1;
+  i32 last_end_row_ = -1;
+  i32 last_item_id_ = -1;
+
+  DeviceHandle decoder_output_handle_;
+  std::vector<std::unique_ptr<DecoderAutomata>> decoders_;
+
+  // Continuation state
+  bool first_item_;
+  bool needs_configure_;
+  bool needs_reset_;
+  std::tuple<IOItem, EvalWorkEntry> entry_;
+  i64 current_row_;
+  i64 total_rows_;
+
+  std::vector<std::vector<proto::DecodeArgs>> decode_args_;
+};
+
+struct EvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
-  const proto::JobParameters* job_params;
 
   // Per worker arguments
   i32 ki;
@@ -64,10 +94,36 @@ struct EvaluateThreadArgs {
   std::vector<std::vector<i32>> column_mapping;
   Profiler& profiler;
   proto::Result& result;
+};
 
-  // Queues for communicating work
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
+
+class EvaluateWorker {
+ public:
+  EvaluateWorker(const EvaluateWorkerArgs& args);
+
+  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+
+  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
+
+ private:
+  const i32 node_id_;
+  const i32 worker_id_;
+
+  Profiler& profiler_;
+
+  std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories_;
+  std::vector<DeviceHandle> kernel_devices_;
+  std::vector<i32> kernel_num_outputs_;
+  std::vector<std::unique_ptr<BaseKernel>> kernels_;
+
+  std::vector<std::vector<i32>> dead_columns_;
+  std::vector<std::vector<i32>> unused_outputs_;
+  std::vector<std::vector<i32>> column_mapping_;
+
+  // Continutation state
+  std::tuple<IOItem, EvalWorkEntry> entry_;
+  i32 current_input_;
+  i32 total_inputs_;
 };
 
 struct ColumnCompressionOptions {
@@ -75,7 +131,7 @@ struct ColumnCompressionOptions {
   std::map<std::string, std::string> options;
 };
 
-struct PostEvaluateThreadArgs {
+struct PostEvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
 
@@ -86,16 +142,33 @@ struct PostEvaluateThreadArgs {
   std::vector<i32> column_mapping;
   std::vector<Column> columns;
   std::vector<ColumnCompressionOptions> column_compression;
-
-  // Queues for communicating work
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& output_work;
 };
 
-void* pre_evaluate_thread(void* arg);
+class PostEvaluateWorker {
+ public:
+  PostEvaluateWorker(const PostEvaluateWorkerArgs& args);
 
-void* evaluate_thread(void* arg);
+  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
 
-void* post_evaluate_thread(void* arg);
+  bool yield(std::tuple<IOItem, EvalWorkEntry>& output);
+
+ private:
+  Profiler& profiler_;
+  std::vector<i32> column_mapping_;
+  std::vector<Column> columns_;
+  std::set<i32> column_set_;
+
+  DeviceHandle encoder_handle_;
+  VideoEncoderType encoder_type_;
+  std::vector<std::unique_ptr<VideoEncoder>> encoders_;
+  std::vector<bool> encoder_configured_;
+  std::vector<EncodeOptions> encode_options_;
+  std::vector<bool> compression_enabled_;
+
+  // Generator state
+  EvalWorkEntry buffered_entry_;
+  i64 current_offset_;
+  std::deque<std::tuple<IOItem, EvalWorkEntry>> buffered_entries_;
+};
 }
 }
