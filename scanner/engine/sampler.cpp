@@ -129,7 +129,8 @@ class StridedRangeSampler : public Sampler {
             args_.ends(i), table.num_rows());
         return;
       }
-      total_rows_ += (args_.ends(i) - args_.starts(i)) / args_.stride();
+      total_rows_ +=
+          ceil((args_.ends(i) - args_.starts(i)) / (float)args_.stride());
     }
     total_samples_ = args_.warmup_starts_size();
   }

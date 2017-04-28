@@ -1,6 +1,5 @@
 from common import *
 
-
 class TableSampler:
     """
     Utility for specifying which frames of a video (or which rows of a table)
@@ -88,12 +87,21 @@ class TableSampler:
 
 class SamplerOp:
     def __init__(self, table):
-        self._table = table
+        from collection import Collection
+        if isinstance(table, Collection):
+            self._collection = table
+            self._table = self._collection.tables(0)
+        else:
+            self._collection = None
+            self._table = table
 
     def __getattr__(self, attr):
         def fn(*args, **kwargs):
             def task_generator(t=self._table):
                 return getattr(TableSampler(t), attr)(*args, **kwargs)
-            return self._table._db.ops.Input(self._table.columns(),
-                                             task_generator, self._table._collection).outputs()
+            return self._table._db.ops.Input(
+                self._table.columns(),
+                task_generator,
+                self._collection).outputs()
+
         return fn

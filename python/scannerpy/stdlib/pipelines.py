@@ -10,24 +10,22 @@ def detect_faces(db, input, output_name):
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
 
-    base_batch = 4
-    base_size = 1280*720
-    # TODO(apoms): determine automatically from video
-    current_size = 640*480
-    current_batch = math.floor(base_size / float(current_size) * base_batch)
-
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
-    batch_sizes = [int(current_batch * (2**i))
+    batch_sizes = [int((2**i))
                    for i in range(len(scales))]
     for scale, batch in zip(scales, batch_sizes):
         facenet_args.scale = scale
         caffe_args.batch_size = batch
 
         frame = input()
-        frame_info = db.ops.InfoFromFrame(frame = frame)
-        facenet_input = db.ops.FacenetInput(
+        resized = db.ops.Resize(
             frame = frame,
+            width = 960, height = 0,
+            min = True, preserve_aspect = True)
+        frame_info = db.ops.InfoFromFrame(frame = resized)
+        facenet_input = db.ops.FacenetInput(
+            frame = resized,
             args = facenet_args,
             device = DeviceType.GPU)
         facenet = db.ops.Facenet(
@@ -53,6 +51,7 @@ def detect_faces(db, input, output_name):
         nms_bboxes = []
         frames = len(all_bboxes[0])
         runs = len(all_bboxes)
+        print [len(a) for a in all_bboxes]
         for fi in range(frames):
             frame_bboxes = []
             for r in range(runs):

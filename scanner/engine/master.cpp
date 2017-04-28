@@ -42,7 +42,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
       result->set_success(false);
     }
     if (task_output_table_names.count(task.output_table_name()) > 0) {
-      LOG(WARNING) << "Mulitple tasks specified with output table name "
+      LOG(WARNING) << "Multiple tasks specified with output table name "
                    << task.output_table_name()
                    << ". Table names must be unique.";
       result->set_success(false);
