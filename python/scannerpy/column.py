@@ -60,7 +60,7 @@ class Column:
         rows_idx = 0
         i = 8 + num_rows * 8 + start_pos
         for j, buf_len in enumerate(lens):
-            if j < len(rows) and j == rows[rows_idx]:
+            if rows_idx < len(rows) and j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]
                 if fn is not None:
                     yield fn(buf, self._db)
@@ -86,7 +86,7 @@ class Column:
         for item_id in range(num_items):
             start_row = prev
             end_row = table_descriptor.end_rows[item_id]
-            item_rows = start_row - end_row
+            item_rows = end_row - start_row
             prev = end_row
             select_rows = []
             while rows_idx < len(rows):

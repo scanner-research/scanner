@@ -131,6 +131,13 @@ def test_summarize(db):
 
 def test_load_video_column(db):
     next(db.table('test1').load(['frame']))
+    # Gather rows
+    rows = [0, 10, 100, 200]
+    frames = [_ for _ in db.table('test1').load(['frame'], rows=rows)]
+    assert len(frames) == len(rows)
+
+def test_load_video_column(db):
+    next(db.table('test1').load(['frame']))
 
 def test_profiler(db):
     frame = db.table('test1').as_op().all()
