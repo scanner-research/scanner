@@ -25,7 +25,6 @@ from collection import Collection
 from table import Table
 from column import Column
 
-
 def start_master(port=None, config=None, config_path=None, block=False):
     """
     Start a master server instance on this node.
@@ -172,6 +171,7 @@ class Database:
 
     def __exit__(self, exception_type, exception_val, exception_tb):
         self.stop_cluster()
+        del self._db
 
     def get_build_flags(self):
         """

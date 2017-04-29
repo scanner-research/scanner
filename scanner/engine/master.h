@@ -88,7 +88,7 @@ class MasterImpl final : public proto::Master::Service {
   storehouse::StorageBackend* storage_;
   std::map<std::string, TableMetadata> table_metas_;
   proto::JobParameters job_params_;
-  ProgressBar* bar_;
+  std::unique_ptr<ProgressBar> bar_;
 
   i64 total_samples_used_;
   i64 total_samples_;
