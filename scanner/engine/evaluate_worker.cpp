@@ -38,7 +38,11 @@ void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
   last_item_id_ = io_item.item_id();
 
   // Split up a work entry into work item size chunks
-  total_rows_ = io_item.end_row() - io_item.start_row();
+  total_rows_ = - 0;
+  for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+    total_rows_ =
+        std::max(total_rows_, (i64)work_entry.columns[i].size());
+  }
 
   if (needs_configure_) {
     // decoders_.clear();
@@ -237,6 +241,9 @@ void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {
   }
 
   outputs_yielded_ = 0;
+  final_output_handles_.clear();;
+  final_output_columns_.clear();
+  final_row_ids_.clear();
 }
 
 void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
