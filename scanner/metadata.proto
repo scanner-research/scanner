@@ -165,7 +165,8 @@ message DecodeArgs {
   repeated int64 keyframes = 1;
   repeated int64 keyframe_byte_offsets = 2;
   repeated int64 valid_frames = 3;
-  bytes encoded_video = 8;
+  int64 encoded_video = 8;
+  int64 encoded_video_size = 9;
 }
 
 message ImageDecodeArgs {

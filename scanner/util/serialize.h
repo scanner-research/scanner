@@ -35,7 +35,7 @@ inline T deser(const u8*& buffer, size_t& size_left) {
 
 template <typename T>
 void serialize_proto(const T& element, u8*& buffer, size_t& size) {
-  i32 element_size = element.ByteSize();
+  size_t element_size = element.ByteSizeLong();
   buffer = new_buffer(CPU_DEVICE, size);
   size = element_size;
   element.SerializeToArray(buffer, element_size);
@@ -53,7 +53,7 @@ void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
                             size_t& size) {
   size = sizeof(size_t);
   for (auto& e : elements) {
-    size += e.ByteSize() + sizeof(i32);
+    size += e.ByteSizeLong() + sizeof(size_t);
   }
   buffer = new_buffer(CPU_DEVICE, size);
 
@@ -62,9 +62,9 @@ void serialize_proto_vector(const std::vector<T>& elements, u8*& buffer,
   buf += sizeof(size_t);
   for (size_t i = 0; i < elements.size(); ++i) {
     const T& e = elements[i];
-    i32 element_size = e.ByteSize();
-    *((i32*)buf) = element_size;
-    buf += sizeof(i32);
+    size_t element_size = e.ByteSizeLong();
+    *((size_t*)buf) = element_size;
+    buf += sizeof(size_t);
     e.SerializeToArray(buf, element_size);
     buf += element_size;
   }
@@ -77,7 +77,7 @@ void serialize_proto_vector_of_vectors(
   for (auto& vec_of_e : elements) {
     size += sizeof(size_t);
     for (auto& e : vec_of_e) {
-      size += e.ByteSize() + sizeof(i32);
+      size += e.ByteSizeLong() + sizeof(size_t);
     }
   }
   buffer = new_buffer(CPU_DEVICE, size);
@@ -91,9 +91,9 @@ void serialize_proto_vector_of_vectors(
     buf += sizeof(size_t);
     for (size_t j = 0; j < vec_of_e.size(); ++j) {
       const T& e = vec_of_e[j];
-      i32 element_size = e.ByteSize();
-      *((i32*)buf) = element_size;
-      buf += sizeof(i32);
+      size_t element_size = e.ByteSizeLong();
+      *((size_t*)buf) = element_size;
+      buf += sizeof(size_t);
       e.SerializeToArray(buf, element_size);
       buf += element_size;
     }
@@ -106,7 +106,7 @@ std::vector<T> deserialize_proto_vector(const u8* buffer, size_t size) {
   size_t num_elements = deser<size_t>(buf, size);
   std::vector<T> elements;
   for (size_t i = 0; i < num_elements; ++i) {
-    i32 element_size = deser<i32>(buf, size);
+    size_t element_size = deser<size_t>(buf, size);
     assert(size >= element_size);
     T e;
     e.ParseFromArray(buf, element_size);

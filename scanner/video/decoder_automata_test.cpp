@@ -24,8 +24,11 @@
 namespace scanner {
 namespace internal {
 TEST(DecoderAutomata, GetAllFrames) {
+  MemoryPoolConfig config;
+  init_memory_allocators(config, {});
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
+
   auto storage = storehouse::StorageBackend::make_from_config(sc.get());
   VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
   DeviceHandle device = CPU_DEVICE;
@@ -35,6 +38,9 @@ TEST(DecoderAutomata, GetAllFrames) {
   VideoMetadata video_meta =
       read_video_metadata(storage, download_video_meta(short_video));
   std::vector<u8> video_bytes = read_entire_file(download_video(short_video));
+  u8* video_buffer = new_buffer(CPU_DEVICE, video_bytes.size());
+  memcpy_buffer(video_buffer, CPU_DEVICE, video_bytes.data(), CPU_DEVICE,
+                video_bytes.size());
 
   std::vector<proto::DecodeArgs> args;
   args.emplace_back();
@@ -52,7 +58,8 @@ TEST(DecoderAutomata, GetAllFrames) {
   for (i64 k : video_meta.keyframe_byte_offsets()) {
     decode_args.add_keyframe_byte_offsets(k);
   }
-  decode_args.set_encoded_video(video_bytes.data(), video_bytes.size());
+  decode_args.set_encoded_video((i64)video_buffer);
+  decode_args.set_encoded_video_size(video_bytes.size());
 
   decoder->initialize(args);
 
@@ -63,11 +70,15 @@ TEST(DecoderAutomata, GetAllFrames) {
 
   delete decoder;
   delete storage;
+  destroy_memory_allocators();
 }
 
 TEST(DecoderAutomata, GetStridedFrames) {
+  MemoryPoolConfig config;
+  init_memory_allocators(config, {});
   std::unique_ptr<storehouse::StorageConfig> sc(
       storehouse::StorageConfig::make_posix_config());
+
   auto storage = storehouse::StorageBackend::make_from_config(sc.get());
   VideoDecoderType decoder_type = VideoDecoderType::SOFTWARE;
   DeviceHandle device = CPU_DEVICE;
@@ -77,6 +88,9 @@ TEST(DecoderAutomata, GetStridedFrames) {
   VideoMetadata video_meta =
       read_video_metadata(storage, download_video_meta(short_video));
   std::vector<u8> video_bytes = read_entire_file(download_video(short_video));
+  u8* video_buffer = new_buffer(CPU_DEVICE, video_bytes.size());
+  memcpy_buffer(video_buffer, CPU_DEVICE, video_bytes.data(), CPU_DEVICE,
+                video_bytes.size());
 
   std::vector<proto::DecodeArgs> args;
   args.emplace_back();
@@ -94,7 +108,8 @@ TEST(DecoderAutomata, GetStridedFrames) {
   for (i64 k : video_meta.keyframe_byte_offsets()) {
     decode_args.add_keyframe_byte_offsets(k);
   }
-  decode_args.set_encoded_video(video_bytes.data(), video_bytes.size());
+  decode_args.set_encoded_video((i64)video_buffer);
+  decode_args.set_encoded_video_size(video_bytes.size());
 
   decoder->initialize(args);
 
@@ -105,6 +120,7 @@ TEST(DecoderAutomata, GetStridedFrames) {
 
   delete decoder;
   delete storage;
+  destroy_memory_allocators();
 }
 }
 }

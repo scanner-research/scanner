@@ -45,6 +45,8 @@ class Sampler {
   Sampler(const std::string& name, const TableMetadata& table)
     : name_(name), table_(table) {}
 
+  virtual ~Sampler() {}
+
   const std::string& name() const { return name_; }
 
   virtual Result validate() = 0;

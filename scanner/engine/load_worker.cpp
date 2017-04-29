@@ -277,15 +277,14 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
       decode_args.add_valid_frames(intervals.valid_frames[i][j]);
     }
-    decode_args.set_encoded_video(buffer, buffer_size);
+    decode_args.set_encoded_video((i64)buffer);
+    decode_args.set_encoded_video_size(buffer_size);
 
-    size_t size = decode_args.ByteSize();
+    size_t size = decode_args.ByteSizeLong();
     u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);
     bool result = decode_args.SerializeToArray(decode_args_buffer, size);
     assert(result);
     insert_element(element_list, decode_args_buffer, size);
-
-    delete_buffer(CPU_DEVICE, buffer);
   }
 }
 
