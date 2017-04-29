@@ -15,7 +15,7 @@ with Database() as db:
         device=DeviceType.CPU)
     job = Job(columns = [flow], name = 'example_flows')
 
-    output_table = db.run(job, force=True)
+    output_table = db.run(job, pipeline_instances_per_node=1, force=True)
 
     vid_flows = [flow[0] for _, flow in output_table.load(['flow'], rows=[0])]
     np.save('flows.npy', vid_flows)

@@ -262,6 +262,8 @@ void derive_stencil_requirements(const LoadWorkEntry& load_work_entry,
       task_streams.push_front(s);
     }
   }
+  // Get rid of input stream
+  task_streams.pop_front();
 
   for (const proto::LoadSample& sample : load_work_entry.samples()) {
     auto out_sample = output_entry.add_samples();
@@ -338,7 +340,12 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto work_start = now();
 
-    i32 total_rows = io_item.end_row() - io_item.start_row();
+    i32 total_rows = - 0;
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      total_rows = std::max(total_rows, (i32)work_entry.columns[i].size());
+    }
+
+
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
     while (true) {
