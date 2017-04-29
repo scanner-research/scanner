@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers, video
 import numpy as np
 import math
@@ -33,31 +33,23 @@ with Database(debug=True) as db:
                          force=True)
 
     def extract_features():
-        op = db.ops.FeatureExtractor(
-            feature_type=db.protobufs.SURF,
-            device=DeviceType.GPU)
-
-        db.run(db.sampler().all([('example', 'example_surf')]),
-               op, force=True)
+        frame = db.table('example').as_op().all()
+        features, keypoints = db.ops.FeatureExtractor(
+            frame = frame,
+            feature_type = db.protobufs.SURF,
+            device = DeviceType.GPU)
+        job = Job(columns = [features, keypoints], name = 'example_surf')
+        db.run(job, force = True)
 
     def compute_matches():
-        input = db.ops.Input(["index", "features", "keypoints", "frame_info"])
-        op = db.ops.FeatureMatcher(
-            inputs=[(input, ["features", "keypoints", "frame_info"])],
-            device=DeviceType.GPU)
-
-        tasks = db.sampler().all([('example_surf', 'example_matches')],
-                                 warmup_size=24)
-        sample = tasks[0].samples.add()
-        sample.table_name = "example"
-        sample.column_names.extend(["frame_info"])
-        sample.sampling_function = "All"
-        args = db.protobufs.AllSamplerArgs()
-        args.sample_size = 1000
-        args.warmup_size = 24
-        sample.sampling_args = args.SerializeToString()
-
-        db.run(tasks, op, force=True)
+        features, keypoints = db.table('example_surf').as_op().all()
+        frame = db.table('example').as_op().all()
+        frame_info = db.ops.InfoFromFrame(frame = frame)
+        cost_matrix = db.ops.FeatureMatcher(
+            features = features, keypoints = keypoints, frame_info = frame_info,
+            device = DeviceType.GPU)
+        job = Job(columns = [cost_matrix], name = 'example_matches')
+        db.run(job, force = True)
 
     def build_path():
         matches = db.table('example_matches')
