@@ -488,13 +488,10 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
       rpcs;
 
-  if (bar_) {
-    delete bar_;
-  }
   if (job_params->show_progress()) {
-    bar_ = new ProgressBar(total_samples_, "");
+    bar_.reset(new ProgressBar(total_samples_, ""));
   } else {
-    bar_ = nullptr;
+    bar_.reset(nullptr);
   }
 
   std::map<std::string, i32> local_ids;

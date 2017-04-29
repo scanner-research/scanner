@@ -332,19 +332,20 @@ Result Database::new_table(const std::string& table_name,
     const std::string output_path =
         internal::table_item_output_path(table_id, j, 0);
 
-    storehouse::WriteFile* output_file = nullptr;
-    BACKOFF_FAIL(storage_->make_write_file(output_path, output_file));
+    std::unique_ptr<storehouse::WriteFile> output_file;
+    storehouse::make_unique_write_file(storage_.get(), output_path,
+                                       output_file);
 
     u64 num_rows = rows.size();
-    s_write(output_file, num_rows);
+    s_write(output_file.get(), num_rows);
     for (size_t i = 0; i < num_rows; ++i) {
       i64 buffer_size = rows[i][j].size();
-      s_write(output_file, buffer_size);
+      s_write(output_file.get(), buffer_size);
     }
     for (size_t i = 0; i < num_rows; ++i) {
       i64 buffer_size = rows[i][j].size();
       u8* buffer = (u8*)rows[i][j].data();
-      s_write(output_file, buffer, buffer_size);
+      s_write(output_file.get(), buffer, buffer_size);
     }
 
     BACKOFF_FAIL(output_file->save());
