@@ -129,7 +129,11 @@ class EvaluateWorker {
   std::vector<std::vector<i32>> kernel_stencils_;
   std::vector<i32> kernel_batch_sizes_;
 
+  // Used for computing complement of column mapping
+  std::vector<std::set<i32>> column_mapping_set_;
+
   // Task state
+  std::vector<std::set<i64>> valid_output_rows_set_;
   std::vector<std::vector<i64>> valid_output_rows_;
   std::vector<i64> current_valid_idx_;
   // Per kernel -> per input column -> deque of (row, element)
@@ -142,7 +146,7 @@ class EvaluateWorker {
 
   i64 outputs_yielded_;
   std::vector<DeviceHandle> final_output_handles_;
-  BatchedColumns final_output_columns_;
+  std::vector<std::deque<Element>> final_output_columns_;
   std::vector<i64> final_row_ids_;
 };
 

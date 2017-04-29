@@ -184,7 +184,10 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
     column_mapping_(args.column_mapping),
     kernel_stencils_(args.kernel_stencils),
     kernel_batch_sizes_(args.kernel_batch_sizes) {
-  // Instantiate kernels_
+  for (auto& col : column_mapping_) {
+    column_mapping_set_.emplace_back(col.begin(), col.end());
+  }
+  // Instantiate kernels
   {
     OpRegistry* registry = get_op_registry();
     for (size_t i = 0; i < kernel_factories_.size(); ++i) {
@@ -229,9 +232,12 @@ void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {
     assert(valid_output_rows_[i].size() == current_valid_idx_[i]);
   }
   valid_output_rows_.clear();
+  valid_output_rows_set_.clear();
   current_valid_idx_.clear();
   for (auto& ts : task_streams) {
     valid_output_rows_.push_back(ts.valid_output_rows);
+    valid_output_rows_set_.push_back(std::set<i64>(ts.valid_output_rows.begin(),
+                                                   ts.valid_output_rows.end()));
     current_valid_idx_.push_back(0);
   }
 
@@ -276,9 +282,11 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     std::vector<i32>& kernel_stencil = kernel_stencils_[k];
     i32 kernel_batch_size = kernel_batch_sizes_[k];
     std::vector<i64>& kernel_valid_rows = valid_output_rows_[k];
+    std::set<i64>& kernel_valid_rows_set = valid_output_rows_set_[k];
     std::vector<std::deque<std::tuple<i64, Element>>>& kernel_cache =
         stencil_cache_[k];
     std::vector<i32>& input_column_idx = column_mapping_[k];
+    std::set<i32>& input_column_idx_set = column_mapping_set_[k];
 
     // Move all required values in the side output columns to the proper device
     // for this kernel and update stencil cache using rows in
@@ -309,6 +317,23 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         max_row_id_seen = std::max(side_row_ids[r], max_row_id_seen);
       }
     }
+    // Filter unused elements from side output columns
+    BatchedColumns temp_side(side_output_columns.size());
+    std::vector<i64> temp_row;
+    for (size_t i = 0; i < side_row_ids.size(); ++i) {
+      if (kernel_valid_rows_set.count(side_row_ids[i]) > 0) {
+        for (i32 j = 0; j < side_output_columns.size(); ++j) {
+          temp_side[j].push_back(side_output_columns[j][i]);
+        }
+        temp_row.push_back(side_row_ids[i]);
+      } else {
+        for (i32 j = 0; j < side_output_columns.size(); ++j) {
+          delete_element(side_output_handles[j], side_output_columns[j][i]);
+        }
+      }
+    }
+    side_output_columns.swap(temp_side);
+    side_row_ids.swap(temp_row);
 
     // Determine how many elements can be produced given stencil requirements
     // and the currrent stencil cache extent
@@ -398,8 +423,6 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
             side_output_columns.size() - num_output_columns + cidx;
         side_output_columns[col_idx].insert(side_output_columns[col_idx].end(),
                                             column.begin(), column.end());
-        printf("output column size %d, %d\n",
-               col_idx, column.size());
       }
     }
     // Delete dead columns
@@ -423,7 +446,6 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     final_output_columns_[i].insert(final_output_columns_[i].end(),
                                     side_output_columns[i].begin(),
                                     side_output_columns[i].end());
-    printf("output column size %d, %d\n", i, side_output_columns[i].size());
   }
 
   profiler_.add_interval("feed", feed_start, now());
@@ -451,12 +473,29 @@ bool EvaluateWorker::yield(i32 item_size,
   num_final_output_columns = final_output_columns_.size();
   work_item_output_columns.resize(final_output_columns_.size());
   work_item_output_handles = final_output_handles_;
+
+  i32 yieldable_rows = std::numeric_limits<i32>::max();
   for (i32 i = 0; i < num_final_output_columns; ++i) {
-    work_item_output_columns[i].insert(work_item_output_columns[i].end(),
-                                       final_output_columns_[i].begin(),
-                                       final_output_columns_[i].end());
+    yieldable_rows =
+        std::min((i32)final_output_columns_[i].size(), yieldable_rows);
   }
-  output_work_entry.row_ids = valid_output_rows_.back();
+
+  for (i32 i = 0; i < num_final_output_columns; ++i) {
+    work_item_output_columns[i].insert(
+        work_item_output_columns[i].end(), final_output_columns_[i].begin(),
+        final_output_columns_[i].begin() + yieldable_rows);
+    final_output_columns_[i].erase(
+        final_output_columns_[i].begin(),
+        final_output_columns_[i].begin() + yieldable_rows);
+  }
+  output_work_entry.row_ids = std::vector<i64>(
+      valid_output_rows_.back().begin() + outputs_yielded_,
+      valid_output_rows_.back().begin() + outputs_yielded_ + yieldable_rows);
+
+  assert(output_work_entry.row_ids.size() ==
+         work_item_output_columns[0].size());
+
+  outputs_yielded_ += yieldable_rows;
 
   output_entry = std::make_tuple(io_item, output_work_entry);
 

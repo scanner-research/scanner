@@ -340,16 +340,16 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto work_start = now();
 
-    i32 total_rows = - 0;
+    i32 total_rows = 0;
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       total_rows = std::max(total_rows, (i32)work_entry.columns[i].size());
     }
 
-
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
+    bool first = true;
     while (true) {
-      i32 work_item_size = std::min(250, total_rows);
+      i32 work_item_size = std::min(5, total_rows);
       total_rows -= work_item_size;
 
       std::tuple<IOItem, EvalWorkEntry> output_entry;
@@ -357,8 +357,16 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
         break;
       }
 
-      output_work.push(std::make_tuple(task_streams, std::get<0>(output_entry),
-                                       std::get<1>(output_entry)));
+      if (first) {
+        output_work.push(std::make_tuple(task_streams,
+                                         std::get<0>(output_entry),
+                                         std::get<1>(output_entry)));
+        first = false;
+      } else {
+        output_work.push(std::make_tuple(std::deque<TaskStream>(),
+                                         std::get<0>(output_entry),
+                                         std::get<1>(output_entry)));
+      }
     }
 
     profiler.add_interval("task", work_start, now());
