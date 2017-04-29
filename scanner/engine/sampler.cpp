@@ -430,8 +430,9 @@ Result TaskSampler::next_work(proto::NewWork& new_work) {
     for (auto col_name : sample.column_names()) {
       load_sample->add_column_ids(t_meta.column_id(col_name));
     }
+    load_sample->set_warmup_size(row_sample.warmup_rows.size());
     for (i64 r : row_sample.warmup_rows) {
-      load_sample->add_warmup_rows(r);
+      load_sample->add_rows(r);
     }
     for (i64 r : row_sample.rows) {
       load_sample->add_rows(r);

@@ -9,10 +9,10 @@ with Database() as db:
         db.ingest_videos([('example', '/tmp/example.mp4')])
     input_table = db.table('example')
 
-    frame = input_table.as_op().range(0, 100, item_size=10, warmup_size = 1)
+    frame = input_table.as_op().range(0, 20, item_size=10)
     flow = db.ops.OpticalFlow(
         frame = frame,
-        device=DeviceType.GPU)
+        device=DeviceType.CPU)
     job = Job(columns = [flow], name = 'example_flows')
 
     output_table = db.run(job, force=True)

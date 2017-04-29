@@ -22,6 +22,7 @@
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/op_registry.h"
 #include "scanner/engine/rpc.grpc.pb.h"
+#include "scanner/util/queue.h"
 
 #include "storehouse/storage_backend.h"
 
@@ -42,6 +43,7 @@ namespace internal {
 ///   execution of the run command.
 struct EvalWorkEntry {
   i32 io_item_index;
+  std::vector<i64> row_ids;
   BatchedColumns columns;
   std::vector<DeviceHandle> column_handles;
   // Below only for pre/evaluate/post workers
@@ -56,6 +58,16 @@ struct EvalWorkEntry {
   std::vector<FrameInfo> frame_sizes;
   std::vector<bool> compressed;
 };
+
+struct TaskStream {
+  std::vector<i64> valid_output_rows;
+};
+
+using LoadInputQueue =
+    Queue<std::tuple<i32, std::deque<TaskStream>, IOItem, LoadWorkEntry>>;
+using EvalQueue =
+    Queue<std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>;
+
 
 struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;
@@ -85,5 +97,8 @@ void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
                                      BatchedColumns& columns);
+
+ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
+                               DeviceHandle target_handle, ElementList& column);
 }
 }

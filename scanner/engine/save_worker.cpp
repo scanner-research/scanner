@@ -45,10 +45,10 @@ void* save_thread(void* arg) {
   while (true) {
     auto idle_start = now();
 
-    std::tuple<IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
     args.input_work.pop(entry);
-    IOItem& io_item = std::get<0>(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
+    IOItem& io_item = std::get<1>(entry);
+    EvalWorkEntry& work_entry = std::get<2>(entry);
 
     if (work_entry.io_item_index == -1) {
       break;

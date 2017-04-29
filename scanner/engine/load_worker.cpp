@@ -196,10 +196,13 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
 
   EvalWorkEntry eval_work_entry;
   eval_work_entry.io_item_index = load_work_entry.io_item_index();
+  eval_work_entry.row_ids =
+      std::vector<i64>(load_work_entry.samples(0).rows().begin(),
+                       load_work_entry.samples(0).rows().end());
 
   // Aggregate all sample columns so we know the tuple size
   assert(!samples.empty());
-  eval_work_entry.warmup_rows = samples.Get(0).warmup_rows_size();
+  eval_work_entry.warmup_rows = samples.Get(0).warmup_size();
 
   i32 num_columns = 0;
   for (size_t i = 0; i < samples.size(); ++i) {
@@ -219,11 +222,9 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
     }
     const TableMetadata& table_meta = it->second;
 
-    const google::protobuf::RepeatedField<i64>& sample_warmup_rows =
-        sample.warmup_rows();
     const google::protobuf::RepeatedField<i64>& sample_rows = sample.rows();
-    std::vector<i64> rows(sample_warmup_rows.begin(), sample_warmup_rows.end());
-    rows.insert(rows.end(), sample_rows.begin(), sample_rows.end());
+    std::vector<i64> rows(sample_rows.begin(), sample_rows.end());
+
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();
     for (i32 col_id : sample.column_ids()) {

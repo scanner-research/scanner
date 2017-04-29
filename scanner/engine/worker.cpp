@@ -58,7 +58,7 @@ struct AnalysisResults {
 
   std::vector<i32> warmup_sizes;
   std::vector<i32> batch_sizes;
-  std::vector<i32> stencil_sizes;
+  std::vector<std::vector<i32>> stencils;
 };
 
 AnalysisResults analyze_dag(const proto::TaskSet& task_set) {
@@ -70,8 +70,13 @@ AnalysisResults analyze_dag(const proto::TaskSet& task_set) {
   std::vector<std::vector<i32>>& unused_outputs = results.unused_outputs;
   std::vector<std::vector<i32>>& column_mapping = results.column_mapping;
 
+  std::vector<i32>& warmup_sizes = results.warmup_sizes;
+  std::vector<i32>& batch_sizes = results.batch_sizes;
+  std::vector<std::vector<i32>>& stencils = results.stencils;
+
   // Start off with the columns from the gathered tables
   OpRegistry* op_registry = get_op_registry();
+  KernelRegistry* kernel_registry = get_kernel_registry();
   auto& ops = task_set.ops();
   std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
   {
@@ -101,14 +106,28 @@ AnalysisResults analyze_dag(const proto::TaskSet& task_set) {
         assert(found);
       }
     }
-    // Add this op's outputs to the intermediate list
     if (i == ops.size() - 1) {
       continue;
     }
+    // Add this op's outputs to the intermediate list
     const auto& op_info = op_registry->get_op_info(op.name());
     for (const auto& output_column : op_info->output_columns()) {
       intermediates[i].push_back(std::make_tuple(output_column.name(), i));
     }
+    const auto& kernel_factory =
+        kernel_registry->get_kernel(op.name(), op.device_type());
+    // Use default batch if not specified
+    i32 batch_size =
+        op.batch() != -1 ? op.batch() : kernel_factory->preferred_batch_size();
+    batch_sizes.push_back(batch_size);
+    // Use default stencil if not specified
+    std::vector<i32> stencil;
+    if (op.stencil_size() > 0) {
+      stencil = std::vector<i32>(op.stencil().begin(), op.stencil().end());
+    } else {
+      stencil = op_info->preferred_stencil();
+    }
+    stencils.push_back(stencil);
   }
 
   // The live columns at each op index
@@ -205,8 +224,55 @@ AnalysisResults analyze_dag(const proto::TaskSet& task_set) {
   return results;
 }
 
-using LoadInputQueue = Queue<std::tuple<i32, IOItem, LoadWorkEntry>>;
-using EvalQueue = Queue<std::tuple<IOItem, EvalWorkEntry>>;
+void derive_stencil_requirements(const LoadWorkEntry& load_work_entry,
+                                 const std::vector<std::vector<i32>>& stencils,
+                                 LoadWorkEntry& output_entry,
+                                 std::deque<TaskStream>& task_streams) {
+  output_entry.set_io_item_index(load_work_entry.io_item_index());
+
+
+  // Compute the required rows for each kernel based on the stencil
+  // HACK(apoms): this will only really work for linear DAGs. For DAGs with
+  //   non-linear topologies, this might break. Supporting proper DAGs would
+  //   require tracking stencils up each branch individually.
+  std::vector<i64> current_rows;
+  {
+    const proto::LoadSample& sample = load_work_entry.samples(0);
+    current_rows = std::vector<i64>(sample.rows().begin(), sample.rows().end());
+    i64 num_kernels = stencils.size();
+    TaskStream s;
+    s.valid_output_rows = current_rows;
+    task_streams.push_front(s);
+    // For each kernel, derive the required elements via its stencil
+    for (i64 i = 0; i < num_kernels; ++i) {
+      const std::vector<i32>& stencil = stencils[num_kernels - 1 - i];
+      std::unordered_set<i64> new_rows;
+      new_rows.reserve(current_rows.size());
+      for (i64 r : current_rows) {
+        // Ignore rows which can not achieve their stencil
+        if (r - stencil[0] < 0) continue;
+        for (i64 s : stencil) {
+          new_rows.insert(r + s);
+        }
+      }
+      current_rows = std::vector<i64>(new_rows.begin(), new_rows.end());
+      std::sort(current_rows.begin(), current_rows.end());
+      TaskStream s;
+      s.valid_output_rows = current_rows;
+      task_streams.push_front(s);
+    }
+  }
+
+  for (const proto::LoadSample& sample : load_work_entry.samples()) {
+    auto out_sample = output_entry.add_samples();
+    out_sample->set_table_id(sample.table_id());
+    out_sample->mutable_column_ids()->CopyFrom(sample.column_ids());
+    out_sample->set_warmup_size(sample.warmup_size());
+    google::protobuf::RepeatedField<i64> data(
+        current_rows.begin(), current_rows.end());
+    out_sample->mutable_rows()->Swap(&data);
+  }
+}
 
 void load_driver(LoadInputQueue& load_work,
                  std::vector<EvalQueue>& initial_eval_work,
@@ -216,11 +282,12 @@ void load_driver(LoadInputQueue& load_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<i32, IOItem, LoadWorkEntry> entry;
+    std::tuple<i32, std::deque<TaskStream>, IOItem, LoadWorkEntry> entry;
     load_work.pop(entry);
     i32& output_queue_idx = std::get<0>(entry);
-    IOItem& io_item = std::get<1>(entry);
-    LoadWorkEntry& load_work_entry = std::get<2>(entry);
+    auto& task_streams = std::get<1>(entry);
+    IOItem& io_item = std::get<2>(entry);
+    LoadWorkEntry& load_work_entry = std::get<3>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -239,7 +306,8 @@ void load_driver(LoadInputQueue& load_work,
 
     profiler.add_interval("task", work_start, now());
 
-    initial_eval_work[output_queue_idx].push(output_entry);
+    initial_eval_work[output_queue_idx].push(std::make_tuple(
+        task_streams, std::get<0>(output_entry), std::get<1>(output_entry)));
   }
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
           << "): thread finished";
@@ -252,13 +320,14 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
     input_work.pop(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
-    IOItem& io_item = std::get<0>(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
+    auto& task_streams = std::get<0>(entry);
+    IOItem& io_item = std::get<1>(entry);
+    EvalWorkEntry& work_entry = std::get<2>(entry);
     if (work_entry.io_item_index == -1) {
       break;
     }
@@ -269,9 +338,9 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto work_start = now();
 
-
     i32 total_rows = io_item.end_row() - io_item.start_row();
-    worker.feed(entry);
+    auto input_entry = std::make_tuple(io_item, work_entry);
+    worker.feed(input_entry);
     while (true) {
       i32 work_item_size = std::min(250, total_rows);
       total_rows -= work_item_size;
@@ -281,7 +350,8 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
         break;
       }
 
-      output_work.push(output_entry);
+      output_work.push(std::make_tuple(task_streams, std::get<0>(output_entry),
+                                       std::get<1>(output_entry)));
     }
 
     profiler.add_interval("task", work_start, now());
@@ -298,10 +368,12 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   while (true) {
     auto idle_pull_start = now();
 
-    std::tuple<IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
     input_work.pop(entry);
-    IOItem& io_item = std::get<0>(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
+
+    auto& task_streams = std::get<0>(entry);
+    IOItem& io_item = std::get<1>(entry);
+    EvalWorkEntry& work_entry = std::get<2>(entry);
 
     args.profiler.add_interval("idle_pull", idle_pull_start, now());
 
@@ -314,6 +386,16 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto work_start = now();
 
+    if (task_streams.size() > 0) {
+      // Start of a new task. Tell kernels what outputs they should produce.
+      std::vector<TaskStream> streams;
+      for (i32 i = 0; i < args.kernel_factories.size(); ++i) {
+        assert(!task_streams.empty());
+        streams.push_back(task_streams.front());
+        task_streams.pop_front();
+      }
+      worker.new_task(streams);
+    }
 
     i32 work_item_size = 0;
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
@@ -321,16 +403,21 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
           std::max(work_item_size, (i32)work_entry.columns[i].size());
     }
 
-    worker.feed(entry);
+    printf("input size %d\n", work_item_size);
+    auto input_entry = std::make_tuple(io_item, work_entry);
+    worker.feed(input_entry);
     std::tuple<IOItem, EvalWorkEntry> output_entry;
     bool result = worker.yield(work_item_size, output_entry);
     (void)result;
     assert(result);
 
+    printf("output size %d\n", std::get<1>(output_entry).columns[1].size());
+
     profiler.add_interval("task", work_start, now());
 
     auto idle_push_start = now();
-    output_work.push(output_entry);
+    output_work.push(std::make_tuple(task_streams, std::get<0>(output_entry),
+                                     std::get<1>(output_entry)));
     args.profiler.add_interval("idle_push", idle_push_start, now());
   }
   VLOG(1) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
@@ -344,10 +431,10 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
     input_work.pop(entry);
-    IOItem& io_item = std::get<0>(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
+    IOItem& io_item = std::get<1>(entry);
+    EvalWorkEntry& work_entry = std::get<2>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -360,13 +447,16 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto work_start = now();
 
-    worker.feed(entry);
+    auto input_entry = std::make_tuple(io_item, work_entry);
+    worker.feed(input_entry);
     std::tuple<IOItem, EvalWorkEntry> output_entry;
     bool result = worker.yield(output_entry);
     profiler.add_interval("task", work_start, now());
 
     if (result) {
-      output_work.push(output_entry);
+      output_work.push(std::make_tuple(std::get<0>(entry),
+                                       std::get<0>(output_entry),
+                                       std::get<1>(output_entry)));
     }
   }
 
@@ -576,6 +666,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<std::vector<std::vector<i32>>> kg_dead_columns;
   std::vector<std::vector<std::vector<i32>>> kg_unused_outputs;
   std::vector<std::vector<std::vector<i32>>> kg_column_mapping;
+  std::vector<std::vector<std::vector<i32>>> kg_stencils;
+  std::vector<std::vector<i32>> kg_batch_sizes;
   if (!kernel_factories.empty()) {
     DeviceType last_device_type = kernel_factories[0]->get_device_type();
     kernel_groups.emplace_back();
@@ -583,6 +675,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     kg_dead_columns.emplace_back();
     kg_unused_outputs.emplace_back();
     kg_column_mapping.emplace_back();
+    kg_stencils.emplace_back();
+    kg_batch_sizes.emplace_back();
     for (size_t i = 0; i < kernel_factories.size(); ++i) {
       KernelFactory* factory = kernel_factories[i];
       if (factory->get_device_type() != last_device_type) {
@@ -600,11 +694,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       auto& dc = kg_dead_columns.back();
       auto& uo = kg_unused_outputs.back();
       auto& cm = kg_column_mapping.back();
+      auto& st = kg_stencils.back();
+      auto& bt = kg_batch_sizes.back();
       group.push_back(std::make_tuple(factory, kernel_configs[i]));
       lc.push_back(live_columns[i]);
       dc.push_back(dead_columns[i]);
       uo.push_back(unused_outputs[i]);
       cm.push_back(column_mapping[i]);
+      st.push_back(analysis_results.stencils[i]);
+      bt.push_back(analysis_results.batch_sizes[i]);
     }
   }
 
@@ -673,12 +771,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Setup shared resources for distributing work to processing threads
   i64 accepted_items = 0;
-  Queue<std::tuple<i32, IOItem, LoadWorkEntry>> load_work;
-  std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>> initial_eval_work(
-      pipeline_instances_per_node);
-  std::vector<std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>>> eval_work(
-      pipeline_instances_per_node);
-  Queue<std::tuple<IOItem, EvalWorkEntry>> save_work;
+  LoadInputQueue load_work;
+  std::vector<EvalQueue> initial_eval_work(pipeline_instances_per_node);
+  std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
+  EvalQueue save_work;
   std::atomic<i64> retired_items{0};
 
   // Setup load workers
@@ -716,8 +812,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   i32 next_cpu_num = 0;
   i32 next_gpu_idx = 0;
   for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
-    std::vector<Queue<std::tuple<IOItem, EvalWorkEntry>>>& work_queues =
-        eval_work[ki];
+    auto& work_queues = eval_work[ki];
     std::vector<Profiler>& eval_thread_profilers = eval_profilers[ki];
     std::vector<proto::Result>& results = eval_results[ki];
     work_queues.resize(num_kernel_groups - 1 + 2);  // +2 for pre/post
@@ -737,6 +832,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       auto& dc = kg_dead_columns[kg];
       auto& uo = kg_unused_outputs[kg];
       auto& cm = kg_column_mapping[kg];
+      auto& st = kg_stencils[kg];
+      auto& bt = kg_batch_sizes[kg];
       std::vector<EvaluateWorkerArgs>& thread_args = eval_args[ki];
       std::vector<std::tuple<EvalQueue*, EvalQueue*>>& thread_qs =
           eval_queues[ki];
@@ -777,18 +874,17 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       // Create eval thread for passing data through neural net
       thread_qs.push_back(
           std::make_tuple(input_work_queue, output_work_queue));
-      thread_args.emplace_back(EvaluateWorkerArgs{// Uniform arguments
-                                                  node_id_,
+      thread_args.emplace_back(EvaluateWorkerArgs{
+          // Uniform arguments
+          node_id_,
 
-                                                  // Per worker arguments
-                                                  ki, kg, group, lc, dc, uo, cm,
-                                                  eval_thread_profilers[kg + 1],
-                                                  results[kg]});
+          // Per worker arguments
+          ki, kg, group, lc, dc, uo, cm, st, bt, eval_thread_profilers[kg + 1],
+          results[kg]});
     }
     // Pre evaluate worker
     {
-      EvalQueue* input_work_queue =
-          &initial_eval_work[ki];
+      EvalQueue* input_work_queue = &initial_eval_work[ki];
       EvalQueue* output_work_queue =
           &work_queues[0];
       assert(kernel_groups.size() > 0);
@@ -904,8 +1000,16 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         break;
       } else {
-        load_work.push(std::make_tuple(last_work_queue++, new_work.io_item(),
-                                       new_work.load_work()));
+        // Perform analysis on load work entry to determine upstream
+        // requirements and when to discard elements.
+        std::deque<TaskStream> task_stream;
+        LoadWorkEntry stenciled_entry;
+        derive_stencil_requirements(new_work.load_work(),
+                                    analysis_results.stencils, stenciled_entry,
+                                    task_stream);
+
+        load_work.push(std::make_tuple(last_work_queue++, task_stream, new_work.io_item(),
+                                       stenciled_entry));
         last_work_queue %= pipeline_instances_per_node;
         accepted_items++;
       }
@@ -950,11 +1054,18 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     save_work.clear();
   }
 
+  auto push_exit_message = [](EvalQueue& q) {
+    EvalWorkEntry entry;
+    entry.io_item_index = -1;
+    q.push(std::make_tuple(std::deque<TaskStream>(), IOItem{}, entry));
+  };
+
   // Push sentinel work entries into queue to terminate load threads
   for (i32 i = 0; i < num_load_workers; ++i) {
     LoadWorkEntry entry;
     entry.set_io_item_index(-1);
-    load_work.push(std::make_tuple(0, IOItem{}, entry));
+    load_work.push(
+        std::make_tuple(0, std::deque<TaskStream>(), IOItem{}, entry));
   }
 
   for (i32 i = 0; i < num_load_workers; ++i) {
@@ -964,9 +1075,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Push sentinel work entries into queue to terminate eval threads
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
-    EvalWorkEntry entry;
-    entry.io_item_index = -1;
-    initial_eval_work[i].push(std::make_tuple(IOItem{}, entry));
+    push_exit_message(initial_eval_work[i]);
   }
 
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
@@ -976,9 +1085,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-      EvalWorkEntry entry;
-      entry.io_item_index = -1;
-      eval_work[pu][kg].push(std::make_tuple(IOItem{}, entry));
+      push_exit_message(eval_work[pu][kg]);
     }
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Wait until eval has finished
@@ -988,9 +1095,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Terminate post eval threads
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-    EvalWorkEntry entry;
-    entry.io_item_index = -1;
-    eval_work[pu].back().push(std::make_tuple(IOItem{}, entry));
+    push_exit_message(eval_work[pu].back());
   }
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     // Wait until eval has finished
@@ -999,9 +1104,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < num_save_workers; ++i) {
-    EvalWorkEntry entry;
-    entry.io_item_index = -1;
-    save_work.push(std::make_tuple(IOItem{}, entry));
+    push_exit_message(save_work);
   }
   for (i32 i = 0; i < num_save_workers; ++i) {
     // Wait until eval has finished

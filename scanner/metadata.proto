@@ -184,7 +184,7 @@ message ImageDecodeArgs {
 message LoadSample {
   int32 table_id = 1;
   repeated int32 column_ids = 2;
-  repeated int64 warmup_rows = 3 [packed=true];
+  int64 warmup_size = 3;
   repeated int64 rows = 4 [packed=true];
 }
 

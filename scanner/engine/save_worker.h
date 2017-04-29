@@ -33,7 +33,7 @@ struct SaveThreadArgs {
   Profiler& profiler;
 
   // Queues for communicating work
-  Queue<std::tuple<IOItem, EvalWorkEntry>>& input_work;
+  EvalQueue& input_work;
   std::atomic<i64>& retired_items;
 };
 

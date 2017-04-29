@@ -92,6 +92,11 @@ struct EvaluateWorkerArgs {
   std::vector<std::vector<i32>> unused_outputs;
   // Index in columns for inputs
   std::vector<std::vector<i32>> column_mapping;
+  // Stencil needed by kernels
+  std::vector<std::vector<i32>> kernel_stencils;
+  // Batch size needed by kernels
+  std::vector<i32> kernel_batch_sizes;
+
   Profiler& profiler;
   proto::Result& result;
 };
@@ -100,6 +105,8 @@ struct EvaluateWorkerArgs {
 class EvaluateWorker {
  public:
   EvaluateWorker(const EvaluateWorkerArgs& args);
+
+  void new_task(const std::vector<TaskStream>& task_streams);
 
   void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
 
@@ -119,11 +126,24 @@ class EvaluateWorker {
   std::vector<std::vector<i32>> dead_columns_;
   std::vector<std::vector<i32>> unused_outputs_;
   std::vector<std::vector<i32>> column_mapping_;
+  std::vector<std::vector<i32>> kernel_stencils_;
+  std::vector<i32> kernel_batch_sizes_;
+
+  // Task state
+  std::vector<std::vector<i64>> valid_output_rows_;
+  std::vector<i64> current_valid_idx_;
+  // Per kernel -> per input column -> deque of (row, element)
+  std::vector<std::vector<std::deque<std::tuple<i64, Element>>>> stencil_cache_;
 
   // Continutation state
   std::tuple<IOItem, EvalWorkEntry> entry_;
   i32 current_input_;
   i32 total_inputs_;
+
+  i64 outputs_yielded_;
+  std::vector<DeviceHandle> final_output_handles_;
+  BatchedColumns final_output_columns_;
+  std::vector<i64> final_row_ids_;
 };
 
 struct ColumnCompressionOptions {
