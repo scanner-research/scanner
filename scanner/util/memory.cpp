@@ -276,6 +276,18 @@ class BlockAllocator {
     return buffer;
   }
 
+  void add_ref(u8* buffer) {
+    std::lock_guard<std::mutex> guard(lock_);
+
+    i32 index;
+    bool found = find_buffer(buffer, index);
+    LOG_IF(FATAL, !found)
+        << "Block allocator tried to add ref to non-block buffer";
+
+    Allocation& alloc = allocations_[index];
+    alloc.refs += 1;
+  }
+
   void free(u8* buffer) {
     std::lock_guard<std::mutex> guard(lock_);
 
@@ -453,6 +465,12 @@ u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs) {
   return allocator->allocate(size, refs);
 }
 
+void add_buffer_ref(DeviceHandle device, u8* buffer) {
+  assert(buffer != nullptr);
+  BlockAllocator* block_allocator = block_allocator_for_device(device);
+  block_allocator->add_ref(buffer);
+}
+
 void delete_buffer(DeviceHandle device, u8* buffer) {
   assert(buffer != nullptr);
   BlockAllocator* block_allocator = block_allocator_for_device(device);
@@ -487,13 +505,14 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
 void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
                 const std::vector<u8*> src_buffers, DeviceHandle src_device,
                 std::vector<size_t> sizes) {
-  assert(dest_device.type == DeviceType::GPU ||
-         src_device.type == DeviceType::GPU);
   assert(src_device.can_copy_to(dest_device));
   assert(dest_buffers.size() > 0);
   assert(src_buffers.size() > 0);
   assert(dest_buffers.size() == src_buffers.size());
 
+  // if (dest_device.type == DeviceType::GPU ||
+  //     src_device.type == DeviceType::GPU) {
+  if (true) {
 #ifdef HAVE_CUDA
   thread_local std::vector<cudaStream_t> streams;
   if (streams.size() == 0) {
@@ -540,5 +559,7 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
 #else
   LOG(FATAL) << "Cuda not installed";
 #endif
+  } else {
+  }
 }
 }

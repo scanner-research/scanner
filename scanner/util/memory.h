@@ -32,6 +32,8 @@ u8* new_buffer(DeviceHandle device, size_t size);
 
 u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs);
 
+void add_buffer_ref(DeviceHandle device, u8* buffer);
+
 void delete_buffer(DeviceHandle device, u8* buffer);
 
 void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
@@ -40,4 +42,9 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
 void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
                 const std::vector<u8*> src_buffers, DeviceHandle src_device,
                 std::vector<size_t> sizes);
+
+std::vector<u8*> duplicate_buffers(DeviceHandle dest_device,
+                                   const std::vector<u8*> src_buffers,
+                                   DeviceHandle src_device,
+                                   std::vector<size_t> sizes);
 }

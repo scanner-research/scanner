@@ -137,6 +137,7 @@ class Op:
     def to_proto(self, indices):
         e = self._db.protobufs.Op()
         e.name = self._name
+        e.batch = -1
 
         if e.name == "InputTable":
             inp = e.inputs.add()

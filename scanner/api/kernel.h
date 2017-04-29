@@ -79,6 +79,15 @@ inline void insert_frame(Element& element, Frame* frame) {
   element = ::scanner::Element{frame};
 }
 
+inline void add_element_ref(DeviceHandle device, Element& element) {
+  if (element.is_frame) {
+    Frame* frame = element.as_frame();
+    add_buffer_ref(device, frame->data);
+  } else {
+    add_buffer_ref(device, element.buffer);
+  }
+}
+
 inline void delete_element(DeviceHandle device, Element& element) {
   if (element.is_frame) {
     Frame* frame = element.as_frame();

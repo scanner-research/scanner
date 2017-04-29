@@ -139,7 +139,7 @@ class OpBuilder {
   std::vector<std::tuple<std::string, ColumnType>> input_columns_;
   std::vector<std::tuple<std::string, ColumnType>> output_columns_;
   bool can_stencil_;
-  std::vector<int> preferred_stencil_;
+  std::vector<int> preferred_stencil_ = {0};
 };
 }
 
