@@ -54,8 +54,13 @@ DecoderAutomata::~DecoderAutomata() {
     not_done_ = false;
     feeder_waiting_ = false;
   }
+
   wake_feeder_.notify_one();
   feeder_thread_.join();
+
+  for (auto& args : encoded_data_) {
+    delete_buffer(CPU_DEVICE, (u8*)args.encoded_video());
+  }
 }
 
 void DecoderAutomata::initialize(
@@ -256,10 +261,8 @@ void DecoderAutomata::feeder() {
       frames_fed++;
 
       i32 fdi = feeder_data_idx_.load(std::memory_order_acquire);
-      const u8* encoded_buffer =
-          (const u8*)encoded_data_[fdi].mutable_encoded_video()->data();
-      size_t encoded_buffer_size =
-          encoded_data_[fdi].mutable_encoded_video()->size();
+      const u8* encoded_buffer = (const u8*)encoded_data_[fdi].encoded_video();
+      size_t encoded_buffer_size = encoded_data_[fdi].encoded_video_size();
       i32 encoded_packet_size = 0;
       const u8* encoded_packet = NULL;
       if (feeder_buffer_offset_ < encoded_buffer_size) {

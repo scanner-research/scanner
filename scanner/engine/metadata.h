@@ -233,7 +233,7 @@ inline std::string frame_info_column_name() { return "frame_info"; }
 
 template <typename T>
 void serialize_db_proto(storehouse::WriteFile* file, const T& descriptor) {
-  int size = descriptor.ByteSize();
+  size_t size = descriptor.ByteSizeLong();
   std::vector<u8> data(size);
   descriptor.SerializeToArray(data.data(), size);
   s_write(file, data.data(), size);
