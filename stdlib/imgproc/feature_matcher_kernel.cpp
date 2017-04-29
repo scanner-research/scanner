@@ -29,10 +29,10 @@ class Constants {
   }
 };
 
-class FeatureMatcherKernel : public VideoKernel {
+class FeatureMatcherKernel : public StenciledKernel, public VideoKernel {
  public:
   FeatureMatcherKernel(const KernelConfig& config)
-    : VideoKernel(config), device_(config.devices[0]), C_(0, 0, 0) {
+    : StenciledKernel(config), device_(config.devices[0]), C_(0, 0, 0) {
     set_device();
 
     matcher_ = cvc::DescriptorMatcher::createBFMatcher();
@@ -44,45 +44,42 @@ class FeatureMatcherKernel : public VideoKernel {
     set_device();
 
     C_ = Constants(frame_info_.width(), frame_info_.height(), 0);
-  }
-
-  void reset() override {
-    set_device();
-
-    LOG(INFO) << "reset";
     features_suffix_.clear();
     kps_suffix_.clear();
     features_suffix_.resize(C_.w);
     kps_suffix_.resize(C_.w);
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void set_device() {
+    CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id)); });
+    cvc::setDevice(device_.id);
+  }
+
+protected:
+  void execute(const StenciledColumns& input_columns,
+               Columns& output_columns) override {
     set_device();
 
     auto& features_col = input_columns[0];
     auto& keypoints_col = input_columns[1];
     auto& frame_info_col = input_columns[2];
-    check_frame_info(device_, frame_info_col);
+    check_frame_info(device_, frame_info_col[0]);
 
-    i32 input_count = input_columns[0].rows.size();
-    C_.T = input_count;
-
-    cv::Mat Cm = cv::Mat::zeros(C_.T + 1, C_.T + 1, CV_32F);
+    i32 window_size = features_col.size();
 
     std::vector<cvc::GpuMat> features;
     std::vector<std::vector<proto::Keypoint>> kps;
 
-    for (i32 i = 0; i < C_.T; ++i) {
-      size_t size = keypoints_col.rows[i].size;
+    for (i32 i = 0; i < window_size; ++i) {
+      size_t size = keypoints_col[i].size;
       u8* buf = new_buffer(CPU_DEVICE, size);
-      memcpy_buffer(buf, CPU_DEVICE, keypoints_col.rows[i].buffer, device_,
+      memcpy_buffer(buf, CPU_DEVICE, keypoints_col[i].buffer, device_,
                     size);
       std::vector<proto::Keypoint> kp =
-          deserialize_proto_vector<proto::Keypoint>(buf, size);
+        deserialize_proto_vector<proto::Keypoint>(buf, size);
       kps.push_back(kp);
 
-      size = features_col.rows[i].size;
+      size = features_col[i].size;
       if (kp.size() == 0) {
         features.push_back(cvc::GpuMat());
       } else {
@@ -95,48 +92,18 @@ class FeatureMatcherKernel : public VideoKernel {
         }
         LOG_IF(FATAL, cols != 64) << "Not 64 cols: " << cols;
         features.push_back(cvc::GpuMat(kp.size(), cols, CV_32F,
-                                       features_col.rows[i].buffer, step));
+                                       features_col[i].buffer, step));
       }
     }
 
-    size_t size = C_.w * sizeof(f32);
-    for (i32 i = 0; i < C_.T; ++i) {
-      f32* cost_buf = (f32*)new_buffer(CPU_DEVICE, size);
-      for (i32 j = i + 1; j <= i + C_.w; j++) {
-        f32 cost;
-        if (j >= C_.T) {
-          i32 offset = j - C_.T;
-          cost = match_cost(kps[i], features[i], kps_suffix_[offset],
-                            features_suffix_[offset]);
-        } else {
-          cost = match_cost(kps[i], features[i], kps[j], features[j]);
-        }
-        cost_buf[j - i - 1] = cost;
-      }
-      u8* output_buf = new_buffer(device_, size);
-      memcpy_buffer(output_buf, device_, (u8*)cost_buf, CPU_DEVICE, size);
-      insert_element(output_columns[0], output_buf, size);
+    size_t size = window_size * sizeof(f32);
+    f32* cost_buf = (f32*)new_buffer(CPU_DEVICE, size);
+    for (i32 j = 1; j < window_size; j++) {
+      f32 cost = match_cost(kps[0], features[0], kps[j], features[j]);
+      cost_buf[j] = cost;
     }
 
-    features_suffix_.clear();
-    kps_suffix_.clear();
-    features_suffix_.resize(C_.w);
-    for (i32 i = 0; i < C_.w; ++i) {
-      i32 offset = C_.T - C_.w + i;
-      features[offset].copyTo(features_suffix_[i]);
-      LOG_IF(FATAL, features[offset].rows != features_suffix_[i].rows)
-          << "no really wtf";
-      LOG_IF(FATAL, features[offset].rows != kps[offset].size()) << "wtf";
-      kps_suffix_.push_back(kps[offset]);
-      if (i == 0) {
-        LOG(INFO) << i << " " << kps[offset].size();
-      }
-    }
-  }
-
-  void set_device() {
-    CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id)); });
-    cvc::setDevice(device_.id);
+    insert_element(output_columns[0], (u8*) cost_buf, size);
   }
 
  private:
@@ -194,26 +161,6 @@ class FeatureMatcherKernel : public VideoKernel {
       }
     }
 
-    // cv::Mat img_1 = cv::imread("/tmp/0001.jpg");
-    // cv::Mat img_2 = cv::imread("/tmp/0003.jpg");
-
-    // cv::Mat img_matches;
-    // std::vector<cv::KeyPoint> kp1_cv, kp2_cv;
-    // for (i32 i = 0; i< kp1.size(); ++i) {
-    //   kp1_cv.emplace_back(kp1[i].x(), kp1[i].y(), 1);
-    // }
-    // for (i32 i = 0; i < kp2.size(); ++i) {
-    //   kp2_cv.emplace_back(kp2[i].x(), kp2[i].y(), 1);
-    // }
-
-    // cv::drawMatches( img_1, kp1_cv, img_2, kp2_cv,
-    //                  good_matches, img_matches, cv::Scalar::all(-1),
-    //                  cv::Scalar::all(-1),
-    //                  std::vector<char>(),
-    //                  cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-    // cv::imwrite("out.jpg", img_matches);
-    // LOG(FATAL) << "whelp";
-
     // Need at least 4 points to find a homography
     if (fr1.size() < 4) {
       return C_.gamma;
@@ -248,8 +195,10 @@ class FeatureMatcherKernel : public VideoKernel {
 };
 
 REGISTER_OP(FeatureMatcher)
-    .inputs({"features", "keypoints", "frame_info"})
-    .outputs({"cost_matrix"});
+  .input("features")
+  .input("keypoints")
+  .input("frame_info")
+  .output("cost_matrix");
 
 REGISTER_KERNEL(FeatureMatcher, FeatureMatcherKernel)
     .device(DeviceType::GPU)
