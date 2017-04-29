@@ -49,9 +49,11 @@ class ResizeKernel : public VideoKernel {
         cv::Mat out_mat = frame_to_mat(output_frames[i]);
         cv::resize(img, out_mat, cv::Size(target_width, target_height));
       } else {
-        cvc::GpuMat img = frame_to_gpu_mat(frame_col[i].as_const_frame());
-        cvc::GpuMat out_mat = frame_to_gpu_mat(output_frames[i]);
-        cvc::resize(img, out_mat, cv::Size(target_width, target_height));
+        CUDA_PROTECT({
+          cvc::GpuMat img = frame_to_gpu_mat(frame_col[i].as_const_frame());
+          cvc::GpuMat out_mat = frame_to_gpu_mat(output_frames[i]);
+          cvc::resize(img, out_mat, cv::Size(target_width, target_height));
+        });
       }
       insert_frame(output_columns[0], output_frames[i]);
     }
@@ -59,8 +61,10 @@ class ResizeKernel : public VideoKernel {
 
   void set_device() {
     if (device_.type == DeviceType::GPU) {
-      CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id)); });
-      cvc::setDevice(device_.id);
+      CUDA_PROTECT({
+        CU_CHECK(cudaSetDevice(device_.id));
+        cvc::setDevice(device_.id);
+      });
     }
   }
 
