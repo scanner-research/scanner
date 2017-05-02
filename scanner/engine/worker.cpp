@@ -822,12 +822,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     free(result);
   }
 
-  CUDA_PROTECT({
-    for (auto id : gpu_ids) {
-      cudaSetDevice(id);
-      cudaDeviceReset();
-    }
-  });
+#ifdef HAVE_CUDA
+  for (auto id : gpu_ids) {
+    cudaSetDevice(id);
+    cudaDeviceReset();
+  }
+#endif
 
 // Ensure all files are flushed
 #ifdef SCANNER_PROFILING
