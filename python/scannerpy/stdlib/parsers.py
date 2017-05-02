@@ -9,8 +9,8 @@ def bboxes(bufs, db):
     buf = buf[8:]
     bboxes = []
     for i in range(num_bboxes):
-        (bbox_size,) = struct.unpack("=i", buf[:4])
-        buf = buf[4:]
+        (bbox_size,) = struct.unpack("=Q", buf[:8])
+        buf = buf[8:]
         box = db.protobufs.BoundingBox()
         box.ParseFromString(buf[:bbox_size])
         buf = buf[bbox_size:]
@@ -28,8 +28,8 @@ def poses(buf, db):
         buf = buf[8:]
         joints = np.zeros((15, 3))
         for i in range(num_joints):
-            point_size, = struct.unpack("=i", buf[:4])
-            buf = buf[4:]
+            point_size, = struct.unpack("=Q", buf[:8])
+            buf = buf[8:]
             point = db.protobufs.Point()
             point.ParseFromString(buf[:point_size])
             buf = buf[point_size:]
