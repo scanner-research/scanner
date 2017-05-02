@@ -19,6 +19,7 @@
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
+#include "scanner/util/cuda.h"
 
 #include <arpa/inet.h>
 #include <grpc/grpc_posix.h>
@@ -820,6 +821,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     LOG_IF(FATAL, err != 0) << "error in pthread_join of save thread";
     free(result);
   }
+
+  CUDA_PROTECT({
+    for (auto id : gpu_ids) {
+      cudaSetDevice(id);
+      cudaDeviceReset();
+    }
+  });
 
 // Ensure all files are flushed
 #ifdef SCANNER_PROFILING

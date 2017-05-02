@@ -44,12 +44,12 @@ class Column:
         lens = []
         start_pos = None
         pos = 0
-        (num_rows,) = struct.unpack("l", contents[:8])
+        (num_rows,) = struct.unpack("=Q", contents[:8])
 
         i = 8
         rows = rows if len(rows) > 0 else range(num_rows)
         for fi in range(num_rows):
-            (buf_len,) = struct.unpack("l", contents[i:i+8])
+            (buf_len,) = struct.unpack("=Q", contents[i:i+8])
             i += 8
             old_pos = pos
             pos += buf_len
