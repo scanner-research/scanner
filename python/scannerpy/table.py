@@ -3,6 +3,7 @@ from column import Column
 import struct
 from itertools import izip
 from sampler import SamplerOp
+from timeit import default_timer as now
 
 class Table:
     """
@@ -14,6 +15,15 @@ class Table:
         self._db = db
         self._descriptor = descriptor
         self._columns = []
+        self._job_id = self._descriptor.job_id
+
+    def id(self):
+        return self._descriptor.id
+
+    def name(self):
+        return self._descriptor.name
+
+    def _load_columns(self):
         for c in self._descriptor.columns:
             video_descriptor = None
             if c.type == self._db.protobufs.Video:
@@ -24,11 +34,11 @@ class Table:
                         c.id))
             self._columns.append(Column(self, c, video_descriptor))
 
-        job_id = self._descriptor.job_id
-        if job_id != -1:
+    def _load_job(self):
+        if self._job_id != -1:
             self._job = self._db._load_descriptor(
                 self._db.protobufs.JobDescriptor,
-                'jobs/{}/descriptor.bin'.format(job_id))
+                'jobs/{}/descriptor.bin'.format(self._job_id))
             self._task = None
             for task in self._job.tasks:
                 if task.output_table_name == self._descriptor.name:
@@ -39,16 +49,18 @@ class Table:
         else:
             self._job = None
 
-    def id(self):
-        return self._descriptor.id
 
-    def name(self):
-        return self._descriptor.name
+    # HACK(wcrichto): reading from TableDescriptor to avoid loading VideoDescriptors
+    def column_names(self):
+        return [c.name for c in self._descriptor.columns]
 
     def column(self, index):
         return self.columns(index)
 
     def columns(self, index=None):
+        if len(self._columns) == 0:
+            self._load_columns()
+
         columns = self._columns
         if index is not None:
             col = None
@@ -80,15 +92,14 @@ class Table:
         return struct.unpack("=Q", bufs[0])[0]
 
     def parent_rows(self):
-        if self._job is None:
+        if self._job_id == -1:
             raise ScannerException('Table {} has no parent'.format(self.name()))
 
         return [i for _, i in self.load(['index'], fn=self._parse_index)]
 
     def profiler(self):
-        job_id = self._descriptor.job_id
-        if job_id != -1:
-            return self._db.profiler(job_id)
+        if self._job_id != -1:
+            return self._db.profiler(self._job_id)
         else:
             raise ScannerException('Ingested videos do not have profile data')
 
