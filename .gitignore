@@ -2,6 +2,7 @@
 # similar but **not quite** the same. If you add a file here, make sure that
 # the Docker build still works.
 
+nvidia-docker-compose.yml
 .cache
 build
 **/*.pyc

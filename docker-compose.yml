@@ -1,0 +1,6 @@
+version: "2"
+services:
+  scanner:
+    image: scannerresearch/scanner:gpu
+    ports:
+      - "8888:8888"
