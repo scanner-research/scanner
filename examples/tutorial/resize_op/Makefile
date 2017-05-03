@@ -5,10 +5,19 @@ SCANNER_FLAGS = `python -c "import scannerpy; scannerpy.Database().print_build_f
 # Change this to whatever your OpenCV directory is
 OpenCV_DIR=/opt/opencv-3.2.0
 
-all:
+all: build/libresize_op.so
+
+clean:
+	rm -rf build/*
+
 # protoc generates the Python and C++ bindings for the ResizeArgs class.
+build/resize.pb.cc: resize.proto
 	protoc resize.proto --python_out=build --cpp_out=build
+
 # g++ builds the op library
-	g++ build/resize.pb.cc resize_op.cpp -o build/libresize_op.so ${SCANNER_FLAGS} \
+build/libresize_op.so: build/resize.pb.cc resize_op.cpp
+	g++ $^ -o $@ ${SCANNER_FLAGS} \
 		-I ${OpenCV_DIR}/include -L ${OpenCV_DIR}/lib -lopencv_core -lopencv_imgproc \
 		-I build
+
+.PHONY: clean

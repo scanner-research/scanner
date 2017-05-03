@@ -22,7 +22,7 @@ with Database() as db:
     frame = db.table('example').as_op().all()
 
     # Then we use our op just like in the other examples.
-    resize = db.ops.Resize(
+    resize = db.ops.MyResize(
         frame = frame,
         width = 200, height = 300)
 
