@@ -21,7 +21,10 @@ class InfoFromFrameKernel : public Kernel {
 
       u8* buffer = output_block + i * sizeof(FrameInfo);
       FrameInfo* info = reinterpret_cast<FrameInfo*>(buffer);
-      *info = frame->as_frame_info();
+      FrameInfo info_cpu = frame->as_frame_info();
+      memcpy_buffer((u8*) info, device_,
+                    (u8*) &info_cpu, CPU_DEVICE,
+                    sizeof(FrameInfo));
       insert_element(output_columns[0], buffer, sizeof(FrameInfo));
     }
   }
