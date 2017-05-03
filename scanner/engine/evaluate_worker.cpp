@@ -317,6 +317,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         max_row_id_seen = std::max(side_row_ids[r], max_row_id_seen);
       }
     }
+
     // Filter unused elements from side output columns
     BatchedColumns temp_side(side_output_columns.size());
     std::vector<i64> temp_row;
@@ -409,6 +410,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         }
         output_columns.erase(output_columns.begin() + unused_col_idx);
       }
+
       // Verify the kernel produced the correct amount of output
       for (size_t i = 0; i < output_columns.size(); ++i) {
         LOG_IF(FATAL, output_columns[i].size() != kernel_batch_size)
@@ -416,6 +418,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
             << " output elements for column " << i << ". Expected "
             << kernel_batch_size << " outputs.";
       }
+
       // Add new output columns
       for (size_t cidx = 0; cidx < output_columns.size(); ++cidx) {
         const ElementList& column = output_columns[cidx];
@@ -424,7 +427,25 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         side_output_columns[col_idx].insert(side_output_columns[col_idx].end(),
                                             column.begin(), column.end());
       }
+
+      // Remove elements from the stencil cache we won't access anymore
+      i64 last_cache_element = 0;
+      i64 min_used_row = kernel_valid_rows[
+        start + kernel_batch_size - kernel_stencil[0]];
+      for (size_t i = 0; i < kernel_cache.size(); ++i) {
+        auto& cache_deque = kernel_cache[i];
+        while (cache_deque.size() > 0) {
+          auto& kv = cache_deque.front();
+          i64 cache_row = std::get<0>(kv);
+          if (cache_row < min_used_row) {
+            cache_deque.pop_front();
+          } else {
+            break;
+          }
+        }
+      }
     }
+
     // Delete dead columns
     for (size_t y = 0; y < dead_columns_[k].size(); ++y) {
       i32 dead_col_idx = dead_columns_[k][dead_columns_[k].size() - 1 - y];
