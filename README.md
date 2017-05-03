@@ -35,7 +35,7 @@ Scanner is an active research project, part of a collaboration between Carnegie 
 
 To quickly dive into Scanner, you can use one of our prebuilt [Docker images](https://hub.docker.com/r/scannerresearch/scanner). Start by [installing Docker](https://docs.docker.com/engine/installation/#supported-platforms).
 
-If you have a GPU, install [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) and run:
+If you have a GPU and you're running on Linux, install [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) and run:
 
 ```bash
 pip install --upgrade nvidia-docker-compose
@@ -43,7 +43,7 @@ wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker-co
 nvidia-docker-compose run --service-ports gpu /bin/bash
 ```
 
-If you don't have a GPU, then run:
+Otherwise, you should run:
 
 
 ```bash
