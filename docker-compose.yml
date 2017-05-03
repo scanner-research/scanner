@@ -1,6 +1,10 @@
 version: "2"
 services:
-  scanner:
+  gpu:
     image: scannerresearch/scanner:gpu
+    ports:
+      - "8888:8888"
+  cpu:
+    image: scannerresearch/scanner:cpu
     ports:
       - "8888:8888"

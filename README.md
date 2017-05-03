@@ -33,31 +33,33 @@ Scanner is an active research project, part of a collaboration between Carnegie 
 
 ## Quick start ##
 
-To quickly dive into Scanner, you can use one of our prebuilt [Docker images](https://hub.docker.com/r/scannerresearch/scanner). To run a GPU image, you must install and use [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
+To quickly dive into Scanner, you can use one of our prebuilt [Docker images](https://hub.docker.com/r/scannerresearch/scanner). Start by [installing Docker](https://docs.docker.com/engine/installation/#supported-platforms).
+
+If you have a GPU, install [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) and run:
 
 ```bash
-nvidia-docker run -d --name scanner -ti scannerresearch/scanner:gpu /bin/bash
-nvidia-docker attach scanner
+pip install --upgrade nvidia-docker-compose
+wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker-compose.yml
+nvidia-docker-compose run --service-ports gpu /bin/bash
 ```
 
-_Note: if you don't have a GPU, then run `docker` instead of `nvidia-docker` and use `scanner:cpu` instead of `scanner:gpu` in the Docker image name._
+If you don't have a GPU, then run:
+
+
+```bash
+pip install --upgrade docker-compose
+wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker-compose.yml
+docker-compose run --service-ports cpu /bin/bash
+```
 
 Then inside your Docker container, run:
 
 ```bash
-# Download the face detector model
-./nets/get_caffe_facenet.sh
-# Detect faces in a video
-python examples/face_detection/face_detect.py
+cd examples
+jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
 ```
 
-This runs a Scanner demo which detects faces in every frame of a short video from YouTube, creating a file `example_faces.mp4`. Type `Ctrl-P + Ctrl-Q` to detach from the container and then run:
-
-```bash
-nvidia-docker cp scanner:/opt/scanner/example_faces.mp4 .
-```
-
-Then you can view the generated video on your own machine. That's it!
+Then in your browser, go to [http://localhost:8888](http://localhost:8888) and copy in the token from the Jupyter console logs.
 
 ## Learning Scanner ##
 
