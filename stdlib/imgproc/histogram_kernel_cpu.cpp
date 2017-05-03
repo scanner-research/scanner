@@ -8,10 +8,10 @@ namespace {
 const i32 BINS = 16;
 }
 
-class HistogramKernelCPU : public Kernel {
+class HistogramKernelCPU : public BatchedKernel {
  public:
-  HistogramKernelCPU(const Kernel::Config& config)
-    : Kernel(config), device_(config.devices[0]) {}
+  HistogramKernelCPU(const KernelConfig& config)
+    : BatchedKernel(config), device_(config.devices[0]) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
@@ -22,7 +22,7 @@ class HistogramKernelCPU : public Kernel {
     u8* output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
-    cv::Mat tmp;
+    cv::Mat tmp(BINS, 1, CV_32F);
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
 
@@ -31,11 +31,13 @@ class HistogramKernelCPU : public Kernel {
 
       u8* output_buf = output_block + i * hist_size;
 
+      std::vector<cv::Mat> bgr_planes;
+      cv::split(img, bgr_planes);
+
       for (i32 j = 0; j < 3; ++j) {
-        int channels[] = {j};
-        cv::Mat out(BINS, 1, CV_32F, output_buf + BINS * sizeof(float));
-        cv::calcHist(&img, 1, channels, cv::Mat(), out, 1, &BINS, &histRange);
-        out.convertTo(out, CV_32S);
+        cv::Mat out(BINS, 1, CV_32S, output_buf + j * BINS * sizeof(float));
+        cv::calcHist(&bgr_planes[j], 1, 0, cv::Mat(), tmp, 1, &BINS, &histRange);
+        tmp.convertTo(out, CV_32S);
       }
 
       insert_element(output_columns[0], output_buf, hist_size);
