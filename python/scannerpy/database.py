@@ -10,6 +10,7 @@ import pickle
 import struct
 import signal
 import copy
+from timeit import default_timer as now
 from multiprocessing import Process, Queue
 from subprocess import Popen, PIPE
 from random import choice
@@ -212,7 +213,7 @@ class Database:
                     str(self.table(t.id).num_rows()) for t in db_meta.tables
                 ]),
                 ('Columns', [
-                    ', '.join([c.name() for c in self.table(t.id).columns()])
+                    ', '.join(self.table(t.id).column_names())
                     for t in db_meta.tables
                 ]),
             ]),
