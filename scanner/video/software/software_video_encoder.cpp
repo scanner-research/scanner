@@ -290,7 +290,7 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
   auto send_end = now();
   auto receive_start = now();
   auto receive_end = now();
-  LOG(FATAL) << "Not supported";
+  LOG(FATAL) << "Frame output requires libavcodec >= 57.25.0";
 #endif
   if (profiler_) {
     profiler_->add_interval("ffmpeg:send_frame", send_start, send_end);

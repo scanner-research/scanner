@@ -13,20 +13,20 @@
 
 // Custom kernels must inherit the Kernel class or any subclass thereof,
 // e.g. the VideoKernel which provides support for processing video frames.
-class ResizeKernel : public scanner::VideoKernel {
+class MyResizeKernel : public scanner::VideoKernel {
  public:
   // To allow ops to be customized by users at a runtime, e.g. to define the
-  // target width and height of the ResizeKernel, Scanner uses Google's Protocol
+  // target width and height of the MyResizeKernel, Scanner uses Google's Protocol
   // Buffers, or protobufs, to define serialzable types usable in C++ and
   // Python (see resize_op/args.proto). By convention, ops that take
   // arguments must define a protobuf called <OpName>Args, e.g. ResizeArgs,
   // In Python, users will provide the argument fields to the op constructor,
   // and these will get serialized into a string. This string is part of the
   // general configuration each kernel receives from the runtime, config.args.
-  ResizeKernel(const scanner::Kernel::Config& config)
+  MyResizeKernel(const scanner::Kernel::Config& config)
       : scanner::VideoKernel(config) {
     // The protobuf arguments must be decoded from the input string.
-    ResizeArgs args;
+    MyResizeArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
     width_ = args.width();
     height_ = args.height();
@@ -46,23 +46,22 @@ class ResizeKernel : public scanner::VideoKernel {
     check_frame(scanner::CPU_DEVICE, frame_column[0]);
 
     auto& resized_frame_column = output_columns[0];
-    FrameInfo output_frame_info(height_, width_, 3, FrameType::U8);
+    scanner::FrameInfo output_frame_info(
+      height_, width_, 3, scanner::FrameType::U8);
+
     for (int i = 0; i < input_count; ++i) {
       // Get a frame from the batch of input frames
-      const Frame* frame = frame_column[i].as_const_frame();
-      // Convert the input frame into an OpenCV matrix
-      cv::Mat input = frame_to_mat(frame);
+      const scanner::Frame* frame = frame_column[i].as_const_frame();
+      cv::Mat input = scanner::frame_to_mat(frame);
 
       // Allocate a frame for the resized output frame
-      Frame* resized_frame = new_frame(scanner::CPU_DEVICE, output_frame_info);
-      // Convert the output frame to an OpenCV matrix
-      cv::Mat output = frame_to_mat(resized_frame);
+      scanner::Frame* resized_frame =
+        scanner::new_frame(scanner::CPU_DEVICE, output_frame_info);
+      cv::Mat output = scanner::frame_to_mat(resized_frame);
 
-      // Call to OpenCV for the resize
       cv::resize(input, output, cv::Size(width_, height_));
 
-      // Add the resized frame to an output column
-      insert_frame(resized_frame_column, resized_frame);
+      scanner::insert_frame(resized_frame_column, resized_frame);
     }
   }
 
@@ -74,8 +73,8 @@ class ResizeKernel : public scanner::VideoKernel {
 // These functions run statically when the shared library is loaded to tell the
 // Scanner runtime about your custom op.
 
-REGISTER_OP(Resize).frame_input("frame").frame_output("frame");
+REGISTER_OP(MyResize).frame_input("frame").frame_output("frame");
 
-REGISTER_KERNEL(Resize, ResizeKernel)
+REGISTER_KERNEL(MyResize, MyResizeKernel)
     .device(scanner::DeviceType::CPU)
     .num_devices(1);
