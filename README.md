@@ -40,7 +40,7 @@ If you have a GPU and you're running on Linux, install [nvidia-docker](https://g
 ```bash
 pip install --upgrade nvidia-docker-compose
 wget http://raw.githubusercontent.com/scanner-research/scanner/master/docker-compose.yml
-nvidia-docker-compose pull
+nvidia-docker-compose pull gpu
 nvidia-docker-compose run --service-ports gpu /bin/bash
 ```
 
@@ -50,7 +50,7 @@ Otherwise, you should run:
 ```bash
 pip install --upgrade docker-compose
 wget http://raw.githubusercontent.com/scanner-research/scanner/master/docker-compose.yml
-docker-compose pull
+docker-compose pull cpu
 docker-compose run --service-ports cpu /bin/bash
 ```
 
