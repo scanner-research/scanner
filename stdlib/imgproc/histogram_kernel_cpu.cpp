@@ -8,10 +8,10 @@ namespace {
 const i32 BINS = 16;
 }
 
-class HistogramKernelCPU : public BatchedKernel {
+class HistogramKernelCPU : public VideoKernel {
  public:
-  HistogramKernelCPU(const KernelConfig& config)
-    : BatchedKernel(config), device_(config.devices[0]) {}
+  HistogramKernelCPU(const Kernel::Config& config)
+    : VideoKernel(config), device_(config.devices[0]) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
