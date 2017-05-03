@@ -90,8 +90,11 @@ class OpGenerator:
                                                .format(name, c.name))
                     inputs.append(val)
             device = kwargs.pop('device', DeviceType.CPU)
+            batch = kwargs.pop('batch', -1)
+            warmup = kwargs.pop('warmup', 0)
+            stencil = kwargs.pop('stencil', [0])
             args = kwargs.pop('args', None)
-            op = Op(self._db, name, inputs, device,
+            op = Op(self._db, name, inputs, device, batch, warmup, stencil,
                     kwargs if args is None else args)
             return op.outputs()
 
@@ -99,24 +102,27 @@ class OpGenerator:
 
 
 class Op:
-    def __init__(self, db, name, inputs, device, args):
+    def __init__(self, db, name, inputs, device, batch=-1, warmup=0, stencil=[0], args={}):
         self._db = db
         self._name = name
         self._inputs = inputs
         self._device = device
+        self._batch = batch
+        self._warmup = warmup
+        self._stencil = stencil
         self._args = args
         self._task = None
 
     @classmethod
     def input(cls, db, inputs, generator, collection):
-        c = cls(db, "InputTable", inputs, DeviceType.CPU, {})
+        c = cls(db, "InputTable", inputs, DeviceType.CPU)
         c._generator = generator
         c._collection = collection
         return c
 
     @classmethod
     def output(cls, db, inputs):
-        return cls(db, "OutputTable", inputs, DeviceType.CPU, {})
+        return cls(db, "OutputTable", inputs, DeviceType.CPU)
 
     def inputs(self):
         return self._inputs
@@ -137,7 +143,10 @@ class Op:
     def to_proto(self, indices):
         e = self._db.protobufs.Op()
         e.name = self._name
-        e.batch = -1
+        e.batch = self._batch
+        e.device_type = DeviceType.to_proto(self._db, self._device)
+        # e.stencil.extend(self._stencil)
+        e.warmup = self._warmup
 
         if e.name == "InputTable":
             inp = e.inputs.add()
@@ -149,8 +158,6 @@ class Op:
                 idx = indices[i._op] if i._op is not None else -1
                 inp.op_index = idx
                 inp.columns.append(i._col)
-
-        e.device_type = DeviceType.to_proto(self._db, self._device)
 
         if isinstance(self._args, dict):
             # To convert an arguments dict, we search for a protobuf with the

@@ -198,6 +198,7 @@ REGISTER_OP(FeatureMatcher)
   .input("features")
   .input("keypoints")
   .input("frame_info")
+  .stencil()
   .output("cost_matrix");
 
 REGISTER_KERNEL(FeatureMatcher, FeatureMatcherKernel)
