@@ -76,7 +76,18 @@ class Allocator {
 class SystemAllocator : public Allocator {
  public:
   SystemAllocator(DeviceHandle device, bool pinned = false)
-    : device_(device), pinned_(pinned) {}
+    : device_(device), pinned_(pinned) {
+  }
+
+  ~SystemAllocator() {
+    // Device reset ensures cuda-memcheck will work
+    if (device_.type == DeviceType::GPU) {
+      CUDA_PROTECT({
+        CU_CHECK(cudaSetDevice(device_.id));
+        CU_CHECK(cudaDeviceReset());
+      });
+    }
+  }
 
   u8* allocate(size_t size) {
     if (device_.type == DeviceType::CPU) {
@@ -96,7 +107,7 @@ class SystemAllocator : public Allocator {
       CUDA_PROTECT({
         CU_CHECK(cudaSetDevice(device_.id));
         CU_CHECK(cudaMalloc((void**)&buffer, size));
-      })
+      });
       return buffer;
     }
   }
@@ -141,7 +152,9 @@ class PoolAllocator : public Allocator {
     pool_ = system_allocator->allocate(pool_size_);
   }
 
-  ~PoolAllocator() { system_allocator->free(pool_); }
+  ~PoolAllocator() {
+    system_allocator->free(pool_);
+  }
 
   u8* allocate(size_t size) {
     Allocation alloc;
