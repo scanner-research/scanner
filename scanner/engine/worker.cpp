@@ -27,6 +27,8 @@
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <sys/socket.h>
+#include <boost/python.hpp>
+#include <boost/python/numpy.hpp>
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -227,6 +229,10 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
+
+  // Set up Python runtime if any kernels need it
+  Py_Initialize();
+  boost::python::numpy::initialize();
 }
 
 WorkerImpl::~WorkerImpl() {

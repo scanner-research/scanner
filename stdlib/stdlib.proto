@@ -64,7 +64,8 @@ message Keypoint {
 }
 
 message PythonArgs {
-  bytes kernel = 1;
+  string kernel_path = 1;
+  bytes py_args = 2;
 }
 
 message ResizeArgs {

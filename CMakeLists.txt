@@ -85,7 +85,7 @@ find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
+find_package(Boost COMPONENTS thread program_options regex REQUIRED)
 find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GoogleTest REQUIRED)
@@ -116,6 +116,7 @@ set(SCANNER_LIBRARIES
   "${PROXYGEN_LIBRARIES}"
   "${FOLLY_LIBRARIES}"
   "${Boost_LIBRARIES}"
+  "${BOOST_ROOT}/lib/libboost_numpy.so"
   "${GFLAGS_LIBRARIES}"
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
