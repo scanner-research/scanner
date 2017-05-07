@@ -10,6 +10,7 @@ import pickle
 import struct
 import signal
 import copy
+
 from timeit import default_timer as now
 from multiprocessing import Process, Queue
 from subprocess import Popen, PIPE
@@ -485,6 +486,16 @@ class Database:
         op_path = self.protobufs.OpPath()
         op_path.path = so_path
         self._try_rpc(lambda: self._master.LoadOp(op_path))
+
+    def register_python_op(self, kernel_path):
+        kernel_path = os.path.abspath(kernel_path)
+        def make_op(*args, **kwargs):
+            return self.ops.Python(
+                *args,
+                py_args = pickle.dumps(kwargs),
+                kernel_path = kernel_path)
+
+        return make_op
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')

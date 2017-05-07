@@ -4,10 +4,12 @@
 #include "stdlib/stdlib.pb.h"
 
 #include <boost/python.hpp>
+#include <boost/python/numpy.hpp>
 
 namespace scanner {
 
 namespace py = boost::python;
+namespace np = boost::python::numpy;
 
 std::string handle_pyerror() {
   using namespace boost::python;
@@ -32,10 +34,42 @@ std::string handle_pyerror() {
 class PythonKernel : public Kernel {
  public:
   PythonKernel(const Kernel::Config& config)
-    : Kernel(config), device_(config.devices[0]) {
+    : Kernel(config), device_(config.devices[0]), config_(config) {
+
     if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
       LOG(FATAL) << "Failed to parse args";
     }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    try {
+      py::object main = py::import("__main__");
+      main.attr("path") = py::str(args_.kernel_path());
+      main.attr("args") = py::str(args_.py_args());
+      py::object main_namespace = main.attr("__dict__");
+      py::exec(
+          "import sys, importlib, pickle, os.path as osp\n"
+          "(dir, fil) = osp.split(path)\n"
+          "sys.path.append(dir)\n"
+          "mod = importlib.import_module(osp.splitext(fil)[0])\n"
+          "kernel = mod.Kernel(**pickle.loads(args))",
+          main_namespace);
+    } catch (py::error_already_set& e) {
+      LOG(FATAL) << handle_pyerror();
+    }
+
+    PyGILState_Release(gstate);
+  }
+
+  ~PythonKernel() {
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    try {
+      py::object main = py::import("__main__");
+      py::object kernel = main.attr("kernel");
+      kernel.attr("close")();
+    } catch (py::error_already_set& e) {
+      LOG(FATAL) << handle_pyerror();
+    }
+    PyGILState_Release(gstate);
   }
 
   void execute(const BatchedColumns& input_columns,
@@ -46,23 +80,29 @@ class PythonKernel : public Kernel {
 
     try {
       py::object main = py::import("__main__");
-      main.attr("code") = py::str(args_.kernel());
-      py::object main_namespace = main.attr("__dict__");
-      py::exec(
-          "import types, marshal\n"
-          "f = types.FunctionType(marshal.loads(code), globals(), "
-          "\"ignore\")\n",
-          main_namespace);
+      py::object kernel = main.attr("kernel");
+
       for (i32 i = 0; i < input_count; ++i) {
         py::list cols;
         for (i32 j = 0; j < input_columns.size(); ++j) {
-          cols.append(py::str((char const*)input_columns[j][i].buffer,
-                              input_columns[j][i].size));
+          // HACK(wcrichto): should pass column type in config and check here
+          if (config_.input_columns[j] == "frame") {
+            const Frame* frame = input_columns[j][i].as_const_frame();
+            np::ndarray frame_np = np::from_data(
+              frame->data,
+              np::dtype::get_builtin<uint8_t>(),
+              py::make_tuple(frame->height(), frame->width(), frame->channels()),
+              py::make_tuple(frame->width() * frame->channels(),
+                             frame->channels(), 1),
+              py::object());
+            cols.append(frame_np);
+          } else {
+            cols.append(py::str((char const*)input_columns[j][i].buffer,
+                                input_columns[j][i].size));
+          }
         }
-        main.attr("columns") = cols;
 
-        py::list out_cols =
-            py::extract<py::list>(py::eval("f(columns)", main_namespace));
+        py::list out_cols = py::extract<py::list>(kernel.attr("execute")(cols));
         LOG_IF(FATAL, py::len(out_cols) != output_columns.size())
             << "Incorrect number of output columns. Expected "
             << output_columns.size();
@@ -83,11 +123,12 @@ class PythonKernel : public Kernel {
   }
 
  private:
+  Kernel::Config config_;
   DeviceHandle device_;
   proto::PythonArgs args_;
 };
 
-REGISTER_OP(Python).frame_input("frame").output("dummy");
+REGISTER_OP(Python).variadic_inputs().output("py_output");
 
 REGISTER_KERNEL(Python, PythonKernel).device(DeviceType::CPU).num_devices(1);
 }
