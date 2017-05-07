@@ -116,5 +116,5 @@ endif()
 find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
 target_link_libraries(stdlib PUBLIC
   "${Boost_LIBRAIRES}"
-  "${BOOST_ROOT}/lib/libboost_numpy.so")
+  "${Boost_LIBRARY_DIRS}/libboost_numpy.so")
 target_include_directories(stdlib PUBLIC "${Boost_INCLUDE_DIRS}")

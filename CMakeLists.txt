@@ -116,7 +116,7 @@ set(SCANNER_LIBRARIES
   "${PROXYGEN_LIBRARIES}"
   "${FOLLY_LIBRARIES}"
   "${Boost_LIBRARIES}"
-  "${BOOST_ROOT}/lib/libboost_numpy.so"
+  "${Boost_LIBRARY_DIRS}/libboost_numpy.so"
   "${GFLAGS_LIBRARIES}"
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
