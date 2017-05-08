@@ -3,7 +3,7 @@ from .. import DeviceType, Job
 from ..collection import Collection
 import math
 
-def detect_faces(db, input_table, sampling, output_name):
+def detect_faces(db, input_table, sampling, output_name, max_width=960):
     descriptor = NetDescriptor.from_file(db, 'nets/caffe_facenet.toml')
     facenet_args = db.protobufs.FacenetArgs()
     facenet_args.threshold = 0.5
@@ -21,7 +21,7 @@ def detect_faces(db, input_table, sampling, output_name):
         frame = sampling(input_table.as_op())
         resized = db.ops.Resize(
             frame = frame,
-            width = 960, height = 0,
+            width = max_width, height = 0,
             min = True, preserve_aspect = True,
             device = DeviceType.GPU)
         frame_info = db.ops.InfoFromFrame(frame = resized)
@@ -41,8 +41,7 @@ def detect_faces(db, input_table, sampling, output_name):
         job = Job(
             columns = [facenet_output],
             name = '{}_faces_{}'.format(output_name, scale))
-        output = db.run(job, force=True)
-        output = db.table('{}_faces_{}'.format(output_name, scale))
+        output = db.run(job, force=True, work_item_size=batch * 4)
         outputs.append(output)
 
     def make_bbox_table(input, outputs, name):
@@ -63,7 +62,7 @@ def detect_faces(db, input_table, sampling, output_name):
 
         _, frame = next(input.load(['frame'], rows=[0]))
         (height, width, _) = frame[0].shape
-        scale = max(width / 960.0, 1.0)
+        scale = max(width / float(max_width), 1.0)
         for bb in nms_bboxes:
             for bbox in bb:
                 bbox.x1 *= scale
