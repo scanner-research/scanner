@@ -9,11 +9,12 @@ import util
 
 with Database() as db:
     print('Ingesting video into Scanner ...')
-    [input_table], _ = db.ingest_videos([('example', util.download_video())], force=True)
+    [input_table], _ = db.ingest_videos(
+        [('example', util.download_video())], force=True)
 
     print('Detecting faces...')
     bboxes_table = pipelines.detect_faces(
-        db, lambda: input_table.as_op().all(), 'example_bboxes')
+        db, input_table, lambda t: t.all(), 'example_bboxes')
 
     print('Drawing faces onto video...')
     frame = input_table.as_op().all()
