@@ -438,6 +438,8 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
           auto& kv = cache_deque.front();
           i64 cache_row = std::get<0>(kv);
           if (cache_row < min_used_row) {
+            Element element = std::get<1>(kv);
+            delete_element(current_handle, element);
             cache_deque.pop_front();
           } else {
             break;

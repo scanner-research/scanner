@@ -44,9 +44,10 @@ with Database(debug=True) as db:
     def compute_matches():
         features, keypoints = db.table('example_surf').as_op().all()
         frame = db.table('example').as_op().all()
-        frame_info = db.ops.InfoFromFrame(frame = frame)
+        frame_info = db.ops.InfoFromFrame(frame = frame, device = DeviceType.GPU)
         cost_matrix = db.ops.FeatureMatcher(
             features = features, keypoints = keypoints, frame_info = frame_info,
+            stencil = range(0, 2),
             device = DeviceType.GPU)
         job = Job(columns = [cost_matrix], name = 'example_matches')
         db.run(job, force = True)
@@ -121,8 +122,8 @@ with Database(debug=True) as db:
         #     [f[0] for i, f in frames if i % 12 == 0],
         #     fps=12.0)
 
-    # create_database()
-    # extract_features()
-    # compute_matches()
-    path = build_path()
-    encode_video(path)
+    create_database()
+    extract_features()
+    compute_matches()
+    # path = build_path()
+    # encode_video(path)
