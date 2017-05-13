@@ -418,15 +418,12 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
           std::max(work_item_size, (i32)work_entry.columns[i].size());
     }
 
-    printf("input size %d\n", work_item_size);
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
     std::tuple<IOItem, EvalWorkEntry> output_entry;
     bool result = worker.yield(work_item_size, output_entry);
     (void)result;
     assert(result);
-
-    printf("output size %d\n", std::get<1>(output_entry).columns[1].size());
 
     profiler.add_interval("task", work_start, now());
 

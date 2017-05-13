@@ -145,7 +145,7 @@ class Op:
         e.name = self._name
         e.batch = self._batch
         e.device_type = DeviceType.to_proto(self._db, self._device)
-        # e.stencil.extend(self._stencil)
+        e.stencil.extend(self._stencil)
         e.warmup = self._warmup
 
         if e.name == "InputTable":

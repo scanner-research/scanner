@@ -82,7 +82,7 @@ class FeatureExtractorKernel : public Kernel, public VideoKernel {
     u8* cv_buf = std::get<0>(features);
     size_t size = std::get<1>(features);
     u8* output_buf = new_buffer(device_, OR_4(size));
-    memcpy_buffer(output_buf, device_, cv_buf, CPU_DEVICE, size);
+    memcpy_buffer(output_buf, device_, cv_buf, device_, size);
     insert_element(output_columns[0], output_buf, OR_4(size));
 
     std::vector<proto::Keypoint> kps_proto;
