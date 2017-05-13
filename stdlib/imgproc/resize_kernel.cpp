@@ -7,10 +7,10 @@
 
 namespace scanner {
 
-class ResizeKernel : public VideoKernel {
+class ResizeKernel : public BatchedKernel {
  public:
-  ResizeKernel(const Kernel::Config& config)
-    : VideoKernel(config), device_(config.devices[0]) {
+  ResizeKernel(const KernelConfig& config)
+    : BatchedKernel(config), device_(config.devices[0]) {
     args_.ParseFromArray(config.args.data(), config.args.size());
   }
 
@@ -18,24 +18,25 @@ class ResizeKernel : public VideoKernel {
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
     set_device();
-    check_frame(device_, frame_col[0]);
+
+    const Frame* frame = frame_col[0].as_const_frame();
 
     i32 target_width = args_.width();
     i32 target_height = args_.height();
     if (args_.preserve_aspect()) {
       if (target_width == 0) {
         target_width =
-            frame_info_.width() * target_height / frame_info_.height();
+            frame->width() * target_height / frame->height();
       } else {
         target_height =
-            frame_info_.height() * target_width / frame_info_.width();
+            frame->height() * target_width / frame->width();
       }
     }
     if (args_.min()) {
-      if (frame_info_.width() <= target_width &&
-          frame_info_.height() <= target_height) {
-        target_width = frame_info_.width();
-        target_height = frame_info_.height();
+      if (frame->width() <= target_width &&
+          frame->height() <= target_height) {
+        target_width = frame->width();
+        target_height = frame->height();
       }
     }
 

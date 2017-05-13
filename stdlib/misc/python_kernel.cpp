@@ -122,7 +122,7 @@ class PythonKernel : public BatchedKernel {
   }
 
  private:
-  Kernel::Config config_;
+  KernelConfig config_;
   DeviceHandle device_;
   proto::PythonArgs args_;
 };
