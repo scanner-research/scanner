@@ -6,10 +6,10 @@
 
 namespace scanner {
 
-class DrawBoxKernelCPU : public Kernel {
+class DrawBoxKernelCPU : public BatchedKernel {
  public:
-  DrawBoxKernelCPU(const Kernel::Config& config)
-    : Kernel(config), device_(config.devices[0]) {}
+  DrawBoxKernelCPU(const KernelConfig& config)
+    : BatchedKernel(config), device_(config.devices[0]) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
