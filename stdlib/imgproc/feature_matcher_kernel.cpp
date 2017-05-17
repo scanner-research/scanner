@@ -103,6 +103,13 @@ protected:
       cost_buf[j] = cost;
     }
 
+    if (device_.type == DeviceType::GPU) {
+      u8* gpu_buf = new_buffer(device_, size);
+      memcpy_buffer(gpu_buf, device_, (u8*) cost_buf, CPU_DEVICE, size);
+      delete_buffer(CPU_DEVICE, (u8*) cost_buf);
+      cost_buf = (f32*) gpu_buf;
+    }
+
     insert_element(output_columns[0], (u8*) cost_buf, size);
   }
 
