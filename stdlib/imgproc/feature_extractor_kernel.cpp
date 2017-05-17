@@ -82,7 +82,7 @@ class FeatureExtractorKernel : public Kernel, public VideoKernel {
     u8* cv_buf = std::get<0>(features);
     size_t size = std::get<1>(features);
     u8* output_buf = new_buffer(device_, OR_4(size));
-    memcpy_buffer(output_buf, device_, cv_buf, device_, size);
+    memcpy_buffer(output_buf, device_, cv_buf, CPU_DEVICE, size);
     insert_element(output_columns[0], output_buf, OR_4(size));
 
     std::vector<proto::Keypoint> kps_proto;
@@ -93,6 +93,8 @@ class FeatureExtractorKernel : public Kernel, public VideoKernel {
       kps_proto.push_back(kp_proto);
     }
 
+
+    output_buf = new_buffer(CPU_DEVICE, OR_4(size));
     serialize_proto_vector(kps_proto, output_buf, size);
     if (device_.type == DeviceType::GPU) {
       u8* gpu_buf = new_buffer(device_, OR_4(size));
