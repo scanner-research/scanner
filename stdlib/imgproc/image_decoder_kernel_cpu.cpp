@@ -11,13 +11,19 @@ namespace codec = cv::cudacodec;
 
 class ImageSource : public codec::RawVideoSource {
 public:
-  ImageSource(const BatchedColumns& input_columns) : input_columns(input_columns) {}
+  ImageSource(const BatchedColumns& input_columns, const cv::Mat& img)
+    : input_columns_(input_columns), img_(img) {}
 
   bool getNextPacket(unsigned char** data, int* size, bool* endOfFile) override {
-    const Element& element = input_columns[0][i];
+    const Element& element = input_columns_[0][i_];
     *data = element.buffer;
     *size = element.size;
     *endOfFile = false;
+    // Theoretically we should be able to set endOfFile to true at the last
+    // frame, but the OpenCV VideoReader appears to return false on a valid
+    // nextFrame request if I do this, so instead I just keep feeding packets
+    // until the loader thread dies.
+    i_ = (i_ + 1) % input_columns_[0].size();
     return true;
   }
 
@@ -25,14 +31,15 @@ public:
     codec::FormatInfo format_info;
     format_info.codec = codec::Codec::JPEG;
     format_info.chromaFormat = codec::ChromaFormat::YUV420;
-    format_info.width = 640; // TODO
-    format_info.height = 480;
+    format_info.width = img_.cols;
+    format_info.height = img_.rows;
     return format_info;
   }
 
 private:
-  int i = 0;
-  const BatchedColumns& input_columns;
+  int i_ = 0;
+  const cv::Mat& img_;
+  const BatchedColumns& input_columns_;
 };
 
 class ImageDecoderKernel : public Kernel {
@@ -47,9 +54,17 @@ class ImageDecoderKernel : public Kernel {
                BatchedColumns& output_columns) override {
     i32 input_count = num_rows(input_columns[0]);
 
+    set_device();
+
+    // Assumes all images are the same size
+    std::vector<u8> input_buf(
+      input_columns[0][0].buffer,
+      input_columns[0][0].buffer + input_columns[0][0].size);
+    cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
+
     // TODO(wcrichto): GPU code shouldn't ideally be in CPU kernel
     cv::Ptr<codec::RawVideoSource> src =
-      cv::Ptr<codec::RawVideoSource>(new ImageSource(input_columns));
+      cv::Ptr<codec::RawVideoSource>(new ImageSource(input_columns, img));
     cv::Ptr<codec::VideoReader> d_reader = codec::createVideoReader(src);
     cv::cuda::GpuMat gpu_frame;
 
@@ -79,6 +94,12 @@ class ImageDecoderKernel : public Kernel {
         LOG(FATAL) << "Invalid image type";
       }
     }
+  }
+
+  void set_device() {
+    // HACK(wcrichto): using CPU id as GPU id...
+    CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id % 4)); });
+    cvc::setDevice(device_.id);
   }
 
 private:
