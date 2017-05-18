@@ -2,6 +2,7 @@
 #include "scanner/api/op.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
+#include "scanner/util/cuda.h"
 #include "stdlib/stdlib.pb.h"
 
 namespace scanner {
@@ -46,6 +47,7 @@ class ImageDecoderKernel : public Kernel {
                BatchedColumns& output_columns) override {
     i32 input_count = num_rows(input_columns[0]);
 
+    // TODO(wcrichto): GPU code shouldn't ideally be in CPU kernel
     cv::Ptr<codec::RawVideoSource> src =
       cv::Ptr<codec::RawVideoSource>(new ImageSource(input_columns));
     cv::Ptr<codec::VideoReader> d_reader = codec::createVideoReader(src);
@@ -57,10 +59,12 @@ class ImageDecoderKernel : public Kernel {
         if (!d_reader->nextFrame(gpu_frame)) {
           LOG(FATAL) << "Failed to decode image";
         }
-        Frame* frame = new_frame(CPU_DEVICE, gpu_mat_to_frame_info(gpu_frame));
-        cv::Mat mat = frame_to_mat(frame);
-        gpu_frame.download(mat);
-        insert_frame(output_columns[0], frame);
+        CUDA_PROTECT({
+          Frame* frame = new_frame(CPU_DEVICE, gpu_mat_to_frame_info(gpu_frame));
+          cv::Mat mat = frame_to_mat(frame);
+          gpu_frame.download(mat);
+          insert_frame(output_columns[0], frame);
+        });
       } else if (image_type == proto::ImageDecoderArgs_ImageType_ANY) {
         std::vector<u8> input_buf(
           input_columns[0][i].buffer,
