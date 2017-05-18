@@ -51,6 +51,8 @@ cvc::GpuMat frame_to_gpu_mat(Frame* frame);
 
 cvc::GpuMat bytesToImage_gpu(u8* buf, const proto::FrameInfo& metadata);
 
+FrameInfo gpu_mat_to_frame_info(const cv::cuda::GpuMat& mat);
+
 cudaError_t convertNV12toRGBA(
     const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame, int width,
     int height, cv::cuda::Stream& stream = cv::cuda::Stream::Null());
