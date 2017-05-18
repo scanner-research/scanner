@@ -74,3 +74,12 @@ message ResizeArgs {
   bool min = 3;
   bool preserve_aspect = 4;
 }
+
+message ImageDecoderArgs {
+  enum ImageType {
+    JPEG = 0;
+    ANY = 1;
+  }
+
+  ImageType image_type = 1;
+}
