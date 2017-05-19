@@ -29,7 +29,8 @@ class Constants:
 
 with Database(debug=True) as db:
     def create_database():
-        db.ingest_videos([('example', '/home/wcrichto/.deps/hyperlapse/long.mp4')],
+        db.ingest_videos([('example',
+                           '/n/scanner/datasets/hyperlapse/long.mp4')],
                          force=True)
 
     def extract_features():
@@ -47,7 +48,7 @@ with Database(debug=True) as db:
         frame_info = db.ops.InfoFromFrame(frame = frame, device = DeviceType.GPU)
         cost_matrix = db.ops.FeatureMatcher(
             features = features, keypoints = keypoints, frame_info = frame_info,
-            stencil = range(0, 2),
+            stencil = range(0, 25),
             device = DeviceType.GPU)
         job = Job(columns = [cost_matrix], name = 'example_matches')
         db.run(job, force = True)
@@ -122,8 +123,11 @@ with Database(debug=True) as db:
         #     [f[0] for i, f in frames if i % 12 == 0],
         #     fps=12.0)
 
-    create_database()
-    extract_features()
+    print('Create DB...')
+    #create_database()
+    print('Extract features...')
+    #extract_features()
+    print('Compute matches...')
     compute_matches()
-    # path = build_path()
-    # encode_video(path)
+    path = build_path()
+    encode_video(path)

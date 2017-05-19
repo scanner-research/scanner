@@ -54,6 +54,7 @@ struct EvalWorkEntry {
   i64 warmup_rows;
   // Only for pre worker
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
+  std::vector<i64> work_item_sizes;
   // For save and pre worker
   std::vector<FrameInfo> frame_sizes;
   std::vector<bool> compressed;

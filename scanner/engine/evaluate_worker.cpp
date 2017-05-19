@@ -103,6 +103,7 @@ void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
   }
   first_item_ = true;
   current_row_ = 0;
+  work_item_index_ = 0;
   profiler_.add_interval("feed", feed_start, now());
 }
 
@@ -114,6 +115,8 @@ bool PreEvaluateWorker::yield(i32 item_size,
 
   IOItem& io_item = std::get<0>(entry_);
   EvalWorkEntry& work_entry = std::get<1>(entry_);
+
+  item_size = work_entry.work_item_sizes[work_item_index_++];
 
   i64 r = current_row_;
   current_row_ += item_size;
@@ -291,7 +294,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     // Move all required values in the side output columns to the proper device
     // for this kernel and update stencil cache using rows in
     // side_output_columns
-    i64 max_row_id_seen = 0;
+    i64 max_row_id_seen = -1;
     for (i32 i = 0; i < input_column_idx.size(); ++i) {
       i32 in_col_idx = input_column_idx[i];
       assert(in_col_idx < side_output_columns.size());
@@ -359,7 +362,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
       side_output_columns.emplace_back();
     }
     for (i32 start = row_start; start < row_end; start += kernel_batch_size) {
-      i32 batch = 1;
+      i32 batch = kernel_batch_size;
       i32 end = start + batch;
       // Stage inputs to the kernel using the stencil cache
       StenciledBatchedColumns input_columns(kernel_cache.size());

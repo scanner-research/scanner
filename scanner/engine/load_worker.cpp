@@ -199,6 +199,9 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
   eval_work_entry.row_ids =
       std::vector<i64>(load_work_entry.samples(0).rows().begin(),
                        load_work_entry.samples(0).rows().end());
+  eval_work_entry.work_item_sizes =
+      std::vector<i64>(load_work_entry.work_item_sizes().begin(),
+                       load_work_entry.work_item_sizes().end());
 
   // Aggregate all sample columns so we know the tuple size
   assert(!samples.empty());

@@ -224,12 +224,15 @@ AnalysisResults analyze_dag(const proto::TaskSet& task_set) {
   return results;
 }
 
-void derive_stencil_requirements(const LoadWorkEntry& load_work_entry,
+void derive_stencil_requirements(storehouse::StorageBackend* storage,
+                                 const AnalysisResults& analysis_results,
+                                 const LoadWorkEntry& load_work_entry,
                                  const std::vector<std::vector<i32>>& stencils,
                                  LoadWorkEntry& output_entry,
                                  std::deque<TaskStream>& task_streams) {
   output_entry.set_io_item_index(load_work_entry.io_item_index());
 
+  i64 num_kernels = stencils.size();
 
   // Compute the required rows for each kernel based on the stencil
   // HACK(apoms): this will only really work for linear DAGs. For DAGs with
@@ -238,8 +241,11 @@ void derive_stencil_requirements(const LoadWorkEntry& load_work_entry,
   std::vector<i64> current_rows;
   {
     const proto::LoadSample& sample = load_work_entry.samples(0);
+    std::string table_path =
+        TableMetadata::descriptor_path(sample.table_id());
+    TableMetadata meta = read_table_metadata(storage, table_path);
+
     current_rows = std::vector<i64>(sample.rows().begin(), sample.rows().end());
-    i64 num_kernels = stencils.size();
     TaskStream s;
     s.valid_output_rows = current_rows;
     task_streams.push_front(s);
@@ -250,7 +256,8 @@ void derive_stencil_requirements(const LoadWorkEntry& load_work_entry,
       new_rows.reserve(current_rows.size());
       for (i64 r : current_rows) {
         // Ignore rows which can not achieve their stencil
-        if (r - stencil[0] < 0) continue;
+        if (r - stencil[0] < 0 ||
+            r + stencil[stencil.size() - 1] >= meta.num_rows()) continue;
         for (i64 s : stencil) {
           new_rows.insert(r + s);
         }
@@ -262,8 +269,108 @@ void derive_stencil_requirements(const LoadWorkEntry& load_work_entry,
       task_streams.push_front(s);
     }
   }
-  // Get rid of input stream
+  // Compute the required work item sizes to produce the minimal amount of
+  // output for each invocation of the kernels
+  std::vector<i64> work_item_sizes;
+  {
+    // Lists the last row that the stencil cache would have seen
+    // at this point
+    std::vector<i64> last_stencil_cache_row(num_kernels + 1, -1);
+    std::vector<size_t> produced_rows(num_kernels + 1);
+
+    size_t num_input_rows = task_streams.front().valid_output_rows.size();
+    size_t num_output_rows = task_streams.back().valid_output_rows.size();
+    while (produced_rows.front() < num_input_rows) {
+      i64 work_item_size = 1;
+      // For each kernel, determine which rows of input it needs given the
+      // current stencil cache and position in required rows
+      for (i64 k = num_kernels; k >= 1; k--) {
+        const TaskStream& s = task_streams[k];
+        size_t pos = produced_rows[k];
+        const std::vector<i32> stencil = analysis_results.stencils[k - 1];
+        i64 batch_size = analysis_results.batch_sizes[k - 1];
+
+        // If the kernel is batched, we need to make sure we round up to
+        // request a batch of input.
+        if (work_item_size % batch_size != 0) {
+          work_item_size += (batch_size - work_item_size % batch_size);
+        }
+
+        // Compute which input rows are needed for the batch of outputs
+        std::set<i64> required_input_rows;
+        for (i64 i = 0; i < work_item_size; ++i) {
+          i64 row = s.valid_output_rows[pos + i];
+          for (i32 s : stencil) {
+            required_input_rows.insert(row + s);
+          }
+        }
+        std::vector<i64> sorted_input_rows(required_input_rows.begin(),
+                                           required_input_rows.end());
+        std::sort(sorted_input_rows.begin(), sorted_input_rows.end());
+
+        // For all the rows not in the stencil cache, we will request them
+        // from the upstream kernel by setting the work item size
+        i64 rows_to_request = 0;
+        {
+          i64 i = 0;
+          for (; i < sorted_input_rows.size(); ++i) {
+            // If the requested row is not in the stencil cache, we are done
+            // with this work item
+            if (sorted_input_rows[i] > last_stencil_cache_row[k - 1]) {
+              break;
+            }
+          }
+          rows_to_request = (sorted_input_rows.size() - i);
+        }
+        assert(rows_to_request > 0);
+        work_item_size = rows_to_request;
+      }
+      produced_rows[0] += work_item_size;
+      last_stencil_cache_row[0] =
+          task_streams[0].valid_output_rows[produced_rows[0] - 1];
+      assert(produced_rows[0] > 0);
+      work_item_sizes.push_back(work_item_size);
+
+      // Propagate downward what rows will be in the stencil cache due to the
+      // computed number of rows of input
+      for (i64 k = 1; k < num_kernels + 1; k++) {
+        const TaskStream& ts = task_streams[k];
+        size_t& pos = produced_rows[k];
+        const std::vector<i32>& stencil = analysis_results.stencils[k - 1];
+        i64 batch_size = analysis_results.batch_sizes[k - 1];
+
+        // Figure out how many rows will be produced given work_item_size
+        // inputs
+        i64 rows = 0;
+        for (; pos + rows < task_streams[k].valid_output_rows.size(); ++rows) {
+          if (ts.valid_output_rows[pos + rows] + stencil.back() >
+              last_stencil_cache_row[k - 1]) {
+            break;
+          }
+        }
+        // Round down if we don't have enough for a batch
+        if (rows % batch_size != 0) {
+          rows -= (rows % batch_size);
+        }
+        assert(rows > 0);
+
+        // Update how many rows we have produced
+        pos += rows;
+        assert(pos > 0);
+        last_stencil_cache_row[k] = ts.valid_output_rows[pos - 1];
+
+        // Send the rows to the next kernel
+        work_item_size = rows;
+      }
+    }
+  }
+
+  // Get rid of input stream since this is already captured by the load samples
   task_streams.pop_front();
+
+  for (i64 r : work_item_sizes) {
+    output_entry.add_work_item_sizes(r);
+  }
 
   for (const proto::LoadSample& sample : load_work_entry.samples()) {
     auto out_sample = output_entry.add_samples();
@@ -1016,9 +1123,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-        derive_stencil_requirements(new_work.load_work(),
-                                    analysis_results.stencils, stenciled_entry,
-                                    task_stream);
+        derive_stencil_requirements(
+            storage_, analysis_results, new_work.load_work(),
+            analysis_results.stencils, stenciled_entry, task_stream);
 
         load_work.push(std::make_tuple(last_work_queue++, task_stream, new_work.io_item(),
                                        stenciled_entry));
