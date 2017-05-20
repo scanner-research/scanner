@@ -96,6 +96,9 @@ find_package(Storehouse REQUIRED CONFIG
 find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
 find_package(OpenCV COMPONENTS core highgui imgproc cudaimgproc cudaarithm)
+find_package(OpenMP REQUIRED)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
 set(GTEST_INCLUDE_DIRS
   "${THIRDPARTY_OUTPUT_PATH}/googletest/include")

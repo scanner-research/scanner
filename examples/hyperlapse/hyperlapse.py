@@ -5,6 +5,7 @@ import math
 from scipy import sparse
 import matplotlib.pyplot as plt
 import cv2
+from timeit import default_timer as now
 
 class Constants:
     def __init__(self, iw, ih, T):
@@ -15,7 +16,7 @@ class Constants:
         self.tau_c = 0.1 * self.d
         self.gamma = 0.5 * self.d
 
-    w = 24
+    w = 32
     g = 4
     lam_s = 200
     lam_a = 80
@@ -29,12 +30,11 @@ class Constants:
 
 with Database(debug=True) as db:
     def create_database():
-        db.ingest_videos([('example',
-                           '/n/scanner/datasets/hyperlapse/long.mp4')],
+        db.ingest_videos([('example', '/n/scanner/datasets/hyperlapse/long.mp4')],
                          force=True)
 
     def extract_features():
-        frame = db.table('example').as_op().all()
+        frame = db.table('example').as_op().range(0, 1000, item_size=100)
         features, keypoints = db.ops.FeatureExtractor(
             frame = frame,
             feature_type = db.protobufs.SURF,
@@ -43,12 +43,12 @@ with Database(debug=True) as db:
         db.run(job, force = True)
 
     def compute_matches():
-        features, keypoints = db.table('example_surf').as_op().all()
-        frame = db.table('example').as_op().all()
+        features, keypoints = db.table('example_surf').as_op().all(item_size=100)
+        frame = db.table('example').as_op().range(0, 1000, item_size=100)
         frame_info = db.ops.InfoFromFrame(frame = frame, device = DeviceType.GPU)
         cost_matrix = db.ops.FeatureMatcher(
             features = features, keypoints = keypoints, frame_info = frame_info,
-            stencil = range(0, 25),
+            stencil = range(0, 32),
             device = DeviceType.GPU)
         job = Job(columns = [cost_matrix], name = 'example_matches')
         db.run(job, force = True)
@@ -123,11 +123,13 @@ with Database(debug=True) as db:
         #     [f[0] for i, f in frames if i % 12 == 0],
         #     fps=12.0)
 
-    print('Create DB...')
-    #create_database()
-    print('Extract features...')
-    #extract_features()
-    print('Compute matches...')
+
+    # create_database()
+    t = now()
+    extract_features()
+    print 'extract: {:.3f}'.format(now() - t)
+    t = now()
     compute_matches()
-    path = build_path()
-    encode_video(path)
+    print 'match: {:.3f}'.format(now() - t)
+    # path = build_path()
+    # encode_video(path)

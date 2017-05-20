@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
+#include <omp.h>
 
 using storehouse::StoreResult;
 using storehouse::WriteFile;
@@ -887,6 +888,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     cached_memory_pool_config_ = job_params->memory_pool_config();
     memory_pool_initialized_ = true;
   }
+
+  omp_set_num_threads(std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
   i64 accepted_items = 0;
