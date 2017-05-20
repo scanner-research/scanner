@@ -4,6 +4,7 @@
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
 #include "scanner/util/serialize.h"
+#include "scanner/util/cycle_timer.h"
 #include "stdlib/stdlib.pb.h"
 
 #include <opencv2/xfeatures2d.hpp>
@@ -12,7 +13,7 @@ namespace scanner {
 
 class Constants {
  public:
-  int w = 24;
+  int w = 32;
   int g = 4;
   int iw, ih;
   int T;
@@ -98,8 +99,19 @@ protected:
 
     size_t size = window_size * sizeof(f32);
     f32* cost_buf = (f32*)new_buffer(CPU_DEVICE, size);
+
+    std::vector<std::vector<cv::DMatch>> matches;
+    matches.resize(window_size);
     for (i32 j = 1; j < window_size; j++) {
-      f32 cost = match_cost(kps[0], features[0], kps[j], features[j]);
+      if (kps[0].size() == 0 || kps[j].size() == 0) {
+        continue;
+      }
+      matcher_->match(features[0], features[j], matches[j]);
+    }
+
+#pragma omp parallel for
+    for (i32 j = 1; j < window_size; j++) {
+      f32 cost = match_cost(kps[0], kps[j], matches[j]);
       cost_buf[j] = cost;
     }
 
@@ -134,19 +146,12 @@ protected:
     return mean(sq)[0];
   }
 
-  float match_cost(std::vector<proto::Keypoint>& kp1, cvc::GpuMat& desc1_gpu,
-                   std::vector<proto::Keypoint>& kp2, cvc::GpuMat& desc2_gpu) {
-    if (kp1.size() == 0 || kp2.size() == 0) {
+  float match_cost(std::vector<proto::Keypoint>& kp1,
+                   std::vector<proto::Keypoint>& kp2,
+                   std::vector<cv::DMatch>& matches) {
+    if (matches.size() == 0) {
       return C_.gamma;
     }
-
-    LOG_IF(FATAL, kp1.size() != desc1_gpu.rows || kp2.size() != desc2_gpu.rows)
-        << "Malformed keypoints or features";
-    LOG_IF(FATAL, desc1_gpu.cols != desc2_gpu.cols)
-        << "Dimension mismatch: " << desc1_gpu.cols << ", " << desc2_gpu.cols;
-
-    std::vector<cv::DMatch> matches;
-    matcher_->match(desc1_gpu, desc2_gpu, matches);
 
     double min_dist = std::numeric_limits<double>::max();
     for (auto& match : matches) {
@@ -159,7 +164,7 @@ protected:
     std::vector<cv::DMatch> good_matches;
     std::vector<cv::Point2f> fr1, fr2;
     for (auto& match : matches) {
-      if (match.distance <= std::max(2 * min_dist, 0.02)) {
+      if (match.distance <= std::max(1.5 * min_dist, 0.01)) {
         good_matches.push_back(match);
         fr1.push_back(
             cv::Point2f(kp1[match.queryIdx].x(), kp1[match.queryIdx].y()));
