@@ -111,7 +111,7 @@ set(SCANNER_LIBRARIES
   "${PROTOBUF_LIBRARY}"
   "${STOREHOUSE_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
-  "-L/opt/ffmpeg-3.2.2/lib"
+  "-L/opt/ffmpeg-3.3.1/lib"
   "-lswscale"
   "${LIBLZMA_LIBRARIES}"
   "${OPENSSL_LIBRARIES}"
