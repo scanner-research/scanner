@@ -290,7 +290,9 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
   auto send_end = now();
   auto receive_start = now();
   auto receive_end = now();
-  LOG(FATAL) << "Frame output requires libavcodec >= 57.25.0";
+  LOG(FATAL) << "Frame output requires libavcodec >= 57.25.0 (current is "
+             << LIBAVCODEC_VERSION_MAJOR << "." << LIBAVCODEC_VERSION_MINOR
+             << "." << LIBAVCODEC_VERSION_MICRO << ")";
 #endif
   if (profiler_) {
     profiler_->add_interval("ffmpeg:send_frame", send_start, send_end);
