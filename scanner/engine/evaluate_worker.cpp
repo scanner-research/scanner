@@ -453,7 +453,6 @@ void* post_evaluate_thread(void* arg) {
       assert(work_entry.column_handles.size() == args.columns.size());
       for (size_t i = 0; i < args.columns.size(); ++i) {
         buffered_entry.column_types.push_back(args.columns[i].type());
-        buffered_entry.column_handles.push_back(work_entry.column_handles[i]);
         if (args.columns[i].type() == ColumnType::Video) {
           assert(work_entry.columns[i].size() > 0);
           Frame* frame = work_entry.columns[i][0].as_frame();
@@ -485,6 +484,7 @@ void* post_evaluate_thread(void* arg) {
       // Encode video frames
       if (compression_enabled[i] && column_type == ColumnType::Video &&
           buffered_entry.frame_sizes[encoder_idx].type == FrameType::U8) {
+        buffered_entry.column_handles.push_back(CPU_DEVICE);
         {
           auto start = work_entry.columns[col_idx].begin();
           auto warmup_end = work_entry.columns[col_idx].begin() + warmup_frames;
@@ -519,10 +519,13 @@ void* post_evaluate_thread(void* arg) {
                 << actual_size << ")";
             insert_element(buffered_entry.columns[i], buffer, actual_size);
           }
+          delete_element(encoder_handle, row);
         }
-        args.profiler.add_interval("encode", work_start, now());
+
         encoder_idx++;
       } else {
+        buffered_entry.column_handles.push_back(work_entry.column_handles[i]);
+
         // Keep non-warmup frame outputs
         buffered_entry.columns[i].insert(
             buffered_entry.columns[i].end(),
