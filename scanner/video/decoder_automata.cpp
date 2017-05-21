@@ -65,10 +65,13 @@ DecoderAutomata::~DecoderAutomata() {
 
 void DecoderAutomata::initialize(
     const std::vector<proto::DecodeArgs>& encoded_data) {
-  for (auto& args : encoded_data_) {
-    delete_buffer(CPU_DEVICE, (u8*)args.encoded_video());
-  }
   assert(!encoded_data.empty());
+  while (decoder_->discard_frame()) {
+  }
+
+  std::unique_lock<std::mutex> lk(feeder_mutex_);
+  wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
+
   encoded_data_ = encoded_data;
   frame_size_ = encoded_data[0].width() * encoded_data[0].height() * 3;
   current_frame_ = encoded_data[0].start_keyframe();
@@ -79,11 +82,10 @@ void DecoderAutomata::initialize(
   FrameInfo info(encoded_data[0].height(), encoded_data[0].width(), 3,
                  FrameType::U8);
 
-  while (decoder_->discard_frame()) {
-  }
 
-  std::unique_lock<std::mutex> lk(feeder_mutex_);
-  wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
+  for (auto& args : encoded_data_) {
+    delete_buffer(CPU_DEVICE, (u8*)args.encoded_video());
+  }
 
   if (info_ != info) {
     decoder_->configure(info);
