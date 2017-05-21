@@ -65,6 +65,9 @@ DecoderAutomata::~DecoderAutomata() {
 
 void DecoderAutomata::initialize(
     const std::vector<proto::DecodeArgs>& encoded_data) {
+  for (auto& args : encoded_data_) {
+    delete_buffer(CPU_DEVICE, (u8*)args.encoded_video());
+  }
   assert(!encoded_data.empty());
   encoded_data_ = encoded_data;
   frame_size_ = encoded_data[0].width() * encoded_data[0].height() * 3;
