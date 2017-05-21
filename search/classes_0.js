@@ -1,5 +1,7 @@
 var searchData=
 [
-  ['basekernel',['BaseKernel',['../classscanner_1_1BaseKernel.html',1,'scanner']]],
-  ['batchedkernel',['BatchedKernel',['../classscanner_1_1BatchedKernel.html',1,'scanner']]]
+  ['collection',['Collection',['../classscannerpy_1_1collection_1_1Collection.html',1,'scannerpy::collection']]],
+  ['column',['Column',['../classscannerpy_1_1column_1_1Column.html',1,'scannerpy::column']]],
+  ['config',['Config',['../structscanner_1_1Kernel_1_1Config.html',1,'scanner::Kernel']]],
+  ['config',['Config',['../classscannerpy_1_1config_1_1Config.html',1,'scannerpy::config']]]
 ];

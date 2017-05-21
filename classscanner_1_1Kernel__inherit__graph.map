@@ -1,3 +1,3 @@
 <map id="scanner::Kernel" name="scanner::Kernel">
-<area shape="rect" id="node2" href="$classscanner_1_1BaseKernel.html" title="Interface for a unit of computation in a pipeline. " alt="" coords="5,5,147,32"/>
+<area shape="rect" id="node2" href="$classscanner_1_1VideoKernel.html" title="Kernel with support for frame and frame_info columns. " alt="" coords="5,80,152,107"/>
 </map>
