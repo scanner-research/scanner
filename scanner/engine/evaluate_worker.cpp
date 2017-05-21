@@ -522,6 +522,7 @@ void* post_evaluate_thread(void* arg) {
           delete_element(encoder_handle, row);
         }
 
+        args.profiler.add_interval("encode", work_start, now());
         encoder_idx++;
       } else {
         buffered_entry.column_handles.push_back(work_entry.column_handles[i]);
