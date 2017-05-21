@@ -62,6 +62,8 @@ class ImageDecoderKernel : public Kernel {
       input_columns[0][0].buffer + input_columns[0][0].size);
     cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
 
+    proto::ImageDecoderArgs_ImageType image_type = args_.image_type();
+
     // TODO(wcrichto): GPU code shouldn't ideally be in CPU kernel
     cv::Ptr<codec::RawVideoSource> src =
       cv::Ptr<codec::RawVideoSource>(new ImageSource(input_columns, img));
@@ -69,7 +71,6 @@ class ImageDecoderKernel : public Kernel {
     cv::cuda::GpuMat gpu_frame;
 
     for (i32 i = 0; i < input_count; ++i) {
-      proto::ImageDecoderArgs_ImageType image_type = args_.image_type();
       if (image_type == proto::ImageDecoderArgs_ImageType_JPEG) {
         if (!d_reader->nextFrame(gpu_frame)) {
           LOG(FATAL) << "Failed to decode image";
@@ -98,8 +99,13 @@ class ImageDecoderKernel : public Kernel {
 
   void set_device() {
     // HACK(wcrichto): using CPU id as GPU id...
-    CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id % 4)); });
-    cvc::setDevice(device_.id);
+    proto::ImageDecoderArgs_ImageType image_type = args_.image_type();
+    if (image_type == proto::ImageDecoderArgs_ImageType_JPEG) {
+      CUDA_PROTECT({
+        cvc::setDevice(device_.id);
+        CU_CHECK(cudaSetDevice(device_.id % 4));
+      });
+    }
   }
 
 private:
