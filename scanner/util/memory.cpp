@@ -510,6 +510,14 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
   assert(src_buffers.size() > 0);
   assert(dest_buffers.size() == src_buffers.size());
 
+  BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
+  BlockAllocator* src_allocator = block_allocator_for_device(src_device);
+
+  size_t total_size = 0;
+  for (auto size : sizes) {
+    total_size += size;
+  }
+
   if (dest_device.type == DeviceType::GPU ||
       src_device.type == DeviceType::GPU) {
 #ifdef HAVE_CUDA
@@ -521,9 +529,6 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
       }
     }
 
-    BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
-    BlockAllocator* src_allocator = block_allocator_for_device(src_device);
-
     if (src_device.type == DeviceType::GPU) {
       CU_CHECK(cudaSetDevice(src_device.id));
     } else if (dest_device.type == DeviceType::GPU) {
@@ -534,10 +539,6 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
     // from a single block, we do a single memcpy from one block to the other.
     if (dest_allocator->buffers_in_same_block(dest_buffers) &&
         src_allocator->buffers_in_same_block(src_buffers)) {
-      size_t total_size = 0;
-      for (auto size : sizes) {
-        total_size += size;
-      }
 
       CU_CHECK(cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
                                cudaMemcpyDefault, streams[0]));
@@ -559,7 +560,14 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
     LOG(FATAL) << "Cuda not installed";
 #endif
   } else {
-    LOG(FATAL) << "CPU-CPU transfer not implemented";
+    if (dest_allocator->buffers_in_same_block(dest_buffers) &&
+        src_allocator->buffers_in_same_block(src_buffers)) {
+      memcpy(dest_buffers[0], src_buffers[0], total_size);
+    } else {
+      for (i32 i = 0; i < dest_buffers.size(); ++i) {
+        memcpy(dest_buffers[i], src_buffers[i], sizes[i]);
+      }
+    }
   }
 }
 }
