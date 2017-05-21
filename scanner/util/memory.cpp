@@ -510,56 +510,56 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
   assert(src_buffers.size() > 0);
   assert(dest_buffers.size() == src_buffers.size());
 
-  // if (dest_device.type == DeviceType::GPU ||
-  //     src_device.type == DeviceType::GPU) {
-  if (true) {
+  if (dest_device.type == DeviceType::GPU ||
+      src_device.type == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-  thread_local std::vector<cudaStream_t> streams;
-  if (streams.size() == 0) {
-    streams.resize(NUM_CUDA_STREAMS);
-    for (i32 i = 0; i < NUM_CUDA_STREAMS; ++i) {
-      CU_CHECK(cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking));
-    }
-  }
-
-  BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
-  BlockAllocator* src_allocator = block_allocator_for_device(src_device);
-
-  if (src_device.type == DeviceType::GPU) {
-    CU_CHECK(cudaSetDevice(src_device.id));
-  } else if (dest_device.type == DeviceType::GPU) {
-    CU_CHECK(cudaSetDevice(dest_device.id));
-  }
-
-  // In the case where the dest and src vectors are each respectively drawn
-  // from a single block, we do a single memcpy from one block to the other.
-  if (dest_allocator->buffers_in_same_block(dest_buffers) &&
-      src_allocator->buffers_in_same_block(src_buffers)) {
-    size_t total_size = 0;
-    for (auto size : sizes) {
-      total_size += size;
+    thread_local std::vector<cudaStream_t> streams;
+    if (streams.size() == 0) {
+      streams.resize(NUM_CUDA_STREAMS);
+      for (i32 i = 0; i < NUM_CUDA_STREAMS; ++i) {
+        CU_CHECK(cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking));
+      }
     }
 
-    CU_CHECK(cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
-                             cudaMemcpyDefault, streams[0]));
-    CU_CHECK(cudaStreamSynchronize(streams[0]));
-  } else {
-    i32 n = dest_buffers.size();
+    BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
+    BlockAllocator* src_allocator = block_allocator_for_device(src_device);
 
-    for (i32 i = 0; i < n; ++i) {
-      CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
-                               cudaMemcpyDefault,
-                               streams[i % NUM_CUDA_STREAMS]));
+    if (src_device.type == DeviceType::GPU) {
+      CU_CHECK(cudaSetDevice(src_device.id));
+    } else if (dest_device.type == DeviceType::GPU) {
+      CU_CHECK(cudaSetDevice(dest_device.id));
     }
 
-    for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
-      CU_CHECK(cudaStreamSynchronize(streams[i]));
+    // In the case where the dest and src vectors are each respectively drawn
+    // from a single block, we do a single memcpy from one block to the other.
+    if (dest_allocator->buffers_in_same_block(dest_buffers) &&
+        src_allocator->buffers_in_same_block(src_buffers)) {
+      size_t total_size = 0;
+      for (auto size : sizes) {
+        total_size += size;
+      }
+
+      CU_CHECK(cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
+                               cudaMemcpyDefault, streams[0]));
+      CU_CHECK(cudaStreamSynchronize(streams[0]));
+    } else {
+      i32 n = dest_buffers.size();
+
+      for (i32 i = 0; i < n; ++i) {
+        CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
+                                 cudaMemcpyDefault,
+                                 streams[i % NUM_CUDA_STREAMS]));
+      }
+
+      for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
+        CU_CHECK(cudaStreamSynchronize(streams[i]));
+      }
     }
-  }
 #else
-  LOG(FATAL) << "Cuda not installed";
+    LOG(FATAL) << "Cuda not installed";
 #endif
   } else {
+    LOG(FATAL) << "CPU-CPU transfer not implemented";
   }
 }
 }
