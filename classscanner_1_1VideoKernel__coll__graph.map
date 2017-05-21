@@ -1,4 +1,3 @@
 <map id="scanner::VideoKernel" name="scanner::VideoKernel">
-<area shape="rect" id="node2" href="$classscanner_1_1Kernel.html" title="Interface for a unit of computation in a pipeline. " alt="" coords="5,96,117,123"/>
-<area shape="rect" id="node4" href="$structscanner_1_1FrameInfo.html" title="FrameInfo. " alt="" coords="142,96,276,123"/>
+<area shape="rect" id="node2" href="$structscanner_1_1FrameInfo.html" title="FrameInfo. " alt="" coords="11,96,145,123"/>
 </map>

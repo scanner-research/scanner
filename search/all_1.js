@@ -1,10 +1,5 @@
 var searchData=
 [
-  ['channels',['channels',['../structscanner_1_1FrameInfo.html#a25adc459a68c0e03ff590e4fe35ffca3',1,'scanner::FrameInfo::channels()'],['../classscanner_1_1Frame.html#aeac1d7193e194629154326588447f961',1,'scanner::Frame::channels()']]],
-  ['check_5fframe',['check_frame',['../classscanner_1_1VideoKernel.html#a3093e09ccb435487a4a57ce9486b3c21',1,'scanner::VideoKernel']]],
-  ['collection',['Collection',['../classscannerpy_1_1collection_1_1Collection.html',1,'scannerpy::collection']]],
-  ['column',['Column',['../classscannerpy_1_1column_1_1Column.html',1,'scannerpy::column']]],
-  ['config',['Config',['../classscannerpy_1_1config_1_1Config.html',1,'scannerpy::config']]],
-  ['config',['config',['../classscannerpy_1_1database_1_1Database.html#aa3fd8a86cda34bb924189d95d2dc79dc',1,'scannerpy::database::Database']]],
-  ['config',['Config',['../structscanner_1_1Kernel_1_1Config.html',1,'scanner::Kernel']]]
+  ['basekernel',['BaseKernel',['../classscanner_1_1BaseKernel.html',1,'scanner']]],
+  ['batchedkernel',['BatchedKernel',['../classscanner_1_1BatchedKernel.html',1,'scanner']]]
 ];
