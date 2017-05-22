@@ -54,7 +54,8 @@ void* pre_evaluate_thread(void* arg) {
     last_item_id = io_item.item_id();
 
     // Split up a work entry into work item size chunks
-    i64 total_rows = io_item.end_row() - io_item.start_row();
+    i64 total_rows =
+        io_item.end_row() - io_item.start_row() + work_entry.warmup_rows;
 
     if (needs_configure) {
       // decoders.clear();
