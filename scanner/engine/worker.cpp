@@ -808,6 +808,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         kg_dead_columns.emplace_back();
         kg_unused_outputs.emplace_back();
         kg_column_mapping.emplace_back();
+        kg_stencils.emplace_back();
+        kg_batch_sizes.emplace_back();
       }
       auto& group = kernel_groups.back();
       auto& lc = kg_live_columns.back();
