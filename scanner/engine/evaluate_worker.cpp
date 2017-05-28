@@ -308,9 +308,15 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
 
       // Update stencil cache by copying data since we don't have
       // reference counting for all pointers :(
-      ElementList copied_elements =
-          duplicate_elements(profiler_, current_handle, current_handle,
-                             side_output_columns[in_col_idx]);
+      ElementList copied_elements;
+      if (kernel_stencil.size() == 1 && kernel_stencil[0] == 0) {
+        // If we aren't stenciling, then we don't need to copy
+        copied_elements = side_output_columns[in_col_idx];
+      } else {
+        copied_elements =
+            duplicate_elements(profiler_, current_handle, current_handle,
+                               side_output_columns[in_col_idx]);
+      }
       for (i64 r = 0; r < copied_elements.size(); ++r) {
         kernel_cache[i].push_back(std::make_tuple(
             side_row_ids[r], copied_elements[r]));
@@ -429,9 +435,11 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
       }
 
       // Remove elements from the stencil cache we won't access anymore
+      bool degenerate_stencil =
+          (kernel_stencil.size() == 1 && kernel_stencil[0] == 0);
       i64 last_cache_element = 0;
-      i64 min_used_row = kernel_valid_rows[
-        start + kernel_batch_size - kernel_stencil[0]];
+      i64 min_used_row =
+          kernel_valid_rows[start + kernel_batch_size - kernel_stencil[0]];
       for (size_t i = 0; i < kernel_cache.size(); ++i) {
         auto& cache_deque = kernel_cache[i];
         while (cache_deque.size() > 0) {
@@ -439,7 +447,10 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
           i64 cache_row = std::get<0>(kv);
           if (cache_row < min_used_row) {
             Element element = std::get<1>(kv);
-            delete_element(current_handle, element);
+            // If this kernel has a non-degenerate stencil...
+            if (!degenerate_stencil) {
+              delete_element(current_handle, element);
+            }
             cache_deque.pop_front();
           } else {
             break;
