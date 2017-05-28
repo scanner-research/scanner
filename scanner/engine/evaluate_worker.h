@@ -73,7 +73,6 @@ class PreEvaluateWorker {
   std::tuple<IOItem, EvalWorkEntry> entry_;
   i64 current_row_;
   i64 total_rows_;
-  i64 work_item_index_;
 
   std::vector<std::vector<proto::DecodeArgs>> decode_args_;
 };

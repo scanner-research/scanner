@@ -103,7 +103,6 @@ void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
   }
   first_item_ = true;
   current_row_ = 0;
-  work_item_index_ = 0;
   profiler_.add_interval("feed", feed_start, now());
 }
 
@@ -115,8 +114,6 @@ bool PreEvaluateWorker::yield(i32 item_size,
 
   IOItem& io_item = std::get<0>(entry_);
   EvalWorkEntry& work_entry = std::get<1>(entry_);
-
-  item_size = work_entry.work_item_sizes[work_item_index_++];
 
   i64 r = current_row_;
   current_row_ += item_size;
@@ -362,7 +359,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
       side_output_columns.emplace_back();
     }
     for (i32 start = row_start; start < row_end; start += kernel_batch_size) {
-      i32 batch = kernel_batch_size;
+      i32 batch = std::min((i64)kernel_batch_size, row_end - start);
       i32 end = start + batch;
       // Stage inputs to the kernel using the stencil cache
       StenciledBatchedColumns input_columns(kernel_cache.size());
@@ -416,7 +413,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
 
       // Verify the kernel produced the correct amount of output
       for (size_t i = 0; i < output_columns.size(); ++i) {
-        LOG_IF(FATAL, output_columns[i].size() != kernel_batch_size)
+        LOG_IF(FATAL, output_columns[i].size() != batch)
             << "Op " << k << " produced " << output_columns[i].size()
             << " output elements for column " << i << ". Expected "
             << kernel_batch_size << " outputs.";
@@ -624,6 +621,7 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         encoder_configured_[encoder_idx] = true;
         Frame* frame = work_entry.columns[col_idx][0].as_frame();
         encoder->configure(frame->as_frame_info(),
+                           
                            encode_options_[encoder_idx]);
       }
 
