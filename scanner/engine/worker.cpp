@@ -240,10 +240,10 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
   //   non-linear topologies, this might break. Supporting proper DAGs would
   //   require tracking stencils up each branch individually.
   std::vector<i64> current_rows;
+  const proto::LoadSample& sample = load_work_entry.samples(0);
+  i64 last_row = sample.rows(sample.rows_size() - 1);
   {
-    const proto::LoadSample& sample = load_work_entry.samples(0);
-    std::string table_path =
-        TableMetadata::descriptor_path(sample.table_id());
+    std::string table_path = TableMetadata::descriptor_path(sample.table_id());
     TableMetadata meta = read_table_metadata(storage, table_path);
 
     current_rows = std::vector<i64>(sample.rows().begin(), sample.rows().end());
@@ -297,6 +297,13 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
           work_item_size += (batch_size - work_item_size % batch_size);
         }
 
+        // If we are at the end of the task, then we can not provide
+        // a full batch and must provide a partial one
+        if (pos + work_item_size + stencil.back() >
+            s.valid_output_rows.size()) {
+          work_item_size = s.valid_output_rows.size() - pos - stencil.back();
+        }
+
         // Compute which input rows are needed for the batch of outputs
         std::set<i64> required_input_rows;
         for (i64 i = 0; i < work_item_size; ++i) {
@@ -343,16 +350,19 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
         // Figure out how many rows will be produced given work_item_size
         // inputs
         i64 rows = 0;
-        for (; pos + rows < task_streams[k].valid_output_rows.size(); ++rows) {
+        for (; pos + rows < ts.valid_output_rows.size(); ++rows) {
           if (ts.valid_output_rows[pos + rows] + stencil.back() >
               last_stencil_cache_row[k - 1]) {
             break;
           }
         }
-        // Round down if we don't have enough for a batch
-        if (rows % batch_size != 0) {
+        // Round down if we don't have enough for a batch unless this is
+        // the end of the task
+        if (rows % batch_size != 0 &&
+            ts.valid_output_rows[pos + rows - 1] != last_row) {
           rows -= (rows % batch_size);
         }
+        printf("rows %d\n", rows);
         assert(rows > 0);
 
         // Update how many rows we have produced
@@ -370,6 +380,7 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
   task_streams.pop_front();
 
   for (i64 r : work_item_sizes) {
+    printf("item size %d \n", r);
     output_entry.add_work_item_sizes(r);
   }
 
@@ -456,8 +467,9 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
     bool first = true;
-    while (true) {
-      i32 work_item_size = std::min(5, total_rows);
+    i32 work_item_index = 0;
+    while (work_item_index < work_entry.work_item_sizes.size()) {
+      i32 work_item_size = work_entry.work_item_sizes.at(work_item_index++);
       total_rows -= work_item_size;
 
       std::tuple<IOItem, EvalWorkEntry> output_entry;
