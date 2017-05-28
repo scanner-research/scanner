@@ -35,9 +35,11 @@ REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::GPU).num_devices(1);
 
 REGISTER_KERNEL(DiscardFrame, DiscardKernel)
     .device(DeviceType::CPU)
+    .batch()
     .num_devices(1);
 
 REGISTER_KERNEL(DiscardFrame, DiscardKernel)
     .device(DeviceType::GPU)
+    .batch()
     .num_devices(1);
 }
