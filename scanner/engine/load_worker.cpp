@@ -29,6 +29,7 @@ namespace {
 
 struct RowIntervals {
   std::vector<i32> item_ids;
+  std::vector<i64> item_start_offsets;
   std::vector<std::tuple<i64, i64>> item_intervals;
   std::vector<std::vector<i64>> valid_offsets;
 };
@@ -91,6 +92,8 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
     if (item != current_item || row <= prev_row) {
       // Start a new item and push the current one into the list
       info.item_ids.push_back(current_item);
+      info.item_start_offsets.push_back(current_item == 0 ? 0 :
+                                        end_rows[current_item - 1]);
       info.item_intervals.push_back(std::make_tuple(item_start, item_end));
       info.valid_offsets.push_back(valid_offsets);
 
@@ -105,6 +108,8 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
     prev_row = row;
   }
   info.item_ids.push_back(current_item);
+  info.item_start_offsets.push_back(
+      current_item == 0 ? 0 : end_rows[current_item - 1]);
   info.item_intervals.push_back(std::make_tuple(item_start, item_end));
   info.valid_offsets.push_back(valid_offsets);
 
@@ -239,6 +244,7 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
         proto::VideoDescriptor::VideoCodecType encoding_type;
         for (size_t i = 0; i < num_items; ++i) {
           i32 item_id = intervals.item_ids[i];
+          i64 item_start_row = intervals.item_start_offsets[i];
           const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
           auto key = std::make_tuple(table_id, col_id, item_id);
@@ -252,7 +258,7 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
           encoding_type = entry.codec_type;
           if (entry.codec_type == proto::VideoDescriptor::H264) {
             // Video was encoded using h264
-            read_video_column(entry, valid_offsets,
+            read_video_column(entry, valid_offsets, item_start_row,
                               eval_work_entry.columns[out_col_idx]);
           } else {
             // Video was encoded as individual images
@@ -325,7 +331,8 @@ LoadWorker::VideoIndexEntry LoadWorker::read_video_index(i32 table_id,
 
 void LoadWorker::read_video_column(
     const LoadWorker::VideoIndexEntry& index_entry,
-    const std::vector<i64>& rows, ElementList& element_list) {
+    const std::vector<i64>& rows,
+    i64 start_frame, ElementList& element_list) {
   RandomReadFile* video_file = index_entry.file.get();
   u64 file_size = index_entry.file_size;
   const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
@@ -378,16 +385,21 @@ void LoadWorker::read_video_column(
     proto::DecodeArgs decode_args;
     decode_args.set_width(index_entry.width);
     decode_args.set_height(index_entry.height);
-    decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index]);
-    decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index]);
+    // We add the start frame of this item to all frames since the decoder
+    // works in terms of absolute frame numbers, instead of item relative
+    // frame numbers
+    decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index] +
+                                   start_frame);
+    decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index] +
+                                 start_frame);
     for (i64 k : all_keyframes) {
-      decode_args.add_keyframes(k);
+      decode_args.add_keyframes(k + start_frame);
     }
     for (i64 k : all_keyframes_byte_offsets) {
       decode_args.add_keyframe_byte_offsets(k);
     }
     for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
-      decode_args.add_valid_frames(intervals.valid_frames[i][j]);
+      decode_args.add_valid_frames(intervals.valid_frames[i][j] + start_frame);
     }
     decode_args.set_encoded_video((i64)buffer);
     decode_args.set_encoded_video_size(buffer_size);

@@ -60,6 +60,7 @@ class LoadWorker {
 
   void read_video_column(const LoadWorker::VideoIndexEntry& index_entry,
                          const std::vector<i64>& rows,
+                         i64 start_offset,
                          ElementList& element_list);
   const i32 node_id_;
   const i32 worker_id_;
