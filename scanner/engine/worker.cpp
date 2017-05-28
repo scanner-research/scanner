@@ -362,7 +362,6 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
             ts.valid_output_rows[pos + rows - 1] != last_row) {
           rows -= (rows % batch_size);
         }
-        printf("rows %d\n", rows);
         assert(rows > 0);
 
         // Update how many rows we have produced
@@ -380,7 +379,6 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
   task_streams.pop_front();
 
   for (i64 r : work_item_sizes) {
-    printf("item size %d \n", r);
     output_entry.add_work_item_sizes(r);
   }
 
