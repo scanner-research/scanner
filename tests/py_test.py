@@ -226,7 +226,7 @@ def test_compress(db):
     next(table.load(['frame']))
 
 def test_save_mp4(db):
-    frame = db.table('test1').as_op().range(0, 30, item_size=10)
+    frame = db.table('test1').as_op().range(0, 30, task_size=10)
     blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
     job = Job(columns = [blurred_frame], name = 'test_save_mp4')
     table = db.run(job, force=True, show_progress=False)
