@@ -11,7 +11,7 @@ def read_line(s):
 
 
 class Config(object):
-    def __init__(self, config_path=None):
+    def __init__(self, config_path=None, db_path=None):
         log.basicConfig(
             level=log.DEBUG,
             format='%(levelname)s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
@@ -37,6 +37,11 @@ class Config(object):
             build_path = self.module_dir + '/build'
             sys.path.append(build_path)
 
+            if db_path is not None:
+                self.db_path = db_path
+            else:
+                storage = config['storage']
+                self.db_path = str(storage['db_path'])
             storage_config = self._make_storage_config(config)
 
             self.master_address = 'localhost'
@@ -59,7 +64,6 @@ class Config(object):
     def _make_storage_config(self, config):
         storage = config['storage']
         storage_type = storage['type']
-        self.db_path = str(storage['db_path'])
         if storage_type == 'posix':
             storage_config = StorageConfig.make_posix_config()
         elif storage_type == 'gcs':
