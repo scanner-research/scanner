@@ -48,8 +48,6 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
     sws_context_(nullptr),
     frame_pool_(1024),
     decoded_frame_queue_(1024) {
-  avcodec_register_all();
-
   av_init_packet(&packet_);
 
   codec_ = avcodec_find_decoder(AV_CODEC_ID_H264);

@@ -31,6 +31,11 @@
 #include <boost/python/numpy.hpp>
 #include <omp.h>
 
+// For avcodec_register_all()... should go in software video with global mutex
+extern "C" {
+#include "libavcodec/avcodec.h"
+}
+
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
@@ -286,6 +291,7 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
       // For each kernel, determine which rows of input it needs given the
       // current stencil cache and position in required rows
       for (i64 k = num_kernels; k >= 1; k--) {
+        const TaskStream& prev_s = task_streams[k - 1];
         const TaskStream& s = task_streams[k];
         size_t pos = produced_rows[k];
         const std::vector<i32> stencil = analysis_results.stencils[k - 1];
@@ -300,7 +306,7 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
         // If we are at the end of the task, then we can not provide
         // a full batch and must provide a partial one
         if (pos + work_item_size + stencil.back() >
-            s.valid_output_rows.size()) {
+            prev_s.valid_output_rows.size()) {
           work_item_size = s.valid_output_rows.size() - pos - stencil.back();
         }
 
@@ -600,6 +606,7 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   : watchdog_awake_(true), db_params_(db_params) {
   set_database_path(db_params.db_path);
 
+  avcodec_register_all();
 #ifdef DEBUG
   // Stop SIG36 from grpc when debugging
   grpc_use_signal(-1);
