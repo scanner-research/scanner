@@ -9,13 +9,13 @@
 
 namespace scanner {
 
-class OpticalFlowKernelGPU : public BatchedKernel, public VideoKernel {
+class OpticalFlowKernelGPU : public StenciledKernel, public VideoKernel {
  public:
   OpticalFlowKernelGPU(const KernelConfig& config)
-    : BatchedKernel(config),
+    : StenciledKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size),
-      num_cuda_streams_(4) {
+      num_cuda_streams_(2) {
     set_device();
     streams_.resize(num_cuda_streams_);
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
@@ -29,7 +29,7 @@ class OpticalFlowKernelGPU : public BatchedKernel, public VideoKernel {
   void new_frame_info() override {
     set_device();
     grayscale_.resize(0);
-    for (i32 i = 0; i < work_item_size_; ++i) {
+    for (i32 i = 0; i < 2; ++i) {
       grayscale_.emplace_back(frame_info_.height(), frame_info_.width(),
                               CV_8UC1);
     }
@@ -45,8 +45,8 @@ class OpticalFlowKernelGPU : public BatchedKernel, public VideoKernel {
     }
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const StenciledColumns& input_columns,
+               Columns& output_columns) override {
     auto& frame_col = input_columns[0];
     check_frame(device_, frame_col[0]);
     set_device();
@@ -54,48 +54,30 @@ class OpticalFlowKernelGPU : public BatchedKernel, public VideoKernel {
     i32 input_count = (i32)num_rows(frame_col);
     FrameInfo out_frame_info(frame_info_.height(), frame_info_.width(), 2,
                              FrameType::F32);
-    std::vector<Frame*> frames =
-        new_frames(device_, out_frame_info, input_count);
-
-    for (i32 i = 0; i < input_count; ++i) {
-      i32 sid = i % num_cuda_streams_;
-      cv::cuda::Stream& s = streams_[sid];
-      cvc::GpuMat input = frame_to_gpu_mat(frame_col[i].as_const_frame());
-      cvc::cvtColor(input, grayscale_[i], CV_BGR2GRAY, 0, s);
-    }
-
-    for (cv::cuda::Stream& s : streams_) {
-      s.waitForCompletion();
-    }
+    Frame* output_frame = new_frame(device_, out_frame_info);
 
     double start = CycleTimer::currentSeconds();
 
-    // FIXME(wcrichto): TVL1 flow doesn't seem to work with multiple Cuda
-    // streams, segfaults in the TVL1 destructor. Investigate?
-    for (i32 i = 0; i < input_count; ++i) {
-      i32 sid = i % num_cuda_streams_;
-      cv::cuda::Stream& s = streams_[sid];
-      cvc::GpuMat flow = frame_to_gpu_mat(frames[i]);
-
-      if (i == 0) {
-        if (initial_frame_.empty()) {
-          insert_frame(output_columns[0], frames[i]);
-          continue;
-        } else {
-          flow_finders_[sid]->calc(initial_frame_, grayscale_[0], flow, s);
-        }
-      } else {
-        flow_finders_[sid]->calc(grayscale_[i - 1], grayscale_[i], flow, s);
-      }
-
-      insert_frame(output_columns[0], frames[i]);
-    }
-
-    grayscale_[input_count - 1].copyTo(initial_frame_);
+    cvc::GpuMat input0 =
+        frame_to_gpu_mat(frame_col[0].as_const_frame());
+    cvc::GpuMat input1 =
+        frame_to_gpu_mat(frame_col[1].as_const_frame());
+    cvc::cvtColor(input0, grayscale_[0], CV_BGR2GRAY, 0, streams_[0]);
+    cvc::cvtColor(input1, grayscale_[1], CV_BGR2GRAY, 0, streams_[1]);
 
     for (cv::cuda::Stream& s : streams_) {
       s.waitForCompletion();
     }
+
+    flow_finders_[0]->calc(grayscale_[0], grayscale_[1],
+                           frame_to_gpu_mat(output_frame),
+                           streams_[0]);
+
+    for (cv::cuda::Stream& s : streams_) {
+      s.waitForCompletion();
+    }
+
+    insert_frame(output_columns[0], output_frame);
   }
 
  private:
