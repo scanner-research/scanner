@@ -123,6 +123,7 @@ class EvaluateWorker {
   std::vector<i32> kernel_num_outputs_;
   std::vector<std::unique_ptr<BaseKernel>> kernels_;
 
+  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns_;
   std::vector<std::vector<i32>> dead_columns_;
   std::vector<std::vector<i32>> unused_outputs_;
   std::vector<std::vector<i32>> column_mapping_;
@@ -136,8 +137,10 @@ class EvaluateWorker {
   std::vector<std::set<i64>> valid_output_rows_set_;
   std::vector<std::vector<i64>> valid_output_rows_;
   std::vector<i64> current_valid_idx_;
-  // Per kernel -> per input column -> deque of (row, element)
-  std::vector<std::vector<std::deque<std::tuple<i64, Element>>>> stencil_cache_;
+  // Per kernel -> per input column -> deque of element)
+  std::vector<std::vector<std::deque<Element>>> stencil_cache_;
+  // Per kernel -> deque of row ids
+  std::vector<std::deque<i64>> stencil_cache_row_ids_;
 
   // Continutation state
   std::tuple<IOItem, EvalWorkEntry> entry_;

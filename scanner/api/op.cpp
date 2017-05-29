@@ -48,7 +48,6 @@ i32 Op::get_batch_size() const {
   return batch_size_;
 }
 
-
 Op* OpInput::get_op() const { return op; }
 
 const std::vector<std::string>& OpInput::get_columns() const { return columns; }

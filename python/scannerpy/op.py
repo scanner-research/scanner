@@ -92,7 +92,7 @@ class OpGenerator:
             device = kwargs.pop('device', DeviceType.CPU)
             batch = kwargs.pop('batch', -1)
             warmup = kwargs.pop('warmup', 0)
-            stencil = kwargs.pop('stencil', [0])
+            stencil = kwargs.pop('stencil', [])
             args = kwargs.pop('args', None)
             op = Op(self._db, name, inputs, device, batch, warmup, stencil,
                     kwargs if args is None else args)
