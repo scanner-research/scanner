@@ -291,7 +291,8 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
 void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
                        i32 column_id, i32 item_id, i32 item_start, i32 item_end,
                        const std::vector<i64>& rows,
-                       ElementList& element_list) {
+                       ElementList& element_list,
+                       i32 load_sparsity_threshold) {
   const std::vector<i64>& valid_offsets = rows;
 
   std::unique_ptr<RandomReadFile> file;
@@ -320,27 +321,45 @@ void read_other_column(storehouse::StorageBackend* storage, i32 table_id,
   for (i64 i = item_start; i < item_end; ++i) {
     end_offset += element_sizes[i];
   }
-  u64 element_data_size = end_offset - start_offset;
-  std::vector<u8> element_data(element_data_size);
 
-  // Read chunk of file corresponding to requested elements
-  pos += start_offset;
-  s_read(file.get(), element_data.data(), element_data.size(), pos);
-
-  // Extract individual elements and insert into output work entry
-  u64 offset = 0;
-  size_t valid_idx = 0;
-  for (i32 i = item_start; i < item_end; ++i) {
-    size_t buffer_size = static_cast<size_t>(element_sizes[i]);
-    if (i == valid_offsets[valid_idx]) {
+  // If the requested elements are sufficiently sparse by some threshold, we
+  // read each element individually. Otherwise, we read the entire block and
+  // copy out only the necessary elements.
+  if ((item_end - item_start) / rows.size() >= load_sparsity_threshold) {
+    for (i32 row : rows) {
+      size_t buffer_size = static_cast<size_t>(element_sizes[row]);
       u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-      memcpy(buffer, element_data.data() + offset, buffer_size);
+      u64 row_offset = pos + start_offset;
+      for (i32 i = item_start; i < row; ++i) {
+        row_offset += element_sizes[i];
+      }
+      s_read(file.get(), buffer, buffer_size, row_offset);
       insert_element(element_list, buffer, buffer_size);
-      valid_idx++;
     }
-    offset += buffer_size;
+  } else {
+    pos += start_offset;
+
+    u64 element_data_size = end_offset - start_offset;
+    std::vector<u8> element_data(element_data_size);
+
+    // Read chunk of file corresponding to requested elements
+    s_read(file.get(), element_data.data(), element_data.size(), pos);
+
+    // Extract individual elements and insert into output work entry
+    u64 offset = 0;
+    size_t valid_idx = 0;
+    for (i32 i = item_start; i < item_end; ++i) {
+      size_t buffer_size = static_cast<size_t>(element_sizes[i]);
+      if (i == valid_offsets[valid_idx]) {
+        u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+        memcpy(buffer, element_data.data() + offset, buffer_size);
+        insert_element(element_list, buffer, buffer_size);
+        valid_idx++;
+      }
+      offset += buffer_size;
+    }
+    assert(valid_idx == valid_offsets.size());
   }
-  assert(valid_idx == valid_offsets.size());
 }
 }
 
@@ -455,7 +474,8 @@ void* load_thread(void* arg) {
 
               read_other_column(storage, table_id, col_id, item_id, item_start,
                                 item_end, valid_offsets,
-                                eval_work_entry.columns[out_col_idx]);
+                                eval_work_entry.columns[out_col_idx],
+                                args.job_params->load_sparsity_threshold());
             }
           }
           assert(num_items > 0);
@@ -473,7 +493,8 @@ void* load_thread(void* arg) {
 
             read_other_column(storage, table_id, col_id, item_id, item_start,
                               item_end, valid_offsets,
-                              eval_work_entry.columns[out_col_idx]);
+                              eval_work_entry.columns[out_col_idx],
+                              args.job_params->load_sparsity_threshold());
           }
         }
         eval_work_entry.column_types.push_back(column_type);
