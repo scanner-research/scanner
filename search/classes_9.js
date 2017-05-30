@@ -1,9 +1,5 @@
 var searchData=
 [
-  ['op',['Op',['../classscannerpy_1_1op_1_1Op.html',1,'scannerpy::op']]],
-  ['op',['Op',['../classscanner_1_1Op.html',1,'scanner']]],
-  ['opcolumn',['OpColumn',['../classscannerpy_1_1op_1_1OpColumn.html',1,'scannerpy::op']]],
-  ['opgenerator',['OpGenerator',['../classscannerpy_1_1op_1_1OpGenerator.html',1,'scannerpy::op']]],
-  ['opinput',['OpInput',['../classscanner_1_1OpInput.html',1,'scanner']]],
-  ['outputcolumncompression',['OutputColumnCompression',['../structscanner_1_1OutputColumnCompression.html',1,'scanner']]]
+  ['profiler',['Profiler',['../classscannerpy_1_1profiler_1_1Profiler.html',1,'scannerpy::profiler']]],
+  ['protobufgenerator',['ProtobufGenerator',['../classscannerpy_1_1database_1_1ProtobufGenerator.html',1,'scannerpy::database']]]
 ];
