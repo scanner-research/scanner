@@ -101,5 +101,7 @@ void move_if_different_address_space(Profiler& profiler,
 
 ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
                                DeviceHandle target_handle, ElementList& column);
+
+std::tuple<i64, i64> determine_stencil_bounds(const proto::TaskSet& task_set);
 }
 }

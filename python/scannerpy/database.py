@@ -843,6 +843,7 @@ class Database:
             'M': 1024**2,
             'K': 1024**1
         }
+        suffix = suffix.upper()
         if suffix not in mults:
             raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
@@ -853,7 +854,8 @@ class Database:
             cpu_pool=None,
             gpu_pool=None,
             pipeline_instances_per_node=None,
-            show_progress=True):
+            show_progress=True,
+            profiling=False):
         """
         Runs a computation over a set of inputs.
 
@@ -939,6 +941,7 @@ class Database:
         job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress
+        job_params.profiling = profiling
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:

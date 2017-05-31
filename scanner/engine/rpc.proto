@@ -80,6 +80,7 @@ message JobParameters {
   int32 local_total = 8;
   int32 global_total = 9;
   bool show_progress = 10;
+  bool profiling = 11;
 }
 
 message NewWork {

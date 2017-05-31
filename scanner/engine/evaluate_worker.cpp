@@ -348,17 +348,19 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
       for (i64 i = 0; i < producible_rows; ++i) {
         // Iterate over all elements in the stencil cache to check if they
         // have the proper id
-        i64 valid_row_id = kernel_valid_rows[current_valid_idx_[k]];
+        i64 valid_row_id = kernel_valid_rows[current_valid_idx_[k] + i];
         for (; s_idx < kernel_cache_row_ids.size(); ++s_idx) {
           if (kernel_cache_row_ids[s_idx] == valid_row_id) {
             side_row_ids.push_back(valid_row_id);
             for (i64 c = 0; c < kernel_cache.size(); ++c) {
               producible_elements[c].push_back(kernel_cache[c][s_idx]);
             }
+            s_idx++;
             break;
           }
         }
       }
+      assert(producible_elements[0].size() == producible_rows);
 
       // Update side output data by copying data since we don't have
       // reference counting for all pointers :(
