@@ -50,7 +50,7 @@ FrameType cv_to_frame_type(int t) {
 }
 
 FrameInfo mat_to_frame_info(const cv::Mat& mat) {
-  return FrameInfo(mat.channels(), mat.cols, mat.rows,
+  return FrameInfo(mat.rows, mat.cols, mat.channels(), 
                    cv_to_frame_type(mat.depth()));
 }
 

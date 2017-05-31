@@ -247,10 +247,9 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
   std::vector<i64> current_rows;
   const proto::LoadSample& sample = load_work_entry.samples(0);
   i64 last_row = sample.rows(sample.rows_size() - 1);
+  std::string table_path = TableMetadata::descriptor_path(sample.table_id());
+  TableMetadata meta = read_table_metadata(storage, table_path);
   {
-    std::string table_path = TableMetadata::descriptor_path(sample.table_id());
-    TableMetadata meta = read_table_metadata(storage, table_path);
-
     current_rows = std::vector<i64>(sample.rows().begin(), sample.rows().end());
     TaskStream s;
     s.valid_output_rows = current_rows;
@@ -305,9 +304,8 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
 
         // If we are at the end of the task, then we can not provide
         // a full batch and must provide a partial one
-        if (pos + work_item_size + stencil.back() >
-            prev_s.valid_output_rows.size()) {
-          work_item_size = s.valid_output_rows.size() - pos - stencil.back();
+        if (pos + work_item_size > prev_s.valid_output_rows.size()) {
+          work_item_size = s.valid_output_rows.size() - pos;
         }
 
         // Compute which input rows are needed for the batch of outputs
@@ -362,6 +360,7 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
             break;
           }
         }
+        assert(pos + rows - 1 < ts.valid_output_rows.size());
         // Round down if we don't have enough for a batch unless this is
         // the end of the task
         if (rows % batch_size != 0 &&
@@ -1111,9 +1110,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
   }
 
-#ifdef SCANNER_PROFILING
-  sleep(10);
-#endif
+  if (job_params->profiling()) {
+    sleep(10);
+  }
   timepoint_t start_time = now();
 
   // Monitor amount of work left and request more when running low
@@ -1255,11 +1254,11 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     free(result);
   }
 
-// Ensure all files are flushed
-#ifdef SCANNER_PROFILING
-  std::fflush(NULL);
-  sync();
-#endif
+  // Ensure all files are flushed
+  if (job_params->profiling()) {
+    std::fflush(NULL);
+    sync();
+  }
 
   if (!job_result->success()) {
     return grpc::Status::OK;

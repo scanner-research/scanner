@@ -209,15 +209,22 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
 
 Result get_task_end_rows(
     const std::map<std::string, TableMetadata>& table_metas,
-    const proto::Task& task, std::vector<i64>& rows) {
+    const proto::Task& task, i64 min_stencil, i64 max_stencil,
+    std::vector<i64>& rows) {
   Result result;
   result.set_success(true);
+
+  std::vector<i64> table_num_rows;
+  for (auto& s : task.samples()) {
+    table_num_rows.push_back(table_metas.at(s.table_name()).num_rows());
+  }
 
   TaskSampler sampler(table_metas, task);
   result = sampler.validate();
   if (!result.success()) {
     return result;
   }
+  i64 start_rows_lost = 0;
   i64 num_samples = sampler.total_samples();
   for (i64 i = 0; i < num_samples; ++i) {
     proto::NewWork new_work;
@@ -226,7 +233,42 @@ Result get_task_end_rows(
       rows.clear();
       return result;
     }
-    rows.push_back(new_work.io_item().end_row());
+
+    i64 requested_start_row = new_work.io_item().start_row();
+    i64 requested_end_row = new_work.io_item().end_row();
+
+    i64 work_item_start_reduction = 0;
+    i64 work_item_end_reduction = 0;
+    for (i32 j = 0; j < new_work.load_work().samples_size(); j++) {
+      auto& s = new_work.load_work().samples(j);
+      // If this IO item is near the start or end, we should check if it
+      // is attempting to produce invalid rows due to a stencil
+      // requirement that can not be fulfilled
+
+      // Check if near start
+      i64 min_requested = s.rows(0) + min_stencil;
+      if (min_requested < 0) {
+        work_item_start_reduction =
+            std::max(-min_requested, work_item_start_reduction);
+      }
+      // Check if near end
+      i64 max_requested = s.rows(s.rows_size() - 1) + max_stencil;
+      if (max_requested > table_num_rows[j]) {
+        work_item_end_reduction =
+            std::max(max_requested - table_num_rows[j], work_item_end_reduction);
+      }
+    }
+    requested_end_row -= work_item_start_reduction;
+    requested_end_row -= work_item_end_reduction;
+
+    requested_start_row -= start_rows_lost;
+    requested_end_row -= start_rows_lost;
+
+    start_rows_lost += work_item_start_reduction;
+    if ((requested_start_row < requested_end_row) &&
+        (requested_end_row - start_rows_lost > 0)) {
+      rows.push_back(requested_end_row - start_rows_lost);
+    }
   }
   return result;
 }
@@ -459,6 +501,9 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   job_descriptor.set_id(job_id);
   job_descriptor.set_name(job_params->job_name());
 
+  i64 min_stencil, max_stencil;
+  std::tie(min_stencil, max_stencil) =
+      determine_stencil_bounds(job_params->task_set());
   total_samples_used_ = 0;
   total_samples_ = 0;
   for (auto& task : job_params->task_set().tasks()) {
@@ -476,7 +521,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     }
     table_metas_[task.output_table_name()] = TableMetadata(table_desc);
     std::vector<i64> end_rows;
-    Result result = get_task_end_rows(table_metas_, task, end_rows);
+    Result result = get_task_end_rows(table_metas_, task, min_stencil,
+                                      max_stencil, end_rows);
     if (!result.success()) {
       *job_result = result;
       break;

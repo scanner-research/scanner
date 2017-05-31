@@ -9,13 +9,13 @@
 
 namespace scanner {
 
-class OpticalFlowKernelGPU : public StenciledKernel, public VideoKernel {
+class OpticalFlowKernelGPU : public StenciledBatchedKernel, public VideoKernel {
  public:
   OpticalFlowKernelGPU(const KernelConfig& config)
-    : StenciledKernel(config),
+    : StenciledBatchedKernel(config),
       device_(config.devices[0]),
       work_item_size_(config.work_item_size),
-      num_cuda_streams_(2) {
+      num_cuda_streams_(4) {
     set_device();
     streams_.resize(num_cuda_streams_);
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
@@ -38,46 +38,57 @@ class OpticalFlowKernelGPU : public StenciledKernel, public VideoKernel {
   void reset() override {
     set_device();
     initial_frame_ = cvc::GpuMat();
-    flow_finders_.resize(0);
+    flow_finders_.clear();
     for (i32 i = 0; i < num_cuda_streams_; ++i) {
       flow_finders_.push_back(
           cvc::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0));
     }
   }
 
-  void execute(const StenciledColumns& input_columns,
-               Columns& output_columns) override {
-    auto& frame_col = input_columns[0];
-    check_frame(device_, frame_col[0]);
+  void execute(const StenciledBatchedColumns& input_columns,
+               BatchedColumns& output_columns) override {
     set_device();
 
-    i32 input_count = (i32)num_rows(frame_col);
+    auto& frame_col = input_columns[0];
+    check_frame(device_, frame_col[0][0]);
+
+    i32 input_count = (i32)frame_col.size();
+    std::vector<const Frame*> input_frames;
+    for (i32 i = 0; i < input_count; ++i) {
+      input_frames.push_back(frame_col[i][0].as_const_frame());
+    }
+    input_frames.push_back(frame_col.back()[1].as_const_frame());
+
     FrameInfo out_frame_info(frame_info_.height(), frame_info_.width(), 2,
                              FrameType::F32);
-    Frame* output_frame = new_frame(device_, out_frame_info);
+    std::vector<Frame*> output_frames =
+        new_frames(device_, out_frame_info, input_count);
 
-    double start = CycleTimer::currentSeconds();
-
-    cvc::GpuMat input0 =
-        frame_to_gpu_mat(frame_col[0].as_const_frame());
-    cvc::GpuMat input1 =
-        frame_to_gpu_mat(frame_col[1].as_const_frame());
+    cvc::GpuMat input0 = frame_to_gpu_mat(input_frames[0]);
     cvc::cvtColor(input0, grayscale_[0], CV_BGR2GRAY, 0, streams_[0]);
-    cvc::cvtColor(input1, grayscale_[1], CV_BGR2GRAY, 0, streams_[1]);
+    cvc::Event prev_gray;
+    prev_gray.record(streams_[0]);
+    for (i32 i = 1; i < input_count + 1; ++i) {
+      i32 curr_idx = i % 2;
+      i32 prev_idx = (i - 1) % 2;
 
-    for (cv::cuda::Stream& s : streams_) {
+      cvc::GpuMat input1 = frame_to_gpu_mat(input_frames[i]);
+      cvc::cvtColor(input1, grayscale_[curr_idx], CV_BGR2GRAY, 0,
+                    streams_[curr_idx]);
+
+      cvc::Event curr_gray;
+      curr_gray.record(streams_[curr_idx]);
+      streams_[curr_idx].waitEvent(prev_gray);
+      prev_gray = curr_gray;
+      cvc::GpuMat output_mat = frame_to_gpu_mat(output_frames[i - 1]);
+      flow_finders_[curr_idx]->calc(grayscale_[prev_idx], grayscale_[curr_idx],
+                                    output_mat, streams_[curr_idx]);
+
+      insert_frame(output_columns[0], output_frames[i - 1]);
+    }
+    for (auto& s : streams_) {
       s.waitForCompletion();
     }
-
-    flow_finders_[0]->calc(grayscale_[0], grayscale_[1],
-                           frame_to_gpu_mat(output_frame),
-                           streams_[0]);
-
-    for (cv::cuda::Stream& s : streams_) {
-      s.waitForCompletion();
-    }
-
-    insert_frame(output_columns[0], output_frame);
   }
 
  private:
@@ -97,5 +108,6 @@ class OpticalFlowKernelGPU : public StenciledKernel, public VideoKernel {
 
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelGPU)
     .device(DeviceType::GPU)
+    .batch()
     .num_devices(1);
 }
