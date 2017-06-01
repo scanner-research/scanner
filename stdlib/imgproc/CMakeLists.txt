@@ -11,11 +11,12 @@ if (BUILD_CUDA)
     montage_kernel_gpu.cpp
     feature_extractor_kernel.cpp
     feature_matcher_kernel.cpp)
+    #image_decoder_kernel_gpu.cpp
 endif()
 
 add_library(imgproc OBJECT ${SOURCE_FILES})
 
-list(APPEND OPENCV_COMPONENTS core highgui imgproc xfeatures2d cudafeatures2d)
+list(APPEND OPENCV_COMPONENTS core highgui imgproc xfeatures2d cudafeatures2d cudacodec)
 set(OPENCV_COMPONENTS ${OPENCV_COMPONENTS} PARENT_SCOPE)
 
 set(STDLIB_LIBRARIES ${STDLIB_LIBRARIES} PARENT_SCOPE)

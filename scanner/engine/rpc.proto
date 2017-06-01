@@ -81,6 +81,7 @@ message JobParameters {
   int32 global_total = 9;
   bool show_progress = 10;
   bool profiling = 11;
+  int32 load_sparsity_threshold = 12;
 }
 
 message NewWork {

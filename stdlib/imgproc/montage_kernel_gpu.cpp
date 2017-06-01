@@ -82,7 +82,8 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
         montage_image_ = cvc::GpuMat();
         montage_buffer_ = nullptr;
       } else {
-        insert_element(output_columns[0], new_buffer(device_, 1), 1);
+        FrameInfo info(2, 2, 3, FrameType::U8);
+        insert_frame(output_columns[0], new_frame(device_, info));
       }
     }
   }

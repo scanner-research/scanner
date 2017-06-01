@@ -2,12 +2,13 @@
 #include "scanner/api/op.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
+#include "stdlib/stdlib.pb.h"
 
 namespace scanner {
 
-class ImageDecoderKernel : public BatchedKernel {
+class ImageDecoderKernelCPU : public BatchedKernel {
  public:
-  ImageDecoderKernel(const KernelConfig& config) : BatchedKernel(config) {}
+  ImageDecoderKernelCPU(const KernelConfig& config) : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
@@ -15,8 +16,8 @@ class ImageDecoderKernel : public BatchedKernel {
 
     for (i32 i = 0; i < input_count; ++i) {
       std::vector<u8> input_buf(
-          input_columns[0][i].buffer,
-          input_columns[0][i].buffer + input_columns[0][i].size);
+        input_columns[0][i].buffer,
+        input_columns[0][i].buffer + input_columns[0][i].size);
       cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
       LOG_IF(FATAL, img.empty() || !img.data) << "Failed to decode image";
       size_t size = img.total() * img.elemSize();
@@ -29,7 +30,7 @@ class ImageDecoderKernel : public BatchedKernel {
 
 REGISTER_OP(ImageDecoder).input("img").frame_output("frame");
 
-REGISTER_KERNEL(ImageDecoder, ImageDecoderKernel)
+REGISTER_KERNEL(ImageDecoder, ImageDecoderKernelCPU)
     .device(DeviceType::CPU)
     .num_devices(1);
 }

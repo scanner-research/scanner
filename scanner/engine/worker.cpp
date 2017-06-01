@@ -929,7 +929,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     LoadWorkerArgs args{// Uniform arguments
                         node_id_,
                         // Per worker arguments
-                        i, db_params_.storage_config, load_thread_profilers[i]};
+                        i, db_params_.storage_config, load_thread_profilers[i],
+                        job_params->load_sparsity_threshold()};
 
     load_threads.emplace_back(load_driver, std::ref(load_work),
                               std::ref(initial_eval_work), args);

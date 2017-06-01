@@ -81,6 +81,13 @@ cvc::GpuMat bytesToImage_gpu(u8* buf, const FrameInfo& metadata) {
   return cvc::GpuMat(metadata.height(), metadata.width(), CV_8UC3, buf);
 }
 
+
+FrameInfo gpu_mat_to_frame_info(const cv::cuda::GpuMat& mat) {
+  return FrameInfo(mat.channels(), mat.cols, mat.rows,
+                   cv_to_frame_type(mat.depth()));
+}
+
+
 cudaError_t convertNV12toRGBA(const cv::cuda::GpuMat& in,
                               cv::cuda::GpuMat& outFrame, int width, int height,
                               cv::cuda::Stream& stream) {
