@@ -21,9 +21,15 @@
 
 #include <thread>
 
+extern "C" {
+#include "libavcodec/avcodec.h"
+}
+
 namespace scanner {
 namespace internal {
 TEST(DecoderAutomata, GetAllFrames) {
+  avcodec_register_all();
+
   MemoryPoolConfig config;
   init_memory_allocators(config, {});
   std::unique_ptr<storehouse::StorageConfig> sc(
@@ -74,6 +80,8 @@ TEST(DecoderAutomata, GetAllFrames) {
 }
 
 TEST(DecoderAutomata, GetStridedFrames) {
+  avcodec_register_all();
+
   MemoryPoolConfig config;
   init_memory_allocators(config, {});
   std::unique_ptr<storehouse::StorageConfig> sc(

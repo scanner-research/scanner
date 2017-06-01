@@ -129,7 +129,7 @@ class Column:
                    png_table.num_rows() == self._table.num_rows() and \
                    png_table._descriptor.timestamp > \
                    self._table._descriptor.timestamp:
-                    return png_table.load(['png'], parsers.image)
+                    return png_table.load(['img'], parsers.image)
             pair = [(self._table.name(), png_table_name)]
             if rows is None:
                 frame = self._table.as_op().all()
@@ -138,7 +138,7 @@ class Column:
             img = self._db.ops.ImageEncoder(frame = frame)
             job = Job(columns = [img], name = png_table_name)
             [out_tbl] = self._db.run([job], force=True, show_progress=False)
-            return out_tbl.load(['png'], parsers.image)
+            return out_tbl.load(['img'], parsers.image)
         elif self._descriptor.type == self._db.protobufs.Video:
             frame_type = self._video_descriptor.frame_type
             if frame_type == self._db.protobufs.U8:

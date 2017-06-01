@@ -15,8 +15,7 @@ class DiscardKernel : public BatchedKernel {
                BatchedColumns& output_columns) override {
     i32 input_count = (i32)num_rows(input_columns[0]);
     for (i32 i = 0; i < input_count; ++i) {
-      u8* output_block = new_buffer(device_, 1);
-      insert_element(output_columns[0], output_block, 1);
+      insert_element(output_columns[0], new_buffer(device_, 1), 1);
     }
   }
 

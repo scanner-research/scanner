@@ -174,7 +174,7 @@ internal::DatabaseParameters machine_params_to_db_params(
 MachineParameters default_machine_params() {
   MachineParameters machine_params;
   machine_params.num_cpus = std::thread::hardware_concurrency();
-  machine_params.num_load_workers = 2;
+  machine_params.num_load_workers = 8;
   machine_params.num_save_workers = 2;
 #ifdef HAVE_CUDA
   i32 gpu_count;
@@ -293,6 +293,7 @@ Result Database::new_job(JobParameters& params) {
   job_params.set_pipeline_instances_per_node(
       params.pipeline_instances_per_node);
   job_params.set_work_item_size(params.work_item_size);
+  job_params.set_load_sparsity_threshold(8); // TODO: make this configurable
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   Result job_result;

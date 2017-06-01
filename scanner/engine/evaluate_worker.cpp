@@ -44,6 +44,8 @@ void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         std::max(total_rows_, (i64)work_entry.columns[i].size());
   }
 
+  // FIXME: do we need this w/ multiple videos of different resolutions in the same
+  // task?
   if (needs_configure_) {
     // decoders_.clear();
   }
@@ -662,7 +664,7 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
         encoder_configured_[encoder_idx] = true;
         Frame* frame = work_entry.columns[col_idx][0].as_frame();
         encoder->configure(frame->as_frame_info(),
-                           
+
                            encode_options_[encoder_idx]);
       }
 

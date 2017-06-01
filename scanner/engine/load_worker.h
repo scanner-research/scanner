@@ -29,6 +29,7 @@ struct LoadWorkerArgs {
   int worker_id;
   storehouse::StorageConfig* storage_config;
   Profiler& profiler;
+  i32 load_sparsity_threshold;
 };
 
 class LoadWorker {
@@ -72,7 +73,7 @@ class LoadWorker {
   // To ammortize opening files
   i32 last_table_id_ = -1;
   std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index_;
-
+  i32 load_sparsity_threshold_;
 
 };
 
