@@ -1,0 +1,6 @@
+<map id="scanner::BaseKernel" name="scanner::BaseKernel">
+<area shape="rect" id="node2" href="$classscanner_1_1BatchedKernel.html" title="Interface for a unit of computation in a pipeline. " alt="" coords="206,5,367,32"/>
+<area shape="rect" id="node3" href="$classscanner_1_1Kernel.html" title="scanner::Kernel" alt="" coords="230,56,343,83"/>
+<area shape="rect" id="node4" href="$classscanner_1_1StenciledBatchedKernel.html" title="Interface for a unit of computation in a pipeline. " alt="" coords="197,107,376,149"/>
+<area shape="rect" id="node5" href="$classscanner_1_1StenciledKernel.html" title="scanner::StenciledKernel" alt="" coords="203,173,370,200"/>
+</map>
