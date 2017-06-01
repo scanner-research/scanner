@@ -234,6 +234,7 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
                                  const AnalysisResults& analysis_results,
                                  const LoadWorkEntry& load_work_entry,
                                  const std::vector<std::vector<i32>>& stencils,
+                                 i64 initial_work_item_size,
                                  LoadWorkEntry& output_entry,
                                  std::deque<TaskStream>& task_streams) {
   output_entry.set_io_item_index(load_work_entry.io_item_index());
@@ -286,7 +287,7 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
     size_t num_input_rows = task_streams.front().valid_output_rows.size();
     size_t num_output_rows = task_streams.back().valid_output_rows.size();
     while (produced_rows.front() < num_input_rows) {
-      i64 work_item_size = 1;
+      i64 work_item_size = initial_work_item_size;
       // For each kernel, determine which rows of input it needs given the
       // current stencil cache and position in required rows
       for (i64 k = num_kernels; k >= 1; k--) {
@@ -1144,9 +1145,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-        derive_stencil_requirements(
-            storage_, analysis_results, new_work.load_work(),
-            analysis_results.stencils, stenciled_entry, task_stream);
+        derive_stencil_requirements(storage_, analysis_results,
+                                    new_work.load_work(),
+                                    analysis_results.stencils, work_item_size,
+                                    stenciled_entry, task_stream);
 
         load_work.push(std::make_tuple(last_work_queue++, task_stream, new_work.io_item(),
                                        stenciled_entry));
