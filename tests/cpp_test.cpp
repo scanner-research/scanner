@@ -48,6 +48,8 @@ class ScannerTest : public ::testing::Test {
     params_.memory_pool_config.mutable_gpu()->set_use_pool(false);
     params_.pipeline_instances_per_node = 1;
     params_.work_item_size = 25;
+    params_.load_sparsity_threshold = 8;
+    params_.tasks_in_queue_per_pu = 4;
   }
 
   void TearDown() { delete db_; }
