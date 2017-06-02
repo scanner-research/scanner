@@ -73,8 +73,5 @@ std::string image_encoding_type_to_string(ImageEncodingType t) {
   return s;
 }
 
-i64 IO_ITEM_SIZE = 64;          // Number of rows to load and save at a time
-i64 WORK_ITEM_SIZE = 8;         // Max size of a work item
-i32 TASKS_IN_QUEUE_PER_PU = 4;  // How many tasks per PU to allocate to a node
 i32 NUM_CUDA_STREAMS = 32;      // Number of cuda streams for image processing
 }

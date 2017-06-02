@@ -107,6 +107,5 @@ std::string image_encoding_type_to_string(proto::ImageEncodingType d);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Global constants
-extern i32 TASKS_IN_QUEUE_PER_PU;  // How many tasks per PU to allocate
 extern i32 NUM_CUDA_STREAMS;       // # of cuda streams for image processing
 }

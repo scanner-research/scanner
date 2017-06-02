@@ -293,7 +293,8 @@ Result Database::new_job(JobParameters& params) {
   job_params.set_pipeline_instances_per_node(
       params.pipeline_instances_per_node);
   job_params.set_work_item_size(params.work_item_size);
-  job_params.set_load_sparsity_threshold(8); // TODO: make this configurable
+  job_params.set_load_sparsity_threshold(params.load_sparsity_threshold);
+  job_params.set_tasks_in_queue_per_pu(params.tasks_in_queue_per_pu);
   proto::TaskSet set = consume_task_set(params.task_set);
   job_params.mutable_task_set()->Swap(&set);
   Result job_result;

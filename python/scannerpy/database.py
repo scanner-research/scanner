@@ -855,7 +855,9 @@ class Database:
             gpu_pool=None,
             pipeline_instances_per_node=None,
             show_progress=True,
-            profiling=False):
+            profiling=False,
+            load_sparsity_threshold=8,
+            tasks_in_queue_per_pu=4):
         """
         Runs a computation over a set of inputs.
 
@@ -942,6 +944,8 @@ class Database:
         job_params.work_item_size = work_item_size
         job_params.show_progress = show_progress
         job_params.profiling = profiling
+        job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu
+        job_params.load_sparsity_threshold = load_sparsity_threshold
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:

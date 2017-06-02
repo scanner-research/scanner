@@ -1,7 +1,7 @@
 #include "scanner/api/op.h"
 #include "stdlib/caffe/caffe_kernel.h"
 
-#include "caffe/layers/imresize_layer.hpp"
+#include "caffe/cpm/layers/imresize_layer.hpp"
 
 namespace scanner {
 
@@ -48,6 +48,6 @@ REGISTER_OP(CPM2)
     .frame_output("cpm2_resized_map")
     .frame_output("cpm2_joints");
 
-REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::CPU).num_devices(1);
-REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::GPU).num_devices(1);
+REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::CPU).num_devices(1).batch();
+REGISTER_KERNEL(CPM2, CPM2Kernel).device(DeviceType::GPU).num_devices(1).batch();
 }
