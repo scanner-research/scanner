@@ -523,6 +523,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
             << args.kg << "): processing item " << work_entry.io_item_index;
 
+
     auto work_start = now();
 
     if (task_streams.size() > 0) {
@@ -577,6 +578,7 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     if (work_entry.io_item_index == -1) {
       break;
     }
+
 
     VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): processing item " << work_entry.io_item_index;
@@ -1123,7 +1125,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   i32 last_work_queue = 0;
   while (true) {
     i32 local_work = accepted_items - retired_items;
-    if (local_work < pipeline_instances_per_node * TASKS_IN_QUEUE_PER_PU) {
+    if (local_work < pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
       grpc::ClientContext context;
       proto::NodeInfo node_info;
       proto::NewWork new_work;

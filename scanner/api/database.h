@@ -72,6 +72,8 @@ struct JobParameters {
   MemoryPoolConfig memory_pool_config;
   i32 pipeline_instances_per_node;
   i64 work_item_size;
+  i32 load_sparsity_threshold;
+  i32 tasks_in_queue_per_pu;
 };
 
 //! Info about a video that fails to ingest.

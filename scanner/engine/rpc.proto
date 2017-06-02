@@ -82,6 +82,7 @@ message JobParameters {
   bool show_progress = 10;
   bool profiling = 11;
   int32 load_sparsity_threshold = 12;
+  int32 tasks_in_queue_per_pu = 13;
 }
 
 message NewWork {
