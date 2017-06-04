@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/video_index_entry.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 
@@ -40,26 +41,12 @@ class LoadWorker {
       std::tuple<IOItem, LoadWorkEntry>& entry);
 
  private:
-  struct VideoIndexEntry {
-    i32 width;
-    i32 height;
-    i32 channels;
-    FrameType frame_type;
-    proto::VideoDescriptor::VideoCodecType codec_type;
-    std::unique_ptr<storehouse::RandomReadFile> file;
-    u64 file_size;
-    std::vector<i64> keyframe_positions;
-    std::vector<i64> keyframe_byte_offsets;
-  };
-
-  VideoIndexEntry read_video_index(i32 table_id, i32 column_id, i32 item_id);
-
   void read_other_column(i32 table_id, i32 column_id, i32 item_id,
                          i32 item_start, i32 item_end,
                          const std::vector<i64>& rows,
                          ElementList& element_list);
 
-  void read_video_column(const LoadWorker::VideoIndexEntry& index_entry,
+  void read_video_column(const VideoIndexEntry& index_entry,
                          const std::vector<i64>& rows,
                          i64 start_offset,
                          ElementList& element_list);

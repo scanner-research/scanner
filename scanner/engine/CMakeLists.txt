@@ -6,6 +6,7 @@ set(SOURCE_FILES
   master.cpp
   worker.cpp
   ingest.cpp
+  video_index_entry.cpp
   load_worker.cpp
   evaluate_worker.cpp
   save_worker.cpp
