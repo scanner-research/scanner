@@ -650,7 +650,9 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
 WorkerImpl::~WorkerImpl() {
   trigger_shutdown_.set();
-  watchdog_thread_.join();
+  if (watchdog_thread_.joinable()) {
+    watchdog_thread_.join();
+  }
   delete storage_;
   if (memory_pool_initialized_) {
     destroy_memory_allocators();

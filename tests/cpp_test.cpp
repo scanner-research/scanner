@@ -40,8 +40,8 @@ class ScannerTest : public ::testing::Test {
     // Initialize master and one worker
     scanner::MachineParameters machine_params =
         scanner::default_machine_params();
-    db_->start_master(machine_params, master_port);
-    db_->start_worker(machine_params, worker_port);
+    db_->start_master(machine_params, master_port, false);
+    db_->start_worker(machine_params, worker_port, false);
 
     // Construct job parameters
     params_.memory_pool_config.mutable_cpu()->set_use_pool(false);

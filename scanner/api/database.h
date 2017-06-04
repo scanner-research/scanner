@@ -88,9 +88,11 @@ class Database {
   Database(storehouse::StorageConfig* storage_config,
            const std::string& db_path, const std::string& master_address);
 
-  Result start_master(const MachineParameters& params, const std::string& port);
+  Result start_master(const MachineParameters& params, const std::string& port,
+                      bool watchdog = true);
 
-  Result start_worker(const MachineParameters& params, const std::string& port);
+  Result start_worker(const MachineParameters& params, const std::string& port,
+                      bool watchdog = true);
 
   Result ingest_videos(const std::vector<std::string>& table_names,
                        const std::vector<std::string>& paths,
