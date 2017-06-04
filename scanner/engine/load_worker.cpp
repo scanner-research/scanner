@@ -251,7 +251,7 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
           auto key = std::make_tuple(table_id, col_id, item_id);
           if (index_.count(key) == 0) {
             index_[key] =
-                read_video_index(table_id, col_id, item_id);
+                read_video_index(storage_.get(), table_id, col_id, item_id);
           }
           const VideoIndexEntry& entry = index_.at(key);
           info = FrameInfo(entry.height, entry.width, entry.channels,
@@ -300,38 +300,8 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
   return std::make_tuple(io_item, eval_work_entry);
 }
 
-LoadWorker::VideoIndexEntry LoadWorker::read_video_index(i32 table_id,
-                                                         i32 column_id,
-                                                         i32 item_id) {
-  VideoIndexEntry index_entry;
-  VideoMetadata video_meta = read_video_metadata(
-      storage_.get(),
-      VideoMetadata::descriptor_path(table_id, column_id, item_id));
-
-  // Open the video file for reading
-  index_entry.width = video_meta.width();
-  index_entry.height = video_meta.height();
-  index_entry.channels = video_meta.channels();
-  index_entry.frame_type = video_meta.frame_type();
-  index_entry.codec_type = video_meta.codec_type();
-
-  BACKOFF_FAIL(storehouse::make_unique_random_read_file(
-      storage_.get(), table_item_output_path(table_id, column_id, item_id),
-      index_entry.file));
-  BACKOFF_FAIL(index_entry.file->get_size(index_entry.file_size));
-  index_entry.keyframe_positions = video_meta.keyframe_positions();
-  index_entry.keyframe_byte_offsets = video_meta.keyframe_byte_offsets();
-  // Place total frames at the end of keyframe positions and total file size
-  // at the end of byte offsets to make interval calculation not need to
-  // deal with edge cases surrounding those
-  index_entry.keyframe_positions.push_back(video_meta.frames());
-  index_entry.keyframe_byte_offsets.push_back(index_entry.file_size);
-
-  return index_entry;
-}
-
 void LoadWorker::read_video_column(
-    const LoadWorker::VideoIndexEntry& index_entry,
+    const VideoIndexEntry& index_entry,
     const std::vector<i64>& rows,
     i64 start_frame, ElementList& element_list) {
   RandomReadFile* video_file = index_entry.file.get();
