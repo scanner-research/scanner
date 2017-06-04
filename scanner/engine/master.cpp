@@ -283,7 +283,9 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
 
 MasterImpl::~MasterImpl() {
   trigger_shutdown_.set();
-  watchdog_thread_.join();
+  if (watchdog_thread_.joinable()) {
+    watchdog_thread_.join();
+  }
   delete storage_;
 }
 

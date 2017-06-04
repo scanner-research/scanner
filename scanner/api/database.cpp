@@ -203,7 +203,8 @@ Database::Database(storehouse::StorageConfig* storage_config,
 }
 
 Result Database::start_master(const MachineParameters& machine_params,
-                              const std::string& port) {
+                              const std::string& port,
+                              bool watchdog) {
   if (master_state_ != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
@@ -219,7 +220,9 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_->server = start(master_state_->service, port);
 
   // Setup watchdog
-  master_service->start_watchdog(master_state_->server.get());
+  if (watchdog) {
+    master_service->start_watchdog(master_state_->server.get());
+  }
 
   Result result;
   result.set_success(true);
@@ -227,7 +230,8 @@ Result Database::start_master(const MachineParameters& machine_params,
 }
 
 Result Database::start_worker(const MachineParameters& machine_params,
-                              const std::string& port) {
+                              const std::string& port,
+                              bool watchdog) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   ServerState* s = new ServerState;
@@ -239,7 +243,9 @@ Result Database::start_worker(const MachineParameters& machine_params,
   worker_states_.emplace_back(s);
 
   // Setup watchdog
-  worker_service->start_watchdog(state.server.get());
+  if (watchdog) {
+    worker_service->start_watchdog(state.server.get());
+  }
 
   Result result;
   result.set_success(true);
