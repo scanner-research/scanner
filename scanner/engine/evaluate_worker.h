@@ -139,6 +139,8 @@ class EvaluateWorker {
   std::vector<i64> current_valid_idx_;
   // Per kernel -> per input column -> deque of element)
   std::vector<std::vector<std::deque<Element>>> stencil_cache_;
+  // Per kernel -> per input column -> device handle
+  std::vector<std::vector<DeviceHandle>> stencil_cache_devices_;
   // Per kernel -> deque of row ids
   std::vector<std::deque<i64>> stencil_cache_row_ids_;
 

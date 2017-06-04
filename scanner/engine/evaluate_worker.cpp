@@ -222,6 +222,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   // Setup kernel cache sizes
   stencil_cache_row_ids_.resize(kernel_factories_.size());
   stencil_cache_.resize(kernel_factories_.size());
+  stencil_cache_devices_.resize(kernel_factories_.size());
   for (size_t i = 0; i < kernel_factories_.size(); ++i) {
     // Resize stencil cache to be the same size as the number of side output
     // columns at that kernel since we need to save all columns
@@ -254,6 +255,30 @@ void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {
   final_output_handles_.clear();;
   final_output_columns_.clear();
   final_row_ids_.clear();
+
+  // Clear the stencil cache
+  for (size_t k = 0; k < kernel_factories_.size(); ++k) {
+    std::vector<i32>& kernel_stencil = kernel_stencils_[k];
+    bool degenerate_stencil =
+        (kernel_stencil.size() == 1 && kernel_stencil[0] == 0);
+    std::vector<std::deque<Element>>& kernel_cache = stencil_cache_[k];
+    std::vector<DeviceHandle>& kernel_cache_devices = stencil_cache_devices_[k];
+    std::deque<i64>& kernel_cache_row_ids = stencil_cache_row_ids_[k];
+    auto& row_id_deque = kernel_cache_row_ids;
+    while (row_id_deque.size() > 0) {
+      assert(!kernel_cache_devices.empty());
+      row_id_deque.pop_front();
+      for (size_t i = 0; i < kernel_cache.size(); ++i) {
+        auto& cache_deque = kernel_cache[i];
+        Element element = cache_deque.front();
+        // If this kernel has a non-degenerate stencil...
+        if (!degenerate_stencil) {
+          delete_element(kernel_cache_devices[i], element);
+        }
+        cache_deque.pop_front();
+      }
+    }
+  }
 }
 
 void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
@@ -288,6 +313,7 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     std::vector<i64>& kernel_valid_rows = valid_output_rows_[k];
     std::set<i64>& kernel_valid_rows_set = valid_output_rows_set_[k];
     std::vector<std::deque<Element>>& kernel_cache = stencil_cache_[k];
+    std::vector<DeviceHandle>& kernel_cache_devices = stencil_cache_devices_[k];
     std::deque<i64>& kernel_cache_row_ids = stencil_cache_row_ids_[k];
     std::vector<i32>& input_column_idx = column_mapping_[k];
     std::set<i32>& input_column_idx_set = column_mapping_set_[k];
@@ -326,6 +352,9 @@ void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
       // data once we have determined how many rows can be produced
       for (i64 r = 0; r < side_output_columns[i].size(); ++r) {
         kernel_cache[i].push_back(side_output_columns[col_idx][r]);
+      }
+      if (kernel_cache_devices.empty()) {
+        kernel_cache_devices = side_output_handles;
       }
       side_output_columns[i].clear();
     }
