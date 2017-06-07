@@ -259,7 +259,7 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
           encoding_type = entry.codec_type;
           if (entry.codec_type == proto::VideoDescriptor::H264) {
             // Video was encoded using h264
-            read_video_column(entry, valid_offsets, item_start_row,
+            read_video_column(profiler_, entry, valid_offsets, item_start_row,
                               eval_work_entry.columns[out_col_idx]);
           } else {
             // Video was encoded as individual images
@@ -300,10 +300,10 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
   return std::make_tuple(io_item, eval_work_entry);
 }
 
-void LoadWorker::read_video_column(
-    const VideoIndexEntry& index_entry,
-    const std::vector<i64>& rows,
-    i64 start_frame, ElementList& element_list) {
+void read_video_column(Profiler& profiler,
+                       const VideoIndexEntry& index_entry,
+                       const std::vector<i64>& rows, i64 start_frame,
+                       ElementList& element_list) {
   RandomReadFile* video_file = index_entry.file.get();
   u64 file_size = index_entry.file_size;
   const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
@@ -350,8 +350,8 @@ void LoadWorker::read_video_column(
     u64 pos = start_keyframe_byte_offset;
     s_read(video_file, buffer, buffer_size, pos);
 
-    profiler_.add_interval("io", io_start, now());
-    profiler_.increment("io_read", static_cast<i64>(buffer_size));
+    profiler.add_interval("io", io_start, now());
+    profiler.increment("io_read", static_cast<i64>(buffer_size));
 
     proto::DecodeArgs decode_args;
     decode_args.set_width(index_entry.width);
