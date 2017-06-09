@@ -30,11 +30,12 @@ def nms(orig_boxes, overlapThresh):
     y1 = boxes[:,1]
     x2 = boxes[:,2]
     y2 = boxes[:,3]
+    score = boxes[:,4]
 
     # compute the area of the bounding boxes and sort the bounding
     # boxes by the bottom-right y-coordinate of the bounding box
     area = (x2 - x1 + 1) * (y2 - y1 + 1)
-    idxs = np.argsort(y2)
+    idxs = np.argsort(score)
 
     # keep looping while some indexes still remain in the indexes
     # list
