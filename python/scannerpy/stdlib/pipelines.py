@@ -57,7 +57,7 @@ def detect_faces(db, input_table, sampling, output_name, max_width=960):
             frame_bboxes = []
             for r in range(runs):
                 frame_bboxes += (all_bboxes[r][fi])
-            frame_bboxes = bboxes.nms(frame_bboxes, 0.3)
+            frame_bboxes = bboxes.nms(frame_bboxes, 0.1)
             nms_bboxes.append(frame_bboxes)
 
         _, frame = next(input.load(['frame'], rows=[0]))

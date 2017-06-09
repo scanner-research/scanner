@@ -97,8 +97,8 @@ class FacenetOutputKernel : public BatchedKernel, public VideoKernel {
 
             if (confidence < threshold_) continue;
 
-            f32 x = xi * cell_width_ - 2;
-            f32 y = yi * cell_height_ - 2;
+            f32 x = xi * cell_width_ - 1;
+            f32 y = yi * cell_height_ - 1;
 
             f32 width = templates_[t][2] - templates_[t][0] + 1;
             f32 height = templates_[t][3] - templates_[t][1] + 1;
