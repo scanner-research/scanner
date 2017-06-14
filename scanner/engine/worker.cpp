@@ -438,6 +438,20 @@ void load_driver(LoadInputQueue& load_work,
           << "): thread finished";
 }
 
+std::mutex global_lock;
+
+void nopipeline_lock() {
+  if (std::getenv("NO_PIPELINING")) {
+    global_lock.lock();
+  }
+}
+
+void nopipeline_unlock() {
+  if (std::getenv("NO_PIPELINING")) {
+    global_lock.unlock();
+  }
+}
+
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
                          PreEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
@@ -468,18 +482,23 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       total_rows = std::max(total_rows, (i32)work_entry.columns[i].size());
     }
 
+
     auto input_entry = std::make_tuple(io_item, work_entry);
+    nopipeline_lock();
     worker.feed(input_entry);
+    nopipeline_unlock();
     bool first = true;
     i32 work_item_index = 0;
     while (work_item_index < work_entry.work_item_sizes.size()) {
       i32 work_item_size = work_entry.work_item_sizes.at(work_item_index++);
       total_rows -= work_item_size;
 
+      nopipeline_lock();
       std::tuple<IOItem, EvalWorkEntry> output_entry;
       if (!worker.yield(work_item_size, output_entry)) {
         break;
       }
+      nopipeline_unlock();
 
       if (first) {
         output_work.push(std::make_tuple(task_streams,
@@ -523,6 +542,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
             << args.kg << "): processing item " << work_entry.io_item_index;
 
+    nopipeline_lock();
 
     auto work_start = now();
 
@@ -549,6 +569,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     bool result = worker.yield(work_item_size, output_entry);
     (void)result;
     assert(result);
+    nopipeline_unlock();
 
     profiler.add_interval("task", work_start, now());
 
@@ -556,6 +577,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     output_work.push(std::make_tuple(task_streams, std::get<0>(output_entry),
                                      std::get<1>(output_entry)));
     args.profiler.add_interval("idle_push", idle_push_start, now());
+
   }
   VLOG(1) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
           << "): thread finished";
@@ -579,6 +601,7 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       break;
     }
 
+    nopipeline_lock();
 
     VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): processing item " << work_entry.io_item_index;
@@ -590,6 +613,7 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     std::tuple<IOItem, EvalWorkEntry> output_entry;
     bool result = worker.yield(output_entry);
     profiler.add_interval("task", work_start, now());
+    nopipeline_unlock();
 
     if (result) {
       output_work.push(std::make_tuple(std::get<0>(entry),
@@ -1036,12 +1060,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       assert(kernel_groups.size() > 0);
       pre_eval_queues.push_back(
           std::make_tuple(input_work_queue, output_work_queue));
+      DeviceHandle decoder_type = std::getenv("FORCE_CPU_DECODE")
+        ? CPU_DEVICE
+        : first_kernel_type;
       pre_eval_args.emplace_back(PreEvaluateWorkerArgs{
           // Uniform arguments
           node_id_, num_cpus,
 
           // Per worker arguments
-          ki, first_kernel_type, eval_thread_profilers.front(),
+          ki, decoder_type, eval_thread_profilers.front(),
       });
     }
 
