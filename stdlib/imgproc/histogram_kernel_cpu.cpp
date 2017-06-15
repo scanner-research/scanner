@@ -17,12 +17,11 @@ class HistogramKernelCPU : public BatchedKernel {
                BatchedColumns& output_columns) override {
     auto& frame_col = input_columns[0];
 
-    size_t hist_size = BINS * 3 * sizeof(float);
+    size_t hist_size = BINS * 3 * sizeof(int);
     i32 input_count = num_rows(frame_col);
     u8* output_block =
         new_block_buffer(device_, hist_size * input_count, input_count);
 
-    cv::Mat tmp(BINS, 1, CV_32F);
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
 
@@ -31,13 +30,13 @@ class HistogramKernelCPU : public BatchedKernel {
 
       u8* output_buf = output_block + i * hist_size;
 
-      std::vector<cv::Mat> bgr_planes;
-      cv::split(img, bgr_planes);
-
       for (i32 j = 0; j < 3; ++j) {
-        cv::Mat out(BINS, 1, CV_32S, output_buf + j * BINS * sizeof(float));
-        cv::calcHist(&bgr_planes[j], 1, 0, cv::Mat(), tmp, 1, &BINS, &histRange);
-        tmp.convertTo(out, CV_32S);
+        int channels[] = {j};
+        cv::Mat out(BINS, 1, CV_32S, output_buf + j * BINS * sizeof(int));
+        cv::calcHist(&img, 1, channels, cv::Mat(),
+                     out,
+                     1, &BINS,
+                     &histRange);
       }
 
       insert_element(output_columns[0], output_buf, hist_size);
@@ -52,5 +51,6 @@ REGISTER_OP(Histogram).frame_input("frame").output("histogram");
 
 REGISTER_KERNEL(Histogram, HistogramKernelCPU)
     .device(DeviceType::CPU)
+    .batch()
     .num_devices(1);
 }
