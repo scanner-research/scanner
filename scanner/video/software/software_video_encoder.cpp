@@ -134,6 +134,9 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata,
   if (opts.bitrate != -1) {
     cc_->bit_rate = opts.bitrate;
   }
+  if (opts.keyframe_distance != -1) {
+    cc_->gop_size = opts.keyframe_distance;
+  }
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     LOG(FATAL) << "could not open codec";
