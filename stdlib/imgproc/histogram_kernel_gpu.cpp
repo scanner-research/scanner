@@ -78,5 +78,6 @@ class HistogramKernelGPU : public BatchedKernel, public VideoKernel {
 
 REGISTER_KERNEL(Histogram, HistogramKernelGPU)
     .device(DeviceType::GPU)
+    .batch()
     .num_devices(1);
 }
