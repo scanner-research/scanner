@@ -24,12 +24,13 @@ class OpColumn:
                                    'supported. Available codecs are: {}.'
                                    .format(' '.join(codecs.keys())))
 
-    def compress_video(self, quality = -1, bitrate = -1):
+    def compress_video(self, quality = -1, bitrate = -1, keyframe_distance = -1):
         self._assert_is_video()
         encode_options = {
             'codec': 'h264',
             'quality': quality,
-            'bitrate': bitrate
+            'bitrate': bitrate,
+            'keyframe_distance': keyframe_distance
         }
         return self._new_compressed_column(encode_options)
 

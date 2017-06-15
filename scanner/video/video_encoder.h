@@ -34,6 +34,7 @@ enum class VideoEncoderType {
 struct EncodeOptions {
   i32 quality = -1;
   i64 bitrate = -1;
+  i64 keyframe_distance = -1;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

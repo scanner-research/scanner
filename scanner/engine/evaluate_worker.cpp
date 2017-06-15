@@ -624,6 +624,8 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
     if (compression_opts.codec == "h264") {
       opts.quality = std::atoi(compression_opts.options.at("quality").c_str());
       opts.bitrate = std::atoi(compression_opts.options.at("bitrate").c_str());
+      opts.keyframe_distance =
+          std::atoi(compression_opts.options.at("keyframe_distance").c_str());
     }
     encode_options_.push_back(opts);
   }
