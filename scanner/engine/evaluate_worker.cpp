@@ -652,7 +652,7 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     assert(work_entry.column_handles.size() == columns_.size());
     for (size_t i = 0; i < columns_.size(); ++i) {
       buffered_entry_.column_types.push_back(columns_[i].type());
-      buffered_entry_.column_handles.push_back(work_entry.column_handles[i]);
+      buffered_entry_.column_handles.push_back(CPU_DEVICE);
       if (columns_[i].type() == ColumnType::Video) {
         assert(work_entry.columns[i].size() > 0);
         Frame* frame = work_entry.columns[i][0].as_frame();
@@ -719,10 +719,15 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
               << actual_size << ")";
           insert_element(buffered_entry_.columns[i], buffer, actual_size);
         }
+        delete_element(encoder_handle_, row);
       }
       profiler_.add_interval("encode", encode_start, now());
       encoder_idx++;
     } else {
+      // Move data to CPU to avoid overflow on GPU
+      move_if_different_address_space(
+          profiler_, work_entry.column_handles[col_idx], CPU_DEVICE,
+          work_entry.columns[col_idx]);
       // Keep non-warmup frame outputs
       buffered_entry_.columns[i].insert(
           buffered_entry_.columns[i].end(),
@@ -762,8 +767,6 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
           LOG_IF(FATAL, new_packet && actual_size > buffer_size)
               << "Packet buffer not large enough (" << buffer_size << " vs "
               << actual_size << ")";
-          // HACK(apoms): this is really hacky but we put the encoded data in
-          // a frame so that we can communicate the frame size downstream
           insert_element(buffered_entry_.columns[i], buffer, actual_size);
         }
         profiler_.add_interval("encode_flush", encode_flush_start, now());
