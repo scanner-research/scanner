@@ -368,6 +368,7 @@ class Database:
                     str(int(self.config.worker_port) + i)).success
                 assert res
         else:
+            master_port = self._master_address.partition(':')[2]
             pickled_config = pickle.dumps(self.config)
             master_cmd = (
                 'python -c ' +
@@ -375,7 +376,7 @@ class Database:
                 'import pickle\n' +
                 'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
                 'start_master(port=\'{master_port:s}\', block=True, config=config)\"').format(
-                    master_port=self.config.master_port,
+                    master_port=master_port,
                     config=pickled_config)
             worker_cmd = (
                 'python -c ' +
