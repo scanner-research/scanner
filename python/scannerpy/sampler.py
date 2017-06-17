@@ -1,5 +1,7 @@
 from common import *
 
+DEFAULT_TASK_SIZE = 250
+
 class TableSampler:
     """
     Utility for specifying which frames of a video (or which rows of a table)
@@ -10,7 +12,7 @@ class TableSampler:
         self._table = table
         self._db = table._db
 
-    def all(self, task_size=1000, warmup_size=0):
+    def all(self, task_size=DEFAULT_TASK_SIZE, warmup_size=0):
         sampler_args = self._db.protobufs.AllSamplerArgs()
         sampler_args.sample_size = task_size
         sampler_args.warmup_size = warmup_size
@@ -24,20 +26,20 @@ class TableSampler:
         sample.sampling_args = sampler_args.SerializeToString()
         return task
 
-    def strided(self, stride, task_size=1000):
+    def strided(self, stride, task_size=DEFAULT_TASK_SIZE):
         return self.strided_range(0, self._table.num_rows(), stride, task_size=task_size)
 
-    def range(self, start, end, task_size=1000, warmup_size=0):
+    def range(self, start, end, task_size=DEFAULT_TASK_SIZE, warmup_size=0):
         return self.ranges([(start, end)], task_size=task_size,
                            warmup_size=warmup_size)
 
-    def ranges(self, intervals, task_size=1000, warmup_size=0):
+    def ranges(self, intervals, task_size=DEFAULT_TASK_SIZE, warmup_size=0):
         return self.strided_ranges(
             intervals, 1,
             task_size=task_size,
             warmup_size=warmup_size)
 
-    def gather(self, rows, task_size=1000):
+    def gather(self, rows, task_size=DEFAULT_TASK_SIZE):
         task = self._db.protobufs.Task()
         #task.output_table_name = output_table_name
         column_names = [c.name() for c in self._table.columns()]
@@ -55,13 +57,13 @@ class TableSampler:
         sample.sampling_args = sampler_args.SerializeToString()
         return task
 
-    def strided_range(self, start, end, stride, task_size=1000,
+    def strided_range(self, start, end, stride, task_size=DEFAULT_TASK_SIZE,
                       warmup_size=0):
         return self.strided_ranges([(start, end)], stride,
                                    task_size=task_size,
                                    warmup_size=warmup_size)
 
-    def strided_ranges(self, intervals, stride, task_size=1000,
+    def strided_ranges(self, intervals, stride, task_size=DEFAULT_TASK_SIZE,
                       warmup_size=0):
         task = self._db.protobufs.Task()
         #task.output_table_name = output_table_name
