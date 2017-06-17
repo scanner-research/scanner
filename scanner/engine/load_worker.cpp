@@ -304,7 +304,7 @@ void read_video_column(Profiler& profiler,
                        const VideoIndexEntry& index_entry,
                        const std::vector<i64>& rows, i64 start_frame,
                        ElementList& element_list) {
-  RandomReadFile* video_file = index_entry.file.get();
+  std::unique_ptr<RandomReadFile> video_file = index_entry.open_file();
   u64 file_size = index_entry.file_size;
   const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
   const std::vector<i64>& keyframe_byte_offsets =
@@ -348,7 +348,7 @@ void read_video_column(Profiler& profiler,
     auto io_start = now();
 
     u64 pos = start_keyframe_byte_offset;
-    s_read(video_file, buffer, buffer_size, pos);
+    s_read(video_file.get(), buffer, buffer_size, pos);
 
     profiler.add_interval("io", io_start, now());
     profiler.increment("io_read", static_cast<i64>(buffer_size));

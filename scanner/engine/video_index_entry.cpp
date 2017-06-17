@@ -18,6 +18,14 @@
 namespace scanner {
 namespace internal {
 
+std::unique_ptr<storehouse::RandomReadFile> VideoIndexEntry::open_file() const {
+  std::unique_ptr<storehouse::RandomReadFile> file;
+  BACKOFF_FAIL(storehouse::make_unique_random_read_file(
+      storage, table_item_output_path(table_id, column_id, item_id),
+      file));
+  return std::move(file);
+}
+
 VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
                                  i32 table_id, i32 column_id, i32 item_id) {
   VideoMetadata video_meta = read_video_metadata(
@@ -34,16 +42,21 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   i32 item_id = video_meta.item_id();
 
   // Open the video file for reading
+  index_entry.storage = storage;
+  index_entry.table_id = table_id;
+  index_entry.column_id = column_id;
+  index_entry.item_id = item_id;
   index_entry.width = video_meta.width();
   index_entry.height = video_meta.height();
   index_entry.channels = video_meta.channels();
   index_entry.frame_type = video_meta.frame_type();
   index_entry.codec_type = video_meta.codec_type();
 
+  std::unique_ptr<storehouse::RandomReadFile> file;
   BACKOFF_FAIL(storehouse::make_unique_random_read_file(
       storage, table_item_output_path(table_id, column_id, item_id),
-      index_entry.file));
-  BACKOFF_FAIL(index_entry.file->get_size(index_entry.file_size));
+      file));
+  BACKOFF_FAIL(file->get_size(index_entry.file_size));
   index_entry.keyframe_positions = video_meta.keyframe_positions();
   index_entry.keyframe_byte_offsets = video_meta.keyframe_byte_offsets();
   // Place total frames at the end of keyframe positions and total file size
