@@ -25,12 +25,17 @@ namespace scanner {
 namespace internal {
 
 struct VideoIndexEntry {
+  std::unique_ptr<storehouse::RandomReadFile> open_file() const;
+
+  storehouse::StorageBackend* storage;
+  i32 table_id;
+  i32 column_id;
+  i32 item_id;
   i32 width;
   i32 height;
   i32 channels;
   FrameType frame_type;
   proto::VideoDescriptor::VideoCodecType codec_type;
-  std::unique_ptr<storehouse::RandomReadFile> file;
   u64 file_size;
   std::vector<i64> keyframe_positions;
   std::vector<i64> keyframe_byte_offsets;
