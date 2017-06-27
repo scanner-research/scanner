@@ -439,7 +439,7 @@ class CPM2OutputKernel : public BatchedKernel, public VideoKernel {
           if (idx) {
             joints[cnt * NUM_PARTS * 3 + j * 3 + 2] = peaks[idx];
             joints[cnt * NUM_PARTS * 3 + j * 3 + 1] = peaks[idx - 1] *
-                                                      frame_info_.shape[2] /
+                                                      frame_info_.shape[0] /
                                                       (float)net_input_height_;
             joints[cnt * NUM_PARTS * 3 + j * 3] =
                 peaks[idx - 2] * frame_info_.shape[1] / (float)net_input_width_;
