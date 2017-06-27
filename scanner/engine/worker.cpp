@@ -692,6 +692,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   i32 local_total = job_params->local_total();
   i32 node_count = job_params->global_total();
 
+  // Controls if work should be distributed roundrobin or dynamically
+  bool distribute_work_evenly = false;
+
   timepoint_t base_time = now();
   const i32 work_item_size = job_params->work_item_size();
   i32 warmup_size = 0;
@@ -1042,7 +1045,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     }
     // Pre evaluate worker
     {
-      EvalQueue* input_work_queue = &initial_eval_work[ki];
+      EvalQueue* input_work_queue;
+      if (distribute_work_evenly) {
+        input_work_queue = &initial_eval_work[ki];
+      } else {
+        input_work_queue = &initial_eval_work[0];
+      }
       EvalQueue* output_work_queue =
           &work_queues[0];
       assert(kernel_groups.size() > 0);
@@ -1170,8 +1178,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                     analysis_results.stencils, work_item_size,
                                     stenciled_entry, task_stream);
 
-        load_work.push(std::make_tuple(last_work_queue++, task_stream, new_work.io_item(),
-                                       stenciled_entry));
+        i32 target_work_queue = distribute_work_evenly ? last_work_queue++ : 0;
+        load_work.push(std::make_tuple(last_work_queue++, task_stream,
+                                       new_work.io_item(), stenciled_entry));
         last_work_queue %= pipeline_instances_per_node;
         accepted_items++;
       }
@@ -1237,7 +1246,11 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Push sentinel work entries into queue to terminate eval threads
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
-    push_exit_message(initial_eval_work[i]);
+    if (distribute_work_evenly) {
+      push_exit_message(initial_eval_work[i]);
+    } else {
+      push_exit_message(initial_eval_work[0]);
+    }
   }
 
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
