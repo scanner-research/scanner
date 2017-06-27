@@ -1179,7 +1179,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                     stenciled_entry, task_stream);
 
         i32 target_work_queue = distribute_work_evenly ? last_work_queue++ : 0;
-        load_work.push(std::make_tuple(last_work_queue++, task_stream,
+        load_work.push(std::make_tuple(target_work_queue, task_stream,
                                        new_work.io_item(), stenciled_entry));
         last_work_queue %= pipeline_instances_per_node;
         accepted_items++;
