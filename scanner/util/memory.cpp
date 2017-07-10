@@ -494,8 +494,11 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
              dest_device.id != src_device.id));
     CUDA_PROTECT({
       CU_CHECK(cudaSetDevice(src_device.id));
-      CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
-    });
+      //CU_CHECK(cudaMemcpyAsync(dest_buffer, src_buffer, size, cudaMemcpyDefault, 0));
+      CU_CHECK(
+          cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
+      //CU_CHECK(cudaStreamSynchronize(0));
+      });
   }
 }
 
@@ -521,7 +524,7 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
   if (dest_device.type == DeviceType::GPU ||
       src_device.type == DeviceType::GPU) {
 #ifdef HAVE_CUDA
-    thread_local std::vector<cudaStream_t> streams;
+    static thread_local std::vector<cudaStream_t> streams;
     if (streams.size() == 0) {
       streams.resize(NUM_CUDA_STREAMS);
       for (i32 i = 0; i < NUM_CUDA_STREAMS; ++i) {
@@ -540,20 +543,24 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
     if (dest_allocator->buffers_in_same_block(dest_buffers) &&
         src_allocator->buffers_in_same_block(src_buffers)) {
 
-      CU_CHECK(cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
+      CU_CHECK(cudaMemcpy(dest_buffers[0], src_buffers[0], total_size,
+                               cudaMemcpyDefault));
+      /*CU_CHECK(cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
                                cudaMemcpyDefault, streams[0]));
-      CU_CHECK(cudaStreamSynchronize(streams[0]));
+                               CU_CHECK(cudaStreamSynchronize(streams[0]));*/
     } else {
       i32 n = dest_buffers.size();
 
       for (i32 i = 0; i < n; ++i) {
-        CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
+        CU_CHECK(cudaMemcpy(dest_buffers[i], src_buffers[i], sizes[i],
+                                 cudaMemcpyDefault));
+        /*CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
                                  cudaMemcpyDefault,
-                                 streams[i % NUM_CUDA_STREAMS]));
+                                 streams[i % NUM_CUDA_STREAMS]));*/
       }
 
       for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
-        CU_CHECK(cudaStreamSynchronize(streams[i]));
+        //CU_CHECK(cudaStreamSynchronize(streams[i]));
       }
     }
 #else
