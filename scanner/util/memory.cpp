@@ -75,8 +75,8 @@ class Allocator {
 
 class SystemAllocator : public Allocator {
  public:
-  SystemAllocator(DeviceHandle device, bool pinned = false)
-    : device_(device), pinned_(pinned) {
+  SystemAllocator(DeviceHandle device)
+    : device_(device) {
   }
 
   ~SystemAllocator() {
@@ -92,13 +92,7 @@ class SystemAllocator : public Allocator {
   u8* allocate(size_t size) {
     if (device_.type == DeviceType::CPU) {
       try {
-        if (pinned_) {
-          u8* buff;
-          CUDA_PROTECT({ CU_CHECK(cudaMallocHost((void**)&buff, size)); });
-          return buff;
-        } else {
-          return new u8[size];
-        }
+        return new u8[size];
       } catch (const std::bad_alloc& e) {
         LOG(FATAL) << "CPU memory allocation failed: " << e.what();
       }
@@ -114,11 +108,7 @@ class SystemAllocator : public Allocator {
 
   void free(u8* buffer) {
     if (device_.type == DeviceType::CPU) {
-      if (pinned_) {
-        CUDA_PROTECT({ CU_CHECK(cudaFreeHost(buffer)); });
-      } else {
-        delete[] buffer;
-      }
+      delete[] buffer;
     } else if (device_.type == DeviceType::GPU) {
       CUDA_PROTECT({
         CU_CHECK(cudaSetDevice(device_.id));
@@ -137,7 +127,6 @@ class SystemAllocator : public Allocator {
 
  private:
   DeviceHandle device_;
-  bool pinned_;
 };
 
 bool pointer_in_buffer(u8* ptr, u8* buf_start, u8* buf_end) {
@@ -364,9 +353,13 @@ static BlockAllocator* cpu_block_allocator = nullptr;
 static std::map<i32, PoolAllocator*> gpu_pool_allocators;
 static std::map<i32, BlockAllocator*> gpu_block_allocators;
 
+#define PINNED_BUFFER_SIZE (32<<20)
+static std::map<i32, u8*> pinned_cpu_buffers;
+static std::map<i32, std::mutex> pinned_cpu_locks;
+
 void init_memory_allocators(MemoryPoolConfig config,
                             std::vector<i32> gpu_device_ids) {
-  cpu_system_allocator = new SystemAllocator(CPU_DEVICE, config.pinned_cpu());
+  cpu_system_allocator = new SystemAllocator(CPU_DEVICE);
   Allocator* cpu_block_allocator_base = cpu_system_allocator;
   if (config.cpu().use_pool()) {
     struct sysinfo info;
@@ -385,6 +378,7 @@ void init_memory_allocators(MemoryPoolConfig config,
 
 #ifdef HAVE_CUDA
   for (i32 device_id : gpu_device_ids) {
+    cudaSetDevice(device_id);
     DeviceHandle device = {DeviceType::GPU, device_id};
     SystemAllocator* gpu_system_allocator = new SystemAllocator(device);
     gpu_system_allocators[device.id] = gpu_system_allocator;
@@ -403,6 +397,7 @@ void init_memory_allocators(MemoryPoolConfig config,
     }
     gpu_block_allocators[device.id] =
         new BlockAllocator(gpu_block_allocator_base);
+    CU_CHECK(cudaMallocHost((void**)&pinned_cpu_buffers[device.id], PINNED_BUFFER_SIZE));
   }
 #endif
 }
@@ -425,9 +420,13 @@ void destroy_memory_allocators() {
   for (auto entry : gpu_system_allocators) {
     delete entry.second;
   }
+  for (auto entry : pinned_cpu_buffers) {
+    cudaFreeHost(entry.second);
+  }
   gpu_block_allocators.clear();
   gpu_pool_allocators.clear();
   gpu_system_allocators.clear();
+  pinned_cpu_buffers.clear();
 #endif
 }
 
@@ -494,11 +493,22 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
              dest_device.id != src_device.id));
     CUDA_PROTECT({
       CU_CHECK(cudaSetDevice(src_device.id));
-      //CU_CHECK(cudaMemcpyAsync(dest_buffer, src_buffer, size, cudaMemcpyDefault, 0));
-      CU_CHECK(
-          cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
-      //CU_CHECK(cudaStreamSynchronize(0));
-      });
+      if (size <= PINNED_BUFFER_SIZE) {
+        if (dest_device.type == DeviceType::CPU) {
+          CU_CHECK(cudaMemcpy(pinned_cpu_buffers[dest_device.id], src_buffer,
+                              size, cudaMemcpyDefault));
+          memcpy(dest_buffer, pinned_cpu_buffers[dest_device.id], size);
+        } else if (src_device.type == DeviceType::CPU) {
+          memcpy(pinned_cpu_buffers[src_device.id], src_buffer, size);
+          CU_CHECK(cudaMemcpy(dest_buffer, pinned_cpu_buffers[src_device.id], size,
+                              cudaMemcpyDefault));
+        } else {
+          CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
+        }
+      } else {
+        CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
+      }
+    });
   }
 }
 
@@ -542,25 +552,12 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
     // from a single block, we do a single memcpy from one block to the other.
     if (dest_allocator->buffers_in_same_block(dest_buffers) &&
         src_allocator->buffers_in_same_block(src_buffers)) {
-
-      CU_CHECK(cudaMemcpy(dest_buffers[0], src_buffers[0], total_size,
-                               cudaMemcpyDefault));
-      /*CU_CHECK(cudaMemcpyAsync(dest_buffers[0], src_buffers[0], total_size,
-                               cudaMemcpyDefault, streams[0]));
-                               CU_CHECK(cudaStreamSynchronize(streams[0]));*/
+      memcpy_buffer(dest_buffers[0], dest_device, src_buffers[0], src_device, total_size);
     } else {
       i32 n = dest_buffers.size();
 
       for (i32 i = 0; i < n; ++i) {
-        CU_CHECK(cudaMemcpy(dest_buffers[i], src_buffers[i], sizes[i],
-                                 cudaMemcpyDefault));
-        /*CU_CHECK(cudaMemcpyAsync(dest_buffers[i], src_buffers[i], sizes[i],
-                                 cudaMemcpyDefault,
-                                 streams[i % NUM_CUDA_STREAMS]));*/
-      }
-
-      for (i32 i = 0; i < std::min(n, NUM_CUDA_STREAMS); ++i) {
-        //CU_CHECK(cudaStreamSynchronize(streams[i]));
+        memcpy_buffer(dest_buffers[i], dest_device, src_buffers[i], src_device, sizes[i]);
       }
     }
 #else
