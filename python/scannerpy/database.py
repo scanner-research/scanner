@@ -27,6 +27,8 @@ from collection import Collection
 from table import Table
 from column import Column
 
+from storehousepy import StorageConfig, StorageBackend
+
 def start_master(port=None, config=None, config_path=None, block=False):
     """
     Start a master server instance on this node.
@@ -88,6 +90,7 @@ def start_worker(master_address, port=None, config=None, config_path=None,
     import libscanner as bindings
     db = bindings.Database(
         config.storage_config,
+        #storage_config,
         config.db_path,
         master_address)
     machine_params = bindings.default_machine_params()
@@ -852,6 +855,7 @@ class Database:
     def run(self, jobs,
             force=False,
             work_item_size=250,
+            io_item_size=-1,
             cpu_pool=None,
             gpu_pool=None,
             pipeline_instances_per_node=None,
@@ -875,6 +879,7 @@ class Database:
                                tables.
             force: TODO(wcrichto)
             work_item_size: TODO(wcrichto)
+            io_item_size: TODO(wcrichto)
             cpu_pool: TODO(wcrichto)
             gpu_pool: TODO(wcrichto)
             pipeline_instances_per_node: TODO(wcrichto)
@@ -943,6 +948,7 @@ class Database:
         job_params.task_set.compression.extend(compression_options)
         job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
         job_params.work_item_size = work_item_size
+        job_params.io_item_size = io_item_size
         job_params.show_progress = show_progress
         job_params.profiling = profiling
         job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu

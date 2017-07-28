@@ -55,6 +55,8 @@ struct EvalWorkEntry {
   // Only for pre worker
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
   std::vector<i64> work_item_sizes;
+  bool first;
+  bool last;
   // For save and pre worker
   std::vector<FrameInfo> frame_sizes;
   std::vector<bool> compressed;
@@ -68,6 +70,10 @@ using LoadInputQueue =
     Queue<std::tuple<i32, std::deque<TaskStream>, IOItem, LoadWorkEntry>>;
 using EvalQueue =
     Queue<std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>;
+using OutputEvalQueue =
+    Queue<std::tuple<IOItem, EvalWorkEntry>>;
+using SaveInputQueue =
+    Queue<std::tuple<IOItem, EvalWorkEntry>>;
 
 struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;

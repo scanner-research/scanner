@@ -18,7 +18,7 @@ PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
     profiler_(args.profiler) {
 }
 
-void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
+void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry, bool first) {
   auto feed_start = now();
 
   entry_ = entry;
@@ -103,7 +103,7 @@ void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
       media_col_idx++;
     }
   }
-  first_item_ = true;
+  first_item_ = first;
   current_row_ = 0;
   profiler_.add_interval("feed", feed_start, now());
 }
@@ -650,6 +650,10 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     buffered_entry_.io_item_index = work_entry.io_item_index;
     buffered_entry_.columns.resize(column_mapping_.size());
     assert(work_entry.column_handles.size() == columns_.size());
+    buffered_entry_.column_types.clear();
+    buffered_entry_.column_handles.clear();
+    buffered_entry_.frame_sizes.clear();
+    buffered_entry_.compressed.clear();
     for (size_t i = 0; i < columns_.size(); ++i) {
       buffered_entry_.column_types.push_back(columns_[i].type());
       buffered_entry_.column_handles.push_back(CPU_DEVICE);

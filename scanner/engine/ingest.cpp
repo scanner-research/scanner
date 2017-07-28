@@ -384,10 +384,15 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   std::string index_path = table_item_output_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_file{};
   BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
-  s_write<i64>(index_file.get(), frame);
+
+  std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
+  std::unique_ptr<WriteFile> index_metadata_file{};
+  BACKOFF_FAIL(make_unique_write_file(storage, index_metadata_path, index_metadata_file));
+  s_write<i64>(index_metadata_file.get(), frame);
   for (i64 i = 0; i < frame; ++i) {
-    s_write(index_file.get(), sizeof(i64));
+    s_write(index_metadata_file.get(), sizeof(i64));
   }
+  BACKOFF_FAIL(index_metadata_file->save());
   for (i64 i = 0; i < frame; ++i) {
     s_write(index_file.get(), i);
   }
@@ -395,6 +400,10 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 
   table_desc.add_end_rows(frame);
   video_descriptor.set_frames(frame);
+  video_descriptor.set_num_encoded_videos(1);
+  video_descriptor.add_frames_per_video(frame);
+  video_descriptor.add_keyframes_per_video(keyframe_positions.size());
+  video_descriptor.add_size_per_video(index_creator.bytestream_pos());
   video_descriptor.set_metadata_packets(metadata_bytes.data(),
                                         metadata_bytes.size());
 

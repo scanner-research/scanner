@@ -426,13 +426,26 @@ void load_driver(LoadInputQueue& load_work,
     auto work_start = now();
 
     auto input_entry = std::make_tuple(io_item, load_work_entry);
-    std::tuple<IOItem, EvalWorkEntry> output_entry =
-        worker.execute(input_entry);
+    worker.feed(input_entry);
 
+    while (true) {
+      std::tuple<IOItem, EvalWorkEntry> output_entry;
+      i32 io_item_size = 0; // dummy for now
+      if (worker.yield(io_item_size, output_entry)) {
+        auto work_entry = std::get<1>(output_entry);
+        work_entry.first = !task_streams.empty();
+        work_entry.last = worker.done();
+        initial_eval_work[output_queue_idx].push(
+            std::make_tuple(task_streams, std::get<0>(output_entry),
+                            work_entry));
+        // We use the task streams being empty to indicate that this is
+        // a new task, so clear it here to show that this is from the same task
+        task_streams.clear();
+      } else {
+        break;
+      }
+    }
     profiler.add_interval("task", work_start, now());
-
-    initial_eval_work[output_queue_idx].push(std::make_tuple(
-        task_streams, std::get<0>(output_entry), std::get<1>(output_entry)));
   }
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
           << "): thread finished";
@@ -445,20 +458,48 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
                          PreEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
+  std::map<i32, Queue<
+                  std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>>
+      task_work_queue;
+
+  i32 active_task = -1;
   while (true) {
     auto idle_start = now();
 
-    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
-    input_work.pop(entry);
+    if (task_work_queue.empty() ||
+        (active_task != -1 && task_work_queue.at(active_task).size() <= 0)) {
+      std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
+      input_work.pop(entry);
+
+      auto& task_streams = std::get<0>(entry);
+      IOItem& io_item = std::get<1>(entry);
+      EvalWorkEntry& work_entry = std::get<2>(entry);
+      if (work_entry.io_item_index == -1) {
+        break;
+      }
+
+      task_work_queue[work_entry.io_item_index].push(entry);
+    }
 
     args.profiler.add_interval("idle", idle_start, now());
+
+    if (active_task == -1) {
+      // Choose the next active task
+      active_task = task_work_queue.begin()->first;
+    }
+
+    // Wait until we have the next io item
+    if (task_work_queue.at(active_task).size() <= 0) {
+      continue;
+    }
+
+    // Grab next entry for active task
+    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
+    task_work_queue.at(active_task).pop(entry);
 
     auto& task_streams = std::get<0>(entry);
     IOItem& io_item = std::get<1>(entry);
     EvalWorkEntry& work_entry = std::get<2>(entry);
-    if (work_entry.io_item_index == -1) {
-      break;
-    }
 
     VLOG(2) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
             << "): "
@@ -471,9 +512,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       total_rows = std::max(total_rows, (i32)work_entry.columns[i].size());
     }
 
+    bool first = work_entry.first;
+    bool last = work_entry.last;
+
     auto input_entry = std::make_tuple(io_item, work_entry);
-    worker.feed(input_entry);
-    bool first = true;
+    worker.feed(input_entry, first);
     i32 work_item_index = 0;
     while (work_item_index < work_entry.work_item_sizes.size()) {
       i32 work_item_size = work_entry.work_item_sizes.at(work_item_index++);
@@ -501,6 +544,10 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       }
     }
 
+    if (last) {
+      task_work_queue.erase(active_task);
+      active_task = -1;
+    }
 
     profiler.add_interval("task", work_start, now());
   }
@@ -570,7 +617,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
           << "): thread finished";
 }
 
-void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
+void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
                           PostEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   PostEvaluateWorker worker(args);
@@ -600,9 +647,11 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     profiler.add_interval("task", work_start, now());
 
     if (result) {
-      output_work.push(std::make_tuple(std::get<0>(entry),
-                                       std::get<0>(output_entry),
-                                       std::get<1>(output_entry)));
+      auto out_entry = std::get<1>(output_entry);
+      out_entry.last = work_entry.last;
+      output_work.push(std::make_tuple(std::get<0>(output_entry),
+                                       out_entry));
+
     }
 
     if (std::getenv("NO_PIPELINING")) {
@@ -613,7 +662,94 @@ void post_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
           << "): thread finished ";
 }
+
+void save_coordinator(OutputEvalQueue& eval_work,
+                      std::vector<SaveInputQueue>& save_work) {
+  i32 num_save_workers = save_work.size();
+  std::map<i32, i32> task_to_worker_mapping;
+  i32 last_worker_assigned = 0;
+  while (true) {
+    auto idle_start = now();
+
+    std::tuple<IOItem, EvalWorkEntry> entry;
+    eval_work.pop(entry);
+    IOItem& io_item = std::get<0>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
+
+    //args.profiler.add_interval("idle", idle_start, now());
+
+    if (work_entry.io_item_index == -1) {
+      break;
+    }
+
+    i32 task_id = work_entry.io_item_index;
+    if (task_to_worker_mapping.count(task_id) == 0) {
+      // Assign worker to this task
+      task_to_worker_mapping[task_id] =
+          last_worker_assigned++ % num_save_workers;
+    }
+
+    i32 assigned_worker = task_to_worker_mapping.at(task_id);
+    save_work[assigned_worker].push(entry);
+
+    if (work_entry.last) {
+      task_to_worker_mapping.erase(task_id);
+      printf("column types %d, %d, %lu", work_entry.io_item_index,
+             io_item.item_id(), work_entry.column_types.size());
+    }
+  }
 }
+
+void save_driver(SaveInputQueue& save_work,
+                 std::atomic<i64>& retired_items,
+                 SaveWorkerArgs args) {
+  Profiler& profiler = args.profiler;
+  SaveWorker worker(args);
+
+  i32 active_task = -1;
+  while (true) {
+    auto idle_start = now();
+
+    std::tuple<IOItem, EvalWorkEntry> entry;
+    save_work.pop(entry);
+
+    IOItem& io_item = std::get<0>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
+
+    args.profiler.add_interval("idle", idle_start, now());
+
+    if (work_entry.io_item_index == -1) {
+      break;
+    }
+
+    VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
+            << "): processing item " << work_entry.io_item_index;
+
+    auto work_start = now();
+
+    if (work_entry.io_item_index != active_task) {
+      active_task = work_entry.io_item_index;
+      worker.new_task(io_item, work_entry.column_types);
+      printf("new save task %d, %d, %lu!\n", work_entry.io_item_index,
+             io_item.item_id(), work_entry.column_types.size());
+    }
+
+    auto input_entry = std::make_tuple(io_item, work_entry);
+    worker.feed(input_entry);
+
+    VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
+            << "): finished item " << work_entry.io_item_index;
+
+    args.profiler.add_interval("task", work_start, now());
+
+    retired_items++;
+  }
+
+  VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
+          << "): thread finished ";
+}
+}
+
 
 WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
                        std::string master_address, std::string worker_port)
@@ -693,10 +829,11 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   i32 node_count = job_params->global_total();
 
   // Controls if work should be distributed roundrobin or dynamically
-  bool distribute_work_evenly = false;
+  bool distribute_work_dynamically = true;
 
   timepoint_t base_time = now();
   const i32 work_item_size = job_params->work_item_size();
+  const i32 io_item_size = job_params->io_item_size();
   i32 warmup_size = 0;
 
   OpRegistry* op_registry = get_op_registry();
@@ -934,7 +1071,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   LoadInputQueue load_work;
   std::vector<EvalQueue> initial_eval_work(pipeline_instances_per_node);
   std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
-  EvalQueue save_work;
+  OutputEvalQueue output_eval_work(pipeline_instances_per_node);
+  std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
   std::atomic<i64> retired_items{0};
 
   // Setup load workers
@@ -949,7 +1087,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                         node_id_,
                         // Per worker arguments
                         i, db_params_.storage_config, load_thread_profilers[i],
-                        job_params->load_sparsity_threshold()};
+                        job_params->load_sparsity_threshold(), io_item_size,
+                        work_item_size};
 
     load_threads.emplace_back(load_driver, std::ref(load_work),
                               std::ref(initial_eval_work), args);
@@ -967,7 +1106,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       pipeline_instances_per_node);
   std::vector<std::vector<EvaluateWorkerArgs>> eval_args(
       pipeline_instances_per_node);
-  std::vector<std::tuple<EvalQueue*, EvalQueue*>> post_eval_queues;
+  std::vector<std::tuple<EvalQueue*, OutputEvalQueue*>> post_eval_queues;
   std::vector<PostEvaluateWorkerArgs> post_eval_args;
 
   i32 next_cpu_num = 0;
@@ -1046,7 +1185,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     // Pre evaluate worker
     {
       EvalQueue* input_work_queue;
-      if (distribute_work_evenly) {
+      if (distribute_work_dynamically) {
         input_work_queue = &initial_eval_work[ki];
       } else {
         input_work_queue = &initial_eval_work[0];
@@ -1078,9 +1217,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         }
       }
 
-      EvalQueue* input_work_queue =
-          &work_queues.back();
-      EvalQueue* output_work_queue = &save_work;
+      EvalQueue* input_work_queue = &work_queues.back();
+      OutputEvalQueue* output_work_queue = &output_eval_work;
       post_eval_queues.push_back(
           std::make_tuple(input_work_queue, output_work_queue));
       post_eval_args.emplace_back(PostEvaluateWorkerArgs{
@@ -1117,26 +1255,26 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
   }
 
+  // Setup save coordinator
+  std::thread save_coordinator_thread(
+      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
+
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
-  std::vector<Profiler> save_thread_profilers(num_save_workers,
-                                              Profiler(base_time));
-  std::vector<SaveThreadArgs> save_thread_args;
+  std::vector<Profiler> save_thread_profilers;
   for (i32 i = 0; i < num_save_workers; ++i) {
-    // Create IO thread for reading and decoding data
-    save_thread_args.emplace_back(SaveThreadArgs{
-        // Uniform arguments
-        node_id_, job_params->job_name(),
-
-        // Per worker arguments
-        i, db_params_.storage_config, save_thread_profilers[i],
-
-        // Queues
-        save_work, retired_items});
+    save_thread_profilers.emplace_back(Profiler(base_time));
   }
-  std::vector<pthread_t> save_threads(num_save_workers);
+  std::vector<std::thread> save_threads;
   for (i32 i = 0; i < num_save_workers; ++i) {
-    pthread_create(&save_threads[i], NULL, save_thread, &save_thread_args[i]);
+    SaveWorkerArgs args{// Uniform arguments
+                        node_id_,
+
+                        // Per worker arguments
+                        i, db_params_.storage_config, save_thread_profilers[i]};
+
+    save_threads.emplace_back(save_driver, std::ref(save_work[i]),
+                              std::ref(retired_items), args);
   }
 
   if (job_params->profiling()) {
@@ -1145,7 +1283,6 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   timepoint_t start_time = now();
 
   // Monitor amount of work left and request more when running low
-
   // Round robin work
   i32 last_work_queue = 0;
   while (true) {
@@ -1178,7 +1315,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                     analysis_results.stencils, work_item_size,
                                     stenciled_entry, task_stream);
 
-        i32 target_work_queue = distribute_work_evenly ? last_work_queue++ : 0;
+        i32 target_work_queue =
+            distribute_work_dynamically ? last_work_queue++ : 0;
         load_work.push(std::make_tuple(target_work_queue, task_stream,
                                        new_work.io_item(), stenciled_entry));
         last_work_queue %= pipeline_instances_per_node;
@@ -1222,13 +1360,28 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       eval_work[pu].back().clear();
     }
-    save_work.clear();
+    output_eval_work.clear();
+    for (i32 i = 0; i < num_save_workers; ++i) {
+      save_work[i].clear();
+    }
   }
 
   auto push_exit_message = [](EvalQueue& q) {
     EvalWorkEntry entry;
     entry.io_item_index = -1;
     q.push(std::make_tuple(std::deque<TaskStream>(), IOItem{}, entry));
+  };
+
+  auto push_output_eval_exit_message = [](OutputEvalQueue& q) {
+    EvalWorkEntry entry;
+    entry.io_item_index = -1;
+    q.push(std::make_tuple(IOItem{}, entry));
+  };
+
+  auto push_save_exit_message = [](SaveInputQueue& q) {
+    EvalWorkEntry entry;
+    entry.io_item_index = -1;
+    q.push(std::make_tuple(IOItem{}, entry));
   };
 
   // Push sentinel work entries into queue to terminate load threads
@@ -1246,7 +1399,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Push sentinel work entries into queue to terminate eval threads
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
-    if (distribute_work_evenly) {
+    if (distribute_work_dynamically) {
       push_exit_message(initial_eval_work[i]);
     } else {
       push_exit_message(initial_eval_work[0]);
@@ -1277,16 +1430,17 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     post_eval_threads[pu].join();
   }
 
+  // Push sentinel work entries into queue to terminate coordinator thread
+  push_output_eval_exit_message(output_eval_work);
+  save_coordinator_thread.join();
+
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < num_save_workers; ++i) {
-    push_exit_message(save_work);
+    push_save_exit_message(save_work[i]);
   }
   for (i32 i = 0; i < num_save_workers; ++i) {
     // Wait until eval has finished
-    void* result;
-    i32 err = pthread_join(save_threads[i], &result);
-    LOG_IF(FATAL, err != 0) << "error in pthread_join of save thread";
-    free(result);
+    save_threads[i].join();
   }
 
   // Ensure all files are flushed

@@ -84,6 +84,11 @@ message VideoDescriptor {
   int32 time_base_num = 15;
   int32 time_base_denom = 16;
 
+  int64 num_encoded_videos = 17;
+  repeated int64 frames_per_video = 18;
+  repeated int64 keyframes_per_video = 19;
+  repeated int64 size_per_video = 20;
+
   repeated int64 keyframe_positions = 9 [packed=true];
   repeated int64 keyframe_timestamps = 10 [packed=true];
   repeated int64 keyframe_byte_offsets = 11 [packed=true];

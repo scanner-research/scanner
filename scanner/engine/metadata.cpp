@@ -232,6 +232,23 @@ VideoDescriptor::VideoCodecType VideoMetadata::codec_type() const {
   return descriptor_.codec_type();
 }
 
+i64 VideoMetadata::num_encoded_videos() const { return descriptor_.num_encoded_videos(); }
+
+std::vector<i64> VideoMetadata::frames_per_video() const {
+  return std::vector<i64>(descriptor_.frames_per_video().begin(),
+                          descriptor_.frames_per_video().end());
+}
+
+std::vector<i64> VideoMetadata::keyframes_per_video() const {
+  return std::vector<i64>(descriptor_.keyframes_per_video().begin(),
+                          descriptor_.keyframes_per_video().end());
+}
+
+std::vector<i64> VideoMetadata::size_per_video() const {
+  return std::vector<i64>(descriptor_.size_per_video().begin(),
+                          descriptor_.size_per_video().end());
+}
+
 std::vector<i64> VideoMetadata::keyframe_positions() const {
   return std::vector<i64>(descriptor_.keyframe_positions().begin(),
                           descriptor_.keyframe_positions().end());

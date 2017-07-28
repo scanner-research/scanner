@@ -36,6 +36,15 @@ class Column:
     def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
 
+        metadata_path = '{}/tables/{}/{}_{}_metadata.bin'.format(
+            self._db_path, self._table._descriptor.id,
+            self._descriptor.id, item_id)
+        try:
+            metadata_contents = self._storage.read(metadata_path)
+        except UserWarning:
+            raise ScannerException('Path {} does not exist'.format(
+                metadata_path))
+
         path = '{}/tables/{}/{}_{}.bin'.format(
             self._db_path, self._table._descriptor.id,
             self._descriptor.id, item_id)
@@ -45,23 +54,28 @@ class Column:
             raise ScannerException('Path {} does not exist'.format(path))
 
         lens = []
+        total_rows = 0
+        i = 0
+        while i < len(metadata_contents):
+            (num_rows,) = struct.unpack("=Q", metadata_contents[i:i+8])
+            total_rows += num_rows
+            i += 8
+            for fi in range(num_rows):
+                (buf_len,) = struct.unpack("=Q", metadata_contents[i:i+8])
+                lens.append(buf_len)
+                i += 8
+
         start_pos = None
         pos = 0
-        (num_rows,) = struct.unpack("=Q", contents[:8])
-
-        i = 8
-        rows = rows if len(rows) > 0 else range(num_rows)
-        for fi in range(num_rows):
-            (buf_len,) = struct.unpack("=Q", contents[i:i+8])
-            i += 8
+        rows = rows if len(rows) > 0 else range(total_rows)
+        for fi in range(total_rows):
             old_pos = pos
-            pos += buf_len
+            pos += lens[fi]
             if start_pos is None:
                 start_pos = old_pos
-            lens.append(buf_len)
 
         rows_idx = 0
-        i = 8 + num_rows * 8 + start_pos
+        i = start_pos
         for j, buf_len in enumerate(lens):
             if rows_idx < len(rows) and j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]

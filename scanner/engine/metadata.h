@@ -58,6 +58,12 @@ inline std::string table_item_video_metadata_path(i32 table_id, i32 column_id,
          std::to_string(item_id) + "_video_metadata.bin";
 }
 
+inline std::string table_item_metadata_path(i32 table_id, i32 column_id,
+                                                  i32 item_id) {
+  return table_directory(table_id) + "/" + std::to_string(column_id) + "_" +
+         std::to_string(item_id) + "_metadata.bin";
+}
+
 inline std::string job_directory(i32 job_id) {
   return get_database_path() + "jobs/" + std::to_string(job_id);
 }
@@ -140,6 +146,10 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
   i32 channels() const;
   proto::FrameType frame_type() const;
   proto::VideoDescriptor::VideoCodecType codec_type() const;
+  i64 num_encoded_videos() const;
+  std::vector<i64> frames_per_video() const;
+  std::vector<i64> keyframes_per_video() const;
+  std::vector<i64> size_per_video() const;
   std::vector<i64> keyframe_positions() const;
   std::vector<i64> keyframe_byte_offsets() const;
 };
