@@ -89,7 +89,7 @@ void SaveWorker::feed(std::tuple<IOItem, EvalWorkEntry>& input_entry) {
       FrameInfo frame_info = work_entry.frame_sizes[video_col_idx];
 
       // Create index column
-      VideoMetadata video_meta;
+      VideoMetadata& video_meta = video_metadata_[video_col_idx];
       proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
 
       video_descriptor.set_width(frame_info.width());
