@@ -694,8 +694,6 @@ void save_coordinator(OutputEvalQueue& eval_work,
 
     if (work_entry.last) {
       task_to_worker_mapping.erase(task_id);
-      printf("column types %d, %d, %lu", work_entry.io_item_index,
-             io_item.item_id(), work_entry.column_types.size());
     }
   }
 }
@@ -730,8 +728,6 @@ void save_driver(SaveInputQueue& save_work,
     if (work_entry.io_item_index != active_task) {
       active_task = work_entry.io_item_index;
       worker.new_task(io_item, work_entry.column_types);
-      printf("new save task %d, %d, %lu!\n", work_entry.io_item_index,
-             io_item.item_id(), work_entry.column_types.size());
     }
 
     auto input_entry = std::make_tuple(io_item, work_entry);
