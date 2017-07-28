@@ -37,6 +37,10 @@ struct VideoIndexEntry {
   FrameType frame_type;
   proto::VideoDescriptor::VideoCodecType codec_type;
   u64 file_size;
+  i32 num_encoded_videos;
+  std::vector<i64> frames_per_video;
+  std::vector<i64> keyframes_per_video;
+  std::vector<i64> size_per_video;
   std::vector<i64> keyframe_positions;
   std::vector<i64> keyframe_byte_offsets;
 };

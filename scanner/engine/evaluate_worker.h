@@ -47,7 +47,7 @@ class PreEvaluateWorker {
  public:
   PreEvaluateWorker(const PreEvaluateWorkerArgs& args);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+  void feed(std::tuple<IOItem, EvalWorkEntry>& entry, bool is_first_in_task);
 
   bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
 

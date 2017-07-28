@@ -413,6 +413,11 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
 
   const i32 io_item_size = job_params->io_item_size();
   const i32 work_item_size = job_params->work_item_size();
+  if (io_item_size > 0 && io_item_size % work_item_size != 0) {
+    RESULT_ERROR(job_result,
+                 "IO packet size must be a multiple of Work packet size.");
+    return grpc::Status::OK;
+  }
 
   i32 warmup_size = 0;
   i32 total_rows = 0;

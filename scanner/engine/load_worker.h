@@ -31,14 +31,19 @@ struct LoadWorkerArgs {
   storehouse::StorageConfig* storage_config;
   Profiler& profiler;
   i32 load_sparsity_threshold;
+  i32 io_item_size;
+  i32 work_item_size;
 };
 
 class LoadWorker {
  public:
   LoadWorker(const LoadWorkerArgs& args);
 
-  std::tuple<IOItem, EvalWorkEntry> execute(
-      std::tuple<IOItem, LoadWorkEntry>& entry);
+  void feed(std::tuple<IOItem, LoadWorkEntry>& input_entry);
+
+  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output_entry);
+
+  bool done();
 
  private:
   void read_other_column(i32 table_id, i32 column_id, i32 item_id,
@@ -56,6 +61,17 @@ class LoadWorker {
   i32 last_table_id_ = -1;
   std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index_;
   i32 load_sparsity_threshold_;
+  i32 io_item_size_;
+  i32 work_item_size_;
+
+  // Continuation state
+  bool first_item_;
+  bool needs_configure_;
+  bool needs_reset_;
+  std::tuple<IOItem, LoadWorkEntry> entry_;
+  i64 current_work_item_;
+  i64 current_row_;
+  i64 total_work_items_;
 
 };
 

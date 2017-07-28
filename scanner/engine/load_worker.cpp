@@ -181,16 +181,16 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
   : node_id_(args.node_id),
     worker_id_(args.worker_id),
     profiler_(args.profiler),
-    load_sparsity_threshold_(args.load_sparsity_threshold) {
+    load_sparsity_threshold_(args.load_sparsity_threshold),
+    io_item_size_(args.io_item_size),
+    work_item_size_(args.work_item_size) {
   storage_.reset(
       storehouse::StorageBackend::make_from_config(args.storage_config));
 }
 
-std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
-    std::tuple<IOItem, LoadWorkEntry>& entry) {
-
-  IOItem& io_item = std::get<0>(entry);
-  LoadWorkEntry& load_work_entry = std::get<1>(entry);
+void LoadWorker::feed(std::tuple<IOItem, LoadWorkEntry>& input_entry) {
+  IOItem& io_item = std::get<0>(input_entry);
+  LoadWorkEntry& load_work_entry = std::get<1>(input_entry);
 
   const auto& samples = load_work_entry.samples();
 
@@ -200,19 +200,54 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
     index_.clear();
   }
 
+  entry_ = input_entry;
+  current_row_ = 0;
+  current_work_item_ = 0;
+  total_work_items_ = load_work_entry.work_item_sizes().size();
+}
+
+bool LoadWorker::yield(i32 item_size,
+                       std::tuple<IOItem, EvalWorkEntry>& output_entry) {
+  IOItem& io_item = std::get<0>(entry_);
+  LoadWorkEntry& load_work_entry = std::get<1>(entry_);
+
+  // Ignoring item size for now and just yielding one IO item at a time
+  if (current_work_item_ >= total_work_items_) {
+    return false;
+  }
+
+  item_size = io_item_size_;
+  i32 num_work_items;
+  if (item_size <= 0) {
+    num_work_items = load_work_entry.work_item_sizes().size();
+  } else {
+    num_work_items = (i32)std::ceil(item_size / (double)work_item_size_);
+    if (num_work_items + current_work_item_ >
+        load_work_entry.work_item_sizes().size()) {
+      num_work_items =
+          load_work_entry.work_item_sizes().size() - current_work_item_;
+    }
+  }
+  i32 num_row_ids = 0;
+  for (i32 i = 0; i < num_work_items; ++i) {
+    num_row_ids += load_work_entry.work_item_sizes(current_work_item_ + i);
+  }
+
   EvalWorkEntry eval_work_entry;
   eval_work_entry.io_item_index = load_work_entry.io_item_index();
-  eval_work_entry.row_ids =
-      std::vector<i64>(load_work_entry.samples(0).rows().begin(),
-                       load_work_entry.samples(0).rows().end());
-  eval_work_entry.work_item_sizes =
-      std::vector<i64>(load_work_entry.work_item_sizes().begin(),
-                       load_work_entry.work_item_sizes().end());
+  eval_work_entry.row_ids = std::vector<i64>(
+      load_work_entry.samples(0).rows().begin() + current_row_,
+      load_work_entry.samples(0).rows().begin() + current_row_ + num_row_ids);
+  eval_work_entry.work_item_sizes = std::vector<i64>(
+      load_work_entry.work_item_sizes().begin() + current_work_item_,
+      load_work_entry.work_item_sizes().begin() + current_work_item_ +
+          num_work_items);
 
-  // Aggregate all sample columns so we know the tuple size
+  const auto& samples = load_work_entry.samples();
   assert(!samples.empty());
   eval_work_entry.warmup_rows = samples.Get(0).warmup_size();
 
+  // Aggregate all sample columns so we know the tuple size
   i32 num_columns = 0;
   for (size_t i = 0; i < samples.size(); ++i) {
     num_columns += samples.Get(i).column_ids_size();
@@ -232,7 +267,8 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
     const TableMetadata& table_meta = it->second;
 
     const google::protobuf::RepeatedField<i64>& sample_rows = sample.rows();
-    std::vector<i64> rows(sample_rows.begin(), sample_rows.end());
+    std::vector<i64> rows(sample_rows.begin() + current_row_,
+                          sample_rows.begin() + current_row_ + num_row_ids);
 
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();
@@ -286,8 +322,8 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
           std::tie(item_start, item_end) = intervals.item_intervals[i];
           const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
-          read_other_column(table_id, col_id, item_id, item_start,
-                            item_end, valid_offsets,
+          read_other_column(table_id, col_id, item_id, item_start, item_end,
+                            valid_offsets,
                             eval_work_entry.columns[out_col_idx]);
         }
       }
@@ -297,165 +333,194 @@ std::tuple<IOItem, EvalWorkEntry> LoadWorker::execute(
     }
   }
 
-  return std::make_tuple(io_item, eval_work_entry);
+  output_entry = std::make_tuple(io_item, eval_work_entry);
+
+  current_work_item_ += num_work_items;
+  current_row_ += num_row_ids;
+
+  return true;
 }
 
-void read_video_column(Profiler& profiler,
-                       const VideoIndexEntry& index_entry,
-                       const std::vector<i64>& rows, i64 start_frame,
-                       ElementList& element_list) {
-  std::unique_ptr<RandomReadFile> video_file = index_entry.open_file();
-  u64 file_size = index_entry.file_size;
-  const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
-  const std::vector<i64>& keyframe_byte_offsets =
-      index_entry.keyframe_byte_offsets;
-
-  // Read the bytes from the file that correspond to the sequences of
-  // frames we are interested in decoding. This sequence will contain
-  // the bytes starting at the iframe at or preceding the first frame
-  // we are interested and will continue up to the bytes before the
-  // iframe at or after the last frame we are interested in.
-  VideoIntervals intervals =
-      slice_into_video_intervals(keyframe_positions, rows);
-  size_t num_intervals = intervals.keyframe_index_intervals.size();
-  for (size_t i = 0; i < num_intervals; ++i) {
-    size_t start_keyframe_index;
-    size_t end_keyframe_index;
-    std::tie(start_keyframe_index, end_keyframe_index) =
-        intervals.keyframe_index_intervals[i];
-
-    u64 start_keyframe_byte_offset =
-        static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
-    u64 end_keyframe_byte_offset =
-        static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
-
-    i64 start_keyframe = keyframe_positions[start_keyframe_index];
-    i64 end_keyframe = keyframe_positions[end_keyframe_index];
-    std::vector<i64> all_keyframes;
-    for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
-      all_keyframes.push_back(keyframe_positions[i]);
-    }
-
-    std::vector<i64> all_keyframes_byte_offsets;
-    for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
-      all_keyframes_byte_offsets.push_back(keyframe_byte_offsets[i] -
-                                           start_keyframe_byte_offset);
-    }
-
-    size_t buffer_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
-    u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-
-    auto io_start = now();
-
-    u64 pos = start_keyframe_byte_offset;
-    s_read(video_file.get(), buffer, buffer_size, pos);
-
-    profiler.add_interval("io", io_start, now());
-    profiler.increment("io_read", static_cast<i64>(buffer_size));
-
-    proto::DecodeArgs decode_args;
-    decode_args.set_width(index_entry.width);
-    decode_args.set_height(index_entry.height);
-    // We add the start frame of this item to all frames since the decoder
-    // works in terms of absolute frame numbers, instead of item relative
-    // frame numbers
-    decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index] +
-                                   start_frame);
-    decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index] +
-                                 start_frame);
-    for (i64 k : all_keyframes) {
-      decode_args.add_keyframes(k + start_frame);
-    }
-    for (i64 k : all_keyframes_byte_offsets) {
-      decode_args.add_keyframe_byte_offsets(k);
-    }
-    for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
-      decode_args.add_valid_frames(intervals.valid_frames[i][j] + start_frame);
-    }
-    decode_args.set_encoded_video((i64)buffer);
-    decode_args.set_encoded_video_size(buffer_size);
-
-    size_t size = decode_args.ByteSizeLong();
-    u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);
-    bool result = decode_args.SerializeToArray(decode_args_buffer, size);
-    assert(result);
-    insert_element(element_list, decode_args_buffer, size);
-  }
+bool LoadWorker::done() {
+  return current_work_item_ >= total_work_items_;
 }
 
-void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
-                                   i32 item_start, i32 item_end,
-                                   const std::vector<i64>& rows,
-                                   ElementList& element_list) {
-  const std::vector<i64>& valid_offsets = rows;
+  void read_video_column(Profiler & profiler,
+                         const VideoIndexEntry& index_entry,
+                         const std::vector<i64>& rows, i64 start_frame,
+                         ElementList& element_list) {
+    std::unique_ptr<RandomReadFile> video_file = index_entry.open_file();
+    u64 file_size = index_entry.file_size;
+    const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
+    const std::vector<i64>& keyframe_byte_offsets =
+        index_entry.keyframe_byte_offsets;
 
-  std::unique_ptr<RandomReadFile> file;
-  StoreResult result;
-  BACKOFF_FAIL(make_unique_random_read_file(
-      storage_.get(), table_item_output_path(table_id, column_id, item_id),
-      file));
+    // Read the bytes from the file that correspond to the sequences of
+    // frames we are interested in decoding. This sequence will contain
+    // the bytes starting at the iframe at or preceding the first frame
+    // we are interested and will continue up to the bytes before the
+    // iframe at or after the last frame we are interested in.
+    VideoIntervals intervals =
+        slice_into_video_intervals(keyframe_positions, rows);
+    size_t num_intervals = intervals.keyframe_index_intervals.size();
+    for (size_t i = 0; i < num_intervals; ++i) {
+      size_t start_keyframe_index;
+      size_t end_keyframe_index;
+      std::tie(start_keyframe_index, end_keyframe_index) =
+          intervals.keyframe_index_intervals[i];
 
-  u64 file_size = 0;
-  BACKOFF_FAIL(file->get_size(file_size));
+      u64 start_keyframe_byte_offset =
+          static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
+      u64 end_keyframe_byte_offset =
+          static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
 
-  // Read number of elements in file
-  u64 pos = 0;
-  u64 num_elements = s_read<u64>(file.get(), pos);
+      i64 start_keyframe = keyframe_positions[start_keyframe_index];
+      i64 end_keyframe = keyframe_positions[end_keyframe_index];
+      std::vector<i64> all_keyframes;
+      for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
+        all_keyframes.push_back(keyframe_positions[i]);
+      }
 
-  // Read element sizes from work item file header
-  std::vector<i64> element_sizes(num_elements);
-  s_read(file.get(), reinterpret_cast<u8*>(element_sizes.data()),
-         element_sizes.size() * sizeof(i64), pos);
+      std::vector<i64> all_keyframes_byte_offsets;
+      for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
+        all_keyframes_byte_offsets.push_back(keyframe_byte_offsets[i] -
+                                             start_keyframe_byte_offset);
+      }
 
-  // Determine start and end position of elements to read in file
-  u64 start_offset = 0;
-  for (i64 i = 0; i < item_start; ++i) {
-    start_offset += element_sizes[i];
-  }
-  u64 end_offset = start_offset;
-  for (i64 i = item_start; i < item_end; ++i) {
-    end_offset += element_sizes[i];
-  }
-
-  // If the requested elements are sufficiently sparse by some threshold, we
-  // read each element individually. Otherwise, we read the entire block and
-  // copy out only the necessary elements.
-  if ((item_end - item_start) / rows.size() >= load_sparsity_threshold_) {
-    for (i32 row : rows) {
-      size_t buffer_size = static_cast<size_t>(element_sizes[row]);
+      size_t buffer_size =
+          end_keyframe_byte_offset - start_keyframe_byte_offset;
       u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-      u64 row_offset = pos + start_offset;
-      for (i32 i = item_start; i < row; ++i) {
-        row_offset += element_sizes[i];
+
+      auto io_start = now();
+
+      u64 pos = start_keyframe_byte_offset;
+      s_read(video_file.get(), buffer, buffer_size, pos);
+
+      profiler.add_interval("io", io_start, now());
+      profiler.increment("io_read", static_cast<i64>(buffer_size));
+
+      proto::DecodeArgs decode_args;
+      decode_args.set_width(index_entry.width);
+      decode_args.set_height(index_entry.height);
+      // We add the start frame of this item to all frames since the decoder
+      // works in terms of absolute frame numbers, instead of item relative
+      // frame numbers
+      decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index] +
+                                     start_frame);
+      decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index] +
+                                   start_frame);
+      for (i64 k : all_keyframes) {
+        decode_args.add_keyframes(k + start_frame);
       }
-      s_read(file.get(), buffer, buffer_size, row_offset);
-      insert_element(element_list, buffer, buffer_size);
-    }
-  } else {
-    pos += start_offset;
-
-    u64 element_data_size = end_offset - start_offset;
-    std::vector<u8> element_data(element_data_size);
-
-    // Read chunk of file corresponding to requested elements
-    s_read(file.get(), element_data.data(), element_data.size(), pos);
-
-    // Extract individual elements and insert into output work entry
-    u64 offset = 0;
-    size_t valid_idx = 0;
-    for (i32 i = item_start; i < item_end; ++i) {
-      size_t buffer_size = static_cast<size_t>(element_sizes[i]);
-      if (i == valid_offsets[valid_idx]) {
-        u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-        memcpy(buffer, element_data.data() + offset, buffer_size);
-        insert_element(element_list, buffer, buffer_size);
-        valid_idx++;
+      for (i64 k : all_keyframes_byte_offsets) {
+        decode_args.add_keyframe_byte_offsets(k);
       }
-      offset += buffer_size;
+      for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
+        decode_args.add_valid_frames(intervals.valid_frames[i][j] +
+                                     start_frame);
+      }
+      decode_args.set_encoded_video((i64)buffer);
+      decode_args.set_encoded_video_size(buffer_size);
+
+      size_t size = decode_args.ByteSizeLong();
+      u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);
+      bool result = decode_args.SerializeToArray(decode_args_buffer, size);
+      assert(result);
+      insert_element(element_list, decode_args_buffer, size);
     }
-    assert(valid_idx == valid_offsets.size());
   }
-}
 
+  void LoadWorker::read_other_column(
+      i32 table_id, i32 column_id, i32 item_id, i32 item_start, i32 item_end,
+      const std::vector<i64>& rows, ElementList& element_list) {
+    const std::vector<i64>& valid_offsets = rows;
+
+    // Read metadata file to determine num rows and sizes
+    u64 num_elements = 0;
+    std::vector<i64> element_sizes;
+    {
+      std::unique_ptr<RandomReadFile> file;
+      StoreResult result;
+      BACKOFF_FAIL(make_unique_random_read_file(
+          storage_.get(),
+          table_item_metadata_path(table_id, column_id, item_id), file));
+
+      u64 file_size = 0;
+      BACKOFF_FAIL(file->get_size(file_size));
+
+      // Read number of elements in file
+      u64 pos = 0;
+      while (pos < file_size) {
+        num_elements += s_read<u64>(file.get(), pos);
+
+        // Read element sizes from work item file header
+        size_t prev_size = element_sizes.size();
+        element_sizes.resize(prev_size + num_elements);
+        s_read(file.get(),
+               reinterpret_cast<u8*>(element_sizes.data() + prev_size),
+               num_elements * sizeof(i64), pos);
+      }
+      assert(pos == file_size);
+    }
+
+    std::unique_ptr<RandomReadFile> file;
+    StoreResult result;
+    BACKOFF_FAIL(make_unique_random_read_file(
+        storage_.get(), table_item_output_path(table_id, column_id, item_id),
+        file));
+
+    u64 file_size = 0;
+    BACKOFF_FAIL(file->get_size(file_size));
+
+    u64 pos = 0;
+    // Determine start and end position of elements to read in file
+    u64 start_offset = 0;
+    for (i64 i = 0; i < item_start; ++i) {
+      start_offset += element_sizes[i];
+    }
+    u64 end_offset = start_offset;
+    for (i64 i = item_start; i < item_end; ++i) {
+      end_offset += element_sizes[i];
+    }
+
+    // If the requested elements are sufficiently sparse by some threshold, we
+    // read each element individually. Otherwise, we read the entire block and
+    // copy out only the necessary elements.
+    if ((item_end - item_start) / rows.size() >= load_sparsity_threshold_) {
+      for (i32 row : rows) {
+          size_t buffer_size = static_cast<size_t>(element_sizes[row]);
+          u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+          u64 row_offset = pos + start_offset;
+          for (i32 i = item_start; i < row; ++i) {
+            row_offset += element_sizes[i];
+          }
+          s_read(file.get(), buffer, buffer_size, row_offset);
+          insert_element(element_list, buffer, buffer_size);
+      }
+    } else {
+      pos += start_offset;
+
+      u64 element_data_size = end_offset - start_offset;
+      std::vector<u8> element_data(element_data_size);
+
+      // Read chunk of file corresponding to requested elements
+      s_read(file.get(), element_data.data(), element_data.size(), pos);
+
+      // Extract individual elements and insert into output work entry
+      u64 offset = 0;
+      size_t valid_idx = 0;
+      for (i32 i = item_start; i < item_end; ++i) {
+        size_t buffer_size = static_cast<size_t>(element_sizes[i]);
+        if (i == valid_offsets[valid_idx]) {
+          u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+          memcpy(buffer, element_data.data() + offset, buffer_size);
+          insert_element(element_list, buffer, buffer_size);
+          valid_idx++;
+        }
+        offset += buffer_size;
+      }
+      assert(valid_idx == valid_offsets.size());
+    }
+  }
 }
 }

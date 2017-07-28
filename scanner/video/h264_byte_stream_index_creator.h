@@ -43,6 +43,7 @@ class H264ByteStreamIndexCreator {
   i32 frames() { return frame_; };
   i32 num_non_ref_frames() { return num_non_ref_frames_; };
   i32 nals_parsed() { return nals_parsed_; };
+  i64 bytestream_pos() { return bytestream_pos_; }
 
   std::string error_message() { return error_message_; }
 
