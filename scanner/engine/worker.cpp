@@ -649,7 +649,8 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     if (result) {
       auto out_entry = std::get<1>(output_entry);
       out_entry.last = work_entry.last;
-      output_work.push(std::make_tuple(std::get<0>(output_entry),
+      output_work.push(std::make_tuple(args.id,
+                                       std::get<0>(output_entry),
                                        out_entry));
 
     }
@@ -671,10 +672,10 @@ void save_coordinator(OutputEvalQueue& eval_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<IOItem, EvalWorkEntry> entry;
+    std::tuple<i32, IOItem, EvalWorkEntry> entry;
     eval_work.pop(entry);
-    IOItem& io_item = std::get<0>(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
+    IOItem& io_item = std::get<1>(entry);
+    EvalWorkEntry& work_entry = std::get<2>(entry);
 
     //args.profiler.add_interval("idle", idle_start, now());
 
@@ -699,7 +700,7 @@ void save_coordinator(OutputEvalQueue& eval_work,
 }
 
 void save_driver(SaveInputQueue& save_work,
-                 std::atomic<i64>& retired_items,
+                 std::vector<std::unique_ptr<std::atomic<i64>>>& retired_items,
                  SaveWorkerArgs args) {
   Profiler& profiler = args.profiler;
   SaveWorker worker(args);
@@ -708,11 +709,12 @@ void save_driver(SaveInputQueue& save_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<IOItem, EvalWorkEntry> entry;
+    std::tuple<i32, IOItem, EvalWorkEntry> entry;
     save_work.pop(entry);
 
-    IOItem& io_item = std::get<0>(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
+    i32 pipeline_instance = std::get<0>(entry);
+    IOItem& io_item = std::get<1>(entry);
+    EvalWorkEntry& work_entry = std::get<2>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -738,7 +740,9 @@ void save_driver(SaveInputQueue& save_work,
 
     args.profiler.add_interval("task", work_start, now());
 
-    retired_items++;
+    if (work_entry.last) {
+      retired_items[pipeline_instance]->fetch_add(1);
+    }
   }
 
   VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
@@ -1069,7 +1073,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
   OutputEvalQueue output_eval_work(pipeline_instances_per_node);
   std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
-  std::atomic<i64> retired_items{0};
+  std::vector<std::unique_ptr<std::atomic<i64>>> retired_items;
+  for (int i = 0; i < pipeline_instances_per_node; ++i) {
+    retired_items.emplace_back(new std::atomic<i64>(0));
+  }
 
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
@@ -1280,9 +1287,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Monitor amount of work left and request more when running low
   // Round robin work
-  i32 last_work_queue = 0;
+  std::vector<i64> allocated_work_to_queues(pipeline_instances_per_node);
   while (true) {
-    i32 local_work = accepted_items - retired_items;
+    i64 total_tasks_processed = 0;
+    for (auto& ri : retired_items) {
+      total_tasks_processed += ri->load();
+    }
+    i32 local_work = accepted_items - total_tasks_processed;
     if (local_work < pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
       grpc::ClientContext context;
       proto::NodeInfo node_info;
@@ -1311,11 +1322,20 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                     analysis_results.stencils, work_item_size,
                                     stenciled_entry, task_stream);
 
-        i32 target_work_queue =
-            distribute_work_dynamically ? last_work_queue++ : 0;
+        // Determine which worker to allocate to
+        i32 target_work_queue = -1;
+        i32 min_work = std::numeric_limits<i32>::max();
+        for (int i = 0; i < pipeline_instances_per_node; ++i) {
+          i64 outstanding_work =
+              allocated_work_to_queues[i] - retired_items[i]->load();
+          if (outstanding_work < min_work) {
+            min_work = outstanding_work;
+            target_work_queue = i;
+          }
+        }
         load_work.push(std::make_tuple(target_work_queue, task_stream,
                                        new_work.io_item(), stenciled_entry));
-        last_work_queue %= pipeline_instances_per_node;
+        allocated_work_to_queues[target_work_queue]++;
         accepted_items++;
       }
     }
@@ -1371,13 +1391,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   auto push_output_eval_exit_message = [](OutputEvalQueue& q) {
     EvalWorkEntry entry;
     entry.io_item_index = -1;
-    q.push(std::make_tuple(IOItem{}, entry));
+    q.push(std::make_tuple(0, IOItem{}, entry));
   };
 
   auto push_save_exit_message = [](SaveInputQueue& q) {
     EvalWorkEntry entry;
     entry.io_item_index = -1;
-    q.push(std::make_tuple(IOItem{}, entry));
+    q.push(std::make_tuple(0, IOItem{}, entry));
   };
 
   // Push sentinel work entries into queue to terminate load threads
