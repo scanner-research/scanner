@@ -1,5 +1,6 @@
 #include "scanner/util/cuda.h"
 
+#ifdef HAVE_CUDA
 namespace Halide {
 namespace Runtime {
 namespace Internal {
@@ -9,3 +10,4 @@ CUcontext context = 0;
 }
 }
 }
+#endif
