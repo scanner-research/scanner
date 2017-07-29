@@ -3,8 +3,7 @@ import cv2
 import struct
 
 
-def bboxes(bufs, db):
-    buf = bufs[0]
+def bboxes(buf, db):
     (num_bboxes,) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
     bboxes = []

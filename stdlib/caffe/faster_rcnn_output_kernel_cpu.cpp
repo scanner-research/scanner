@@ -30,13 +30,13 @@ class FasterRCNNOutputKernel : public BatchedKernel {
                       &fc7 = input_columns[fc7_idx];
 
     for (i32 i = 0; i < input_count; ++i) {
-      const Frame* cls = cls_prob[i].as_const_frame();
+      const Frame* cls_p = cls_prob[i].as_const_frame();
       const Frame* roi = rois[i].as_const_frame();
       const Frame* fc = fc7[i].as_const_frame();
 
       i32 proposal_count = roi->size() / (BOX_SIZE * sizeof(f32));
       assert(roi->size() == BOX_SIZE * sizeof(f32) * proposal_count);
-      assert(cls->size() == CLASSES * sizeof(f32) * proposal_count);
+      assert(cls_p->size() == CLASSES * sizeof(f32) * proposal_count);
       std::vector<BoundingBox> bboxes;
       for (i32 j = 0; j < proposal_count; ++j) {
         f32* ro = (f32*)(roi->data + (j * BOX_SIZE * sizeof(f32)));
@@ -53,7 +53,7 @@ class FasterRCNNOutputKernel : public BatchedKernel {
         // Start at cls = 1 to skip background
         for (i32 cls = 1; cls < CLASSES; ++cls) {
           f32* scores =
-              (f32*)(cls_prob[i].buffer + (j * CLASSES * sizeof(f32)));
+              (f32*)(cls_p->data + (j * CLASSES * sizeof(f32)));
           f32 score = scores[cls];
           if (score > max_score) {
             max_score = score;
@@ -80,24 +80,31 @@ class FasterRCNNOutputKernel : public BatchedKernel {
         insert_element(output_columns[0], buffer, size);
       }
 
-      {
-        size_t size =
-            std::max(best_bboxes.size() * FEATURES * sizeof(f32), (size_t)1);
-        u8* buffer = new_buffer(CPU_DEVICE, size);
-        for (i32 k = 0; k < best_bboxes.size(); ++k) {
-          i32 j = best_bboxes[k].track_id();
-          f32* fvec = (f32*)(fc7[i].buffer + (j * FEATURES * sizeof(f32)));
-          std::memcpy(buffer + (k * FEATURES * sizeof(f32)), fvec,
-                      FEATURES * sizeof(f32));
+      if (best_bboxes.size() == 0) {
+        u8* buffer = new_buffer(CPU_DEVICE, 1);
+        insert_element(output_columns[1], buffer, 1);
+      } else {
+        {
+          size_t size =
+              std::max(best_bboxes.size() * FEATURES * sizeof(f32), (size_t)1);
+          u8* buffer = new_buffer(CPU_DEVICE, size);
+          for (i32 k = 0; k < best_bboxes.size(); ++k) {
+            i32 j = best_bboxes[k].track_id();
+            f32* fvec = (f32*)(fc->data + (j * FEATURES * sizeof(f32)));
+            std::memcpy(buffer + (k * FEATURES * sizeof(f32)), fvec,
+                        FEATURES * sizeof(f32));
+          }
+          insert_element(output_columns[1], buffer, size);
         }
-        insert_element(output_columns[1], buffer, size);
       }
     }
   }
 };
 
 REGISTER_OP(FasterRCNNOutput)
-    .frame_input("caffe_output")
+    .frame_input("cls_prob")
+    .frame_input("rois")
+    .frame_input("fc7")
     .output("bboxes")
     .output("features");
 
