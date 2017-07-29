@@ -30,6 +30,7 @@ class NetDescriptor:
         d.preserve_aspect_ratio = self._val(net, 'preserve_aspect_ratio', False)
         d.transpose = self._val(net, 'tranpose', False)
         d.pad_mod = self._val(net, 'pad_mod', -1)
+        d.uses_python = self._val(net, 'uses_python', False)
 
         mean = args['mean-image']
         if 'colors' in mean:

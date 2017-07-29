@@ -136,6 +136,9 @@ proto::NetDescriptor descriptor_from_net_file(
   auto pad_mod = net->find("pad_mod");
   descriptor.set_pad_mod(pad_mod ? pad_mod->as<i32>() : -1);
 
+  auto uses_python = net->find("uses_python");
+  descriptor.set_uses_python(uses_python ? uses_python->as<bool>() : false);
+
   auto normalize = net->find("normalize");
   descriptor.set_normalize(normalize ? normalize->as<bool>() : false);
 
