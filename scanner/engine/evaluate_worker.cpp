@@ -126,9 +126,10 @@ bool PreEvaluateWorker::yield(i32 item_size,
   entry.io_item_index = work_entry.io_item_index;
   entry.needs_configure = first_item ? needs_configure_ : false;
   entry.needs_reset = first_item_ ? needs_reset_ : false;
-  entry.last_in_task = (r + item_size >= total_rows_) ? true : false;
+  entry.last_in_io_packet = (r + item_size >= total_rows_) ? true : false;
   entry.warmup_rows = work_entry.warmup_rows;
   entry.columns.resize(work_entry.columns.size());
+  entry.last_in_task = work_entry.last_in_task;
 
   i64 start = r;
   i64 end = std::min(r + item_size, total_rows_);
@@ -557,6 +558,7 @@ bool EvaluateWorker::yield(i32 item_size,
   output_work_entry.io_item_index = work_entry.io_item_index;
   output_work_entry.needs_configure = work_entry.needs_configure;
   output_work_entry.needs_reset = work_entry.needs_reset;
+  output_work_entry.last_in_io_packet = work_entry.last_in_io_packet;
   output_work_entry.last_in_task = work_entry.last_in_task;
   output_work_entry.warmup_rows = work_entry.warmup_rows;
 
@@ -648,6 +650,7 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
   // Setup row buffer if it was emptied
   if (buffered_entry_.columns.size() == 0) {
     buffered_entry_.io_item_index = work_entry.io_item_index;
+    buffered_entry_.last_in_task = work_entry.last_in_task;
     buffered_entry_.columns.resize(column_mapping_.size());
     assert(work_entry.column_handles.size() == columns_.size());
     buffered_entry_.column_types.clear();
@@ -752,7 +755,7 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
   encoder_idx = 0;
 
   // Flush row buffer
-  if (work_entry.last_in_task) {
+  if (work_entry.last_in_io_packet) {
     // Flush video encoder and get rest of packets
     for (size_t i = 0; i < column_mapping_.size(); ++i) {
       ColumnType column_type = columns_[i].type();

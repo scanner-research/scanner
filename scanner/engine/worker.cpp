@@ -434,7 +434,7 @@ void load_driver(LoadInputQueue& load_work,
       if (worker.yield(io_item_size, output_entry)) {
         auto work_entry = std::get<1>(output_entry);
         work_entry.first = !task_streams.empty();
-        work_entry.last = worker.done();
+        work_entry.last_in_task = worker.done();
         initial_eval_work[output_queue_idx].push(
             std::make_tuple(task_streams, std::get<0>(output_entry),
                             work_entry));
@@ -513,7 +513,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     }
 
     bool first = work_entry.first;
-    bool last = work_entry.last;
+    bool last = work_entry.last_in_task;
 
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry, first);
@@ -648,7 +648,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 
     if (result) {
       auto out_entry = std::get<1>(output_entry);
-      out_entry.last = work_entry.last;
+      out_entry.last_in_task = work_entry.last_in_task;
       output_work.push(std::make_tuple(args.id,
                                        std::get<0>(output_entry),
                                        out_entry));
@@ -693,7 +693,7 @@ void save_coordinator(OutputEvalQueue& eval_work,
     i32 assigned_worker = task_to_worker_mapping.at(task_id);
     save_work[assigned_worker].push(entry);
 
-    if (work_entry.last) {
+    if (work_entry.last_in_task) {
       task_to_worker_mapping.erase(task_id);
     }
   }
@@ -705,6 +705,7 @@ void save_driver(SaveInputQueue& save_work,
   Profiler& profiler = args.profiler;
   SaveWorker worker(args);
 
+  i32 processed = 0;
   i32 active_task = -1;
   while (true) {
     auto idle_start = now();
@@ -730,7 +731,9 @@ void save_driver(SaveInputQueue& save_work,
     if (work_entry.io_item_index != active_task) {
       active_task = work_entry.io_item_index;
       worker.new_task(io_item, work_entry.column_types);
+      processed = 0;
     }
+    processed++;
 
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
@@ -740,7 +743,7 @@ void save_driver(SaveInputQueue& save_work,
 
     args.profiler.add_interval("task", work_start, now());
 
-    if (work_entry.last) {
+    if (work_entry.last_in_task) {
       retired_items[pipeline_instance]->fetch_add(1);
     }
   }
@@ -794,6 +797,10 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   // Set up Python runtime if any kernels need it
   Py_Initialize();
   boost::python::numpy::initialize();
+  printf("Python path %s\n", Py_GetPath());
+  printf("threads init %d\n", PyEval_ThreadsInitialized());
+    PyThreadState * tstate = _PyThreadState_Current;
+  printf("gil %d\n", tstate && (tstate == PyGILState_GetThisThreadState()));
 }
 
 WorkerImpl::~WorkerImpl() {
