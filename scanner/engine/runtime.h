@@ -71,9 +71,9 @@ using LoadInputQueue =
 using EvalQueue =
     Queue<std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>;
 using OutputEvalQueue =
-    Queue<std::tuple<IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
 using SaveInputQueue =
-    Queue<std::tuple<IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
 
 struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;
