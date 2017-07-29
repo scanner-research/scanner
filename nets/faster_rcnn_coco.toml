@@ -5,6 +5,7 @@
     output_layers = ["cls_prob", "rois", "fc7"]
     # output_layers = ["fc7"]
     normalize = false
+    uses_python = true
 
     [net.input]
         dimensions = [
