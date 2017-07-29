@@ -109,7 +109,6 @@ if (HALIDE_TARGETS)
   endforeach()
   if (BUILD_CUDA)
     add_dependencies(stdlib scanner_halide)
-    target_link_libraries(stdlib PRIVATE scanner_halide)
   endif()
 endif()
 

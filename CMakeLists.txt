@@ -210,6 +210,7 @@ add_library(scanner SHARED
   $<TARGET_OBJECTS:engine>
   $<TARGET_OBJECTS:video>
   $<TARGET_OBJECTS:util>
+  scanner/util/halide_context.cpp
   ${PROTO_SRCS}
   ${GRPC_PROTO_SRCS}
   ${STRUCK_SOURCES}
