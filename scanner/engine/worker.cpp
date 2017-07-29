@@ -797,10 +797,6 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   // Set up Python runtime if any kernels need it
   Py_Initialize();
   boost::python::numpy::initialize();
-  printf("Python path %s\n", Py_GetPath());
-  printf("threads init %d\n", PyEval_ThreadsInitialized());
-    PyThreadState * tstate = _PyThreadState_Current;
-  printf("gil %d\n", tstate && (tstate == PyGILState_GetThisThreadState()));
 }
 
 WorkerImpl::~WorkerImpl() {
