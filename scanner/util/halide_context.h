@@ -6,7 +6,7 @@ namespace Halide {
 namespace Runtime {
 namespace Internal {
 namespace Cuda {
-extern CUcontext context = 0;
+extern CUcontext context;
 }
 }
 }
