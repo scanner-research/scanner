@@ -21,6 +21,8 @@
 #include "scanner/util/cuda.h"
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
+#include "scanner/util/glog.h"
+
 namespace scanner {
 namespace internal {
 namespace {
@@ -276,6 +278,7 @@ Result get_task_end_rows(
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
+  init_glog("scanner_master");
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   set_database_path(params.db_path);
@@ -366,6 +369,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
                                   const proto::NodeInfo* node_info,
                                   proto::NewWork* new_work) {
   std::unique_lock<std::mutex> lk(work_mutex_);
+  VLOG(1) << "Master received NextWork command";
   if (samples_left_ <= 0) {
     if (next_task_ < num_tasks_ && task_result_.success()) {
       // More tasks left
@@ -406,6 +410,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
 grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
                                 const proto::JobParameters* job_params,
                                 proto::Result* job_result) {
+  VLOG(1) << "Master received NewJob command";
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
@@ -586,6 +591,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     local_totals[sans_port] += 1;
   }
 
+  // Send new job command to workers
+  VLOG(1) << "Sending new job command to workers";;
   proto::JobParameters w_job_params;
   w_job_params.CopyFrom(*job_params);
   w_job_params.set_global_total(workers_.size());
@@ -597,11 +604,15 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     w_job_params.set_local_id(local_ids[sans_port]);
     w_job_params.set_local_total(local_totals[sans_port]);
     local_ids[sans_port] += 1;
+    VLOG(2) << "Sending to worker " << i;
     rpcs.emplace_back(
         worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
     rpcs[i]->Finish(&replies[i], &statuses[i], (void*)i);
+    VLOG(2) << "Sent to worker " << i;
   }
 
+  // Wait for all workers to finish
+  VLOG(1) << "Waiting for workers to finish" << i;
   for (size_t i = 0; i < workers_.size(); ++i) {
     void* got_tag;
     bool ok = false;
@@ -610,6 +621,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     assert(ok);
 
     i64 worker_id = (i64)got_tag;
+    VLOG(2) << "Worker " << worker_id << " finished.";
 
     if (!replies[worker_id].success()) {
       LOG(WARNING) << "Worker " << worker_id
@@ -633,6 +645,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     }
   }
 
+  VLOG(1) << "Master finished NewJob";
   return grpc::Status::OK;
 }
 
@@ -698,6 +711,7 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
 
 grpc::Status MasterImpl::Shutdown(grpc::ServerContext* context,
                                   const proto::Empty* empty, Result* result) {
+  VLOG(1) << "Master received shutdown!";
   result->set_success(true);
   trigger_shutdown_.set();
   return grpc::Status::OK;

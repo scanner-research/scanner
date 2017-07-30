@@ -20,6 +20,7 @@
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
 #include "scanner/util/cuda.h"
+#include "scanner/util/glog.h"
 
 #include <arpa/inet.h>
 #include <grpc/grpc_posix.h>
@@ -757,6 +758,8 @@ void save_driver(SaveInputQueue& save_work,
 WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
                        std::string master_address, std::string worker_port)
   : watchdog_awake_(true), db_params_(db_params) {
+  init_glog("scanner_worker");
+
   set_database_path(db_params.db_path);
 
   avcodec_register_all();
