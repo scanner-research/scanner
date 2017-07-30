@@ -612,7 +612,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   }
 
   // Wait for all workers to finish
-  VLOG(1) << "Waiting for workers to finish" << i;
+  VLOG(1) << "Waiting for workers to finish";
   for (size_t i = 0; i < workers_.size(); ++i) {
     void* got_tag;
     bool ok = false;

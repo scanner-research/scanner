@@ -23,6 +23,6 @@
 
 namespace scanner {
 
-void init_glog(char* program_name);
+void init_glog(const char* program_name);
 
 }
