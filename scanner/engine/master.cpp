@@ -592,7 +592,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   }
 
   // Send new job command to workers
-  VLOG(1) << "Sending new job command to workers";;
+  VLOG(1) << "Sending new job command to workers";
   proto::JobParameters w_job_params;
   w_job_params.CopyFrom(*job_params);
   w_job_params.set_global_total(workers_.size());

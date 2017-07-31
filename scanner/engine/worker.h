@@ -23,6 +23,7 @@
 #include <grpc/support/log.h>
 #include <atomic>
 #include <thread>
+#include <boost/python.hpp>
 
 namespace scanner {
 namespace internal {

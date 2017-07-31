@@ -5,9 +5,27 @@
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
+#include <boost/python/numpy.hpp>
 #include <thread>
 
 namespace scanner {
+namespace {
+class GILRelease {
+ public:
+  inline GILRelease() {
+    PyEval_InitThreads();
+    m_thread_state = PyEval_SaveThread();
+  }
+
+  inline ~GILRelease() {
+    PyEval_RestoreThread(m_thread_state);
+    m_thread_state = NULL;
+  }
+
+ private:
+  PyThreadState* m_thread_state;
+};
+}
 
 namespace py = boost::python;
 
@@ -57,11 +75,13 @@ std::string default_machine_params_wrapper() {
 }
 
 proto::Result start_master_wrapper(Database& db, const std::string& port) {
+  GILRelease r;
   return db.start_master(default_machine_params(), port);
 }
 
 proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
                                    const std::string& port) {
+  GILRelease r;
   proto::MachineParameters params_proto;
   params_proto.ParseFromString(params_s);
   MachineParameters params;
@@ -78,17 +98,22 @@ proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
 py::list ingest_videos_wrapper(Database& db, const py::list table_names,
                                const py::list paths) {
   std::vector<FailedVideo> failed_videos;
-  db.ingest_videos(to_std_vector<std::string>(table_names),
-                   to_std_vector<std::string>(paths), failed_videos);
+  {
+    GILRelease r;
+    db.ingest_videos(to_std_vector<std::string>(table_names),
+                     to_std_vector<std::string>(paths), failed_videos);
+  }
   return to_py_list<FailedVideo>(failed_videos);
 }
 
 Result wait_for_server_shutdown_wrapper(Database& db) {
+  GILRelease r;
   return db.wait_for_server_shutdown();
 }
 
 Result new_table_wrapper(Database& db, const std::string& name,
                          const py::list columns, const py::list rows) {
+  GILRelease r;
   std::vector<py::list> rows_py1 = to_std_vector<py::list>(rows);
   std::vector<std::vector<std::string>> rows_py2;
   for (auto l : rows_py1) {
@@ -99,6 +124,7 @@ Result new_table_wrapper(Database& db, const std::string& name,
 }
 
 BOOST_PYTHON_MODULE(libscanner) {
+  boost::python::numpy::initialize();
   using namespace py;
   class_<Database, boost::noncopyable>(
       "Database", init<storehouse::StorageConfig*, const std::string&,

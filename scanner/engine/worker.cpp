@@ -28,8 +28,6 @@
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <sys/socket.h>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
 #include <omp.h>
 
 // For avcodec_register_all()... should go in software video with global mutex
@@ -799,7 +797,6 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
   // Set up Python runtime if any kernels need it
   Py_Initialize();
-  boost::python::numpy::initialize();
 }
 
 WorkerImpl::~WorkerImpl() {
