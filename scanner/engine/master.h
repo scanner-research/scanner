@@ -86,7 +86,8 @@ class MasterImpl final : public proto::Master::Service {
   Flag trigger_shutdown_;
   DatabaseParameters db_params_;
   storehouse::StorageBackend* storage_;
-  std::map<std::string, TableMetadata> table_metas_;
+  DatabaseMetadata meta_;
+  std::unique_ptr<TableMetaCache> table_metas_;
   proto::JobParameters job_params_;
   std::unique_ptr<ProgressBar> bar_;
 

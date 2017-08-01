@@ -16,6 +16,7 @@
 #pragma once
 
 #include "scanner/engine/metadata.h"
+#include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
 
@@ -71,7 +72,7 @@ Result make_sampler_instance(const std::string& sampler_type,
 
 class TaskSampler {
  public:
-  TaskSampler(const std::map<std::string, TableMetadata>& table_metas,
+  TaskSampler(const TableMetaCache& table_metas,
               const proto::Task& task);
 
   Result validate();
@@ -83,7 +84,7 @@ class TaskSampler {
   Result next_work(proto::NewWork& new_work);
 
  private:
-  const std::map<std::string, TableMetadata>& table_metas_;
+  const TableMetaCache& table_metas_;
   const proto::Task& task_;
   Result valid_;
   std::vector<std::unique_ptr<Sampler>> samplers_;

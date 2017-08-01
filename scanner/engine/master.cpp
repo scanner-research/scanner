@@ -210,7 +210,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
 }
 
 Result get_task_end_rows(
-    const std::map<std::string, TableMetadata>& table_metas,
+    const TableMetaCache& table_metas,
     const proto::Task& task, i64 min_stencil, i64 max_stencil,
     std::vector<i64>& rows) {
   Result result;
@@ -374,7 +374,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     if (next_task_ < num_tasks_ && task_result_.success()) {
       // More tasks left
       task_sampler_.reset(new TaskSampler(
-          table_metas_, job_params_.task_set().tasks(next_task_)));
+          *table_metas_.get(), job_params_.task_set().tasks(next_task_)));
       task_result_ = task_sampler_->validate();
       if (task_result_.success()) {
         samples_left_ = task_sampler_->total_samples();
@@ -427,29 +427,25 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   i32 warmup_size = 0;
   i32 total_rows = 0;
 
-  DatabaseMetadata meta =
+  meta_ =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   DatabaseMetadata meta_copy =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
-  validate_task_set(meta, job_params->task_set(), job_result);
+  validate_task_set(meta_, job_params->task_set(), job_result);
   if (!job_result->success()) {
     // No database changes made at this point, so just return
     return grpc::Status::OK;
   }
 
-  // Read all table metadata
-  for (const std::string& table_name : meta.table_names()) {
-    std::string table_path =
-        TableMetadata::descriptor_path(meta.get_table_id(table_name));
-    table_metas_[table_name] = read_table_metadata(storage_, table_path);
-  }
+  // Setup table metadata cache
+  table_metas_.reset(new TableMetaCache(storage_, meta_));
 
   // Get output columns from last output op
   std::vector<Column> input_table_columns;
   {
     for (auto& sample : job_params->task_set().tasks(0).samples()) {
-      TableMetadata& table = table_metas_[sample.table_name()];
+      const TableMetadata& table = table_metas_->at(sample.table_name());
       std::vector<Column> table_columns = table.columns();
       for (const std::string& c : sample.column_names()) {
         for (Column& col : table_columns) {
@@ -509,7 +505,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
 
   // Add job name into database metadata so we can look up what jobs have
   // been run
-  i32 job_id = meta.add_job(job_params->job_name());
+  i32 job_id = meta_.add_job(job_params->job_name());
   job_descriptor.set_id(job_id);
   job_descriptor.set_name(job_params->job_name());
 
@@ -519,7 +515,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   total_samples_used_ = 0;
   total_samples_ = 0;
   for (auto& task : job_params->task_set().tasks()) {
-    i32 table_id = meta.add_table(task.output_table_name());
+    i32 table_id = meta_.add_table(task.output_table_name());
     proto::TableDescriptor table_desc;
     table_desc.set_id(table_id);
     table_desc.set_name(task.output_table_name());
@@ -531,9 +527,9 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
       Column* col = table_desc.add_columns();
       col->CopyFrom(output_columns[i]);
     }
-    table_metas_[task.output_table_name()] = TableMetadata(table_desc);
+    table_metas_->update(TableMetadata(table_desc));
     std::vector<i64> end_rows;
-    Result result = get_task_end_rows(table_metas_, task, min_stencil,
+    Result result = get_task_end_rows(*table_metas_.get(), task, min_stencil,
                                       max_stencil, end_rows);
     if (!result.success()) {
       *job_result = result;
@@ -546,7 +542,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     table_desc.set_job_id(job_id);
 
     write_table_metadata(storage_, TableMetadata(table_desc));
-    table_metas_[task.output_table_name()] = TableMetadata(table_desc);
+    table_metas_->update(TableMetadata(table_desc));
   }
   if (!job_result->success()) {
     // No database changes made at this point, so just return
@@ -562,7 +558,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   next_task_ = 0;
   num_tasks_ = job_params->task_set().tasks_size();
 
-  write_database_metadata(storage_, meta);
+  write_database_metadata(storage_, meta_);
 
   VLOG(1) << "Total tasks: " << num_tasks_;
 

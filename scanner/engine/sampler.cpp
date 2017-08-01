@@ -346,18 +346,18 @@ Result make_sampler_instance(const std::string& sampler_type,
 }
 
 TaskSampler::TaskSampler(
-    const std::map<std::string, TableMetadata>& table_metas,
+    const TableMetaCache& table_metas,
     const proto::Task& task)
   : table_metas_(table_metas), task_(task) {
   valid_.set_success(true);
-  if (table_metas.count(task.output_table_name()) == 0) {
+  if (!table_metas.exists(task.output_table_name())) {
     RESULT_ERROR(&valid_, "Output table %s does not exist.",
                  task.output_table_name().c_str());
     return;
   }
   // Create samplers for this task
   for (auto& sample : task.samples()) {
-    if (table_metas.count(sample.table_name()) == 0) {
+    if (!table_metas.exists(sample.table_name())) {
       RESULT_ERROR(&valid_, "Requested table %s does not exist.",
                    sample.table_name().c_str());
       return;
