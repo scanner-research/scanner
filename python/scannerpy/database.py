@@ -358,7 +358,7 @@ class Database:
             self._worker_conns = None
             machine_params = self._bindings.default_machine_params()
             res = self._bindings.start_master(
-                self._db, self.config.master_port).success
+                self._db, self.config.master_port, True).success
             assert res
             res = self._connect_to_master()
             assert res
@@ -368,7 +368,7 @@ class Database:
             for i in range(len(self._worker_addresses)):
                 res = self._bindings.start_worker(
                     self._db, machine_params,
-                    str(int(self.config.worker_port) + i)).success
+                    str(int(self.config.worker_port) + i), True).success
                 assert res
         else:
             master_port = self._master_address.partition(':')[2]
