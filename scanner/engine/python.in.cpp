@@ -74,13 +74,13 @@ std::string default_machine_params_wrapper() {
   return output;
 }
 
-proto::Result start_master_wrapper(Database& db, const std::string& port) {
+proto::Result start_master_wrapper(Database& db, const std::string& port, bool watchdog) {
   GILRelease r;
-  return db.start_master(default_machine_params(), port);
+  return db.start_master(default_machine_params(), port, watchdog);
 }
 
 proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
-                                   const std::string& port) {
+                                   const std::string& port, bool watchdog) {
   GILRelease r;
   proto::MachineParameters params_proto;
   params_proto.ParseFromString(params_s);
@@ -92,7 +92,7 @@ proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
     params.gpu_ids.push_back(gpu_id);
   }
 
-  return db.start_worker(params, port);
+  return db.start_worker(params, port, watchdog);
 }
 
 py::list ingest_videos_wrapper(Database& db, const py::list table_names,

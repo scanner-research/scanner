@@ -29,7 +29,7 @@ from column import Column
 
 from storehousepy import StorageConfig, StorageBackend
 
-def start_master(port=None, config=None, config_path=None, block=False):
+def start_master(port=None, config=None, config_path=None, block=False, watchdog=True):
     """
     Start a master server instance on this node.
 
@@ -54,7 +54,7 @@ def start_master(port=None, config=None, config_path=None, block=False):
         config.storage_config,
         config.db_path,
         config.master_address + ':' + port)
-    result = bindings.start_master(db, port)
+    result = bindings.start_master(db, port, watchdog)
     if not result.success:
         raise ScannerException('Failed to start master: {}'.format(result.msg))
     if block:
@@ -63,7 +63,7 @@ def start_master(port=None, config=None, config_path=None, block=False):
 
 
 def start_worker(master_address, port=None, config=None, config_path=None,
-                 block=False):
+                 block=False, watchdog=True):
     """
     Start a worker instance on this node.
 
@@ -94,7 +94,7 @@ def start_worker(master_address, port=None, config=None, config_path=None,
         config.db_path,
         master_address)
     machine_params = bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params, port)
+    result = bindings.start_worker(db, machine_params, port, watchdog)
     if not result.success:
         raise ScannerException('Failed to start worker: {}'.format(result.msg))
     if block:
