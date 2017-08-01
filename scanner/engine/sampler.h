@@ -60,6 +60,10 @@ class Sampler {
 
   virtual void reset() = 0;
 
+  virtual RowSample sample_at(i64 sample_idx) = 0;
+
+  virtual i64 offset_at_sample(i64 sample_idx) const = 0;
+
  protected:
   std::string name_;
   TableMetadata table_;
@@ -82,6 +86,10 @@ class TaskSampler {
   i64 total_samples();
 
   Result next_work(proto::NewWork& new_work);
+
+  void reset();
+
+  Result sample_at(i64 sample_idx, proto::NewWork& new_work);
 
  private:
   const TableMetaCache& table_metas_;
