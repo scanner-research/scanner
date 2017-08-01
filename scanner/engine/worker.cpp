@@ -19,6 +19,7 @@
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
+#include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 
@@ -816,16 +817,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
-  // Load table metadata for use in other operations
-  // TODO(apoms): only load needed tables
+  // Setup up table metadata cache for use in other operations
   DatabaseMetadata meta =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-  std::map<std::string, TableMetadata> table_meta;
-  for (const std::string& table_name : meta.table_names()) {
-    std::string table_path =
-        TableMetadata::descriptor_path(meta.get_table_id(table_name));
-    table_meta[table_name] = read_table_metadata(storage_, table_path);
-  }
+  TableMetaCache table_meta(storage_, meta);
 
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
@@ -859,14 +854,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<std::vector<i32>> column_mapping =
       analysis_results.column_mapping;
 
-
   // Read final output columns for use in post-evaluate worker
   // (needed for determining column types)
   std::vector<Column> final_output_columns;
   {
     std::string output_name =
         job_params->task_set().tasks(0).output_table_name();
-    TableMetadata& table = table_meta[output_name];
+    const TableMetadata& table = table_meta.at(output_name);
     final_output_columns = table.columns();
   }
   std::vector<ColumnCompressionOptions> final_compression_options;
