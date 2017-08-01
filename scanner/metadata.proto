@@ -257,13 +257,6 @@ message StridedRangeSamplerArgs {
   repeated int64 ends = 4;
 }
 
-message StencilSamplerArgs {
-  int64 stride = 1;
-  repeated int64 stencil = 2;
-  repeated int64 starts = 3;
-  repeated int64 ends = 4;
-}
-
 message GatherSamplerArgs {
   message Sample {
     repeated int64 warmup_rows = 1 [packed=true];
