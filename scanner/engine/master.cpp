@@ -322,13 +322,19 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
   std::string worker_address = get_worker_address_from_grpc_context(context);
   worker_address += ":" + worker_info->port();
 
-  VLOG(1) << "Adding worker: " << worker_address;
-  workers_.push_back(proto::Worker::NewStub(
-      grpc::CreateChannel(worker_address, grpc::InsecureChannelCredentials())));
-  registration->set_node_id(workers_.size() - 1);
-  addresses_.push_back(worker_address);
+  i32 node_id = next_worker_id_++;
+  VLOG(1) << "Adding worker: " << node_id << ", " << worker_address;
+  workers_[node_id] = proto::Worker::NewStub(
+      grpc::CreateChannel(worker_address, grpc::InsecureChannelCredentials()));
+  registration->set_node_id(node_id);
+  worker_addresses_[node_id] = worker_address;
 
   return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::UnregisterWorker(grpc::ServerContext* context,
+                                          const proto::NodeInfo* node_info,
+                                          proto::Empty* empty) {
 }
 
 grpc::Status MasterImpl::ActiveWorkers(
@@ -338,10 +344,11 @@ grpc::Status MasterImpl::ActiveWorkers(
 
   set_database_path(db_params_.db_path);
 
-  for (size_t i = 0; i < workers_.size(); ++i) {
+  for (auto& kv : workers_) {
+    i32 worker_id = kv.first;
     proto::WorkerInfo* info = registered_workers->add_workers();
-    info->set_id(i);
-    info->set_address(addresses_[i]);
+    info->set_id(worker_id);
+    info->set_address(worker_addresses_.at(worker_id));
   }
 
   return grpc::Status::OK;
@@ -370,40 +377,97 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
                                   proto::NewWork* new_work) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   VLOG(1) << "Master received NextWork command";
-  if (samples_left_ <= 0) {
-    if (next_task_ < num_tasks_ && task_result_.success()) {
-      // More tasks left
-      task_sampler_.reset(new TaskSampler(
-          *table_metas_.get(), job_params_.task_set().tasks(next_task_)));
-      task_result_ = task_sampler_->validate();
-      if (task_result_.success()) {
-        samples_left_ = task_sampler_->total_samples();
-        next_task_++;
-        VLOG(1) << "Tasks left: " << num_tasks_ - next_task_;
+  // If we do not have any outstanding work, try and create more
+  if (unallocated_task_samples_.empty()) {
+    // If we have no more samples for this task, try and get another task
+    if (next_sample_ == num_samples_) {
+      // Check if there are any tasks left
+      if (next_task_ < num_tasks_ && task_result_.success()) {
+        // More tasks left
+        auto sampler = new TaskSampler(
+            *table_metas_.get(), job_params_.task_set().tasks(next_task_));
+        task_result_ = sampler->validate();
+        if (task_result_.success()) {
+          next_sample_ = 0;
+          num_samples_ = sampler->total_samples();
+          next_task_++;
+          VLOG(1) << "Tasks left: " << num_tasks_ - next_task_;
+          task_samplers_[next_task_ - 1].reset(sampler);
+        } else {
+          delete sampler;
+        }
       }
-    } else {
-      // No more tasks left
-      new_work->mutable_io_item()->set_item_id(-1);
-      return grpc::Status::OK;
     }
+
+    // Create more work if possible
+    if (next_sample_ < num_samples_) {
+      i64 current_task = next_task_ - 1;
+      i64 current_sample = next_sample_;
+
+      unallocated_task_samples_.push_front(
+          std::make_tuple(current_task, current_sample));
+      task_sampler_samples_left_[current_task]++;
+    }
+
+    next_sample_++;
+    total_samples_used_++;
   }
-  if (!task_result_.success()) {
+
+  if (unallocated_task_samples_.empty()) {
+    // No more work
     new_work->mutable_io_item()->set_item_id(-1);
     return grpc::Status::OK;
   }
 
-  assert(samples_left_ > 0);
-  task_result_ = task_sampler_->next_work(*new_work);
+  // Grab the next task sample
+  std::tuple<i64, i64> task_sample_id = unallocated_task_samples_.back();
+  unallocated_task_samples_.pop_back();
+
+  // Get task sampler for our task sample
+  assert(next_sample_ <= num_samples_);
+  auto& sampler = task_samplers_.at(std::get<0>(task_sample_id));
+
+  // Get the task sample
+  task_result_ = sampler->sample_at(std::get<1>(task_sample_id), *new_work);
   if (!task_result_.success()) {
+    // Task sampler failed for some reason
     new_work->mutable_io_item()->set_item_id(-1);
     return grpc::Status::OK;
   }
 
-  samples_left_--;
-  total_samples_used_++;
   if (bar_) {
     bar_->Progressed(total_samples_used_);
   }
+
+  // Track sample assigned to worker
+  active_task_samples_[node_info->node_id()].insert(task_sample_id);
+
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::FinishedWork(
+    grpc::ServerContext* context, const proto::FinishedWorkParameters* params,
+    proto::Empty* empty) {
+  i32 worker_id = params->node_id();
+  i64 task_id = params->task_id();
+  i64 sample_id = params->sample_id();
+
+  assert(active_task_samples_.count(worker_id) > 0);
+  auto& worker_samples = active_task_samples_.at(worker_id);
+
+  std::tuple<i64, i64> task_sample = std::make_tuple(task_id, sample_id);
+  assert(worker_samples.count(task_sample) > 0);
+  worker_samples.erase(task_sample);
+
+  task_sampler_samples_left_[task_id]--;
+
+  i64 active_task = next_task_ - 1;
+  // If there are no more samples left in the task, we can get rid of the
+  // TaskSampler object (assuming it's not the active task)
+  if (task_id != active_task && task_sampler_samples_left_.at(task_id) == 0) {
+    task_samplers_.erase(active_task);
+  }
+
   return grpc::Status::OK;
 }
 
@@ -554,20 +618,14 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
 
   // Setup initial task sampler
   task_result_.set_success(true);
-  samples_left_ = 0;
+  next_sample_ = 0;
+  num_samples_ = 0;
   next_task_ = 0;
   num_tasks_ = job_params->task_set().tasks_size();
 
   write_database_metadata(storage_, meta_);
 
   VLOG(1) << "Total tasks: " << num_tasks_;
-
-  grpc::CompletionQueue cq;
-  std::vector<grpc::ClientContext> client_contexts(workers_.size());
-  std::vector<grpc::Status> statuses(workers_.size());
-  std::vector<proto::Result> replies(workers_.size());
-  std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
-      rpcs;
 
   if (job_params->show_progress()) {
     bar_.reset(new ProgressBar(total_samples_, ""));
@@ -577,7 +635,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
 
   std::map<std::string, i32> local_ids;
   std::map<std::string, i32> local_totals;
-  for (std::string& address : addresses_) {
+  for (auto kv : worker_addresses_) {
+    const std::string& address = kv.second;
     // Strip port
     std::vector<std::string> split_addr = split(address, ':');
     std::string sans_port = split_addr[0];
@@ -589,21 +648,34 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
 
   // Send new job command to workers
   VLOG(1) << "Sending new job command to workers";
+
+  grpc::CompletionQueue cq;
+  std::map<i32, std::unique_ptr<grpc::ClientContext>> client_contexts;
+  std::map<i32, std::unique_ptr<grpc::Status>> statuses;
+  std::map<i32, std::unique_ptr<proto::Result>> replies;
+  std::map<i32, std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
+      rpcs;
   proto::JobParameters w_job_params;
   w_job_params.CopyFrom(*job_params);
-  for (size_t i = 0; i < workers_.size(); ++i) {
-    auto& worker = workers_[i];
-    std::string& address = addresses_[i];
+  for (auto kv : worker_addresses_) {
+    i32 worker_id = kv.first;
+    std::string& address = kv.second;
+    auto& worker = workers_.at(worker_id);
     std::vector<std::string> split_addr = split(address, ':');
     std::string sans_port = split_addr[0];
     w_job_params.set_local_id(local_ids[sans_port]);
     w_job_params.set_local_total(local_totals[sans_port]);
     local_ids[sans_port] += 1;
-    VLOG(2) << "Sending to worker " << i;
-    rpcs.emplace_back(
-        worker->AsyncNewJob(&client_contexts[i], w_job_params, &cq));
-    rpcs[i]->Finish(&replies[i], &statuses[i], (void*)i);
-    VLOG(2) << "Sent to worker " << i;
+    VLOG(2) << "Sending to worker " << worker_id;
+    client_contexts[worker_id] =
+        std::unique_ptr<grpc::ClientContext>(new grpc::ClientContext);
+    statuses[worker_id] = std::unique_ptr<grpc::Status>(new grpc::Status);
+    replies[worker_id] = std::unique_ptr<proto::Result>(new proto::Result);
+    rpcs[worker_id] = worker->AsyncNewJob(client_contexts[worker_id].get(),
+                                          w_job_params, &cq);
+    rpcs[worker_id]->Finish(replies[worker_id].get(), statuses[worker_id].get(),
+                            (void*)worker_id);
+    VLOG(2) << "Sent to worker " << worker_id;
   }
 
   // Wait for all workers to finish
@@ -618,11 +690,11 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     i64 worker_id = (i64)got_tag;
     VLOG(2) << "Worker " << worker_id << " finished.";
 
-    if (!replies[worker_id].success()) {
+    if (!replies[worker_id]->success()) {
       LOG(WARNING) << "Worker " << worker_id
-                   << " returned error: " << replies[worker_id].msg();
+                   << " returned error: " << replies[worker_id]->msg();
       job_result->set_success(false);
-      job_result->set_msg(replies[worker_id].msg());
+      job_result->set_msg(replies[worker_id]->msg());
       next_task_ = num_tasks_;
     }
   }
@@ -694,7 +766,8 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
     return grpc::Status::OK;
   }
 
-  for (auto& worker : workers_) {
+  for (auto& kv : workers_) {
+    auto& worker = kv.second;
     grpc::ClientContext ctx;
     proto::Empty empty;
     worker->LoadOp(&ctx, *op_path, &empty);
@@ -716,7 +789,8 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
                                       const proto::Empty* empty,
                                       proto::Empty* result) {
   watchdog_awake_ = true;
-  for (auto& w : workers_) {
+  for (auto& kv : workers_) {
+    auto& w = kv.second;
     grpc::ClientContext ctx;
     proto::Empty empty;
     proto::Empty empty2;
@@ -745,7 +819,8 @@ void MasterImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
       }
     }
     // Shutdown workers
-    for (auto& w : workers_) {
+    for (auto& kv : workers_) {
+      auto& w = kv.second;
       grpc::ClientContext ctx;
       proto::Empty empty;
       proto::Result wresult;
@@ -755,5 +830,49 @@ void MasterImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
     server->Shutdown();
   });
 }
+
+void MasterImpl::remove_worker(i32 node_id) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+
+  assert(workers_.count(node_id) > 0);
+
+  std::string worker_address = worker_addresses_.at(node_id);
+  // Remove worker from list
+  workers_.erase(node_id);
+  worker_addresses_.erase(node_id);
+
+  VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
+
+  // Place workers active tasks back into the unallocated task samples
+  if (active_task_samples_.count(node_id) > 0) {
+    // Keep track of which tasks the worker was assigned
+    std::set<i64> tasks;
+    // Place workers active tasks back into the unallocated task samples
+    for (const std::tuple<i64, i64>& worker_task_sample :
+         active_task_samples_.at(node_id)) {
+      unallocated_task_samples_.push_back(worker_task_sample);
+      tasks.insert(std::get<0>(worker_task_sample));
+    }
+    VLOG(1) << "Reassigning worker " << node_id << "'s "
+            << active_task_samples_.at(node_id).size() << " task samples.";
+    active_task_samples_.erase(node_id);
+
+    // Create samplers for all tasks that are not active
+    for (i64 task_id : tasks) {
+      if (task_samplers_.count(task_id) == 0) {
+        auto sampler = new TaskSampler(
+            *table_metas_.get(), job_params_.task_set().tasks(task_id));
+        task_result_ = sampler->validate();
+        if (task_result_.success()) {
+          task_samplers_[task_id].reset(sampler);
+        } else {
+          delete sampler;
+        }
+      }
+    }
+  }
+
+}
+
 }
 }

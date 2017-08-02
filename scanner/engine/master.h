@@ -44,6 +44,10 @@ class MasterImpl final : public proto::Master::Service {
                               const proto::WorkerParams* worker_info,
                               proto::Registration* registration);
 
+  grpc::Status UnregisterWorker(grpc::ServerContext* context,
+                                const proto::NodeInfo* node_info,
+                                proto::Empty* empty);
+
   grpc::Status ActiveWorkers(grpc::ServerContext* context,
                              const proto::Empty* empty,
                              proto::RegisteredWorkers* registered_workers);
@@ -55,6 +59,10 @@ class MasterImpl final : public proto::Master::Service {
   grpc::Status NextWork(grpc::ServerContext* context,
                         const proto::NodeInfo* node_info,
                         proto::NewWork* new_work);
+
+  grpc::Status FinishedWork(grpc::ServerContext* context,
+                            const proto::FinishedWorkParameters* params,
+                            proto::Empty* empty);
 
   grpc::Status NewJob(grpc::ServerContext* context,
                       const proto::JobParameters* job_params,
@@ -79,10 +87,13 @@ class MasterImpl final : public proto::Master::Service {
   void start_watchdog(grpc::Server* server, i32 timeout_ms = 50000);
 
  private:
+  void remove_worker(i32 node_id);
+
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;
-  std::vector<std::unique_ptr<proto::Worker::Stub>> workers_;
-  std::vector<std::string> addresses_;
+  i32 next_worker_id_ = 0;
+  std::map<i32, std::unique_ptr<proto::Worker::Stub>> workers_;
+  std::map<i32, std::string> worker_addresses_;
   Flag trigger_shutdown_;
   DatabaseParameters db_params_;
   storehouse::StorageBackend* storage_;
@@ -95,11 +106,18 @@ class MasterImpl final : public proto::Master::Service {
   i64 total_samples_;
 
   std::mutex work_mutex_;
+  std::deque<std::tuple<i64, i64>> unallocated_task_samples_;
   i64 next_task_;
   i64 num_tasks_;
-  std::unique_ptr<TaskSampler> task_sampler_;
-  i64 samples_left_;
+  std::map<i64, std::unique_ptr<TaskSampler>> task_samplers_;
+  // Tracks how many samples are left before the task sampler can be
+  // deallocated
+  std::map<i64, i64> task_sampler_samples_left_;
+  i64 next_sample_;
+  i64 num_samples_;
   Result task_result_;
+  // Worker id -> (task_id, sample_id)
+  std::map<i64, std::set<std::tuple<i64, i64>>> active_task_samples_;
 };
 }
 }
