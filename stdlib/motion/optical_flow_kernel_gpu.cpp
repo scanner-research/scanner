@@ -14,7 +14,6 @@ class OpticalFlowKernelGPU : public StenciledBatchedKernel, public VideoKernel {
   OpticalFlowKernelGPU(const KernelConfig& config)
     : StenciledBatchedKernel(config),
       device_(config.devices[0]),
-      work_item_size_(config.work_item_size),
       num_cuda_streams_(8) {
     set_device();
     cv::cuda::setBufferPoolUsage(true);
@@ -103,7 +102,6 @@ class OpticalFlowKernelGPU : public StenciledBatchedKernel, public VideoKernel {
   std::vector<cv::Ptr<cvc::DenseOpticalFlow>> flow_finders_;
   cvc::GpuMat initial_frame_;
   std::vector<cvc::GpuMat> grayscale_;
-  i32 work_item_size_;
   i32 num_cuda_streams_;
   std::vector<cv::cuda::Stream> streams_;
 };

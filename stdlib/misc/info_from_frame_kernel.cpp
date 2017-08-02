@@ -8,8 +8,7 @@ class InfoFromFrameKernel : public BatchedKernel {
  public:
   InfoFromFrameKernel(const KernelConfig& config)
     : BatchedKernel(config),
-      device_(config.devices[0]),
-      work_item_size_(config.work_item_size) {}
+      device_(config.devices[0]) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
@@ -31,7 +30,6 @@ class InfoFromFrameKernel : public BatchedKernel {
 
  private:
   DeviceHandle device_;
-  i32 work_item_size_;
 };
 
 REGISTER_OP(InfoFromFrame).frame_input("frame").output("frame_info");

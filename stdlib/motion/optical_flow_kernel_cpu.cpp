@@ -11,8 +11,7 @@ class OpticalFlowKernelCPU : public StenciledKernel, public VideoKernel {
  public:
   OpticalFlowKernelCPU(const KernelConfig& config)
     : StenciledKernel(config),
-      device_(config.devices[0]),
-      work_item_size_(config.work_item_size) {
+      device_(config.devices[0]) {
     flow_finder_ =
         cv::FarnebackOpticalFlow::create(3, 0.5, false, 15, 3, 5, 1.2, 0);
   }
@@ -47,7 +46,6 @@ class OpticalFlowKernelCPU : public StenciledKernel, public VideoKernel {
   DeviceHandle device_;
   cv::Ptr<cv::DenseOpticalFlow> flow_finder_;
   std::vector<cv::Mat> grayscale_;
-  i32 work_item_size_;
 };
 
 REGISTER_OP(OpticalFlow)
