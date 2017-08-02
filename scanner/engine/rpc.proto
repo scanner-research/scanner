@@ -6,10 +6,13 @@ package scanner.proto;
 service Master {
   // Called after a new worker spawns to register with the master
   rpc RegisterWorker (WorkerParams) returns (Registration) {}
+  // Called when a worker is removed
+  rpc UnregisterWorker (NodeInfo) returns (Empty) {}
   rpc ActiveWorkers (Empty) returns (RegisteredWorkers) {}
   // Ingest videos into the system
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
   rpc NextWork (NodeInfo) returns (NewWork) {}
+  rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
   rpc NewJob (JobParameters) returns (Result) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpPath) returns (Result) {}
@@ -67,6 +70,12 @@ message IngestResult {
 
 message NodeInfo {
   int32 node_id = 1;
+}
+
+message FinishedWorkParameters {
+  int32 node_id = 1;
+  int64 task_id = 2;
+  int64 sample_id = 3;
 }
 
 message JobParameters {

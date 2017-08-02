@@ -93,7 +93,7 @@ class TaskSampler {
 
  private:
   const TableMetaCache& table_metas_;
-  const proto::Task& task_;
+  proto::Task task_;
   Result valid_;
   std::vector<std::unique_ptr<Sampler>> samplers_;
   i64 total_rows_ = 0;
