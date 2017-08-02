@@ -105,9 +105,7 @@ struct KernelConfig {
   std::vector<std::string> input_columns;
   std::vector<std::string> output_columns;
   std::vector<u8> args;  //! Byte-string of proto args if given.
-  i32 work_item_size;
   i32 node_id;
-  i32 node_count;
 };
 
 /**

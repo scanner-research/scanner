@@ -8,8 +8,7 @@ class DiscardKernel : public BatchedKernel {
  public:
   DiscardKernel(const KernelConfig& config)
     : BatchedKernel(config),
-      device_(config.devices[0]),
-      work_item_size_(config.work_item_size) {}
+      device_(config.devices[0]) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
@@ -21,7 +20,6 @@ class DiscardKernel : public BatchedKernel {
 
  private:
   DeviceHandle device_;
-  i32 work_item_size_;
 };
 
 REGISTER_OP(Discard).input("ignore").output("dummy");
