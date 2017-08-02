@@ -591,7 +591,6 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   VLOG(1) << "Sending new job command to workers";
   proto::JobParameters w_job_params;
   w_job_params.CopyFrom(*job_params);
-  w_job_params.set_global_total(workers_.size());
   for (size_t i = 0; i < workers_.size(); ++i) {
     auto& worker = workers_[i];
     std::string& address = addresses_[i];

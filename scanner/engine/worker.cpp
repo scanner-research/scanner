@@ -837,7 +837,6 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
-  i32 node_count = job_params->global_total();
 
   // Controls if work should be distributed roundrobin or dynamically
   bool distribute_work_dynamically = true;
@@ -936,9 +935,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     kernel_factories.push_back(kernel_factory);
 
     KernelConfig kernel_config;
-    kernel_config.work_item_size = work_item_size;
     kernel_config.node_id = node_id_;
-    kernel_config.node_count = node_count;
     kernel_config.args =
         std::vector<u8>(op.kernel_args().begin(), op.kernel_args().end());
     const std::vector<Column>& output_columns = op_info->output_columns();

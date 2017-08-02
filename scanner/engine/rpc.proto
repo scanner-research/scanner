@@ -78,7 +78,6 @@ message JobParameters {
   int32 work_item_size = 6;
   int32 local_id = 7;
   int32 local_total = 8;
-  int32 global_total = 9;
   bool show_progress = 10;
   bool profiling = 11;
   int32 load_sparsity_threshold = 12;
