@@ -17,7 +17,7 @@ from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
 from threading import Thread
-# Scanner imports
+
 from common import *
 from profiler import Profiler
 from config import Config
@@ -114,7 +114,7 @@ class Database:
 
     def __init__(self, master=None, workers=None,
                  config_path=None, config=None,
-                 debug=False):
+                 debug=False, start_cluster=True):
         """
         Initializes a Scanner database.
 
@@ -135,6 +135,7 @@ class Database:
         else:
             self.config = Config(config_path)
 
+        self._start_cluster = start_cluster
         self._debug = debug or (master is None and workers is None)
 
         self._master = None
@@ -151,7 +152,7 @@ class Database:
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self.config)
 
-        self.start_cluster(master, workers)
+        self.start_cluster(master, workers);
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
@@ -353,42 +354,91 @@ class Database:
             self._db_path,
             self._master_address)
 
-        if self._debug:
+        if self._start_cluster:
+            if self._debug:
+                self._master_conn = None
+                self._worker_conns = None
+                machine_params = self._bindings.default_machine_params()
+                res = self._bindings.start_master(
+                    self._db, self.config.master_port, True).success
+                assert res
+                res = self._connect_to_master()
+                assert res
+
+                self._start_heartbeat()
+
+                for i in range(len(self._worker_addresses)):
+                    res = self._bindings.start_worker(
+                        self._db, machine_params,
+                        str(int(self.config.worker_port) + i), True).success
+                    assert res
+            else:
+                master_port = self._master_address.partition(':')[2]
+                pickled_config = pickle.dumps(self.config)
+                master_cmd = (
+                    'python -c ' +
+                    '\"from scannerpy import start_master\n' +
+                    'import pickle\n' +
+                    'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
+                    'start_master(port=\'{master_port:s}\', block=True, config=config)\"').format(
+                        master_port=master_port,
+                        config=pickled_config)
+                worker_cmd = (
+                    'python -c ' +
+                    '\"from scannerpy import start_worker\n' +
+                    'import pickle\n' +
+                    'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
+                    'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\"')
+                self._master_conn = self._run_remote_cmd(self._master_address,
+                                                         master_cmd)
+
+                # Wait for master to start
+                slept_so_far = 0
+                sleep_time = 20
+                while slept_so_far < sleep_time:
+                    if self._connect_to_master():
+                        break
+                    time.sleep(0.3)
+                    slept_so_far += 0.3
+                if slept_so_far >= sleep_time:
+                    self._master_conn.kill()
+                    self._master_conn = None
+                    raise ScannerException('Timed out waiting to connect to master')
+                # Start up heartbeat to keep master alive
+                self._start_heartbeat()
+
+                # Start workers now that master is ready
+                self._worker_conns = [
+                    self._run_remote_cmd(w, worker_cmd.format(
+                        master=self._master_address,
+                        config=pickled_config,
+                        worker_port=w.partition(':')[2]))
+                    for w in self._worker_addresses]
+                slept_so_far = 0
+                # Has to be this long for GCS
+                sleep_time = 60
+                while slept_so_far < sleep_time:
+                    active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
+                    if (len(active_workers.workers) > len(self._worker_addresses)):
+                        raise ScannerException(
+                            ('Master has more workers than requested ' +
+                             '({:d} vs {:d})').format(len(active_workers.workers),
+                                                      len(self._worker_addresses)))
+                    if (len(active_workers.workers) == len(self._worker_addresses)):
+                        break
+                    time.sleep(0.3)
+                    slept_so_far += 0.3
+                if slept_so_far >= sleep_time:
+                    self._master_conn.kill()
+                    for wc in self._worker_conns:
+                        wc.kill()
+                    self._master_conn = None
+                    self._worker_conns = None
+                    raise ScannerException(
+                        'Timed out waiting for workers to connect to master')
+        else:
             self._master_conn = None
             self._worker_conns = None
-            machine_params = self._bindings.default_machine_params()
-            res = self._bindings.start_master(
-                self._db, self.config.master_port, True).success
-            assert res
-            res = self._connect_to_master()
-            assert res
-
-            self._start_heartbeat()
-
-            for i in range(len(self._worker_addresses)):
-                res = self._bindings.start_worker(
-                    self._db, machine_params,
-                    str(int(self.config.worker_port) + i), True).success
-                assert res
-        else:
-            master_port = self._master_address.partition(':')[2]
-            pickled_config = pickle.dumps(self.config)
-            master_cmd = (
-                'python -c ' +
-                '\"from scannerpy import start_master\n' +
-                'import pickle\n' +
-                'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                'start_master(port=\'{master_port:s}\', block=True, config=config)\"').format(
-                    master_port=master_port,
-                    config=pickled_config)
-            worker_cmd = (
-                'python -c ' +
-                '\"from scannerpy import start_worker\n' +
-                'import pickle\n' +
-                'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\"')
-            self._master_conn = self._run_remote_cmd(self._master_address,
-                                                     master_cmd)
 
             # Wait for master to start
             slept_so_far = 0
@@ -399,41 +449,7 @@ class Database:
                 time.sleep(0.3)
                 slept_so_far += 0.3
             if slept_so_far >= sleep_time:
-                self._master_conn.kill()
-                self._master_conn = None
                 raise ScannerException('Timed out waiting to connect to master')
-            # Start up heartbeat to keep master alive
-            self._start_heartbeat()
-
-            # Start workers now that master is ready
-            self._worker_conns = [
-                self._run_remote_cmd(w, worker_cmd.format(
-                    master=self._master_address,
-                    config=pickled_config,
-                    worker_port=w.partition(':')[2]))
-                for w in self._worker_addresses]
-            slept_so_far = 0
-            # Has to be this long for GCS
-            sleep_time = 60
-            while slept_so_far < sleep_time:
-                active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
-                if (len(active_workers.workers) > len(self._worker_addresses)):
-                    raise ScannerException(
-                        ('Master has more workers than requested ' +
-                         '({:d} vs {:d})').format(len(active_workers.workers),
-                                                  len(self._worker_addresses)))
-                if (len(active_workers.workers) == len(self._worker_addresses)):
-                    break
-                time.sleep(0.3)
-                slept_so_far += 0.3
-            if slept_so_far >= sleep_time:
-                self._master_conn.kill()
-                for wc in self._worker_conns:
-                    wc.kill()
-                self._master_conn = None
-                self._worker_conns = None
-                raise ScannerException(
-                    'Timed out waiting for workers to connect to master')
 
         # Load stdlib
         stdlib_path = '{}/build/stdlib'.format(self.config.module_dir)
@@ -441,22 +457,23 @@ class Database:
                      '{}/stdlib_pb2.py'.format(stdlib_path))
 
     def stop_cluster(self):
-        if self._master:
-            # Stop heartbeat
-            self._stop_heartbeat()
-            try:
-                self._try_rpc(
-                    lambda: self._master.Shutdown(self.protobufs.Empty()))
-            except:
-                pass
-            self._master = None
-        if self._master_conn:
-            self._master_conn.kill()
-            self._master_conn = None
-        if self._worker_conns:
-            for wc in self._worker_conns:
-                wc.kill()
-            self._worker_conns = None
+        if self._start_cluster:
+           if self._master:
+               # Stop heartbeat
+               self._stop_heartbeat()
+               try:
+                   self._try_rpc(
+                       lambda: self._master.Shutdown(self.protobufs.Empty()))
+               except:
+                   pass
+               self._master = None
+           if self._master_conn:
+               self._master_conn.kill()
+               self._master_conn = None
+           if self._worker_conns:
+               for wc in self._worker_conns:
+                   wc.kill()
+               self._worker_conns = None
 
     def _try_rpc(self, fn):
         try:
