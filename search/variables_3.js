@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['node_5fid',['node_id',['../structscanner_1_1KernelConfig.html#a6ea4594912f79513ea3b3fbc240f0d26',1,'scanner::KernelConfig']]]
+  ['ops',['ops',['../classscannerpy_1_1database_1_1Database.html#a77f1b14450c7cbd30607ef268e6b6a6c',1,'scannerpy::database::Database']]]
 ];
