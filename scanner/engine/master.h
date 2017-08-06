@@ -87,6 +87,10 @@ class MasterImpl final : public proto::Master::Service {
   void start_watchdog(grpc::Server* server, i32 timeout_ms = 50000);
 
  private:
+  void start_job_on_worker(i32 node_id, const std::string& address);
+
+  void stop_job_on_worker(i32 node_id);
+
   void remove_worker(i32 node_id);
 
   std::thread watchdog_thread_;
@@ -105,9 +109,15 @@ class MasterImpl final : public proto::Master::Service {
   i64 total_samples_used_;
   i64 total_samples_;
 
+  // True if the master is executing a job
+  bool active_job_ = false;
+  // Manages modification of all of the below structures
   std::mutex work_mutex_;
+  // Outstanding set of generated task samples that should be processed
   std::deque<std::tuple<i64, i64>> unallocated_task_samples_;
+  // The next task to use to generate task samples
   i64 next_task_;
+  // Total number of tasks
   i64 num_tasks_;
   std::map<i64, std::unique_ptr<TaskSampler>> task_samplers_;
   // Tracks how many samples are left before the task sampler can be
@@ -118,6 +128,16 @@ class MasterImpl final : public proto::Master::Service {
   Result task_result_;
   // Worker id -> (task_id, sample_id)
   std::map<i64, std::set<std::tuple<i64, i64>>> active_task_samples_;
+
+  // Worker connections
+  std::map<std::string, i32> local_ids_;
+  std::map<std::string, i32> local_totals_;
+  grpc::CompletionQueue cq_;
+  std::map<i32, std::unique_ptr<grpc::ClientContext>> client_contexts_;
+  std::map<i32, std::unique_ptr<grpc::Status>> statuses_;
+  std::map<i32, std::unique_ptr<proto::Result>> replies_;
+  std::map<i32, std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
+      rpcs_;
 };
 }
 }

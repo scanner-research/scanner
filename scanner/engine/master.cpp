@@ -329,12 +329,24 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
   registration->set_node_id(node_id);
   worker_addresses_[node_id] = worker_address;
 
+  if (active_job_) {
+    start_job_on_worker(node_id, worker_address);
+  }
+
   return grpc::Status::OK;
 }
 
 grpc::Status MasterImpl::UnregisterWorker(grpc::ServerContext* context,
                                           const proto::NodeInfo* node_info,
                                           proto::Empty* empty) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+
+  set_database_path(db_params_.db_path);
+
+  i32 node_id = node_info->node_id();
+  remove_worker(node_id)
+
+  return grpc::Status::OK;
 }
 
 grpc::Status MasterImpl::ActiveWorkers(
@@ -477,6 +489,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   VLOG(1) << "Master received NewJob command";
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
+  active_job_ = true;
 
   job_params_.CopyFrom(*job_params);
 
@@ -485,6 +498,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   if (io_item_size > 0 && io_item_size % work_item_size != 0) {
     RESULT_ERROR(job_result,
                  "IO packet size must be a multiple of Work packet size.");
+    active_job_ = false;
     return grpc::Status::OK;
   }
 
@@ -499,6 +513,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   validate_task_set(meta_, job_params->task_set(), job_result);
   if (!job_result->success()) {
     // No database changes made at this point, so just return
+    active_job_ = false;
     return grpc::Status::OK;
   }
 
@@ -610,6 +625,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   }
   if (!job_result->success()) {
     // No database changes made at this point, so just return
+    active_job_ = false;
     return grpc::Status::OK;
   }
 
@@ -633,49 +649,32 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     bar_.reset(nullptr);
   }
 
-  std::map<std::string, i32> local_ids;
-  std::map<std::string, i32> local_totals;
+  // TODO(apoms): change this to support adding and removing nodes
+  //              the main change is that the workers should handle
+  //              spawning sub processes instead of appearing as
+  //              multiple logical nodes
   for (auto kv : worker_addresses_) {
     const std::string& address = kv.second;
     // Strip port
     std::vector<std::string> split_addr = split(address, ':');
     std::string sans_port = split_addr[0];
-    if (local_totals.count(sans_port) == 0) {
-      local_totals[sans_port] = 0;
+    if (local_totals_.count(sans_port) == 0) {
+      local_totals_[sans_port] = 0;
     }
-    local_totals[sans_port] += 1;
+    local_totals_[sans_port] += 1;
   }
 
   // Send new job command to workers
   VLOG(1) << "Sending new job command to workers";
 
-  grpc::CompletionQueue cq;
-  std::map<i32, std::unique_ptr<grpc::ClientContext>> client_contexts;
-  std::map<i32, std::unique_ptr<grpc::Status>> statuses;
-  std::map<i32, std::unique_ptr<proto::Result>> replies;
-  std::map<i32, std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
-      rpcs;
-  proto::JobParameters w_job_params;
-  w_job_params.CopyFrom(*job_params);
-  for (auto kv : worker_addresses_) {
-    i32 worker_id = kv.first;
-    std::string& address = kv.second;
-    auto& worker = workers_.at(worker_id);
-    std::vector<std::string> split_addr = split(address, ':');
-    std::string sans_port = split_addr[0];
-    w_job_params.set_local_id(local_ids[sans_port]);
-    w_job_params.set_local_total(local_totals[sans_port]);
-    local_ids[sans_port] += 1;
-    VLOG(2) << "Sending to worker " << worker_id;
-    client_contexts[worker_id] =
-        std::unique_ptr<grpc::ClientContext>(new grpc::ClientContext);
-    statuses[worker_id] = std::unique_ptr<grpc::Status>(new grpc::Status);
-    replies[worker_id] = std::unique_ptr<proto::Result>(new proto::Result);
-    rpcs[worker_id] = worker->AsyncNewJob(client_contexts[worker_id].get(),
-                                          w_job_params, &cq);
-    rpcs[worker_id]->Finish(replies[worker_id].get(), statuses[worker_id].get(),
-                            (void*)worker_id);
-    VLOG(2) << "Sent to worker " << worker_id;
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    for (auto kv : worker_addresses_) {
+      i32 worker_id = kv.first;
+      std::string& address = kv.second;
+
+      start_job_on_worker(worker_id, address);
+    }
   }
 
   // Wait for all workers to finish
@@ -683,18 +682,18 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   for (size_t i = 0; i < workers_.size(); ++i) {
     void* got_tag;
     bool ok = false;
-    GPR_ASSERT(cq.Next(&got_tag, &ok));
+    GPR_ASSERT(cq_.Next(&got_tag, &ok));
     GPR_ASSERT((i64)got_tag < workers_.size());
     assert(ok);
 
     i64 worker_id = (i64)got_tag;
     VLOG(2) << "Worker " << worker_id << " finished.";
 
-    if (!replies[worker_id]->success()) {
+    if (!replies_[worker_id]->success()) {
       LOG(WARNING) << "Worker " << worker_id
-                   << " returned error: " << replies[worker_id]->msg();
+                   << " returned error: " << replies_[worker_id]->msg();
       job_result->set_success(false);
-      job_result->set_msg(replies[worker_id]->msg());
+      job_result->set_msg(replies_[worker_id]->msg());
       next_task_ = num_tasks_;
     }
   }
@@ -712,6 +711,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     }
   }
 
+  active_job_ = false;
   VLOG(1) << "Master finished NewJob";
   return grpc::Status::OK;
 }
@@ -831,31 +831,42 @@ void MasterImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
   });
 }
 
-void MasterImpl::remove_worker(i32 node_id) {
+void MasterImpl::start_job_on_worker(i32 worker_id, const std::string& address) {
   std::unique_lock<std::mutex> lk(work_mutex_);
+  proto::JobParameters w_job_params;
+  w_job_params.CopyFrom(job_params_);
 
-  assert(workers_.count(node_id) > 0);
+  auto& worker = workers_.at(worker_id);
+  std::vector<std::string> split_addr = split(address, ':');
+  std::string sans_port = split_addr[0];
+  w_job_params.set_local_id(local_ids_[sans_port]);
+  w_job_params.set_local_total(local_totals_[sans_port]);
+  local_ids_[sans_port] += 1;
+  client_contexts_[worker_id] =
+      std::unique_ptr<grpc::ClientContext>(new grpc::ClientContext);
+  statuses_[worker_id] = std::unique_ptr<grpc::Status>(new grpc::Status);
+  replies_[worker_id] = std::unique_ptr<proto::Result>(new proto::Result);
+  rpcs_[worker_id] = worker->AsyncNewJob(client_contexts_[worker_id].get(),
+                                         w_job_params, &cq_);
+  rpcs_[worker_id]->Finish(replies_[worker_id].get(),
+                           statuses_[worker_id].get(), (void*)worker_id);
+  VLOG(2) << "Sent NewJob command to worker " << worker_id;
+}
 
-  std::string worker_address = worker_addresses_.at(node_id);
-  // Remove worker from list
-  workers_.erase(node_id);
-  worker_addresses_.erase(node_id);
-
-  VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
-
+void MasterImpl::stop_job_on_worker(i32 worker_id) {
   // Place workers active tasks back into the unallocated task samples
-  if (active_task_samples_.count(node_id) > 0) {
+  if (active_task_samples_.count(worker_id) > 0) {
     // Keep track of which tasks the worker was assigned
     std::set<i64> tasks;
     // Place workers active tasks back into the unallocated task samples
     for (const std::tuple<i64, i64>& worker_task_sample :
-         active_task_samples_.at(node_id)) {
+         active_task_samples_.at(worker_id)) {
       unallocated_task_samples_.push_back(worker_task_sample);
       tasks.insert(std::get<0>(worker_task_sample));
     }
-    VLOG(1) << "Reassigning worker " << node_id << "'s "
-            << active_task_samples_.at(node_id).size() << " task samples.";
-    active_task_samples_.erase(node_id);
+    VLOG(1) << "Reassigning worker " << worker_id << "'s "
+            << active_task_samples_.at(worker_id).size() << " task samples.";
+    active_task_samples_.erase(worker_id);
 
     // Create samplers for all tasks that are not active
     for (i64 task_id : tasks) {
@@ -871,6 +882,26 @@ void MasterImpl::remove_worker(i32 node_id) {
       }
     }
   }
+
+  // Remove async job command data
+  assert(client_contexts_.count(worker_id) > 0);
+  client_contexts_[worker_id]->TryCancel();
+  client_contexts_.erase(worker_id);
+  statuses_.erase(worker_id);
+  replies_.erase(worker_id);
+  rpcs_.erase(worker_id);
+}
+
+void MasterImpl::remove_worker(i32 node_id) {
+  assert(workers_.count(node_id) > 0);
+  stop_job_on_worker(node_id);
+
+  std::string worker_address = worker_addresses_.at(node_id);
+  // Remove worker from list
+  workers_.erase(node_id);
+  worker_addresses_.erase(node_id);
+
+  VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 
 }
 
