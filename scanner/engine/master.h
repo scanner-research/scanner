@@ -119,15 +119,24 @@ class MasterImpl final : public proto::Master::Service {
   i64 next_task_;
   // Total number of tasks
   i64 num_tasks_;
+  // Cache of task samplers for active tasks (in unallocated or current task)
   std::map<i64, std::unique_ptr<TaskSampler>> task_samplers_;
-  // Tracks how many samples are left before the task sampler can be
-  // deallocated
+  // # of samples that are left before the task sampler is no longer active
   std::map<i64, i64> task_sampler_samples_left_;
+  // Next sample index in the current task
   i64 next_sample_;
+  // Total samples in the current task
   i64 num_samples_;
   Result task_result_;
   // Worker id -> (task_id, sample_id)
   std::map<i64, std::set<std::tuple<i64, i64>>> active_task_samples_;
+  // Track assignment of tasks to worker for this job
+  struct WorkerHistory {
+    timepoint_t start_time;
+    i64 tasks_assigned;
+    i64 tasks_retired;
+  };
+  std::map<i64, WorkerHistory> worker_histories_;
 
   // Worker connections
   std::map<std::string, i32> local_ids_;

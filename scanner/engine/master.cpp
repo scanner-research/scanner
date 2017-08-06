@@ -344,7 +344,7 @@ grpc::Status MasterImpl::UnregisterWorker(grpc::ServerContext* context,
   set_database_path(db_params_.db_path);
 
   i32 node_id = node_info->node_id();
-  remove_worker(node_id)
+  remove_worker(node_id);
 
   return grpc::Status::OK;
 }
@@ -422,7 +422,6 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     }
 
     next_sample_++;
-    total_samples_used_++;
   }
 
   if (unallocated_task_samples_.empty()) {
@@ -447,12 +446,9 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     return grpc::Status::OK;
   }
 
-  if (bar_) {
-    bar_->Progressed(total_samples_used_);
-  }
-
   // Track sample assigned to worker
   active_task_samples_[node_info->node_id()].insert(task_sample_id);
+  worker_histories_[node_info->node_id()].tasks_assigned += 1;
 
   return grpc::Status::OK;
 }
@@ -460,6 +456,8 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
 grpc::Status MasterImpl::FinishedWork(
     grpc::ServerContext* context, const proto::FinishedWorkParameters* params,
     proto::Empty* empty) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+
   i32 worker_id = params->node_id();
   i64 task_id = params->task_id();
   i64 sample_id = params->sample_id();
@@ -472,12 +470,18 @@ grpc::Status MasterImpl::FinishedWork(
   worker_samples.erase(task_sample);
 
   task_sampler_samples_left_[task_id]--;
+  worker_histories_[worker_id].tasks_retired += 1;
 
   i64 active_task = next_task_ - 1;
   // If there are no more samples left in the task, we can get rid of the
   // TaskSampler object (assuming it's not the active task)
   if (task_id != active_task && task_sampler_samples_left_.at(task_id) == 0) {
     task_samplers_.erase(active_task);
+  }
+
+  total_samples_used_++;
+  if (bar_) {
+    bar_->Progressed(total_samples_used_);
   }
 
   return grpc::Status::OK;
@@ -489,7 +493,25 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   VLOG(1) << "Master received NewJob command";
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
+
+  // Reset job state
   active_job_ = true;
+  unallocated_task_samples_.clear();
+  next_task_ = 0;
+  num_tasks_ = -1;
+  task_samplers_.clear();
+  task_sampler_samples_left_.clear();
+  next_sample_ = 0;
+  num_samples_ = -1;
+  task_result_.set_success(true);
+  active_task_samples_.clear();
+  worker_histories_.clear();
+  local_ids_.clear();
+  local_totals_.clear();
+  client_contexts_.clear();
+  statuses_.clear();
+  replies_.clear();
+  rpcs_.clear();
 
   job_params_.CopyFrom(*job_params);
 
@@ -850,6 +872,9 @@ void MasterImpl::start_job_on_worker(i32 worker_id, const std::string& address) 
                                          w_job_params, &cq_);
   rpcs_[worker_id]->Finish(replies_[worker_id].get(),
                            statuses_[worker_id].get(), (void*)worker_id);
+  worker_histories_[worker_id].start_time = now();
+  worker_histories_[worker_id].tasks_assigned = 0;
+  worker_histories_[worker_id].tasks_retired = 0;
   VLOG(2) << "Sent NewJob command to worker " << worker_id;
 }
 
