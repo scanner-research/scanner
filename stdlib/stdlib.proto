@@ -64,7 +64,7 @@ message Keypoint {
 }
 
 message PythonArgs {
-  string kernel_path = 1;
+  string kernel = 1;
   bytes py_args = 2;
 }
 

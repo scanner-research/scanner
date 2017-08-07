@@ -42,15 +42,14 @@ class PythonKernel : public BatchedKernel {
     PyGILState_STATE gstate = PyGILState_Ensure();
     try {
       py::object main = py::import("__main__");
-      main.attr("path") = py::str(args_.kernel_path());
+      main.attr("kernel") = py::str(args_.kernel());
       main.attr("args") = py::str(args_.py_args());
       py::object main_namespace = main.attr("__dict__");
+      // TODO(wcrichto): pass kernel config in as well (e.g. device info)
       py::exec(
-          "import sys, importlib, pickle, os.path as osp\n"
-          "(dir, fil) = osp.split(path)\n"
-          "sys.path.append(dir)\n"
-          "mod = importlib.import_module(osp.splitext(fil)[0])\n"
-          "kernel = mod.Kernel(**pickle.loads(args))",
+          "import pickle\n"
+          "exec(kernel)\n"
+          "kernel = Kernel(**pickle.loads(args))",
           main_namespace);
     } catch (py::error_already_set& e) {
       LOG(FATAL) << handle_pyerror();

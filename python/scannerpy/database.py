@@ -509,12 +509,12 @@ class Database:
         self._try_rpc(lambda: self._master.LoadOp(op_path))
 
     def register_python_op(self, kernel_path):
-        kernel_path = os.path.abspath(kernel_path)
+        kernel = open(kernel_path).read()
         def make_op(*args, **kwargs):
             return self.ops.Python(
                 *args,
                 py_args = pickle.dumps(kwargs),
-                kernel_path = kernel_path)
+                kernel = kernel)
 
         return make_op
 
