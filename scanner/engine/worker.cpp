@@ -451,8 +451,9 @@ void load_driver(LoadInputQueue& load_work,
           << "): thread finished";
 }
 
-std::mutex no_pipelining_lock;
-std::condition_variable no_pipelining_cvar;
+std::mutex no_pipelining_lock[4];
+std::condition_variable no_pipelining_cvar[4];
+std::atomic_int atomic_waiters[4];
 
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
                          PreEvaluateWorkerArgs args) {
@@ -475,6 +476,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       IOItem& io_item = std::get<1>(entry);
       EvalWorkEntry& work_entry = std::get<2>(entry);
       if (work_entry.io_item_index == -1) {
+        LOG(INFO) << "Leaving";
         break;
       }
 
@@ -501,7 +503,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     IOItem& io_item = std::get<1>(entry);
     EvalWorkEntry& work_entry = std::get<2>(entry);
 
-    VLOG(2) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
+    VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
             << "): "
             << "processing item " << work_entry.io_item_index;
 
@@ -539,8 +541,14 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       }
 
       if (std::getenv("NO_PIPELINING")) {
-        std::unique_lock<std::mutex> lk(no_pipelining_lock);
-        no_pipelining_cvar.wait(lk);
+        std::unique_lock<std::mutex> lk(no_pipelining_lock[args.worker_id]);
+        LOG(WARNING)<< "Waiting on cvar " << args.worker_id;
+        if (atomic_waiters[args.worker_id] > 0) {
+          LOG(FATAL) << ">0 waiters!";
+        }
+        atomic_waiters[args.worker_id]++;
+        no_pipelining_cvar[args.worker_id].wait(lk);
+        atomic_waiters[args.worker_id]--;
       }
     }
 
@@ -656,7 +664,14 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     }
 
     if (std::getenv("NO_PIPELINING")) {
-      no_pipelining_cvar.notify_one();
+      if (atomic_waiters[args.id] > 1 ) {
+          LOG(FATAL) << ">1 waiters!";
+      }
+      if (atomic_waiters[args.id] == 0) {
+          LOG(FATAL) << "No waiters!";
+      }
+      LOG(WARNING)<< "Signaling cvar " << args.id;
+      no_pipelining_cvar[args.id].notify_one();
     }
   }
 
@@ -1111,6 +1126,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   i32 next_cpu_num = 0;
   i32 next_gpu_idx = 0;
+  std::mutex startup_lock;
+  std::condition_variable startup_cv;
+  i32 startup_count = 0;
+  i32 eval_total = 0;
   for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
     auto& work_queues = eval_work[ki];
     std::vector<Profiler>& eval_thread_profilers = eval_profilers[ki];
@@ -1176,11 +1195,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
           std::make_tuple(input_work_queue, output_work_queue));
       thread_args.emplace_back(EvaluateWorkerArgs{
           // Uniform arguments
-          node_id_,
+          node_id_, startup_lock, startup_cv, startup_count,
 
           // Per worker arguments
           ki, kg, group, lc, dc, uo, cm, st, bt, eval_thread_profilers[kg + 1],
           results[kg]});
+      eval_total += 1;
     }
     // Pre evaluate worker
     {
@@ -1277,9 +1297,17 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                               std::ref(retired_items), args);
   }
 
+  LOG(WARNING) << "??";
   if (job_params->profiling()) {
-    sleep(10);
+    // Wait until all evaluate workers have started up
+    LOG(WARNING) << "Entered";
+    std::unique_lock<std::mutex> lk(startup_lock);
+    startup_cv.wait(lk, [&] {
+        return eval_total == startup_count;
+      });
+    LOG(WARNING) << "Exited";
   }
+
   timepoint_t start_time = now();
 
   // Monitor amount of work left and request more when running low
@@ -1421,6 +1449,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
     // Wait until pre eval has finished
+    LOG(INFO) << "Pre join " << i;
     pre_eval_threads[i].join();
   }
 
