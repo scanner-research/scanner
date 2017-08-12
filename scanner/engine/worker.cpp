@@ -451,14 +451,13 @@ void load_driver(LoadInputQueue& load_work,
           << "): thread finished";
 }
 
-std::mutex no_pipelining_lock[4];
-std::condition_variable no_pipelining_cvar[4];
-std::atomic_int atomic_waiters[4];
-std::atomic_int num_calls[4][2];
-bool pipeline_ready[4];
+std::map<int, std::mutex> no_pipelining_locks;
+std::map<int, std::condition_variable> no_pipelining_cvars;
+std::map<int, bool> no_pipelining_conditions;
 
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
                          PreEvaluateWorkerArgs args) {
+
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
   std::map<i32, Queue<
@@ -531,6 +530,10 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
         break;
       }
 
+      if (std::getenv("NO_PIPELINING")) {
+        no_pipelining_conditions[args.worker_id] = true;
+      }
+
       if (first) {
         output_work.push(std::make_tuple(task_streams,
                                          std::get<0>(output_entry),
@@ -542,21 +545,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
                                          std::get<1>(output_entry)));
       }
 
-      LOG(WARNING) << "Pre " << args.worker_id << ": " << work_entry.row_ids[0];
-
       if (std::getenv("NO_PIPELINING")) {
-        std::unique_lock<std::mutex> lk(no_pipelining_lock[args.worker_id]);
-        pipeline_ready[args.worker_id] = true;
-        num_calls[args.worker_id][0]++;
-        LOG(WARNING)<< "Waiting on cvar " << args.worker_id << " (" << num_calls[args.worker_id][0] << ")";
-        if (atomic_waiters[args.worker_id] > 0) {
-          LOG(FATAL) << ">0 waiters!";
-        }
-        atomic_waiters[args.worker_id]++;
-        no_pipelining_cvar[args.worker_id].wait(lk, [&] {
-            return !pipeline_ready[args.worker_id];
-          });
-        atomic_waiters[args.worker_id]--;
+        std::unique_lock<std::mutex> lk(no_pipelining_locks[args.worker_id]);
+        no_pipelining_cvars[args.worker_id].wait(lk, [&] {
+          return !no_pipelining_conditions[args.worker_id];
+        });
       }
     }
 
@@ -637,10 +630,6 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
                           PostEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   PostEvaluateWorker worker(args);
-  EvalWorkEntry last_entry;
-  EvalWorkEntry last_last_entry;
-  bool last_result;
-  bool last_last_result;
   while (true) {
     auto idle_start = now();
 
@@ -657,7 +646,6 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 
     VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): processing item " << work_entry.io_item_index;
-    LOG(WARNING) << "Post " << args.id << ": " << work_entry.row_ids[0];
 
     auto work_start = now();
 
@@ -677,24 +665,12 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     }
 
     if (std::getenv("NO_PIPELINING")) {
-      std::unique_lock<std::mutex> lk(no_pipelining_lock[args.id]);
-      num_calls[args.id][1]++;
-      if (atomic_waiters[args.id] > 1 ) {
-        LOG(FATAL) << ">1 waiters! " << args.id;
+      {
+          std::unique_lock<std::mutex> lk(no_pipelining_locks[args.id]);
+          no_pipelining_conditions[args.id] = false;
       }
-      if (atomic_waiters[args.id] == 0) {
-        LOG(FATAL) << "No waiters! " << args.id;
-      }
-      LOG(WARNING)<< "Signaling cvar " << args.id << " (" << num_calls[args.id][1] << ")";
-      pipeline_ready[args.id] = false;
-      no_pipelining_cvar[args.id].notify_one();
+      no_pipelining_cvars[args.id].notify_one();
     }
-
-    last_last_entry = last_entry;
-    last_entry = work_entry;
-
-    last_last_result = last_result;
-    last_result = result;
   }
 
   VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
@@ -1319,15 +1295,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                               std::ref(retired_items), args);
   }
 
-  LOG(WARNING) << "??";
   if (job_params->profiling()) {
     // Wait until all evaluate workers have started up
-    LOG(WARNING) << "Entered";
     std::unique_lock<std::mutex> lk(startup_lock);
     startup_cv.wait(lk, [&] {
-        return eval_total == startup_count;
-      });
-    LOG(WARNING) << "Exited";
+      return eval_total == startup_count;
+    });
   }
 
   timepoint_t start_time = now();
