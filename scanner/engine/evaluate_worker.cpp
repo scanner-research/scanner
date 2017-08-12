@@ -188,6 +188,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
     column_mapping_(args.column_mapping),
     kernel_stencils_(args.kernel_stencils),
     kernel_batch_sizes_(args.kernel_batch_sizes) {
+  auto setup_start = now();
   for (auto& col : column_mapping_) {
     column_mapping_set_.emplace_back(col.begin(), col.end());
   }
@@ -231,6 +232,13 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   }
   valid_output_rows_.resize(kernel_factories_.size());
   current_valid_idx_.assign(kernel_factories_.size(), 0);
+
+  args.profiler.add_interval("setup", now(), setup_start);
+
+  // Signal the main worker thread that we've finished startup
+  std::unique_lock<std::mutex> lk(args.startup_lock);
+  args.startup_count += 1;
+  args.startup_cv.notify_one();
 }
 
 void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {

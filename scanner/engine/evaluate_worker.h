@@ -80,6 +80,9 @@ class PreEvaluateWorker {
 struct EvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
+  std::mutex& startup_lock;
+  std::condition_variable& startup_cv;
+  i32& startup_count;
 
   // Per worker arguments
   i32 ki;
