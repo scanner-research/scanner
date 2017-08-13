@@ -247,6 +247,8 @@ Result Database::start_worker(const MachineParameters& machine_params,
     worker_service->start_watchdog(state.server.get());
   }
 
+  worker_service->register_with_master();
+
   Result result;
   result.set_success(true);
   return result;

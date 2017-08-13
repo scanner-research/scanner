@@ -194,9 +194,10 @@ message LoadSample {
 }
 
 message LoadWorkEntry {
-  int32 io_item_index = 1;
-  repeated LoadSample samples = 2;
-  repeated int64 work_item_sizes = 3;
+  int32 job_index = 1;
+  int32 task_index = 2;
+  repeated LoadSample samples = 3;
+  repeated int64 work_item_sizes = 4;
 }
 
 message MemoryPoolConfig {

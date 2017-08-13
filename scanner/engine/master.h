@@ -96,6 +96,7 @@ class MasterImpl final : public proto::Master::Service {
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;
   i32 next_worker_id_ = 0;
+  std::map<i32, bool> worker_active_;
   std::map<i32, std::unique_ptr<proto::Worker::Stub>> workers_;
   std::map<i32, std::string> worker_addresses_;
   Flag trigger_shutdown_;
@@ -105,12 +106,18 @@ class MasterImpl final : public proto::Master::Service {
   std::unique_ptr<TableMetaCache> table_metas_;
   proto::JobParameters job_params_;
   std::unique_ptr<ProgressBar> bar_;
+  std::vector<std::string> so_paths_;
 
   i64 total_samples_used_;
   i64 total_samples_;
 
   // True if the master is executing a job
   bool active_job_ = false;
+
+  std::mutex finished_mutex_;
+  std::condition_variable finished_cv_;
+  bool finished_;
+
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
   // Outstanding set of generated task samples that should be processed
@@ -133,6 +140,7 @@ class MasterImpl final : public proto::Master::Service {
   // Track assignment of tasks to worker for this job
   struct WorkerHistory {
     timepoint_t start_time;
+    timepoint_t end_time;
     i64 tasks_assigned;
     i64 tasks_retired;
   };

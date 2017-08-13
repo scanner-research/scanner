@@ -68,8 +68,8 @@ void SaveWorker::feed(std::tuple<IOItem, EvalWorkEntry>& input_entry) {
 
     auto io_start = now();
 
-    WriteFile* output_file = output_[out_idx].get();
-    WriteFile* output_metadata_file = output_metadata_[out_idx].get();
+    WriteFile* output_file = output_.at(out_idx).get();
+    WriteFile* output_metadata_file = output_metadata_.at(out_idx).get();
 
     if (work_entry.columns[out_idx].size() != num_elements) {
       LOG(FATAL) << "Output layer's element vector has wrong length";
@@ -157,9 +157,9 @@ void SaveWorker::feed(std::tuple<IOItem, EvalWorkEntry>& input_entry) {
         // file
         for (size_t i = 0; i < num_elements; ++i) {
           Frame* frame = work_entry.columns[out_idx][i].as_frame();
-          i64 buffer_size = frame->size();
+          u64 buffer_size = frame->size();
           s_write(output_metadata_file, buffer_size);
-          size_written += sizeof(i64);
+          size_written += sizeof(u64);
         }
         // Write actual output data
         for (size_t i = 0; i < num_elements; ++i) {
@@ -177,9 +177,9 @@ void SaveWorker::feed(std::tuple<IOItem, EvalWorkEntry>& input_entry) {
       s_write(output_metadata_file, num_elements);
       // Write out all output sizes to metadata file  so we can easily index into the data file
       for (size_t i = 0; i < num_elements; ++i) {
-        i64 buffer_size = work_entry.columns[out_idx][i].size;
+        u64 buffer_size = work_entry.columns[out_idx][i].size;
         s_write(output_metadata_file, buffer_size);
-        size_written += sizeof(i64);
+        size_written += sizeof(u64);
       }
       // Write actual output data
       for (size_t i = 0; i < num_elements; ++i) {
@@ -228,8 +228,10 @@ void SaveWorker::new_task(IOItem item, std::vector<ColumnType> column_types) {
     BACKOFF_FAIL(storage_->make_write_file(output_path, output_file));
     output_.emplace_back(output_file);
 
-    BACKOFF_FAIL(storage_->make_write_file(output_metdata_path, output_file));
-    output_metadata_.emplace_back(output_file);
+    WriteFile* output_metadata_file = nullptr;
+    BACKOFF_FAIL(
+        storage_->make_write_file(output_metdata_path, output_metadata_file));
+    output_metadata_.emplace_back(output_metadata_file);
 
     if (column_types[out_idx] == ColumnType::Video) {
       video_metadata_.emplace_back();
