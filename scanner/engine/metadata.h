@@ -59,7 +59,7 @@ inline std::string table_item_video_metadata_path(i32 table_id, i32 column_id,
 }
 
 inline std::string table_item_metadata_path(i32 table_id, i32 column_id,
-                                                  i32 item_id) {
+                                            i32 item_id) {
   return table_directory(table_id) + "/" + std::to_string(column_id) + "_" +
          std::to_string(item_id) + "_metadata.bin";
 }

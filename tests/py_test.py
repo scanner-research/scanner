@@ -4,11 +4,13 @@ import tempfile
 import toml
 import pytest
 from subprocess import check_call as run
+from multiprocessing import Process, Queue
 import requests
 import imp
 import os.path
 import socket
 import numpy as np
+import sys
 
 try:
     run(['nvidia-smi'])
@@ -74,7 +76,7 @@ def db():
         cfg_path = f.name
 
     # Setup and ingest video
-    with Database(config_path=cfg_path) as db:
+    with Database(config_path=cfg_path, debug=False) as db:
         # Download video from GCS
         url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
@@ -234,3 +236,102 @@ def test_save_mp4(db):
     f.close()
     table.columns('frame').save_mp4(f.name)
     run(['rm', '-rf', f.name])
+
+@pytest.fixture()
+def fault_db():
+    # Create new config
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        cfg = Config.default_config()
+        cfg['storage']['db_path'] = tempfile.mkdtemp()
+        f.write(toml.dumps(cfg))
+        cfg_path = f.name
+
+    # Setup and ingest video
+    with Database(master='localhost:5005', workers=['localhost:5006'],
+                  config_path=cfg_path, debug=False) as db:
+        # Download video from GCS
+        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            host = socket.gethostname()
+            # HACK: special proxy case for Ocean cluster
+            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
+                resp = requests.get(url, stream=True, proxies={
+                    'https': 'http://proxy.pdl.cmu.edu:3128/'
+                })
+            else:
+                resp = requests.get(url, stream=True)
+            assert resp.ok
+            for block in resp.iter_content(1024):
+                f.write(block)
+            vid1_path = f.name
+
+        # Make a second one shorter than the first
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            vid2_path = f.name
+        run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
+             '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path])
+
+        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+
+        yield db
+
+        # Tear down
+        run(['rm', '-rf',
+            cfg['storage']['db_path'],
+            cfg_path,
+            vid1_path,
+            vid2_path])
+
+
+def test_fault_tolerance(fault_db):
+    def worker_killer_task(config, master_address, worker_address):
+        from scannerpy import ProtobufGenerator, Config, start_worker
+        import time
+        import grpc
+
+        c = Config(None)
+
+        import scanner.metadata_pb2 as metadata_types
+        import scanner.engine.rpc_pb2 as rpc_types
+        import scanner.types_pb2 as misc_types
+        import libscanner as bindings
+
+        protobufs = ProtobufGenerator(config)
+
+        # Wait to kill worker
+        time.sleep(8)
+        # Kill worker
+        channel = grpc.insecure_channel(
+            worker_address,
+            options=[('grpc.max_message_length', 24499183 * 2)])
+        worker = protobufs.WorkerStub(channel)
+
+        try:
+            worker.Shutdown(protobufs.Empty())
+        except grpc.RpcError as e:
+            status = e.code()
+            if status == grpc.StatusCode.UNAVAILABLE:
+                print('could not shutdown worker!')
+                exit(1)
+            else:
+                raise ScannerException('Worker errored with status: {}'
+                                       .format(status))
+
+        # Wait a bit
+        time.sleep(15)
+        # Spawn new worker
+        start_worker(master_address, config=config, block=True, port=5010)
+
+    master_addr = fault_db._master_address
+    worker_addr = fault_db._worker_addresses[0]
+    killer_process = Process(target=worker_killer_task,
+                             args=(fault_db.config, master_addr, worker_addr))
+    killer_process.daemon = True
+    killer_process.start()
+
+    frame = fault_db.table('test1').as_op().range(0, 20, task_size=1)
+    sleep_frame = fault_db.ops.SleepFrame(ignore = frame)
+    job = Job(columns = [sleep_frame], name = 'test_sleep')
+    table = fault_db.run(job, pipeline_instances_per_node=1, force=True,
+                         show_progress=False)
+    assert len([_ for _, _ in table.column('dummy').load()]) == 20

@@ -123,7 +123,8 @@ bool PreEvaluateWorker::yield(i32 item_size,
   bool first_item = (r == 0);
   i32 media_col_idx = 0;
   EvalWorkEntry entry;
-  entry.io_item_index = work_entry.io_item_index;
+  entry.job_index = work_entry.job_index;
+  entry.task_index = work_entry.task_index;
   entry.needs_configure = first_item ? needs_configure_ : false;
   entry.needs_reset = first_item_ ? needs_reset_ : false;
   entry.last_in_io_packet = (r + item_size >= total_rows_) ? true : false;
@@ -563,7 +564,8 @@ bool EvaluateWorker::yield(i32 item_size,
   auto yield_start = now();
 
   EvalWorkEntry output_work_entry;
-  output_work_entry.io_item_index = work_entry.io_item_index;
+  output_work_entry.job_index = work_entry.job_index;
+  output_work_entry.task_index = work_entry.task_index;
   output_work_entry.needs_configure = work_entry.needs_configure;
   output_work_entry.needs_reset = work_entry.needs_reset;
   output_work_entry.last_in_io_packet = work_entry.last_in_io_packet;
@@ -657,7 +659,8 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
 
   // Setup row buffer if it was emptied
   if (buffered_entry_.columns.size() == 0) {
-    buffered_entry_.io_item_index = work_entry.io_item_index;
+    buffered_entry_.job_index = work_entry.job_index;
+    buffered_entry_.task_index = work_entry.task_index;
     buffered_entry_.last_in_task = work_entry.last_in_task;
     buffered_entry_.columns.resize(column_mapping_.size());
     assert(work_entry.column_handles.size() == columns_.size());

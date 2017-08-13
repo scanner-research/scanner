@@ -50,13 +50,29 @@ class WorkerImpl final : public proto::Worker::Service {
 
   void start_watchdog(grpc::Server* server, i32 timeout_ms = 50000);
 
+  void register_with_master();
+
  private:
+  void try_unregister();
+
+  enum State {
+    INITIALIZING,
+    IDLE,
+    RUNNING_JOB,
+    SHUTTING_DOWN,
+  };
+
+  Condition<State> state_;
+  std::atomic_flag unregistered_;
+
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;
   std::unique_ptr<proto::Master::Stub> master_;
   storehouse::StorageConfig* storage_config_;
   DatabaseParameters db_params_;
   Flag trigger_shutdown_;
+  std::string master_address_;
+  std::string worker_port_;
   i32 node_id_;
   storehouse::StorageBackend* storage_;
   std::map<std::string, TableMetadata*> table_metas_;

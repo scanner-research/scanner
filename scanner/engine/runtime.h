@@ -42,7 +42,8 @@ namespace internal {
 /// Work structs - structs used to exchange data between workers during
 ///   execution of the run command.
 struct EvalWorkEntry {
-  i32 io_item_index;
+  i64 job_index;
+  i64 task_index;
   std::vector<i64> row_ids;
   BatchedColumns columns;
   std::vector<DeviceHandle> column_handles;
@@ -74,6 +75,8 @@ using OutputEvalQueue =
     Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
 using SaveInputQueue =
     Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
+using SaveOutputQueue =
+    Queue<std::tuple<i32, i64, i64>>;
 
 struct DatabaseParameters {
   storehouse::StorageConfig* storage_config;
