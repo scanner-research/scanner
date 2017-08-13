@@ -739,14 +739,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   VLOG(1) << "Waiting for workers to finish";
 
   {
-    std::unique_lock<std::mutex> lock(finished_mutex_);
-    finished_cv_.wait(lock, [this] { return finished_; });
-  }
-
-  {
-    std::unique_lock<std::mutex> lk(work_mutex_);
-    for (const auto& kv : workers_) {
-      i32 id = kv.first;
+    // Wait until all workers are done and work has been completed
+    while (!finished_) {
       void* got_tag;
       bool ok = false;
       GPR_ASSERT(cq_.Next(&got_tag, &ok));
@@ -756,6 +750,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
       i64 worker_id = (i64)got_tag;
       VLOG(2) << "Worker " << worker_id << " finished.";
 
+      std::unique_lock<std::mutex> lk(work_mutex_);
       if (worker_active_[worker_id] && !replies_[worker_id]->success()) {
         LOG(WARNING) << "Worker " << worker_id
                      << " returned error: " << replies_[worker_id]->msg();
@@ -764,6 +759,11 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
         next_task_ = num_tasks_;
       }
     }
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(finished_mutex_);
+    finished_cv_.wait(lock, [this] { return finished_; });
   }
 
   if (!job_result->success()) {
@@ -914,7 +914,8 @@ void MasterImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
   });
 }
 
-void MasterImpl::start_job_on_worker(i32 worker_id, const std::string& address) {
+void MasterImpl::start_job_on_worker(i32 worker_id,
+                                     const std::string& address) {
   proto::JobParameters w_job_params;
   w_job_params.CopyFrom(job_params_);
 
