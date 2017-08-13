@@ -234,7 +234,8 @@ bool LoadWorker::yield(i32 item_size,
   }
 
   EvalWorkEntry eval_work_entry;
-  eval_work_entry.io_item_index = load_work_entry.io_item_index();
+  eval_work_entry.job_index = load_work_entry.job_index();
+  eval_work_entry.task_index = load_work_entry.task_index();
   eval_work_entry.row_ids = std::vector<i64>(
       load_work_entry.samples(0).rows().begin() + current_row_,
       load_work_entry.samples(0).rows().begin() + current_row_ + num_row_ids);

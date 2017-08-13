@@ -360,10 +360,8 @@ Result TaskSampler::sample_at(i64 sample_idx, proto::NewWork& new_work) {
     return valid_;
   }
 
-  i64 item_id = sample_idx;
-
   proto::LoadWorkEntry& load_item = *new_work.mutable_load_work();
-  load_item.set_io_item_index(item_id);
+  load_item.set_task_index(sample_idx);
   i64 warmup_rows = 0;
   i64 rows = 0;
   i64 offset = 0;
@@ -413,12 +411,11 @@ Result TaskSampler::sample_at(i64 sample_idx, proto::NewWork& new_work) {
 
   proto::IOItem& item = *new_work.mutable_io_item();
   item.set_table_id(table_id_);
-  item.set_item_id(item_id);
+  item.set_item_id(sample_idx);
   item.set_start_row(offset);
   item.set_end_row(offset + rows);
 
   return valid_;
-
 }
 
 }

@@ -237,7 +237,8 @@ void derive_stencil_requirements(storehouse::StorageBackend* storage,
                                  i64 initial_work_item_size,
                                  LoadWorkEntry& output_entry,
                                  std::deque<TaskStream>& task_streams) {
-  output_entry.set_io_item_index(load_work_entry.io_item_index());
+  output_entry.set_job_index(load_work_entry.job_index());
+  output_entry.set_task_index(load_work_entry.task_index());
 
   i64 num_kernels = stencils.size();
 
@@ -416,12 +417,13 @@ void load_driver(LoadInputQueue& load_work,
 
     args.profiler.add_interval("idle", idle_start, now());
 
-    if (load_work_entry.io_item_index() == -1) {
+    if (load_work_entry.job_index() == -1) {
       break;
     }
 
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
-            << "): processing item " << load_work_entry.io_item_index();
+            << "): processing task (" << load_work_entry.job_index() << ", "
+            << load_work_entry.task_index() << ")";
 
     auto work_start = now();
 
@@ -476,12 +478,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       auto& task_streams = std::get<0>(entry);
       IOItem& io_item = std::get<1>(entry);
       EvalWorkEntry& work_entry = std::get<2>(entry);
-      if (work_entry.io_item_index == -1) {
-        LOG(INFO) << "Leaving";
+      if (work_entry.job_index == -1) {
         break;
       }
 
-      task_work_queue[work_entry.io_item_index].push(entry);
+      task_work_queue[work_entry.job_index].push(entry);
     }
 
     args.profiler.add_interval("idle", idle_start, now());
@@ -506,7 +507,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
             << "): "
-            << "processing item " << work_entry.io_item_index;
+            << "processing item " << work_entry.job_index;
 
     auto work_start = now();
 
@@ -581,12 +582,12 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     args.profiler.add_interval("idle_pull", idle_pull_start, now());
 
-    if (work_entry.io_item_index == -1) {
+    if (work_entry.job_index == -1) {
       break;
     }
 
     VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
-            << args.kg << "): processing item " << work_entry.io_item_index;
+            << args.kg << "): processing item " << work_entry.job_index;
 
     auto work_start = now();
 
@@ -640,12 +641,12 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 
     args.profiler.add_interval("idle", idle_start, now());
 
-    if (work_entry.io_item_index == -1) {
+    if (work_entry.job_index == -1) {
       break;
     }
 
     VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
-            << "): processing item " << work_entry.io_item_index;
+            << "): processing item " << work_entry.job_index;
 
     auto work_start = now();
 
@@ -692,11 +693,11 @@ void save_coordinator(OutputEvalQueue& eval_work,
 
     //args.profiler.add_interval("idle", idle_start, now());
 
-    if (work_entry.io_item_index == -1) {
+    if (work_entry.job_index == -1) {
       break;
     }
 
-    i32 task_id = work_entry.io_item_index;
+    i32 task_id = work_entry.job_index;
     if (task_to_worker_mapping.count(task_id) == 0) {
       // Assign worker to this task
       task_to_worker_mapping[task_id] =
@@ -713,12 +714,13 @@ void save_coordinator(OutputEvalQueue& eval_work,
 }
 
 void save_driver(SaveInputQueue& save_work,
-                 std::vector<std::unique_ptr<std::atomic<i64>>>& retired_items,
+                 SaveOutputQueue& output_work,
                  SaveWorkerArgs args) {
   Profiler& profiler = args.profiler;
   SaveWorker worker(args);
 
   i32 processed = 0;
+  i32 active_job = -1;
   i32 active_task = -1;
   while (true) {
     auto idle_start = now();
@@ -732,17 +734,21 @@ void save_driver(SaveInputQueue& save_work,
 
     args.profiler.add_interval("idle", idle_start, now());
 
-    if (work_entry.io_item_index == -1) {
+    if (work_entry.job_index == -1) {
       break;
     }
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
-            << "): processing item " << work_entry.io_item_index;
+            << "): processing task (" << work_entry.job_index << ", "
+            << work_entry.task_index << ")";
 
     auto work_start = now();
 
-    if (work_entry.io_item_index != active_task) {
-      active_task = work_entry.io_item_index;
+    if (work_entry.job_index != active_job ||
+        work_entry.task_index != active_task) {
+      active_job = work_entry.job_index;
+      active_task = work_entry.task_index;
+
       worker.new_task(io_item, work_entry.column_types);
       processed = 0;
     }
@@ -752,12 +758,14 @@ void save_driver(SaveInputQueue& save_work,
     worker.feed(input_entry);
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
-            << "): finished item " << work_entry.io_item_index;
+            << "): finished task (" << work_entry.job_index << ", "
+            << work_entry.task_index << ")";
 
     args.profiler.add_interval("task", work_start, now());
 
     if (work_entry.last_in_task) {
-      retired_items[pipeline_instance]->fetch_add(1);
+      output_work.push(std::make_tuple(pipeline_instance, work_entry.job_index,
+                                       work_entry.task_index));
     }
   }
 
@@ -766,10 +774,13 @@ void save_driver(SaveInputQueue& save_work,
 }
 }
 
-
 WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
                        std::string master_address, std::string worker_port)
-  : watchdog_awake_(true), db_params_(db_params) {
+  : watchdog_awake_(true),
+    db_params_(db_params),
+    state_(State::INITIALIZING),
+    master_address_(master_address),
+    worker_port_(worker_port) {
   init_glog("scanner_worker");
 
   set_database_path(db_params.db_path);
@@ -782,29 +793,10 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   // google::protobuf::io::CodedInputStream::SetTotalBytesLimit(67108864 * 4,
   //                                                            67108864 * 2);
 
+  VLOG(1) << "Create master stub";
   master_ = proto::Master::NewStub(
       grpc::CreateChannel(master_address, grpc::InsecureChannelCredentials()));
-
-  proto::WorkerParams worker_info;
-  worker_info.set_port(worker_port);
-
-  proto::MachineParameters* params = worker_info.mutable_params();
-  params->set_num_cpus(db_params_.num_cpus);
-  params->set_num_load_workers(db_params_.num_cpus);
-  params->set_num_save_workers(db_params_.num_cpus);
-  for (i32 gpu_id : db_params_.gpu_ids) {
-    params->add_gpu_ids(gpu_id);
-  }
-
-  grpc::ClientContext context;
-  proto::Registration registration;
-  grpc::Status status =
-      master_->RegisterWorker(&context, worker_info, &registration);
-  LOG_IF(FATAL, !status.ok())
-      << "Worker could not contact master server at " << master_address << " ("
-      << status.error_code() << "): " << status.error_message();
-
-  node_id_ = registration.node_id();
+  VLOG(1) << "Finish master stub";
 
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
@@ -814,7 +806,27 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 }
 
 WorkerImpl::~WorkerImpl() {
+  State state = state_.get();
+  switch (state) {
+    case State::RUNNING_JOB: {
+      // Trigger shutdown will inform the job to stop
+      break;
+    }
+    case State::SHUTTING_DOWN: {
+      break;
+    }
+    case State::INITIALIZING: {
+      break;
+    }
+    case State::IDLE: {
+      break;
+    }
+  }
+  state_.set(State::SHUTTING_DOWN);
+
+  try_unregister();
   trigger_shutdown_.set();
+
   if (watchdog_thread_.joinable()) {
     watchdog_thread_.join();
   }
@@ -827,6 +839,35 @@ WorkerImpl::~WorkerImpl() {
 grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                 const proto::JobParameters* job_params,
                                 proto::Result* job_result) {
+  // Ensure that only one job is running at a time and that the worker
+  // is in idle mode before transitioning to job start
+  State state = state_.get();
+  bool ready = false;
+  while (!ready) {
+    switch (state) {
+      case RUNNING_JOB: {
+        RESULT_ERROR(job_result, "This worker is already running a job!");
+        return grpc::Status::OK;
+      }
+      case SHUTTING_DOWN: {
+        RESULT_ERROR(job_result, "This worker is preparing to shutdown!");
+        return grpc::Status::OK;
+      }
+      case INITIALIZING: {
+        RESULT_ERROR(job_result, "This worker has not been initialized yet!");
+        return grpc::Status::OK;
+      }
+      case IDLE: {
+        if (state_.test_and_set(state, RUNNING_JOB)) {
+          ready = true;
+          break;
+        } else {
+          state = state_.get();
+        }
+      }
+    }
+  }
+
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
@@ -1080,10 +1121,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
   OutputEvalQueue output_eval_work(pipeline_instances_per_node);
   std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
-  std::vector<std::unique_ptr<std::atomic<i64>>> retired_items;
-  for (int i = 0; i < pipeline_instances_per_node; ++i) {
-    retired_items.emplace_back(new std::atomic<i64>(0));
-  }
+  SaveOutputQueue retired_tasks;
 
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
@@ -1289,7 +1327,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                         i, db_params_.storage_config, save_thread_profilers[i]};
 
     save_threads.emplace_back(save_driver, std::ref(save_work[i]),
-                              std::ref(retired_items), args);
+                              std::ref(retired_tasks), args);
   }
 
   if (job_params->profiling()) {
@@ -1305,13 +1343,56 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   // Monitor amount of work left and request more when running low
   // Round robin work
   std::vector<i64> allocated_work_to_queues(pipeline_instances_per_node);
+  std::vector<i64> retired_work_for_queues(pipeline_instances_per_node);
+  bool finished = false;
   while (true) {
+    if (trigger_shutdown_.raised()) {
+      // Abandon ship!
+      VLOG(1) << "Worker " << node_id_ << " received shutdown while in NewJob";
+      RESULT_ERROR(job_result, "Worker %d shutdown while processing NewJob",
+                   node_id_);
+      break;
+    }
+    while (retired_tasks.size() > 0) {
+      // Pull retired tasks
+      std::tuple<i32, i64, i64> task_retired;
+      retired_tasks.pop(task_retired);
+
+      // Inform master that this task was finished
+      grpc::ClientContext context;
+      proto::FinishedWorkParameters params;
+      proto::Empty empty;
+
+      params.set_node_id(node_id_);
+      params.set_task_id(std::get<1>(task_retired));
+      params.set_sample_id(std::get<2>(task_retired));
+      grpc::Status status = master_->FinishedWork(&context, params, &empty);
+
+      if (!status.ok()) {
+        RESULT_ERROR(job_result,
+                     "Worker %d could not tell finished work to master",
+                     node_id_);
+        break;
+      }
+
+      // Update how much is in each pipeline instances work queue
+      retired_work_for_queues[std::get<0>(task_retired)] += 1;
+    }
     i64 total_tasks_processed = 0;
-    for (auto& ri : retired_items) {
-      total_tasks_processed += ri->load();
+    for (i64 t : retired_work_for_queues) {
+      total_tasks_processed += t;
+    }
+    if (finished) {
+      if (total_tasks_processed == accepted_items) {
+        break;
+      } else {
+        std::this_thread::yield();
+        continue;
+      }
     }
     i32 local_work = accepted_items - total_tasks_processed;
-    if (local_work < pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
+    if (local_work <
+        pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
       grpc::ClientContext context;
       proto::NodeInfo node_info;
       proto::NewWork new_work;
@@ -1328,7 +1409,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       if (next_item == -1) {
         // No more work left
         VLOG(1) << "Node " << node_id_ << " received done signal.";
-        break;
+        finished = true;
       } else {
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
@@ -1344,7 +1425,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         i32 min_work = std::numeric_limits<i32>::max();
         for (int i = 0; i < pipeline_instances_per_node; ++i) {
           i64 outstanding_work =
-              allocated_work_to_queues[i] - retired_items[i]->load();
+              allocated_work_to_queues[i] - retired_work_for_queues[i];
           if (outstanding_work < min_work) {
             min_work = outstanding_work;
             target_work_queue = i;
@@ -1378,7 +1459,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   }
 
   // If the job failed, can't expect queues to have drained, so
-  // attempt to flush all all queues here (otherwise we could block
+  // attempt to flush all queues here (otherwise we could block
   // on pushing into a queue)
   if (!job_result->success()) {
     load_work.clear();
@@ -1401,26 +1482,26 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   auto push_exit_message = [](EvalQueue& q) {
     EvalWorkEntry entry;
-    entry.io_item_index = -1;
+    entry.job_index = -1;
     q.push(std::make_tuple(std::deque<TaskStream>(), IOItem{}, entry));
   };
 
   auto push_output_eval_exit_message = [](OutputEvalQueue& q) {
     EvalWorkEntry entry;
-    entry.io_item_index = -1;
+    entry.job_index = -1;
     q.push(std::make_tuple(0, IOItem{}, entry));
   };
 
   auto push_save_exit_message = [](SaveInputQueue& q) {
     EvalWorkEntry entry;
-    entry.io_item_index = -1;
+    entry.job_index = -1;
     q.push(std::make_tuple(0, IOItem{}, entry));
   };
 
   // Push sentinel work entries into queue to terminate load threads
   for (i32 i = 0; i < num_load_workers; ++i) {
     LoadWorkEntry entry;
-    entry.set_io_item_index(-1);
+    entry.set_job_index(-1);
     load_work.push(
         std::make_tuple(0, std::deque<TaskStream>(), IOItem{}, entry));
   }
@@ -1556,7 +1637,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   BACKOFF_FAIL(profiler_output->save());
 
+  std::fflush(NULL);
+  sync();
+
   VLOG(1) << "Worker " << node_id_ << " finished NewJob";
+
+  // Set to idle if we finished without a shutdown
+  state_.test_and_set(RUNNING_JOB, IDLE);
 
   return grpc::Status::OK;
 }
@@ -1565,6 +1652,7 @@ grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path,
                                 proto::Empty* empty) {
   const std::string& so_path = op_path->path();
+  VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == nullptr)
       << "dlopen of " << so_path << " failed: " << dlerror();
@@ -1573,6 +1661,27 @@ grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
 
 grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
                                   const proto::Empty* empty, Result* result) {
+  State state = state_.get();
+  switch (state) {
+    case RUNNING_JOB: {
+      // trigger_shutdown will inform job to stop working
+      break;
+    }
+    case SHUTTING_DOWN: {
+      // Already shutting down
+      result->set_success(true);
+      return grpc::Status::OK;
+    }
+    case INITIALIZING: {
+      break;
+    }
+    case IDLE: {
+      break;
+    }
+  }
+  state_.set(SHUTTING_DOWN);
+  try_unregister();
+  // Inform watchdog that we are done for
   trigger_shutdown_.set();
   result->set_success(true);
   return grpc::Status::OK;
@@ -1608,5 +1717,50 @@ void WorkerImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
     server->Shutdown();
   });
 }
+
+void WorkerImpl::register_with_master() {
+  assert(state_.get() == State::INITIALIZING);
+
+  VLOG(1) << "Worker try to register with master";
+
+  grpc::ClientContext context;
+  proto::WorkerParams worker_info;
+  proto::Registration registration;
+
+  worker_info.set_port(worker_port_);
+  proto::MachineParameters* params = worker_info.mutable_params();
+  params->set_num_cpus(db_params_.num_cpus);
+  params->set_num_load_workers(db_params_.num_cpus);
+  params->set_num_save_workers(db_params_.num_cpus);
+  for (i32 gpu_id : db_params_.gpu_ids) {
+    params->add_gpu_ids(gpu_id);
+  }
+
+  grpc::Status status =
+      master_->RegisterWorker(&context, worker_info, &registration);
+  LOG_IF(FATAL, !status.ok())
+      << "Worker could not contact master server at " << master_address_ << " ("
+      << status.error_code() << "): " << status.error_message();
+  VLOG(1) << "Worker registered with master";
+
+  node_id_ = registration.node_id();
+
+  state_.set(State::IDLE);
+}
+
+void WorkerImpl::try_unregister() {
+  if (state_.get() != State::INITIALIZING && !unregistered_.test_and_set()) {
+    grpc::ClientContext ct;
+    proto::NodeInfo node_info;
+    proto::Empty em;
+    node_info.set_node_id(node_id_);
+    grpc::Status status = master_->UnregisterWorker(&ct, node_info, &em);
+    if (!status.ok()) {
+      VLOG(1) << "Worker could not unregister from master server "
+              << "(" << status.error_code() << "): " << status.error_message();
+    }
+  }
+}
+
 }
 }

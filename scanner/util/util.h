@@ -96,6 +96,75 @@ T nano_to_ms(T ns) {
   return ns / 1000000;
 }
 
+template <typename T>
+class Condition {
+ public:
+  Condition(const T& v) : value_(v) {}
+
+  T get() {
+    return value_.load();
+  }
+
+  void set(const T& v) {
+    std::unique_lock<std::mutex> lock(m_);
+    value_ = v;
+    lock.unlock();
+    cv_.notify_all();
+  }
+
+  bool test_and_set(const T& test, const T& set) {
+    std::unique_lock<std::mutex> lock(m_);
+    if (value_ == test) {
+      value_ = set;
+      lock.unlock();
+      cv_.notify_all();
+      return true;
+    }
+    return false;
+  }
+
+  bool wait_and_set(const T& wait_for, const T& set_to) {
+    std::unique_lock<std::mutex> lock(m_);
+    if (value_ == wait_for) {
+      value_ = set_to;
+      lock.unlock();
+      cv_.notify_all();
+      return true;
+    }
+    T temp = value_.load();
+    cv_.wait(lock, [&] { return value_ == wait_for; });
+    value_ = set_to;
+    lock.unlock();
+    cv_.notify_all();
+    return;
+  }
+
+  T wait_for_change(const T& v) {
+    std::unique_lock<std::mutex> lock(m_);
+    if (value_ != v) return value_;
+    cv_.wait(lock, [&] { return value_ != v; });
+    return value_;
+  }
+
+  void wait_until_changed_to(const T& v) {
+    std::unique_lock<std::mutex> lock(m_);
+    if (value_ == v) return;
+    cv_.wait(lock, [&] { return value_ == v; });
+  }
+
+  void wait_until_changed_to_for(const T& v, int ms) {
+    std::unique_lock<std::mutex> lock(m_);
+    if (value_ == v) return;
+    cv_.wait_for(lock, std::chrono::milliseconds(ms),
+                 [&] { return value_ = v; });
+  }
+
+ private:
+  std::mutex m_;
+  std::condition_variable cv_;
+  std::atomic<T> value_;
+};
+
 class Flag {
  public:
   void set() {
