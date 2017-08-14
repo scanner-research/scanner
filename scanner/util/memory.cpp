@@ -495,12 +495,12 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
       CU_CHECK(cudaSetDevice(src_device.id));
       if (size <= PINNED_BUFFER_SIZE) {
         if (dest_device.type == DeviceType::CPU) {
-          CU_CHECK(cudaMemcpy(pinned_cpu_buffers[dest_device.id], src_buffer,
+          CU_CHECK(cudaMemcpy(pinned_cpu_buffers[src_device.id], src_buffer,
                               size, cudaMemcpyDefault));
-          memcpy(dest_buffer, pinned_cpu_buffers[dest_device.id], size);
+          memcpy(dest_buffer, pinned_cpu_buffers[src_device.id], size);
         } else if (src_device.type == DeviceType::CPU) {
-          memcpy(pinned_cpu_buffers[src_device.id], src_buffer, size);
-          CU_CHECK(cudaMemcpy(dest_buffer, pinned_cpu_buffers[src_device.id], size,
+          memcpy(pinned_cpu_buffers[dest_device.id], src_buffer, size);
+          CU_CHECK(cudaMemcpy(dest_buffer, pinned_cpu_buffers[dest_device.id], size,
                               cudaMemcpyDefault));
         } else {
           CU_CHECK(cudaMemcpy(dest_buffer, src_buffer, size, cudaMemcpyDefault));
@@ -540,12 +540,6 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
       for (i32 i = 0; i < NUM_CUDA_STREAMS; ++i) {
         CU_CHECK(cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking));
       }
-    }
-
-    if (src_device.type == DeviceType::GPU) {
-      CU_CHECK(cudaSetDevice(src_device.id));
-    } else if (dest_device.type == DeviceType::GPU) {
-      CU_CHECK(cudaSetDevice(dest_device.id));
     }
 
     // In the case where the dest and src vectors are each respectively drawn
