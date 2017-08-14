@@ -14,6 +14,7 @@ service Master {
   rpc NextWork (NodeInfo) returns (NewWork) {}
   rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
   rpc NewJob (JobParameters) returns (Result) {}
+  rpc IsJobDone (Empty) returns (JobResult) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpPath) returns (Result) {}
   rpc GetOpInfo (OpInfoArgs) returns (OpInfo) {}
@@ -34,6 +35,12 @@ message Result {
   bool success = 1;
   string msg = 2;
 }
+
+message JobResult {
+  bool finished = 1;
+  Result result = 2;
+}
+
 
 message WorkerParams {
   string port = 1;

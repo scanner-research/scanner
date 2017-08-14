@@ -854,18 +854,17 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         return grpc::Status::OK;
       }
       case INITIALIZING: {
-        RESULT_ERROR(job_result, "This worker has not been initialized yet!");
-        return grpc::Status::OK;
+        state_.wait_for_change(INITIALIZING);
+        break;
       }
       case IDLE: {
         if (state_.test_and_set(state, RUNNING_JOB)) {
           ready = true;
           break;
-        } else {
-          state = state_.get();
         }
       }
     }
+    state = state_.get();
   }
 
   job_result->set_success(true);
@@ -878,7 +877,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
-
+  
   // Controls if work should be distributed roundrobin or dynamically
   bool distribute_work_dynamically = true;
 
@@ -1694,10 +1693,14 @@ grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-void WorkerImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
-  watchdog_thread_ = std::thread([this, server, timeout_ms]() {
+void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
+                                i32 timeout_ms) {
+  watchdog_thread_ = std::thread([this, server, enable_timeout, timeout_ms]() {
     double time_since_check = 0;
     // Wait until shutdown is triggered or watchdog isn't woken up
+    if (!enable_timeout) {
+      trigger_shutdown_.wait();
+    }
     while (!trigger_shutdown_.raised()) {
       auto sleep_start = now();
       trigger_shutdown_.wait_for(timeout_ms);
