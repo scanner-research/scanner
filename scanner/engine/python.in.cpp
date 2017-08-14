@@ -123,12 +123,18 @@ Result new_table_wrapper(Database& db, const std::string& name,
   return db.new_table(name, to_std_vector<std::string>(columns), rows_py2);
 }
 
+boost::shared_ptr<Database> initWrapper(storehouse::StorageConfig* sc,
+                                        const std::string& db_path,
+                                        const std::string& master_addr) {
+  GILRelease r;
+  return boost::shared_ptr<Database>( new Database(sc, db_path, master_addr) );
+}
+
 BOOST_PYTHON_MODULE(libscanner) {
   boost::python::numpy::initialize();
   using namespace py;
-  class_<Database, boost::noncopyable>(
-      "Database", init<storehouse::StorageConfig*, const std::string&,
-                       const std::string&>())
+  class_<Database, boost::noncopyable>("Database", no_init)
+      .def("__init__", make_constructor(&initWrapper))
       .def("ingest_videos", &Database::ingest_videos);
   class_<FailedVideo>("FailedVideo", no_init)
       .def_readonly("path", &FailedVideo::path)

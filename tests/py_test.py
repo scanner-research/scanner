@@ -1,4 +1,4 @@
-from scannerpy import Database, Config, DeviceType, Job
+from scannerpy import Database, Config, DeviceType, Job, ProtobufGenerator
 from scannerpy.stdlib import parsers
 import tempfile
 import toml
@@ -11,6 +11,7 @@ import os.path
 import socket
 import numpy as np
 import sys
+import grpc
 
 try:
     run(['nvidia-smi'])
@@ -76,7 +77,7 @@ def db():
         cfg_path = f.name
 
     # Setup and ingest video
-    with Database(config_path=cfg_path, debug=False) as db:
+    with Database(config_path=cfg_path, debug=True) as db:
         # Download video from GCS
         url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
@@ -240,15 +241,17 @@ def test_save_mp4(db):
 @pytest.fixture()
 def fault_db():
     # Create new config
-    with tempfile.NamedTemporaryFile(delete=False) as f:
+    #with tempfile.NamedTemporaryFile(delete=False) as f:
+    with open('/tmp/config_test', 'w') as f:
         cfg = Config.default_config()
         cfg['storage']['db_path'] = tempfile.mkdtemp()
+        cfg['network']['master_port'] = '5005'
+        cfg['network']['worker_port'] = '5006'
         f.write(toml.dumps(cfg))
         cfg_path = f.name
 
     # Setup and ingest video
-    with Database(master='localhost:5005', workers=['localhost:5006'],
-                  config_path=cfg_path, debug=False) as db:
+    with Database(config_path=cfg_path, debug=True) as db:
         # Download video from GCS
         url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
@@ -284,10 +287,12 @@ def fault_db():
 
 
 def test_fault_tolerance(fault_db):
+    spawn_port = 5010
     def worker_killer_task(config, master_address, worker_address):
         from scannerpy import ProtobufGenerator, Config, start_worker
         import time
         import grpc
+        import subprocess
 
         c = Config(None)
 
@@ -319,8 +324,9 @@ def test_fault_tolerance(fault_db):
 
         # Wait a bit
         time.sleep(15)
-        # Spawn new worker
-        start_worker(master_address, config=config, block=True, port=5010)
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        subprocess.call(['python ' +  script_dir + '/spawn_worker.py'],
+                        shell=True)
 
     master_addr = fault_db._master_address
     worker_addr = fault_db._worker_addresses[0]
@@ -329,9 +335,27 @@ def test_fault_tolerance(fault_db):
     killer_process.daemon = True
     killer_process.start()
 
-    frame = fault_db.table('test1').as_op().range(0, 20, task_size=1)
+    frame = fault_db.table('test1').as_op().range(0, 15, task_size=1)
     sleep_frame = fault_db.ops.SleepFrame(ignore = frame)
     job = Job(columns = [sleep_frame], name = 'test_sleep')
     table = fault_db.run(job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
-    assert len([_ for _, _ in table.column('dummy').load()]) == 20
+    assert len([_ for _, _ in table.column('dummy').load()]) == 15
+
+    # Shutdown the spawned worker
+    channel = grpc.insecure_channel(
+        'localhost:' + str(spawn_port),
+        options=[('grpc.max_message_length', 24499183 * 2)])
+    worker = fault_db.protobufs.WorkerStub(channel)
+
+    try:
+        worker.Shutdown(fault_db.protobufs.Empty())
+    except grpc.RpcError as e:
+        status = e.code()
+        if status == grpc.StatusCode.UNAVAILABLE:
+            print('could not shutdown worker!')
+            exit(1)
+        else:
+            raise ScannerException('Worker errored with status: {}'
+                                   .format(status))
+    killer_process.join()

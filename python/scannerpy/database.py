@@ -62,8 +62,8 @@ def start_master(port=None, config=None, config_path=None, block=False, watchdog
     return db
 
 
-def start_worker(master_address, port=None, config=None, config_path=None,
-                 block=False, watchdog=True):
+def start_worker(master_address, machine_params=None, port=None, config=None,
+                 config_path=None, block=False, watchdog=True):
     """
     Start a worker instance on this node.
 
@@ -93,7 +93,7 @@ def start_worker(master_address, port=None, config=None, config_path=None,
         #storage_config,
         config.db_path,
         master_address)
-    machine_params = bindings.default_machine_params()
+    machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params, str(port), watchdog)
     if not result.success:
         raise ScannerException('Failed to start worker: {}'.format(result.msg))
@@ -1087,6 +1087,19 @@ class Database:
 
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(job_params))
+
+        while True:
+            try:
+                result = self._master.IsJobDone(self.protobufs.Empty())
+            except grpc.RpcError as e:
+                raise ScannerException(e)
+            if result.finished:
+                break
+            else:
+                time.sleep(1.0)
+
+        if not result.result.success:
+            raise ScannerException(result.result.msg)
 
         # Invalidate db metadata because of job run
         self._cached_db_metadata = None

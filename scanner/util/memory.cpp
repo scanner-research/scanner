@@ -244,11 +244,11 @@ class BlockAllocator {
 
   ~BlockAllocator() {
     std::lock_guard<std::mutex> guard(lock_);
-
     for (Allocation& alloc : allocations_) {
       assert(alloc.refs > 0);
       allocator_->free(alloc.buffer);
     }
+    allocations_.clear();
   }
 
   u8* allocate(size_t size, i32 refs) {
@@ -291,7 +291,6 @@ class BlockAllocator {
     if (alloc.refs == 0) {
       allocator_->free(alloc.buffer);
       allocations_.erase(allocations_.begin() + index);
-      return;
     }
   }
 
@@ -346,10 +345,10 @@ class BlockAllocator {
   Allocator* allocator_;
 };
 
-static SystemAllocator* cpu_system_allocator = nullptr;
+static std::unique_ptr<SystemAllocator> cpu_system_allocator;
 static std::map<i32, SystemAllocator*> gpu_system_allocators;
 static PoolAllocator* cpu_pool_allocator = nullptr;
-static BlockAllocator* cpu_block_allocator = nullptr;
+static std::unique_ptr<BlockAllocator> cpu_block_allocator;
 static std::map<i32, PoolAllocator*> gpu_pool_allocators;
 static std::map<i32, BlockAllocator*> gpu_block_allocators;
 
@@ -359,8 +358,8 @@ static std::map<i32, std::mutex> pinned_cpu_locks;
 
 void init_memory_allocators(MemoryPoolConfig config,
                             std::vector<i32> gpu_device_ids) {
-  cpu_system_allocator = new SystemAllocator(CPU_DEVICE);
-  Allocator* cpu_block_allocator_base = cpu_system_allocator;
+  cpu_system_allocator.reset(new SystemAllocator(CPU_DEVICE));
+  Allocator* cpu_block_allocator_base = cpu_system_allocator.get();
   if (config.cpu().use_pool()) {
     struct sysinfo info;
     i32 err = sysinfo(&info);
@@ -370,11 +369,11 @@ void init_memory_allocators(MemoryPoolConfig config,
         << "Requested CPU free space (" << config.cpu().free_space() << ") "
         << "larger than total CPU memory size ( " << total_mem << ")";
     cpu_pool_allocator =
-        new PoolAllocator(CPU_DEVICE, cpu_system_allocator,
+        new PoolAllocator(CPU_DEVICE, cpu_system_allocator.get(),
                           total_mem - config.cpu().free_space());
     cpu_block_allocator_base = cpu_pool_allocator;
   }
-  cpu_block_allocator = new BlockAllocator(cpu_block_allocator_base);
+  cpu_block_allocator.reset(new BlockAllocator(cpu_block_allocator_base));
 
 #ifdef HAVE_CUDA
   for (i32 device_id : gpu_device_ids) {
@@ -403,12 +402,12 @@ void init_memory_allocators(MemoryPoolConfig config,
 }
 
 void destroy_memory_allocators() {
-  delete cpu_block_allocator;
+  cpu_block_allocator.reset(nullptr);
   if (cpu_pool_allocator) {
     delete cpu_pool_allocator;
     cpu_pool_allocator = nullptr;
   }
-  delete cpu_system_allocator;
+  cpu_system_allocator.reset(nullptr);
 
 #ifdef HAVE_CUDA
   for (auto entry : gpu_block_allocators) {
@@ -432,7 +431,7 @@ void destroy_memory_allocators() {
 
 SystemAllocator* system_allocator_for_device(DeviceHandle device) {
   if (device.type == DeviceType::CPU) {
-    return cpu_system_allocator;
+    return cpu_system_allocator.get();
   } else if (device.type == DeviceType::GPU) {
     CUDA_PROTECT({/* dummy to trigger cuda check */});
     return gpu_system_allocators.at(device.id);
@@ -443,7 +442,7 @@ SystemAllocator* system_allocator_for_device(DeviceHandle device) {
 
 BlockAllocator* block_allocator_for_device(DeviceHandle device) {
   if (device.type == DeviceType::CPU) {
-    return cpu_block_allocator;
+    return cpu_block_allocator.get();
   } else if (device.type == DeviceType::GPU) {
     CUDA_PROTECT({/* dummy to trigger cuda check */});
     return gpu_block_allocators.at(device.id);
