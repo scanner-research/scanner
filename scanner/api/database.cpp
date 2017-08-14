@@ -219,10 +219,10 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_->service.reset(master_service);
   master_state_->server = start(master_state_->service, port);
 
+  // Setup master job processor
+  master_service->start_job_processor();
   // Setup watchdog
-  if (watchdog) {
-    master_service->start_watchdog(master_state_->server.get());
-  }
+  master_service->start_watchdog(master_state_->server.get(), watchdog);
 
   Result result;
   result.set_success(true);
@@ -243,9 +243,7 @@ Result Database::start_worker(const MachineParameters& machine_params,
   worker_states_.emplace_back(s);
 
   // Setup watchdog
-  if (watchdog) {
-    worker_service->start_watchdog(state.server.get());
-  }
+  worker_service->start_watchdog(state.server.get(), watchdog);
 
   worker_service->register_with_master();
 
@@ -310,7 +308,20 @@ Result Database::new_job(JobParameters& params) {
   LOG_IF(FATAL, !status.ok())
       << "Could not contact master server: " << status.error_message();
 
-  return job_result;
+  proto::JobResult result;
+  while (true) {
+    grpc::ClientContext context;
+    proto::Empty empty;
+    grpc::Status status = master_->IsJobDone(&context, empty, &result);
+    LOG_IF(FATAL, !status.ok())
+        << "Could not contact master server: " << status.error_message();
+    if (result.finished()) {
+      break;
+    }
+    std::this_thread::yield();
+  }
+
+  return result.result();
 }
 
 Result Database::new_table(const std::string& table_name,

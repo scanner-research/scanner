@@ -68,6 +68,10 @@ class MasterImpl final : public proto::Master::Service {
                       const proto::JobParameters* job_params,
                       proto::Result* job_result);
 
+  grpc::Status IsJobDone(grpc::ServerContext* context,
+                         const proto::Empty* empty,
+                         proto::JobResult* job_result);
+
   grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty1,
                     proto::Empty* empty2);
 
@@ -84,14 +88,21 @@ class MasterImpl final : public proto::Master::Service {
   grpc::Status PokeWatchdog(grpc::ServerContext* context,
                             const proto::Empty* empty, proto::Empty* result);
 
-  void start_watchdog(grpc::Server* server, i32 timeout_ms = 50000);
+  void start_job_processor();
+
+  void start_watchdog(grpc::Server* server, bool enable_timeout,
+                      i32 timeout_ms = 50000);
 
  private:
+  bool process_job(const proto::JobParameters* job_params,
+                   proto::Result* job_result);
+
   void start_job_on_worker(i32 node_id, const std::string& address);
 
   void stop_job_on_worker(i32 node_id);
 
   void remove_worker(i32 node_id);
+
 
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;
@@ -112,12 +123,17 @@ class MasterImpl final : public proto::Master::Service {
   i64 total_samples_;
 
   // True if the master is executing a job
+  std::mutex active_mutex_;
+  std::condition_variable active_cv_;
   bool active_job_ = false;
 
+  // True if all work for job is done
   std::mutex finished_mutex_;
   std::condition_variable finished_cv_;
-  bool finished_;
+  bool finished_ = true;
+  Result job_result_;
 
+  std::thread job_processor_thread_;
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
   // Outstanding set of generated task samples that should be processed

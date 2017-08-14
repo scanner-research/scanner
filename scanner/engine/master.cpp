@@ -33,44 +33,50 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
   std::set<std::string> task_output_table_names;
   for (auto& task : task_set.tasks()) {
     if (task.output_table_name() == "") {
-      LOG(WARNING) << "Task specified with empty output table name. Output "
-                      "tables can not have empty names";
-      result->set_success(false);
+      RESULT_ERROR(result,
+                   "Task specified with empty output table name. Output "
+                   "tables can not have empty names")
+          return;
     }
     if (meta.has_table(task.output_table_name())) {
-      LOG(WARNING) << "Task specified with duplicate output table name. "
-                   << "A table with name " << task.output_table_name() << " "
-                   << "already exists.";
-      result->set_success(false);
+      RESULT_ERROR(result,
+                   "Task specified with duplicate output table name. A table "
+                   "with name %s already exists.",
+                   task.output_table_name().c_str());
+      return;
     }
     if (task_output_table_names.count(task.output_table_name()) > 0) {
-      LOG(WARNING) << "Multiple tasks specified with output table name "
-                   << task.output_table_name()
-                   << ". Table names must be unique.";
-      result->set_success(false);
+      RESULT_ERROR(result,
+                   "Multiple tasks specified with output table name %s. "
+                   "Table names must be unique.",
+                   task.output_table_name().c_str());
+          return;
     }
     task_output_table_names.insert(task.output_table_name());
     if (task.samples().size() == 0) {
-      LOG(WARNING) << "Task " << task.output_table_name() << " did not "
-                   << "specify any tables to sample from. Tasks must sample "
-                   << "from at least one table.";
-      result->set_success(false);
+      RESULT_ERROR(result,
+                   "Task %s did not specify any tables to sample from. Tasks "
+                   "must sample from at least one table.",
+                   task.output_table_name().c_str());
+      return;
     } else {
       for (auto& sample : task.samples()) {
         if (!meta.has_table(sample.table_name())) {
-          LOG(WARNING) << "Task " << task.output_table_name() << " tried to "
-                       << "sample from non-existent table "
-                       << sample.table_name()
-                       << ". TableSample must sample from existing table.";
-          result->set_success(false);
+          RESULT_ERROR(result,
+                       "Task %s tried to sample from non-existent table %s. "
+                       "TableSample must sample from existing table.",
+                       task.output_table_name().c_str(),
+                       sample.table_name().c_str());
+          return;
         }
         // TODO(apoms): validate sampler functions
         if (sample.column_names().size() == 0) {
-          LOG(WARNING) << "Task" << task.output_table_name() << " tried to "
-                       << "sample zero columns from table "
-                       << sample.table_name()
-                       << ". TableSample must sample at least one column";
-          result->set_success(false);
+          RESULT_ERROR(result,
+                       "Task %s tried to sample zero columns from table %s. "
+                       "TableSample must sample at least one column",
+                       task.output_table_name().c_str(),
+                       sample.table_name().c_str());
+          return;
         }
       }
     }
@@ -90,7 +96,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
         if (op.name() != "InputTable") {
           RESULT_ERROR(result, "First Op is %s but must be Op InputTable",
                        op.name().c_str());
-          break;
+          return;
         }
         op_outputs.emplace_back();
         for (auto& input : op.inputs()) {
@@ -105,6 +111,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
         op_outputs.emplace_back();
         if (!op_registry->has_op(op.name())) {
           RESULT_ERROR(result, "Op %s is not registered.", op.name().c_str());
+          return;
         } else {
           for (auto& col :
                op_registry->get_op_info(op.name())->output_columns()) {
@@ -117,6 +124,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                        "%s but no such kernel exists.",
                        op.name().c_str(), op_idx,
                        (op.device_type() == DeviceType::CPU ? "CPU" : "GPU"));
+          return;
         }
       }
       i32 input_count = 0;
@@ -126,6 +134,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                        "Op %s at index %d referenced input index %d."
                        "Ops must be specified in topo sort order.",
                        op.name().c_str(), op_idx, input.op_index());
+          return;
         } else {
           std::string& input_op_name = op_names.at(input.op_index());
           std::vector<std::string>& inputs = op_outputs.at(input.op_index());
@@ -145,6 +154,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                            "requsted column.",
                            op.name().c_str(), op_idx, col.c_str(),
                            input_op_name.c_str(), input.op_index());
+          return;
             }
           }
         }
@@ -162,6 +172,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                 result,
                 "Op %s at index %d expects %d input columns, but received %d",
                 op.name().c_str(), op_idx, expected_inputs, input_count);
+            return;
           }
         }
 
@@ -177,6 +188,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
               "declared to support stenciling. Add .stencil() to the Op "
               "declaration to support stenciling.",
               op.name().c_str(), op_idx);
+          return;
         }
         // Check that a stencil is not set on a non-stenciling kernel
         if (!factory->can_batch() && op.batch() > 1) {
@@ -186,6 +198,7 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
               "that Op was not declared to support batching. Add .batch() to "
               "the Kernel declaration to support batching.",
               op.name().c_str(), op_idx);
+          return;
         }
       }
       op_idx++;
@@ -196,14 +209,17 @@ void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
                    "an InputTable Op, any other Op, and an OutputTable Op. "
                    "However, only %lu Ops were specified.",
                    op_names.size());
+      return;
     } else {
       if (op_names.front() != "InputTable") {
         RESULT_ERROR(result, "First Op is %s but must be InputTable",
                      op_names.front().c_str());
+        return;
       }
       if (op_names.back() != "OutputTable") {
         RESULT_ERROR(result, "Last Op is %s but must be OutputTable",
                      op_names.back().c_str());
+        return;
       }
     }
   }
@@ -286,6 +302,16 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
 
 MasterImpl::~MasterImpl() {
   trigger_shutdown_.set();
+  // Wake up job processor
+  {
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    active_job_ = true;
+  }
+  active_cv_.notify_all();
+
+  if (job_processor_thread_.joinable()) {
+    job_processor_thread_.join();
+  }
   if (watchdog_thread_.joinable()) {
     watchdog_thread_.join();
   }
@@ -342,7 +368,15 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
         << status.error_code() << "): " << status.error_message();
   }
 
-  if (active_job_) {
+  if (!finished_) {
+    // Update locals
+    std::vector<std::string> split_addr = split(worker_address, ':');
+    std::string sans_port = split_addr[0];
+    if (local_totals_.count(sans_port) == 0) {
+      local_totals_[sans_port] = 0;
+    }
+    local_totals_[sans_port] += 1;
+
     start_job_on_worker(node_id, worker_address);
   }
 
@@ -478,6 +512,7 @@ grpc::Status MasterImpl::FinishedWork(
     grpc::ServerContext* context, const proto::FinishedWorkParameters* params,
     proto::Empty* empty) {
   std::unique_lock<std::mutex> lk(work_mutex_);
+  VLOG(1) << "Master received FinishedWork command";
 
   i32 worker_id = params->node_id();
   i64 task_id = params->task_id();
@@ -511,12 +546,13 @@ grpc::Status MasterImpl::FinishedWork(
   }
 
   if (total_samples_used_ == total_samples_) {
+    VLOG(1) << "Master FinishedWork triggered finished!";
     assert(next_task_ == num_tasks_);
     {
       std::unique_lock<std::mutex> lock(finished_mutex_);
       finished_ = true;
     }
-    finished_cv_.notify_one();
+    finished_cv_.notify_all();
   }
 
   return grpc::Status::OK;
@@ -529,8 +565,187 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
+  job_params_.Clear();
+  job_params_.MergeFrom(*job_params);
+  {
+    std::unique_lock<std::mutex> lock(finished_mutex_);
+    finished_ = false;
+  }
+  finished_cv_.notify_one();
+
+  {
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    active_job_ = true;
+  }
+  active_cv_.notify_all();
+
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::IsJobDone(grpc::ServerContext* context,
+                                   const proto::Empty* empty,
+                                   proto::JobResult* job_result) {
+  VLOG(1) << "Master received IsJobDone command";
+  std::unique_lock<std::mutex> lock(active_mutex_);
+  if (!active_job_) {
+    job_result->set_finished(true);
+    job_result->mutable_result()->CopyFrom(job_result_);
+  } else {
+    job_result->set_finished(false);
+  }
+  return grpc::Status::OK;
+}
+
+
+grpc::Status MasterImpl::Ping(grpc::ServerContext* context,
+                              const proto::Empty* empty1,
+                              proto::Empty* empty2) {
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
+                                   const proto::OpInfoArgs* op_info_args,
+                                   proto::OpInfo* op_info) {
+  OpRegistry* registry = get_op_registry();
+  std::string op_name = op_info_args->op_name();
+  if (!registry->has_op(op_name)) {
+    op_info->mutable_result()->set_success(false);
+    op_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
+    return grpc::Status::OK;
+  }
+
+  OpInfo* info = registry->get_op_info(op_name);
+
+  op_info->set_variadic_inputs(info->variadic_inputs());
+  for (auto& input_column : info->input_columns()) {
+    Column* info = op_info->add_input_columns();
+    info->CopyFrom(input_column);
+  }
+  for (auto& output_column : info->output_columns()) {
+    Column* info = op_info->add_output_columns();
+    info->CopyFrom(output_column);
+  }
+  op_info->mutable_result()->set_success(true);
+
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
+                                const proto::OpPath* op_path, Result* result) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+  const std::string& so_path = op_path->path();
+  {
+    std::ifstream infile(so_path);
+    if (!infile.good()) {
+      RESULT_ERROR(result, "Op library was not found: %s", so_path.c_str());
+      return grpc::Status::OK;
+    }
+  }
+
+  void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  if (handle == nullptr) {
+    RESULT_ERROR(result, "Failed to load op library: %s", dlerror());
+    return grpc::Status::OK;
+  }
+  so_paths_.push_back(so_path);
+
+  for (auto& kv : worker_active_) {
+    if (kv.second) {
+      auto& worker = workers_[kv.first];
+      grpc::ClientContext ctx;
+      proto::Empty empty;
+      worker->LoadOp(&ctx, *op_path, &empty);
+    }
+  }
+
+  result->set_success(true);
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::Shutdown(grpc::ServerContext* context,
+                                  const proto::Empty* empty, Result* result) {
+  VLOG(1) << "Master received shutdown!";
+  result->set_success(true);
+  trigger_shutdown_.set();
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
+                                      const proto::Empty* empty,
+                                      proto::Empty* result) {
+  watchdog_awake_ = true;
+  for (auto& kv : worker_active_) {
+    if (kv.second) {
+      auto& w = workers_.at(kv.first);
+      grpc::ClientContext ctx;
+      proto::Empty empty;
+      proto::Empty empty2;
+      w->PokeWatchdog(&ctx, empty, &empty2);
+    }
+  }
+  return grpc::Status::OK;
+}
+
+void MasterImpl::start_job_processor() {
+  job_processor_thread_ = std::thread([this]() {
+      while (!trigger_shutdown_.raised()) {
+        // Wait on not finished
+        {
+          std::unique_lock<std::mutex> lock(active_mutex_);
+          active_cv_.wait(lock, [this] { return active_job_; });
+        }
+        if (trigger_shutdown_.raised()) break;
+        // Start processing job
+        bool result = process_job(&job_params_, &job_result_);
+      }
+    });
+}
+
+void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
+                                i32 timeout_ms) {
+  watchdog_thread_ = std::thread([this, server, enable_timeout, timeout_ms]() {
+    double time_since_check = 0;
+    // Wait until shutdown is triggered or watchdog isn't woken up
+    if (!enable_timeout) {
+      trigger_shutdown_.wait();
+    }
+    while (!trigger_shutdown_.raised()) {
+      auto sleep_start = now();
+      trigger_shutdown_.wait_for(timeout_ms);
+      time_since_check += nano_since(sleep_start) / 1e6;
+      if (time_since_check > timeout_ms) {
+        if (!watchdog_awake_) {
+          // Watchdog not woken, time to bail out
+          LOG(ERROR) << "Master did not receive heartbeat in " << timeout_ms
+                     << "ms. Shutting down.";
+          trigger_shutdown_.set();
+        }
+        watchdog_awake_ = false;
+        time_since_check = 0;
+      }
+    }
+    // Shutdown workers
+    std::vector<i32> worker_ids;
+    {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      for (auto& kv : workers_) {
+        worker_ids.push_back(kv.first);
+      }
+    }
+    for (i32 i : worker_ids) {
+      grpc::ClientContext ctx;
+      proto::Empty empty;
+      proto::Result wresult;
+      workers_.at(i)->Shutdown(&ctx, empty, &wresult);
+    }
+    // Shutdown self
+    server->Shutdown();
+  });
+}
+
+bool MasterImpl::process_job(const proto::JobParameters* job_params,
+                             proto::Result* job_result) {
   // Reset job state
-  active_job_ = true;
   unallocated_task_samples_.clear();
   next_task_ = 0;
   num_tasks_ = -1;
@@ -547,32 +762,45 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   statuses_.clear();
   replies_.clear();
   rpcs_.clear();
-  finished_ = false;
+  total_samples_used_ = 0;
+  total_samples_ = 0;
 
-  job_params_.CopyFrom(*job_params);
+  job_result->set_success(true);
+
+  auto finished_fn = [this]() {
+    {
+      std::unique_lock<std::mutex> lock(finished_mutex_);
+      finished_ = true;
+    }
+    finished_cv_.notify_all();
+    {
+      std::unique_lock<std::mutex> lock(finished_mutex_);
+      active_job_ = false;
+    }
+    active_cv_.notify_all();
+  };
 
   const i32 io_item_size = job_params->io_item_size();
   const i32 work_item_size = job_params->work_item_size();
   if (io_item_size > 0 && io_item_size % work_item_size != 0) {
     RESULT_ERROR(job_result,
                  "IO packet size must be a multiple of Work packet size.");
-    active_job_ = false;
-    return grpc::Status::OK;
+    finished_fn();
+    return false;
   }
 
   i32 warmup_size = 0;
   i32 total_rows = 0;
 
-  meta_ =
-      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+  meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   DatabaseMetadata meta_copy =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
   validate_task_set(meta_, job_params->task_set(), job_result);
   if (!job_result->success()) {
     // No database changes made at this point, so just return
-    active_job_ = false;
-    return grpc::Status::OK;
+    finished_fn();
+    return false;
   }
 
   // Setup table metadata cache
@@ -649,8 +877,6 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   i64 min_stencil, max_stencil;
   std::tie(min_stencil, max_stencil) =
       determine_stencil_bounds(job_params->task_set());
-  total_samples_used_ = 0;
-  total_samples_ = 0;
   for (auto& task : job_params->task_set().tasks()) {
     i32 table_id = meta_.add_table(task.output_table_name());
     proto::TableDescriptor table_desc;
@@ -683,8 +909,8 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   }
   if (!job_result->success()) {
     // No database changes made at this point, so just return
-    active_job_ = false;
-    return grpc::Status::OK;
+    finished_fn();
+    return false;
   }
 
   // Write out database metadata so that workers can read it
@@ -782,142 +1008,15 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
   std::fflush(NULL);
   sync();
 
-  active_job_ = false;
-  VLOG(1) << "Master finished NewJob";
-  return grpc::Status::OK;
-}
+  finished_fn();
 
-grpc::Status MasterImpl::Ping(grpc::ServerContext* context,
-                              const proto::Empty* empty1,
-                              proto::Empty* empty2) {
-  return grpc::Status::OK;
-}
-
-grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
-                                   const proto::OpInfoArgs* op_info_args,
-                                   proto::OpInfo* op_info) {
-  OpRegistry* registry = get_op_registry();
-  std::string op_name = op_info_args->op_name();
-  if (!registry->has_op(op_name)) {
-    op_info->mutable_result()->set_success(false);
-    op_info->mutable_result()->set_msg("Op " + op_name + " does not exist");
-    return grpc::Status::OK;
-  }
-
-  OpInfo* info = registry->get_op_info(op_name);
-
-  op_info->set_variadic_inputs(info->variadic_inputs());
-  for (auto& input_column : info->input_columns()) {
-    Column* info = op_info->add_input_columns();
-    info->CopyFrom(input_column);
-  }
-  for (auto& output_column : info->output_columns()) {
-    Column* info = op_info->add_output_columns();
-    info->CopyFrom(output_column);
-  }
-  op_info->mutable_result()->set_success(true);
-
-  return grpc::Status::OK;
-}
-
-grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
-                                const proto::OpPath* op_path, Result* result) {
-  std::unique_lock<std::mutex> lk(work_mutex_);
-  const std::string& so_path = op_path->path();
-  {
-    std::ifstream infile(so_path);
-    if (!infile.good()) {
-      RESULT_ERROR(result, "Op library was not found: %s", so_path.c_str());
-      return grpc::Status::OK;
-    }
-  }
-
-  void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
-  if (handle == nullptr) {
-    RESULT_ERROR(result, "Failed to load op library: %s", dlerror());
-    return grpc::Status::OK;
-  }
-  so_paths_.push_back(so_path);
-
-  for (auto& kv : worker_active_) {
-    if (kv.second) {
-      auto& worker = workers_[kv.first];
-      grpc::ClientContext ctx;
-      proto::Empty empty;
-      worker->LoadOp(&ctx, *op_path, &empty);
-    }
-  }
-
-  result->set_success(true);
-  return grpc::Status::OK;
-}
-
-grpc::Status MasterImpl::Shutdown(grpc::ServerContext* context,
-                                  const proto::Empty* empty, Result* result) {
-  VLOG(1) << "Master received shutdown!";
-  result->set_success(true);
-  trigger_shutdown_.set();
-  return grpc::Status::OK;
-}
-
-grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
-                                      const proto::Empty* empty,
-                                      proto::Empty* result) {
-  watchdog_awake_ = true;
-  for (auto& kv : worker_active_) {
-    if (kv.second) {
-      auto& w = workers_.at(kv.first);
-      grpc::ClientContext ctx;
-      proto::Empty empty;
-      proto::Empty empty2;
-      w->PokeWatchdog(&ctx, empty, &empty2);
-    }
-  }
-  return grpc::Status::OK;
-}
-
-void MasterImpl::start_watchdog(grpc::Server* server, i32 timeout_ms) {
-  watchdog_thread_ = std::thread([this, server, timeout_ms]() {
-    double time_since_check = 0;
-    // Wait until shutdown is triggered or watchdog isn't woken up
-    while (!trigger_shutdown_.raised()) {
-      auto sleep_start = now();
-      trigger_shutdown_.wait_for(timeout_ms);
-      time_since_check += nano_since(sleep_start) / 1e6;
-      if (time_since_check > timeout_ms) {
-        if (!watchdog_awake_) {
-          // Watchdog not woken, time to bail out
-          LOG(ERROR) << "Master did not receive heartbeat in " << timeout_ms
-                     << "ms. Shutting down.";
-          trigger_shutdown_.set();
-        }
-        watchdog_awake_ = false;
-        time_since_check = 0;
-      }
-    }
-    // Shutdown workers
-    std::vector<i32> worker_ids;
-    {
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      for (auto& kv : workers_) {
-        worker_ids.push_back(kv.first);
-      }
-    }
-    for (i32 i : worker_ids) {
-      grpc::ClientContext ctx;
-      proto::Empty empty;
-      proto::Result wresult;
-      workers_.at(i)->Shutdown(&ctx, empty, &wresult);
-    }
-    // Shutdown self
-    server->Shutdown();
-  });
+  VLOG(1) << "Master finished job";
 }
 
 void MasterImpl::start_job_on_worker(i32 worker_id,
                                      const std::string& address) {
   proto::JobParameters w_job_params;
-  w_job_params.CopyFrom(job_params_);
+  w_job_params.MergeFrom(job_params_);
 
   auto& worker = workers_.at(worker_id);
   std::vector<std::string> split_addr = split(address, ':');
@@ -987,7 +1086,19 @@ void MasterImpl::remove_worker(i32 node_id) {
   // Remove worker from list
   worker_active_[node_id] = false;
 
-  stop_job_on_worker(node_id);
+  {
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    if (active_job_ && client_contexts_.count(node_id) > 0) {
+      stop_job_on_worker(node_id);
+    }
+  }
+
+  // Update locals
+  std::vector<std::string> split_addr = split(worker_address, ':');
+  std::string sans_port = split_addr[0];
+  assert(local_totals_.count(sans_port) > 0);
+  local_totals_[sans_port] -= 1;
+  local_ids_[sans_port] -= 1;
 
   VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 
