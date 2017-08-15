@@ -48,6 +48,9 @@ class WorkerImpl final : public proto::Worker::Service {
   grpc::Status PokeWatchdog(grpc::ServerContext* context,
                             const proto::Empty* empty, proto::Empty* result);
 
+  grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty,
+                    proto::Empty* result);
+
   void start_watchdog(grpc::Server* server, bool enable_timeout,
                       i32 timeout_ms = 50000);
 

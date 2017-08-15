@@ -286,9 +286,9 @@ def fault_db():
             vid2_path])
 
 
-def test_fault_tolerance(fault_db):
+def test_clean_worker_shutdown(fault_db):
     spawn_port = 5010
-    def worker_killer_task(config, master_address, worker_address):
+    def worker_shutdown_task(config, master_address, worker_address):
         from scannerpy import ProtobufGenerator, Config, start_worker
         import time
         import grpc
@@ -330,17 +330,109 @@ def test_fault_tolerance(fault_db):
 
     master_addr = fault_db._master_address
     worker_addr = fault_db._worker_addresses[0]
+    shutdown_process = Process(target=worker_shutdown_task,
+                             args=(fault_db.config, master_addr, worker_addr))
+    shutdown_process.daemon = True
+    shutdown_process.start()
+
+    frame = fault_db.table('test1').as_op().range(0, 15, task_size=1)
+    sleep_frame = fault_db.ops.SleepFrame(ignore = frame)
+    job = Job(columns = [sleep_frame], name = 'test_shutdown')
+    table = fault_db.run(job, pipeline_instances_per_node=1, force=True,
+                         show_progress=False)
+    assert len([_ for _, _ in table.column('dummy').load()]) == 15
+
+    # Shutdown the spawned worker
+    channel = grpc.insecure_channel(
+        'localhost:' + str(spawn_port),
+        options=[('grpc.max_message_length', 24499183 * 2)])
+    worker = fault_db.protobufs.WorkerStub(channel)
+
+    try:
+        worker.Shutdown(fault_db.protobufs.Empty())
+    except grpc.RpcError as e:
+        status = e.code()
+        if status == grpc.StatusCode.UNAVAILABLE:
+            print('could not shutdown worker!')
+            exit(1)
+        else:
+            raise ScannerException('Worker errored with status: {}'
+                                   .format(status))
+    shutdown_process.join()
+
+
+def test_fault_tolerance(fault_db):
+    spawn_port = 5010
+    def worker_killer_task(config, master_address, worker_address):
+        from scannerpy import ProtobufGenerator, Config, start_worker
+        import time
+        import grpc
+        import subprocess
+        import signal
+        import os
+
+        c = Config(None)
+
+        import scanner.metadata_pb2 as metadata_types
+        import scanner.engine.rpc_pb2 as rpc_types
+        import scanner.types_pb2 as misc_types
+        import libscanner as bindings
+
+        protobufs = ProtobufGenerator(config)
+
+        # Kill worker
+        channel = grpc.insecure_channel(
+            worker_address,
+            options=[('grpc.max_message_length', 24499183 * 2)])
+        worker = protobufs.WorkerStub(channel)
+
+        try:
+            worker.Shutdown(protobufs.Empty())
+        except grpc.RpcError as e:
+            status = e.code()
+            if status == grpc.StatusCode.UNAVAILABLE:
+                print('could not shutdown worker!')
+                exit(1)
+            else:
+                raise ScannerException('Worker errored with status: {}'
+                                       .format(status))
+
+        # Spawn a worker that we will force kill
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        with open(os.devnull, 'w') as fp:
+            p = subprocess.Popen(
+                ['python ' +  script_dir + '/spawn_worker.py'],
+                shell=True,
+                stdout=fp, stderr=fp,
+                preexec_fn=os.setsid)
+
+            # Wait a bit for the worker to do its thing
+            time.sleep(10)
+
+            # Force kill worker process to trigger fault tolerance
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM) 
+            p.communicate()
+
+            # Wait for fault tolerance to kick in
+            time.sleep(25)
+
+            # Spawn the worker again
+            subprocess.call(['python ' +  script_dir + '/spawn_worker.py'],
+                            shell=True)
+
+    master_addr = fault_db._master_address
+    worker_addr = fault_db._worker_addresses[0]
     killer_process = Process(target=worker_killer_task,
                              args=(fault_db.config, master_addr, worker_addr))
     killer_process.daemon = True
     killer_process.start()
 
-    frame = fault_db.table('test1').as_op().range(0, 15, task_size=1)
+    frame = fault_db.table('test1').as_op().range(0, 20, task_size=1)
     sleep_frame = fault_db.ops.SleepFrame(ignore = frame)
-    job = Job(columns = [sleep_frame], name = 'test_sleep')
+    job = Job(columns = [sleep_frame], name = 'test_fault')
     table = fault_db.run(job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
-    assert len([_ for _, _ in table.column('dummy').load()]) == 15
+    assert len([_ for _, _ in table.column('dummy').load()]) == 20
 
     # Shutdown the spawned worker
     channel = grpc.insecure_channel(
