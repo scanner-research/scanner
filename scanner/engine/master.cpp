@@ -963,6 +963,41 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
     }
   }
 
+  // Ping workers every 10 seconds to make sure they are alive
+  while (!finished_) {
+    std::map<i32, proto::Worker::Stub*> ws;
+    {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      for (auto& kv : workers_) {
+        i32 worker_id = kv.first;
+        auto& worker = kv.second;
+        if (!worker_active_[worker_id]) continue;
+
+        ws.insert({worker_id, kv.second.get()});
+      }
+    }
+
+    for (auto& kv : ws) {
+      i32 worker_id = kv.first;
+      auto& worker = kv.second;
+
+      grpc::ClientContext ctx;
+      proto::Empty empty1;
+      proto::Empty empty2;
+      grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
+      if (!status.ok()) {
+        // Worker not responding, remove it from active workers
+        LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
+                     << "Removing worker from active list.";
+        remove_worker(worker_id);
+      }
+    }
+    // FIXME(apoms): this sleep is unfortunate because it means a
+    //               job must take at least this long. A solution
+    //               would be to put it in a separate thread.
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+  }
+
   // Wait for all workers to finish
   VLOG(1) << "Waiting for workers to finish";
 
@@ -1096,11 +1131,11 @@ void MasterImpl::remove_worker(i32 node_id) {
   }
 
   // Update locals
-  std::vector<std::string> split_addr = split(worker_address, ':');
+  /*std::vector<std::string> split_addr = split(worker_address, ':');
   std::string sans_port = split_addr[0];
   assert(local_totals_.count(sans_port) > 0);
   local_totals_[sans_port] -= 1;
-  local_ids_[sans_port] -= 1;
+  local_ids_[sans_port] -= 1;*/
 
   VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 
