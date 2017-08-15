@@ -692,7 +692,9 @@ void MasterImpl::start_job_processor() {
         // Wait on not finished
         {
           std::unique_lock<std::mutex> lock(active_mutex_);
-          active_cv_.wait(lock, [this] { return active_job_; });
+          active_cv_.wait(lock, [this] {
+            return active_job_ || trigger_shutdown_.raised();
+          });
         }
         if (trigger_shutdown_.raised()) break;
         // Start processing job
