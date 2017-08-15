@@ -161,6 +161,7 @@ class MasterImpl final : public proto::Master::Service {
     i64 tasks_retired;
   };
   std::map<i64, WorkerHistory> worker_histories_;
+  std::map<i32, bool> unfinished_workers_;
 
   // Worker connections
   std::map<std::string, i32> local_ids_;
