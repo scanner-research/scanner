@@ -1352,11 +1352,20 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                    node_id_);
       break;
     }
+    // We batch up retired tasks to avoid sync overhead
+    std::vector<std::tuple<i32, i64, i64>> batched_retired_tasks;
     while (retired_tasks.size() > 0) {
       // Pull retired tasks
       std::tuple<i32, i64, i64> task_retired;
       retired_tasks.pop(task_retired);
-
+      batched_retired_tasks.push_back(task_retired);
+    }
+    if (!batched_retired_tasks.empty()) {
+      // Make sure the retired tasks were flushed to disk before confirming
+      std::fflush(NULL);
+      sync();
+    }
+    for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
       // Inform master that this task was finished
       grpc::ClientContext context;
       proto::FinishedWorkParameters params;
@@ -1690,6 +1699,12 @@ grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
                                       const proto::Empty* empty,
                                       proto::Empty* result) {
   watchdog_awake_ = true;
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
+                              const proto::Empty* empty1,
+                              proto::Empty* empty2) {
   return grpc::Status::OK;
 }
 

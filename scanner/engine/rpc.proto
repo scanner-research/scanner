@@ -27,6 +27,7 @@ service Worker {
   rpc LoadOp (OpPath) returns (Empty) {}
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
+  rpc Ping (Empty) returns (Empty) {}
 }
 
 message Empty {}
