@@ -316,6 +316,7 @@ MasterImpl::~MasterImpl() {
     watchdog_thread_.join();
   }
   delete storage_;
+  cq_.Shutdown();
 }
 
 // Expects context->peer() to return a string in the format
@@ -758,6 +759,7 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   task_result_.set_success(true);
   active_task_samples_.clear();
   worker_histories_.clear();
+  unfinished_workers_.clear();
   local_ids_.clear();
   local_totals_.clear();
   client_contexts_.clear();
@@ -1001,32 +1003,49 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   // Wait for all workers to finish
   VLOG(1) << "Waiting for workers to finish";
 
-  {
-    // Wait until all workers are done and work has been completed
-    while (!finished_) {
-      void* got_tag;
-      bool ok = false;
-      GPR_ASSERT(cq_.Next(&got_tag, &ok));
-      // GPR_ASSERT((i64)got_tag < workers_.size());
-      assert(ok);
+  auto check_worker_fn = [&]() {
+    void* got_tag;
+    bool ok = false;
+    GPR_ASSERT(cq_.Next(&got_tag, &ok));
+    // GPR_ASSERT((i64)got_tag < workers_.size());
+    assert(ok);
 
-      i64 worker_id = (i64)got_tag;
-      VLOG(2) << "Worker " << worker_id << " finished.";
+    i64 worker_id = (i64)got_tag;
+    VLOG(2) << "Worker " << worker_id << " finished.";
 
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      if (worker_active_[worker_id] && !replies_[worker_id]->success()) {
-        LOG(WARNING) << "Worker " << worker_id
-                     << " returned error: " << replies_[worker_id]->msg();
-        job_result->set_success(false);
-        job_result->set_msg(replies_[worker_id]->msg());
-        next_task_ = num_tasks_;
-      }
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    if (worker_active_[worker_id] && !replies_[worker_id]->success()) {
+      LOG(WARNING) << "Worker " << worker_id
+                   << " returned error: " << replies_[worker_id]->msg();
+      job_result->set_success(false);
+      job_result->set_msg(replies_[worker_id]->msg());
+      next_task_ = num_tasks_;
     }
+    unfinished_workers_[worker_id] = false;
+  };
+  // Wait until all workers are done and work has been completed
+  while (!finished_) {
+    check_worker_fn();
   }
 
   {
     std::unique_lock<std::mutex> lock(finished_mutex_);
     finished_cv_.wait(lock, [this] { return finished_; });
+  }
+  // Get responses for all active workers that we have not gotten responses
+  // for yet
+  i32 num_unfinished = 0;
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    for (auto& kv : unfinished_workers_) {
+      i32 worker_id = kv.first;
+      if (kv.second && worker_active_[worker_id]) {
+        num_unfinished++;
+      }
+    }
+  }
+  for (int i = 0; i < num_unfinished; ++i) {
+    check_worker_fn();
   }
 
   if (!job_result->success()) {
@@ -1072,6 +1091,7 @@ void MasterImpl::start_job_on_worker(i32 worker_id,
   worker_histories_[worker_id].start_time = now();
   worker_histories_[worker_id].tasks_assigned = 0;
   worker_histories_[worker_id].tasks_retired = 0;
+  unfinished_workers_[worker_id] = true;
   VLOG(2) << "Sent NewJob command to worker " << worker_id;
 }
 
@@ -1106,6 +1126,7 @@ void MasterImpl::stop_job_on_worker(i32 worker_id) {
   }
 
   worker_histories_[worker_id].end_time = now();
+  unfinished_workers_[worker_id] = false;
 
   // Remove async job command data
   assert(client_contexts_.count(worker_id) > 0);
