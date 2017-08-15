@@ -807,21 +807,6 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
 WorkerImpl::~WorkerImpl() {
   State state = state_.get();
-  switch (state) {
-    case State::RUNNING_JOB: {
-      // Trigger shutdown will inform the job to stop
-      break;
-    }
-    case State::SHUTTING_DOWN: {
-      break;
-    }
-    case State::INITIALIZING: {
-      break;
-    }
-    case State::IDLE: {
-      break;
-    }
-  }
   state_.set(State::SHUTTING_DOWN);
 
   try_unregister();
