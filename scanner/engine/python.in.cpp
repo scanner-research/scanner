@@ -113,14 +113,15 @@ Result wait_for_server_shutdown_wrapper(Database& db) {
 
 Result new_table_wrapper(Database& db, const std::string& name,
                          const py::list columns, const py::list rows) {
-  GILRelease r;
   std::vector<py::list> rows_py1 = to_std_vector<py::list>(rows);
   std::vector<std::vector<std::string>> rows_py2;
   for (auto l : rows_py1) {
     rows_py2.push_back(to_std_vector<std::string>(l));
   }
+  std::vector<std::string> columns_py = to_std_vector<std::string>(columns);
 
-  return db.new_table(name, to_std_vector<std::string>(columns), rows_py2);
+  GILRelease r;
+  return db.new_table(name, columns_py, rows_py2);
 }
 
 boost::shared_ptr<Database> initWrapper(storehouse::StorageConfig* sc,
