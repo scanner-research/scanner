@@ -714,7 +714,7 @@ class Database:
                 raise ScannerException('Attempted to create table with existing '
                                        'name {}'.format(name))
         if fn is not None:
-            rows = [fn(row) for row in rows]
+            rows = [fn(row, self) for row in rows]
         cols = copy.copy(columns)
         cols.insert(0, "index")
         for i, row in enumerate(rows):

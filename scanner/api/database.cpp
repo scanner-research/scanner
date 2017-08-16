@@ -357,15 +357,22 @@ Result Database::new_table(const std::string& table_name,
     const std::string output_path =
         internal::table_item_output_path(table_id, j, 0);
 
+    const std::string output_metadata_path =
+        internal::table_item_metadata_path(table_id, j, 0);
+
     std::unique_ptr<storehouse::WriteFile> output_file;
     storehouse::make_unique_write_file(storage_.get(), output_path,
                                        output_file);
 
+    std::unique_ptr<storehouse::WriteFile> output_metadata_file;
+    storehouse::make_unique_write_file(storage_.get(), output_metadata_path,
+                                       output_metadata_file);
+
     u64 num_rows = rows.size();
-    s_write(output_file.get(), num_rows);
+    s_write(output_metadata_file.get(), num_rows);
     for (size_t i = 0; i < num_rows; ++i) {
-      i64 buffer_size = rows[i][j].size();
-      s_write(output_file.get(), buffer_size);
+      u64 buffer_size = rows[i][j].size();
+      s_write(output_metadata_file.get(), buffer_size);
     }
     for (size_t i = 0; i < num_rows; ++i) {
       i64 buffer_size = rows[i][j].size();
@@ -374,6 +381,7 @@ Result Database::new_table(const std::string& table_name,
     }
 
     BACKOFF_FAIL(output_file->save());
+    BACKOFF_FAIL(output_metadata_file->save());
   }
 
   proto::Result result;
