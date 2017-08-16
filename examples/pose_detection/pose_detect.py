@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType, Job
-from scannerpy.stdlib import NetDescriptor, parsers, bboxes
+from scannerpy.stdlib import NetDescriptor, parsers, pipelines
 import math
 import os
 import subprocess
@@ -12,41 +12,19 @@ import util
 util.download_video()
 
 with Database() as db:
-
-    descriptor = NetDescriptor.from_file(db, 'nets/cpm2.toml')
-    cpm2_args = db.protobufs.CPM2Args()
-    cpm2_args.scale = 368.0/720.0
-    caffe_args = cpm2_args.caffe_args
-    caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
-    caffe_args.batch_size = 1
-
     video_path = util.download_video()
     if not db.has_table('example'):
         print('Ingesting video into Scanner ...')
         db.ingest_videos([('example', video_path)], force=True)
     input_table = db.table('example')
 
-    frame = input_table.as_op().all(item_size = 50)
-    frame_info = db.ops.InfoFromFrame(frame = frame)
-    cpm2_input = db.ops.CPM2Input(
-        frame = frame,
-        args = cpm2_args,
-        device = DeviceType.GPU)
-    cpm2_resized_map, cpm2_joints = db.ops.CPM2(
-        cpm2_input = cpm2_input,
-        args = cpm2_args,
-        device = DeviceType.GPU)
-    poses = db.ops.CPM2Output(
-        cpm2_resized_map = cpm2_resized_map,
-        cpm2_joints = cpm2_joints,
-        original_frame_info = frame_info,
-        args = cpm2_args)
-
-    job = Job(columns = [poses], name = 'example_poses')
-    output = db.run(job, True)
+    poses_table = pipelines.detect_poses(
+        db, [input_table], lambda t: t.range(0, 100, task_size = 25),
+        'example_poses',
+        height = 360)[0]
 
     print('Extracting frames...')
-    video_poses = [pose for (_, pose) in output.columns('poses').load(parsers.poses)]
+    video_poses = [pose for (_, pose) in poses_table.columns('poses').load(parsers.poses)]
     video_frames = [f[0] for _, f in db.table('example').load(['frame'])]
 
     print('Writing output video...')
@@ -59,8 +37,8 @@ with Database() as db:
 
     for (frame, frame_poses) in zip(video_frames, video_poses):
         for pose in frame_poses:
-            for i in range(15):
-                if pose[i, 2] < 0.1: continue
+            for i in range(18):
+                if pose[i, 2] < 0.25: continue
                 cv2.circle(
                     frame,
                     (int(pose[i, 1]), int(pose[i, 0])),

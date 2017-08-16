@@ -23,9 +23,8 @@ def poses(buf, db):
     bodies = []
     for i in range(num_bodies):
         (num_joints,) = struct.unpack("=Q", buf[:8])
-        assert(num_joints == 15)
         buf = buf[8:]
-        joints = np.zeros((15, 3))
+        joints = np.zeros((num_joints, 3))
         for i in range(num_joints):
             point_size, = struct.unpack("=Q", buf[:8])
             buf = buf[8:]
