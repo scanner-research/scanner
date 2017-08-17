@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import parsers
 import copy
+from collections import defaultdict
 
 def scale_pose(pose, scale):
     new_pose = pose.copy()
@@ -22,53 +23,30 @@ def nms(orig_poses, overlapThresh):
     # if the bounding boxes integers, convert them to floats --
     # this is important since we'll be doing a bunch of divisions
 
-    # initialize the list of picked indexes
-    pick = []
+    num_joints = poses[0].shape[0]
 
-    # Keypoints: nose, neck, right eye, left eye, right ear, left ear
-    head_joints = [0, 1, 14, 15, 16, 17]
-    # compute the convex hull of the head
     max_boxes = len(poses)
-    x1 = np.zeros(shape=(max_boxes))
-    y1 = np.zeros(shape=(max_boxes))
-    x2 = np.zeros(shape=(max_boxes))
-    y2 = np.zeros(shape=(max_boxes))
-    score = np.zeros(shape=(max_boxes))
-    num_valid = 0
-    for pi in range(len(poses)):
-        temp_x1 = 100000.0
-        temp_y1 = 100000.0
-        temp_x2 = -100000.0
-        temp_y2 = -100000.0
-        temp_score = 0.0
-        pose = poses[pi]
-        for j in head_joints:
-            s = pose[j,2]
-            if s > 0.2:
-                temp_x1 = min(temp_x1, pose[j,1])
-                temp_y1 = min(temp_y1, pose[j,0])
-                temp_x2 = max(temp_x2, pose[j,1])
-                temp_y2 = max(temp_y2, pose[j,0])
-                temp_score = max(temp_score, s)
-        if temp_x1 > temp_x2 or temp_y1 > temp_y2:
-            continue
-        x1[num_valid] = temp_x1
-        y1[num_valid] = temp_y1
-        x2[num_valid] = temp_x2
-        y2[num_valid] = temp_y2
-        score[num_valid] = temp_score
+    joints_4d = np.stack(poses, axis=2)
+    pose_scores = np.sum(joints_4d[:,2,:], axis=0)
+    num_joints_per_pose = np.sum(joints_4d[:,2,:] > 0.2, axis=0)
+    # sort by score
+    idxs = np.argsort(pose_scores)
+    idxs_orig = np.argsort(pose_scores)
 
-        num_valid += 1
+    # spatially hash joints into buckets
+    x_buckets = [defaultdict(set) for _ in range(num_joints)]
+    y_buckets = [defaultdict(set) for _ in range(num_joints)]
+    for i, idx in enumerate(idxs):
+        pose = poses[idx]
+        for pi in range(num_joints):
+            if pose[pi,2] > 0.2:
+                x_pos = pose[pi,1] - (pose[pi,1] % overlapThresh)
+                y_pos = pose[pi,0] - (pose[pi,0] % overlapThresh)
+                x_buckets[pi][x_pos].add(idx)
+                y_buckets[pi][y_pos].add(idx)
 
-    x1.resize((num_valid))
-    y1.resize((num_valid))
-    x2.resize((num_valid))
-    y2.resize((num_valid))
-    score.resize((num_valid))
-    # compute the area of the bounding boxes and sort the bounding
-    # boxes by the bottom-right y-coordinate of the bounding box
-    area = (x2 - x1 + 1) * (y2 - y1 + 1)
-    idxs = np.argsort(score)
+    # the list of picked indexes
+    pick = []
 
     # keep looping while some indexes still remain in the indexes
     # list
@@ -79,24 +57,31 @@ def nms(orig_poses, overlapThresh):
         i = idxs[last]
         pick.append(i)
 
-        # find the largest (x, y) coordinates for the start of
-        # the bounding box and the smallest (x, y) coordinates
-        # for the end of the bounding box
-        xx1 = np.maximum(x1[i], x1[idxs[:last]])
-        yy1 = np.maximum(y1[i], y1[idxs[:last]])
-        xx2 = np.minimum(x2[i], x2[idxs[:last]])
-        yy2 = np.minimum(y2[i], y2[idxs[:last]])
+        overlaps = defaultdict(int)
+        pose = poses[i]
+        for pi in range(num_joints):
+            if pose[pi,2] > 0.2:
+                x_pos = pose[pi,1] - (pose[pi,1] % overlapThresh)
+                y_pos = pose[pi,0] - (pose[pi,0] % overlapThresh)
 
-        # compute the width and height of the bounding box
-        w = np.maximum(0, xx2 - xx1 + 1)
-        h = np.maximum(0, yy2 - yy1 + 1)
+                x_set = x_buckets[pi][x_pos]
+                y_set = y_buckets[pi][y_pos]
+                both_set = x_set.intersection(y_set)
+                # Increment num overlaps for each joint
+                for idx in both_set:
+                    overlaps[idx] += 1
 
-        # compute the ratio of overlap
-        overlap = (w * h) / area[idxs[:last]]
+        duplicates = []
+        for idx, num_overlaps in overlaps.iteritems():
+            if num_overlaps >= min(3, num_joints_per_pose[idx]):
+                for ii, idx2 in enumerate(idxs):
+                    if idx == idx2:
+                        break
+                duplicates.append(ii)
 
         # delete all indexes from the index list that have
         idxs = np.delete(idxs, np.concatenate(
-            ([last], np.where(overlap > overlapThresh)[0])))
+            ([last], np.array(duplicates))))
 
     # return only the bounding boxes that were picked
     out_poses = []
