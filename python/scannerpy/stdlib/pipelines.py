@@ -166,7 +166,7 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
                 scale_factor = 1.0
                 for pose in all_poses[r][fi]:
                     frame_poses.append(poses.scale_pose(pose, scale_factor))
-            frame_poses = poses.nms(frame_poses, 0.1)
+            frame_poses = poses.nms(frame_poses, height * 0.2)
             nms_poses.append(frame_poses)
 
         return db.new_table(
