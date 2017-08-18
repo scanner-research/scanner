@@ -675,15 +675,45 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
                                       const proto::Empty* empty,
                                       proto::Empty* result) {
   watchdog_awake_ = true;
-  for (auto& kv : worker_active_) {
-    if (kv.second) {
-      auto& w = workers_.at(kv.first);
-      grpc::ClientContext ctx;
-      proto::Empty empty;
-      proto::Empty empty2;
-      w->PokeWatchdog(&ctx, empty, &empty2);
+
+  std::map<i32, proto::Worker::Stub*> ws;
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    for (auto& kv : workers_) {
+      i32 worker_id = kv.first;
+      auto& worker = kv.second;
+      if (!worker_active_[worker_id]) continue;
+
+      ws.insert({worker_id, kv.second.get()});
     }
   }
+
+  std::vector<grpc::ClientContext> contexts(ws.size());
+  std::vector<grpc::Status> statuses(ws.size());
+  std::vector<proto::Empty> results(ws.size());
+  std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Empty>>>
+      rpcs(ws.size());
+  grpc::CompletionQueue cq;
+  int i = 0;
+  for (auto& kv : ws) {
+    i64 id = kv.first;
+    auto& worker = kv.second;
+    proto::Empty em;
+    rpcs[i] = worker->AsyncPokeWatchdog(&contexts[i], em, &cq);
+    rpcs[i]->Finish(&results[i], &statuses[i], (void*)id);
+    i++;
+  }
+  for (int i = 0; i < ws.size(); ++i) {
+    void* got_tag;
+    bool ok = false;
+    GPR_ASSERT(cq.Next(&got_tag, &ok));
+    // GPR_ASSERT((i64)got_tag < workers_.size());
+    i64 worker_id = (i64)got_tag;
+    if (!ok) {
+      LOG(WARNING) << "Could not ping worker " << worker_id << "!";
+    }
+  }
+  cq.Shutdown();
   return grpc::Status::OK;
 }
 
