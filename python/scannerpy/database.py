@@ -693,8 +693,9 @@ class Database:
         idxs_to_delete.sort()
         for idx in reversed(idxs_to_delete):
             del db_meta.tables[idx]
-        self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
+        self._save_descriptor(db_meta, 'db_metadata.bin')
         self._cached_db_metadata = None
+        self._load_db_metadata()
 
     def delete_table(self, name):
         self.delete_tables([name])
@@ -740,7 +741,7 @@ class Database:
         if isinstance(name, basestring):
             table_id = None
             if name in self._table_name:
-                table_id = self._table_name[name]
+                table_id = db_meta.tables[self._table_name[name]].id
             if table_id is None:
                 raise ScannerException('Table with name {} not found'.format(name))
         elif isinstance(name, int):
