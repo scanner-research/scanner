@@ -308,6 +308,11 @@ MasterImpl::~MasterImpl() {
     active_job_ = true;
   }
   active_cv_.notify_all();
+  {
+    std::unique_lock<std::mutex> lock(finished_);
+    finished_ = true;
+  }
+  finished_cv_.notify_one();
 
   if (job_processor_thread_.joinable()) {
     job_processor_thread_.join();
@@ -538,7 +543,7 @@ grpc::Status MasterImpl::FinishedWork(
   // If there are no more samples left in the task, we can get rid of the
   // TaskSampler object (assuming it's not the active task)
   if (task_id != active_task && task_sampler_samples_left_.at(task_id) == 0) {
-    task_samplers_.erase(active_task);
+    task_samplers_.erase(task_id);
   }
 
   total_samples_used_++;
@@ -710,7 +715,7 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
     // GPR_ASSERT((i64)got_tag < workers_.size());
     i64 worker_id = (i64)got_tag;
     if (!ok) {
-      LOG(WARNING) << "Could not ping worker " << worker_id << "!";
+      LOG(WARNING) << "Could not poke worker " << worker_id << "!";
     }
   }
   cq.Shutdown();
