@@ -694,6 +694,7 @@ class Database:
         for idx in reversed(idxs_to_delete):
             del db_meta.tables[idx]
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
+        self._cached_db_metadata = None
 
     def delete_table(self, name):
         self.delete_tables([name])
@@ -774,7 +775,7 @@ class Database:
             op_info_args = self.protobufs.OpInfoArgs()
             op_info_args.op_name = op_name
 
-            op_info = self._try_rpc (lambda: self._master.GetOpInfo(op_info_args))
+            op_info = self._try_rpc(lambda: self._master.GetOpInfo(op_info_args))
 
             if not op_info.result.success:
                 raise ScannerException(op_info.result.msg)
