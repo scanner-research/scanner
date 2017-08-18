@@ -618,15 +618,16 @@ class Database:
             raise ScannerException('Must ingest at least one video.')
 
         [table_names, paths] = zip(*videos)
+        to_delete = []
         for table_name in table_names:
             if self.has_table(table_name):
                 if force is True:
-                    self._delete_table(table_name)
+                    to_delete.append(table_name)
                 else:
                     raise ScannerException(
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
-        self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
+        self.delete_tables(to_delete)
         ingest_params = self.protobufs.IngestParameters()
         ingest_params.table_names.extend(table_names)
         ingest_params.video_paths.extend(paths)
@@ -682,16 +683,19 @@ class Database:
             return True
         return False
 
-    def _delete_table(self, name):
+    def delete_tables(self, names):
         db_meta = self._load_db_metadata()
-        assert name in self._table_name
-        i = self._table_name[name]
-        del db_meta.tables[i]
-
-    def delete_table(self, name):
-        self._delete_table(name)
+        idxs_to_delete = []
+        for name in names:
+            assert name in self._table_name
+            idx_to_delete.append(self._table_name[name])
+        idxs_to_delete.sort()
+        for idx in reversed(idxs_to_delete):
+            del db_meta.tables[idx]
         self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
 
+    def delete_table(self, name):
+        self.delete_tables([name])
 
     def new_table(self, name, columns, rows, fn=None, force=False):
         """
@@ -968,14 +972,15 @@ class Database:
                         t.name().split(':')[-1])
                     tasks.append(t_task)
 
+        to_delete = []
         for task in tasks:
             if self.has_table(task.output_table_name):
                 if force:
-                    self._delete_table(task.output_table_name)
+                    to_delete.append(task.output_table_name)
                 else:
                     raise ScannerException('Job would overwrite existing table {}'
                                            .format(task.output_table_name))
-        self._save_descriptor(self._load_db_metadata(), 'db_metadata.bin')
+        self.delete_tables(to_delete)
 
         job_params = self.protobufs.JobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
