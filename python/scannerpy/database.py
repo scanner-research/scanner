@@ -153,6 +153,7 @@ class Database:
 
         self.ops = OpGenerator(self)
         self.protobufs = ProtobufGenerator(self.config)
+        self._op_cache = {}
 
         self._workers = {}
         self.start_cluster(master, workers);
@@ -767,13 +768,18 @@ class Database:
         return Profiler(self, job_id)
 
     def _get_op_info(self, op_name):
-        op_info_args = self.protobufs.OpInfoArgs()
-        op_info_args.op_name = op_name
+        if op_name in self._op_cache:
+            op_info = self._op_cache[op_name]
+        else:
+            op_info_args = self.protobufs.OpInfoArgs()
+            op_info_args.op_name = op_name
 
-        op_info = self._try_rpc (lambda: self._master.GetOpInfo(op_info_args))
+            op_info = self._try_rpc (lambda: self._master.GetOpInfo(op_info_args))
 
-        if not op_info.result.success:
-            raise ScannerException(op_info.result.msg)
+            if not op_info.result.success:
+                raise ScannerException(op_info.result.msg)
+
+            self._op_cache[op_name] = op_info
 
         return op_info
 
