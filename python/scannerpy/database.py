@@ -688,7 +688,7 @@ class Database:
         idxs_to_delete = []
         for name in names:
             assert name in self._table_name
-            idx_to_delete.append(self._table_name[name])
+            idxs_to_delete.append(self._table_name[name])
         idxs_to_delete.sort()
         for idx in reversed(idxs_to_delete):
             del db_meta.tables[idx]
