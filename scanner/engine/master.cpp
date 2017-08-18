@@ -309,7 +309,7 @@ MasterImpl::~MasterImpl() {
   }
   active_cv_.notify_all();
   {
-    std::unique_lock<std::mutex> lock(finished_);
+    std::unique_lock<std::mutex> lock(finished_mutex_);
     finished_ = true;
   }
   finished_cv_.notify_one();
