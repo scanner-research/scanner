@@ -273,6 +273,15 @@ class Database:
                 self.protobufs.DatabaseDescriptor,
                 'db_metadata.bin')
             self._cached_db_metadata = desc
+            # table id cache
+            self._table_id = {}
+            self._table_name = {}
+            for i, table in enumerate(self._cached_db_metadata.tables):
+                if table.name in self._table_name:
+                    raise ScannerException(
+                        'Internal error: multiple tables with same name: {}'.format(name))
+                self._table_id[table.id] = i
+                self._table_name[table.name] = i
         return self._cached_db_metadata
 
     def _connect_to_worker(self, address):
@@ -669,19 +678,15 @@ class Database:
 
     def has_table(self, name):
         db_meta = self._load_db_metadata()
-        for table in db_meta.tables:
-            if table.name == name:
-                return True
+        if name in self._table_name:
+            return True
         return False
 
     def _delete_table(self, name):
-        table = self.table(name)
         db_meta = self._load_db_metadata()
-        for i, t in enumerate(db_meta.tables):
-            if t.id == table.id():
-                del db_meta.tables[i]
-                return
-        assert False
+        assert name in self._table_name
+        i = self._table_name[name]
+        del db_meta.tables[i]
 
     def delete_table(self, name):
         self._delete_table(name)
@@ -728,16 +733,10 @@ class Database:
 
         if isinstance(name, basestring):
             table_id = None
-            for table in db_meta.tables:
-                if table.name == name:
-                    table_id = table.id
-                    break
+            if name in self._table_name:
+                table_id = self._table_name[name]
             if table_id is None:
                 raise ScannerException('Table with name {} not found'.format(name))
-            for table in db_meta.tables:
-                if table.name == name and table.id != table_id:
-                    raise ScannerException(
-                        'Internal error: multiple tables with same name: {}'.format(name))
         elif isinstance(name, int):
             table_id = name
         else:
