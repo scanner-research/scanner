@@ -15,7 +15,8 @@ set(SOURCE_FILES
   kernel_registry.cpp
   op_registry.cpp
   table_meta_cache.cpp
-  python.cpp)
+  python.cpp
+  python_kernel.cpp)
 
 add_library(engine OBJECT
   ${SOURCE_FILES})

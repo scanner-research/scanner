@@ -219,8 +219,6 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_->service.reset(master_service);
   master_state_->server = start(master_state_->service, port);
 
-  // Setup master job processor
-  master_service->start_job_processor();
   // Setup watchdog
   master_service->start_watchdog(master_state_->server.get(), watchdog);
 

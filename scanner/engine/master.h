@@ -82,20 +82,35 @@ class MasterImpl final : public proto::Master::Service {
   grpc::Status LoadOp(grpc::ServerContext* context,
                       const proto::OpPath* op_path, Result* result);
 
+  grpc::Status RegisterOp(grpc::ServerContext* context,
+                          const proto::OpRegistration* op_registration,
+                          proto::Result* result);
+
+  grpc::Status RegisterPythonKernel(
+      grpc::ServerContext* context,
+      const proto::PythonKernelRegistration* python_kernel,
+      proto::Result* result);
+
   grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
                         Result* result);
 
   grpc::Status PokeWatchdog(grpc::ServerContext* context,
                             const proto::Empty* empty, proto::Empty* result);
 
-  void start_job_processor();
-
   void start_watchdog(grpc::Server* server, bool enable_timeout,
                       i32 timeout_ms = 50000);
 
  private:
+  void start_job_processor();
+
+  void stop_job_processor();
+
   bool process_job(const proto::JobParameters* job_params,
                    proto::Result* job_result);
+
+  void start_worker_pinger();
+
+  void stop_worker_pinger();
 
   void start_job_on_worker(i32 node_id, const std::string& address);
 
@@ -118,6 +133,8 @@ class MasterImpl final : public proto::Master::Service {
   proto::JobParameters job_params_;
   std::unique_ptr<ProgressBar> bar_;
   std::vector<std::string> so_paths_;
+  std::vector<proto::OpRegistration> op_registrations_;
+  std::vector<proto::PythonKernelRegistration> py_kernel_registrations_;
 
   i64 total_samples_used_;
   i64 total_samples_;

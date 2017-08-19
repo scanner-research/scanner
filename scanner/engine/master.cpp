@@ -298,25 +298,21 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   set_database_path(params.db_path);
+
+  start_job_processor();
 }
 
 MasterImpl::~MasterImpl() {
   trigger_shutdown_.set();
-  // Wake up job processor
-  {
-    std::unique_lock<std::mutex> lock(active_mutex_);
-    active_job_ = true;
-  }
-  active_cv_.notify_all();
   {
     std::unique_lock<std::mutex> lock(finished_mutex_);
     finished_ = true;
   }
   finished_cv_.notify_one();
 
-  if (job_processor_thread_.joinable()) {
-    job_processor_thread_.join();
-  }
+  stop_job_processor();
+
+  stop_worker_pinger();
   if (watchdog_thread_.joinable()) {
     watchdog_thread_.join();
   }
@@ -668,6 +664,48 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
+grpc::Status MasterImpl::RegisterOp(
+    grpc::ServerContext* context, const proto::OpRegistration* op_registration,
+    proto::Result* result) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+  VLOG(1) << "Master registering Op: " << op_registration->name();
+
+  for (auto& kv : worker_active_) {
+    if (kv.second) {
+      auto& worker = workers_[kv.first];
+      grpc::ClientContext ctx;
+      proto::Result w_result;
+      worker->RegisterOp(&ctx, *op_registration, &w_result);
+    }
+  }
+
+  op_registrations_.push_back(*op_registration);
+  result->set_success(true);
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::RegisterPythonKernel(
+    grpc::ServerContext* context,
+    const proto::PythonKernelRegistration* python_kernel,
+    proto::Result* result) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+  VLOG(1) << "Master registering Python Kernel: " << python_kernel->op_name();
+
+  for (auto& kv : worker_active_) {
+    if (kv.second) {
+      auto& worker = workers_[kv.first];
+      grpc::ClientContext ctx;
+      proto::Result w_result;
+      worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
+    }
+  }
+
+  py_kernel_registrations_.push_back(*python_kernel);
+  result->set_success(true);
+  return grpc::Status::OK;
+}
+
+
 grpc::Status MasterImpl::Shutdown(grpc::ServerContext* context,
                                   const proto::Empty* empty, Result* result) {
   VLOG(1) << "Master received shutdown!";
@@ -722,23 +760,6 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-void MasterImpl::start_job_processor() {
-  job_processor_thread_ = std::thread([this]() {
-      while (!trigger_shutdown_.raised()) {
-        // Wait on not finished
-        {
-          std::unique_lock<std::mutex> lock(active_mutex_);
-          active_cv_.wait(lock, [this] {
-            return active_job_ || trigger_shutdown_.raised();
-          });
-        }
-        if (trigger_shutdown_.raised()) break;
-        // Start processing job
-        bool result = process_job(&job_params_, &job_result_);
-      }
-    });
-}
-
 void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
                                 i32 timeout_ms) {
   watchdog_thread_ = std::thread([this, server, enable_timeout, timeout_ms]() {
@@ -779,6 +800,34 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
     // Shutdown self
     server->Shutdown();
   });
+}
+
+void MasterImpl::start_job_processor() {
+  job_processor_thread_ = std::thread([this]() {
+    while (!trigger_shutdown_.raised()) {
+      // Wait on not finished
+      {
+        std::unique_lock<std::mutex> lock(active_mutex_);
+        active_cv_.wait(
+            lock, [this] { return active_job_ || trigger_shutdown_.raised(); });
+      }
+      if (trigger_shutdown_.raised()) break;
+      // Start processing job
+      bool result = process_job(&job_params_, &job_result_);
+    }
+  });
+}
+
+void MasterImpl::stop_job_processor() {
+  // Wake up job processor
+  {
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    active_job_ = true;
+  }
+  active_cv_.notify_all();
+  if (job_processor_thread_.joinable()) {
+    job_processor_thread_.join();
+  }
 }
 
 bool MasterImpl::process_job(const proto::JobParameters* job_params,
@@ -1001,39 +1050,7 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   }
 
   // Ping workers every 10 seconds to make sure they are alive
-  while (!finished_) {
-    std::map<i32, proto::Worker::Stub*> ws;
-    {
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      for (auto& kv : workers_) {
-        i32 worker_id = kv.first;
-        auto& worker = kv.second;
-        if (!worker_active_[worker_id]) continue;
-
-        ws.insert({worker_id, kv.second.get()});
-      }
-    }
-
-    for (auto& kv : ws) {
-      i32 worker_id = kv.first;
-      auto& worker = kv.second;
-
-      grpc::ClientContext ctx;
-      proto::Empty empty1;
-      proto::Empty empty2;
-      grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
-      if (!status.ok()) {
-        // Worker not responding, remove it from active workers
-        LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
-                     << "Removing worker from active list.";
-        remove_worker(worker_id);
-      }
-    }
-    // FIXME(apoms): this sleep is unfortunate because it means a
-    //               job must take at least this long. A solution
-    //               would be to put it in a separate thread.
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-  }
+  start_worker_pinger();
 
   // Wait for all workers to finish
   VLOG(1) << "Waiting for workers to finish";
@@ -1083,6 +1100,9 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
     check_worker_fn();
   }
 
+  // No need to check status of workers anymore
+  stop_worker_pinger();
+
   if (!job_result->success()) {
     // Overwrite database metadata with copy from prior to modification
     write_database_metadata(storage_, meta_copy);
@@ -1102,6 +1122,45 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   finished_fn();
 
   VLOG(1) << "Master finished job";
+}
+
+void MasterImpl::start_worker_pinger() {
+  while (!finished_) {
+    std::map<i32, proto::Worker::Stub*> ws;
+    {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      for (auto& kv : workers_) {
+        i32 worker_id = kv.first;
+        auto& worker = kv.second;
+        if (!worker_active_[worker_id]) continue;
+
+        ws.insert({worker_id, kv.second.get()});
+      }
+    }
+
+    for (auto& kv : ws) {
+      i32 worker_id = kv.first;
+      auto& worker = kv.second;
+
+      grpc::ClientContext ctx;
+      proto::Empty empty1;
+      proto::Empty empty2;
+      grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
+      if (!status.ok()) {
+        // Worker not responding, remove it from active workers
+        LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
+                     << "Removing worker from active list.";
+        remove_worker(worker_id);
+      }
+    }
+    // FIXME(apoms): this sleep is unfortunate because it means a
+    //               job must take at least this long. A solution
+    //               would be to put it in a separate thread.
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+  }
+}
+
+void MasterImpl::stop_worker_pinger() {
 }
 
 void MasterImpl::start_job_on_worker(i32 worker_id,
