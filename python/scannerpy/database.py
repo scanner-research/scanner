@@ -738,21 +738,24 @@ class Database:
     def table(self, name):
         db_meta = self._load_db_metadata()
 
+        table_name = None
+        table_id = None
         if isinstance(name, basestring):
-            table_id = None
             if name in self._table_name:
+                table_name = name
                 table_id = db_meta.tables[self._table_name[name]].id
             if table_id is None:
                 raise ScannerException('Table with name {} not found'.format(name))
         elif isinstance(name, int):
-            table_id = name
+            if name in self._table_id:
+                table_id = name
+                table_name = db_meta.tables[self._table_id[name]].name
+            if table_id is None:
+                raise ScannerException('Table with id {} not found'.format(name))
         else:
             raise ScannerException('Invalid table identifier')
 
-        descriptor = self._load_descriptor(
-            self.protobufs.TableDescriptor,
-            'tables/{}/descriptor.bin'.format(table_id))
-        return Table(self, descriptor)
+        return Table(self, table_name, table_id)
 
     def profiler(self, job_name):
         db_meta = self._load_db_metadata()
