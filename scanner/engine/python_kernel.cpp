@@ -35,7 +35,8 @@ PythonKernel::PythonKernel(const KernelConfig& config,
   try {
     py::object main = py::import("__main__");
     main.attr("kernel") = py::str(kernel_str);
-    main.attr("args") = py::str(config.args.data(), config.args.size());
+    main.attr("args") =
+        py::str((const char*)config.args.data(), config.args.size());
     py::object main_namespace = main.attr("__dict__");
     // TODO(wcrichto): pass kernel config in as well (e.g. device info)
     py::exec(
