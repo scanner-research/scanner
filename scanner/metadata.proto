@@ -266,3 +266,7 @@ message GatherSamplerArgs {
 
   repeated Sample samples = 1;
 }
+
+message PythonArgs {
+  bytes py_args = 1;
+}
