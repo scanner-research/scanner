@@ -31,21 +31,17 @@ std::string handle_pyerror() {
 PythonKernel::PythonKernel(const KernelConfig& config,
                            const std::string& kernel_str)
   : BatchedKernel(config), config_(config), device_(config.devices[0]) {
-  if (!args_.ParseFromArray(config.args.data(), config.args.size())) {
-    LOG(FATAL) << "Failed to parse args";
-  }
-
   PyGILState_STATE gstate = PyGILState_Ensure();
   try {
     py::object main = py::import("__main__");
     main.attr("kernel") = py::str(kernel_str);
-    main.attr("args") = py::str(args_.py_args());
+    main.attr("args") = py::str(config.args.data(), config.args.size());
     py::object main_namespace = main.attr("__dict__");
     // TODO(wcrichto): pass kernel config in as well (e.g. device info)
     py::exec(
         "import pickle\n"
         "exec(kernel)\n"
-        "kernel = Kernel(**pickle.loads(args))",
+        "kernel = KERNEL(args)",
         main_namespace);
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
