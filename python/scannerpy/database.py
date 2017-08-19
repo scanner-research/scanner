@@ -539,15 +539,31 @@ class Database:
         op_path.path = so_path
         self._try_rpc(lambda: self._master.LoadOp(op_path))
 
-    def register_python_op(self, kernel_path):
-        kernel = open(kernel_path).read()
-        def make_op(*args, **kwargs):
-            return self.ops.Python(
-                *args,
-                py_args = pickle.dumps(kwargs),
-                kernel = kernel)
+    def register_op(self, name, input_columns, output_columns,
+                    variadic_inputs=False, stencil=None, proto_path=None):
+        op_registration = sel
+        op_registration = self.protobufs.OpRegistration()
+        op_registration.variadic_inputs = variadic_inputs
+        op_registration.input_columns = input_columns
+        op_registration.output_columns = output_columns
+        if stencil is None:
+            op_registration.can_stencil = False
+        else:
+            op_registration.can_stencil = True
+            op_registration.preferred_stencil = stencil
+        if proto_path is not None:
+            self.protobufs.add_module(proto_path)
+        self._try_rpc(lambda: self._master.RegisterOp(op_registration))
 
-        return make_op
+    def register_python_kernel(self, op_name, device_type, kernel_path):
+        with open(kernel_path, 'r') as f:
+            kernel_str = f.read()
+        py_registration = self.protobufs.PythonKernelRegistration()
+        py_registration.op_name = op_name
+        py_registration.device_type = device_type
+        py_registration.kernel_str = kernel_str
+        self._try_rpc(
+            lambda: self._master.RegisterPythonKernel(py_registration))
 
     def _update_collections(self):
         self._save_descriptor(self._collections, 'pydb/descriptor.bin')
