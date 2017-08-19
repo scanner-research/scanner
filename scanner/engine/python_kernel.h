@@ -1,7 +1,7 @@
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
 #include "scanner/util/memory.h"
-#include "stdlib/stdlib.pb.h"
+#include "scanner/metadata.pb.h"
 
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
@@ -20,7 +20,6 @@ class PythonKernel : public BatchedKernel {
  private:
   KernelConfig config_;
   DeviceHandle device_;
-  proto::PythonArgs args_;
 };
 
 }
