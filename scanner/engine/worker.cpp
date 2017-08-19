@@ -20,6 +20,7 @@
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
 #include "scanner/engine/table_meta_cache.h"
+#include "scanner/engine/python_kernel.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 
@@ -1649,6 +1650,62 @@ grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == nullptr)
       << "dlopen of " << so_path << " failed: " << dlerror();
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::RegisterOp(
+    grpc::ServerContext* context, const proto::OpRegistration* op_registration,
+    proto::Result* result) {
+  const std::string& name = op_registration->name();
+  const bool variadic_inputs = op_registration->variadic_inputs();
+  std::vector<Column> input_columns;
+  size_t i = 0;
+  for (auto& c : op_registration->input_columns()) {
+    Column col;
+    col.set_id(i++);
+    col.set_name(c.name());
+    col.set_type(c.type());
+    input_columns.push_back(col);
+  }
+  std::vector<Column> output_columns;
+  i = 0;
+  for (auto& c : op_registration->output_columns()) {
+    Column col;
+    col.set_id(i++);
+    col.set_name(c.name());
+    col.set_type(c.type());
+    output_columns.push_back(col);
+  }
+  bool can_stencil = op_registration->can_stencil();
+  const std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
+                                 op_registration->preferred_stencil().end());
+  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
+                            output_columns, can_stencil, stencil);
+  OpRegistry* registry = get_op_registry();
+  registry->add_op(name, info);
+  VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;
+
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::RegisterPythonKernel(
+    grpc::ServerContext* context,
+    const proto::PythonKernelRegistration* python_kernel,
+    proto::Result* result) {
+  const std::string& op_name = python_kernel->op_name();
+  DeviceType device_type = python_kernel->device_type();
+  const std::string& kernel_str = python_kernel->kernel_str();
+  // Create a kernel builder function
+  auto constructor = [kernel_str](const KernelConfig& config) {
+    return new PythonKernel(config, kernel_str);
+  };
+  // Create a new kernel factory
+  KernelFactory* factory =
+      new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+  // Register the kernel
+  KernelRegistry* registry = get_kernel_registry();
+  registry->add_kernel(op_name, factory);
+  VLOG(1) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
   return grpc::Status::OK;
 }
 

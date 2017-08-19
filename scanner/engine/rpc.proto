@@ -17,6 +17,8 @@ service Master {
   rpc IsJobDone (Empty) returns (JobResult) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpPath) returns (Result) {}
+  rpc RegisterOp (OpRegistration) returns (Result) {}
+  rpc RegisterPythonKernel (PythonKernelRegistration) returns (Result) {}
   rpc GetOpInfo (OpInfoArgs) returns (OpInfo) {}
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
@@ -25,6 +27,8 @@ service Master {
 service Worker {
   rpc NewJob (JobParameters) returns (Result) {}
   rpc LoadOp (OpPath) returns (Empty) {}
+  rpc RegisterOp (OpRegistration) returns (Result) {}
+  rpc RegisterPythonKernel (PythonKernelRegistration) returns (Result) {}
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
   rpc Ping (Empty) returns (Empty) {}
@@ -63,6 +67,21 @@ message RegisteredWorkers {
 
 message OpPath {
   string path = 1;
+}
+
+message OpRegistration {
+  string name = 1;
+  bool variadic_inputs = 2;
+  repeated Column input_columns = 3;
+  repeated Column output_columns = 4;
+  bool can_stencil = 5;
+  repeated int32 preferred_stencil = 6;
+}
+
+message PythonKernelRegistration {
+  string op_name = 1;
+  DeviceType device_type = 2;
+  string kernel_str = 3;
 }
 
 message IngestParameters {

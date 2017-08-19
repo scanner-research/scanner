@@ -42,6 +42,15 @@ class WorkerImpl final : public proto::Worker::Service {
   grpc::Status LoadOp(grpc::ServerContext* context,
                       const proto::OpPath* op_path, proto::Empty* empty);
 
+  grpc::Status RegisterOp(grpc::ServerContext* context,
+                          const proto::OpRegistration* op_registration,
+                          proto::Result* result);
+
+  grpc::Status RegisterPythonKernel(
+      grpc::ServerContext* context,
+      const proto::PythonKernelRegistration* python_kernel,
+      proto::Result* result);
+
   grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
                         Result* result);
 
