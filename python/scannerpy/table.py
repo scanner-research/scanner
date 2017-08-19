@@ -11,47 +11,58 @@ class Table:
 
     Can be part of many Collection objects.
     """
-    def __init__(self, db, descriptor):
+    def __init__(self, db, name, id):
         self._db = db
-        self._descriptor = descriptor
         self._columns = []
-        self._job_id = self._descriptor.job_id
+        # We pass name and id to avoid having to read the descriptor
+        self._name = name
+        self._id = id
+        self._descriptor = None
 
     def id(self):
-        return self._descriptor.id
+        return self._id
 
     def name(self):
-        return self._descriptor.name
+        return self._name
+
+    def _need_descriptor(self):
+        if self._descriptor is None:
+            self._descriptor = self._db._load_descriptor(
+                self._db.protobufs.TableDescriptor,
+                'tables/{}/descriptor.bin'.format(self._id))
 
     def _load_columns(self):
+        self._need_descriptor()
         for c in self._descriptor.columns:
             video_descriptor = None
             if c.type == self._db.protobufs.Video:
                 video_descriptor = self._db._load_descriptor(
                     self._db.protobufs.VideoDescriptor,
                     'tables/{:d}/{:d}_0_video_metadata.bin'.format(
-                        self._descriptor.id,
+                        self._id,
                         c.id))
             self._columns.append(Column(self, c, video_descriptor))
 
     def _load_job(self):
-        if self._job_id != -1:
+        self._need_descriptor()
+        if self._descriptor.job_id != -1:
             self._job = self._db._load_descriptor(
                 self._db.protobufs.JobDescriptor,
-                'jobs/{}/descriptor.bin'.format(self._job_id))
+                'jobs/{}/descriptor.bin'.format(self._descriptor.job_id))
             self._task = None
             for task in self._job.tasks:
-                if task.output_table_name == self._descriptor.name:
+                if task.output_table_name == self._name:
                     self._task = task
             if self._task is None:
                 raise ScannerException('Table {} not found in job {}'
-                                       .format(self._descriptor.name, job_id))
+                                       .format(self._name, self._descriptor.job_id))
         else:
             self._job = None
 
 
     # HACK(wcrichto): reading from TableDescriptor to avoid loading VideoDescriptors
     def column_names(self):
+        self._need_descriptor()
         return [c.name for c in self._descriptor.columns]
 
     def column(self, index):
@@ -86,20 +97,23 @@ class Table:
         return SamplerOp(self)
 
     def num_rows(self):
+        self._need_descriptor()
         return self._descriptor.end_rows[-1]
 
     def _parse_index(self, bufs, db):
         return struct.unpack("=Q", bufs[0])[0]
 
     def parent_rows(self):
-        if self._job_id == -1:
+        self._need_descriptor()
+        if self._descriptor.job_id == -1:
             raise ScannerException('Table {} has no parent'.format(self.name()))
 
         return [i for _, i in self.load(['index'], fn=self._parse_index)]
 
     def profiler(self):
-        if self._job_id != -1:
-            return self._db.profiler(self._job_id)
+        self._need_descriptor()
+        if self._descriptor.job_id != -1:
+            return self._db.profiler(self._descriptor.job_id)
         else:
             raise ScannerException('Ingested videos do not have profile data')
 
