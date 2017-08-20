@@ -1,4 +1,5 @@
-from scannerpy import Database, Config, DeviceType, Job, ProtobufGenerator
+from scannerpy import (
+    Database, Config, DeviceType, ColumnType, Job, ProtobufGenerator)
 from scannerpy.stdlib import parsers
 import tempfile
 import toml
@@ -197,6 +198,19 @@ class TestHistogram:
 #         assert flow_array.shape[0] == 480
 #         assert flow_array.shape[1] == 640
 #         assert flow_array.shape[2] == 2
+
+def test_python_kernel(db):
+    db.register_op('TestPy',
+                   [('frame', ColumnType.Video)],
+                   ['dummy'])
+    db.register_python_kernel('TestPy', db.protobufs.CPU,
+                              cwd + '/test_py_kernel.py')
+
+    frame = db.table('test1').as_op().range(0, 30)
+    test_out= db.ops.TestPy(frame = frame)
+    job = Job(columns = [test_out], name = 'test_py')
+    table = db.run(job, force=True, show_progress=False)
+    next(table.load(['dummy']))
 
 def test_blur(db):
     frame = db.table('test1').as_op().range(0, 30)

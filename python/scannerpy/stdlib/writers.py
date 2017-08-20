@@ -1,6 +1,6 @@
 import struct
 
-def bboxes(bufs, db):
+def bboxes(bufs, protobufs):
     s = struct.pack('=Q', len(bufs[0]))
     for bbox in bufs[0]:
         bs = bbox.SerializeToString()
@@ -8,13 +8,13 @@ def bboxes(bufs, db):
         s += bs
     return [s]
 
-def poses(bufs, db):
+def poses(bufs, protobufs):
     s = struct.pack("=Q", len(bufs[0]))
     for pose in bufs[0]:
         # Num joints
         s += struct.pack("=Q", len(pose))
         for i in range(len(pose)):
-            point = db.protobufs.Point()
+            point = protobufs.Point()
             point.y = pose[i, 0]
             point.x = pose[i, 1]
             point.score = pose[i, 2]

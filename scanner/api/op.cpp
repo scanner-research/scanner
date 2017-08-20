@@ -90,7 +90,10 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
       new OpInfo(name, variadic_inputs, input_columns, output_columns,
                  can_stencil, stencil);
   OpRegistry* registry = get_op_registry();
-  registry->add_op(name, info);
+  Result result = registry->add_op(name, info);
+  if (!result.success()) {
+    LOG(WARNING) << "Failed to register op " << name << ": " << result.msg();
+  }
 }
 }
 }

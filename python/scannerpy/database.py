@@ -10,6 +10,7 @@ import pickle
 import struct
 import signal
 import copy
+import collections
 
 from timeit import default_timer as now
 from multiprocessing import Process, Queue
@@ -26,6 +27,7 @@ from sampler import TableSampler
 from collection import Collection
 from table import Table
 from column import Column
+from protobuf_generator import ProtobufGenerator
 
 from storehousepy import StorageConfig, StorageBackend
 
@@ -541,16 +543,32 @@ class Database:
 
     def register_op(self, name, input_columns, output_columns,
                     variadic_inputs=False, stencil=None, proto_path=None):
-        op_registration = sel
         op_registration = self.protobufs.OpRegistration()
+        op_registration.name = name
         op_registration.variadic_inputs = variadic_inputs
-        op_registration.input_columns = input_columns
-        op_registration.output_columns = output_columns
+
+        def add_col(columns, col):
+            if isinstance(col, basestring):
+                c = columns.add()
+                c.name = col
+                c.type = self.protobufs.Other
+            elif isinstance(name, collections.Iterable):
+                c = columns.add()
+                c.name = col[0]
+                c.type = ColumnType.to_proto(self, col[1])
+            else:
+                raise ScannerException(
+                    'Column ' + col + ' must be a string name or a tuple of '
+                    '(name, column_type)')
+        for in_col in input_columns:
+            add_col(op_registration.input_columns, in_col)
+        for out_col in output_columns:
+            add_col(op_registration.output_columns, out_col)
         if stencil is None:
             op_registration.can_stencil = False
         else:
             op_registration.can_stencil = True
-            op_registration.preferred_stencil = stencil
+            op_registration.preferred_stencil.extend(stencil)
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
         self._try_rpc(lambda: self._master.RegisterOp(op_registration))
@@ -562,6 +580,7 @@ class Database:
         py_registration.op_name = op_name
         py_registration.device_type = device_type
         py_registration.kernel_str = kernel_str
+        py_registration.pickled_config = pickle.dumps(self.config)
         self._try_rpc(
             lambda: self._master.RegisterPythonKernel(py_registration))
 
@@ -742,7 +761,7 @@ class Database:
                 raise ScannerException('Attempted to create table with existing '
                                        'name {}'.format(name))
         if fn is not None:
-            rows = [fn(row, self) for row in rows]
+            rows = [fn(row, self.protobufs) for row in rows]
         cols = copy.copy(columns)
         cols.insert(0, "index")
         for i, row in enumerate(rows):
@@ -1074,32 +1093,3 @@ class Database:
                 return [self.table(t) for t in table_names]
             else:
                 return self.table(table_names[0])
-
-
-class ProtobufGenerator:
-    def __init__(self, cfg):
-        self._mods = []
-
-        import scanner.metadata_pb2 as metadata_types
-        import scanner.engine.rpc_pb2 as rpc_types
-        import scanner.types_pb2 as misc_types
-        for mod in [misc_types, rpc_types, metadata_types]:
-            self.add_module(mod)
-
-        self.add_module('{}/build/stdlib/stdlib_pb2.py'.format(cfg.module_dir))
-
-    def add_module(self, path):
-        if isinstance(path, basestring):
-            if not os.path.isfile(path):
-                raise ScannerException('Protobuf path does not exist: {}'
-                                       .format(path))
-            mod = imp.load_source('_ignore', path)
-        else:
-            mod = path
-        self._mods.append(mod)
-
-    def __getattr__(self, name):
-        for mod in self._mods:
-            if hasattr(mod, name):
-                return getattr(mod, name)
-        raise ScannerException('No protobuf with name {}'.format(name))
