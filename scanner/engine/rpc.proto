@@ -82,6 +82,7 @@ message PythonKernelRegistration {
   string op_name = 1;
   DeviceType device_type = 2;
   string kernel_str = 3;
+  string pickled_config = 4;
 }
 
 message IngestParameters {

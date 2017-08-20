@@ -18,19 +18,27 @@
 namespace scanner {
 namespace internal {
 
-void OpRegistry::add_op(const std::string& name, OpInfo* info) {
+Result OpRegistry::add_op(const std::string& name, OpInfo* info) {
+  Result result;
+  result.set_success(true);
   if (ops_.count(name) > 0) {
-    LOG(FATAL) << "Attempted to re-register op " << name;
+    RESULT_ERROR(&result, "Attempted to re-register op %s", name.c_str());
+    return result;
   }
   if (info->input_columns().empty() && !info->variadic_inputs()) {
-    LOG(FATAL) << "Attempted to register op " << name
-               << " with empty input columns.";
+    RESULT_ERROR(&result,
+                 "Attempted to register op %s with empty input columns",
+                 name.c_str());
+    return result;
   }
   if (info->output_columns().empty()) {
-    LOG(FATAL) << "Attempted to register op " << name
-               << " with empty output columns.";
+    RESULT_ERROR(&result,
+                 "Attempted to register op %s with empty output columns",
+                 name.c_str());
+    return result;
   }
   ops_.insert({name, info});
+  return result;
 }
 
 OpInfo* OpRegistry::get_op_info(const std::string& name) const {

@@ -120,7 +120,9 @@ class Config(object):
     def __setstate__(self, newstate):
         self.module_dir = os.path.dirname(os.path.realpath(__file__))
         build_path = self.module_dir + '/build'
-        sys.path.append(build_path)
+        if not build_path in sys.path:
+            sys.path.append(build_path)
+        sys.stdout.flush()
 
         sc = self._make_storage_config(newstate['config'])
         newstate['storage_config'] = sc

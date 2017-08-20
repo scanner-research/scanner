@@ -1695,9 +1695,10 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
   const std::string& op_name = python_kernel->op_name();
   DeviceType device_type = python_kernel->device_type();
   const std::string& kernel_str = python_kernel->kernel_str();
+  const std::string& pickled_config = python_kernel->pickled_config();
   // Create a kernel builder function
-  auto constructor = [kernel_str](const KernelConfig& config) {
-    return new PythonKernel(config, kernel_str);
+  auto constructor = [kernel_str, pickled_config](const KernelConfig& config) {
+    return new PythonKernel(config, kernel_str, pickled_config);
   };
   // Create a new kernel factory
   KernelFactory* factory =

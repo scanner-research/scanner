@@ -22,6 +22,7 @@
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
 #include "scanner/util/glog.h"
+#include "scanner/engine/python_kernel.h"
 
 namespace scanner {
 namespace internal {
@@ -670,6 +671,44 @@ grpc::Status MasterImpl::RegisterOp(
   std::unique_lock<std::mutex> lk(work_mutex_);
   VLOG(1) << "Master registering Op: " << op_registration->name();
 
+  result->set_success(true);
+  const std::string& name = op_registration->name();
+  {
+    const bool variadic_inputs = op_registration->variadic_inputs();
+    std::vector<Column> input_columns;
+    size_t i = 0;
+    for (auto& c : op_registration->input_columns()) {
+      Column col;
+      col.set_id(i++);
+      col.set_name(c.name());
+      col.set_type(c.type());
+      input_columns.push_back(col);
+    }
+    std::vector<Column> output_columns;
+    i = 0;
+    for (auto& c : op_registration->output_columns()) {
+      Column col;
+      col.set_id(i++);
+      col.set_name(c.name());
+      col.set_type(c.type());
+      output_columns.push_back(col);
+    }
+    bool can_stencil = op_registration->can_stencil();
+    std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
+                             op_registration->preferred_stencil().end());
+    if (stencil.empty()) {
+      stencil = {0};
+    }
+    OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
+                              output_columns, can_stencil, stencil);
+    OpRegistry* registry = get_op_registry();
+    *result = registry->add_op(name, info);
+  }
+  if (!result->success()) {
+    LOG(WARNING) << "Master failed to register op " << name;
+    return grpc::Status::OK;
+  }
+
   for (auto& kv : worker_active_) {
     if (kv.second) {
       auto& worker = workers_[kv.first];
@@ -680,7 +719,6 @@ grpc::Status MasterImpl::RegisterOp(
   }
 
   op_registrations_.push_back(*op_registration);
-  result->set_success(true);
   return grpc::Status::OK;
 }
 
@@ -690,6 +728,23 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     proto::Result* result) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   VLOG(1) << "Master registering Python Kernel: " << python_kernel->op_name();
+
+  {
+    const std::string& op_name = python_kernel->op_name();
+    DeviceType device_type = python_kernel->device_type();
+    const std::string& kernel_str = python_kernel->kernel_str();
+    const std::string& pickled_config = python_kernel->pickled_config();
+    // Create a kernel builder function
+    auto constructor = [kernel_str, pickled_config](const KernelConfig& config) {
+      return new PythonKernel(config, kernel_str, pickled_config);
+    };
+    // Create a new kernel factory
+    KernelFactory* factory =
+        new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+    // Register the kernel
+    KernelRegistry* registry = get_kernel_registry();
+    registry->add_kernel(op_name, factory);
+  }
 
   for (auto& kv : worker_active_) {
     if (kv.second) {

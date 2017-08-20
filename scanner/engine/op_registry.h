@@ -27,7 +27,7 @@ namespace internal {
 
 class OpRegistry {
  public:
-  void add_op(const std::string& name, OpInfo* info);
+  Result add_op(const std::string& name, OpInfo* info);
 
   OpInfo* get_op_info(const std::string& name) const;
 
