@@ -23,6 +23,21 @@ class DeviceType(enum.Enum):
             raise ScannerException('Invalid device type')
 
 
+class ColumnType(enum.Enum):
+    """ Enum for specifying what the type of a column is. """
+    Blob = 0
+    Video = 1
+
+    @staticmethod
+    def to_proto(db, ty):
+        if ty == ColumnType.Blob:
+            return db.protobufs.Other
+        elif ty == ColumnType.Video:
+            return db.protobufs.Video
+        else:
+            raise ScannerException('Invalid column type')
+
+
 class Job:
     def __init__(self, columns, name=None):
         self._columns = columns

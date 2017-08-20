@@ -80,7 +80,7 @@ class Column:
             if rows_idx < len(rows) and j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]
                 if fn is not None:
-                    yield fn(buf, self._db)
+                    yield fn(buf, self._db.protobufs)
                 else:
                     yield buf
                 rows_idx += 1

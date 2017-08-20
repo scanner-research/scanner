@@ -1,4 +1,5 @@
 #include "scanner/engine/python_kernel.h"
+#include "scanner/util/util.h"
 
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
@@ -29,25 +30,30 @@ std::string handle_pyerror() {
 }
 
 PythonKernel::PythonKernel(const KernelConfig& config,
-                           const std::string& kernel_str)
+                           const std::string& kernel_str,
+                           const std::string& pickled_config)
   : BatchedKernel(config), config_(config), device_(config.devices[0]) {
   PyGILState_STATE gstate = PyGILState_Ensure();
   try {
     py::object main = py::import("__main__");
-    main.attr("kernel") = py::str(kernel_str);
+    main.attr("kernel_str") = py::str(kernel_str);
     main.attr("args") =
         py::str((const char*)config.args.data(), config.args.size());
+    main.attr("config_str") = py::str(pickled_config);
     py::object main_namespace = main.attr("__dict__");
     // TODO(wcrichto): pass kernel config in as well (e.g. device info)
     py::exec(
         "import pickle\n"
-        "exec(kernel)\n"
-        "kernel = KERNEL(args)",
+        "from scannerpy import Config\n"
+        "from scannerpy.protobuf_generator import ProtobufGenerator\n"
+        "config = pickle.loads(config_str)\n"
+        "protobufs = ProtobufGenerator(config)\n"
+        "exec(kernel_str)\n"
+        "kernel = KERNEL(args, protobufs)",
         main_namespace);
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }
-
   PyGILState_Release(gstate);
 }
 

@@ -2,22 +2,21 @@ import numpy as np
 import cv2
 import struct
 
-
-def bboxes(buf, db):
+def bboxes(buf, protobufs):
     (num_bboxes,) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
     bboxes = []
     for i in range(num_bboxes):
         (bbox_size,) = struct.unpack("=Q", buf[:8])
         buf = buf[8:]
-        box = db.protobufs.BoundingBox()
+        box = protobufs.BoundingBox()
         box.ParseFromString(buf[:bbox_size])
         buf = buf[bbox_size:]
         bboxes.append(box)
     return bboxes
 
 
-def poses(buf, db):
+def poses(buf, protobufs):
     (num_bodies,) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
     bodies = []
@@ -28,7 +27,7 @@ def poses(buf, db):
         for i in range(num_joints):
             point_size, = struct.unpack("=Q", buf[:8])
             buf = buf[8:]
-            point = db.protobufs.Point()
+            point = protobufs.Point()
             point.ParseFromString(buf[:point_size])
             buf = buf[point_size:]
             joints[i, 0] = point.y
@@ -38,34 +37,34 @@ def poses(buf, db):
     return bodies
 
 
-def histograms(bufs, db):
+def histograms(bufs, protobufs):
     return np.split(np.frombuffer(bufs[0], dtype=np.dtype(np.int32)), 3)
 
 
-def frame_info(buf, db):
-    info = db.protobufs.FrameInfo()
+def frame_info(buf, protobufs):
+    info = protobufs.FrameInfo()
     info.ParseFromString(buf)
     return info
 
 
-def flow(bufs, db):
+def flow(bufs, protobufs):
     output = np.frombuffer(bufs[0], dtype=np.dtype(np.float32))
     info = frame_info(bufs[1], db)
     return output.reshape((info.height, info.width, 2))
 
 
 def array(ty):
-    def parser(bufs, db):
+    def parser(bufs, protobufs):
         return np.frombuffer(bufs[0], dtype=np.dtype(ty))
     return parser
 
 
-def image(bufs, db):
+def image(bufs, protobufs):
     return cv2.imdecode(np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)),
                         cv2.IMREAD_COLOR)
 
 def raw_frame_gen(shape0, shape1, shape2, typ):
-    def parser(bufs, db):
+    def parser(bufs, protobufs):
         output = np.frombuffer(bufs, dtype=typ)
         return output.reshape((shape0, shape1, shape2))
     return parser
