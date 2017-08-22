@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job
+from scannerpy import Database, DeviceType, Job, ColumnType
 from scannerpy.stdlib import NetDescriptor, parsers, pipelines
 import math
 import os
@@ -9,6 +9,7 @@ import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
 util.download_video()
 
 with Database() as db:
@@ -22,26 +23,17 @@ with Database() as db:
         db, [input_table], lambda t: t.range(0, 100, task_size = 25),
         'example_poses',
         height = 360)[0]
+        height = 720)[0]
 
-    print('Extracting frames...')
-    video_poses = [pose for (_, pose) in poses_table.columns('poses').load(parsers.poses)]
-    video_frames = [f[0] for _, f in db.table('example').load(['frame'])]
-
+    print('Drawing on frames...')
+    db.register_op('PoseDraw', [('frame', ColumnType.Video), 'poses'],
+                   [('frame', ColumnType.Video)])
+    db.register_python_kernel('PoseDraw', DeviceType.CPU,
+                              script_dir + '/pose_draw_kernel.py')
+    drawn_frames = db.ops.PoseDraw(
+        frame = input_table.as_op().range(0, num_frames, task_size = 100),
+        poses = poses_table.as_op().all(task_size = 100))
+    job = Job(columns = [drawn_frames], name = '720_drawn_poses')
+    drawn_poses_table = db.run(job, force=True)
     print('Writing output video...')
-    frame_shape = video_frames[0].shape
-    output = cv2.VideoWriter(
-        'example_poses.mkv',
-        cv2.VideoWriter_fourcc(*'X264'),
-        24.0,
-        (frame_shape[1], frame_shape[0]))
-
-    for (frame, frame_poses) in zip(video_frames, video_poses):
-        for pose in frame_poses:
-            for i in range(18):
-                if pose[i, 2] < 0.25: continue
-                cv2.circle(
-                    frame,
-                    (int(pose[i, 1]), int(pose[i, 0])),
-                    8,
-                    (255, 0, 0), 3)
-        output.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    drawn_poses_table.column('frame').save_mp4('example_poses')

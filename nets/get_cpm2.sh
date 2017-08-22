@@ -12,6 +12,11 @@ prog() {
     # Caffemodel for MPI
     wget https://storage.googleapis.com/scanner-data/nets/cpm2/mpi_pose_iter_160000.caffemodel
 
+    # Prototxt for COCO
+    wget https://storage.googleapis.com/scanner-data/models/cpm2/coco_pose_deploy_linevec.prototxt
+    # Caffemodel for COCO
+    https://storage.googleapis.com/scanner-data/models/cpm2/coco_pose_iter_440000.caffemodel
+
     cd $CWD
 }
 

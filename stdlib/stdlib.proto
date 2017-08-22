@@ -78,3 +78,7 @@ message ImageDecoderArgs {
 
   ImageType image_type = 1;
 }
+
+message PoseNMSKernelArgs {
+  int32 height = 1;
+}
