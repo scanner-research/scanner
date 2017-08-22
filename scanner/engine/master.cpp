@@ -14,8 +14,6 @@
  */
 
 #include "scanner/engine/master.h"
-#include <grpc/support/log.h>
-#include <mutex>
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/sampler.h"
 #include "scanner/util/cuda.h"
@@ -23,6 +21,10 @@
 #include "scanner/util/util.h"
 #include "scanner/util/glog.h"
 #include "scanner/engine/python_kernel.h"
+
+#include <grpc/support/log.h>
+#include <set>
+#include <mutex>
 
 namespace scanner {
 namespace internal {
@@ -1017,6 +1019,30 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   i32 job_id = meta_.add_job(job_params->job_name());
   job_descriptor.set_id(job_id);
   job_descriptor.set_name(job_params->job_name());
+
+  // Prefetch table metadata for all tables in samplers
+  {
+    auto load_table_meta = [&](const std::string& table_name) {
+      std::string table_path =
+          TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+      table_metas_->update(read_table_metadata(storage_, table_path));
+    };
+    std::set<std::string> tables_to_read;
+    for (auto& task : job_params->task_set().tasks()) {
+      for (auto& s : task.samples()) {
+        tables_to_read.insert(s.table_name());
+      }
+    }
+    // TODO(apoms): make this a thread pool instead of spawning potentially
+    // thousands of threads
+    std::vector<std::thread> threads;
+    for (const std::string& t : tables_to_read) {
+      threads.emplace_back(load_table_meta, t);
+    }
+    for (auto& thread : threads) {
+      thread.join();
+    }
+  }
 
   i64 min_stencil, max_stencil;
   std::tie(min_stencil, max_stencil) =

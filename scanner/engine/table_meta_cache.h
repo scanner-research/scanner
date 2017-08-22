@@ -39,6 +39,7 @@ class TableMetaCache {
 
   storehouse::StorageBackend* storage_;
   const DatabaseMetadata& meta_;
+  mutable std::mutex lock_;
   mutable std::map<std::string, TableMetadata> cache_;
 };
 
