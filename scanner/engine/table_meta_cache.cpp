@@ -24,6 +24,7 @@ TableMetaCache::TableMetaCache(storehouse::StorageBackend* storage,
 
 const TableMetadata& TableMetaCache::at(const std::string& table_name) const {
   memoized_read(table_name);
+  std::lock_guard<std::mutex> lock(lock_);
   return cache_.at(table_name);
 }
 
@@ -32,14 +33,22 @@ bool TableMetaCache::exists(const std::string& table_name) const {
 }
 
 void TableMetaCache::update(const TableMetadata& meta) {
+  std::lock_guard<std::mutex> lock(lock_);
   cache_[meta.name()] = meta;
 }
 
 void TableMetaCache::memoized_read(const std::string& table_name) const {
-  if (cache_.count(table_name) == 0 && meta_.has_table(table_name)) {
+  bool b;
+  {
+    std::lock_guard<std::mutex> lock(lock_);
+    b = cache_.count(table_name) == 0 && meta_.has_table(table_name);
+  }
+  if (b) {
     std::string table_path =
         TableMetadata::descriptor_path(meta_.get_table_id(table_name));
-    cache_.insert({table_name, read_table_metadata(storage_, table_path)});
+    TableMetadata meta = read_table_metadata(storage_, table_path);
+    std::lock_guard<std::mutex> lock(lock_);
+    cache_.insert({table_name, meta});
   }
 }
 
