@@ -203,7 +203,7 @@ def test_python_kernel(db):
     db.register_op('TestPy',
                    [('frame', ColumnType.Video)],
                    ['dummy'])
-    db.register_python_kernel('TestPy', db.protobufs.CPU,
+    db.register_python_kernel('TestPy', DeviceType.CPU,
                               cwd + '/test_py_kernel.py')
 
     frame = db.table('test1').as_op().range(0, 30)
