@@ -2,6 +2,9 @@ from . import NetDescriptor, writers, bboxes, poses, parsers
 from .. import DeviceType, Job
 from ..collection import Collection
 import math
+import os.path
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def detect_faces(db, input_tables_or_collection, sampling, output_name,
                  max_width=960):
@@ -149,51 +152,32 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
         output = db.run(jobs, force=True, work_item_size=8)
         outputs.append(output)
 
-    def make_poses_table(input_table, outputs, name):
-        all_poses = [
-            [pose for (_, pose) in out.column('poses').load(parsers.poses)]
-             for out in outputs]
-
-        nms_poses = []
-        frames = len(all_poses[0])
-        runs = len(all_poses)
-        assert runs == len(scales)
-
-        for fi in range(frames):
-            frame_poses = []
-            for r in range(runs):
-                #scale_factor = 1.0 / scales[r]
-                scale_factor = 1.0
-                for pose in all_poses[r][fi]:
-                    frame_poses.append(poses.scale_pose(pose, scale_factor))
-            frame_poses = poses.nms(frame_poses, height * 0.2)
-            nms_poses.append(frame_poses)
-
-        return db.new_table(
-            name,
-            ['poses'],
-            [[bb] for bb in nms_poses],
-            writers.poses,
-            force=True)
+    # Register nms pose op and kernel
+    db.register_op('PoseNMSKernel', [], ['poses'], variadic_inputs=True)
+    kernel_path = script_dir + '/pose_nms_kernel.py'
+    db.register_python_kernel('PoseNMSKernel', DeviceType.CPU, kernel_path)
 
     if isinstance(outputs[0], Collection):
-        new_tables = []
+        jobs = []
         for i in range(len(outputs[0].tables())):
-            t = make_poses_table(
-                input_tables.tables(i),
-                [c.tables(i) for c in outputs],
-                '{}_poses_{}'.format(output_name, i))
-            new_tables.append(t)
+            inputs = [c.tables(i) for c in outputs]
+            nmsed_poses = db.ops.PoseNMSKernel(*inputs, height=height)
+            job = Job(
+                columns = [nmsed_poses],
+                name = '{}_poses_{}'.format(output_name, i))
+            jobs.append(job)
+        out_tables = db.run(jobs, force=True)
         return db.new_collection(
             output_name,
-            [t.name() for t in new_tables],
+            [t.name() for t in out_tables],
             force=True)
     else:
-        new_tables = []
+        jobs = []
         for i in range(len(outputs[0])):
-            t = make_poses_table(
-                input_tables[i],
-                [c[i] for c in outputs],
-                '{}_poses_{}'.format(output_name, i))
-            new_tables.append(t)
-        return new_tables
+            inputs = [c[i].as_op().all() for c in outputs]
+            nmsed_poses = db.ops.PoseNMSKernel(*inputs, height=height)
+            job = Job(
+                columns = [nmsed_poses],
+                name = '{}_poses_{}'.format(output_name, i))
+            jobs.append(job)
+        return db.run(jobs, force=True)
