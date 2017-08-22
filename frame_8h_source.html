@@ -124,55 +124,56 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;  <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&amp; operator=(<span class="keyword">const</span> <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&amp;) = <span class="keywordflow">default</span>;</div>
 <div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;</div>
 <div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;  <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>(<span class="keywordtype">int</span> shape0, <span class="keywordtype">int</span> shape1, <span class="keywordtype">int</span> shape2, FrameType type);</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;  <span class="keywordtype">bool</span> operator==(<span class="keyword">const</span> <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&amp; other) <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;  <span class="keywordtype">bool</span> operator!=(<span class="keyword">const</span> <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&amp; other) <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;</div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;  <span class="keywordtype">size_t</span> size() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="structscanner_1_1FrameInfo.html#aae987c2ea2e8565ca6c0ab0680a888aa">width</a>() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;</div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="structscanner_1_1FrameInfo.html#ae38b63c8f6f7a38113e6751dc29cb429">height</a>() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="structscanner_1_1FrameInfo.html#a25adc459a68c0e03ff590e4fe35ffca3">channels</a>() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;</div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;  <span class="keywordtype">int</span> shape[FRAME_DIMS];</div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;  FrameType type;</div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;};</div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;</div>
-<div class="line"><a name="l00060"></a><span class="lineno"><a class="line" href="classscanner_1_1Frame.html">   60</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1Frame.html">Frame</a> {</div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160; <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;  <a class="code" href="classscanner_1_1Frame.html">Frame</a>(<a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> info, u8* buffer);</div>
-<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;</div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;  <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> as_frame_info() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;  <span class="keywordtype">size_t</span> size() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;</div>
-<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="classscanner_1_1Frame.html#a040fa4546d8b3361d6dcdd49a7bd3cf4">width</a>() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;</div>
-<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="classscanner_1_1Frame.html#af338d73ff75956e39e93ea988c9aad61">height</a>() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;</div>
-<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="classscanner_1_1Frame.html#aeac1d7193e194629154326588447f961">channels</a>() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;</div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;  <span class="keywordtype">int</span> shape[FRAME_DIMS];</div>
-<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;  FrameType type;</div>
-<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;  u8* data;</div>
-<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;};</div>
-<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;</div>
-<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;<a class="code" href="classscanner_1_1Frame.html">Frame</a>* new_frame(DeviceHandle device, <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> info);</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;</div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;<span class="keywordtype">void</span> delete_frame(DeviceHandle device, u8* buffer);</div>
-<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;</div>
-<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;std::vector&lt;Frame*&gt; new_frames(DeviceHandle device, <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> info, i32 num);</div>
-<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;}</div>
-<div class="ttc" id="structscanner_1_1FrameInfo_html_ae38b63c8f6f7a38113e6751dc29cb429"><div class="ttname"><a href="structscanner_1_1FrameInfo.html#ae38b63c8f6f7a38113e6751dc29cb429">scanner::FrameInfo::height</a></div><div class="ttdeci">int height() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:70</div></div>
-<div class="ttc" id="classscanner_1_1Frame_html_aeac1d7193e194629154326588447f961"><div class="ttname"><a href="classscanner_1_1Frame.html#aeac1d7193e194629154326588447f961">scanner::Frame::channels</a></div><div class="ttdeci">int channels() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:91</div></div>
-<div class="ttc" id="classscanner_1_1Frame_html_a040fa4546d8b3361d6dcdd49a7bd3cf4"><div class="ttname"><a href="classscanner_1_1Frame.html#a040fa4546d8b3361d6dcdd49a7bd3cf4">scanner::Frame::width</a></div><div class="ttdeci">int width() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:86</div></div>
-<div class="ttc" id="structscanner_1_1FrameInfo_html_aae987c2ea2e8565ca6c0ab0680a888aa"><div class="ttname"><a href="structscanner_1_1FrameInfo.html#aae987c2ea2e8565ca6c0ab0680a888aa">scanner::FrameInfo::width</a></div><div class="ttdeci">int width() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:68</div></div>
-<div class="ttc" id="classscanner_1_1Frame_html"><div class="ttname"><a href="classscanner_1_1Frame.html">scanner::Frame</a></div><div class="ttdoc">Frame. </div><div class="ttdef"><b>Definition:</b> frame.h:60</div></div>
-<div class="ttc" id="classscanner_1_1Frame_html_af338d73ff75956e39e93ea988c9aad61"><div class="ttname"><a href="classscanner_1_1Frame.html#af338d73ff75956e39e93ea988c9aad61">scanner::Frame::height</a></div><div class="ttdeci">int height() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:88</div></div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;  <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>(<span class="keyword">const</span> std::vector&lt;int&gt; shapes, FrameType type);</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;  <span class="keywordtype">bool</span> operator==(<span class="keyword">const</span> <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&amp; other) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;  <span class="keywordtype">bool</span> operator!=(<span class="keyword">const</span> <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a>&amp; other) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;  <span class="keywordtype">size_t</span> size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="structscanner_1_1FrameInfo.html#aae987c2ea2e8565ca6c0ab0680a888aa">width</a>() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="structscanner_1_1FrameInfo.html#ae38b63c8f6f7a38113e6751dc29cb429">height</a>() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="structscanner_1_1FrameInfo.html#a25adc459a68c0e03ff590e4fe35ffca3">channels</a>() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;  <span class="keywordtype">int</span> shape[FRAME_DIMS];</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;  FrameType type;</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;};</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;</div>
+<div class="line"><a name="l00061"></a><span class="lineno"><a class="line" href="classscanner_1_1Frame.html">   61</a></span>&#160;<span class="keyword">class </span><a class="code" href="classscanner_1_1Frame.html">Frame</a> {</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160; <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;  <a class="code" href="classscanner_1_1Frame.html">Frame</a>(<a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> info, u8* buffer);</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;</div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;  <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> as_frame_info() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;  <span class="keywordtype">size_t</span> size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;</div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="classscanner_1_1Frame.html#a040fa4546d8b3361d6dcdd49a7bd3cf4">width</a>() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="classscanner_1_1Frame.html#af338d73ff75956e39e93ea988c9aad61">height</a>() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;  <span class="keywordtype">int</span> <a class="code" href="classscanner_1_1Frame.html#aeac1d7193e194629154326588447f961">channels</a>() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;  <span class="keywordtype">int</span> shape[FRAME_DIMS];</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;  FrameType type;</div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;  u8* data;</div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;};</div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;</div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;<a class="code" href="classscanner_1_1Frame.html">Frame</a>* new_frame(DeviceHandle device, <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> info);</div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;<span class="keywordtype">void</span> delete_frame(DeviceHandle device, u8* buffer);</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;</div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;std::vector&lt;Frame*&gt; new_frames(DeviceHandle device, <a class="code" href="structscanner_1_1FrameInfo.html">FrameInfo</a> info, i32 num);</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;}</div>
+<div class="ttc" id="structscanner_1_1FrameInfo_html_ae38b63c8f6f7a38113e6751dc29cb429"><div class="ttname"><a href="structscanner_1_1FrameInfo.html#ae38b63c8f6f7a38113e6751dc29cb429">scanner::FrameInfo::height</a></div><div class="ttdeci">int height() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:80</div></div>
+<div class="ttc" id="classscanner_1_1Frame_html_aeac1d7193e194629154326588447f961"><div class="ttname"><a href="classscanner_1_1Frame.html#aeac1d7193e194629154326588447f961">scanner::Frame::channels</a></div><div class="ttdeci">int channels() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:101</div></div>
+<div class="ttc" id="classscanner_1_1Frame_html_a040fa4546d8b3361d6dcdd49a7bd3cf4"><div class="ttname"><a href="classscanner_1_1Frame.html#a040fa4546d8b3361d6dcdd49a7bd3cf4">scanner::Frame::width</a></div><div class="ttdeci">int width() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:96</div></div>
+<div class="ttc" id="structscanner_1_1FrameInfo_html_aae987c2ea2e8565ca6c0ab0680a888aa"><div class="ttname"><a href="structscanner_1_1FrameInfo.html#aae987c2ea2e8565ca6c0ab0680a888aa">scanner::FrameInfo::width</a></div><div class="ttdeci">int width() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:78</div></div>
+<div class="ttc" id="classscanner_1_1Frame_html"><div class="ttname"><a href="classscanner_1_1Frame.html">scanner::Frame</a></div><div class="ttdoc">Frame. </div><div class="ttdef"><b>Definition:</b> frame.h:61</div></div>
+<div class="ttc" id="classscanner_1_1Frame_html_af338d73ff75956e39e93ea988c9aad61"><div class="ttname"><a href="classscanner_1_1Frame.html#af338d73ff75956e39e93ea988c9aad61">scanner::Frame::height</a></div><div class="ttdeci">int height() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:98</div></div>
 <div class="ttc" id="structscanner_1_1FrameInfo_html"><div class="ttname"><a href="structscanner_1_1FrameInfo.html">scanner::FrameInfo</a></div><div class="ttdoc">FrameInfo. </div><div class="ttdef"><b>Definition:</b> frame.h:33</div></div>
-<div class="ttc" id="structscanner_1_1FrameInfo_html_a25adc459a68c0e03ff590e4fe35ffca3"><div class="ttname"><a href="structscanner_1_1FrameInfo.html#a25adc459a68c0e03ff590e4fe35ffca3">scanner::FrameInfo::channels</a></div><div class="ttdeci">int channels() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:73</div></div>
+<div class="ttc" id="structscanner_1_1FrameInfo_html_a25adc459a68c0e03ff590e4fe35ffca3"><div class="ttname"><a href="structscanner_1_1FrameInfo.html#a25adc459a68c0e03ff590e4fe35ffca3">scanner::FrameInfo::channels</a></div><div class="ttdeci">int channels() const </div><div class="ttdoc">Only valid when the dimensions are (height, width, channels) </div><div class="ttdef"><b>Definition:</b> frame.cpp:83</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
