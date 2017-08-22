@@ -14,11 +14,11 @@ class DeviceType(enum.Enum):
     GPU = 1
 
     @staticmethod
-    def to_proto(db, device):
+    def to_proto(protobufs, device):
         if device == DeviceType.CPU:
-            return db.protobufs.CPU
+            return protobufs.CPU
         elif device == DeviceType.GPU:
-            return db.protobufs.GPU
+            return protobufs.GPU
         else:
             raise ScannerException('Invalid device type')
 
@@ -29,11 +29,11 @@ class ColumnType(enum.Enum):
     Video = 1
 
     @staticmethod
-    def to_proto(db, ty):
+    def to_proto(protobufs, ty):
         if ty == ColumnType.Blob:
-            return db.protobufs.Other
+            return protobufs.Other
         elif ty == ColumnType.Video:
-            return db.protobufs.Video
+            return protobufs.Video
         else:
             raise ScannerException('Invalid column type')
 

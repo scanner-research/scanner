@@ -555,7 +555,7 @@ class Database:
             elif isinstance(name, collections.Iterable):
                 c = columns.add()
                 c.name = col[0]
-                c.type = ColumnType.to_proto(self, col[1])
+                c.type = ColumnType.to_proto(self.protobufs, col[1])
             else:
                 raise ScannerException(
                     'Column ' + col + ' must be a string name or a tuple of '
@@ -578,7 +578,8 @@ class Database:
             kernel_str = f.read()
         py_registration = self.protobufs.PythonKernelRegistration()
         py_registration.op_name = op_name
-        py_registration.device_type = device_type
+        py_registration.device_type = DeviceType.to_proto(self.protobufs,
+                                                          device_type)
         py_registration.kernel_str = kernel_str
         py_registration.pickled_config = pickle.dumps(self.config)
         self._try_rpc(

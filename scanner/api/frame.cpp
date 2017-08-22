@@ -45,6 +45,16 @@ FrameInfo::FrameInfo(int shape0, int shape1, int shape2, FrameType t) {
   type = t;
 }
 
+FrameInfo::FrameInfo(const std::vector<int> shapes, FrameType t) {
+  assert(shapes.size() <= 3);
+
+  for (int i = 0; i < shapes.size(); ++i) {
+    shape[i] = shapes[i];
+    assert(shape[i] >= 0);
+  }
+  type = t;
+}
+
 bool FrameInfo::operator==(const FrameInfo& other) const {
   bool same = (type == other.type);
   for (int i = 0; i < FRAME_DIMS; ++i) {
