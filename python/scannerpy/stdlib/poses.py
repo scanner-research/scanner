@@ -40,10 +40,12 @@ def nms(orig_poses, overlapThresh):
         pose = poses[idx]
         for pi in range(num_joints):
             if pose[pi,2] > 0.2:
-                x_pos = pose[pi,1] - (pose[pi,1] % overlapThresh)
-                y_pos = pose[pi,0] - (pose[pi,0] % overlapThresh)
-                x_buckets[pi][x_pos].add(idx)
-                y_buckets[pi][y_pos].add(idx)
+                x_pos = int(pose[pi,1] - (pose[pi,1] % overlapThresh))
+                y_pos = int(pose[pi,0] - (pose[pi,0] % overlapThresh))
+                for xp in range(x_pos - 1, x_pos + 2):
+                    x_buckets[pi][xp].add(idx)
+                for yp in range(y_pos - 1, y_pos + 2):
+                    y_buckets[pi][yp].add(idx)
 
     # the list of picked indexes
     pick = []
@@ -61,11 +63,15 @@ def nms(orig_poses, overlapThresh):
         pose = poses[i]
         for pi in range(num_joints):
             if pose[pi,2] > 0.2:
-                x_pos = pose[pi,1] - (pose[pi,1] % overlapThresh)
-                y_pos = pose[pi,0] - (pose[pi,0] % overlapThresh)
+                x_pos = int(pose[pi,1] - (pose[pi,1] % overlapThresh))
+                y_pos = int(pose[pi,0] - (pose[pi,0] % overlapThresh))
 
-                x_set = x_buckets[pi][x_pos]
-                y_set = y_buckets[pi][y_pos]
+                x_set = set()
+                for xp in range(x_pos - 1, x_pos + 2):
+                    x_set.update(x_buckets[pi][xp])
+                y_set = set()
+                for yp in range(y_pos - 1, y_pos + 2):
+                    y_set.update(y_buckets[pi][yp])
                 both_set = x_set.intersection(y_set)
                 # Increment num overlaps for each joint
                 for idx in both_set:
