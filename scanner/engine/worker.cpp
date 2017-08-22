@@ -1677,7 +1677,7 @@ grpc::Status WorkerImpl::RegisterOp(
     output_columns.push_back(col);
   }
   bool can_stencil = op_registration->can_stencil();
-  const std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
+  std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
                                  op_registration->preferred_stencil().end());
   if (stencil.empty()) {
     stencil = {0};
