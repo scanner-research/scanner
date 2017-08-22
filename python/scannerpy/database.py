@@ -552,7 +552,7 @@ class Database:
                 c = columns.add()
                 c.name = col
                 c.type = self.protobufs.Other
-            elif isinstance(name, collections.Iterable):
+            elif isinstance(col, collections.Iterable):
                 c = columns.add()
                 c.name = col[0]
                 c.type = ColumnType.to_proto(self.protobufs, col[1])
