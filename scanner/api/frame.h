@@ -37,6 +37,7 @@ struct FrameInfo {
   FrameInfo& operator=(const FrameInfo&) = default;
 
   FrameInfo(int shape0, int shape1, int shape2, FrameType type);
+  FrameInfo(const std::vector<int> shapes, FrameType type);
 
   bool operator==(const FrameInfo& other) const;
   bool operator!=(const FrameInfo& other) const;

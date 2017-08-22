@@ -104,12 +104,57 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
           << "Incorrect number of output columns. Expected "
           << output_columns.size();
 
-      for (i32 j = 0; j < py::len(out_cols); ++j) {
-        std::string field = py::extract<std::string>(out_cols[j]);
-        size_t size = field.size();
-        u8* buf = new_buffer(device_, size);
-        memcpy_buffer(buf, device_, (u8*)field.data(), CPU_DEVICE, size);
-        insert_element(output_columns[j], buf, size);
+      for (i32 j = 0; j < output_columns.size(); ++j) {
+        // HACK(wcrichto): should pass column type in config and check here
+        if (config_.output_columns[j] == "frame") {
+          np::ndarray frame_np = py::extract<np::ndarray>(out_cols[j]);
+          FrameType frame_type;
+          {
+            np::dtype dtype = frame_np.get_dtype();
+            if (dtype == np::dtype::get_builtin<uint8_t>()) {
+              frame_type = FrameType::U8;
+            } else if (dtype == np::dtype::get_builtin<f32>()) {
+              frame_type = FrameType::F32;
+            } else if (dtype == np::dtype::get_builtin<f64>()) {
+              frame_type = FrameType::F64;
+            } else {
+              LOG(FATAL) << "Invalid numpy dtype: "
+                         << py::extract<char const*>(py::str(dtype));
+            }
+          }
+          i32 ndim = frame_np.get_nd();
+          if (ndim > 3) {
+            LOG(FATAL) << "Invalid number of dimensions (must be less than 4): "
+                       << ndim;
+          }
+          std::vector<i32> shapes;
+          std::vector<i32> strides;
+          for (int n = 0; n < ndim; ++n) {
+            shapes.push_back(frame_np.shape(n));
+            strides.push_back(frame_np.strides(n));
+          }
+          FrameInfo frame_info(shapes, frame_type);
+          Frame* frame = new_frame(device_, frame_info);
+          const char* frame_data = frame_np.get_data();
+
+          if (ndim == 3) {
+            assert(strides[1] % strides[2] == 0);
+            for (int i = 0; i < shapes[0]; ++i) {
+              u64 offset = strides[0] * i;
+              memcpy(frame->data + offset, frame_data + offset,
+                     shapes[2] * shapes[1] * strides[2]);
+            }
+          } else {
+            LOG(FATAL) << "Can not support ndim != 3.";
+          }
+          insert_frame(output_columns[j], frame);
+        } else {
+          std::string field = py::extract<std::string>(out_cols[j]);
+          size_t size = field.size();
+          u8* buf = new_buffer(device_, size);
+          memcpy_buffer(buf, device_, (u8*)field.data(), CPU_DEVICE, size);
+          insert_element(output_columns[j], buf, size);
+        }
       }
     }
   } catch (py::error_already_set& e) {
