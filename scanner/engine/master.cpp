@@ -739,6 +739,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
       return new PythonKernel(config, kernel_str, pickled_config);
     };
     // Create a new kernel factory
+    // TODO(apoms): Support batching and # of devices in python kernels
     KernelFactory* factory =
         new KernelFactory(op_name, device_type, 1, false, 1, constructor);
     // Register the kernel
