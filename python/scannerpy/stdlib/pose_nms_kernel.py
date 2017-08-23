@@ -1,8 +1,9 @@
+import scannerpy
 import scannerpy.stdlib.parsers as parsers
 import scannerpy.stdlib.writers as writers
 import scannerpy.stdlib.poses as poses
 
-class PoseNMSKernel():
+class PoseNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
         args = protobufs.PoseNMSKernelArgs()
