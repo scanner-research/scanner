@@ -1,6 +1,7 @@
+import scannerpy
 import cv2
 
-class PoseDrawKernel:
+class PoseDrawKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
 
