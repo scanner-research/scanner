@@ -6,7 +6,7 @@ import scannerpy.stdlib.poses as poses
 class PoseNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
-        args = protobufs.PoseNMSKernelArgs()
+        args = protobufs.PoseNMSArgs()
         args.ParseFromString(config)
         self.height = args.height
 

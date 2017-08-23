@@ -79,6 +79,10 @@ message ImageDecoderArgs {
   ImageType image_type = 1;
 }
 
-message PoseNMSKernelArgs {
+message PoseNMSArgs {
   int32 height = 1;
+}
+
+message BBoxNMSArgs {
+  float scale = 1;
 }

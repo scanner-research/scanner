@@ -410,14 +410,14 @@ void CaffeKernel::execute(const BatchedColumns& input_columns,
       // but the number of outputs is higher than that and forces the
       // frame shape to incorporate the batch size dimension
       // (the batch dimension would usually be output as multiple frames).
-      if (batch_size == 1 && output_blob->shape(0) > 1) {
-        info = FrameInfo(output_blob->shape(0) * output_blob->shape(1),
-                         info.shape[1],
-                         info.shape[2],
-                         FrameType::F32);
-      } else {
-        assert(batch_size == output_blob->shape(0));
-      }
+      // if (batch_size == 1 && output_blob->shape(0) > 1) {
+      //   info = FrameInfo(output_blob->shape(0) * output_blob->shape(1),
+      //                    info.shape[1],
+      //                    info.shape[2],
+      //                    FrameType::F32);
+      // } else {
+      //   assert(batch_size == output_blob->shape(0));
+      // }
       u8* output_block = new_block_buffer(
           device_, info.size() * batch_count, batch_count);
 
