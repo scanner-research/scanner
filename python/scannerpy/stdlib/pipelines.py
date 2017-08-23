@@ -7,14 +7,14 @@ import os.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def detect_faces(db, input_tables_or_collection, sampling, output_name,
-                 max_width=960):
+                 width=960):
     descriptor = NetDescriptor.from_file(db, 'nets/caffe_facenet.toml')
     facenet_args = db.protobufs.FacenetArgs()
     facenet_args.threshold = 0.5
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
 
-    if isinstance(outputs[0], Collection):
+    if isinstance(input_tables_or_collection, Collection):
         input_tables = [input_tables_or_collection]
     else:
         input_tables = input_tables_or_collection
@@ -30,14 +30,14 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
         jobs = []
         for input_table in input_tables:
             frame = sampling(input_table.as_op())
-            resized = db.ops.Resize(
-                frame = frame,
-                width = max_width, height = 0,
-                min = True, preserve_aspect = True,
-                device = DeviceType.GPU)
-            frame_info = db.ops.InfoFromFrame(frame = resized)
+            #resized = db.ops.Resize(
+            #    frame = frame,
+            #    width = width, height = 0,
+            #    min = True, preserve_aspect = True,
+            #    device = DeviceType.GPU)
+            frame_info = db.ops.InfoFromFrame(frame = frame)
             facenet_input = db.ops.FacenetInput(
-                frame = resized,
+                frame = frame,
                 args = facenet_args,
                 device = DeviceType.GPU)
             facenet = db.ops.Facenet(
@@ -55,60 +55,36 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
         output = db.run(jobs, force=True, work_item_size=batch * 4)
         outputs.append(output)
 
-    def make_bbox_table(input_table, outputs, name):
-        all_bboxes = [
-            [box for (_, box) in out.load(['bboxes'], parsers.bboxes)]
-            for out in outputs]
-
-        nms_bboxes = []
-        frames = len(all_bboxes[0])
-        runs = len(all_bboxes)
-
-        for fi in range(frames):
-            frame_bboxes = []
-            for r in range(runs):
-                frame_bboxes += (all_bboxes[r][fi])
-            frame_bboxes = bboxes.nms(frame_bboxes, 0.1)
-            nms_bboxes.append(frame_bboxes)
-
-        _, frame = next(input_table.load(['frame'], rows=[0]))
-        (height, width, _) = frame[0].shape
-        scale = max(width / float(max_width), 1.0)
-        for bb in nms_bboxes:
-            for bbox in bb:
-                bbox.x1 *= scale
-                bbox.y1 *= scale
-                bbox.x2 *= scale
-                bbox.y2 *= scale
-
-        return db.new_table(
-            name,
-            ['bboxes'],
-            [[bb] for bb in nms_bboxes],
-            writers.bboxes,
-            force=True)
-
+    # Register nms bbox op and kernel
+    db.register_op('BBoxNMS', [], ['poses'], variadic_inputs=True)
+    kernel_path = script_dir + '/bbox_nms_kernel.py'
+    db.register_python_kernel('BBoxNMS', DeviceType.CPU, kernel_path)
+    # scale = max(width / float(max_width), 1.0)
+    scale = 1.0
     if isinstance(outputs[0], Collection):
-        new_tables = []
+        jobs = []
         for i in range(len(outputs[0].tables())):
-            t = make_bbox_table(
-                input_tables.tables(i),
-                [c.tables(i) for c in outputs],
-                '{}_bboxes_{}'.format(output_name, i))
-            new_tables.append(t)
+            inputs = [c.tables(i) for c in outputs]
+            nmsed_bboxes = db.ops.BBoxNMS(*inputs, scale=scale)
+            job = Job(
+                columns = [nmsed_bboxes],
+                name = '{}_boxes_{}'.format(output_name, i))
+            jobs.append(job)
+        out_tables = db.run(jobs, force=True)
         return db.new_collection(
             output_name,
-            [t.name() for t in new_tables],
+            [t.name() for t in out_tables],
             force=True)
     else:
-        new_tables = []
-        for i in range(len(outputs)):
-            t = make_bbox_table(
-                input_tables[i],
-                [c[i] for c in outputs],
-                '{}_bboxes_{}'.format(output_name, i))
-            new_tables.append(t)
-        return new_tables
+        jobs = []
+        for i in range(len(outputs[0])):
+            inputs = [c[i].as_op().all() for c in outputs]
+            nmsed_bboxes = db.ops.BBoxNMS(*inputs, scale=scale)
+            job = Job(
+                columns = [nmsed_bboxes],
+                name = '{}_boxes_{}'.format(output_name, i))
+            jobs.append(job)
+        return db.run(jobs, force=True)
 
 
 def detect_poses(db, input_tables_or_collection, sampling, output_name,
@@ -153,15 +129,15 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
         outputs.append(output)
 
     # Register nms pose op and kernel
-    db.register_op('PoseNMSKernel', [], ['poses'], variadic_inputs=True)
+    db.register_op('PoseNMS', [], ['poses'], variadic_inputs=True)
     kernel_path = script_dir + '/pose_nms_kernel.py'
-    db.register_python_kernel('PoseNMSKernel', DeviceType.CPU, kernel_path)
+    db.register_python_kernel('PoseNMS', DeviceType.CPU, kernel_path)
 
     if isinstance(outputs[0], Collection):
         jobs = []
         for i in range(len(outputs[0].tables())):
             inputs = [c.tables(i) for c in outputs]
-            nmsed_poses = db.ops.PoseNMSKernel(*inputs, height=height)
+            nmsed_poses = db.ops.PoseNMS(*inputs, height=height)
             job = Job(
                 columns = [nmsed_poses],
                 name = '{}_poses_{}'.format(output_name, i))
@@ -175,7 +151,7 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
         jobs = []
         for i in range(len(outputs[0])):
             inputs = [c[i].as_op().all() for c in outputs]
-            nmsed_poses = db.ops.PoseNMSKernel(*inputs, height=height)
+            nmsed_poses = db.ops.PoseNMS(*inputs, height=height)
             job = Job(
                 columns = [nmsed_poses],
                 name = '{}_poses_{}'.format(output_name, i))

@@ -19,7 +19,7 @@ with Database() as db:
     print('Detecting faces...')
     bboxes_table = pipelines.detect_faces(
         db, [input_table], lambda t: t.all(),
-        movie_name + '_bboxes')
+        movie_name + '_bboxes')[0]
 
     print('Drawing faces onto video...')
     frame = input_table.as_op().all()
