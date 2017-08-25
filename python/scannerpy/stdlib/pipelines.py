@@ -29,8 +29,7 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
 
         job_fns = []
         for i, input_table in enumerate(input_tables):
-            def make_job():
-                input_table = input_tables[i]
+            def make_job(idx=i, input_table=input_table):
                 frame = sampling(input_table.as_op())
                 #resized = db.ops.Resize(
                 #    frame = frame,
@@ -52,7 +51,7 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
                     args = facenet_args)
                 job = Job(
                     columns = [facenet_output],
-                    name = '{}_{}_faces_{}'.format(output_name, i, scale))
+                    name = '{}_{}_faces_{}'.format(output_name, idx, scale))
                 return job
             job_fns.append(make_job)
 
@@ -68,7 +67,7 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
     if isinstance(outputs[0], Collection):
         job_fns = []
         for i in range(len(outputs[0].tables())):
-            def make_job():
+            def make_job(i=i):
                 inputs = [c.tables(i) for c in outputs]
                 nmsed_bboxes = db.ops.BBoxNMS(*inputs, scale=scale)
                 job = Job(
@@ -84,7 +83,7 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
     else:
         job_fns = []
         for i in range(len(outputs[0])):
-            def make_job():
+            def make_job(i=i):
                 inputs = [c[i].as_op().all() for c in outputs]
                 nmsed_bboxes = db.ops.BBoxNMS(*inputs, scale=scale)
                 job = Job(
@@ -113,8 +112,8 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
     for scale in scales:
         cpm2_args.scale = 368.0/height * scale
         job_fns = []
-        for input_table in input_tables:
-            def make_job():
+        for i, input_table in enumerate(input_tables):
+            def make_job(idx=i, input_table=input_table):
                 frame = sampling(input_table.as_op())
                 frame_info = db.ops.InfoFromFrame(frame = frame)
                 cpm2_input = db.ops.CPM2Input(
@@ -132,7 +131,7 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
                     args = cpm2_args)
                 return Job(
                     columns = [poses_out],
-                    name = '{}_poses_{}'.format(output_name, scale))
+                    name = '{}_{}_poses_{}'.format(output_name, idx, scale))
             job_fns.append(make_job)
         output = db.run(job_fns, force=True, work_item_size=8)
         outputs.append(output)
@@ -145,7 +144,7 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
     if isinstance(outputs[0], Collection):
         job_fns = []
         for i in range(len(outputs[0].tables())):
-            def make_job():
+            def make_job(i=i):
                 inputs = [c.tables(i) for c in outputs]
                 nmsed_poses = db.ops.PoseNMS(*inputs, height=height)
                 job = Job(
@@ -161,7 +160,7 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
     else:
         job_fns = []
         for i in range(len(outputs[0])):
-            def make_job():
+            def make_job(i=i):
                 inputs = [c[i].as_op().all() for c in outputs]
                 nmsed_poses = db.ops.PoseNMS(*inputs, height=height)
                 job = Job(
