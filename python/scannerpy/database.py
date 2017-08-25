@@ -18,6 +18,7 @@ from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
 from threading import Thread
+from multiprocessing.dummy import Pool as ThreadPool
 
 from common import *
 from profiler import Profiler
@@ -977,6 +978,17 @@ class Database:
             Either the output Collection if output_collection is specified
             or a list of Table objects.
         """
+        # Evaluate jobs if they are functions
+        if isinstance(jobs, list) and callable(jobs[0]):
+            def eval_job(job_fn):
+                return job_fn()
+            pool = ThreadPool(32)
+            try:
+                evaled_jobs = pool.map(eval_job, jobs)
+                jobs = evaled_jobs
+            except Exception, e:
+                pool.terminate()
+                raise
 
         # Get compression annotations
 
