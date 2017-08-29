@@ -17,7 +17,7 @@ from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers
 
 with Database() as db:
-    videos = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
+    [videos, failure] = db.ingest_video_collection('my_videos', ['vid0.mp4', 'vid1.mkv'])
     frame = videos.as_op().all()
     histograms = db.ops.Histogram(frame = frame, device=DeviceType.GPU)
     job = Job(columns = [histograms], name = 'my_videos_hist')
