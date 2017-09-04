@@ -79,6 +79,11 @@ if (BUILD_CUDA)
   add_library(scanner_halide scanner/util/halide_context.cpp)
 endif()
 
+set(OPENCV_DESIRED_COMPONENTS core highgui imgproc)
+if (BUILD_CUDA)
+  list(APPEND OPENCV_DESIRED_COMPONENTS cudaimgproc cudaarithm)
+endif()
+
 ###### Required Dependencies #######
 find_package(SaneProtobuf REQUIRED)
 find_package(FFmpeg REQUIRED)
@@ -95,7 +100,7 @@ find_package(Storehouse REQUIRED CONFIG
   PATHS "thirdparty/build/bin/storehouse")
 find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
-find_package(OpenCV COMPONENTS core highgui imgproc cudaimgproc cudaarithm)
+find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
 find_package(OpenMP REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
