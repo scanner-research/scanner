@@ -22,7 +22,9 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
       std::vector<u8> buf;
-      bool success = cv::imencode(".jpg", img, buf, encode_params);
+      cv::Mat recolored;
+      cv::cvtColor(img, recolored, CV_RGB2BGR);
+      bool success = cv::imencode(".jpg", recolored, buf, encode_params);
       LOG_IF(FATAL, !success) << "Failed to encode image";
       u8* output_buf = new_buffer(CPU_DEVICE, buf.size());
       std::memcpy(output_buf, buf.data(), buf.size());
