@@ -63,27 +63,29 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   index_entry.size_per_video = video_meta.size_per_video();
   index_entry.keyframe_positions = video_meta.keyframe_positions();
   index_entry.keyframe_byte_offsets = video_meta.keyframe_byte_offsets();
-  // Update keyframe positions and byte offsets so that the separately
-  // encoded videos seem like they are one
-  i64 frame_offset = 0;
-  i64 keyframe_offset = 0;
-  i64 byte_offset = 0;
-  for (i64 v = 0; v < index_entry.num_encoded_videos; ++v) {
-    for (i64 i = 0; i < index_entry.keyframes_per_video[v]; ++i) {
-      i64 fo = keyframe_offset + i;
-      index_entry.keyframe_positions[fo] += frame_offset;
-      index_entry.keyframe_byte_offsets[fo] += byte_offset;
+  if (index_entry.codec_type == proto::VideoDescriptor::H264) {
+    // Update keyframe positions and byte offsets so that the separately
+    // encoded videos seem like they are one
+    i64 frame_offset = 0;
+    i64 keyframe_offset = 0;
+    i64 byte_offset = 0;
+    for (i64 v = 0; v < index_entry.num_encoded_videos; ++v) {
+      for (i64 i = 0; i < index_entry.keyframes_per_video[v]; ++i) {
+        i64 fo = keyframe_offset + i;
+        index_entry.keyframe_positions[fo] += frame_offset;
+        index_entry.keyframe_byte_offsets[fo] += byte_offset;
+      }
+      frame_offset += index_entry.frames_per_video[v];
+      keyframe_offset += index_entry.keyframes_per_video[v];
+      byte_offset += index_entry.size_per_video[v];
     }
-    frame_offset += index_entry.frames_per_video[v];
-    keyframe_offset += index_entry.keyframes_per_video[v];
-    byte_offset += index_entry.size_per_video[v];
-  }
 
-  // Place total frames at the end of keyframe positions and total file size
-  // at the end of byte offsets to make interval calculation not need to
-  // deal with edge cases surrounding those
-  index_entry.keyframe_positions.push_back(video_meta.frames());
-  index_entry.keyframe_byte_offsets.push_back(index_entry.file_size);
+    // Place total frames at the end of keyframe positions and total file size
+    // at the end of byte offsets to make interval calculation not need to
+    // deal with edge cases surrounding those
+    index_entry.keyframe_positions.push_back(video_meta.frames());
+    index_entry.keyframe_byte_offsets.push_back(index_entry.file_size);
+  }
 
   return index_entry;
 }
