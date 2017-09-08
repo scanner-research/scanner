@@ -795,7 +795,8 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     }
 
     // Only push an entry if it is non empty
-    if (buffered_entry_.columns.size() > 0) {
+    if (buffered_entry_.columns.size() > 0 &&
+        buffered_entry_.columns[0].size() > 0) {
       buffered_entries_.push_back(std::make_tuple(io_item, buffered_entry_));
       buffered_entry_.columns.clear();
     }
