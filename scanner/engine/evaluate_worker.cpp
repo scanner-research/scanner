@@ -128,7 +128,8 @@ bool PreEvaluateWorker::yield(i32 item_size,
   entry.needs_configure = first_item ? needs_configure_ : false;
   entry.needs_reset = first_item_ ? needs_reset_ : false;
   entry.last_in_io_packet = (r + item_size >= total_rows_) ? true : false;
-  entry.warmup_rows = work_entry.warmup_rows;
+  entry.warmup_rows =
+      std::max(std::min(item_size, work_entry.warmup_rows - r), 0);
   entry.columns.resize(work_entry.columns.size());
   entry.last_in_task = work_entry.last_in_task;
 
