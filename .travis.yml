@@ -15,7 +15,8 @@ env:
 
 install:
 - sudo apt-get install -y doxygen graphviz python-pip
-- pip install requests[security] doxypypy twine
+- pip install requests[security] --upgrade
+- pip install doxypypy twine
 
 script: ./scripts/travis-build.sh
 
