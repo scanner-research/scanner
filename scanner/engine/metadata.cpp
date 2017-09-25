@@ -52,7 +52,7 @@ std::string Metadata<VideoDescriptor>::descriptor_path() const {
 }
 
 template <>
-std::string Metadata<JobDescriptor>::descriptor_path() const {
+std::string Metadata<BulkJobDescriptor>::descriptor_path() const {
   const JobMetadata* meta = (const JobMetadata*)this;
   return job_descriptor_path(meta->id());
 }
@@ -291,7 +291,7 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 ///////////////////////////////////////////////////////////////////////////////
 /// JobMetadata
 JobMetadata::JobMetadata() {}
-JobMetadata::JobMetadata(const JobDescriptor& job) : Metadata(job) {
+JobMetadata::JobMetadata(const BulkJobDescriptor& job) : Metadata(job) {
   for (auto& c : descriptor_.columns()) {
     columns_.push_back(c);
     column_ids_.insert({c.name(), c.id()});

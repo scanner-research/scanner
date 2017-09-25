@@ -36,17 +36,43 @@ namespace internal {
    - Filter: select all rows where some predicate holds on one of the columns
  */
 
-struct RowSample {
-  std::vector<i64> warmup_rows;
+class DomainSampler {
+ public:
+  DomainSampler(const std::string& name)
+    : name_(name) {}
+
+  virtual ~DomainSampler() {}
+
+  const std::string& name() const { return name_; }
+
+  virtual Result validate() = 0;
+
+  virtual Result get_upstream_rows(const std::vector<i64>& downstream_rows,
+                                   std::vector<i64>& upstream_rows) const = 0;
+
+  virtual Result get_num_downstream_rows(
+      i64 num_upstream_rows,
+      i64& num_downstream_rows) const = 0;
+
+ protected:
+  std::string name_;
+};
+
+Result
+make_domain_sampler_instance(const std::string& sampler_type,
+                             const std::vector<u8>& sampler_args,
+                             DomainSampler*& sampler);
+
+struct TaskRows {
   std::vector<i64> rows;
 };
 
-class Sampler {
+class TaskSampler {
  public:
-  Sampler(const std::string& name, const TableMetadata& table)
-    : name_(name), table_(table) {}
+  TaskSampler(const std::string& name, i64 num_rows)
+    : name_(name), num_rows_(num_rows) {}
 
-  virtual ~Sampler() {}
+  virtual ~TaskSampler() {}
 
   const std::string& name() const { return name_; }
 
@@ -54,53 +80,25 @@ class Sampler {
 
   virtual i64 total_rows() const = 0;
 
-  virtual i64 total_samples() const = 0;
+  virtual i64 total_tasks() const = 0;
 
-  virtual RowSample next_sample() = 0;
+  virtual TaskRows next_task() = 0;
 
   virtual void reset() = 0;
 
-  virtual RowSample sample_at(i64 sample_idx) = 0;
+  virtual TaskRows task_at(i64 task_idx) = 0;
 
-  virtual i64 offset_at_sample(i64 sample_idx) const = 0;
+  virtual i64 offset_at_task(i64 task_idx) const = 0;
 
  protected:
   std::string name_;
-  TableMetadata table_;
+  i64 num_rows_;
 };
 
-Result make_sampler_instance(const std::string& sampler_type,
-                             const std::vector<u8>& sampler_args,
-                             const TableMetadata& sampled_table,
-                             Sampler*& sampler);
+Result make_task_sampler_instance(const std::string& sampler_type,
+                                  const std::vector<u8>& sampler_args,
+                                  i64 num_rows,
+                                  TaskSampler*& sampler);
 
-class TaskSampler {
- public:
-  TaskSampler(const TableMetaCache& table_metas,
-              const proto::Task& task);
-
-  Result validate();
-
-  i64 total_rows();
-
-  i64 total_samples();
-
-  Result next_work(proto::NewWork& new_work);
-
-  void reset();
-
-  Result sample_at(i64 sample_idx, proto::NewWork& new_work);
-
- private:
-  const TableMetaCache& table_metas_;
-  proto::Task task_;
-  Result valid_;
-  std::vector<std::unique_ptr<Sampler>> samplers_;
-  i64 total_rows_ = 0;
-  i32 table_id_;
-  i64 total_samples_ = 0;
-  i64 samples_pos_ = 0;
-  i64 allocated_rows_ = 0;
-};
 }
 }

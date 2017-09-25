@@ -18,13 +18,10 @@ PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
     profiler_(args.profiler) {
 }
 
-void PreEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry, bool first) {
+void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
   auto feed_start = now();
 
-  entry_ = entry;
-  IOItem& io_item = std::get<0>(entry);
-  EvalWorkEntry& work_entry = std::get<1>(entry);
-
+  entry_ = work_entry;
 
   needs_configure_ = !(io_item.table_id() == last_table_id_);
   needs_reset_ = true;
@@ -114,8 +111,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
 
   auto yield_start = now();
 
-  IOItem& io_item = std::get<0>(entry_);
-  EvalWorkEntry& work_entry = std::get<1>(entry_);
+  EvalWorkEntry& work_entry = entry_;
 
   i64 r = current_row_;
   current_row_ += item_size;
@@ -292,11 +288,8 @@ void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {
   }
 }
 
-void EvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
-  entry_ = entry;
-
-  IOItem& io_item = std::get<0>(entry);
-  EvalWorkEntry& work_entry = std::get<1>(entry);
+void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
+  entry_ = work_entry;
 
   auto feed_start = now();
 

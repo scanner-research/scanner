@@ -65,7 +65,7 @@ class MasterImpl final : public proto::Master::Service {
                             proto::Empty* empty);
 
   grpc::Status NewJob(grpc::ServerContext* context,
-                      const proto::JobParameters* job_params,
+                      const proto::BulkJobParameters* job_params,
                       proto::Result* job_result);
 
   grpc::Status IsJobDone(grpc::ServerContext* context,
@@ -105,7 +105,7 @@ class MasterImpl final : public proto::Master::Service {
 
   void stop_job_processor();
 
-  bool process_job(const proto::JobParameters* job_params,
+  bool process_job(const proto::BulkJobParameters* job_params,
                    proto::Result* job_result);
 
   void start_worker_pinger();
@@ -130,19 +130,20 @@ class MasterImpl final : public proto::Master::Service {
   storehouse::StorageBackend* storage_;
   DatabaseMetadata meta_;
   std::unique_ptr<TableMetaCache> table_metas_;
-  proto::JobParameters job_params_;
   std::unique_ptr<ProgressBar> bar_;
   std::vector<std::string> so_paths_;
   std::vector<proto::OpRegistration> op_registrations_;
   std::vector<proto::PythonKernelRegistration> py_kernel_registrations_;
+  proto::BulkJobParameters job_params_;
 
-  i64 total_samples_used_;
-  i64 total_samples_;
+  std::vector<i64> total_output_rows_per_job_;
+  i64 total_tasks_used_;
+  i64 total_tasks_;
 
   // True if the master is executing a job
   std::mutex active_mutex_;
   std::condition_variable active_cv_;
-  bool active_job_ = false;
+  bool active_bulk_job_ = false;
 
   // True if all work for job is done
   std::mutex finished_mutex_;
@@ -154,22 +155,23 @@ class MasterImpl final : public proto::Master::Service {
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
   // Outstanding set of generated task samples that should be processed
-  std::deque<std::tuple<i64, i64>> unallocated_task_samples_;
-  // The next task to use to generate task samples
-  i64 next_task_;
-  // Total number of tasks
-  i64 num_tasks_;
-  // Cache of task samplers for active tasks (in unallocated or current task)
+  std::deque<std::tuple<i64, i64>> unallocated_job_tasks_;
+  // The next job to use to generate tasks
+  i64 next_job_;
+  // Total number of jobs
+  i64 num_jobs_;
+  // Cache of task samplers for active jobs
+  // (in unallocated work or for current job)
   std::map<i64, std::unique_ptr<TaskSampler>> task_samplers_;
   // # of samples that are left before the task sampler is no longer active
-  std::map<i64, i64> task_sampler_samples_left_;
+  std::map<i64, i64> task_sampler_tasks_left_;
   // Next sample index in the current task
-  i64 next_sample_;
+  i64 next_task_;
   // Total samples in the current task
-  i64 num_samples_;
+  i64 num_tasks_;
   Result task_result_;
   // Worker id -> (task_id, sample_id)
-  std::map<i64, std::set<std::tuple<i64, i64>>> active_task_samples_;
+  std::map<i64, std::set<std::tuple<i64, i64>>> active_job_tasks_;
   // Track assignment of tasks to worker for this job
   struct WorkerHistory {
     timepoint_t start_time;
@@ -179,6 +181,8 @@ class MasterImpl final : public proto::Master::Service {
   };
   std::map<i64, WorkerHistory> worker_histories_;
   std::map<i32, bool> unfinished_workers_;
+
+  std::map<i64, std::map<i64, i64>> job_task_num_rows_;
 
   // Worker connections
   std::map<std::string, i32> local_ids_;
