@@ -38,44 +38,6 @@ struct MachineParameters {
 //! Pick smart defaults for the current machine.
 MachineParameters default_machine_params();
 
-//! Set of frames to sample from a table.
-struct TableSample {
-  std::string table_name;
-  std::vector<std::string> column_names;
-  std::string sampling_function;
-  std::vector<u8> sampling_args;
-};
-
-struct OutputColumnCompression {
-  std::string codec;
-  std::map<std::string, std::string> options;
-};
-
-//! Set of table samples to compute at once.
-struct Task {
-  std::string output_table_name;
-  std::vector<TableSample> samples;
-};
-
-//! Set of tasks and a pipeline to run in a single job.
-struct TaskSet {
-  std::vector<Task> tasks;
-  Op* output_op;
-  std::vector<OutputColumnCompression> compression;
-};
-
-//! Configuration for a Scanner job.
-struct JobParameters {
-  std::string job_name;
-  TaskSet task_set;
-
-  MemoryPoolConfig memory_pool_config;
-  i32 pipeline_instances_per_node;
-  i64 work_item_size;
-  i32 load_sparsity_threshold;
-  i32 tasks_in_queue_per_pu;
-};
-
 //! Info about a video that fails to ingest.
 struct FailedVideo {
   std::string path;
@@ -97,13 +59,6 @@ class Database {
   Result ingest_videos(const std::vector<std::string>& table_names,
                        const std::vector<std::string>& paths,
                        std::vector<FailedVideo>& failed_videos);
-
-  // void ingest_images(storehouse::StorageConfig *storage_config,
-  //                    const std::string &db_path, const std::string
-  //                    &table_name,
-  //                    const std::vector<std::string> &paths);
-
-  Result new_job(JobParameters& params);
 
   Result new_table(const std::string& table_name,
                    const std::vector<std::string>& columns,
