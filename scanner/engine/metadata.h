@@ -168,7 +168,7 @@ class ImageFormatGroupMetadata
   std::vector<i64> compressed_sizes() const;
 };
 
-class JobMetadata : public Metadata<proto::JobDescriptor> {
+class JobMetadata : public Metadata<proto::BulkJobDescriptor> {
  public:
   JobMetadata();
   JobMetadata(const Descriptor& job);
@@ -218,6 +218,8 @@ class TableMetadata : public Metadata<proto::TableDescriptor> {
   std::vector<i64> end_rows() const;
 
   const std::vector<proto::Column>& columns() const;
+
+  bool has_column(const std::string& name) const;
 
   std::string column_name(i32 column_id) const;
 

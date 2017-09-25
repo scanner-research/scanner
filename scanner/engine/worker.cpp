@@ -823,7 +823,7 @@ WorkerImpl::~WorkerImpl() {
 }
 
 grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
-                                const proto::JobParameters* job_params,
+                                const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
   // Ensure that only one job is running at a time and that the worker
   // is in idle mode before transitioning to job start
@@ -1068,7 +1068,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   if (pipeline_instances_per_node <= 0) {
     RESULT_ERROR(job_result,
-                 "JobParameters.pipeline_instances_per_node must -1 for "
+                 "BulkJobParameters.pipeline_instances_per_node must -1 for "
                  "auto-default or "
                  " greater than 0 for manual configuration.");
     return grpc::Status::OK;
