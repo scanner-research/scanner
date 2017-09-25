@@ -148,14 +148,15 @@ ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
   return output_list;
 }
 
-std::tuple<i64, i64> determine_stencil_bounds(const proto::TaskSet& task_set) {
+std::tuple<i64, i64> determine_stencil_bounds(
+    const std::vector<proto::Op>& ops) {
   i64 min = std::numeric_limits<i64>::max();
   i64 max = std::numeric_limits<i64>::min();
 
   OpRegistry* op_registry = get_op_registry();
   // Skip input and output table ops
-  for (size_t i = 1; i < task_set.ops_size() - 1; ++i) {
-    auto& op = task_set.ops(i);
+  for (size_t i = 0; i < ops.size() - 1; ++i) {
+    auto& op = ops[i];
     const auto& op_info = op_registry->get_op_info(op.name());
 
     std::vector<i32> stencil;

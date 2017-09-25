@@ -36,7 +36,7 @@ class WorkerImpl final : public proto::Worker::Service {
   ~WorkerImpl();
 
   grpc::Status NewJob(grpc::ServerContext* context,
-                      const proto::JobParameters* job_params,
+                      const proto::BulkJobParameters* job_params,
                       proto::Result* job_result);
 
   grpc::Status LoadOp(grpc::ServerContext* context,
