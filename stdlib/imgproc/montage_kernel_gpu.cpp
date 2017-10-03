@@ -82,7 +82,7 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
         montage_image_ = cvc::GpuMat();
         montage_buffer_ = nullptr;
       } else {
-        FrameInfo info(2, 2, 3, FrameType::U8);
+        FrameInfo info(montage_height_, montage_width_, 3, FrameType::U8);
         insert_frame(output_columns[0], new_frame(device_, info));
       }
     }
@@ -116,5 +116,6 @@ REGISTER_OP(Montage).frame_input("frame").frame_output("montage");
 
 REGISTER_KERNEL(Montage, MontageKernelGPU)
     .device(DeviceType::GPU)
+    .batch()
     .num_devices(1);
 }

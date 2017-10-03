@@ -77,13 +77,13 @@ def make_montage(n, frames):
 
 
 def make_montage_scanner(db, table, shot_starts):
-    row_length = 8
+    row_length = min(8, len(shot_starts))
     rows_per_item = 1
     target_width = 256
 
     frame = table.as_op().gather(
         shot_starts,
-        item_size = row_length * rows_per_item)
+        task_size = row_length * rows_per_item)
 
     montage = db.ops.Montage(
         frame = frame,
@@ -92,14 +92,16 @@ def make_montage_scanner(db, table, shot_starts):
         frames_per_row = row_length,
         device = DeviceType.GPU)
 
-    job = Job(columns = [montage], name = 'montage_image')
+    job = Job(columns = [montage.lossless()], name = 'montage_image')
     montage_table = db.run(job, force=True)
 
-    montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
-    for _, img in montage_table.load(['montage']):
-        if len(img[0]) > 100:
-            img = np.flip(img, 2)
-            montage_img = np.vstack((montage_img, img))
+    montage_img = np.zeros((0, target_width * row_length, 3), dtype=np.uint8)
+    for _, img in montage_table.load(['montage'],
+                                     rows=range(row_length * rows_per_item - 1,
+                                                len(shot_starts),
+                                                row_length * rows_per_item)):
+        img = np.flip(img[0], 2)
+        montage_img = np.vstack((montage_img, img))
     return montage_img
 
 

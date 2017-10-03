@@ -207,6 +207,9 @@ class GatherSampler : public Sampler {
     }
     for (i32 i = 0; i < args_.samples_size(); ++i) {
       auto& s = args_.samples(i);
+      rows_.push_back(std::vector<i64>(s.rows().begin(), s.rows().end()));
+      w_rows_.push_back(
+          std::vector<i64>(s.warmup_rows().begin(), s.warmup_rows().end()));
       i64 rows = args_.samples(i).rows_size();
       offset_at_sample_.push_back(total_rows_);
       total_rows_ += rows;
@@ -229,10 +232,8 @@ class GatherSampler : public Sampler {
 
   RowSample sample_at(i64 sample_idx) override {
     RowSample sample;
-    auto& s = args_.samples(curr_sample_idx_);
-    sample.warmup_rows =
-        std::vector<i64>(s.warmup_rows().begin(), s.warmup_rows().end());
-    sample.rows = std::vector<i64>(s.rows().begin(), s.rows().end());
+    sample.warmup_rows = w_rows_[sample_idx];
+    sample.rows = rows_[sample_idx];
     return sample;
   }
 
@@ -247,6 +248,8 @@ class GatherSampler : public Sampler {
   i64 total_samples_ = 0;
   std::vector<i64> offset_at_sample_;
   i64 curr_sample_idx_ = 0;
+  std::vector<std::vector<i64>> rows_;
+  std::vector<std::vector<i64>> w_rows_;
 };
 
 template <typename T>
