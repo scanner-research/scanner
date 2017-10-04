@@ -63,16 +63,16 @@ make_domain_sampler_instance(const std::string& sampler_type,
                              const std::vector<u8>& sampler_args,
                              DomainSampler*& sampler);
 
-struct TaskRows {
-  std::vector<i64> rows;
+struct PartitionGroup {
+  std::vector<i64> row;
 };
 
-class TaskSampler {
+class Partitioner {
  public:
-  TaskSampler(const std::string& name, i64 num_rows)
+  Partitioner(const std::string& name, i64 num_rows)
     : name_(name), num_rows_(num_rows) {}
 
-  virtual ~TaskSampler() {}
+  virtual ~Partitioner() {}
 
   const std::string& name() const { return name_; }
 
@@ -80,25 +80,25 @@ class TaskSampler {
 
   virtual i64 total_rows() const = 0;
 
-  virtual i64 total_tasks() const = 0;
+  virtual i64 total_groups() const = 0;
 
-  virtual TaskRows next_task() = 0;
+  virtual std::vector<i64> total_rows_per_group() const = 0;
+
+  virtual PartitionGroup next_group() = 0;
 
   virtual void reset() = 0;
 
-  virtual TaskRows task_at(i64 task_idx) = 0;
+  virtual PartitionGroup group_at(i64 group_idx) = 0;
 
-  virtual i64 offset_at_task(i64 task_idx) const = 0;
+  virtual i64 offset_at_group(i64 group_idx) const = 0;
 
  protected:
   std::string name_;
   i64 num_rows_;
 };
 
-Result make_task_sampler_instance(const std::string& sampler_type,
-                                  const std::vector<u8>& sampler_args,
-                                  i64 num_rows,
-                                  TaskSampler*& sampler);
-
+Result make_partitioner_instance(const std::string& sampler_type,
+                                 const std::vector<u8>& sampler_args,
+                                 i64 num_rows, Partitioner*& partitioner);
 }
 }

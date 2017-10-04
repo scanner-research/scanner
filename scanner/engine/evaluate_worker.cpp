@@ -23,19 +23,17 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 
   entry_ = work_entry;
 
-  needs_configure_ = !(io_item.table_id() == last_table_id_);
+  needs_configure_ = !(work_entry.job_index == last_table_id_);
   needs_reset_ = true;
   // NOTE(apoms): for avoiding warmup
   // needs_configure_ || !(io_item.item_id() == last_item_id ||
   //       (io_item.table_id() == last_table_id &&
   //        io_item.start_element() == last_end_element));
 
-  last_table_id_ = io_item.table_id();
-  last_end_row_ = io_item.end_row();
-  last_item_id_ = io_item.item_id();
+  last_table_id_ = work_entry.job_index
 
   // Split up a work entry into work item size chunks
-  total_rows_ = - 0;
+  total_rows_ = 0;
   for (size_t i = 0; i < work_entry.columns.size(); ++i) {
     total_rows_ =
         std::max(total_rows_, (i64)work_entry.columns[i].size());

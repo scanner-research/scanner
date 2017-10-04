@@ -114,20 +114,20 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
 
   const std::vector<std::string>& job_names() const;
 
-  bool has_job(const std::string& job) const;
-  bool has_job(i32 job_id) const;
-  i32 get_job_id(const std::string& job_name) const;
-  const std::string& get_job_name(i32 job_id) const;
-  i32 add_job(const std::string& job_name);
-  void remove_job(i32 job_id);
+  bool has_bulk_job(const std::string& job) const;
+  bool has_bulk_job(i32 job_id) const;
+  i32 get_bulk_job_id(const std::string& job_name) const;
+  const std::string& get_bulk_job_name(i32 job_id) const;
+  i32 add_bulk_job(const std::string& job_name);
+  void remove_bulk_job(i32 job_id);
 
  private:
   i32 next_table_id_;
-  i32 next_job_id_;
+  i32 next_bulk_job_id_;
   std::vector<std::string> table_names_;
-  std::vector<std::string> job_names_;
+  std::vector<std::string> bulk_job_names_;
   std::map<i32, std::string> table_id_names_;
-  std::map<i32, std::string> job_id_names_;
+  std::map<i32, std::string> bulk_job_id_names_;
 };
 
 class VideoMetadata : public Metadata<proto::VideoDescriptor> {

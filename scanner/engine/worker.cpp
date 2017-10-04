@@ -409,12 +409,11 @@ void load_driver(LoadInputQueue& load_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<i32, std::deque<TaskStream>, IOItem, LoadWorkEntry> entry;
+    std::tuple<i32, std::deque<TaskStream>, LoadWorkEntry> entry;
     load_work.pop(entry);
     i32& output_queue_idx = std::get<0>(entry);
     auto& task_streams = std::get<1>(entry);
-    IOItem& io_item = std::get<2>(entry);
-    LoadWorkEntry& load_work_entry = std::get<3>(entry);
+    LoadWorkEntry& load_work_entry = std::get<2>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -432,7 +431,7 @@ void load_driver(LoadInputQueue& load_work,
     worker.feed(input_entry);
 
     while (true) {
-      std::tuple<IOItem, EvalWorkEntry> output_entry;
+      EvalWorkEntry output_entry;
       i32 io_item_size = 0; // dummy for now
       if (worker.yield(io_item_size, output_entry)) {
         auto work_entry = std::get<1>(output_entry);
@@ -464,7 +463,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
   std::map<i32, Queue<
-                  std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>>
+                  std::tuple<std::deque<TaskStream>, EvalWorkEntry>>>
       task_work_queue;
 
   i32 active_task = -1;
@@ -473,12 +472,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     if (task_work_queue.empty() ||
         (active_task != -1 && task_work_queue.at(active_task).size() <= 0)) {
-      std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
+      std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
       input_work.pop(entry);
 
       auto& task_streams = std::get<0>(entry);
-      IOItem& io_item = std::get<1>(entry);
-      EvalWorkEntry& work_entry = std::get<2>(entry);
+      EvalWorkEntry& work_entry = std::get<1>(entry);
       if (work_entry.job_index == -1) {
         break;
       }
@@ -499,12 +497,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     }
 
     // Grab next entry for active task
-    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     task_work_queue.at(active_task).pop(entry);
 
     auto& task_streams = std::get<0>(entry);
-    IOItem& io_item = std::get<1>(entry);
-    EvalWorkEntry& work_entry = std::get<2>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
             << "): "
@@ -527,7 +524,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       i32 work_item_size = work_entry.work_item_sizes.at(work_item_index++);
       total_rows -= work_item_size;
 
-      std::tuple<IOItem, EvalWorkEntry> output_entry;
+      EvalWorkEntry output_entry;
       if (!worker.yield(work_item_size, output_entry)) {
         break;
       }
@@ -574,12 +571,11 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   while (true) {
     auto idle_pull_start = now();
 
-    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     input_work.pop(entry);
 
     auto& task_streams = std::get<0>(entry);
-    IOItem& io_item = std::get<1>(entry);
-    EvalWorkEntry& work_entry = std::get<2>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     args.profiler.add_interval("idle_pull", idle_pull_start, now());
 
@@ -611,7 +607,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
-    std::tuple<IOItem, EvalWorkEntry> output_entry;
+    std::tuple<EvalWorkEntry> output_entry;
     bool result = worker.yield(work_item_size, output_entry);
     (void)result;
     assert(result);
@@ -635,10 +631,9 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry> entry;
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     input_work.pop(entry);
-    IOItem& io_item = std::get<1>(entry);
-    EvalWorkEntry& work_entry = std::get<2>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -653,7 +648,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 
     auto input_entry = std::make_tuple(io_item, work_entry);
     worker.feed(input_entry);
-    std::tuple<IOItem, EvalWorkEntry> output_entry;
+    EvalWorkEntry output_entry;
     bool result = worker.yield(output_entry);
     profiler.add_interval("task", work_start, now());
 
@@ -687,10 +682,9 @@ void save_coordinator(OutputEvalQueue& eval_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<i32, IOItem, EvalWorkEntry> entry;
+    std::tuple<i32, EvalWorkEntry> entry;
     eval_work.pop(entry);
-    IOItem& io_item = std::get<1>(entry);
-    EvalWorkEntry& work_entry = std::get<2>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     //args.profiler.add_interval("idle", idle_start, now());
 
@@ -726,12 +720,11 @@ void save_driver(SaveInputQueue& save_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<i32, IOItem, EvalWorkEntry> entry;
+    std::tuple<i32, EvalWorkEntry> entry;
     save_work.pop(entry);
 
     i32 pipeline_instance = std::get<0>(entry);
-    IOItem& io_item = std::get<1>(entry);
-    EvalWorkEntry& work_entry = std::get<2>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -1477,19 +1470,19 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   auto push_exit_message = [](EvalQueue& q) {
     EvalWorkEntry entry;
     entry.job_index = -1;
-    q.push(std::make_tuple(std::deque<TaskStream>(), IOItem{}, entry));
+    q.push(std::make_tuple(std::deque<TaskStream>(), entry));
   };
 
   auto push_output_eval_exit_message = [](OutputEvalQueue& q) {
     EvalWorkEntry entry;
     entry.job_index = -1;
-    q.push(std::make_tuple(0, IOItem{}, entry));
+    q.push(std::make_tuple(0, entry));
   };
 
   auto push_save_exit_message = [](SaveInputQueue& q) {
     EvalWorkEntry entry;
     entry.job_index = -1;
-    q.push(std::make_tuple(0, IOItem{}, entry));
+    q.push(std::make_tuple(0, entry));
   };
 
   // Push sentinel work entries into queue to terminate load threads
@@ -1497,7 +1490,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     LoadWorkEntry entry;
     entry.set_job_index(-1);
     load_work.push(
-        std::make_tuple(0, std::deque<TaskStream>(), IOItem{}, entry));
+        std::make_tuple(0, std::deque<TaskStream>(), entry));
   }
 
   for (i32 i = 0; i < num_load_workers; ++i) {

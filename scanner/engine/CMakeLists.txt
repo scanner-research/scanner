@@ -11,6 +11,7 @@ set(SOURCE_FILES
   evaluate_worker.cpp
   save_worker.cpp
   sampler.cpp
+  dag_analysis.cpp
   metadata.cpp
   kernel_registry.cpp
   op_registry.cpp
