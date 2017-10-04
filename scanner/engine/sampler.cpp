@@ -361,7 +361,7 @@ DomainSamplerFactory make_domain_factory() {
 Result make_domain_sampler_instance(const std::string& sampler_type,
                                     const std::vector<u8>& sampler_args,
                                     DomainSampler*& sampler) {
-  static std::map<std::string, TaskSamplerFactory> samplers = {
+  static std::map<std::string, DomainSamplerFactory> samplers = {
       {"All", make_domain_factory<DefaultDomainSampler>()},
       {"Strided", make_domain_factory<StridedDomainSampler>()},
       {"StridedRanges", make_domain_factory<StridedRangesDomainSampler>()},
@@ -380,7 +380,7 @@ Result make_domain_sampler_instance(const std::string& sampler_type,
 
   // Validate sampler args
   DomainSamplerFactory factory = it->second;
-  DomainTaskSampler* potential_sampler = factory(sampler_args);
+  DomainSampler* potential_sampler = factory(sampler_args);
   result = potential_sampler->validate();
   if (!result.success()) {
     delete potential_sampler;
@@ -392,33 +392,27 @@ Result make_domain_sampler_instance(const std::string& sampler_type,
 }
 
 
-using TaskSamplerFactory =
-    std::function<TaskSampler*(const std::vector<u8>&, i64 num_rows)>;
+using PartitionerFactory =
+    std::function<Partitioner*(const std::vector<u8>&, i64 num_rows)>;
 
-class AllTaskSampler : public TaskSampler {
+class AllPartitioner : public Partitioner {
  public:
-  AllTaskSampler(const std::vector<u8>& args, int64 num_rows)
-    : TaskSampler("All", num_rows) {
+  AllPartitioner(const std::vector<u8>& args, int64 num_rows)
+    : Partitioner("All", num_rows) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_, "All sampler provided with invalid protobuf args");
       return;
     }
-    if (args_.sample_size() <= 0) {
+    if (args_.group_size() <= 0) {
       RESULT_ERROR(&valid_,
-                   "All sampler sample size (%ld) must be greater than 0",
+                   "All partitioner group size (%ld) must be greater than 0",
                    args_.sample_size());
       return;
     }
-    if (args_.warmup_size() < 0) {
-      RESULT_ERROR(&valid_,
-                   "All sampler warmup size (%ld) must be non-negative",
-                   args_.warmup_size());
-      return;
-    }
-    total_samples_ = (i64)std::ceil((float)num_rows_ / args_.sample_size());
-    for (i64 i = 0; i < num_rows_; i += args_.sample_size()) {
-      offset_at_sample_.push_back(i);
+    total_groups_ = (i64)std::ceil((float)num_rows_ / args_.groups_size());
+    for (i64 i = 0; i < num_rows_; i += args_.grups_size()) {
+      offset_at_group_.push_back(i);
     }
   }
 
@@ -430,51 +424,46 @@ class AllTaskSampler : public TaskSampler {
 
   i64 total_rows() const override { return num_rows_; }
 
-  i64 total_tasks() const override {
-    return total_tasks_;
+  i64 total_groups() const override {
+    return total_groups_;
   }
 
-  TaskRows next_task() override {
-    assert(curr_task_idx_ < total_tasks_);
-    return task_at(curr_task_idx_++);
+  PartitionGroup next_group() override {
+    assert(curr_group_idx_ < total_groups_);
+    return group_at(curr_group_idx_++);
   }
 
-  void reset() override { curr_task_idx_ = 0; }
+  void reset() override { curr_group_idx_ = 0; }
 
-  TaskRows task_at(i64 task_idx) override {
-    i64 pos = args_.sample_size() * task_idx;
-    i64 ws = std::max(0l, pos - args_.warmup_size());
+  PartitionGroup group_at(i64 group_idx) override {
+    i64 pos = args_.group_size() * group_idx;
     i64 s = pos;
-    i64 e = std::min(total_rows(), pos + args_.sample_size());
-    assert(ws >= 0);
+    i64 e = std::min(total_rows(), pos + args_.group_size());
     assert(s >= 0);
     assert(e <= total_rows());
-    RowSample sample;
-    for (i64 i = ws; i < s; ++i) {
-      sample.warmup_rows.push_back(i);
-    }
+    PartitionGroup group;
     for (i64 i = s; i < e; ++i) {
-      sample.rows.push_back(i);
+      group.rows.push_back(i);
     }
-    return task;
+    return group;
   }
 
-  i64 offset_at_task(i64 task_idx) const override {
-    return offset_at_task_.at(task_idx);
+  i64 offset_at_group(i64 group_idx) const override {
+    return offset_at_group_.at(group_idx);
   }
 
  private:
   Result valid_;
-  proto::AllTaskSamplerArgs args_;
-  i64 curr_task_idx_ = 0;
-  i64 total_tasks_;
-  std::vector<i64> offset_at_task_;
+  proto::AllPartitionerArgs args_;
+  i64 curr_group_idx_ = 0;
+  i64 total_groups_;
+  std::vector<i64> offset_at_group_;
 };
 
-class StridedRangeTaskSampler : public TaskSampler {
+class StridedRangePartitioner : public Partitioner {
  public:
-  StridedRangeTaskSampler(const std::vector<u8>& args, i64 num_rows)
-    : TaskSampler("StridedRange", num_rows) {
+  StridedRangePartitioner(const std::vector<u8>& args, i64 num_rows)
+    : Partitioner("StridedRange", num_rows) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_,
@@ -487,20 +476,12 @@ class StridedRangeTaskSampler : public TaskSampler {
                    args_.stride());
       return;
     }
-    if (args_.warmup_starts_size() != args_.starts_size() ||
-        args_.starts_size() != args_.ends_size()) {
+    if (args_.starts_size() != args_.ends_size()) {
       RESULT_ERROR(&valid_,
-                   "StridedRange warmups, starts, and ends not the same size");
+                   "StridedRange tarts and ends not the same size");
       return;
     }
-    for (i64 i = 0; i < args_.warmup_starts_size(); ++i) {
-      if (args_.warmup_starts(i) > args_.starts(i)) {
-        RESULT_ERROR(
-            &valid_,
-            "StridedRange warmup start (%ld) should not be after start (%ld)",
-            args_.warmup_starts(i), args_.starts(i));
-        return;
-      }
+    for (i64 i = 0; i < args_.starts_size(); ++i) {
       if (args_.starts(i) > args_.ends(i)) {
         RESULT_ERROR(&valid_,
                      "StridedRange start (%ld) should not be after end (%ld)",
@@ -516,123 +497,116 @@ class StridedRangeTaskSampler : public TaskSampler {
       }
       i64 rows =
           ceil((args_.ends(i) - args_.starts(i)) / (float)args_.stride());
-      offset_at_task_.push_back(total_rows_);
+      offset_at_group_.push_back(total_rows_);
       total_rows_ += rows;
     }
-    total_tasks_ = args_.warmup_starts_size();
+    total_groups_ = args_.starts_size();
   }
 
   Result validate() override { return valid_; }
 
   i64 total_rows() const override { return total_rows_; }
 
-  i64 total_tasks() const override { return total_tasks_; }
+  i64 total_groups() const override { return total_groups_; }
 
-  RowSample next_task() override {
-    assert(curr_task_idx_ < total_tasks_);
-    return task_at(curr_task_idx_++);
+  RowSample next_group() override {
+    assert(curr_group_idx_ < total_groups_);
+    return group_at(curr_group_idx_++);
   }
 
-  void reset() override { curr_task_idx_ = 0; }
+  void reset() override { curr_group_idx_ = 0; }
 
-  RowSample task_at(i64 task_idx) override {
+  RowSample group_at(i64 group_idx) override {
     i64 stride = args_.stride();
-    i64 ws = args_.warmup_starts(task_idx);
-    i64 s = args_.starts(task_idx);
-    i64 e = args_.ends(task_idx);
-    RowSample task;
-    for (i64 i = ws; i < s; i += stride) {
-      task.warmup_rows.push_back(i);
-    }
+    i64 s = args_.starts(group_idx);
+    i64 e = args_.ends(group_idx);
+    RowSample group;
     for (i64 i = s; i < e; i += stride) {
-      task.rows.push_back(i);
+      group.rows.push_back(i);
     }
-    return task;
+    return group;
   }
 
-  i64 offset_at_task(i64 task_idx) const override {
-    return offset_at_task_.at(task_idx);
+  i64 offset_at_group(i64 group_idx) const override {
+    return offset_at_group_.at(group_idx);
   }
 
  private:
   Result valid_;
-  proto::StridedRangeTaskSamplerArgs args_;
+  proto::StridedRangePartitionerArgs args_;
   i64 total_rows_ = 0;
-  i64 total_tasks_ = 0;
-  std::vector<i64> offset_at_task_;
-  i64 curr_task_idx_ = 0;
+  i64 total_groups_ = 0;
+  std::vector<i64> offset_at_group_;
+  i64 curr_group_idx_ = 0;
 };
 
-class GatherTaskSampler : public TaskSampler {
+class GatherPartitioner : public Partitioner {
  public:
-  GatherTaskSampler(const std::vector<u8>& args, i64 num_rows)
-    : TaskSampler("Gather", num_rows) {
+  GatherPartitioner(const std::vector<u8>& args, i64 num_rows)
+    : Partitioner("Gather", num_rows) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_,
                    "Gather sampler provided with invalid protobuf args");
       return;
     }
-    for (i32 i = 0; i < args_.samples_size(); ++i) {
-      auto& s = args_.samples(i);
-      i64 rows = args_.samples(i).rows_size();
-      offset_at_task_.push_back(total_rows_);
+    for (i32 i = 0; i < args_.groups_size(); ++i) {
+      auto& s = args_.groups(i);
+      i64 rows = s.rows_size();
+      offset_at_group_.push_back(total_rows_);
       total_rows_ += rows;
     }
-    total_tasks_ = args_.tasks_size();
+    total_groups_ = args_.groups_size();
   }
 
   Result validate() override { return valid_; }
 
   i64 total_rows() const override { return total_rows_; }
 
-  i64 total_tasks() const override { return total_tasks_; }
+  i64 total_groups() const override { return total_groups_; }
 
-  RowSample next_task() override {
-    assert(curr_task_idx_ < total_tasks_);
-    return task_at(curr_task_idx_++);
+  PartitionGroup next_group() override {
+    assert(curr_group_idx_ < total_groups_);
+    return group_at(curr_group_idx_++);
   }
 
-  void reset() override { curr_task_idx_ = 0; }
+  void reset() override { curr_group_idx_ = 0; }
 
-  RowTask task_at(i64 task_idx) override {
-    RowSample task;
-    auto& s = args_.samples(curr_task_idx_);
-    task.warmup_rows =
-        std::vector<i64>(s.warmup_rows().begin(), s.warmup_rows().end());
-    task.rows = std::vector<i64>(s.rows().begin(), s.rows().end());
-    return task;
+  RowGroup group_at(i64 group_idx) override {
+    RowSample group;
+    auto& s = args_.groups(curr_group_idx_);
+    group.rows = std::vector<i64>(s.rows().begin(), s.rows().end());
+    return group;
   }
 
-  i64 offset_at_task(i64 task_idx) const override {
-    return offset_at_task_.at(task_idx);
+  i64 offset_at_group(i64 group_idx) const override {
+    return offset_at_group_.at(group_idx);
   }
 
  private:
   Result valid_;
-  proto::GatherTaskSamplerArgs args_;
+  proto::GatherPartitionerArgs args_;
   i64 total_rows_ = 0;
-  i64 total_tasks_ = 0;
-  std::vector<i64> offset_at_task_;
-  i64 curr_task_idx_ = 0;
+  i64 total_groups_ = 0;
+  std::vector<i64> offset_at_group_;
+  i64 curr_group_idx_ = 0;
 };
 
 template <typename T>
-TaskSamplerFactory make_factory() {
+PartitionerFactory make_factory() {
   return [](const std::vector<u8>& args, i64 num_rows) {
     return new T(args, num_rows);
   };
 }
 }
 
-Result make_task_sampler_instance(const std::string& sampler_type,
-                                  const std::vector<u8>& sampler_args,
-                                  i64 num_rows,
-                                  TaskSampler*& sampler) {
-  static std::map<std::string, TaskSamplerFactory> samplers = {
-      {"All", make_factory<AllTaskSampler>()},
-      {"StridedRange", make_factory<StridedRangeTaskSampler>()},
-      {"Gather", make_factory<GatherTaskSampler>()}};
+Result make_partitioner_instance(const std::string& sampler_type,
+                                 const std::vector<u8>& sampler_args,
+                                 i64 num_rows, Partitioner*& sampler) {
+  static std::map<std::string, PartitionerFactory> samplers = {
+      {"All", make_factory<AllPartitioner>()},
+      {"StridedRange", make_factory<StridedRangePartitioner>()},
+      {"Gather", make_factory<GatherPartitioner>()}};
 
   Result result;
   result.set_success(true);
@@ -640,13 +614,13 @@ Result make_task_sampler_instance(const std::string& sampler_type,
   // Check if sampler type exists
   auto it = samplers.find(sampler_type);
   if (it == samplers.end()) {
-    RESULT_ERROR(&result, "TaskSampler type not found: %s", sampler_type.c_str());
+    RESULT_ERROR(&result, "Partitioner type not found: %s", sampler_type.c_str());
     return result;
   }
 
   // Validate sampler args
-  TaskSamplerFactory factory = it->second;
-  TaskSampler* potential_sampler = factory(sampler_args, num_rows);
+  PartitionerFactory factory = it->second;
+  Partitioner* potential_sampler = factory(sampler_args, num_rows);
   result = potential_sampler->validate();
   if (!result.success()) {
     delete potential_sampler;

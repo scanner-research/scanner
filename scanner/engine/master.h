@@ -136,7 +136,6 @@ class MasterImpl final : public proto::Master::Service {
   std::vector<proto::PythonKernelRegistration> py_kernel_registrations_;
   proto::BulkJobParameters job_params_;
 
-  std::vector<i64> total_output_rows_per_job_;
   i64 total_tasks_used_;
   i64 total_tasks_;
 
@@ -154,23 +153,24 @@ class MasterImpl final : public proto::Master::Service {
   std::thread job_processor_thread_;
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
+  // Slice input rows for each job at each slice op
+  std::vector<std::map<i64, i64>> slice_input_rows_per_job_;
+  // Output rows for each job
+  std::vector<i64> total_output_rows_per_job_;
+  // All job task output rows
+  std::vector<std::vector<std::vector<i64>> job_tasks_;
   // Outstanding set of generated task samples that should be processed
   std::deque<std::tuple<i64, i64>> unallocated_job_tasks_;
   // The next job to use to generate tasks
   i64 next_job_;
   // Total number of jobs
   i64 num_jobs_;
-  // Cache of task samplers for active jobs
-  // (in unallocated work or for current job)
-  std::map<i64, std::unique_ptr<TaskSampler>> task_samplers_;
-  // # of samples that are left before the task sampler is no longer active
-  std::map<i64, i64> task_sampler_tasks_left_;
   // Next sample index in the current task
   i64 next_task_;
   // Total samples in the current task
   i64 num_tasks_;
   Result task_result_;
-  // Worker id -> (task_id, sample_id)
+  // Worker id -> (job_id, task_id)
   std::map<i64, std::set<std::tuple<i64, i64>>> active_job_tasks_;
   // Track assignment of tasks to worker for this job
   struct WorkerHistory {

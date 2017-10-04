@@ -16,6 +16,7 @@
 #include "scanner/engine/master.h"
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/sampler.h"
+#include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
@@ -28,423 +29,6 @@
 
 namespace scanner {
 namespace internal {
-namespace {
-void validate_jobs_and_ops(
-    DatabaseMetadata& meta, TableMetaCache& table_metas,
-    const std::vector<proto::Job>& jobs,
-    const std::vector<proto::Op>& ops, Result* result) {
-  std::set<i32> sampling_indices;
-  std::set<i32> input_indices;
-  {
-    // Validate ops
-    OpRegistry* op_registry = get_op_registry();
-    KernelRegistry* kernel_registry = get_kernel_registry();
-
-    i32 op_idx = 0;
-    // Keep track of op names and outputs for verifying that requested
-    // edges between ops are valid
-    std::vector<std::string> op_names;
-    std::vector<std::vector<std::string>> op_outputs;
-    for (auto& op : ops) {
-      op_names.push_back(op.name());
-      if (op.name() == "Input") {
-        if (op.inputs().size() == 0) {
-          RESULT_ERROR(result, "Input op at %d did not specify any inputs.",
-                       op_idx);
-          return;
-        }
-        if (op.inputs().size() > 1) {
-          RESULT_ERROR(result, "Input op at %d specified more than one input.",
-                       op_idx);
-          return;
-        }
-        op_outputs.emplace_back();
-        op_outputs.back().push_back(op.inputs(0).column());
-        input_indices.insert(op_idx);
-        op_idx++;
-        continue;
-      }
-      if (op.name() == "Sample" || op.name() == "SampleFrame" ||
-          op.name() == "Space" || op.name() == "SpaceFrame") {
-        sampling_indices.insert(op_idx);
-      }
-      // Verify op exists and record outputs
-      if (op.name() != "OutputTable") {
-        op_outputs.emplace_back();
-        if (!op_registry->has_op(op.name())) {
-          RESULT_ERROR(result, "Op %s is not registered.", op.name().c_str());
-          return;
-        } else {
-          // Keep track of op outputs for verifying dependent ops
-          for (auto& col :
-               op_registry->get_op_info(op.name())->output_columns()) {
-            op_outputs.back().push_back(col.name());
-          }
-        }
-        if (!kernel_registry->has_kernel(op.name(), op.device_type())) {
-          RESULT_ERROR(result,
-                       "Op %s at index %d requested kernel with device type "
-                       "%s but no such kernel exists.",
-                       op.name().c_str(), op_idx,
-                       (op.device_type() == DeviceType::CPU ? "CPU" : "GPU"));
-          return;
-        }
-      }
-      i32 input_count = op.inputs().size();
-      // Verify the inputs for this Op
-      for (auto& input : op.inputs()) {
-        if (input.op_index() >= op_idx) {
-          RESULT_ERROR(result,
-                       "Op %s at index %d referenced input index %d."
-                       "Ops must be specified in topo sort order.",
-                       op.name().c_str(), op_idx, input.op_index());
-          return;
-        } else {
-          std::string& input_op_name = op_names.at(input.op_index());
-          std::vector<std::string>& inputs = op_outputs.at(input.op_index());
-          const std::string requested_input_column = input.column();
-          bool found = false;
-          for (auto& out_col : inputs) {
-            if (requested_input_column == out_col) {
-              found = true;
-              break;
-            }
-          }
-          if (!found) {
-            RESULT_ERROR(result,
-                         "Op %s at index %d requested column %s from input "
-                         "Op %s at index %d but that Op does not have the "
-                         "requsted column.",
-                         op.name().c_str(), op_idx,
-                         requested_input_column.c_str(), input_op_name.c_str(),
-                         input.op_index());
-            return;
-          }
-        }
-      }
-      // Perform Op parameter verification (stenciling, batching, # inputs)
-      if (op.name() != "OutputTable") {
-        OpInfo* info = op_registry->get_op_info(op.name());
-        KernelFactory* factory =
-            kernel_registry->get_kernel(op.name(), op.device_type());
-        // Check that the # of inputs match up
-        // TODO(apoms): type check for frame
-        if (!info->variadic_inputs()) {
-          i32 expected_inputs = info->input_columns().size();
-          if (expected_inputs != input_count) {
-            RESULT_ERROR(
-                result,
-                "Op %s at index %d expects %d input columns, but received %d",
-                op.name().c_str(), op_idx, expected_inputs, input_count);
-            return;
-          }
-        }
-
-        // Check that a stencil is not set on a non-stenciling kernel
-        // If can't stencil, then should have a zero size stencil or a size 1
-        // stencil with the element 0
-        if (!info->can_stencil() &&
-            !((op.stencil_size() == 0) ||
-              (op.stencil_size() == 1 && op.stencil(0) == 0))) {
-          RESULT_ERROR(
-              result,
-              "Op %s at index %d specified stencil but that Op was not "
-              "declared to support stenciling. Add .stencil() to the Op "
-              "declaration to support stenciling.",
-              op.name().c_str(), op_idx);
-          return;
-        }
-        // Check that a stencil is not set on a non-stenciling kernel
-        if (!factory->can_batch() && op.batch() > 1) {
-          RESULT_ERROR(
-              result,
-              "Op %s at index %d specified a batch size but the Kernel for "
-              "that Op was not declared to support batching. Add .batch() to "
-              "the Kernel declaration to support batching.",
-              op.name().c_str(), op_idx);
-          return;
-        }
-      }
-      op_idx++;
-    }
-    if (op_names.size() < 2) {
-      RESULT_ERROR(result,
-                   "Task set must specify at least two Ops: "
-                   "an Input Op, and an Output Op. "
-                   "However, only %lu Ops were specified.",
-                   op_names.size());
-      return;
-    } else {
-      if (op_names.back() != "OutputTable") {
-        RESULT_ERROR(result, "Last Op is %s but must be OutputTable",
-                     op_names.back().c_str());
-        return;
-      }
-    }
-  }
-
-  // Validate table tasks
-  std::set<std::string> job_output_table_names;
-  for (auto& job : jobs) {
-    if (job.output_table_name() == "") {
-      RESULT_ERROR(result,
-                   "Job specified with empty output table name. Output "
-                   "tables can not have empty names")
-      return;
-    }
-    if (meta.has_table(job.output_table_name())) {
-      RESULT_ERROR(result,
-                   "Job specified with duplicate output table name. "
-                   "A table with name %s already exists.",
-                   job.output_table_name().c_str());
-      return;
-    }
-    if (job_output_table_names.count(job.output_table_name()) >
-        0) {
-      RESULT_ERROR(result,
-                   "Multiple table tasks specified with output table name %s. "
-                   "Table names must be unique.",
-                   job.output_table_name().c_str());
-      return;
-    }
-    job_output_table_names.insert(job.output_table_name());
-
-    // Verify table task column inputs
-    if (job.inputs().size() == 0) {
-      RESULT_ERROR(
-          result,
-          "Job %s did not specify any table inputs. Jobs "
-          "must specify at least one table to sample from.",
-          job.output_table_name().c_str());
-      return;
-    } else {
-      std::set<i32> used_input_indices;
-      for (auto& column_input : job.inputs()) {
-        // Verify input is specified on an Input Op
-        if (used_input_indices.count(column_input.op_index()) > 0) {
-          RESULT_ERROR(result,
-                       "Job %s tried to set input column for Input Op "
-                       "at %d twice.",
-                       job.output_table_name().c_str(),
-                       column_input.op_index());
-          return;
-        }
-        if (input_indices.count(column_input.op_index()) == 0) {
-          RESULT_ERROR(result,
-                       "Job %s tried to set input column for Input Op "
-                       "at %d, but this Op is not an Input Op.",
-                       job.output_table_name().c_str(),
-                       column_input.op_index());
-          return;
-        }
-        used_input_indices.insert(column_input.op_index());
-        // Verify column input table exists
-        if (!meta.has_table(column_input.table_name())) {
-          RESULT_ERROR(result,
-                       "Job %s tried to sample from non-existent table "
-                       "%s.",
-                       job.output_table_name().c_str(),
-                       column_input.table_name().c_str());
-          return;
-        }
-        // Verify column input column exists in the requested table
-        if (!table_metas.at(column_input.table_name())
-                 .has_column(column_input.column_name())) {
-          RESULT_ERROR(result,
-                       "Job %s tried to sample column %s from table %s, "
-                       "but that column is not in that table.",
-                       job.output_table_name().c_str(),
-                       column_input.column_name().c_str(),
-                       column_input.table_name().c_str());
-          return;
-        }
-      }
-    }
-
-    // Verify sampling args for table task
-    {
-      std::set<i32> used_sampling_indices;
-      for (auto& sampling_arg : job.sampling_args()) {
-        if (used_sampling_indices.count(sampling_arg.op_index()) > 0) {
-          RESULT_ERROR(result,
-                       "Job %s tried to set sampling args for Op at %d "
-                       "twice.",
-                       job.output_table_name().c_str(),
-                       sampling_arg.op_index());
-          return;
-        }
-        if (sampling_indices.count(sampling_arg.op_index()) == 0) {
-          RESULT_ERROR(result,
-                       "Job %s tried to set sampling args for Op at %d, "
-                       "but this Op is not a sampling Op.",
-                       job.output_table_name().c_str(),
-                       sampling_arg.op_index());
-          return;
-        }
-        used_sampling_indices.insert(sampling_arg.op_index());
-        // TODO(apoms): verify sampling args are valid
-      }
-
-      // TODO(apoms): verify tasks for table task. Currently requires deriving
-      // final num rows for output, but this would be too expensive to do here
-      // so we do it as the computation is progressing.
-      if (job.task_sampler_args().sampling_function() == "") {
-        RESULT_ERROR(result, "Job %s did not specify a sampling function.",
-                     job.output_table_name().c_str());
-        return;
-      }
-    }
-  }
-}
-
-Result determine_total_output_rows(
-    DatabaseMetadata& meta, TableMetaCache& table_metas,
-    const std::vector<proto::Job>& jobs,
-    const std::vector<proto::Op>& ops,
-    std::vector<i64>& total_output_rows) {
-  Result result;
-  result.set_success(true);
-  // Form Op DAG to determine edges and find sampling Ops
-  std::vector<i64> input_ops;
-  std::vector<i64> sampling_ops;
-  std::vector<std::set<i64>> op_children(ops.size());
-  {
-    std::set<i64> explored_ops;
-    std::vector<i64> ops_to_explore;
-    while (!ops_to_explore.empty()) {
-      i64 op_idx = ops_to_explore.back();
-      ops_to_explore.pop_back();
-      if (explored_ops.count(op_idx) > 0) {
-        continue;
-      }
-      explored_ops.insert(op_idx);
-
-      const proto::Op& op = ops[op_idx];
-      if (op.name() == "Input") {
-        input_ops.push_back(op_idx);
-      } else if (op.name() == "Sample" || op.name() == "SampleFrame" ||
-                 op.name() == "Space" || op.name() == "SpaceFrame") {
-        sampling_ops.push_back(op_idx);
-      }
-      for (const proto::OpInput& input : op.inputs()) {
-        ops_to_explore.push_back(input.op_index());
-        op_children[input.op_index()].insert(op_idx);
-      }
-    }
-  }
-  std::map<i64, i64> op_idx_to_sampling_op_idx;
-  for (i64 i = 0; i < sampling_ops.size(); ++i) {
-    op_idx_to_sampling_op_idx.insert({sampling_ops[i], i});
-  }
-  // For each job, use table rows to determine number of total possible outputs
-  // by propagating downward through Op DAG
-  for (const proto::Job& job : jobs) {
-    std::vector<i64> input_op_num_rows(input_ops.size());
-    for (const proto::ColumnInput& ci : job.inputs()) {
-      // Determine number of rows for the requested table
-      i64 num_rows = table_metas.at(ci.table_name()).num_rows();
-      // Assign number of rows to correct op
-      bool found = false;;
-      for (i64 i = 0; i < input_ops.size(); ++i) {
-        if (input_ops[i] == ci.op_index()) {
-          input_op_num_rows[i] = num_rows;
-          found = true;
-        }
-      }
-      if (!found) {
-        RESULT_ERROR(&result,
-                     "Job %s tried to assign table to non-Input op at %d.",
-                     job.output_table_name().c_str(), ci.op_index());
-        return result;
-      }
-    }
-    // Create domain samplers using sampling args
-    std::vector<std::unique_ptr<DomainSampler>> domain_samplers;
-    for (const proto::SamplingArgs& sa : job.sampling_args()) {
-      // Assign number of rows to correct op
-      bool found = false;;
-      for (i64 i = 0; i < sampling_ops.size(); ++i) {
-        if (sampling_ops[i] == sa.op_index()) {
-          DomainSampler* sampler;
-          result = make_domain_sampler_instance(
-              sa.sampling_function(),
-              std::vector<u8>(sa.sampling_args().begin(),
-                              sa.sampling_args().end()),
-              sampler);
-          if (!result.success()) {
-            return result;
-          }
-          domain_samplers.emplace_back(sampler);
-          found = true;
-        }
-      }
-      if (!found) {
-        RESULT_ERROR(&result,
-                     "Job %s tried to set sampling args on non-Sampling op at "
-                     "%d.",
-                     job.output_table_name().c_str(), sa.op_index());
-        return result;
-      }
-    }
-    // Propagate num inputs from table through DAG
-    std::vector<std::vector<i64>> op_num_inputs(ops.size());
-    for (i64 i = 0; i < input_ops.size(); ++i) {
-      i64 op_idx = input_ops[i];
-      op_num_inputs[op_idx].push_back(input_op_num_rows.at(i));
-    }
-    bool success = false;
-    std::vector<i64> ready_ops(input_ops.rbegin(), input_ops.rend());
-    while (!ready_ops.empty()) {
-      i64 op_idx = input_ops.back();
-      input_ops.pop_back();
-
-      i64 num_outputs = op_num_inputs.at(op_idx).at(0);
-      for (i64 ni : op_num_inputs.at(op_idx)) {
-        if (ni != num_outputs) {
-          RESULT_ERROR(&result,
-                       "Job %s specified a differing number of inputs for "
-                       "%s Op at %ld (%ld vs %ld).",
-                       job.output_table_name().c_str(),
-                       ops[op_idx].name().c_str(), op_idx, num_outputs, ni);
-          return result;
-        }
-      }
-      // Check if we are done
-      if (ops[op_idx].name() == "OutputTable") {
-        total_output_rows.push_back(num_outputs);
-        success = true;
-        break;
-      }
-      // Check if this is a sampling Op
-      if (op_idx_to_sampling_op_idx.count(op_idx) > 0) {
-        i64 sampling_op_idx = op_idx_to_sampling_op_idx.at(op_idx);
-        // Apply domain sampler to determine downstream row count
-        auto& sampler = domain_samplers.at(sampling_op_idx);
-        i64 new_outputs = 0;
-        result = sampler->get_num_downstream_rows(num_outputs, new_outputs);
-        if (!result.success()) {
-          return result;
-        }
-        num_outputs = new_outputs;
-      }
-
-      for (i64 child_op_idx : op_children.at(op_idx)) {
-        op_num_inputs.at(child_op_idx).push_back(num_outputs);
-        // Check if Op has all of its inputs. If so, add to ready stack
-        if (op_num_inputs.at(child_op_idx).size() ==
-            ops[child_op_idx].inputs_size()) {
-          ready_ops.push_back(child_op_idx);
-        }
-      }
-    }
-    if (!success) {
-      // This should never happen...
-      assert(false);
-    }
-  }
-  return result;
-}
-}
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
@@ -596,7 +180,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   VLOG(1) << "Master received NextWork command";
   if (!worker_active_.at(node_info->node_id())) {
     // Worker is not active
-    new_work->mutable_io_item()->set_item_id(-1);
+    new_work->set_no_more_work(true);
     return grpc::Status::OK;
   }
 
@@ -606,24 +190,10 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     if (next_task_ == num_tasks_) {
       // Check if there are any tasks left
       if (next_job_ < num_jobs_ && task_result_.success()) {
-        // More tasks left
-        auto& task_sampler_args =
-            job_params_.jobs(next_job_).task_sampler_args();
-        TaskSampler* sampler = nullptr;
-        task_result_ = make_task_sampler_instance(
-            task_sampler_args.sampling_function(),
-            std::vector<u8>(task_sampler_args.sampling_args().begin(),
-                            task_sampler_args.sampling_args().begin()),
-            total_output_rows_per_job_.at(next_job_), sampler);
-        if (task_result_.success()) {
-          next_task_ = 0;
-          num_tasks_ = sampler->total_tasks();
-          next_job_++;
-          VLOG(1) << "Jobs left: " << num_jobs_ - next_job_;
-          task_samplers_[next_job_ - 1].reset(sampler);
-        } else {
-          delete sampler;
-        }
+        next_task_ = 0;
+        num_tasks_ = job_tasks_.at(next_job).size();
+        next_job_++;
+        VLOG(1) << "Jobs left: " << num_jobs_ - next_job_;
       }
     }
 
@@ -634,14 +204,13 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
 
       unallocated_job_tasks_.push_front(
           std::make_tuple(current_job, current_task));
-      task_sampler_tasks_left_[current_job]++;
       next_task_++;
     }
   }
 
   if (unallocated_job_tasks_.empty()) {
     // No more work
-    new_work->mutable_io_item()->set_item_id(-1);
+    new_work->set_no_more_work(true);
     return grpc::Status::OK;
   }
 
@@ -649,15 +218,12 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   std::tuple<i64, i64> job_task_id = unallocated_job_tasks_.back();
   unallocated_job_tasks_.pop_back();
 
-  // Get task sampler for our task sample
   assert(next_task_ <= num_tasks_);
-  auto& sampler = task_samplers_.at(std::get<0>(job_task_id));
-
   // Get the task sample
   task_result_ = sampler->task_at(std::get<1>(job_task_id), *new_work);
   if (!task_result_.success()) {
     // Task sampler failed for some reason
-    new_work->mutable_io_item()->set_item_id(-1);
+    new_work->set_no_more_work(true);
     return grpc::Status::OK;
   }
   new_work->mutable_load_work()->set_job_index(std::get<0>(task_sample_id));
@@ -693,15 +259,9 @@ grpc::Status MasterImpl::FinishedWork(
   assert(worker_tasks.count(job_tasks) > 0);
   worker_tasks.erase(job_tasks);
 
-  task_sampler_tasks_left_[job_id]--;
   worker_histories_[worker_id].tasks_retired += 1;
 
   i64 active_job = next_job_ - 1;
-  // If there are no more tasks left in the job, we can get rid of the
-  // TaskSampler object (assuming it's not the active job)
-  if (job_id != active_job && task_sampler_tasks_left_.at(job_id) == 0) {
-    task_samplers_.erase(job_id);
-  }
 
   total_tasks_used_++;
   if (bar_) {
@@ -1049,12 +609,11 @@ void MasterImpl::stop_job_processor() {
 bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   // Reset job state
+  slice_input_rows_per_job_.clear();
   total_output_rows_per_job_.clear();
   unallocated_job_tasks_.clear();
   next_job_ = 0;
   num_jobs_ = -1;
-  task_samplers_.clear();
-  task_sampler_tasks_left_.clear();
   next_task_ = 0;
   num_tasks_ = -1;
   task_result_.set_success(true);
@@ -1132,72 +691,77 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                                job_params->jobs().end());
   std::vector<proto::Op> ops(job_params->ops().begin(),
                              job_params->ops().end());
-  validate_jobs_and_ops(meta_, table_metas_, jobs, ops,
-                               job_result);
+  DAGAnalysisInfo dag_info;
+  job_result = validate_jobs_and_ops(meta_, table_metas_, jobs, ops, dag_info);
   if (!job_result->success()) {
     // No database changes made at this point, so just return
     finished_fn();
     return false;
   }
 
-  // Get output columns from last output op
-  std::vector<Column> input_table_columns;
-  {
-    for (auto& sample : job_params->task_set().tasks(0).samples()) {
-      const TableMetadata& table = table_metas_->at(sample.table_name());
-      std::vector<Column> table_columns = table.columns();
-      for (const std::string& c : sample.column_names()) {
+  // Map all input Ops into a single input collection
+  const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.input_ops;
+
+  // Get output columns from last output op to set as output table columns
+  OpRegistry* op_registry = get_op_registry();
+  auto& last_op = ops.at(ops.size() - 1);
+  assert(last_op.name() == OUTPUT_OP_NAME);
+  std::vector<std::vector<Column>> job_output_columns;
+  for (const auto& job : jobs) {
+    // Get input columns from column inputs specified for each job
+    std::map<i64, Column> input_op_idx_to_column;
+    {
+      for (auto& ci : job_params->inputs()) {
+        const TableMetadata& table = table_metas_->at(ci.table_name());
+        std::vector<Column> table_columns = table.columns();
+        const std::string& c = ci.column_name();
+        bool found = false;
         for (Column& col : table_columns) {
           if (c == col.name()) {
             Column new_col;
             new_col.CopyFrom(col);
             new_col.set_id(input_table_columns.size());
-            input_table_columns.push_back(new_col);
+            input_op_idx_to_column[ci.op_index()] = new_col;
+            found = true;
+            break;
           }
         }
+        assert(found);
       }
     }
-  }
 
-  auto& ops = job_params->task_set().ops();
-  OpRegistry* op_registry = get_op_registry();
-  auto& last_op = ops.Get(ops.size() - 1);
-  assert(last_op.name() == "OutputTable");
-  std::vector<Column> output_columns;
-  for (const auto& eval_input : last_op.inputs()) {
-    auto& input_op = ops.Get(eval_input.op_index());
-    std::vector<Column> input_columns;
-    if (input_op.name() == "InputTable") {
-      input_columns = input_table_columns;
-    } else {
-      OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
-      input_columns = input_op_info->output_columns();
-    }
-    for (const std::string& name : eval_input.columns()) {
-      bool found = false;
-      for (auto& col : input_columns) {
-        if (col.name() == name) {
-          Column c;
-          c.set_id(output_columns.size());
-          c.set_name(name);
-          c.set_type(col.type());
-          output_columns.push_back(c);
-          found = true;
-          break;
-        }
+    job_output_columns.emplace_back();
+    std::vector<Column>& output_columns = job_output_columns.back();
+    for (const auto& input : last_op.inputs()) {
+      auto& input_op = ops.at(input.op_index());
+      std::vector<Column> input_columns;
+      if (input_op.name() == INPUT_OP_NAME) {
+        input_columns = {input_op_idx_to_column.at(input.op_index())};
+      } else {
+        OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
+        input_columns = input_op_info->output_columns();
       }
-      assert(found);
+      for (const std::string& name : input.columns()) {
+        bool found = false;
+        for (auto& col : input_columns) {
+          if (col.name() == name) {
+            Column c;
+            c.set_id(output_columns.size());
+            c.set_name(name);
+            c.set_type(col.type());
+            output_columns.push_back(c);
+            found = true;
+            break;
+          }
+        }
+        assert(found);
+      }
     }
   }
   proto::JobDescriptor job_descriptor;
   job_descriptor.set_io_item_size(io_item_size);
   job_descriptor.set_work_item_size(work_item_size);
   job_descriptor.set_num_nodes(workers_.size());
-
-  for (size_t i = 0; i < output_columns.size(); ++i) {
-    Column* col = job_descriptor.add_columns();
-    col->CopyFrom(output_columns[i]);
-  }
 
   {
     auto& jobs = job_params->jobs();
@@ -1206,9 +770,69 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Add job name into database metadata so we can look up what jobs have
   // been run
-  i32 job_id = meta_.add_job(job_params->job_name());
+  i32 bulk_job_id = meta_.add_job(job_params->job_name());
   job_descriptor.set_id(job_id);
   job_descriptor.set_name(job_params->job_name());
+
+  if (!job_result->success()) {
+    // No database changes made at this point, so just return
+    finished_fn();
+    return false;
+  }
+
+  // Determine total output rows and slice input rows for using to
+  // split stream
+  job_result = determine_input_rows_to_slices(
+      meta_, table_metas_, jobs, ops, dag_info, slice_input_rows_per_job_,
+      total_output_rows_per_job_);
+
+  // HACK(apoms): we currently split work into tasks in two ways:
+  //  a) align with the natural boundaries defined by the slice partitioner
+  //  b) use a user-specified size to chunk up the output sequence
+
+  // Job -> task -> rows
+  total_tasks_ = 0;
+  for (size_t i = 0; i < jobs.size(); ++i) {
+    auto& slice_input_rows = slice_input_rows_per_job_[i];
+    i64 total_output_rows = total_output_rows_per_job_[i];
+
+    std::vector<i64> partition_boundaries;
+    if (slice_input_rows.size() == 0) {
+      // No slices, so we can split as desired. Currently use IO packet size
+      // since it is the smallest granularity we can specify
+      for (i64 r = 0; r < total_output_rows;
+           r += job_params->io_packet_size()) {
+        partition_boundaries.push_back(r);
+      }
+      partition_boundaries.push_back(total_output_rows);
+    } else {
+      // Split stream into partitions, respecting slice boundaries
+      // We assume there is only one slice for now since
+      // they all must have the same number of groups
+      assert(slice_input_rows.size() == 1);
+      // Derive the output rows produced by each slice group
+      i64 slice_op_idx = slice_input_rows.begin()->first;
+      i64 slice_input_rows = slice_input_rows.begin()->second;
+      derive_slice_final_output_rows(jobs.at(i), ops,
+                                     slice_op_idx,
+                                     slice_input_rows,
+                                     partition_boundaries);
+    }
+    assert(partition_boundaries.back() == total_output_rows);
+    job_tasks_.emplace_back();
+    auto& tasks = job_tasks_.back();
+    for (i64 pi = 0; pi < partition_boundaries.size() - 1; ++pi) {
+      tasks.emplace_back();
+      auto& task_rows = tasks.back();
+
+      i64 s = partition_boundaries[pi];
+      i64 e = partition_boundaries[pi + 1];
+      for (i64 r = s; r < e; ++r) {
+        task_rows.push_back(r);
+      }
+      total_tasks_++;
+    }
+  }
 
   if (!job_result->success()) {
     // No database changes made at this point, so just return
@@ -1219,12 +843,8 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Write out database metadata so that workers can read it
   write_job_metadata(storage_, JobMetadata(job_descriptor));
 
-  // Determine total number of tasks per job
-  std::vector<i64> total_output_rows_per_job;
-  Result result = determine_total_output_rows(meta_, table_metas_, jobs, ops,
-                                              total_output_rows_per_job_);
-  for (i64 job_id = 0; job_id < job_params->jobs_size(); ++job_id) {
-    auto& job = job_params->jobs(job_id);
+  for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
+    auto& job = job_params->jobs(job_idx);
     i32 table_id = meta_.add_table(job.output_table_name());
     proto::TableDescriptor table_desc;
     table_desc.set_id(table_id);
@@ -1233,24 +853,24 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                                  now().time_since_epoch())
                                  .count());
     // Set columns equal to the last op's output columns
-    for (size_t i = 0; i < output_columns.size(); ++i) {
+    for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
       Column* col = table_desc.add_columns();
-      col->CopyFrom(output_columns[i]);
+      col->CopyFrom(job_output_columns[i]);
     }
     table_metas_->update(TableMetadata(table_desc));
 
     i64 total_rows = 0;
     std::vector<i64> end_rows;
-    auto& task_num_rows = job_task_num_rows_.at(job_id);
-    for (i64 task_id = 0; task_id < task_num_rows.size(); ++task_id) {
-      i64 task_rows = task_num_rows.at(task_id);
-      end_rows.push_back(total_rows + task_rows);
+    auto& tasks = job_tasks_.at(job_idx);
+    for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
+      i64 task_rows = tasks.at(task_id).size();
       total_rows += task_rows;
+      end_rows.push_back(total_rows);
     }
     for (i64 r : end_rows) {
       table_desc.add_end_rows(r);
     }
-    table_desc.set_job_id(job_id);
+    table_desc.set_job_id(job_idx);
 
     write_table_metadata(storage_, TableMetadata(table_desc));
     table_metas_->update(TableMetadata(table_desc));
@@ -1261,7 +881,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   next_task_ = 0;
   num_tasks_ = 0;
   next_job_ = 0;
-  num_jobs_ = job_params->task_set().tasks_size();
+  num_jobs_ = jobs.size();
 
   write_database_metadata(storage_, meta_);
 
@@ -1358,43 +978,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   if (!job_result->success()) {
     // Overwrite database metadata with copy from prior to modification
     write_database_metadata(storage_, meta_copy);
-  }
-
-  // Update database with metadata for new tables
-  i64 min_stencil, max_stencil;
-  std::tie(min_stencil, max_stencil) =
-      determine_stencil_bounds(job_params->task_set());
-  for (i64 job_id = 0; job_id < job_params->jobs_size(); ++job_id) {
-    auto& job = job_params->jobs(job_id);
-    i32 table_id = meta_.add_table(job.output_table_name());
-    proto::TableDescriptor table_desc;
-    table_desc.set_id(table_id);
-    table_desc.set_name(job.output_table_name());
-    table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
-                                 now().time_since_epoch())
-                                 .count());
-    // Set columns equal to the last op's output columns
-    for (size_t i = 0; i < output_columns.size(); ++i) {
-      Column* col = table_desc.add_columns();
-      col->CopyFrom(output_columns[i]);
-    }
-    table_metas_->update(TableMetadata(table_desc));
-
-    i64 total_rows = 0;
-    std::vector<i64> end_rows;
-    auto& task_num_rows = job_task_num_rows_.at(job_id);
-    for (i64 task_id = 0; task_id < task_num_rows.size(); ++task_id) {
-      i64 task_rows = task_num_rows.at(task_id);
-      end_rows.push_back(total_rows + task_rows);
-      total_rows += task_rows;
-    }
-    for (i64 r : end_rows) {
-      table_desc.add_end_rows(r);
-    }
-    table_desc.set_job_id(job_id);
-
-    write_table_metadata(storage_, TableMetadata(table_desc));
-    table_metas_->update(TableMetadata(table_desc));
   }
 
   if (!task_result_.success()) {

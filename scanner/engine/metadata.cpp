@@ -53,8 +53,8 @@ std::string Metadata<VideoDescriptor>::descriptor_path() const {
 
 template <>
 std::string Metadata<BulkJobDescriptor>::descriptor_path() const {
-  const JobMetadata* meta = (const JobMetadata*)this;
-  return job_descriptor_path(meta->id());
+  const BulkJobMetadata* meta = (const BulkJobMetadata*)this;
+  return bulk_job_descriptor_path(meta->id());
 }
 
 template <>
@@ -63,28 +63,28 @@ std::string Metadata<TableDescriptor>::descriptor_path() const {
   return table_descriptor_path(meta->id());
 }
 
-DatabaseMetadata::DatabaseMetadata() : next_table_id_(0), next_job_id_(0) {}
+DatabaseMetadata::DatabaseMetadata() : next_table_id_(0), next_bulk_job_id_(0) {}
 
 DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
   : Metadata(d),
     next_table_id_(d.next_table_id()),
-    next_job_id_(d.next_job_id()) {
+    next_bulk_job_id_(d.next_bulk_job_id()) {
   for (int i = 0; i < descriptor_.tables_size(); ++i) {
     const DatabaseDescriptor::Table& table = descriptor_.tables(i);
     table_id_names_.insert({table.id(), table.name()});
   }
-  for (int i = 0; i < descriptor_.jobs_size(); ++i) {
-    const DatabaseDescriptor_Job& job = descriptor_.jobs(i);
-    job_id_names_.insert({job.id(), job.name()});
-    job_names_.push_back(job.name());
+  for (int i = 0; i < descriptor_.bulk_jobs_size(); ++i) {
+    const DatabaseDescriptor_BulkJob& bulk_job = descriptor_.bulk_jobs(i);
+    bulk_job_id_names_.insert({bulk_job.id(), bulk_job.name()});
+    bulk_job_names_.push_back(bulk_job.name());
   }
 }
 
 const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
   descriptor_.set_next_table_id(next_table_id_);
-  descriptor_.set_next_job_id(next_job_id_);
+  descriptor_.set_next_bulk_job_id(next_bulk_job_id_);
   descriptor_.clear_tables();
-  descriptor_.clear_jobs();
+  descriptor_.clear_bulk_jobs();
 
   for (auto& kv : table_id_names_) {
     auto table = descriptor_.add_tables();
@@ -92,10 +92,10 @@ const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
     table->set_name(kv.second);
   }
 
-  for (auto& kv : job_id_names_) {
-    auto job = descriptor_.add_jobs();
-    job->set_id(kv.first);
-    job->set_name(kv.second);
+  for (auto& kv : bulk_job_id_names_) {
+    auto bulk_job = descriptor_.add_bulk_jobs();
+    bulk_job->set_id(kv.first);
+    bulk_job->set_name(kv.second);
   }
 
   return descriptor_;
@@ -156,48 +156,48 @@ void DatabaseMetadata::remove_table(i32 table_id) {
   table_id_names_.erase(table_id);
 }
 
-const std::vector<std::string>& DatabaseMetadata::job_names() const {
-  return job_names_;
+const std::vector<std::string>& DatabaseMetadata::bulk_job_names() const {
+  return bulk_job_names_;
 }
 
-bool DatabaseMetadata::has_job(const std::string& job) const {
-  for (const auto& kv : job_id_names_) {
-    if (kv.second == job) {
+bool DatabaseMetadata::has_bulk_job(const std::string& bulk_job) const {
+  for (const auto& kv : bulk_job_id_names_) {
+    if (kv.second == bulk_job) {
       return true;
     }
   }
   return false;
 }
 
-bool DatabaseMetadata::has_job(i32 job_id) const {
-  return job_id_names_.count(job_id) > 0;
+bool DatabaseMetadata::has_bulk_job(i32 bulk_job_id) const {
+  return bulk_job_id_names_.count(bulk_job_id) > 0;
 }
 
-i32 DatabaseMetadata::get_job_id(const std::string& job) const {
-  i32 job_id = -1;
-  for (const auto& kv : job_id_names_) {
-    if (kv.second == job) {
-      job_id = kv.first;
+i32 DatabaseMetadata::get_bulk_job_id(const std::string& bulk_job) const {
+  i32 bulk_job_id = -1;
+  for (const auto& kv : bulk_job_id_names_) {
+    if (kv.second == bulk_job) {
+      bulk_job_id = kv.first;
       break;
     }
   }
-  assert(job_id != -1);
-  return job_id;
+  assert(bulk_job_id != -1);
+  return bulk_job_id;
 }
 
-const std::string& DatabaseMetadata::get_job_name(i32 job_id) const {
-  return job_id_names_.at(job_id);
+const std::string& DatabaseMetadata::get_bulk_job_name(i32 bulk_job_id) const {
+  return bulk_job_id_names_.at(bulk_job_id);
 }
 
-i32 DatabaseMetadata::add_job(const std::string& job_name) {
-  i32 job_id = next_job_id_++;
-  job_id_names_[job_id] = job_name;
-  return job_id;
+i32 DatabaseMetadata::add_bulk_job(const std::string& bulk_job_name) {
+  i32 bulk_job_id = next_bulk_job_id_++;
+  bulk_job_id_names_[bulk_job_id] = bulk_job_name;
+  return bulk_job_id;
 }
 
-void DatabaseMetadata::remove_job(i32 job_id) {
-  assert(job_id_names_.count(job_id) > 0);
-  job_id_names_.erase(job_id);
+void DatabaseMetadata::remove_bulk_job(i32 bulk_job_id) {
+  assert(bulk_job_id_names_.count(bulk_job_id) > 0);
+  bulk_job_id_names_.erase(bulk_job_id);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -289,9 +289,9 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// JobMetadata
-JobMetadata::JobMetadata() {}
-JobMetadata::JobMetadata(const BulkJobDescriptor& job) : Metadata(job) {
+/// BulkJobMetadata
+BulkJobMetadata::BulkJobMetadata() {}
+BulkJobMetadata::BulkJobMetadata(const BulkJobDescriptor& job) : Metadata(job) {
   for (auto& c : descriptor_.columns()) {
     columns_.push_back(c);
     column_ids_.insert({c.name(), c.id()});
@@ -301,29 +301,23 @@ JobMetadata::JobMetadata(const BulkJobDescriptor& job) : Metadata(job) {
   }
 }
 
-std::string JobMetadata::descriptor_path(i32 job_id) {
+std::string BulkJobMetadata::descriptor_path(i32 job_id) {
   return job_descriptor_path(job_id);
 }
 
-i32 JobMetadata::id() const { return descriptor_.id(); }
+i32 BulkJobMetadata::id() const { return descriptor_.id(); }
 
-std::string JobMetadata::name() const { return descriptor_.name(); }
+std::string BulkJobMetadata::name() const { return descriptor_.name(); }
 
-i32 JobMetadata::work_item_size() const { return descriptor_.work_item_size(); }
+i32 BulkJobMetadata::work_item_size() const { return descriptor_.work_item_size(); }
 
-i32 JobMetadata::num_nodes() const { return descriptor_.num_nodes(); }
+i32 BulkJobMetadata::num_nodes() const { return descriptor_.num_nodes(); }
 
-const std::vector<Column>& JobMetadata::columns() const { return columns_; }
-
-i32 JobMetadata::column_id(const std::string& column_name) const {
-  column_ids_.at(column_name);
-}
-
-const std::vector<std::string>& JobMetadata::table_names() const {
+const std::vector<std::string>& BulkJobMetadata::table_names() const {
   return table_names_;
 }
 
-bool JobMetadata::has_table(const std::string& name) const {
+bool BulkJobMetadata::has_table(const std::string& name) const {
   for (const std::string& n : table_names_) {
     if (n == name) {
       return true;
@@ -331,33 +325,6 @@ bool JobMetadata::has_table(const std::string& name) const {
   }
   return false;
 }
-
-// i64 JobMetadata::rows_in_table(const std::string &name) const {
-//   i64 rows = -1;
-//   auto it = rows_in_table_.find(name);
-//   if (it == rows_in_table_.end()) {
-//     for (const proto::Task &task : descriptor_.tasks()) {
-//       assert(task.samples_size() > 0);
-//       const proto::TableSample &sample = task.samples(0);
-//       rows = sample.rows_size();
-//       rows_in_table_.insert(std::make_pair(name, rows));
-//     }
-//   } else {
-//     rows = it->second;
-//   }
-//   assert(rows != -1);
-//   return rows;
-// }
-
-// i64 JobMetadata::total_rows() const {
-//   i64 rows = 0;
-//   for (const proto::Task &task : descriptor_.tasks()) {
-//     assert(task.samples_size() > 0);
-//     const proto::TableSample &sample = task.samples(0);
-//     rows += sample.rows_size();
-//   }
-//   return rows;
-// }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// TableMetadata
