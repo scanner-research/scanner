@@ -68,13 +68,13 @@ struct TaskStream {
 };
 
 using LoadInputQueue =
-    Queue<std::tuple<i32, std::deque<TaskStream>, IOItem, LoadWorkEntry>>;
+    Queue<std::tuple<i32, std::deque<TaskStream>, LoadWorkEntry>>;
 using EvalQueue =
-    Queue<std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>;
 using OutputEvalQueue =
-    Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveInputQueue =
-    Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveOutputQueue =
     Queue<std::tuple<i32, i64, i64>>;
 
@@ -109,9 +109,6 @@ void move_if_different_address_space(Profiler& profiler,
 
 ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
                                DeviceHandle target_handle, ElementList& column);
-
-std::tuple<i64, i64> determine_stencil_bounds(
-    const std::vector<proto::Op>& ops);
 
 }
 }
