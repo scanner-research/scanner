@@ -191,7 +191,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
       // Check if there are any tasks left
       if (next_job_ < num_jobs_ && task_result_.success()) {
         next_task_ = 0;
-        num_tasks_ = job_tasks_.at(next_job).size();
+        num_tasks_ = job_tasks_.at(next_job_).size();
         next_job_++;
         VLOG(1) << "Jobs left: " << num_jobs_ - next_job_;
       }
@@ -219,17 +219,19 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   unallocated_job_tasks_.pop_back();
 
   assert(next_task_ <= num_tasks_);
-  // Get the task sample
-  task_result_ = sampler->task_at(std::get<1>(job_task_id), *new_work);
-  if (!task_result_.success()) {
-    // Task sampler failed for some reason
-    new_work->set_no_more_work(true);
-    return grpc::Status::OK;
+
+  i64 job_idx;
+  i64 task_idx;
+  std::tie(job_idx, task_idx) = job_task_id;
+  new_work->set_job_index(job_idx);
+  new_work->set_task_index(task_idx);
+  const auto& task_rows = job_tasks_.at(job_idx).at(task_idx);
+  for (i64 r : task_rows) {
+    new_work->add_output_rows(r);
   }
-  new_work->mutable_load_work()->set_job_index(std::get<0>(task_sample_id));
 
   // Track sample assigned to worker
-  active_task_samples_[node_info->node_id()].insert(task_sample_id);
+  active_job_tasks_[node_info->node_id()].insert(job_task_id);
   worker_histories_[node_info->node_id()].tasks_assigned += 1;
 
   return grpc::Status::OK;
@@ -254,8 +256,7 @@ grpc::Status MasterImpl::FinishedWork(
 
   auto& worker_tasks = active_job_tasks_.at(worker_id);
 
-  std::tuple<i64, i64> job_tasks =
-      std::make_tuple(table_task_id, task_id);
+  std::tuple<i64, i64> job_tasks = std::make_tuple(job_id, task_id);
   assert(worker_tasks.count(job_tasks) > 0);
   worker_tasks.erase(job_tasks);
 
@@ -644,9 +645,14 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     active_cv_.notify_all();
   };
 
-  const i32 io_item_size = job_params->io_item_size();
-  const i32 work_item_size = job_params->work_item_size();
-  if (io_item_size > 0 && io_item_size % work_item_size != 0) {
+  std::vector<proto::Job> jobs(job_params->jobs().begin(),
+                               job_params->jobs().end());
+  std::vector<proto::Op> ops(job_params->ops().begin(),
+                             job_params->ops().end());
+
+  const i32 io_packet_size = job_params->io_packet_size();
+  const i32 work_packet_size = job_params->work_packet_size();
+  if (io_packet_size > 0 && io_packet_size % work_packet_size != 0) {
     RESULT_ERROR(job_result,
                  "IO packet size must be a multiple of Work packet size.");
     finished_fn();
@@ -671,9 +677,9 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       table_metas_->update(read_table_metadata(storage_, table_path));
     };
     std::set<std::string> tables_to_read;
-    for (auto& task : job_params->task_set().tasks()) {
-      for (auto& s : task.samples()) {
-        tables_to_read.insert(s.table_name());
+    for (auto& job : jobs) {
+      for (auto& column_input : job.inputs()) {
+        tables_to_read.insert(column_input.table_name());
       }
     }
     // TODO(apoms): make this a thread pool instead of spawning potentially
@@ -687,12 +693,9 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
-  std::vector<proto::Job> jobs(job_params->jobs().begin(),
-                               job_params->jobs().end());
-  std::vector<proto::Op> ops(job_params->ops().begin(),
-                             job_params->ops().end());
   DAGAnalysisInfo dag_info;
-  job_result = validate_jobs_and_ops(meta_, table_metas_, jobs, ops, dag_info);
+  *job_result =
+      validate_jobs_and_ops(meta_, *table_metas_.get(), jobs, ops, dag_info);
   if (!job_result->success()) {
     // No database changes made at this point, so just return
     finished_fn();
@@ -711,7 +714,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     // Get input columns from column inputs specified for each job
     std::map<i64, Column> input_op_idx_to_column;
     {
-      for (auto& ci : job_params->inputs()) {
+      for (auto& ci : job.inputs()) {
         const TableMetadata& table = table_metas_->at(ci.table_name());
         std::vector<Column> table_columns = table.columns();
         const std::string& c = ci.column_name();
@@ -720,7 +723,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
           if (c == col.name()) {
             Column new_col;
             new_col.CopyFrom(col);
-            new_col.set_id(input_table_columns.size());
+            new_col.set_id(0);
             input_op_idx_to_column[ci.op_index()] = new_col;
             found = true;
             break;
@@ -741,26 +744,25 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
         OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
         input_columns = input_op_info->output_columns();
       }
-      for (const std::string& name : input.columns()) {
-        bool found = false;
-        for (auto& col : input_columns) {
-          if (col.name() == name) {
-            Column c;
-            c.set_id(output_columns.size());
-            c.set_name(name);
-            c.set_type(col.type());
-            output_columns.push_back(c);
-            found = true;
-            break;
-          }
+      const std::string& name = input.column();
+      bool found = false;
+      for (auto& col : input_columns) {
+        if (col.name() == name) {
+          Column c;
+          c.set_id(output_columns.size());
+          c.set_name(name);
+          c.set_type(col.type());
+          output_columns.push_back(c);
+          found = true;
+          break;
         }
-        assert(found);
       }
+      assert(found);
     }
   }
-  proto::JobDescriptor job_descriptor;
-  job_descriptor.set_io_item_size(io_item_size);
-  job_descriptor.set_work_item_size(work_item_size);
+  proto::BulkJobDescriptor job_descriptor;
+  job_descriptor.set_io_packet_size(io_packet_size);
+  job_descriptor.set_work_packet_size(work_packet_size);
   job_descriptor.set_num_nodes(workers_.size());
 
   {
@@ -770,8 +772,8 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Add job name into database metadata so we can look up what jobs have
   // been run
-  i32 bulk_job_id = meta_.add_job(job_params->job_name());
-  job_descriptor.set_id(job_id);
+  i32 bulk_job_id = meta_.add_bulk_job(job_params->job_name());
+  job_descriptor.set_id(bulk_job_id);
   job_descriptor.set_name(job_params->job_name());
 
   if (!job_result->success()) {
@@ -782,9 +784,9 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Determine total output rows and slice input rows for using to
   // split stream
-  job_result = determine_input_rows_to_slices(
-      meta_, table_metas_, jobs, ops, dag_info, slice_input_rows_per_job_,
-      total_output_rows_per_job_);
+  *job_result = determine_input_rows_to_slices(
+      meta_, *table_metas_.get(), jobs, ops, dag_info,
+      slice_input_rows_per_job_, total_output_rows_per_job_);
 
   // HACK(apoms): we currently split work into tasks in two ways:
   //  a) align with the natural boundaries defined by the slice partitioner
@@ -812,11 +814,15 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       assert(slice_input_rows.size() == 1);
       // Derive the output rows produced by each slice group
       i64 slice_op_idx = slice_input_rows.begin()->first;
-      i64 slice_input_rows = slice_input_rows.begin()->second;
-      derive_slice_final_output_rows(jobs.at(i), ops,
-                                     slice_op_idx,
-                                     slice_input_rows,
-                                     partition_boundaries);
+      i64 slice_in_rows = slice_input_rows.begin()->second;
+      *job_result = derive_slice_final_output_rows(
+          jobs.at(i), ops, slice_op_idx, slice_in_rows, dag_info,
+          partition_boundaries);
+      if (!job_result->success()) {
+        // No database changes made at this point, so just return
+        finished_fn();
+        return false;
+      }
     }
     assert(partition_boundaries.back() == total_output_rows);
     job_tasks_.emplace_back();
@@ -855,7 +861,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     // Set columns equal to the last op's output columns
     for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
       Column* col = table_desc.add_columns();
-      col->CopyFrom(job_output_columns[i]);
+      col->CopyFrom(job_output_columns[job_idx][i]);
     }
     table_metas_->update(TableMetadata(table_desc));
 
@@ -1065,31 +1071,14 @@ void MasterImpl::start_job_on_worker(i32 worker_id,
 void MasterImpl::stop_job_on_worker(i32 worker_id) {
   // Place workers active tasks back into the unallocated task samples
   if (active_job_tasks_.count(worker_id) > 0) {
-    // Keep track of which tasks the worker was assigned
-    std::set<i64> tasks;
     // Place workers active tasks back into the unallocated task samples
     for (const std::tuple<i64, i64>& worker_job_task :
          active_job_tasks_.at(worker_id)) {
       unallocated_job_tasks_.push_back(worker_job_task);
-      tasks.insert(std::get<0>(worker_task_sample));
     }
     VLOG(1) << "Reassigning worker " << worker_id << "'s "
             << active_job_tasks_.at(worker_id).size() << " task samples.";
     active_job_tasks_.erase(worker_id);
-
-    // Create samplers for all tasks that are not active
-    for (i64 task_id : tasks) {
-      if (task_samplers_.count(task_id) == 0) {
-        auto sampler = new TaskSampler(
-            *table_metas_.get(), job_params_.task_set().tasks(task_id));
-        task_result_ = sampler->validate();
-        if (task_result_.success()) {
-          task_samplers_[task_id].reset(sampler);
-        } else {
-          delete sampler;
-        }
-      }
-    }
   }
 
   worker_histories_[worker_id].end_time = now();

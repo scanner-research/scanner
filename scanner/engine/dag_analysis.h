@@ -68,12 +68,46 @@ Result derive_slice_final_output_rows(
     DAGAnalysisInfo& info,
     std::vector<i64>& slice_output_partition);
 
+struct LinearizedAnalysisResults {
+  std::vector<i32> op_slice_level;
+  std::map<i64, i64> input_ops;
+  std::map<i64, i64> slice_ops;
+  std::map<i64, i64> unslice_ops;
+  std::map<i64, i64> sampling_ops;
+  std::map<i64, std::vector<i64>> op_children;
+
+  std::map<i64, bool> bounded_state_ops;
+  std::map<i64, bool> unbounded_state_ops;
+  std::map<i64, i32> warmup_sizes;
+  std::map<i64, i32> batch_sizes;
+  std::map<i64, std::vector<i32>> stencils;
+
+  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
+  std::vector<std::vector<i32>> dead_columns;
+  std::vector<std::vector<i32>> unused_outputs;
+  std::vector<std::vector<i32>> column_mapping;
+};
+
+void populate_analysis_info(
+    DatabaseMetadata& meta, TableMetaCache& table_metas,
+    const std::vector<proto::Job>& jobs,
+    const std::vector<proto::Op>& ops,
+    LineralizedAnalysisResults& info);
+
+void perform_liveness_analysis(const std::vector<proto::Op>& ops,
+                               LinearizedAnalysisResults& info);
+
+void derive_stencil_requirements(
+    storehouse::StorageBackend* storage,
+    const LinearizedAnalysisResults& analysis_results,
+    const LoadWorkEntry& load_work_entry, i64 initial_work_item_size,
+    LoadWorkEntry& output_entry, std::deque<TaskStream>& task_streams);
+
 // Result derive_input_rows_from_output_rows(
 //     const std::vector<proto::Job>& jobs,
 //     const std::vector<proto::Op>& ops,
 //     const std::vector<std::vector<i64>>& output_rows,
 //     DAGAnalysisInfo& info,
 //     std::vector<std::vector<i64>>& input_rows);
-
 }
 }

@@ -22,60 +22,6 @@
 
 namespace scanner {
 
-struct OpInput;
-
-//! Interface for a computation unit implemented by a Kernel.
-class Op {
- public:
-  Op(const std::string& name, const std::vector<OpInput>& inputs,
-     DeviceType device_type, char* args = nullptr, size_t args_size = 0,
-     const std::vector<i32>& stencil = {}, i32 batch_size = -1);
-
-  virtual ~Op(){};
-
-  const std::string& get_name() const;
-
-  const std::vector<OpInput>& get_inputs() const;
-
-  DeviceType get_device_type() const;
-
-  char* get_args() const;
-
-  size_t get_args_size() const;
-
-  const std::vector<i32>& get_stencil() const;
-
-  i32 get_batch_size() const;
-
- protected:
-  std::string name_;
-  std::vector<OpInput> inputs_;
-  DeviceType type_;
-  std::vector<i32> stencil_;
-  i32 batch_size_;
-  char* args_;
-  size_t args_size_;
-};
-
-//! Set of inputs provded to an op in a computation DAG.
-class OpInput {
- public:
-  OpInput(Op* op, const std::vector<std::string>& columns)
-    : op(op), columns(columns) {}
-
-  Op* get_op() const;
-
-  const std::vector<std::string>& get_columns() const;
-
- private:
-  Op* op;
-  std::vector<std::string> columns;
-};
-
-Op* make_input_op(const std::vector<std::string>& columns);
-
-Op* make_output_op(const std::vector<OpInput>& inputs);
-
 ///////////////////////////////////////////////////////////////////////////////
 /// Implementation Details
 namespace internal {
@@ -92,7 +38,8 @@ class OpBuilder {
   friend class OpRegistration;
 
   OpBuilder(const std::string& name)
-    : name_(name), variadic_inputs_(false), can_stencil_(false) {}
+      : name_(name), variadic_inputs_(false), can_stencil_(false),
+        has_bounded_state_(false), warmup_(0), has_unboudned_state_(false) {}
 
   OpBuilder& variadic_inputs() {
     if (input_columns_.size() > 0) {
@@ -133,6 +80,28 @@ class OpBuilder {
     return *this;
   }
 
+  OpBuilder& bounded_state(i32 warmup = 0) {
+    if (has_unbounded_state_) {
+      LOG(FATAL) << "Attempted to specify Op " << name_
+                 << " has bounded state but Op was already declared to have "
+                    "unbounded state.";
+      exit
+    }
+    has_bounded_state_ = true;
+    warmup_ = warmup;
+    return *this;
+  }
+
+  OpBuilder& unbounded_state() {
+    if (has_bounded_state_) {
+      LOG(FATAL) << "Attempted to specify Op " << name_
+                 << " has unbounded state but Op was already declared to have "
+                    "bounded state.";
+    }
+    has_unbounded_state_ = true;
+    return *this;
+  }
+
  private:
   std::string name_;
   bool variadic_inputs_;
@@ -140,6 +109,9 @@ class OpBuilder {
   std::vector<std::tuple<std::string, ColumnType>> output_columns_;
   bool can_stencil_;
   std::vector<int> preferred_stencil_ = {0};
+  bool has_bounded_state_;
+  i32 warmup_;
+  bool has_unbounded_state_;
 };
 }
 
