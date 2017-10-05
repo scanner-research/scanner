@@ -158,7 +158,7 @@ class MasterImpl final : public proto::Master::Service {
   // Output rows for each job
   std::vector<i64> total_output_rows_per_job_;
   // All job task output rows
-  std::vector<std::vector<std::vector<i64>> job_tasks_;
+  std::vector<std::vector<std::vector<i64>>> job_tasks_;
   // Outstanding set of generated task samples that should be processed
   std::deque<std::tuple<i64, i64>> unallocated_job_tasks_;
   // The next job to use to generate tasks
@@ -170,6 +170,8 @@ class MasterImpl final : public proto::Master::Service {
   // Total samples in the current task
   i64 num_tasks_;
   Result task_result_;
+  // Tracks tasks assigned to worker so they can be reassigned if the worker
+  // fails
   // Worker id -> (job_id, task_id)
   std::map<i64, std::set<std::tuple<i64, i64>>> active_job_tasks_;
   // Track assignment of tasks to worker for this job

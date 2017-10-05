@@ -57,350 +57,6 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
   return !(lhs == rhs);
 }
 
-struct AnalysisResults {
-  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
-  std::vector<std::vector<i32>> dead_columns;
-  std::vector<std::vector<i32>> unused_outputs;
-  std::vector<std::vector<i32>> column_mapping;
-
-  std::vector<i32> warmup_sizes;
-  std::vector<i32> batch_sizes;
-  std::vector<std::vector<i32>> stencils;
-};
-
-AnalysisResults analyze_dag(const proto::TaskSet& task_set) {
-  AnalysisResults results;
-
-  std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
-      results.live_columns;
-  std::vector<std::vector<i32>>& dead_columns = results.dead_columns;
-  std::vector<std::vector<i32>>& unused_outputs = results.unused_outputs;
-  std::vector<std::vector<i32>>& column_mapping = results.column_mapping;
-
-  std::vector<i32>& warmup_sizes = results.warmup_sizes;
-  std::vector<i32>& batch_sizes = results.batch_sizes;
-  std::vector<std::vector<i32>>& stencils = results.stencils;
-
-  // Start off with the columns from the gathered tables
-  OpRegistry* op_registry = get_op_registry();
-  KernelRegistry* kernel_registry = get_kernel_registry();
-  auto& ops = task_set.ops();
-  std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
-  {
-    auto& input_op = ops.Get(0);
-    for (const std::string& input_col : input_op.inputs(0).columns()) {
-      // Set last used to first op so that all input ops are live to start
-      // with. We could eliminate input columns which aren't used, but this
-      // also requires modifying the samples.
-      intermediates[0].push_back(std::make_tuple(input_col, 1));
-    }
-  }
-  for (size_t i = 1; i < ops.size(); ++i) {
-    auto& op = ops.Get(i);
-    // For each input, update the intermediate last used index to the
-    // current index
-    for (auto& eval_input : op.inputs()) {
-      i32 parent_index = eval_input.op_index();
-      for (const std::string& parent_col : eval_input.columns()) {
-        bool found = false;
-        for (auto& kv : intermediates.at(parent_index)) {
-          if (std::get<0>(kv) == parent_col) {
-            found = true;
-            std::get<1>(kv) = i;
-            break;
-          }
-        }
-        assert(found);
-      }
-    }
-    if (i == ops.size() - 1) {
-      continue;
-    }
-    // Add this op's outputs to the intermediate list
-    const auto& op_info = op_registry->get_op_info(op.name());
-    for (const auto& output_column : op_info->output_columns()) {
-      intermediates[i].push_back(std::make_tuple(output_column.name(), i));
-    }
-    const auto& kernel_factory =
-        kernel_registry->get_kernel(op.name(), op.device_type());
-    // Use default batch if not specified
-    i32 batch_size =
-        op.batch() != -1 ? op.batch() : kernel_factory->preferred_batch_size();
-    batch_sizes.push_back(batch_size);
-    // Use default stencil if not specified
-    std::vector<i32> stencil;
-    if (op.stencil_size() > 0) {
-      stencil = std::vector<i32>(op.stencil().begin(), op.stencil().end());
-    } else {
-      stencil = op_info->preferred_stencil();
-    }
-    stencils.push_back(stencil);
-  }
-
-  // The live columns at each op index
-  live_columns.resize(ops.size());
-  for (size_t i = 0; i < ops.size(); ++i) {
-    i32 op_index = i;
-    auto& columns = live_columns[i];
-    size_t max_i = std::min((size_t)(ops.size() - 2), i);
-    for (size_t j = 0; j <= max_i; ++j) {
-      for (auto& kv : intermediates.at(j)) {
-        i32 last_used_index = std::get<1>(kv);
-        if (last_used_index > op_index) {
-          // Last used index is greater than current index, so still live
-          columns.push_back(std::make_tuple((i32)j, std::get<0>(kv)));
-        }
-      }
-    }
-  }
-
-  // The columns to remove for the current kernel
-  dead_columns.resize(ops.size() - 1);
-  // Outputs from the current kernel that are not used
-  unused_outputs.resize(ops.size() - 1);
-  // Indices in the live columns list that are the inputs to the current
-  // kernel. Starts from the second evalutor (index 1)
-  column_mapping.resize(ops.size() - 1);
-  for (size_t i = 1; i < ops.size(); ++i) {
-    i32 op_index = i;
-    auto& prev_columns = live_columns[i - 1];
-    auto& op = ops.Get(op_index);
-    // Determine which columns are no longer live
-    {
-      auto& unused = unused_outputs[i - 1];
-      auto& dead = dead_columns[i - 1];
-      size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
-      for (size_t j = 0; j <= max_i; ++j) {
-        i32 parent_index = j;
-        for (auto& kv : intermediates.at(j)) {
-          i32 last_used_index = std::get<1>(kv);
-          if (last_used_index == op_index) {
-            // Column is no longer live, so remove it.
-            const std::string& col_name = std::get<0>(kv);
-            if (j == i) {
-              // This op has an unused output
-              i32 col_index = -1;
-              const std::vector<Column>& op_cols =
-                  op_registry->get_op_info(op.name())->output_columns();
-              for (size_t k = 0; k < op_cols.size(); k++) {
-                if (col_name == op_cols[k].name()) {
-                  col_index = k;
-                  break;
-                }
-              }
-              assert(col_index != -1);
-              unused.push_back(col_index);
-            } else {
-              // Determine where in the previous live columns list this
-              // column existed
-              i32 col_index = -1;
-              for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-                const std::tuple<i32, std::string>& live_input =
-                    prev_columns[k];
-                if (parent_index == std::get<0>(live_input) &&
-                    col_name == std::get<1>(live_input)) {
-                  col_index = k;
-                  break;
-                }
-              }
-              assert(col_index != -1);
-              dead.push_back(col_index);
-            }
-          }
-        }
-      }
-    }
-    auto& mapping = column_mapping[op_index - 1];
-    for (const auto& eval_input : op.inputs()) {
-      i32 parent_index = eval_input.op_index();
-      for (const std::string& col : eval_input.columns()) {
-        i32 col_index = -1;
-        for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-          const std::tuple<i32, std::string>& live_input = prev_columns[k];
-          if (parent_index == std::get<0>(live_input) &&
-              col == std::get<1>(live_input)) {
-            col_index = k;
-            break;
-          }
-        }
-        assert(col_index != -1);
-        mapping.push_back(col_index);
-      }
-    }
-  }
-  return results;
-}
-
-void derive_stencil_requirements(storehouse::StorageBackend* storage,
-                                 const AnalysisResults& analysis_results,
-                                 const LoadWorkEntry& load_work_entry,
-                                 const std::vector<std::vector<i32>>& stencils,
-                                 i64 initial_work_item_size,
-                                 LoadWorkEntry& output_entry,
-                                 std::deque<TaskStream>& task_streams) {
-  output_entry.set_job_index(load_work_entry.job_index());
-  output_entry.set_task_index(load_work_entry.task_index());
-
-  i64 num_kernels = stencils.size();
-
-  // Compute the required rows for each kernel based on the stencil
-  // HACK(apoms): this will only really work for linear DAGs. For DAGs with
-  //   non-linear topologies, this might break. Supporting proper DAGs would
-  //   require tracking stencils up each branch individually.
-  std::vector<i64> current_rows;
-  const proto::LoadSample& sample = load_work_entry.samples(0);
-  i64 last_row = sample.rows(sample.rows_size() - 1);
-  std::string table_path = TableMetadata::descriptor_path(sample.table_id());
-  TableMetadata meta = read_table_metadata(storage, table_path);
-  {
-    current_rows = std::vector<i64>(sample.rows().begin(), sample.rows().end());
-    TaskStream s;
-    s.valid_output_rows = current_rows;
-    task_streams.push_front(s);
-    // For each kernel, derive the required elements via its stencil
-    for (i64 i = 0; i < num_kernels; ++i) {
-      const std::vector<i32>& stencil = stencils[num_kernels - 1 - i];
-      std::unordered_set<i64> new_rows;
-      new_rows.reserve(current_rows.size());
-      for (i64 r : current_rows) {
-        // Ignore rows which can not achieve their stencil
-        if (r - stencil[0] < 0 ||
-            r + stencil[stencil.size() - 1] >= meta.num_rows()) continue;
-        for (i64 s : stencil) {
-          new_rows.insert(r + s);
-        }
-      }
-      current_rows = std::vector<i64>(new_rows.begin(), new_rows.end());
-      std::sort(current_rows.begin(), current_rows.end());
-      TaskStream s;
-      s.valid_output_rows = current_rows;
-      task_streams.push_front(s);
-    }
-  }
-  // Compute the required work item sizes to produce the minimal amount of
-  // output for each invocation of the kernels
-  std::vector<i64> work_item_sizes;
-  {
-    // Lists the last row that the stencil cache would have seen
-    // at this point
-    std::vector<i64> last_stencil_cache_row(num_kernels + 1, -1);
-    std::vector<size_t> produced_rows(num_kernels + 1);
-
-    size_t num_input_rows = task_streams.front().valid_output_rows.size();
-    size_t num_output_rows = task_streams.back().valid_output_rows.size();
-    while (produced_rows.front() < num_input_rows) {
-      i64 work_item_size = initial_work_item_size;
-      // For each kernel, determine which rows of input it needs given the
-      // current stencil cache and position in required rows
-      for (i64 k = num_kernels; k >= 1; k--) {
-        const TaskStream& prev_s = task_streams[k - 1];
-        const TaskStream& s = task_streams[k];
-        size_t pos = produced_rows[k];
-        const std::vector<i32> stencil = analysis_results.stencils[k - 1];
-        i64 batch_size = analysis_results.batch_sizes[k - 1];
-
-        // If the kernel is batched, we need to make sure we round up to
-        // request a batch of input.
-        if (work_item_size % batch_size != 0) {
-          work_item_size += (batch_size - work_item_size % batch_size);
-        }
-
-        // If we are at the end of the task, then we can not provide
-        // a full batch and must provide a partial one
-        if (pos + work_item_size > prev_s.valid_output_rows.size()) {
-          work_item_size = s.valid_output_rows.size() - pos;
-        }
-
-        // Compute which input rows are needed for the batch of outputs
-        std::set<i64> required_input_rows;
-        for (i64 i = 0; i < work_item_size; ++i) {
-          i64 row = s.valid_output_rows[pos + i];
-          for (i32 s : stencil) {
-            required_input_rows.insert(row + s);
-          }
-        }
-        std::vector<i64> sorted_input_rows(required_input_rows.begin(),
-                                           required_input_rows.end());
-        std::sort(sorted_input_rows.begin(), sorted_input_rows.end());
-
-        // For all the rows not in the stencil cache, we will request them
-        // from the upstream kernel by setting the work item size
-        i64 rows_to_request = 0;
-        {
-          i64 i = 0;
-          for (; i < sorted_input_rows.size(); ++i) {
-            // If the requested row is not in the stencil cache, we are done
-            // with this work item
-            if (sorted_input_rows[i] > last_stencil_cache_row[k - 1]) {
-              break;
-            }
-          }
-          rows_to_request = (sorted_input_rows.size() - i);
-        }
-        assert(rows_to_request > 0);
-        work_item_size = rows_to_request;
-      }
-      produced_rows[0] += work_item_size;
-      last_stencil_cache_row[0] =
-          task_streams[0].valid_output_rows[produced_rows[0] - 1];
-      assert(produced_rows[0] > 0);
-      work_item_sizes.push_back(work_item_size);
-
-      // Propagate downward what rows will be in the stencil cache due to the
-      // computed number of rows of input
-      for (i64 k = 1; k < num_kernels + 1; k++) {
-        const TaskStream& ts = task_streams[k];
-        size_t& pos = produced_rows[k];
-        const std::vector<i32>& stencil = analysis_results.stencils[k - 1];
-        i64 batch_size = analysis_results.batch_sizes[k - 1];
-
-        // Figure out how many rows will be produced given work_item_size
-        // inputs
-        i64 rows = 0;
-        for (; pos + rows < ts.valid_output_rows.size(); ++rows) {
-          if (ts.valid_output_rows[pos + rows] + stencil.back() >
-              last_stencil_cache_row[k - 1]) {
-            break;
-          }
-        }
-        assert(pos + rows - 1 < ts.valid_output_rows.size());
-        // Round down if we don't have enough for a batch unless this is
-        // the end of the task
-        if (rows % batch_size != 0 &&
-            ts.valid_output_rows[pos + rows - 1] != last_row) {
-          rows -= (rows % batch_size);
-        }
-        assert(rows > 0);
-
-        // Update how many rows we have produced
-        pos += rows;
-        assert(pos > 0);
-        last_stencil_cache_row[k] = ts.valid_output_rows[pos - 1];
-
-        // Send the rows to the next kernel
-        work_item_size = rows;
-      }
-    }
-  }
-
-  // Get rid of input stream since this is already captured by the load samples
-  task_streams.pop_front();
-
-  for (i64 r : work_item_sizes) {
-    output_entry.add_work_item_sizes(r);
-  }
-
-  for (const proto::LoadSample& sample : load_work_entry.samples()) {
-    auto out_sample = output_entry.add_samples();
-    out_sample->set_table_id(sample.table_id());
-    out_sample->mutable_column_ids()->CopyFrom(sample.column_ids());
-    out_sample->set_warmup_size(sample.warmup_size());
-    google::protobuf::RepeatedField<i64> data(
-        current_rows.begin(), current_rows.end());
-    out_sample->mutable_rows()->Swap(&data);
-  }
-}
-
 void load_driver(LoadInputQueue& load_work,
                  std::vector<EvalQueue>& initial_eval_work,
                  LoadWorkerArgs args) {
@@ -856,7 +512,6 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
-  
   // Controls if work should be distributed roundrobin or dynamically
   bool distribute_work_dynamically = true;
 
@@ -866,11 +521,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   i32 warmup_size = 0;
 
   OpRegistry* op_registry = get_op_registry();
-  auto& ops = job_params->task_set().ops();
+  std::vector<proto::Job> jobs(job_params->jobs().begin(),
+                               job_params->jobs().end());
+  std::vector<proto::Op> ops(job_params->ops().begin(),
+                             job_params->ops().end());
 
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
-  AnalysisResults analysis_results = analyze_dag(job_params->task_set());
+  LinearizedAnalysisResults analysis_results;
+  analyze_dag(ops, analysis_results);
   // The live columns at each op index
   std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
@@ -889,13 +548,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   // (needed for determining column types)
   std::vector<Column> final_output_columns;
   {
-    std::string output_name =
-        job_params->task_set().tasks(0).output_table_name();
+    std::string output_name = jobs.at(0).output_table_name();
     const TableMetadata& table = table_meta.at(output_name);
     final_output_columns = table.columns();
   }
   std::vector<ColumnCompressionOptions> final_compression_options;
-  for (auto& opts : job_params->task_set().compression()) {
+  for (auto& opts : job_params->compression()) {
     ColumnCompressionOptions o;
     o.codec = opts.codec();
     for (auto& kv : opts.options()) {
