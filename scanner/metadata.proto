@@ -169,8 +169,8 @@ message Job {
 message BulkJobDescriptor {
   int32 id = 1;
   string name = 2;
-  int32 io_item_size = 3;
-  int32 work_item_size = 4;
+  int32 io_packet_size = 3;
+  int32 work_packet_size = 4;
   int32 num_nodes = 5;
   repeated Job jobs = 6;
 }

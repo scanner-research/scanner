@@ -18,49 +18,6 @@
 #include "scanner/engine/op_registry.h"
 
 namespace scanner {
-
-Op::Op(const std::string& name, const std::vector<OpInput>& inputs,
-       DeviceType device_type, char* args, size_t args_size,
-       const std::vector<i32>& stencil, i32 batch_size)
-  : name_(name),
-    inputs_(inputs),
-    type_(device_type),
-    args_(args),
-    args_size_(args_size),
-    stencil_(stencil),
-    batch_size_(batch_size) {}
-
-const std::string& Op::get_name() const { return name_; }
-
-const std::vector<OpInput>& Op::get_inputs() const { return inputs_; }
-
-DeviceType Op::get_device_type() const { return type_; }
-
-char* Op::get_args() const { return args_; }
-
-size_t Op::get_args_size() const { return args_size_; }
-
-const std::vector<i32>& Op::get_stencil() const {
-  return stencil_;
-}
-
-i32 Op::get_batch_size() const {
-  return batch_size_;
-}
-
-Op* OpInput::get_op() const { return op; }
-
-const std::vector<std::string>& OpInput::get_columns() const { return columns; }
-
-Op* make_input_op(const std::vector<std::string>& columns) {
-  OpInput eval_input = {nullptr, columns};
-  return new Op("InputTable", {eval_input}, DeviceType::CPU);
-}
-
-Op* make_output_op(const std::vector<OpInput>& inputs) {
-  return new Op("OutputTable", inputs, DeviceType::CPU);
-}
-
 namespace internal {
 
 OpRegistration::OpRegistration(const OpBuilder& builder) {
@@ -86,9 +43,12 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
   }
   bool can_stencil = builder.can_stencil_;
   const std::vector<i32>& stencil = builder.preferred_stencil_;
-  OpInfo* info =
-      new OpInfo(name, variadic_inputs, input_columns, output_columns,
-                 can_stencil, stencil);
+  bool has_bounded_state = builder.has_bounded_state_;
+  i32 warmup = builder.warmup_;
+  bool has_unbounded_state = builder.has_unbounded_state_;
+  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
+                            output_columns, can_stencil, stencil,
+                            has_bounded_state, warmup, has_unbounded_state);
   OpRegistry* registry = get_op_registry();
   Result result = registry->add_op(name, info);
   if (!result.success()) {
