@@ -82,26 +82,32 @@ struct LinearizedAnalysisResults {
   std::map<i64, i32> batch_sizes;
   std::map<i64, std::vector<i32>> stencils;
 
+  // Filled in by remap_input_op_edges
+  std::map<i64, i64> input_ops_to_first_op_columns;
+
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   std::vector<std::vector<i32>> dead_columns;
   std::vector<std::vector<i32>> unused_outputs;
   std::vector<std::vector<i32>> column_mapping;
 };
 
-void populate_analysis_info(
-    DatabaseMetadata& meta, TableMetaCache& table_metas,
-    const std::vector<proto::Job>& jobs,
-    const std::vector<proto::Op>& ops,
-    LineralizedAnalysisResults& info);
+void populate_analysis_info(const std::vector<proto::Op>& ops,
+                            LinearizedAnalysisResults& info);
+
+// Change all edges from input Ops to instead come from the first Op.
+// We currently only implement IO at the start and end of a pipeline.
+void remap_input_op_edges(std::vector<proto::Op>& ops,
+                          LinearizedAnalysisResults& info);
 
 void perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                LinearizedAnalysisResults& info);
 
 void derive_stencil_requirements(
     storehouse::StorageBackend* storage,
-    const LinearizedAnalysisResults& analysis_results,
-    const LoadWorkEntry& load_work_entry, i64 initial_work_item_size,
-    LoadWorkEntry& output_entry, std::deque<TaskStream>& task_streams);
+    const LinearizedAnalysisResults& analysis_results, i64 table_id,
+    i64 job_idx, i64 task_idx, const std::vector<i64> output_rows,
+    i64 initial_work_item_size, LoadWorkEntry& output_entry,
+    std::deque<TaskStream>& task_streams);
 
 // Result derive_input_rows_from_output_rows(
 //     const std::vector<proto::Job>& jobs,
