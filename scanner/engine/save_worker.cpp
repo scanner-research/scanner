@@ -201,7 +201,8 @@ void SaveWorker::feed(std::tuple<IOItem, EvalWorkEntry>& input_entry) {
   }
 }
 
-void SaveWorker::new_task(IOItem item, std::vector<ColumnType> column_types) {
+void SaveWorker::new_task(i32 table_id, i32 task_id,
+                          std::vector<ColumnType> column_types) {
   auto io_start = now();
   for (auto& file : output_) {
     file->save();
@@ -220,9 +221,9 @@ void SaveWorker::new_task(IOItem item, std::vector<ColumnType> column_types) {
 
   for (size_t out_idx = 0; out_idx < column_types.size(); ++out_idx) {
     const std::string output_path =
-        table_item_output_path(item.table_id(), out_idx, item.item_id());
-    const std::string output_metdata_path = table_item_metadata_path(
-        item.table_id(), out_idx, item.item_id());
+        table_item_output_path(table_id, out_idx, task_id);
+    const std::string output_metdata_path =
+        table_item_metadata_path(table_id, out_idx, task_id);
 
     WriteFile* output_file = nullptr;
     BACKOFF_FAIL(storage_->make_write_file(output_path, output_file));
@@ -238,9 +239,9 @@ void SaveWorker::new_task(IOItem item, std::vector<ColumnType> column_types) {
 
       VideoMetadata& video_meta = video_metadata_.back();
       proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
-      video_descriptor.set_table_id(item.table_id());
+      video_descriptor.set_table_id(table_id);
       video_descriptor.set_column_id(out_idx);
-      video_descriptor.set_item_id(item.item_id());
+      video_descriptor.set_item_id(task_id);
     }
   }
 }

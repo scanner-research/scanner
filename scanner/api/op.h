@@ -39,7 +39,7 @@ class OpBuilder {
 
   OpBuilder(const std::string& name)
       : name_(name), variadic_inputs_(false), can_stencil_(false),
-        has_bounded_state_(false), warmup_(0), has_unboudned_state_(false) {}
+        has_bounded_state_(false), warmup_(0), has_unbounded_state_(false) {}
 
   OpBuilder& variadic_inputs() {
     if (input_columns_.size() > 0) {
@@ -85,7 +85,6 @@ class OpBuilder {
       LOG(FATAL) << "Attempted to specify Op " << name_
                  << " has bounded state but Op was already declared to have "
                     "unbounded state.";
-      exit
     }
     has_bounded_state_ = true;
     warmup_ = warmup;
