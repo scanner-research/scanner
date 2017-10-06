@@ -21,6 +21,7 @@
 #include "scanner/engine/save_worker.h"
 #include "scanner/engine/table_meta_cache.h"
 #include "scanner/engine/python_kernel.h"
+#include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 
@@ -78,24 +79,23 @@ void load_driver(LoadInputQueue& load_work,
     }
 
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
-            << "): processing task (" << load_work_entry.job_index() << ", "
+            << "): processing job task (" << load_work_entry.job_index() << ", "
             << load_work_entry.task_index() << ")";
 
     auto work_start = now();
 
-    auto input_entry = std::make_tuple(io_item, load_work_entry);
+    auto input_entry = load_work_entry;
     worker.feed(input_entry);
 
     while (true) {
       EvalWorkEntry output_entry;
-      i32 io_item_size = 0; // dummy for now
-      if (worker.yield(io_item_size, output_entry)) {
-        auto work_entry = std::get<1>(output_entry);
+      i32 io_packet_size = 0;  // dummy for now
+      if (worker.yield(io_packet_size, output_entry)) {
+        auto work_entry = output_entry;
         work_entry.first = !task_streams.empty();
         work_entry.last_in_task = worker.done();
         initial_eval_work[output_queue_idx].push(
-            std::make_tuple(task_streams, std::get<0>(output_entry),
-                            work_entry));
+            std::make_tuple(task_streams, work_entry));
         // We use the task streams being empty to indicate that this is
         // a new task, so clear it here to show that this is from the same task
         task_streams.clear();
@@ -161,7 +161,8 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
             << "): "
-            << "processing item " << work_entry.job_index;
+            << "processing job task " << work_entry.job_index << ", "
+            << work_entry.task_index;
 
     auto work_start = now();
 
@@ -173,15 +174,15 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     bool first = work_entry.first;
     bool last = work_entry.last_in_task;
 
-    auto input_entry = std::make_tuple(io_item, work_entry);
+    auto input_entry = work_entry;
     worker.feed(input_entry, first);
     i32 work_item_index = 0;
-    while (work_item_index < work_entry.work_item_sizes.size()) {
-      i32 work_item_size = work_entry.work_item_sizes.at(work_item_index++);
-      total_rows -= work_item_size;
+    while (work_item_index < work_entry.work_packet_sizes.size()) {
+      i32 work_packet_size = work_entry.work_packet_sizes.at(work_item_index++);
+      total_rows -= work_packet_size;
 
       EvalWorkEntry output_entry;
-      if (!worker.yield(work_item_size, output_entry)) {
+      if (!worker.yield(work_packet_size, output_entry)) {
         break;
       }
 
@@ -190,14 +191,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       }
 
       if (first) {
-        output_work.push(std::make_tuple(task_streams,
-                                         std::get<0>(output_entry),
-                                         std::get<1>(output_entry)));
+        output_work.push(std::make_tuple(task_streams, output_entry));
         first = false;
       } else {
-        output_work.push(std::make_tuple(std::deque<TaskStream>(),
-                                         std::get<0>(output_entry),
-                                         std::get<1>(output_entry)));
+        output_work.push(
+            std::make_tuple(std::deque<TaskStream>(), output_entry));
       }
 
       if (std::getenv("NO_PIPELINING")) {
@@ -240,7 +238,8 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     }
 
     VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
-            << args.kg << "): processing item " << work_entry.job_index;
+            << args.kg << "): processing job task " << work_entry.job_index
+            << ", " << work_entry.task_index;
 
     auto work_start = now();
 
@@ -255,24 +254,23 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       worker.new_task(streams);
     }
 
-    i32 work_item_size = 0;
+    i32 work_packet_size = 0;
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-      work_item_size =
-          std::max(work_item_size, (i32)work_entry.columns[i].size());
+      work_packet_size =
+          std::max(work_packet_size, (i32)work_entry.columns[i].size());
     }
 
-    auto input_entry = std::make_tuple(io_item, work_entry);
+    auto input_entry = work_entry;
     worker.feed(input_entry);
-    std::tuple<EvalWorkEntry> output_entry;
-    bool result = worker.yield(work_item_size, output_entry);
+    EvalWorkEntry output_entry;
+    bool result = worker.yield(work_packet_size, output_entry);
     (void)result;
     assert(result);
 
     profiler.add_interval("task", work_start, now());
 
     auto idle_push_start = now();
-    output_work.push(std::make_tuple(task_streams, std::get<0>(output_entry),
-                                     std::get<1>(output_entry)));
+    output_work.push(std::make_tuple(task_streams, output_entry));
     args.profiler.add_interval("idle_push", idle_push_start, now());
 
   }
@@ -298,23 +296,20 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     }
 
     VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
-            << "): processing item " << work_entry.job_index;
+            << "): processing task " << work_entry.job_index << ", "
+            << work_entry.task_index;
 
     auto work_start = now();
 
-    auto input_entry = std::make_tuple(io_item, work_entry);
+    auto input_entry = work_entry;
     worker.feed(input_entry);
     EvalWorkEntry output_entry;
     bool result = worker.yield(output_entry);
     profiler.add_interval("task", work_start, now());
 
     if (result) {
-      auto out_entry = std::get<1>(output_entry);
-      out_entry.last_in_task = work_entry.last_in_task;
-      output_work.push(std::make_tuple(args.id,
-                                       std::get<0>(output_entry),
-                                       out_entry));
-
+      output_entry.last_in_task = work_entry.last_in_task;
+      output_work.push(std::make_tuple(args.id, output_entry));
     }
 
     if (std::getenv("NO_PIPELINING")) {
@@ -389,7 +384,7 @@ void save_driver(SaveInputQueue& save_work,
     }
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
-            << "): processing task (" << work_entry.job_index << ", "
+            << "): processing job task (" << work_entry.job_index << ", "
             << work_entry.task_index << ")";
 
     auto work_start = now();
@@ -399,12 +394,13 @@ void save_driver(SaveInputQueue& save_work,
       active_job = work_entry.job_index;
       active_task = work_entry.task_index;
 
-      worker.new_task(io_item, work_entry.column_types);
+      worker.new_task(work_entry.table_id, work_entry.task_index,
+                      work_entry.column_types);
       processed = 0;
     }
     processed++;
 
-    auto input_entry = std::make_tuple(io_item, work_entry);
+    auto input_entry = work_entry;
     worker.feed(input_entry);
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
@@ -516,8 +512,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   bool distribute_work_dynamically = true;
 
   timepoint_t base_time = now();
-  const i32 work_item_size = job_params->work_item_size();
-  const i32 io_item_size = job_params->io_item_size();
+  const i32 work_packet_size = job_params->work_packet_size();
+  const i32 io_packet_size = job_params->io_packet_size();
   i32 warmup_size = 0;
 
   OpRegistry* op_registry = get_op_registry();
@@ -526,10 +522,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<proto::Op> ops(job_params->ops().begin(),
                              job_params->ops().end());
 
+  LinearizedAnalysisResults analysis_results;
+  populate_analysis_info(ops, analysis_results);
+  remap_input_op_edges(ops, analysis_results);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
-  LinearizedAnalysisResults analysis_results;
-  analyze_dag(ops, analysis_results);
+  perform_liveness_analysis(ops, analysis_results);
   // The live columns at each op index
   std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
@@ -583,9 +581,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     }
   }
 
-  for (size_t i = 1; i < ops.size() - 1; ++i) {
-    auto& op = ops.Get(i);
+  // Populate kernel_factories and kernel_configs
+  for (size_t i = 0; i < ops.size(); ++i) {
+    auto& op = ops.at(i);
     const std::string& name = op.name();
+    if (is_builtin_op(name)) {
+      kernel_factories.push_back(nullptr);
+      kernel_configs.emplace_back();
+      continue;
+    }
     OpInfo* op_info = op_registry->get_op_info(name);
 
     DeviceType requested_device_type = op.device_type();
@@ -611,6 +615,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         kernel_registry->get_kernel(name, requested_device_type);
     kernel_factories.push_back(kernel_factory);
 
+    // Setup kernel config with args from Op DAG
     KernelConfig kernel_config;
     kernel_config.node_id = node_id_;
     kernel_config.args =
@@ -620,17 +625,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       kernel_config.output_columns.push_back(col.name());
     }
 
+    // Tell kernel what its inputs are from the Op DAG
+    // (for variadic inputs)
     for (auto& input : op.inputs()) {
-      const proto::Op& input_op = ops.Get(input.op_index());
-      if (input_op.name() == "InputTable") {
-      } else {
-        OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
-        // TODO: verify that input.columns() are all in
-        // op_info->output_columns()
-      }
-      kernel_config.input_columns.insert(kernel_config.input_columns.end(),
-                                         input.columns().begin(),
-                                         input.columns().end());
+      kernel_config.input_columns.push_back(input.column());
     }
     kernel_configs.push_back(kernel_config);
   }
@@ -656,7 +654,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     kg_batch_sizes.emplace_back();
     for (size_t i = 0; i < kernel_factories.size(); ++i) {
       KernelFactory* factory = kernel_factories[i];
-      if (factory->get_device_type() != last_device_type) {
+      // Factory is nullptr when we are on a builtin op
+      if (factory != nullptr &&
+          factory->get_device_type() != last_device_type) {
         // Does not use the same device as previous kernel, so push into new
         // group
         last_device_type = factory->get_device_type();
@@ -698,6 +698,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
       auto& group = kernel_groups[kg];
       for (i32 k = 0; k < group.size(); ++k) {
+        // Skip builtin ops
+        if (std::get<0>(group[k]) == nullptr) {
+          continue;
+        }
         KernelFactory* factory = std::get<0>(group[k]);
         DeviceType device_type = factory->get_device_type();
         i32 max_devices = factory->get_max_devices();
@@ -751,7 +755,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   omp_set_num_threads(std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
-  i64 accepted_items = 0;
+  i64 accepted_tasks = 0;
   LoadInputQueue load_work;
   std::vector<EvalQueue> initial_eval_work(pipeline_instances_per_node);
   std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
@@ -771,8 +775,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                         node_id_,
                         // Per worker arguments
                         i, db_params_.storage_config, load_thread_profilers[i],
-                        job_params->load_sparsity_threshold(), io_item_size,
-                        work_item_size};
+                        job_params->load_sparsity_threshold(), io_packet_size,
+                        work_packet_size};
 
     load_threads.emplace_back(load_driver, std::ref(load_work),
                               std::ref(initial_eval_work), args);
@@ -898,12 +902,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
     // Post evaluate worker
     {
-      auto& output_op = ops.Get(ops.size() - 1);
+      auto& output_op = ops.at(ops.size() - 1);
       std::vector<std::string> column_names;
       for (auto& op_input : output_op.inputs()) {
-        for (auto& input : op_input.columns()) {
-          column_names.push_back(input);
-        }
+        column_names.push_back(op_input.column());
       }
 
       EvalQueue* input_work_queue = &work_queues.back();
@@ -1009,8 +1011,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       proto::Empty empty;
 
       params.set_node_id(node_id_);
-      params.set_task_id(std::get<1>(task_retired));
-      params.set_sample_id(std::get<2>(task_retired));
+      params.set_job_id(std::get<1>(task_retired));
+      params.set_task_id(std::get<2>(task_retired));
       grpc::Status status = master_->FinishedWork(&context, params, &empty);
 
       if (!status.ok()) {
@@ -1028,14 +1030,14 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       total_tasks_processed += t;
     }
     if (finished) {
-      if (total_tasks_processed == accepted_items) {
+      if (total_tasks_processed == accepted_tasks) {
         break;
       } else {
         std::this_thread::yield();
         continue;
       }
     }
-    i32 local_work = accepted_items - total_tasks_processed;
+    i32 local_work = accepted_tasks - total_tasks_processed;
     if (local_work <
         pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
       grpc::ClientContext context;
@@ -1050,8 +1052,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         break;
       }
 
-      i32 next_item = new_work.io_item().item_id();
-      if (next_item == -1) {
+      if (new_work.no_more_work()) {
         // No more work left
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         finished = true;
@@ -1060,10 +1061,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-        derive_stencil_requirements(storage_, analysis_results,
-                                    new_work.load_work(),
-                                    analysis_results.stencils, work_item_size,
-                                    stenciled_entry, task_stream);
+        derive_stencil_requirements(
+            storage_, analysis_results,
+            new_work.table_id(),
+            new_work.job_index(),
+            new_work.task_index(),
+            std::vector<i64>(new_work.output_rows().begin(),
+                             new_work.output_rows().end()),
+            work_packet_size,
+            stenciled_entry, task_stream);
 
         // Determine which worker to allocate to
         i32 target_work_queue = -1;
@@ -1076,10 +1082,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
             target_work_queue = i;
           }
         }
-        load_work.push(std::make_tuple(target_work_queue, task_stream,
-                                       new_work.io_item(), stenciled_entry));
+        load_work.push(
+            std::make_tuple(target_work_queue, task_stream, stenciled_entry));
         allocated_work_to_queues[target_work_queue]++;
-        accepted_items++;
+        accepted_tasks++;
       }
     }
 
@@ -1218,7 +1224,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Execution done, write out profiler intervals for each worker
   // TODO: job_name -> job_id?
-  i32 job_id = meta.get_job_id(job_params->job_name());
+  i32 job_id = meta.get_bulk_job_id(job_params->job_name());
   std::string profiler_file_name = job_profiler_path(job_id, node_id_);
   std::unique_ptr<WriteFile> profiler_output;
   BACKOFF_FAIL(
@@ -1333,8 +1339,12 @@ grpc::Status WorkerImpl::RegisterOp(
   if (stencil.empty()) {
     stencil = {0};
   }
+  bool has_bounded_state = op_registration->has_bounded_state();
+  i32 warmup = op_registration->warmup();
+  bool has_unbounded_state = op_registration->has_unbounded_state();
   OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                            output_columns, can_stencil, stencil);
+                            output_columns, can_stencil, stencil,
+                            has_bounded_state, warmup, has_unbounded_state);
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
   VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;

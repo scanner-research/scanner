@@ -209,7 +209,7 @@ message LoadWorkEntry {
   int32 job_index = 2;
   int32 task_index = 3;
   repeated LoadSample samples = 4;
-  repeated int64 work_item_sizes = 5;
+  repeated int64 work_packet_sizes = 5;
 }
 
 message MemoryPoolConfig {

@@ -182,66 +182,65 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
     worker_id_(args.worker_id),
     profiler_(args.profiler),
     load_sparsity_threshold_(args.load_sparsity_threshold),
-    io_item_size_(args.io_item_size),
-    work_item_size_(args.work_item_size) {
+    io_packet_size_(args.io_packet_size),
+    work_packet_size_(args.work_packet_size) {
   storage_.reset(
       storehouse::StorageBackend::make_from_config(args.storage_config));
 }
 
-void LoadWorker::feed(std::tuple<IOItem, LoadWorkEntry>& input_entry) {
-  IOItem& io_item = std::get<0>(input_entry);
-  LoadWorkEntry& load_work_entry = std::get<1>(input_entry);
+void LoadWorker::feed(LoadWorkEntry& input_entry) {
+  LoadWorkEntry& load_work_entry = input_entry;
 
   const auto& samples = load_work_entry.samples();
 
-  if (io_item.table_id() != last_table_id_) {
+  if (load_work_entry.table_id() != last_table_id_) {
     // Not from the same task so clear cached data
-    last_table_id_ = io_item.table_id();
+    last_table_id_ = load_work_entry.table_id();
     index_.clear();
   }
 
   entry_ = input_entry;
   current_row_ = 0;
   current_work_item_ = 0;
-  total_work_items_ = load_work_entry.work_item_sizes().size();
+  total_work_items_ = load_work_entry.work_packet_sizes().size();
 }
 
 bool LoadWorker::yield(i32 item_size,
-                       std::tuple<IOItem, EvalWorkEntry>& output_entry) {
-  IOItem& io_item = std::get<0>(entry_);
-  LoadWorkEntry& load_work_entry = std::get<1>(entry_);
+                       EvalWorkEntry& output_entry) {
+  LoadWorkEntry& load_work_entry = entry_;
 
   // Ignoring item size for now and just yielding one IO item at a time
   if (current_work_item_ >= total_work_items_) {
     return false;
   }
 
-  item_size = io_item_size_;
+  item_size = io_packet_size_;
   i32 num_work_items;
   if (item_size <= 0) {
-    num_work_items = load_work_entry.work_item_sizes().size();
+    num_work_items = load_work_entry.work_packet_sizes().size();
   } else {
-    num_work_items = (i32)std::ceil(item_size / (double)work_item_size_);
+    num_work_items = (i32)std::ceil(item_size / (double)work_packet_size_);
     if (num_work_items + current_work_item_ >
-        load_work_entry.work_item_sizes().size()) {
+        load_work_entry.work_packet_sizes().size()) {
       num_work_items =
-          load_work_entry.work_item_sizes().size() - current_work_item_;
+          load_work_entry.work_packet_sizes().size() - current_work_item_;
     }
   }
   i32 num_row_ids = 0;
   for (i32 i = 0; i < num_work_items; ++i) {
-    num_row_ids += load_work_entry.work_item_sizes(current_work_item_ + i);
+    num_row_ids += load_work_entry.work_packet_sizes(current_work_item_ + i);
   }
 
   EvalWorkEntry eval_work_entry;
+  eval_work_entry.table_id = load_work_entry.table_id();
   eval_work_entry.job_index = load_work_entry.job_index();
   eval_work_entry.task_index = load_work_entry.task_index();
   eval_work_entry.row_ids = std::vector<i64>(
       load_work_entry.samples(0).rows().begin() + current_row_,
       load_work_entry.samples(0).rows().begin() + current_row_ + num_row_ids);
-  eval_work_entry.work_item_sizes = std::vector<i64>(
-      load_work_entry.work_item_sizes().begin() + current_work_item_,
-      load_work_entry.work_item_sizes().begin() + current_work_item_ +
+  eval_work_entry.work_packet_sizes = std::vector<i64>(
+      load_work_entry.work_packet_sizes().begin() + current_work_item_,
+      load_work_entry.work_packet_sizes().begin() + current_work_item_ +
           num_work_items);
 
   const auto& samples = load_work_entry.samples();
@@ -334,7 +333,7 @@ bool LoadWorker::yield(i32 item_size,
     }
   }
 
-  output_entry = std::make_tuple(io_item, eval_work_entry);
+  output_entry = eval_work_entry;
 
   current_work_item_ += num_work_items;
   current_row_ += num_row_ids;

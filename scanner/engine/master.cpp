@@ -223,6 +223,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   i64 job_idx;
   i64 task_idx;
   std::tie(job_idx, task_idx) = job_task_id;
+  new_work->set_table_id(job_to_table_id_.at(job_idx));
   new_work->set_job_index(job_idx);
   new_work->set_task_index(task_idx);
   const auto& task_rows = job_tasks_.at(job_idx).at(task_idx);
@@ -420,8 +421,12 @@ grpc::Status MasterImpl::RegisterOp(
     if (stencil.empty()) {
       stencil = {0};
     }
+    bool has_bounded_state = op_registration->has_bounded_state();
+    i32 warmup = op_registration->warmup();
+    bool has_unbounded_state = op_registration->has_unbounded_state();
     OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                              output_columns, can_stencil, stencil);
+                              output_columns, can_stencil, stencil,
+                              has_bounded_state, warmup, has_unbounded_state);
     OpRegistry* registry = get_op_registry();
     *result = registry->add_op(name, info);
   }
@@ -610,6 +615,7 @@ void MasterImpl::stop_job_processor() {
 bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   // Reset job state
+  job_to_table_id_.clear();
   slice_input_rows_per_job_.clear();
   total_output_rows_per_job_.clear();
   unallocated_job_tasks_.clear();
@@ -852,6 +858,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
     auto& job = job_params->jobs(job_idx);
     i32 table_id = meta_.add_table(job.output_table_name());
+    job_to_table_id_[job_idx] = table_id;
     proto::TableDescriptor table_desc;
     table_desc.set_id(table_id);
     table_desc.set_name(job.output_table_name());

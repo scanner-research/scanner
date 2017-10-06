@@ -39,8 +39,8 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
         std::max(total_rows_, (i64)work_entry.columns[i].size());
   }
 
-  // FIXME: do we need this w/ multiple videos of different resolutions in the same
-  // task?
+  // FIXME: do we need this w/ multiple videos of different resolutions in the
+  // same task?
   if (needs_configure_) {
     // decoders_.clear();
   }
@@ -104,7 +104,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 }
 
 bool PreEvaluateWorker::yield(i32 item_size,
-                              std::tuple<IOItem, EvalWorkEntry>& output_entry) {
+                              EvalWorkEntry& output_entry) {
   if (current_row_ >= total_rows_) return false;
 
   auto yield_start = now();
@@ -169,7 +169,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
                                    work_entry.row_ids.begin() + end);
   profiler_.add_interval("yield", yield_start, now());
 
-  output_entry = std::make_tuple(io_item, entry);
+  output_entry = entry;
   return true;
 }
 
@@ -549,9 +549,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 }
 
 bool EvaluateWorker::yield(i32 item_size,
-                           std::tuple<IOItem, EvalWorkEntry>& output_entry) {
-  IOItem& io_item = std::get<0>(entry_);
-  EvalWorkEntry& work_entry = std::get<1>(entry_);
+                           EvalWorkEntry& output_entry) {
+  EvalWorkEntry& work_entry = entry_;
 
   auto yield_start = now();
 
@@ -596,7 +595,7 @@ bool EvaluateWorker::yield(i32 item_size,
 
   outputs_yielded_ += yieldable_rows;
 
-  output_entry = std::make_tuple(io_item, output_work_entry);
+  output_entry = output_work_entry;
 
   profiler_.add_interval("yield", yield_start, now());
 
@@ -645,9 +644,8 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
   current_offset_ = 0;
 }
 
-void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
-  IOItem& io_item = std::get<0>(entry);
-  EvalWorkEntry& work_entry = std::get<1>(entry);
+void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
+  EvalWorkEntry& work_entry = entry;
 
   // Setup row buffer if it was emptied
   if (buffered_entry_.columns.size() == 0) {
@@ -788,13 +786,13 @@ void PostEvaluateWorker::feed(std::tuple<IOItem, EvalWorkEntry>& entry) {
     // Only push an entry if it is non empty
     if (buffered_entry_.columns.size() > 0 &&
         buffered_entry_.columns[0].size() > 0) {
-      buffered_entries_.push_back(std::make_tuple(io_item, buffered_entry_));
+      buffered_entries_.push_back(buffered_entry_);
       buffered_entry_.columns.clear();
     }
   }
 }
 
-bool PostEvaluateWorker::yield(std::tuple<IOItem, EvalWorkEntry>& output) {
+bool PostEvaluateWorker::yield(EvalWorkEntry& output) {
   auto yield_start = now();
 
   bool got_result = false;
