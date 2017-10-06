@@ -38,9 +38,10 @@ class SaveWorker {
   SaveWorker(const SaveWorkerArgs& args);
   ~SaveWorker();
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& input_entry);
+  void feed(EvalWorkEntry& input_entry);
 
-  void new_task(IOItem item, std::vector<ColumnType> column_types);
+  void new_task(i32 table_id, i32 task_id,
+                std::vector<ColumnType> column_types);
 
  private:
   const i32 node_id_;
