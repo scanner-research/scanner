@@ -698,11 +698,8 @@ Result derive_slice_final_output_rows(
   return result;
 }
 
-void populate_analysis_info(
-    DatabaseMetadata& meta, TableMetaCache& table_metas,
-    const std::vector<proto::Job>& jobs,
-    const std::vector<proto::Op>& ops,
-    LinearizedAnalysisResults& info) {
+void populate_analysis_info(const std::vector<proto::Op>& ops,
+                            LinearizedAnalysisResults& info) {
   std::vector<i32>& op_slice_level = info.op_slice_level;
   std::map<i64, i64>& input_ops = info.input_ops;
   std::map<i64, i64>& slice_ops = info.slice_ops;
@@ -834,6 +831,43 @@ void populate_analysis_info(
   }
 }
 
+void remap_input_op_edges(std::vector<proto::Op>& ops,
+                          LinearizedAnalysisResults& info) {
+  auto rename_col = [](i32 op_idx, const std::string& n) {
+    return std::to_string(op_idx) + "_" + n;
+  }
+  auto& remap_map = info.input_ops_to_first_ops_columns;
+  {
+    auto& first_op_input = ops.at(0).inputs(0);
+    first_op_input.set_column(rename_col(0, first_op_input.column()));
+    remap_map[0] = 0;
+  }
+  for (size_t op_idx = 1; op_idx < ops.size(); ++op_idx) {
+    auto& op = ops.at(op_idx);
+    // If input Op, add column to original input Op and get rid of existing
+    // column
+    if (op.name() == INPUT_OP_NAME) {
+      remap_map[op_idx] = op.at(0).inputs_size();
+
+      std::string new_column_name =
+          rename_col(op_idx, op.inputs(op_idx).column());
+      OpInput* new_input = op.at(0).add_inputs();
+      new_input->set_op_index(-1);
+      new_input->set_column(new_column_name);
+
+      op.at(op_idx).clear_inputs();
+    }
+    // Remap all inputs to input Ops to the first Op
+    for (auto& input : op.inputs()) {
+      i32 input_op_idx = input.op_index();
+      if (remap_map.count(input_op_idx) > 0) {
+        input.set_op_index(remap_map.at(input_op_idx));
+        input.set_column(rename_col(input_op_idx, input.column()));
+      }
+    }
+  }
+}
+
 Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                  LinearizedAnalysisInfo& results) {
   const std::map<i64, bool>& bounded_state_ops = results.bounded_state_ops;
@@ -880,7 +914,7 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
         assert(found);
       }
     }
-    if (i == ops.size() - 1) {
+    if (op.name() == OUTPUT_OP_NAME) {
       continue;
     }
     // Add this op's outputs to the intermediate list
@@ -922,16 +956,21 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
     {
       auto& unused = unused_outputs[i - 1];
       auto& dead = dead_columns[i - 1];
+      // For all parent Ops, check if we are the last Op to use
+      // their output column
       size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
       for (size_t j = 0; j <= max_i; ++j) {
         i32 parent_index = j;
+        // For the current parent Op, check if we are the last to use
+        // any of its outputs
         for (auto& kv : intermediates.at(j)) {
           i32 last_used_index = std::get<1>(kv);
           if (last_used_index == op_index) {
+            // We are the last to use the Op column.
             // Column is no longer live, so remove it.
             const std::string& col_name = std::get<0>(kv);
             if (j == i) {
-              // This op has an unused output
+              // This column was produced by the current Op but not used
               i32 col_index = -1;
               const std::vector<Column>& op_cols =
                   op_registry->get_op_info(op.name())->output_columns();
@@ -944,6 +983,7 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
               assert(col_index != -1);
               unused.push_back(col_index);
             } else {
+              // This column was produced by a previous Op
               // Determine where in the previous live columns list this
               // column existed
               i32 col_index = -1;
@@ -963,6 +1003,8 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
         }
       }
     }
+    // For each input to the Op, determine where in the live column list
+    // that input is
     auto& mapping = column_mapping[op_index - 1];
     for (const auto& eval_input : op.inputs()) {
       i32 parent_index = eval_input.op_index();
@@ -986,13 +1028,15 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
 
 void derive_stencil_requirements(
     storehouse::StorageBackend* storage,
-    const LinearizedAnalysisResults& analysis_results,
-    const LoadWorkEntry& load_work_entry, i64 initial_work_item_size,
-    LoadWorkEntry& output_entry, std::deque<TaskStream>& task_streams) {
+    const LinearizedAnalysisResults& analysis_results, i64 table_id,
+    i64 job_idx, i64 task_idx, const std::vector<i64> output_rows,
+    i64 initial_work_item_size, LoadWorkEntry& output_entry,
+    std::deque<TaskStream>& task_streams) {
   const std::vector<std::vector<i32>>& stencils = analysis_results.stencils;
 
-  output_entry.set_job_index(load_work_entry.job_index());
-  output_entry.set_task_index(load_work_entry.task_index());
+  output_entry.set_table_id(table_id);
+  output_entry.set_job_index(job_idx);
+  output_entry.set_task_index(task_idx);
 
   i64 num_kernels = stencils.size();
 
