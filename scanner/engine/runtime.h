@@ -42,6 +42,7 @@ namespace internal {
 /// Work structs - structs used to exchange data between workers during
 ///   execution of the run command.
 struct EvalWorkEntry {
+  i64 table_id;
   i64 job_index;
   i64 task_index;
   std::vector<i64> row_ids;
@@ -55,7 +56,7 @@ struct EvalWorkEntry {
   i64 warmup_rows;
   // Only for pre worker
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
-  std::vector<i64> work_item_sizes;
+  std::vector<i64> work_packet_sizes;
   bool first;
   bool last_in_task;
   // For save and pre worker

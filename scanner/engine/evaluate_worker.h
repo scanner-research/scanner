@@ -47,9 +47,9 @@ class PreEvaluateWorker {
  public:
   PreEvaluateWorker(const PreEvaluateWorkerArgs& args);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry, bool is_first_in_task);
+  void feed(EvalWorkEntry& entry, bool is_first_in_task);
 
-  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
+  bool yield(i32 item_size, EvalWorkEntry& output);
 
  private:
   const i32 node_id_;
@@ -70,7 +70,7 @@ class PreEvaluateWorker {
   bool first_item_;
   bool needs_configure_;
   bool needs_reset_;
-  std::tuple<IOItem, EvalWorkEntry> entry_;
+  EvalWorkEntry entry_;
   i64 current_row_;
   i64 total_rows_;
 
@@ -111,9 +111,9 @@ class EvaluateWorker {
 
   void new_task(const std::vector<TaskStream>& task_streams);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+  void feed(EvalWorkEntry& entry);
 
-  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
+  bool yield(i32 item_size, EvalWorkEntry& output);
 
  private:
   const i32 node_id_;
@@ -148,7 +148,7 @@ class EvaluateWorker {
   std::vector<std::deque<i64>> stencil_cache_row_ids_;
 
   // Continutation state
-  std::tuple<IOItem, EvalWorkEntry> entry_;
+  EvalWorkEntry entry_;
   i32 current_input_;
   i32 total_inputs_;
 
@@ -180,9 +180,9 @@ class PostEvaluateWorker {
  public:
   PostEvaluateWorker(const PostEvaluateWorkerArgs& args);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+  void feed(EvalWorkEntry& entry);
 
-  bool yield(std::tuple<IOItem, EvalWorkEntry>& output);
+  bool yield(EvalWorkEntry& output);
 
  private:
   Profiler& profiler_;
@@ -200,7 +200,7 @@ class PostEvaluateWorker {
   // Generator state
   EvalWorkEntry buffered_entry_;
   i64 current_offset_;
-  std::deque<std::tuple<IOItem, EvalWorkEntry>> buffered_entries_;
+  std::deque<EvalWorkEntry> buffered_entries_;
 };
 }
 }
