@@ -186,12 +186,13 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
     work_packet_size_(args.work_packet_size) {
   storage_.reset(
       storehouse::StorageBackend::make_from_config(args.storage_config));
+  meta_ = read_database_metadata(storage_.get(),
+                                 DatabaseMetadata::descriptor_path());
+  table_metadata_.reset(new TableMetaCache(storage_.get(), meta_));
 }
 
 void LoadWorker::feed(LoadWorkEntry& input_entry) {
   LoadWorkEntry& load_work_entry = input_entry;
-
-  const auto& samples = load_work_entry.samples();
 
   if (load_work_entry.table_id() != last_table_id_) {
     // Not from the same task so clear cached data
@@ -201,8 +202,10 @@ void LoadWorker::feed(LoadWorkEntry& input_entry) {
 
   entry_ = input_entry;
   current_row_ = 0;
-  current_work_item_ = 0;
-  total_work_items_ = load_work_entry.work_packet_sizes().size();
+  total_rows_ = 0;
+  for (auto& sample : load_work_entry.samples()) {
+    total_rows_ = std::max((i64)sample.rows_size(), total_rows_);
+  }
 }
 
 bool LoadWorker::yield(i32 item_size,
@@ -210,140 +213,114 @@ bool LoadWorker::yield(i32 item_size,
   LoadWorkEntry& load_work_entry = entry_;
 
   // Ignoring item size for now and just yielding one IO item at a time
-  if (current_work_item_ >= total_work_items_) {
+  if (current_row_ >= total_rows_) {
     return false;
-  }
-
-  item_size = io_packet_size_;
-  i32 num_work_items;
-  if (item_size <= 0) {
-    num_work_items = load_work_entry.work_packet_sizes().size();
-  } else {
-    num_work_items = (i32)std::ceil(item_size / (double)work_packet_size_);
-    if (num_work_items + current_work_item_ >
-        load_work_entry.work_packet_sizes().size()) {
-      num_work_items =
-          load_work_entry.work_packet_sizes().size() - current_work_item_;
-    }
-  }
-  i32 num_row_ids = 0;
-  for (i32 i = 0; i < num_work_items; ++i) {
-    num_row_ids += load_work_entry.work_packet_sizes(current_work_item_ + i);
   }
 
   EvalWorkEntry eval_work_entry;
   eval_work_entry.table_id = load_work_entry.table_id();
   eval_work_entry.job_index = load_work_entry.job_index();
   eval_work_entry.task_index = load_work_entry.task_index();
-  eval_work_entry.row_ids = std::vector<i64>(
-      load_work_entry.samples(0).rows().begin() + current_row_,
-      load_work_entry.samples(0).rows().begin() + current_row_ + num_row_ids);
-  eval_work_entry.work_packet_sizes = std::vector<i64>(
-      load_work_entry.work_packet_sizes().begin() + current_work_item_,
-      load_work_entry.work_packet_sizes().begin() + current_work_item_ +
-          num_work_items);
 
   const auto& samples = load_work_entry.samples();
   assert(!samples.empty());
-  eval_work_entry.warmup_rows = samples.Get(0).warmup_size();
 
   // Aggregate all sample columns so we know the tuple size
-  i32 num_columns = 0;
-  for (size_t i = 0; i < samples.size(); ++i) {
-    num_columns += samples.Get(i).column_ids_size();
-  }
+  i32 num_columns = samples.size();
   eval_work_entry.columns.resize(num_columns);
 
+  // For each sample, insert the row ids and read the rows from disk
+  // NOTE(apoms): if the requested rows are different for each column,
+  // some of the output work entries will have an uneven number of rows
   i32 media_col_idx = 0;
   i32 out_col_idx = 0;
   for (const proto::LoadSample& sample : samples) {
     i32 table_id = sample.table_id();
-    auto it = table_metadata_.find(table_id);
-    if (it == table_metadata_.end()) {
-      table_metadata_[table_id] = read_table_metadata(
-          storage_.get(), TableMetadata::descriptor_path(table_id));
-      it = table_metadata_.find(table_id);
-    }
-    const TableMetadata& table_meta = it->second;
+    const TableMetadata& table_meta = table_metadata_->at(table_id);
 
-    const google::protobuf::RepeatedField<i64>& sample_rows = sample.rows();
-    std::vector<i64> rows(sample_rows.begin() + current_row_,
-                          sample_rows.begin() + current_row_ + num_row_ids);
+    i64 total_rows = sample.rows_size();
+    i64 row_start = current_row_;
+    i64 row_end = std::min(current_row_ + item_size, total_rows);
+
+    const auto& sample_rows = sample.rows();
+    std::vector<i64> rows(sample_rows.begin() + row_start,
+                          sample_rows.begin() + row_end);
+    eval_work_entry.row_ids.push_back(rows);
 
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();
-    for (i32 col_id : sample.column_ids()) {
-      ColumnType column_type = ColumnType::Other;
-      if (table_meta.column_type(col_id) == ColumnType::Video) {
-        column_type = ColumnType::Video;
-        // video frame column
-        FrameInfo info;
-        proto::VideoDescriptor::VideoCodecType encoding_type;
-        for (size_t i = 0; i < num_items; ++i) {
-          i32 item_id = intervals.item_ids[i];
-          i64 item_start_row = intervals.item_start_offsets[i];
-          const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
+    i32 col_id = sample.column_id();
 
-          auto key = std::make_tuple(table_id, col_id, item_id);
-          if (index_.count(key) == 0) {
-            index_[key] =
-                read_video_index(storage_.get(), table_id, col_id, item_id);
-          }
-          const VideoIndexEntry& entry = index_.at(key);
-          info = FrameInfo(entry.height, entry.width, entry.channels,
-                           entry.frame_type);
-          encoding_type = entry.codec_type;
-          if (entry.codec_type == proto::VideoDescriptor::H264) {
-            // Video was encoded using h264
-            read_video_column(profiler_, entry, valid_offsets, item_start_row,
-                              eval_work_entry.columns[out_col_idx]);
-          } else {
-            // Video was encoded as individual images
-            i32 item_id = intervals.item_ids[i];
-            i64 item_start;
-            i64 item_end;
-            std::tie(item_start, item_end) = intervals.item_intervals[i];
+    ColumnType column_type = ColumnType::Other;
+    if (table_meta.column_type(col_id) == ColumnType::Video) {
+      column_type = ColumnType::Video;
+      // video frame column
+      FrameInfo info;
+      proto::VideoDescriptor::VideoCodecType encoding_type;
+      for (size_t i = 0; i < num_items; ++i) {
+        i32 item_id = intervals.item_ids[i];
+        i64 item_start_row = intervals.item_start_offsets[i];
+        const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
-            read_other_column(table_id, col_id, item_id, item_start, item_end,
-                              valid_offsets,
-                              eval_work_entry.columns[out_col_idx]);
-          }
+        auto key = std::make_tuple(table_id, col_id, item_id);
+        if (index_.count(key) == 0) {
+          index_[key] =
+              read_video_index(storage_.get(), table_id, col_id, item_id);
         }
-        assert(num_items > 0);
-        eval_work_entry.frame_sizes.push_back(info);
-        eval_work_entry.video_encoding_type.push_back(encoding_type);
-        media_col_idx++;
-      } else {
-        // regular column
-        for (size_t i = 0; i < num_items; ++i) {
+        const VideoIndexEntry& entry = index_.at(key);
+        info = FrameInfo(entry.height, entry.width, entry.channels,
+                         entry.frame_type);
+        encoding_type = entry.codec_type;
+        if (entry.codec_type == proto::VideoDescriptor::H264) {
+          // Video was encoded using h264
+          read_video_column(profiler_, entry, valid_offsets, item_start_row,
+                            eval_work_entry.columns[out_col_idx]);
+        } else {
+          // Video was encoded as individual images
           i32 item_id = intervals.item_ids[i];
           i64 item_start;
           i64 item_end;
           std::tie(item_start, item_end) = intervals.item_intervals[i];
-          const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
 
           read_other_column(table_id, col_id, item_id, item_start, item_end,
                             valid_offsets,
                             eval_work_entry.columns[out_col_idx]);
         }
       }
-      eval_work_entry.column_types.push_back(column_type);
-      eval_work_entry.column_handles.push_back(CPU_DEVICE);
-      out_col_idx++;
+      if (num_items == 0) {
+        eval_work_entry.frame_sizes.emplace_back();
+        eval_work_entry.video_encoding_type.emplace_back();
+      } else {
+        eval_work_entry.frame_sizes.push_back(info);
+        eval_work_entry.video_encoding_type.push_back(encoding_type);
+      }
+      media_col_idx++;
+    } else {
+      // regular column
+      for (size_t i = 0; i < num_items; ++i) {
+        i32 item_id = intervals.item_ids[i];
+        i64 item_start;
+        i64 item_end;
+        std::tie(item_start, item_end) = intervals.item_intervals[i];
+        const std::vector<i64>& valid_offsets = intervals.valid_offsets[i];
+
+        read_other_column(table_id, col_id, item_id, item_start, item_end,
+                          valid_offsets, eval_work_entry.columns[out_col_idx]);
+      }
     }
+    eval_work_entry.column_types.push_back(column_type);
+    eval_work_entry.column_handles.push_back(CPU_DEVICE);
+    out_col_idx++;
   }
 
   output_entry = eval_work_entry;
 
-  current_work_item_ += num_work_items;
-  current_row_ += num_row_ids;
+  current_row_ += item_size;
 
   return true;
 }
 
-bool LoadWorker::done() {
-  return current_work_item_ >= total_work_items_;
-}
+bool LoadWorker::done() { return current_row_ >= total_rows_; }
 
 void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
                        const std::vector<i64>& rows, i64 start_frame,

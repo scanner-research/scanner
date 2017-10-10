@@ -404,9 +404,7 @@ Result determine_input_rows_to_slices(
     DatabaseMetadata& meta, TableMetaCache& table_metas,
     const std::vector<proto::Job>& jobs,
     const std::vector<proto::Op>& ops,
-    DAGAnalysisInfo& info,
-    std::vector<std::map<i64, i64>>& slice_input_rows,
-    std::vector<i64>& total_output_rows) {
+    DAGAnalysisInfo& info) {
   Result result;
   result.set_success(true);
   const std::vector<i32>& op_slice_level = info.op_slice_level;
@@ -414,11 +412,27 @@ Result determine_input_rows_to_slices(
   const std::map<i64, i64>& slice_ops = info.slice_ops;
   const std::map<i64, i64>& sampling_ops = info.sampling_ops;
   const std::map<i64, std::vector<i64>>& op_children = info.op_children;
+  std::vector<std::map<i64, i64>>& slice_input_rows = info.slice_input_rows;
+  std::vector<std::map<i64, std::vector<i64>>>& slice_output_rows =
+      info.slice_output_rows;
+  std::vector<std::map<i64, std::vector<i64>>>& unslice_input_rows =
+      info.unslice_input_rows;
+  std::vector<std::map<i64, std::vector<i64>>>& total_rows_per_op =
+      info.total_rows_per_op;
+  std::vector<i64>& total_output_rows = info.total_output_rows;
   // For each job, use table rows to determine number of total possible outputs
   // by propagating downward through Op DAG
   for (const proto::Job& job : jobs) {
     slice_input_rows.emplace_back();
-    const std::map<i64, i64>& job_slice_input_rows = slice_input_rows.back();
+    std::map<i64, i64>& job_slice_input_rows = slice_input_rows.back();
+    slice_output_rows.emplace_back();
+    std::map<i64, i64>& job_slice_output_rows = slice_output_rows.back();
+    unslice_input_rows.emplace_back();
+    std::map<i64, std::vector<i64>>& job_unslice_input_rows =
+        unslice_input_rows.back();
+    total_rows_per_op.emplace_back();
+    std::map<i64, std::vector<i64>>& job_total_rows_per_op =
+        total_rows_per_op.back();
     // Create domain samplers using sampling args
     // Op idx -> samplers for each slice group
     std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
@@ -570,12 +584,14 @@ Result determine_input_rows_to_slices(
               slice_group_output.size(), number_of_slice_groups);
           return result;
         }
+        job_slice_output_rows.at(op_idx) = slice_group_outputs;
       }
 
       // Check if this is an unslice op
       if (unslice_ops.count(op_idx) > 0) {
         assert(op_slice_level.at(op_idx) == 0);
 
+        job_unslice_input_rows.at(op_idx) = slice_group_outputs;
         // Concatenate all slice group outputs
         i64 new_outputs = 0;
         for (i64 group_outputs : slice_group_outputs) {
@@ -583,6 +599,9 @@ Result determine_input_rows_to_slices(
         }
         slice_group_outputs = {new_outputs};
       }
+      // Track size of output domain for this Op for use in boundary condition
+      // check
+      job_output_total_rows_per_op.at(op_idx) = slice_group_outputs;
 
       for (i64 child_op_idx : op_children.at(op_idx)) {
         op_num_inputs.at(child_op_idx).push_back(slice_group_outputs);
@@ -699,7 +718,7 @@ Result derive_slice_final_output_rows(
 }
 
 void populate_analysis_info(const std::vector<proto::Op>& ops,
-                            LinearizedAnalysisResults& info) {
+                            DAGAnalysisInfo& info) {
   std::vector<i32>& op_slice_level = info.op_slice_level;
   std::map<i64, i64>& input_ops = info.input_ops;
   std::map<i64, i64>& slice_ops = info.slice_ops;
@@ -707,7 +726,7 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
   std::map<i64, i64>& sampling_ops = info.sampling_ops;
   std::map<i64, std::vector<i64>>& op_children = info.op_children;
   std::map<i64, bool>& bounded_state_ops = results.bounded_state_ops;
-  std::map<i64, bool>& unbounded_state_ops= results.unbounded_state_ops;
+  std::map<i64, bool>& unbounded_state_ops = results.unbounded_state_ops;
 
   std::map<i64, i32>& warmup_sizes = results.warmup_sizes;
   std::map<i64, i32>& batch_sizes = results.batch_sizes;
@@ -832,7 +851,7 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
 }
 
 void remap_input_op_edges(std::vector<proto::Op>& ops,
-                          LinearizedAnalysisResults& info) {
+                          DAGAnalysisInfo& info) {
   auto rename_col = [](i32 op_idx, const std::string& n) {
     return std::to_string(op_idx) + "_" + n;
   }
@@ -1026,10 +1045,15 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
   return results;
 }
 
-void derive_stencil_requirements(
-    storehouse::StorageBackend* storage,
-    const LinearizedAnalysisResults& analysis_results, i64 table_id,
-    i64 job_idx, i64 task_idx, const std::vector<i64> output_rows,
+Result derive_stencil_requirements(
+    const DatabaseMetadata& meta,
+    const TableMetaCache& table_meta,
+    const proto::Job& job,
+    const std::vector<proto::Op>& ops,
+    const DAGAnalysisInfo& analysis_results,
+    proto::BulkJobParameters::BoundaryCondition boundary_condition,
+    i64 table_id,
+    i64 job_idx, i64 task_idx, const std::vector<i64>& output_rows,
     i64 initial_work_item_size, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams) {
   const std::vector<std::vector<i32>>& stencils = analysis_results.stencils;
@@ -1038,162 +1062,240 @@ void derive_stencil_requirements(
   output_entry.set_job_index(job_idx);
   output_entry.set_task_index(task_idx);
 
-  i64 num_kernels = stencils.size();
+  i64 num_ops = ops.size();
 
-  // Compute the required rows for each kernel based on the stencil
-  // HACK(apoms): this will only really work for linear DAGs. For DAGs with
-  //   non-linear topologies, this might break. Supporting proper DAGs would
-  //   require tracking stencils up each branch individually.
-  std::vector<i64> current_rows;
-  const proto::LoadSample& sample = load_work_entry.samples(0);
-  i64 last_row = sample.rows(sample.rows_size() - 1);
-  std::string table_path = TableMetadata::descriptor_path(sample.table_id());
-  TableMetadata meta = read_table_metadata(storage, table_path);
-  {
-    current_rows = std::vector<i64>(sample.rows().begin(), sample.rows().end());
-    TaskStream s;
-    s.valid_output_rows = current_rows;
-    task_streams.push_front(s);
-    // For each kernel, derive the required elements via its stencil
-    for (i64 i = 0; i < num_kernels; ++i) {
-      const std::vector<i32>& stencil = stencils[num_kernels - 1 - i];
-      std::unordered_set<i64> new_rows;
-      new_rows.reserve(current_rows.size());
-      for (i64 r : current_rows) {
-        // Ignore rows which can not achieve their stencil
-        if (r - stencil[0] < 0 ||
-            r + stencil[stencil.size() - 1] >= meta.num_rows()) continue;
-        for (i64 s : stencil) {
-          new_rows.insert(r + s);
-        }
+  const std::map<i64, std::vector<i64>>& job_slice_output_rows =
+      info.slice_output_rows.at(job_id);
+  const std::map<i64, std::vector<i64>>& job_unslice_input_rows =
+      info.unslice_input_rows.at(job_id);
+  // Create domain samplers
+  std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
+  for (const proto::SamplingArgsAssignment& saa :
+       job.sampling_args_assignment()) {
+    std::vector<std::unique_ptr<DomainSampler>>& samplers =
+        domain_samplers[saa.op_index()];
+    // Assign number of rows to correct op
+    for (auto& sa : saa.sampling_args()) {
+      DomainSampler* sampler;
+      result = make_domain_sampler_instance(
+          sa.sampling_function(),
+          std::vector<u8>(sa.sampling_args().begin(), sa.sampling_args().end()),
+          sampler);
+      if (!result.success()) {
+        return result;
       }
-      current_rows = std::vector<i64>(new_rows.begin(), new_rows.end());
-      std::sort(current_rows.begin(), current_rows.end());
-      TaskStream s;
-      s.valid_output_rows = current_rows;
-      task_streams.push_front(s);
+      domain_samplers.emplace_back(sampler);
     }
   }
-  // Compute the required work item sizes to produce the minimal amount of
-  // output for each invocation of the kernels
-  std::vector<i64> work_item_sizes;
-  {
-    // Lists the last row that the stencil cache would have seen
-    // at this point
-    std::vector<i64> last_stencil_cache_row(num_kernels + 1, -1);
-    std::vector<size_t> produced_rows(num_kernels + 1);
 
-    size_t num_input_rows = task_streams.front().valid_output_rows.size();
-    size_t num_output_rows = task_streams.back().valid_output_rows.size();
-    while (produced_rows.front() < num_input_rows) {
-      i64 work_item_size = initial_work_item_size;
-      // For each kernel, determine which rows of input it needs given the
-      // current stencil cache and position in required rows
-      for (i64 k = num_kernels; k >= 1; k--) {
-        const TaskStream& prev_s = task_streams[k - 1];
-        const TaskStream& s = task_streams[k];
-        size_t pos = produced_rows[k];
-        const std::vector<i32> stencil = analysis_results.stencils[k - 1];
-        i64 batch_size = analysis_results.batch_sizes[k - 1];
-
-        // If the kernel is batched, we need to make sure we round up to
-        // request a batch of input.
-        if (work_item_size % batch_size != 0) {
-          work_item_size += (batch_size - work_item_size % batch_size);
-        }
-
-        // If we are at the end of the task, then we can not provide
-        // a full batch and must provide a partial one
-        if (pos + work_item_size > prev_s.valid_output_rows.size()) {
-          work_item_size = s.valid_output_rows.size() - pos;
-        }
-
-        // Compute which input rows are needed for the batch of outputs
-        std::set<i64> required_input_rows;
-        for (i64 i = 0; i < work_item_size; ++i) {
-          i64 row = s.valid_output_rows[pos + i];
-          for (i32 s : stencil) {
-            required_input_rows.insert(row + s);
+  // Compute the required rows for each kernel based on the stencil, sampling
+  // operations, and slice operations.
+  i64 last_row = output_rows.back();
+  TableMetadata meta = table_meta.at(table_id);
+  // For each Op, determine the set of rows needed in the live columns list
+  // and the set of rows to feed to the Op at the current column mapping
+  // Op -> Rows
+  std::vector<std::set<i64>> required_output_rows_at_op;
+  std::vector<std::vector<i64>> required_input_rows_at_op;
+  for (auto& columns : live_columns) {
+    required_output_rows_at_op.emplace_back();
+    required_input_rows_at_op.emplace_back();
+  }
+  // For the input Op
+  std::vector<std::set<i64>> required_input_op_rows;
+  required_input_op_rows.resize(ops.at(0).inputs_size());
+  // HACK(apoms): we currently propagate this boundary condition upward,
+  // but that would technically cause the upstream sequence to have more
+  // elements than required. Should we stop the boundary condition at the Op
+  // by deduplication?
+  auto handle_boundary = [= boundary_condition](
+      const std::vector<i64>& downstream_rows, i64 max_rows,
+      std::vector<i64>& bounded_rows) {
+    // Handle rows which touch boundaries
+    for (size_t i = 0; i < downstream_rows.size(); ++i) {
+      i64 r = downstream_rows[i];
+      if (r < 0 || r >= max_rows) {
+        switch (boundary_condition) {
+          case BulkJobParameters::REPEAT_EDGE: {
+            r = (r < 0) ? 0 : max_rows;
+            break;
           }
-        }
-        std::vector<i64> sorted_input_rows(required_input_rows.begin(),
-                                           required_input_rows.end());
-        std::sort(sorted_input_rows.begin(), sorted_input_rows.end());
-
-        // For all the rows not in the stencil cache, we will request them
-        // from the upstream kernel by setting the work item size
-        i64 rows_to_request = 0;
-        {
-          i64 i = 0;
-          for (; i < sorted_input_rows.size(); ++i) {
-            // If the requested row is not in the stencil cache, we are done
-            // with this work item
-            if (sorted_input_rows[i] > last_stencil_cache_row[k - 1]) {
-              break;
-            }
+          case BulkJobParameters::REPEAT_NULL: {
+            r = -1;
+            break;
           }
-          rows_to_request = (sorted_input_rows.size() - i);
-        }
-        assert(rows_to_request > 0);
-        work_item_size = rows_to_request;
-      }
-      produced_rows[0] += work_item_size;
-      last_stencil_cache_row[0] =
-          task_streams[0].valid_output_rows[produced_rows[0] - 1];
-      assert(produced_rows[0] > 0);
-      work_item_sizes.push_back(work_item_size);
-
-      // Propagate downward what rows will be in the stencil cache due to the
-      // computed number of rows of input
-      for (i64 k = 1; k < num_kernels + 1; k++) {
-        const TaskStream& ts = task_streams[k];
-        size_t& pos = produced_rows[k];
-        const std::vector<i32>& stencil = analysis_results.stencils[k - 1];
-        i64 batch_size = analysis_results.batch_sizes[k - 1];
-
-        // Figure out how many rows will be produced given work_item_size
-        // inputs
-        i64 rows = 0;
-        for (; pos + rows < ts.valid_output_rows.size(); ++rows) {
-          if (ts.valid_output_rows[pos + rows] + stencil.back() >
-              last_stencil_cache_row[k - 1]) {
+          case BulkJobParameters::ERROR: {
+            Result result;
+            RESULT_ERROR(&result, "Boundary error.");
+            return result;
             break;
           }
         }
-        assert(pos + rows - 1 < ts.valid_output_rows.size());
-        // Round down if we don't have enough for a batch unless this is
-        // the end of the task
-        if (rows % batch_size != 0 &&
-            ts.valid_output_rows[pos + rows - 1] != last_row) {
-          rows -= (rows % batch_size);
-        }
-        assert(rows > 0);
-
-        // Update how many rows we have produced
-        pos += rows;
-        assert(pos > 0);
-        last_stencil_cache_row[k] = ts.valid_output_rows[pos - 1];
-
-        // Send the rows to the next kernel
-        work_item_size = rows;
       }
+      bounded_rows.push_back(r);
+    }
+  }
+  // Walk up the Ops to derive upstream rows
+  i32 slice_group = -1;
+  {
+    // Initialize output rows
+    required_output_rows_at_op.at(num_ops - 1) = output_rows;
+    // For each kernel, derive the minimal required upstream elements
+    for (i64 op_idx = num_ops - 1; op_idx >= 0; --op_idx) {
+      auto& op = ops.at(op_idx);
+      std::vector<i64> downstream_rows(
+          required_output_rows_at_op.at(op_idx).begin(),
+          required_output_rows_at_op.at(op_idx).end());
+      std::sort(downstream_rows.begin(), downstream_rows.end());
+      // Determine which upstream rows are needed for the requested output rows
+      std::vector<i64> new_rows;
+      // Input Op
+      if (op.name() == INPUT_OP_NAME) {
+        // Perform boundary restriction
+        std::vector<i64> bounded_rows;
+        Result result = handle_boundary(downstream_rows, bounded_rows);
+        if (!result.succes()) {
+          return result;
+        }
+
+        new_rows = bounded_rows;
+      }
+      // Sample or Space Op
+      else if (op.name() == SAMPLE_OP_NAME ||
+               op.name() == SPACE_OP_NAME) {
+        // Use domain sampler
+        Result result = domain_samplers.at(op_idx)->get_upstream_rows(
+            downstream_rows, new_rows);
+        if (!result.success()) {
+          return result;
+        }
+      }
+      // Space Op
+      else if (op.name() == SPACE_OP_NAME) {
+        // Use domain sampler
+        Result result = domain_samplers.at(op_idx)->get_upstream_rows(
+            downstream_rows, new_rows);
+        if (!result.success()) {
+          return result;
+        }
+      }
+      // Slice Op
+      else if (op.name() == SLICE_OP_NAME) {
+        // We know which slice group we are in already from the unslice
+        // HACK(apoms): we currently restrict pipelines such that slices
+        // can be computed entirely independently and choose output rows
+        // that do not cross state boundaries to make it possible to assume
+        // that all rows are in the same slice
+        assert(slice_group != -1);
+
+        const auto& slice_ouput_counts = job_slice_output_rows.at(op_idx);
+        i64 offset = 0;
+        for (i64 i = 0; i < slice_group; ++i) {
+          offset += slice_output_counts.at(i);
+        }
+
+        // Perform boundary restriction
+        std::vector<i64> bounded_rows;
+        Result result = handle_boundary(downstream_rows, bounded_rows);
+        if (!result.succes()) {
+          return result;
+        }
+
+        // Remap row indices
+        for (i64 r : bounded_rows) {
+          new_rows.push_back(r + offset);
+        }
+      }
+      // Unslice Op
+      else if (op.name() == UNSLICE_OP_NAME) {
+        // Determine which slices we are in and propagate those rows upwards
+        // HACK(apoms): we currently restrict pipelines such that slices
+        // can be computed entirely independently and choose output rows
+        // that do not cross state boundaries to make it possible to assume
+        // that all rows are in the same slice
+        i64 downstream_min = downstream_rows[0];
+        i64 downstream_max = downstream_rows[downstream_rows.size() - 1];
+        const auto& unslice_input_counts = job_unslice_input_rows.at(op_idx);
+        i64 offset = 0;
+        slice_group = 0;
+        bool found = false;
+        for (; slice_group < unslice_input_counts.size(); ++slice_group) {
+          if (downstream_min >= offset &&
+              downstream_max < offset + unslice_input_counts.at(slice_group)) {
+            found = true;
+            break;
+          }
+          offset += unslice_input_counts.at(slice_group);
+        }
+        assert(found);
+        // Remap row indices
+        for (i64 r : downstream_rows) {
+          new_rows.push_back(r - offset);
+        }
+      }
+      // Output Op
+      else if (op.name() == OUTPUT_OP_NAME) {
+        new_rows = downstream_rows;
+      }
+      // Regular Op
+      else {
+        assert(!is_builtin_op(op.name()));
+        std::unordered_set<i64> current_rows;
+        const std::vector<i32>& stencil = stencils[i];
+        current_rows.reserve(downstream_rows.size());
+        for (i64 r : downstream_rows) {
+          for (i64 s : stencil) {
+            current_rows.insert(r + s);
+          }
+        }
+        new_rows = std::vector<i64>(current_rows.begin(), current_rows.end());
+        std::sort(new_rows.begin(), new_rows.end());
+      }
+
+      required_input_rows_at_op.at(op_idx) = new_rows;
+      for (auto& input : op.inputs()) {
+        if (input.op_idx() == 0) {
+          i64 col_id = 0;
+          for (const auto& col : ops.at(input.op_idx()).inputs()) {
+            if (col.column() == input.column()) {
+              break;
+            }
+            col_id++;
+          }
+          assert(col_id != opts.at(input.op_idx()).inputs_size());
+          required_input_op_rows.at(col_id).insert(new_rows.begin(),
+                                                   new_rows.end());
+        }
+        auto& input_outputs = required_output_rows_at_op.at(input.op_index());
+        input_outputs.insert(new_rows.begin(), new_rows.end());
+      }
+
+      TaskStream s;
+      s.valid_input_rows = new_rows;
+      s.valid_output_rows = downstream_rows;
+      task_streams.push_front(s);
     }
   }
 
   // Get rid of input stream since this is already captured by the load samples
   task_streams.pop_front();
 
-  for (i64 r : work_item_sizes) {
-    output_entry.add_work_item_sizes(r);
+  std::vector<i32> table_ids(job.inputs_size());
+  std::vector<i32> column_ids(job.inputs_size());
+  for (auto& col_input : job.inputs()) {
+    i32 col_idx =
+        analysis_results.input_ops_to_first_op_columns.at(col_input.op_index());
+    table_ids[col_idx] = meta.get_table_id(col_input.table_name());
+    column_ids[col_idx] = table_meta.at(col_input.table_name())
+                              .column_id(col_input.column_name());
   }
-
-  for (const proto::LoadSample& sample : load_work_entry.samples()) {
+  for (size_t i = 0; i < table_ids.size(); ++i) {
     auto out_sample = output_entry.add_samples();
-    out_sample->set_table_id(sample.table_id());
-    out_sample->mutable_column_ids()->CopyFrom(sample.column_ids());
-    out_sample->set_warmup_size(sample.warmup_size());
+    out_sample->set_table_id(table_ids[i]);
+    out_sample->set_column_id(column_ids[i]);
     google::protobuf::RepeatedField<i64> data(
-        current_rows.begin(), current_rows.end());
+        required_input_op_rows.at(i).begin(),
+        required_input_op_rows.at(i).end());
     out_sample->mutable_rows()->Swap(&data);
   }
 }
