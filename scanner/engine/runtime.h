@@ -45,7 +45,7 @@ struct EvalWorkEntry {
   i64 table_id;
   i64 job_index;
   i64 task_index;
-  std::vector<i64> row_ids;
+  std::vector<std::vector<i64>> row_ids;
   BatchedColumns columns;
   std::vector<DeviceHandle> column_handles;
   // Below only for pre/evaluate/post workers
@@ -53,10 +53,8 @@ struct EvalWorkEntry {
   bool needs_configure;
   bool needs_reset;
   bool last_in_io_packet;
-  i64 warmup_rows;
   // Only for pre worker
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
-  std::vector<i64> work_packet_sizes;
   bool first;
   bool last_in_task;
   // For save and pre worker
@@ -65,6 +63,7 @@ struct EvalWorkEntry {
 };
 
 struct TaskStream {
+  std::vector<std::vector<i64>> valid_input_rows;
   std::vector<i64> valid_output_rows;
 };
 
@@ -108,8 +107,12 @@ void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle target_handle,
                                      BatchedColumns& columns);
 
-ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
-                               DeviceHandle target_handle, ElementList& column);
+ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
+                          DeviceHandle target_handle, ElementList& column);
 
+ElementList copy_or_ref_elements(Profiler& profiler,
+                                 DeviceHandle current_handle,
+                                 DeviceHandle target_handle,
+                                 ElementList& column);
 }
 }

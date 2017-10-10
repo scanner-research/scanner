@@ -115,17 +115,19 @@ std::map<int, bool> no_pipelining_conditions;
 
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
                          PreEvaluateWorkerArgs args) {
-
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
-  std::map<i32, Queue<
-                  std::tuple<std::deque<TaskStream>, EvalWorkEntry>>>
+  // We sort inputs into task work queues to ensure we process them
+  // sequentially
+  std::map<i32, Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>>
       task_work_queue;
+  i32 work_packet_size = args.work_packet_size;
 
   i32 active_task = -1;
   while (true) {
     auto idle_start = now();
 
+    // If we have no work at all or we do not have work for our current task..
     if (task_work_queue.empty() ||
         (active_task != -1 && task_work_queue.at(active_task).size() <= 0)) {
       std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
@@ -143,11 +145,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     args.profiler.add_interval("idle", idle_start, now());
 
     if (active_task == -1) {
-      // Choose the next active task
+      // Choose the next task to work on
       active_task = task_work_queue.begin()->first;
     }
 
-    // Wait until we have the next io item
+    // Wait until we have the next io item for the current task
     if (task_work_queue.at(active_task).size() <= 0) {
       continue;
     }
@@ -176,11 +178,8 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     auto input_entry = work_entry;
     worker.feed(input_entry, first);
-    i32 work_item_index = 0;
-    while (work_item_index < work_entry.work_packet_sizes.size()) {
-      i32 work_packet_size = work_entry.work_packet_sizes.at(work_item_index++);
-      total_rows -= work_packet_size;
-
+    i32 rows_used = 0;
+    while (rows_used < total_rows) {
       EvalWorkEntry output_entry;
       if (!worker.yield(work_packet_size, output_entry)) {
         break;
@@ -204,6 +203,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
           return !no_pipelining_conditions[args.worker_id];
         });
       }
+      rows_used += work_packet_size;
     }
 
     if (last) {
@@ -246,7 +246,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     if (task_streams.size() > 0) {
       // Start of a new task. Tell kernels what outputs they should produce.
       std::vector<TaskStream> streams;
-      for (i32 i = 0; i < args.kernel_factories.size(); ++i) {
+      for (i32 i = 0; i < args.arg_group.kernel_factories.size(); ++i) {
         assert(!task_streams.empty());
         streams.push_back(task_streams.front());
         task_streams.pop_front();
@@ -522,8 +522,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::vector<proto::Op> ops(job_params->ops().begin(),
                              job_params->ops().end());
 
-  LinearizedAnalysisResults analysis_results;
+  DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);
+  // Need slice input rows to know which slice we are in
+  determine_input_rows_to_slices(meta, table_meta, jobs, ops, analysis_results);
   remap_input_op_edges(ops, analysis_results);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
@@ -634,24 +636,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   }
 
   // Break up kernels into groups that run on the same device
-  std::vector<std::vector<std::tuple<KernelFactory*, KernelConfig>>>
-      kernel_groups;
-  std::vector<std::vector<std::vector<std::tuple<i32, std::string>>>>
-      kg_live_columns;
-  std::vector<std::vector<std::vector<i32>>> kg_dead_columns;
-  std::vector<std::vector<std::vector<i32>>> kg_unused_outputs;
-  std::vector<std::vector<std::vector<i32>>> kg_column_mapping;
-  std::vector<std::vector<std::vector<i32>>> kg_stencils;
-  std::vector<std::vector<i32>> kg_batch_sizes;
+  std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
     DeviceType last_device_type = kernel_factories[0]->get_device_type();
-    kernel_groups.emplace_back();
-    kg_live_columns.emplace_back();
-    kg_dead_columns.emplace_back();
-    kg_unused_outputs.emplace_back();
-    kg_column_mapping.emplace_back();
-    kg_stencils.emplace_back();
-    kg_batch_sizes.emplace_back();
+    groups.emplace_back();
     for (size_t i = 0; i < kernel_factories.size(); ++i) {
       KernelFactory* factory = kernel_factories[i];
       // Factory is nullptr when we are on a builtin op
@@ -660,21 +648,26 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         // Does not use the same device as previous kernel, so push into new
         // group
         last_device_type = factory->get_device_type();
-        kernel_groups.emplace_back();
-        kg_live_columns.emplace_back();
-        kg_dead_columns.emplace_back();
-        kg_unused_outputs.emplace_back();
-        kg_column_mapping.emplace_back();
-        kg_stencils.emplace_back();
-        kg_batch_sizes.emplace_back();
+        groups.emplace_back();
       }
-      auto& group = kernel_groups.back();
-      auto& lc = kg_live_columns.back();
-      auto& dc = kg_dead_columns.back();
-      auto& uo = kg_unused_outputs.back();
-      auto& cm = kg_column_mapping.back();
-      auto& st = kg_stencils.back();
-      auto& bt = kg_batch_sizes.back();
+      auto& op_group = groups.back().op_names;
+      auto& op_sampling = groups.back().sampling_args;
+      auto& group = groups.back().kernel_factories;
+      auto& lc = groups.back().live_columns;
+      auto& dc = groups.back().dead_columns;
+      auto& uo = groups.back().unused_outputs;
+      auto& cm = groups.back().column_mapping;
+      auto& st = groups.back().kernel_stencils;
+      auto& bt = groups.back().kernel_batch_sizes;
+      const std::string& op_name = ops.at(i).name();
+      op_group.push_back(op_name);
+      if (analysis_results.slice_ops.count(i) > 0) {
+      }
+      if (analysis_results.unslice_ops.count(i) > 0) {
+      }
+      if (analysis_results.sampling_ops.count(i) > 0) {
+        analysis_results.sampling_ops.at(i);
+      }
       group.push_back(std::make_tuple(factory, kernel_configs[i]));
       lc.push_back(live_columns[i]);
       dc.push_back(dead_columns[i]);
@@ -685,7 +678,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     }
   }
 
-  i32 num_kernel_groups = static_cast<i32>(kernel_groups.size());
+  i32 num_kernel_groups = static_cast<i32>(groups.size());
   assert(num_kernel_groups > 0);  // is this actually necessary?
 
   i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
@@ -696,7 +689,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   if (pipeline_instances_per_node == -1) {
     pipeline_instances_per_node = std::numeric_limits<i32>::max();
     for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-      auto& group = kernel_groups[kg];
+      auto& group = groups[kg].kernel_factories;
       for (i32 k = 0; k < group.size(); ++k) {
         // Skip builtin ops
         if (std::get<0>(group[k]) == nullptr) {
@@ -819,13 +812,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     // Evaluate worker
     DeviceHandle first_kernel_type;
     for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-      auto& group = kernel_groups[kg];
-      auto& lc = kg_live_columns[kg];
-      auto& dc = kg_dead_columns[kg];
-      auto& uo = kg_unused_outputs[kg];
-      auto& cm = kg_column_mapping[kg];
-      auto& st = kg_stencils[kg];
-      auto& bt = kg_batch_sizes[kg];
+      auto& group = groups[kg].kernel_factories;
       std::vector<EvaluateWorkerArgs>& thread_args = eval_args[ki];
       std::vector<std::tuple<EvalQueue*, EvalQueue*>>& thread_qs =
           eval_queues[ki];
@@ -871,8 +858,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
           node_id_, startup_lock, startup_cv, startup_count,
 
           // Per worker arguments
-          ki, kg, group, lc, dc, uo, cm, st, bt, eval_thread_profilers[kg + 1],
-          results[kg]});
+          ki, kg, groups[kg], eval_thread_profilers[kg + 1], results[kg]});
       eval_total += 1;
     }
     // Pre evaluate worker
@@ -885,7 +871,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       }
       EvalQueue* output_work_queue =
           &work_queues[0];
-      assert(kernel_groups.size() > 0);
+      assert(groups.size() > 0);
       pre_eval_queues.push_back(
           std::make_tuple(input_work_queue, output_work_queue));
       DeviceHandle decoder_type = std::getenv("FORCE_CPU_DECODE")
@@ -893,7 +879,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         : first_kernel_type;
       pre_eval_args.emplace_back(PreEvaluateWorkerArgs{
           // Uniform arguments
-          node_id_, num_cpus,
+          node_id_, num_cpus, job_params->work_packet_size(),
 
           // Per worker arguments
           ki, decoder_type, eval_thread_profilers.front(),
@@ -1062,7 +1048,12 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
         derive_stencil_requirements(
-            storage_, analysis_results,
+            meta,
+            table_meta,
+            jobs.at(new_work.job_index()),
+            ops,
+            analysis_results,
+            job_params->boundary_condition(),
             new_work.table_id(),
             new_work.job_index(),
             new_work.task_index(),
