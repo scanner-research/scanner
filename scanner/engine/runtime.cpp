@@ -97,8 +97,8 @@ void move_if_different_address_space(Profiler& profiler,
   }
 }
 
-ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
-                               DeviceHandle target_handle, ElementList& column) {
+ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
+                          DeviceHandle target_handle, ElementList& column) {
   bool is_frame = column[0].is_frame;
 
   std::vector<u8*> src_buffers;
@@ -131,6 +131,53 @@ ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
 
   auto memcpy_start = now();
   memcpy_vec(dest_buffers, target_handle, src_buffers, current_handle, sizes);
+  profiler.add_interval("memcpy", memcpy_start, now());
+
+  ElementList output_list;
+  if (is_frame) {
+    for (i32 b = 0; b < (i32)column.size(); ++b) {
+      Frame* frame =
+          new Frame(column[b].as_frame()->as_frame_info(), dest_buffers[b]);
+      insert_frame(output_list, frame);
+    }
+  } else {
+    for (i32 b = 0; b < (i32)column.size(); ++b) {
+      insert_element(output_list, dest_buffers[b], sizes[b]);
+    }
+  }
+  return output_list;
+}
+
+ElementList copy_or_ref_elements(Profiler& profiler,
+                                 DeviceHandle current_handle,
+                                 DeviceHandle target_handle,
+                                 ElementList& column) {
+  bool is_frame = column[0].is_frame;
+
+  std::vector<u8*> src_buffers;
+  std::vector<size_t> sizes;
+  if (is_frame) {
+    for (i32 b = 0; b < (i32)column.size(); ++b) {
+      Frame* frame = column[b].as_frame();
+      src_buffers.push_back(frame->data);
+      sizes.push_back(frame->size());
+    }
+  } else {
+    for (i32 b = 0; b < (i32)column.size(); ++b) {
+      src_buffers.push_back(column[b].buffer);
+      sizes.push_back(column[b].size);
+    }
+  }
+
+  size_t total_size = 0;
+  for (i32 b = 0; b < (i32)column.size(); ++b) {
+    total_size += sizes[b];
+  }
+
+  auto memcpy_start = now();
+  std::vector<u8*> dest_buffers;
+  copy_or_ref_buffers(dest_buffers, target_handle, src_buffers, current_handle,
+                      sizes);
   profiler.add_interval("memcpy", memcpy_start, now());
 
   ElementList output_list;

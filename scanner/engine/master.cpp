@@ -790,9 +790,10 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Determine total output rows and slice input rows for using to
   // split stream
-  *job_result = determine_input_rows_to_slices(
-      meta_, *table_metas_.get(), jobs, ops, dag_info,
-      slice_input_rows_per_job_, total_output_rows_per_job_);
+  *job_result = determine_input_rows_to_slices(meta_, *table_metas_.get(), jobs,
+                                               ops, dag_info);
+  slice_input_rows_per_job_ = dag_info.slice_input_rows;
+  total_output_rows_per_job_ = dag_info.total_output_rows;
 
   // HACK(apoms): we currently split work into tasks in two ways:
   //  a) align with the natural boundaries defined by the slice partitioner

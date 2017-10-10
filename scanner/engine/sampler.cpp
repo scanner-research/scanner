@@ -57,6 +57,14 @@ class DefaultDomainSampler : public DomainSampler {
     return result;
   }
 
+  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
+                             std::vector<i64>& downstream_rows) const {
+    downstream_rows = upstream_rows;
+    Result result;
+    result.set_success(true);
+    return result;
+  }
+
  private:
   Result valid_;
 };
@@ -98,6 +106,18 @@ class StridedDomainSampler : public DomainSampler {
   Result get_num_downstream_rows(i64 num_upstream_rows,
                                  i64& num_downstream_rows) const {
     num_downstream_rows = ceil(num_upstream_rows / float(args_.stride()));
+    Result result;
+    result.set_success(true);
+    return result;
+  }
+
+  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
+                             std::vector<i64>& downstream_rows) const {
+    for (i64 in : upstream_rows) {
+      if (in % args_.stride() == 0) {
+        downstream_rows.push_back(in / args_.stride());
+      }
+    }
     Result result;
     result.set_success(true);
     return result;
@@ -198,6 +218,31 @@ class StridedRangesDomainSampler : public DomainSampler {
     return valid;
   }
 
+  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
+                             std::vector<i64>& downstream_rows) const {
+    i64 offset = 0;
+    i64 range_idx = 0;
+    for (i64 r : upstream_rows) {
+      while (range_idx < args_.ends_size() &&
+             !(r >= args_.starts(range_idx) && r < args_.ends(range_idx))) {
+        offset += (args_.starts(range_idx) - args_.ends(range_idx) +
+                   args_.stride() - 1) /
+                  args_.stride();
+        range_idx++;
+      }
+      if (range_idx == args_.ends_size()) {
+        break;
+      }
+      i64 relative_r = (r - args_.starts(range_idx));
+      if (relative_r % args_.stride() == 0) {
+        downstream_rows.push_back(offset + relative_r / args_.stride());
+      }
+    }
+    Result valid;
+    valid.set_success(true);
+    return valid;
+  }
+
  private:
   Result valid_;
   proto::StridedRangeSamplerArgs args_;
@@ -213,6 +258,10 @@ class GatherDomainSampler : public DomainSampler {
       RESULT_ERROR(&valid_,
                    "Gather sampler provided with invalid protobuf args");
       return;
+    }
+    i64 offset = 0;
+    for (i64 r : args_.rows()) {
+      gather_rows_[r] = offset++;
     }
   }
 
@@ -250,9 +299,22 @@ class GatherDomainSampler : public DomainSampler {
     return valid;
   }
 
+  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
+                             std::vector<i64>& downstream_rows) const {
+    for (i64 r : upstream_rows) {
+      if (gather_rows_.count(r) > 0) {
+        downstream_rows.push_back(gather_rows_.at(r));
+      }
+    }
+    Result valid;
+    valid.set_success(true);
+    return valid;
+  }
+
  private:
   Result valid_;
   proto::GatherSamplerArgs args_;
+  std::map<i64, i64> gather_rows_;
 };
 
 
@@ -295,6 +357,19 @@ class SpaceNullDomainSampler : public DomainSampler {
     Result result;
     result.set_success(true);
     return result;
+  }
+
+  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
+                             std::vector<i64>& downstream_rows) const {
+    for (i64 r : upstream_rows) {
+      i64 base = r * args_.spacing();
+      for (i64 offset = base; offset < base + args_.spacing(); ++offset) {
+        downstream_rows.push_back(offset);
+      }
+    }
+    Result valid;
+    valid.set_success(true);
+    return valid;
   }
 
  private:
@@ -343,6 +418,19 @@ class SpaceRepeatDomainSampler : public DomainSampler {
     Result result;
     result.set_success(true);
     return result;
+  }
+
+  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
+                             std::vector<i64>& downstream_rows) const {
+    for (i64 r : upstream_rows) {
+      i64 base = r * args_.spacing();
+      for (i64 offset = base; offset < base + args_.spacing(); ++offset) {
+        downstream_rows.push_back(offset);
+      }
+    }
+    Result valid;
+    valid.set_success(true);
+    return valid;
   }
 
  private:

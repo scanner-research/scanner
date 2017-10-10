@@ -36,6 +36,7 @@ struct PreEvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
   i32 num_cpus;
+  i32 work_packet_size;
 
   // Per worker arguments
   i32 worker_id;
@@ -59,9 +60,7 @@ class PreEvaluateWorker {
 
   Profiler& profiler_;
 
-  i32 last_table_id_ = -1;
-  i32 last_end_row_ = -1;
-  i32 last_item_id_ = -1;
+  i32 last_job_idx_ = -1;
 
   DeviceHandle decoder_output_handle_;
   std::vector<std::unique_ptr<DecoderAutomata>> decoders_;
@@ -77,16 +76,18 @@ class PreEvaluateWorker {
   std::vector<std::vector<proto::DecodeArgs>> decode_args_;
 };
 
-struct EvaluateWorkerArgs {
-  // Uniform arguments
-  i32 node_id;
-  std::mutex& startup_lock;
-  std::condition_variable& startup_cv;
-  i32& startup_count;
-
-  // Per worker arguments
-  i32 ki;
-  i32 kg;
+struct OpArgGroup {
+  std::vector<std::string> op_names;
+  /// For sampling ops
+  // Job -> Op -> slice
+  std::vector<std::map<i64, std::vector<proto::SamplingArgs>>> sampling_args;
+  /// For slice ops
+  // Job -> Op -> slice
+  std::vector<std::map<i64, std::vector<i64>>> slice_output_rows;
+  /// For unslice ops
+  // Job -> Op -> slice
+  std::vector<std::map<i64, std::vector<i64>>> unslice_input_rows;
+  /// For regular kernels
   std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   // Discarded after kernel use
@@ -99,6 +100,19 @@ struct EvaluateWorkerArgs {
   std::vector<std::vector<i32>> kernel_stencils;
   // Batch size needed by kernels
   std::vector<i32> kernel_batch_sizes;
+};
+
+struct EvaluateWorkerArgs {
+  // Uniform arguments
+  i32 node_id;
+  std::mutex& startup_lock;
+  std::condition_variable& startup_cv;
+  i32& startup_count;
+
+  // Per worker arguments
+  i32 ki;
+  i32 kg;
+  OpArgGroup arg_group;
 
   Profiler& profiler;
   proto::Result& result;
@@ -121,17 +135,10 @@ class EvaluateWorker {
 
   Profiler& profiler_;
 
-  std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories_;
+  OpArgGroup arg_group_;
   std::vector<DeviceHandle> kernel_devices_;
   std::vector<i32> kernel_num_outputs_;
   std::vector<std::unique_ptr<BaseKernel>> kernels_;
-
-  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns_;
-  std::vector<std::vector<i32>> dead_columns_;
-  std::vector<std::vector<i32>> unused_outputs_;
-  std::vector<std::vector<i32>> column_mapping_;
-  std::vector<std::vector<i32>> kernel_stencils_;
-  std::vector<i32> kernel_batch_sizes_;
 
   // Used for computing complement of column mapping
   std::vector<std::set<i32>> column_mapping_set_;
@@ -141,11 +148,11 @@ class EvaluateWorker {
   std::vector<std::vector<i64>> valid_output_rows_;
   std::vector<i64> current_valid_idx_;
   // Per kernel -> per input column -> deque of element)
-  std::vector<std::vector<std::deque<Element>>> stencil_cache_;
+  std::vector<std::vector<std::deque<Element>>> element_cache_;
   // Per kernel -> per input column -> device handle
-  std::vector<std::vector<DeviceHandle>> stencil_cache_devices_;
+  std::vector<std::vector<DeviceHandle>> element_cache_devices_;
   // Per kernel -> deque of row ids
-  std::vector<std::deque<i64>> stencil_cache_row_ids_;
+  std::vector<std::deque<i64>> element_cache_row_ids_;
 
   // Continutation state
   EvalWorkEntry entry_;
