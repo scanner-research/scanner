@@ -17,6 +17,7 @@
 
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/video_index_entry.h"
+#include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 
@@ -56,7 +57,8 @@ class LoadWorker {
   // Setup a distinct storage backend for each IO thread
   std::unique_ptr<storehouse::StorageBackend> storage_;
   // Caching table metadata
-  std::map<i32, TableMetadata> table_metadata_;
+  DatabaseMetadata meta_;
+  std::unique_ptr<TableMetaCache> table_metadata_;
   // To ammortize opening files
   i32 last_table_id_ = -1;
   std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index_;
@@ -69,10 +71,8 @@ class LoadWorker {
   bool needs_configure_;
   bool needs_reset_;
   LoadWorkEntry entry_;
-  i64 current_work_item_;
   i64 current_row_;
-  i64 total_work_items_;
-
+  i64 total_rows_;
 };
 
 void read_video_column(Profiler& profiler,

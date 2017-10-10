@@ -23,13 +23,24 @@ TableMetaCache::TableMetaCache(storehouse::StorageBackend* storage,
   : storage_(storage), meta_(meta) {}
 
 const TableMetadata& TableMetaCache::at(const std::string& table_name) const {
-  memoized_read(table_name);
+  i32 table_id = meta_.get_table_id(table_name);
+  memoized_read(table_id);
   std::lock_guard<std::mutex> lock(lock_);
-  return cache_.at(table_name);
+  return cache_.at(table_id);
+}
+
+const TableMetadata& TableMetaCache::at(i32 table_id) const {
+  memoized_read(table_id);
+  std::lock_guard<std::mutex> lock(lock_);
+  return cache_.at(table_id);
 }
 
 bool TableMetaCache::exists(const std::string& table_name) const {
   return meta_.has_table(table_name);
+}
+
+bool TableMetaCache::exists(i32 table_id) const {
+  return meta_.has_table(table_id);
 }
 
 void TableMetaCache::update(const TableMetadata& meta) {
@@ -37,18 +48,22 @@ void TableMetaCache::update(const TableMetadata& meta) {
   cache_[meta.name()] = meta;
 }
 
+
 void TableMetaCache::memoized_read(const std::string& table_name) const {
+  memoized_read(meta_.get_table_id(table_name));
+}
+
+void TableMetaCache::memoized_read(i32 table_id) const {
   bool b;
   {
     std::lock_guard<std::mutex> lock(lock_);
-    b = cache_.count(table_name) == 0 && meta_.has_table(table_name);
+    b = cache_.count(table_id) == 0 && meta_.has_table(table_id);
   }
   if (b) {
-    std::string table_path =
-        TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+    std::string table_path = TableMetadata::descriptor_path(table_id);
     TableMetadata meta = read_table_metadata(storage_, table_path);
     std::lock_guard<std::mutex> lock(lock_);
-    cache_.insert({table_name, meta});
+    cache_.insert({table_id, meta});
   }
 }
 

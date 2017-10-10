@@ -199,8 +199,7 @@ message ImageDecodeArgs {
 
 message LoadSample {
   int32 table_id = 1;
-  repeated int32 column_ids = 2;
-  int64 warmup_size = 3;
+  int32 column_id = 2;
   repeated int64 rows = 4 [packed=true];
 }
 
@@ -209,7 +208,6 @@ message LoadWorkEntry {
   int32 job_index = 2;
   int32 task_index = 3;
   repeated LoadSample samples = 4;
-  repeated int64 work_packet_sizes = 5;
 }
 
 message MemoryPoolConfig {
