@@ -265,7 +265,7 @@ class BlockAllocator {
     return buffer;
   }
 
-  void add_ref(u8* buffer) {
+  void add_refs(u8* buffer, size_t refs) {
     std::lock_guard<std::mutex> guard(lock_);
 
     i32 index;
@@ -274,7 +274,7 @@ class BlockAllocator {
         << "Block allocator tried to add ref to non-block buffer";
 
     Allocation& alloc = allocations_[index];
-    alloc.refs += 1;
+    alloc.refs += refs;
   }
 
   void free(u8* buffer) {
@@ -321,7 +321,6 @@ class BlockAllocator {
     return find_buffer(buffer, index);
   }
 
- private:
   bool find_buffer(u8* buffer, i32& index) {
     i32 num_alloc = allocations_.size();
     for (i32 i = 0; i < num_alloc; ++i) {
@@ -333,6 +332,7 @@ class BlockAllocator {
     }
     return false;
   }
+ private:
 
   typedef struct {
     u8* buffer;
@@ -345,12 +345,169 @@ class BlockAllocator {
   Allocator* allocator_;
 };
 
+class LinkedAllocator {
+ public:
+  LinkedAllocator(std::map<DeviceType, Allocator*> allocators)
+    : allocators_(allocators) {}
+
+  ~LinkedAllocator() {
+    std::lock_guard<std::mutex> guard(lock_);
+    for (Allocation& alloc : allocations_) {
+      for (auto& kv : alloc.buffers) {
+        allocators_.at(kv.first)->free(kv.second);
+      }
+    }
+    allocations_.clear();
+  }
+
+  u8* allocate(DeviceHandle device, size_t size, i32 refs) {
+    auto& allocator = allocators_.at(device);
+    u8* buffer = allocator->allocate(size);
+
+    Allocation alloc;
+    alloc.buffers[device] = buffer;
+    alloc.size = size;
+    alloc.refs[device] = refs;
+
+    std::lock_guard<std::mutex> guard(lock_);
+    allocations_.push_back(alloc);
+
+    return buffer;
+  }
+
+  void add_refs(DeviceHandle device, u8* buffer, size_t refs) {
+    auto& allocator = allocators_.at(device);
+
+    std::lock_guard<std::mutex> guard(lock_);
+
+    i32 index;
+    bool found = find_buffer(device, buffer, index);
+    LOG_IF(FATAL, !found)
+        << "Block allocator tried to add ref to non-block buffer";
+
+    Allocation& alloc = allocations_[index];
+    alloc.refs[device] += refs;
+  }
+
+  void copy_or_add_refs(DeviceHandle source_device, u8* source_buffer,
+                        size_t refs, DeviceHandle target_device,
+                        u8*& target_buffer) {
+    std::lock_guard<std::mutex> guard(lock_);
+
+    // Check if buffer exists
+    i32 index;
+    bool found = find_buffer(source_device, source_buffer, index);
+    LOG_IF(FATAL, !found)
+        << "Block allocator tried to copy or add ref to non-block buffer";
+    // Check if requested device exists
+    Allocation& alloc = allocations_[index];
+    if (alloc.refs.count(target_device) > 0) {
+      // Add ref
+      alloc.refs[device] += refs;
+    } else {
+      // Copy
+      auto& allocator = allocators_.at(device);
+      u8* new_buffer = allocator->allocate(alloc.size);
+      memcpy_buffer(new_buffer, target_device,
+                    alloc.buffers[source_device], source_device, alloc.size);
+      alloc.refs[device] = refs;
+      alloc.buffers[device] = new_buffer;
+    }
+    // Set target_buffer to same offset as it would be in the allocation that
+    // source_buffer is from
+    target_buffer = (u64)(source_buffer - alloc.buffers[source_device]) +
+                    alloc.buffers[target_device];
+  }
+
+  void free(DeviceHandle device, u8* buffer) {
+    auto& allocator = allocators_.at(device);
+
+    std::lock_guard<std::mutex> guard(lock_);
+
+    i32 index;
+    bool found = find_buffer(device, buffer, index);
+    LOG_IF(FATAL, !found) << "Block allocator freed non-block buffer";
+
+    Allocation& alloc = allocations_[index];
+    assert(alloc.refs[device] > 0);
+    alloc.refs[device] -= 1;
+
+    if (alloc.refs[device] == 0) {
+      allocator->free(alloc.buffer[device]);
+      alloc.buffers.erase(device);
+      alloc.refs.erase(device);
+      if (alloc.refs.size() == 0) {
+        allocations_.erase(allocations_.begin() + index);
+      }
+    }
+  }
+
+  bool buffers_in_same_block(DeviceHandle device, std::vector<u8*> buffers) {
+    assert(buffers.size() > 0);
+
+    std::lock_guard<std::mutex> guard(lock_);
+    i32 base_index;
+    bool found = find_buffer(device, buffers[0], base_index);
+    if (!found) {
+      return false;
+    }
+
+    for (i32 i = 1; i < buffers.size(); ++i) {
+      i32 index;
+      found = find_buffer(device, buffers[i], index);
+      if (!found || base_index != index) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool buffer_in_block(DeviceHandle device, u8* buffer) {
+    std::lock_guard<std::mutex> guard(lock_);
+    i32 index;
+    return find_buffer(device, buffer, index);
+  }
+
+ private:
+  bool find_buffer(DeviceHandle device, u8* buffer, i32& index) {
+    auto& allocations = allocations_;
+    i32 num_alloc = allocations_.size();
+    for (i32 i = 0; i < num_alloc; ++i) {
+      Allocation alloc = allocations_[i];
+      if (alloc.buffer.count(device) > 0) {
+        u8* alloc_buffer = alloc.buffer[device];
+        if (pointer_in_buffer(buffer, alloc_buffer,
+                              alloc_buffer + alloc.size)) {
+          index = i;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  typedef struct {
+    std::map<DeviceHandle, u8*> buffers;
+    size_t size;
+    std::map<DeviceHandle, i32> refs;
+  } Allocation;
+
+  std::mutex lock_;
+  i64 last_allocation_id_;
+  std::vector<Allocation> allocations_;
+  std::map<DeviceHandle, Allocator*> allocators_;
+};
+
 static std::unique_ptr<SystemAllocator> cpu_system_allocator;
 static std::map<i32, SystemAllocator*> gpu_system_allocators;
 static PoolAllocator* cpu_pool_allocator = nullptr;
 static std::unique_ptr<BlockAllocator> cpu_block_allocator;
 static std::map<i32, PoolAllocator*> gpu_pool_allocators;
 static std::map<i32, BlockAllocator*> gpu_block_allocators;
+static std::unique_ptr<LinkedAllocator> linked_allocator;
+
+#define USE_LINKED_ALLOCATOR
 
 #define PINNED_BUFFER_SIZE (32<<20)
 static std::map<i32, u8*> pinned_cpu_buffers;
@@ -373,7 +530,12 @@ void init_memory_allocators(MemoryPoolConfig config,
                           total_mem - config.cpu().free_space());
     cpu_block_allocator_base = cpu_pool_allocator;
   }
+#ifdef USE_LINKED_ALLOCATOR
+  std::map<DeviceHandle, Allocator*> allocators;
+  allocators[CPU_DEVICE] = cpu_block_allocator_base;
+#else
   cpu_block_allocator.reset(new BlockAllocator(cpu_block_allocator_base));
+#endif
 
 #ifdef HAVE_CUDA
   for (i32 device_id : gpu_device_ids) {
@@ -394,14 +556,23 @@ void init_memory_allocators(MemoryPoolConfig config,
           device, gpu_system_allocator, total_mem - config.gpu().free_space());
       gpu_block_allocator_base = gpu_pool_allocators[device.id];
     }
+#ifdef USE_LINKED_ALLOCATOR
+    allocators[device] = gpu_block_allocator_base;
+#else
     gpu_block_allocators[device.id] =
         new BlockAllocator(gpu_block_allocator_base);
-    CU_CHECK(cudaMallocHost((void**)&pinned_cpu_buffers[device.id], PINNED_BUFFER_SIZE));
+#endif
+    CU_CHECK(cudaMallocHost((void**)&pinned_cpu_buffers[device.id],
+                            PINNED_BUFFER_SIZE));
   }
+#endif
+#ifdef USE_LINKED_ALLOCATOR
+  linked_allocator.reset(new LinkedAllocator(allocators));
 #endif
 }
 
 void destroy_memory_allocators() {
+  linked_allocator.reset(nullptr);
   cpu_block_allocator.reset(nullptr);
   if (cpu_pool_allocator) {
     delete cpu_pool_allocator;
@@ -452,25 +623,38 @@ BlockAllocator* block_allocator_for_device(DeviceHandle device) {
 }
 
 u8* new_buffer(DeviceHandle device, size_t size) {
-  assert(size > 0);
-  SystemAllocator* allocator = system_allocator_for_device(device);
-  return allocator->allocate(size);
+  return new_block_buffer(device, size, 1);
 }
 
 u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs) {
   assert(size > 0);
+#ifdef USE_LINKED_ALLOCATOR
+  return linked_allocator->allocate(device, size, refs);
+#else
   BlockAllocator* allocator = block_allocator_for_device(device);
   return allocator->allocate(size, refs);
+#endif
 }
 
 void add_buffer_ref(DeviceHandle device, u8* buffer) {
+  add_buffer_refs(device, buffer, 1);
+}
+
+void add_buffer_refs(DeviceHandle device, u8* buffer, size_t refs) {
   assert(buffer != nullptr);
+#ifdef USE_LINKED_ALLOCATOR
+  return linked_allocator->add_refs(device, buffer, refs);
+#else
   BlockAllocator* block_allocator = block_allocator_for_device(device);
-  block_allocator->add_ref(buffer);
+  block_allocator->add_refs(buffer, refs);
+#endif
 }
 
 void delete_buffer(DeviceHandle device, u8* buffer) {
   assert(buffer != nullptr);
+#ifdef USE_LINKED_ALLOCATOR
+  linked_allocator->free(device, buffer);
+#else
   BlockAllocator* block_allocator = block_allocator_for_device(device);
   if (block_allocator->buffer_in_block(buffer)) {
     block_allocator->free(buffer);
@@ -478,6 +662,7 @@ void delete_buffer(DeviceHandle device, u8* buffer) {
     SystemAllocator* system_allocator = system_allocator_for_device(device);
     system_allocator->free(buffer);
   }
+#endif
 }
 
 // FIXME(wcrichto): case if transferring between two different GPUs
@@ -514,21 +699,35 @@ void memcpy_buffer(u8* dest_buffer, DeviceHandle dest_device,
 #define NUM_CUDA_STREAMS 32
 
 // TODO(wcrichto): implement CPU-CPU transfer
-void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
-                const std::vector<u8*> src_buffers, DeviceHandle src_device,
-                std::vector<size_t> sizes) {
+void memcpy_vec(std::vector<u8*>& dest_buffers, DeviceHandle dest_device,
+                const std::vector<u8*>& src_buffers, DeviceHandle src_device,
+                const std::vector<size_t>& sizes) {
   assert(src_device.can_copy_to(dest_device));
   assert(dest_buffers.size() > 0);
   assert(src_buffers.size() > 0);
   assert(dest_buffers.size() == src_buffers.size());
 
+#ifndef USE_LINKED_ALLOCATOR
   BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
   BlockAllocator* src_allocator = block_allocator_for_device(src_device);
+#endif
 
   size_t total_size = 0;
   for (auto size : sizes) {
     total_size += size;
   }
+
+  // In the case where the dest and src vectors are each respectively drawn
+  // from a single block, we do a single memcpy from one block to the other.
+  bool from_same_block = false;
+#ifdef USE_LINKED_ALLOCATOR
+  from_same_block =
+      linked_allocator->buffers_in_same_block(dest_device, dest_buffers) &&
+      linked_allocator->buffers_in_same_block(src_device, src_buffers);
+#else
+  from_same_block = dest_allocator->buffers_in_same_block(dest_buffers) &&
+                    src_allocator->buffers_in_same_block(src_buffers);
+#endif
 
   if (dest_device.type == DeviceType::GPU ||
       src_device.type == DeviceType::GPU) {
@@ -541,24 +740,22 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
       }
     }
 
-    // In the case where the dest and src vectors are each respectively drawn
-    // from a single block, we do a single memcpy from one block to the other.
-    if (dest_allocator->buffers_in_same_block(dest_buffers) &&
-        src_allocator->buffers_in_same_block(src_buffers)) {
-      memcpy_buffer(dest_buffers[0], dest_device, src_buffers[0], src_device, total_size);
+    if (from_same_block) {
+      memcpy_buffer(dest_buffers[0], dest_device, src_buffers[0], src_device,
+                    total_size);
     } else {
       i32 n = dest_buffers.size();
 
       for (i32 i = 0; i < n; ++i) {
-        memcpy_buffer(dest_buffers[i], dest_device, src_buffers[i], src_device, sizes[i]);
+        memcpy_buffer(dest_buffers[i], dest_device, src_buffers[i], src_device,
+                      sizes[i]);
       }
     }
 #else
     LOG(FATAL) << "Cuda not installed";
 #endif
   } else {
-    if (dest_allocator->buffers_in_same_block(dest_buffers) &&
-        src_allocator->buffers_in_same_block(src_buffers)) {
+    if (from_same_block) {
       memcpy(dest_buffers[0], src_buffers[0], total_size);
     } else {
       for (i32 i = 0; i < dest_buffers.size(); ++i) {
@@ -567,4 +764,40 @@ void memcpy_vec(std::vector<u8*> dest_buffers, DeviceHandle dest_device,
     }
   }
 }
+
+void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
+                         DeviceHandle dest_device,
+                         const std::vector<u8*>& src_buffers,
+                         DeviceHandle src_device,
+                         const std::vector<size_t>& sizes) {
+  assert(src_device.can_copy_to(dest_device));
+  assert(dest_buffers.size() > 0);
+  assert(src_buffers.size() > 0);
+  assert(dest_buffers.size() == src_buffers.size());
+
+#ifdef USE_LINKED_ALLOCATOR
+  // If source buffers are all from same block, this will perform only one
+  // copy. However, it will perform multiple lookups in the allocator.
+  dest_buffers.resize(src_buffers.size());
+  for (i32 i = 0; i < dest_buffers.size(); ++i) {
+    linked_allocator->copy_or_add_refs(src_device, src_buffers[i], 1,
+                                       dest_device, dest_buffers[i]);
+  }
+#else
+  size_t total_size = 0;
+  for (auto size : sizes) {
+    total_size += size;
+  }
+
+  BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
+  BlockAllocator* src_allocator = block_allocator_for_device(src_device);
+  u8* dest_buff = dest_allocator->alloc(total_size);
+  for (size_t size : sizes) {
+    dest_buffers.push_back(dest_buff);
+    dest_buff += size;
+  }
+  memcpy_vec(dest_buffers, dest_device, src_buffers, src_device, sizes);
+#endif
+}
+
 }
