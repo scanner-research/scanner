@@ -1,6 +1,7 @@
 #include "scanner/engine/evaluate_worker.h"
 
 #include "scanner/engine/op_registry.h"
+#include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
 
 #include <google/protobuf/io/coded_stream.h>
@@ -234,9 +235,11 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
     // Resize stencil cache to be the same size as the number of side output
     // columns at that kernel since we need to save all columns
     element_cache_[i].resize(arg_group_.live_columns[i].size());
+    element_cache_row_ids_[i].resize(arg_group_.live_columns[i].size());
   }
   valid_output_rows_.resize(kernels_.size());
-  current_valid_idx_.assign(kernels_.size(), 0);
+  current_valid_input_idx_.assign(kernels_.size(), 0);
+  current_valid_output_idx_.assign(kernels_.size(), 0);
 
   args.profiler.add_interval("setup", now(), setup_start);
 
@@ -246,18 +249,52 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   args.startup_cv.notify_one();
 }
 
-void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {
-  for (size_t i = 0; i < kernel_factories_.size(); ++i) {
-    assert(valid_output_rows_[i].size() == current_valid_idx_[i]);
+void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
+                              const std::vector<TaskStream>& task_streams) {
+  job_idx_ = job_idx;
+  task_idx_ = task_idx;
+  for (size_t i = 0; i < task_streams.size(); ++i) {
+    assert(valid_output_rows_[i].size() == current_valid_input_idx_[i]);
   }
   valid_output_rows_.clear();
   valid_output_rows_set_.clear();
-  current_valid_idx_.clear();
+  current_valid_input_idx_.clear();
+  current_valid_output_idx_.clear();
+  current_element_cache_input_idx_.clear();
+  slice_group_ = -1;
   for (auto& ts : task_streams) {
+    if (ts.slice_group != -1) {
+      slice_group_ = ts.slice_group;
+    }
+    valid_input_rows_.push_back(ts.valid_input_rows);
+    valid_input_rows_set_.push_back(
+        std::set<i64>(ts.valid_input_rows.begin(), ts.valid_input_rows.end()));
     valid_output_rows_.push_back(ts.valid_output_rows);
     valid_output_rows_set_.push_back(std::set<i64>(ts.valid_output_rows.begin(),
                                                    ts.valid_output_rows.end()));
-    current_valid_idx_.push_back(0);
+    current_valid_input_idx_.push_back(0);
+    current_valid_output_idx_.push_back(0);
+    current_element_cache_input_idx_.push_back(0);
+  }
+
+  // Initialize domain samplers for this job and this slice
+  domain_samplers_.clear();
+  for (auto& kv : arg_group_.sampling_args) {
+    i64 op_idx = kv.first;
+    i64 slice_group = task_streams.at(op_idx).slice_group;
+    auto& sampling_args =
+        arg_group_.sampling_args.at(job_idx).at(op_idx).at(slice_group);
+    DomainSampler* sampler = nullptr;
+    Result result = make_domain_sampler_instance(
+        sampling_args.sampling_function(),
+        std::vector<u8>(sampling_args.sampling_args().begin(),
+                        sampling_args.sampling_args().end()),
+        sampler);
+    if (!result.success()) {
+      VLOG(1) << "Make domain sampler failed: " << result.msg();
+      THREAD_RETURN_SUCCESS();
+    }
+    domain_samplers_[op_idx].reset(sampler);
   }
 
   // Make the op aware of the format of the data
@@ -272,24 +309,23 @@ void EvaluateWorker::new_task(const std::vector<TaskStream>& task_streams) {
 
   // Clear the stencil cache
   for (size_t k = 0; k < kernels_.size(); ++k) {
-    std::vector<i32>& kernel_stencil = kernel_stencils_[k];
+    std::vector<i32>& kernel_stencil = arg_group_.kernel_stencils[k];
     bool degenerate_stencil =
         (kernel_stencil.size() == 1 && kernel_stencil[0] == 0);
     std::vector<std::deque<Element>>& kernel_cache = element_cache_[k];
     std::vector<DeviceHandle>& kernel_cache_devices = element_cache_devices_[k];
-    std::deque<i64>& kernel_cache_row_ids = element_cache_row_ids_[k];
-    auto& row_id_deque = kernel_cache_row_ids;
-    while (row_id_deque.size() > 0) {
-      assert(!kernel_cache_devices.empty());
-      row_id_deque.pop_front();
-      for (size_t i = 0; i < kernel_cache.size(); ++i) {
-        auto& cache_deque = kernel_cache[i];
-        Element element = cache_deque.front();
-        // If this kernel has a non-degenerate stencil...
-        if (!degenerate_stencil) {
-          delete_element(kernel_cache_devices[i], element);
-        }
-        cache_deque.pop_front();
+    std::vector<std::deque<i64>>& kernel_cache_row_ids =
+        element_cache_row_ids_[k];
+    auto& input_column_idx = arg_group_.column_mapping[k];
+    assert(!kernel_cache_devices.empty());
+    for (i32 i = 0; i < input_column_idx.size(); ++i) {
+      auto& row_id_deque = kernel_cache_row_ids[i];
+      row_id_deque.clear();
+      auto& cache_deque = kernel_cache[i];
+      for (i64 j = 0; j < cache_deque.size(); ++j) {
+        Element element = cache_deque.back();
+        delete_element(kernel_cache_devices[i], element);
+        cache_deque.pop_back();
       }
     }
   }
@@ -313,15 +349,21 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
   // For each kernel, produce as much output as can be produced given current
   // input rows and stencil cache.
-  for (size_t k = 0; k < op_names_.size(); ++k) {
-    const std::string& op_name = op_names_.at(k);
+  for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
+    const std::string& op_name = arg_group_.op_names.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
-    std::vector<i64>& kernel_valid_rows = valid_output_rows_[k];
-    std::set<i64>& kernel_valid_rows_set = valid_output_rows_set_[k];
+    std::vector<i64>& kernel_valid_input_rows = valid_input_rows_[k];
+    std::set<i64>& kernel_valid_input_rows_set = valid_input_rows_set_[k];
+    i64& kernel_current_input_idx = current_valid_input_idx_[k];
+    std::vector<i64>& kernel_valid_output_rows = valid_output_rows_[k];
+    std::set<i64>& kernel_valid_output_rows_set = valid_output_rows_set_[k];
+    i64& kernel_current_output_idx = current_valid_output_idx_[k];
+    i64& kernel_element_cache_input_idx = current_element_cache_input_idx_[k];
     std::vector<std::deque<Element>>& kernel_cache = element_cache_[k];
     std::vector<DeviceHandle>& kernel_cache_devices = element_cache_devices_[k];
-    std::deque<i64>& kernel_cache_row_ids = element_cache_row_ids_[k];
-    std::vector<i32>& input_column_idx = column_mapping_[k];
+    std::vector<std::deque<i64>>& kernel_cache_row_ids =
+        element_cache_row_ids_[k];
+    std::vector<i32>& input_column_idx = arg_group_.column_mapping[k];
     std::set<i32>& input_column_idx_set = column_mapping_set_[k];
 
     // Since inputs can arrive at different rates, we need to keep
@@ -332,132 +374,195 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     for (i32 i = 0; i < input_column_idx.size(); ++i) {
       i32 in_col_idx = input_column_idx[i];
       assert(in_col_idx < side_output_columns.size());
+      // Select elements which this kernel requires as inputs
+      auto& row_ids = side_row_ids[in_col_idx];
+      ElementList valid_inputs;
+      for (size_t r = 0; r < row_ids.size(); ++r) {
+        assert(row_ids[r] <= kernel_valid_input_rows[kernel_current_input_idx]);
+        if (row_ids[r] == kernel_valid_input_rows[kernel_current_input_idx]) {
+          // Insert row ids for valid elements into cache
+          kernel_cache_row_ids[i].push_back(row_ids[r]);
+          valid_inputs.push_back(side_output_columns[in_col_idx][r]);
+          kernel_current_input_idx++;
+        }
+      }
+      auto copy_start = now();
       ElementList list =
-          copy_or_add_refs(profiler_, side_output_handles[in_col_idx],
-                           current_handle, side_output_columns[in_col_idx]);
+          copy_or_ref_elements(profiler_, side_output_handles[in_col_idx],
+                               current_handle, valid_inputs);
       profiler_.add_interval("op_marshal", copy_start, now());
       // Insert new elements into cache
       kernel_cache[i].insert(kernel_cache[i].end(), list.begin(), list.end());
-      // Insert row ids for elements into cache
-      kernel_cache_row_ids.
     }
-    i64 max_row_id_seen = -1;
-    for (i32 i = 0; i < side_row_ids.size(); ++i) {
-      kernel_cache_row_ids.push_back(side_row_ids[i]);
-      max_row_id_seen = std::max(side_row_ids[i], max_row_id_seen);
+    // Determine the highest row seen so we know how many elements we
+    // might be able to produce
+    assert(input_column_idx.size() > 0);
+    i64 max_row_id_seen = kernel_cache_row_ids[0].back();
+    for (i32 i = 1; i < input_column_idx.size(); ++i) {
+      max_row_id_seen =
+          std::min(max_row_id_seen, kernel_cache_row_ids[i].back());
     }
-    side_row_ids.clear();
-    for (i32 i = 0; i < side_output_columns.size(); ++i) {
-      i32 col_idx = i;
 
-      // Update stencil cache by taking the reference to the side output
-      // columns
-      // and clearing them, since we will initialize them with the proper
-      // data once we have determined how many rows can be produced
-      for (i64 r = 0; r < side_output_columns[i].size(); ++r) {
-        kernel_cache[i].push_back(side_output_columns[col_idx][r]);
+    // Figure out how many elements can be produced
+    auto compute_producible_elements =
+        [kernel_element_cache_input_idx,
+         kernel_current_input_idx,
+         &kernel_valid_input_rows,
+         max_row_id_seen](i64 stencil, i64 batch) {
+          i64 producible_rows = 0;
+          for (i64 i = kernel_element_cache_input_idx;
+               i < kernel_current_input_idx; ++i) {
+            i64 row = kernel_valid_input_rows[i];
+            // Check if this row was seen by all inputs
+            if (row + stencil > max_row_id_seen) {
+              break;
+            }
+            producible_rows++;
+          }
+          i64 batch_over = producible_rows % batch;
+          return producible_rows - batch_over;
+        };
+
+    // NOTE(apoms): the number of producible rows should be a multiple of the
+    // batch size (if not zero). If not, then this should be the last batch
+    // in the task we should add an assert to verify this is the case.
+    i64 producible_elements = 0;
+    i32 num_output_columns = 0;
+    std::vector<i32> kernel_stencil;
+    if (is_builtin_op(op_name)) {
+      producible_elements = compute_producible_elements(0, 1);
+      num_output_columns = 1;
+      kernel_stencil = {0};
+    } else {
+      kernel_stencil = arg_group_.kernel_stencils[k];
+      i32 kernel_batch_size = arg_group_.kernel_batch_sizes[k];
+      producible_elements =
+          compute_producible_elements(kernel_stencil.back(), kernel_batch_size);
+      // If end of task, we set batch size to 1 to get all remaining elements
+      if (kernel_valid_input_rows.size() - producible_elements <
+          kernel_batch_size) {
+        producible_elements =
+            compute_producible_elements(kernel_stencil.back(), 1);
       }
-      if (kernel_cache_devices.empty()) {
-        kernel_cache_devices = side_output_handles;
-      }
-      side_output_columns[i].clear();
+      auto& unused_outputs = arg_group_.unused_outputs[k];
+      num_output_columns = kernel_num_outputs_[k] - unused_outputs.size();
     }
 
+    // Grab row ids corresponding to producible elements by walking through
+    // element cache
+    // NOTE(apoms): elements in kernel cache from each column should be the same
+    // since the input domain for all inputs to a kernel must be the same
+    std::vector<i64> producible_row_ids(
+        kernel_cache_row_ids[0].begin(),
+        kernel_cache_row_ids[0].begin() + producible_elements);
 
-    // Copy all side_output_columns into the stencil cache so that we can
-    // realign them later when the kernel is able to produce a value
-    // at that index
-    // Add reference to elements
+    for (i32 c = 0; c < num_output_columns; ++c) {
+      side_output_handles.push_back(current_handle);
+      side_output_columns.emplace_back();
+      side_row_ids.emplace_back();
+    }
+
     if (op_name == INPUT_OP_NAME) {
-      // Should ignore it
+      // Should ignore it since we remapped inputs
     } else if (op_name == SAMPLE_OP_NAME) {
       // Filter and remap row ids
+      auto& sampler = domain_samplers_.at(k);
+      // For each available input, check if it maps to a valid downstream
+      // element
+      std::vector<i64> downstream_rows;
+      std::vector<i64> downstream_upstream_mapping;
+      Result result =
+          sampler->get_downstream_rows(producible_row_ids, downstream_rows,
+                                       downstream_upstream_mapping);
+      if (!result.success()) {
+      }
+      // Pass down rows and ref elements
+      auto& output_column = side_output_columns.back();
+      for (size_t i = 0; i < downstream_rows.size(); ++i) {
+        i64 upstream_row_idx = downstream_upstream_mapping[i];
+        auto& element = *(kernel_cache.at(0).begin() + upstream_row_idx);
+        add_element_ref(current_handle, element);
+        output_column.push_back(element);
+      }
+      side_row_ids.back() = downstream_rows;
     } else if (op_name == SPACE_OP_NAME) {
       // Space and remap row ids
+      auto& sampler = domain_samplers_.at(k);
+      std::vector<i64> downstream_rows;
+      std::vector<i64> downstream_upstream_mapping;
+      Result result = sampler->get_downstream_rows(
+          producible_row_ids, downstream_rows, downstream_upstream_mapping);
+      if (!result.success()) {
+      }
+      // For each available input, expand it by placing nulls or repeats
+      auto& output_column = side_output_columns.back();
+      for (size_t i = 0; i < downstream_rows.size(); ++i) {
+        i64 upstream_row_idx = downstream_upstream_mapping[i];
+        if (upstream_row_idx == -1) {
+          // Put null element
+          output_column.emplace_back();
+        } else {
+          auto& element = *(kernel_cache.at(0).begin() + upstream_row_idx);
+          add_element_ref(current_handle, element);
+          output_column.push_back(element);
+        }
+      }
+      side_row_ids.back() = downstream_rows;
     } else if (op_name == SLICE_OP_NAME) {
-      // Remap row ids
+      // Remap row ids from original domain to sub domain
+      const auto& slice_output_counts =
+          arg_group_.slice_output_rows.at(k).at(job_idx_);
+      i64 offset = 0;
+      for (i64 i = 0; i < slice_group_; ++i) {
+        offset += slice_output_counts.at(i);
+      }
+      // For each row id, remap it and keep output element the same
+      auto& output_column = side_output_columns.back();
+      auto& output_row_ids = side_row_ids.back();
+      for (size_t i = 0; i < producible_row_ids.size(); ++i) {
+        output_row_ids.push_back(producible_row_ids[i] - offset);
+        auto& element = *(kernel_cache.at(0).begin() + i);
+        add_element_ref(current_handle, element);
+        output_column.push_back(element);
+      }
     } else if (op_name == UNSLICE_OP_NAME) {
-      // Remap row ids
+      // Remap row ids from sub domain to original domain
+      const auto& unslice_input_counts =
+          arg_group_.unslice_input_rows.at(k).at(job_idx_);
+      i64 offset = 0;
+      for (i64 i = 0; i < slice_group_; ++i) {
+        offset += unslice_input_counts.at(i);
+      }
+      // For each row id, remap it and keep output element the same
+      auto& output_column = side_output_columns.back();
+      auto& output_row_ids = side_row_ids.back();
+      for (size_t i = 0; i < producible_row_ids.size(); ++i) {
+        output_row_ids.push_back(producible_row_ids[i] + offset);
+        auto& element = *(kernel_cache.at(0).begin() + i);
+        add_element_ref(current_handle, element);
+        output_column.push_back(element);
+      }
     } else {
       assert(!is_builtin_op(op_name));
       // If a regular kernel
       DeviceHandle current_handle = kernel_devices_[k];
       std::unique_ptr<BaseKernel>& kernel = kernels_[k];
-      i32 num_output_columns = kernel_num_outputs_[k];
-      std::vector<i32>& kernel_stencil = kernel_stencils_[k];
-      i32 kernel_batch_size = kernel_batch_sizes_[k];
-      // Determine how many elements can be produced given stencil requirements
-      // and the currrent stencil cache extent
-      i64 producible_rows = 0;
-      for (i64 i = current_valid_idx_[k]; i < kernel_valid_rows.size(); ++i) {
-        i64 row = kernel_valid_rows[i];
-        if (row + kernel_stencil.back() > max_row_id_seen) {
-          break;
-        }
-        producible_rows++;
-      }
-      assert(producible_rows > 0);
+      i32 kernel_batch_size = arg_group_.kernel_batch_sizes[k];
+      i64 row_start = kernel_element_cache_input_idx;
+      i64 row_end = row_start + producible_elements;
 
-      // Setup side output columns to reflect the number of valid rows that will
-      // be produced from this kernel
-      {
-        std::vector<ElementList> producible_elements(
-            side_output_columns.size());
-        i64 s_idx = 0;
-        for (i64 i = 0; i < producible_rows; ++i) {
-          // Iterate over all elements in the stencil cache to check if they
-          // have the proper id
-          i64 valid_row_id = kernel_valid_rows[current_valid_idx_[k] + i];
-          for (; s_idx < kernel_cache_row_ids.size(); ++s_idx) {
-            if (kernel_cache_row_ids[s_idx] == valid_row_id) {
-              side_row_ids.push_back(valid_row_id);
-              for (i64 c = 0; c < kernel_cache.size(); ++c) {
-                producible_elements[c].push_back(kernel_cache[c][s_idx]);
-              }
-              s_idx++;
-              break;
-            }
-          }
-        }
-        assert(producible_elements[0].size() == producible_rows);
-
-        // Update side output data by copying data since we don't have
-        // reference counting for all pointers :(
-        if (!(kernel_stencil.size() == 1 && kernel_stencil[0] == 0)) {
-          for (i64 c = 0; c < side_output_columns.size(); ++c) {
-            side_output_columns[c] = duplicate_elements(
-                profiler_, side_output_handles[c], side_output_handles[c],
-                producible_elements[c]);
-          }
-        } else {
-          // However, if we aren't stenciling, then we don't need to copy since
-          // we
-          // know it will only be used once
-          side_output_columns.swap(producible_elements);
-        }
-      }
-
-      // NOTE(apoms): the number of producible rows should be a multiple of the
-      // batch size. If not, then this should be the last batch in the task.
-      // We should add an assert to verify this is the case.
-      i64 row_start = current_valid_idx_[k];
-      i64 row_end = current_valid_idx_[k] + producible_rows;
-      current_valid_idx_[k] += producible_rows;
-
-      for (i32 c = 0; c < num_output_columns; ++c) {
-        side_output_handles.push_back(current_handle);
-        side_output_columns.emplace_back();
-      }
       for (i32 start = row_start; start < row_end; start += kernel_batch_size) {
         i32 batch = std::min((i64)kernel_batch_size, row_end - start);
         i32 end = start + batch;
         // Stage inputs to the kernel using the stencil cache
         StenciledBatchedColumns input_columns(input_column_idx.size());
         // For each column
-        auto& cache_row_deque = kernel_cache_row_ids;
+        // NOTE(apoms): choosing the first columns row ids is fine because all
+        // input row ids for each column should be the same since all inputs
+        // must have the same domain
+        auto& cache_row_deque = kernel_cache_row_ids[0];
         for (size_t i = 0; i < input_column_idx.size(); ++i) {
-          i32 col_id = input_column_idx[i];
-          auto& cache_deque = kernel_cache[col_id];
+          auto& cache_deque = kernel_cache[i];
           auto& col = input_columns[i];
           col.resize(batch);
           // For each batch element
@@ -465,7 +570,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
             auto& input_stencil = col[r - start];
             i64 last_cache_element = 0;
             // Place elements in "stencil" dimension of input columns
-            i64 curr_row = kernel_valid_rows[r];
+            i64 curr_row = kernel_valid_input_rows[r];
             for (i64 s : kernel_stencil) {
               i64 desired_row = curr_row + s;
               // Search for desired stencil element
@@ -492,10 +597,12 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         auto eval_start = now();
         kernel->execute_kernel(input_columns, output_columns);
         profiler_.add_interval("evaluate:" + op_name, eval_start, now());
-        // Delete unused outputs
-        for (size_t y = 0; y < unused_outputs_[k].size(); ++y) {
+
+        // Delete unused output columns
+        auto& unused_outputs = arg_group_.unused_outputs[k];
+        for (size_t y = 0; y < unused_outputs.size(); ++y) {
           i32 unused_col_idx =
-              unused_outputs_[k][unused_outputs_[k].size() - 1 - y];
+              unused_outputs[unused_outputs.size() - 1 - y];
           ElementList& column = output_columns[unused_col_idx];
           for (Element& element : column) {
             delete_element(current_handle, element);
@@ -517,47 +624,97 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
           i32 col_idx = side_output_columns.size() - num_output_columns + cidx;
           side_output_columns[col_idx].insert(
               side_output_columns[col_idx].end(), column.begin(), column.end());
+          auto& output_row_ids = side_row_ids[cidx];
+          output_row_ids.insert(
+              output_row_ids.end(),
+              kernel_cache_row_ids[0].begin() + (start - row_start),
+              kernel_cache_row_ids[0].begin() + (start + batch - row_start));
         }
+      }
+    }
 
-        // Remove elements from the stencil cache we won't access anymore
-        bool degenerate_stencil =
-            (kernel_stencil.size() == 1 && kernel_stencil[0] == 0);
-        i64 last_cache_element = 0;
-        i64 min_used_row = kernel_valid_rows[start + batch - kernel_stencil[0]];
-        {
-          auto& row_id_deque = kernel_cache_row_ids;
-          while (row_id_deque.size() > 0) {
-            i64 cache_row = row_id_deque.front();
-            if (cache_row < min_used_row) {
-              row_id_deque.pop_front();
-              for (size_t i = 0; i < kernel_cache.size(); ++i) {
-                auto device = side_output_handles[i];
-                auto& cache_deque = kernel_cache[i];
-                Element element = cache_deque.front();
-                // If this kernel has a non-degenerate stencil...
-                if (!degenerate_stencil) {
-                  delete_element(device, element);
-                }
-                cache_deque.pop_front();
-              }
-            } else {
-              break;
-            }
+    i64 row_start = kernel_element_cache_input_idx;
+    i64 row_end = row_start + producible_elements;
+    // Filter outputs to only the ones that will be used downstream
+    // For each output row, check if it is in the valid output rows
+    {
+      BatchedColumns temp_output_columns(num_output_columns);
+      std::vector<std::vector<i64>> temp_row_ids(num_output_columns);
+
+      // For each column, transfer all valid rows to temp output, deleting all
+      // the non valid rows, and then swap the temp rows into the side
+      // output columns
+      i32 first_col_idx = side_output_columns.size() - num_output_columns;
+      for (i64 row_start = 0;
+           row_start < side_output_columns[first_col_idx].size(); ++row_start) {
+        assert(side_row_ids[first_col_idx][row_start] <=
+               kernel_valid_output_rows[kernel_current_output_idx]);
+        i64 next_row = kernel_valid_output_rows[kernel_current_output_idx];
+        if (side_row_ids[first_col_idx][row_start] == next_row) {
+          // Is a valid row, so keep
+          for (i64 i = 0; i < num_output_columns; ++i) {
+            i32 col_idx = side_output_columns.size() - num_output_columns + i;
+            auto& element = side_output_columns[col_idx][row_start];
+            temp_output_columns[i].push_back(element);
+            temp_row_ids[i].push_back(next_row);
+          }
+          kernel_current_output_idx++;
+        } else {
+          // Is not a valid row, so delete
+          for (i64 i = 0; i < num_output_columns; ++i) {
+            i32 col_idx = side_output_columns.size() - num_output_columns + i;
+            auto& element = side_output_columns[col_idx][row_start];
+            delete_element(side_output_handles[col_idx], element);
           }
         }
       }
-
-      // Delete dead columns
-      for (size_t y = 0; y < dead_columns_[k].size(); ++y) {
-        i32 dead_col_idx = dead_columns_[k][dead_columns_[k].size() - 1 - y];
-        ElementList& column = side_output_columns[dead_col_idx];
-        for (Element& element : column) {
-          delete_element(side_output_handles[dead_col_idx], element);
-        }
-        side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
-        side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
+      for (i64 i = 0; i < num_output_columns; ++i) {
+        i32 col_idx = side_output_columns.size() - num_output_columns + i;
+        side_output_columns[col_idx].swap(temp_output_columns[i]);
+        side_row_ids[col_idx].swap(temp_row_ids[i]);
       }
-      // Delete elements from stencil cache that will no longer be used
+    }
+
+
+    // Remove elements from the element cache we won't access anymore
+    i64 last_cache_element = 0;
+    i64 min_used_row = kernel_valid_input_rows[row_end - kernel_stencil[0]];
+    {
+      auto& row_id_deque = kernel_cache_row_ids[0];
+      while (row_id_deque.size() > 0) {
+        i64 cache_row = row_id_deque.front();
+        if (cache_row < min_used_row) {
+          for (auto& deqs : kernel_cache_row_ids) {
+            deqs.pop_front();
+          }
+          for (size_t i = 0; i < kernel_cache.size(); ++i) {
+            auto device = side_output_handles[i];
+            auto& cache_deque = kernel_cache[i];
+            Element element = cache_deque.front();
+            delete_element(device, element);
+            cache_deque.pop_front();
+          }
+        } else {
+          break;
+        }
+      }
+      kernel_element_cache_input_idx += producible_elements;
+    }
+
+    // Remove dead columns from side_output_handles
+    // TODO(apoms): move this to before the Op eval
+    auto& dead_columns = arg_group_.dead_columns[k];
+    for (size_t y = 0; y < dead_columns.size(); ++y) {
+      i32 dead_col_idx = dead_columns[dead_columns.size() - 1 - y];
+      ElementList& column = side_output_columns[dead_col_idx];
+      for (Element& element : column) {
+        delete_element(side_output_handles[dead_col_idx], element);
+      }
+      side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
+      side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
+      side_row_ids.erase(side_row_ids.begin() + dead_col_idx);
+    }
+    // Delete elements from stencil cache that will no longer be used
   }
 
   final_output_handles_ = side_output_handles;
@@ -573,8 +730,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   profiler_.add_interval("feed", feed_start, now());
 }
 
-bool EvaluateWorker::yield(i32 item_size,
-                           EvalWorkEntry& output_entry) {
+bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   EvalWorkEntry& work_entry = entry_;
 
   auto yield_start = now();

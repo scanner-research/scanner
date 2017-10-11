@@ -57,9 +57,13 @@ class DefaultDomainSampler : public DomainSampler {
     return result;
   }
 
-  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
-                             std::vector<i64>& downstream_rows) const {
+  Result get_downstream_rows(
+      const std::vector<i64>& upstream_rows, std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const {
     downstream_rows = upstream_rows;
+    for (i64 i = 0; i < upstream_rows.size(); ++i) {
+      downstream_upstream_mapping.push_back(i);
+    }
     Result result;
     result.set_success(true);
     return result;
@@ -111,11 +115,14 @@ class StridedDomainSampler : public DomainSampler {
     return result;
   }
 
-  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
-                             std::vector<i64>& downstream_rows) const {
-    for (i64 in : upstream_rows) {
+  Result get_downstream_rows(
+      const std::vector<i64>& upstream_rows, std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const {
+    for (i64 i = 0; i < upstream_rows.size(); ++i) {
+      i64 in = upstream_rows[i];
       if (in % args_.stride() == 0) {
         downstream_rows.push_back(in / args_.stride());
+        downstream_upstream_mapping.push_back(i);
       }
     }
     Result result;
@@ -218,13 +225,16 @@ class StridedRangesDomainSampler : public DomainSampler {
     return valid;
   }
 
-  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
-                             std::vector<i64>& downstream_rows) const {
+  Result get_downstream_rows(
+      const std::vector<i64>& upstream_rows, std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const {
     i64 offset = 0;
     i64 range_idx = 0;
-    for (i64 r : upstream_rows) {
+    for (i64 i = 0; i < upstream_rows.size(); ++i) {
+      i64 r = upstream_rows[i];
       while (range_idx < args_.ends_size() &&
              !(r >= args_.starts(range_idx) && r < args_.ends(range_idx))) {
+        // Add number of valid rows in this range sequence to offset
         offset += (args_.starts(range_idx) - args_.ends(range_idx) +
                    args_.stride() - 1) /
                   args_.stride();
@@ -236,6 +246,7 @@ class StridedRangesDomainSampler : public DomainSampler {
       i64 relative_r = (r - args_.starts(range_idx));
       if (relative_r % args_.stride() == 0) {
         downstream_rows.push_back(offset + relative_r / args_.stride());
+        downstream_upstream_mapping.push_back(i);
       }
     }
     Result valid;
@@ -299,11 +310,14 @@ class GatherDomainSampler : public DomainSampler {
     return valid;
   }
 
-  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
-                             std::vector<i64>& downstream_rows) const {
-    for (i64 r : upstream_rows) {
+  Result get_downstream_rows(
+      const std::vector<i64>& upstream_rows, std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const {
+    for (i64 i = 0; i < upstream_rows.size(); ++i) {
+      i64 r = upstream_rows[i];
       if (gather_rows_.count(r) > 0) {
         downstream_rows.push_back(gather_rows_.at(r));
+        downstream_upstream_mapping.push_back(i);
       }
     }
     Result valid;
@@ -359,12 +373,17 @@ class SpaceNullDomainSampler : public DomainSampler {
     return result;
   }
 
-  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
-                             std::vector<i64>& downstream_rows) const {
-    for (i64 r : upstream_rows) {
+  Result get_downstream_rows(
+      const std::vector<i64>& upstream_rows, std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const {
+    for (i64 i = 0; i < upstream_rows.size(); ++i) {
+      i64 r = upstream_rows[i];
       i64 base = r * args_.spacing();
-      for (i64 offset = base; offset < base + args_.spacing(); ++offset) {
+      downstream_rows.push_back(base);
+      downstream_upstream_mapping.push_back(i);
+      for (i64 offset = base + 1; offset < base + args_.spacing(); ++offset) {
         downstream_rows.push_back(offset);
+        downstream_upstream_mapping.push_back(-1);
       }
     }
     Result valid;
@@ -420,12 +439,15 @@ class SpaceRepeatDomainSampler : public DomainSampler {
     return result;
   }
 
-  Result get_downstream_rows(const std::vector<i64>& upstream_rows,
-                             std::vector<i64>& downstream_rows) const {
-    for (i64 r : upstream_rows) {
+  Result get_downstream_rows(
+      const std::vector<i64>& upstream_rows, std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const {
+    for (i64 i = 0; i < upstream_rows.size(); ++i) {
+      i64 r = upstream_rows[i];
       i64 base = r * args_.spacing();
       for (i64 offset = base; offset < base + args_.spacing(); ++offset) {
         downstream_rows.push_back(offset);
+        downstream_upstream_mapping.push_back(i);
       }
     }
     Result valid;
