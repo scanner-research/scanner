@@ -1271,6 +1271,7 @@ Result derive_stencil_requirements(
       }
 
       TaskStream s;
+      s.slice_group = slice_group;
       s.valid_input_rows = new_rows;
       s.valid_output_rows = downstream_rows;
       task_streams.push_front(s);
