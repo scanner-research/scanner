@@ -251,7 +251,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
         streams.push_back(task_streams.front());
         task_streams.pop_front();
       }
-      worker.new_task(streams);
+      worker.new_task(work_entry.job_index, work_entry.task_index, streams);
     }
 
     i32 work_packet_size = 0;
@@ -662,11 +662,40 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       const std::string& op_name = ops.at(i).name();
       op_group.push_back(op_name);
       if (analysis_results.slice_ops.count(i) > 0) {
+        i64 local_op_idx = group.size();
+        // Set sampling args
+        auto& slice_outputs_per_job =
+            groups.back().slice_output_rows[local_op_idx];
+        for (auto& job_slice_outputs : analysis_results.slice_output_rows) {
+          auto& slice_groups = job_slice_outputs.at(i);
+          slice_outputs_per_job.push_back(slice_groups);
+        }
       }
       if (analysis_results.unslice_ops.count(i) > 0) {
+        i64 local_op_idx = group.size();
+        // Set sampling args
+        auto& unslice_inputs_per_job =
+            groups.back().unslice_input_rows[local_op_idx];
+        for (auto& job_unslice_inputs : analysis_results.unslice_input_rows) {
+          auto& slice_groups = job_unslice_inputs.at(i);
+          unslice_inputs_per_job.push_back(slice_groups);
+        }
       }
       if (analysis_results.sampling_ops.count(i) > 0) {
-        analysis_results.sampling_ops.at(i);
+        i64 local_op_idx = group.size();
+        // Set sampling args
+        auto& sampling_args_per_job = groups.back().sampling_args[local_op_idx];
+        for (auto& job : jobs) {
+          for (auto& saa : job.sampling_args_assignment()) {
+            if (saa.op_index() == i) {
+              sampling_args_per_job.emplace_back(
+                  saa.sampling_args().begin(),
+                  saa.sampling_args().end());
+              break;
+            }
+          }
+        }
+        assert(sampling_args_per_job.size() == jobs.size());
       }
       group.push_back(std::make_tuple(factory, kernel_configs[i]));
       lc.push_back(live_columns[i]);

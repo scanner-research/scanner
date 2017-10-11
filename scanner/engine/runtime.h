@@ -63,7 +63,8 @@ struct EvalWorkEntry {
 };
 
 struct TaskStream {
-  std::vector<std::vector<i64>> valid_input_rows;
+  i64 slice_group;
+  std::vector<i64> valid_input_rows;
   std::vector<i64> valid_output_rows;
 };
 
