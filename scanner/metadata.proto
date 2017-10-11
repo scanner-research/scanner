@@ -150,8 +150,8 @@ message ColumnInput {
 }
 
 message SamplingArgs {
-  repeated string sampling_function = 1;
-  repeated bytes sampling_args = 2;
+  string sampling_function = 1;
+  bytes sampling_args = 2;
 }
 
 message SamplingArgsAssignment {

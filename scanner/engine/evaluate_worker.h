@@ -17,6 +17,7 @@
 
 #include "scanner/engine/kernel_factory.h"
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/sampler.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 #include "scanner/video/decoder_automata.h"
@@ -79,14 +80,14 @@ class PreEvaluateWorker {
 struct OpArgGroup {
   std::vector<std::string> op_names;
   /// For sampling ops
-  // Job -> Op -> slice
-  std::vector<std::map<i64, std::vector<proto::SamplingArgs>>> sampling_args;
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<proto::SamplingArgs>>> sampling_args;
   /// For slice ops
-  // Job -> Op -> slice
-  std::vector<std::map<i64, std::vector<i64>>> slice_output_rows;
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<i64>>> slice_output_rows;
   /// For unslice ops
-  // Job -> Op -> slice
-  std::vector<std::map<i64, std::vector<i64>>> unslice_input_rows;
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<i64>>> unslice_input_rows;
   /// For regular kernels
   std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
@@ -123,7 +124,8 @@ class EvaluateWorker {
  public:
   EvaluateWorker(const EvaluateWorkerArgs& args);
 
-  void new_task(const std::vector<TaskStream>& task_streams);
+  void new_task(i64 job_idx, i64 task_idx,
+                const std::vector<TaskStream>& task_streams);
 
   void feed(EvalWorkEntry& entry);
 
@@ -143,16 +145,26 @@ class EvaluateWorker {
   // Used for computing complement of column mapping
   std::vector<std::set<i32>> column_mapping_set_;
 
-  // Task state
+  /// Task state
+  i64 job_idx_;
+  i64 task_idx_;
+  i64 slice_group_;
+  std::map<i64, std::unique_ptr<DomainSampler>> domain_samplers_;
+  std::vector<std::set<i64>> valid_input_rows_set_;
+  std::vector<std::vector<i64>> valid_input_rows_;
+  // Tracks which input we should expect next
+  std::vector<i64> current_valid_input_idx_;
   std::vector<std::set<i64>> valid_output_rows_set_;
   std::vector<std::vector<i64>> valid_output_rows_;
-  std::vector<i64> current_valid_idx_;
+  // Tracks which output we should expect next
+  std::vector<i64> current_valid_output_idx_;
   // Per kernel -> per input column -> deque of element)
+  std::vector<i64> current_element_cache_input_idx_;
   std::vector<std::vector<std::deque<Element>>> element_cache_;
   // Per kernel -> per input column -> device handle
   std::vector<std::vector<DeviceHandle>> element_cache_devices_;
-  // Per kernel -> deque of row ids
-  std::vector<std::deque<i64>> element_cache_row_ids_;
+  // Per kernel -> per input column -> deque of row ids
+  std::vector<std::vector<std::deque<i64>>> element_cache_row_ids_;
 
   // Continutation state
   EvalWorkEntry entry_;

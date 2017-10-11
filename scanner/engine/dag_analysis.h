@@ -47,10 +47,13 @@ struct DAGAnalysisInfo {
 
   // Input rows to slice Ops per Job
   std::vector<std::map<i64, i64>> slice_input_rows;
+  // Job -> Op -> Slice
   std::vector<std::map<i64, std::vector<i64>>> slice_output_rows;
   // Input rows to unslice Ops per Job
+  // Job -> Op -> Slice
   std::vector<std::map<i64, std::vector<i64>>> unslice_input_rows;
   // Total rows for each ops domain
+  // Job -> Op -> Slice
   std::vector<std::map<i64, std::vector<i64>>> total_rows_per_op;
   // Total output rows per Job
   std::vector<i64> total_output_rows;

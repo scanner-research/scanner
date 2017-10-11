@@ -56,7 +56,8 @@ class DomainSampler {
 
   virtual Result get_downstream_rows(
       const std::vector<i64>& upstream_rows,
-      std::vector<i64>& downstream_rows) const = 0;
+      std::vector<i64>& downstream_rows,
+      std::vector<i64>& downstream_upstream_mapping) const = 0;
 
  protected:
   std::string name_;
