@@ -171,10 +171,9 @@ class EvaluateWorker {
   i32 current_input_;
   i32 total_inputs_;
 
-  i64 outputs_yielded_;
   std::vector<DeviceHandle> final_output_handles_;
   std::vector<std::deque<Element>> final_output_columns_;
-  std::vector<i64> final_row_ids_;
+  std::vector<std::vector<i64>> final_row_ids_;
 };
 
 struct ColumnCompressionOptions {

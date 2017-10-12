@@ -14,6 +14,7 @@
  */
 
 #include "scanner/engine/dag_analysis.h"
+#include "scanner/engine/sampler.h"
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 
@@ -40,6 +41,8 @@ Result validate_jobs_and_ops(
   std::map<i64, i64>& unslice_ops = info.unslice_ops;
   std::map<i64, i64>& sampling_ops = info.sampling_ops;
   std::map<i64, std::vector<i64>>& op_children = info.op_children;
+
+  Result result;
   {
     // Validate ops
     OpRegistry* op_registry = get_op_registry();
@@ -51,20 +54,21 @@ Result validate_jobs_and_ops(
     std::vector<std::vector<std::string>> op_outputs;
     // Slices are currently restricted to not nest and there to only exist
     // a single slice grouping from start to finish currently.
+    std::vector<std::string> op_names;
     for (auto& op : ops) {
       op_names.push_back(op.name());
 
       // Input Op's output is defined by the input table column they sample
       if (op.name() == INPUT_OP_NAME) {
         if (op.inputs().size() == 0) {
-          RESULT_ERROR(result, "Input op at %d did not specify any inputs.",
+          RESULT_ERROR(&result, "Input op at %d did not specify any inputs.",
                        op_idx);
-          return;
+          return result;
         }
         if (op.inputs().size() > 1) {
-          RESULT_ERROR(result, "Input op at %d specified more than one input.",
+          RESULT_ERROR(&result, "Input op at %d specified more than one input.",
                        op_idx);
-          return;
+          return result;
         }
         op_outputs.emplace_back();
         op_outputs.back().push_back(op.inputs(0).column());
@@ -84,11 +88,11 @@ Result validate_jobs_and_ops(
       for (auto& input : op.inputs()) {
         // Verify inputs are topologically sorted so we can traverse linearly
         if (input.op_index() >= op_idx) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Op %s (%d) referenced input index %d."
                        "Ops must be specified in topo sort order.",
                        op.name().c_str(), op_idx, input.op_index());
-          return;
+          return result;
         }
 
         // Verify the requested input is provided by the Op the input is being
@@ -105,50 +109,51 @@ Result validate_jobs_and_ops(
           }
         }
         if (!found) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Op %s at index %d requested column %s from input "
                        "Op %s at index %d but that Op does not have the "
                        "requsted column.",
                        op.name().c_str(), op_idx,
                        requested_input_column.c_str(), input_op_name.c_str(),
                        input.op_index());
-          return;
+          return result;
         }
 
         // Verify inputs are from the same slice level
         if (op_slice_level.at(input.op_index()) != input_slice_level) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Input Op %s (%d) specified inputs at "
                        "different slice levels (%d vs %d). Ops within at "
                        "a slice level should only receive inputs from other "
                        "Ops at the same slice level.",
-                       op.name(), op_idx, input_slice_level,
+                       op.name().c_str(), op_idx, input_slice_level,
                        op_slice_level.at(input.op_index()));
-          return;
+          return result;
         }
 
         // HACK(apoms): we currently restrict all unslice outputs to only
         // be consumed by an output Op to make it easy to schedule each
         // slice like an independent task.
         if (input_op_name == UNSLICE_OP_NAME &&
-            op.name() != OUTPUT_TABLE_NAME) {
-          RESULT_ERROR(result,
+            op.name() != OUTPUT_OP_NAME) {
+          RESULT_ERROR(&result,
                        "Unslice Op specified as input to %s Op. Scanner "
                        "currently only supports Output Ops consuming "
                        "the results of an Unslice Op.",
-                       op.name());
+                       op.name().c_str());
+          return result;
         }
 
         // Keep op children info for later analysis
-        op_children[input.op_idx()].push_back(op_idx);
+        op_children[input.op_index()].push_back(op_idx);
       }
 
       // Slice
-      int output_silce_level = input_slice_level;
+      int output_slice_level = input_slice_level;
       if (op.name() == SLICE_OP_NAME) {
         if (output_slice_level > 0) {
-          RESULT_ERROR(result, "Nested slicing not currently supported.");
-          return;
+          RESULT_ERROR(&result, "Nested slicing not currently supported.");
+          return result;
         }
         size_t slice_ops_size = slice_ops.size();
         slice_ops[op_idx] = slice_ops_size;
@@ -161,10 +166,10 @@ Result validate_jobs_and_ops(
       // Unslice
       else if (op.name() == UNSLICE_OP_NAME) {
         if (input_slice_level == 0) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Unslice received inputs that have not been "
                        "sliced.");
-          return;
+          return result;
         }
         size_t unslice_ops_size = unslice_ops.size();
         unslice_ops[op_idx] = unslice_ops_size;
@@ -187,18 +192,18 @@ Result validate_jobs_and_ops(
       // Output
       else if (op.name() == OUTPUT_OP_NAME) {
         if (input_slice_level != 0) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Final output columns are sliced. Final outputs must "
                        "be unsliced.");
-          return;
+          return result;
         }
       }
       // Verify op exists and record outputs
       else {
         op_outputs.emplace_back();
         if (!op_registry->has_op(op.name())) {
-          RESULT_ERROR(result, "Op %s is not registered.", op.name().c_str());
-          return;
+          RESULT_ERROR(&result, "Op %s is not registered.", op.name().c_str());
+          return result;
         } else {
           // Keep track of op outputs for verifying dependent ops
           for (auto& col :
@@ -207,12 +212,12 @@ Result validate_jobs_and_ops(
           }
         }
         if (!kernel_registry->has_kernel(op.name(), op.device_type())) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Op %s at index %d requested kernel with device type "
                        "%s but no such kernel exists.",
                        op.name().c_str(), op_idx,
                        (op.device_type() == DeviceType::CPU ? "CPU" : "GPU"));
-          return;
+          return result;
         }
       }
       op_slice_level.push_back(output_slice_level);
@@ -227,10 +232,10 @@ Result validate_jobs_and_ops(
           i32 expected_inputs = info->input_columns().size();
           if (expected_inputs != input_count) {
             RESULT_ERROR(
-                result,
+                &result,
                 "Op %s at index %d expects %d input columns, but received %d",
                 op.name().c_str(), op_idx, expected_inputs, input_count);
-            return;
+            return result;
           }
         }
 
@@ -241,39 +246,39 @@ Result validate_jobs_and_ops(
             !((op.stencil_size() == 0) ||
               (op.stencil_size() == 1 && op.stencil(0) == 0))) {
           RESULT_ERROR(
-              result,
+              &result,
               "Op %s at index %d specified stencil but that Op was not "
               "declared to support stenciling. Add .stencil() to the Op "
               "declaration to support stenciling.",
               op.name().c_str(), op_idx);
-          return;
+          return result;
         }
         // Check that a stencil is not set on a non-stenciling kernel
         if (!factory->can_batch() && op.batch() > 1) {
           RESULT_ERROR(
-              result,
+              &result,
               "Op %s at index %d specified a batch size but the Kernel for "
               "that Op was not declared to support batching. Add .batch() to "
               "the Kernel declaration to support batching.",
               op.name().c_str(), op_idx);
-          return;
+          return result;
         }
       }
       op_idx++;
     }
     if (op_names.size() < 2) {
-      RESULT_ERROR(result,
+      RESULT_ERROR(&result,
                    "Must specify at least two Ops: "
                    "an Input Op, and an Output Op. "
                    "However, %lu Op(s) were specified.",
                    op_names.size());
-      return;
+      return result;
     } else {
       if (op_names.back() != OUTPUT_OP_NAME) {
-        RESULT_ERROR(result, "Last Op is %s but must be %s",
+        RESULT_ERROR(&result, "Last Op is %s but must be %s",
                      op_names.back().c_str(),
                      OUTPUT_OP_NAME.c_str());
-        return;
+        return result;
       }
     }
   }
@@ -282,76 +287,75 @@ Result validate_jobs_and_ops(
   std::set<std::string> job_output_table_names;
   for (auto& job : jobs) {
     if (job.output_table_name() == "") {
-      RESULT_ERROR(result,
+      RESULT_ERROR(&result,
                    "Job specified with empty output table name. Output "
                    "tables can not have empty names")
-      return;
+      return result;
     }
     if (meta.has_table(job.output_table_name())) {
-      RESULT_ERROR(result,
+      RESULT_ERROR(&result,
                    "Job specified with duplicate output table name. "
                    "A table with name %s already exists.",
                    job.output_table_name().c_str());
-      return;
+      return result;
     }
-    if (job_output_table_names.count(job.output_table_name()) >
-        0) {
-      RESULT_ERROR(result,
+    if (job_output_table_names.count(job.output_table_name()) > 0) {
+      RESULT_ERROR(&result,
                    "Multiple table tasks specified with output table name %s. "
                    "Table names must be unique.",
                    job.output_table_name().c_str());
-      return;
+      return result;
     }
     job_output_table_names.insert(job.output_table_name());
 
     // Verify table task column inputs
     if (job.inputs().size() == 0) {
       RESULT_ERROR(
-          result,
+          &result,
           "Job %s did not specify any table inputs. Jobs "
           "must specify at least one table to sample from.",
           job.output_table_name().c_str());
-      return;
+      return result;
     } else {
       std::set<i32> used_input_ops;
       for (auto& column_input : job.inputs()) {
         // Verify input is specified on an Input Op
         if (used_input_ops.count(column_input.op_index()) > 0) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Job %s tried to set input column for Input Op "
                        "at %d twice.",
                        job.output_table_name().c_str(),
                        column_input.op_index());
-          return;
+          return result;
         }
         if (input_ops.count(column_input.op_index()) == 0) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Job %s tried to set input column for Input Op "
                        "at %d, but this Op is not an Input Op.",
                        job.output_table_name().c_str(),
                        column_input.op_index());
-          return;
+          return result;
         }
         used_input_ops.insert(column_input.op_index());
         // Verify column input table exists
         if (!meta.has_table(column_input.table_name())) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Job %s tried to sample from non-existent table "
                        "%s.",
                        job.output_table_name().c_str(),
                        column_input.table_name().c_str());
-          return;
+          return result;
         }
         // Verify column input column exists in the requested table
         if (!table_metas.at(column_input.table_name())
                  .has_column(column_input.column_name())) {
-          RESULT_ERROR(result,
+          RESULT_ERROR(&result,
                        "Job %s tried to sample column %s from table %s, "
                        "but that column is not in that table.",
                        job.output_table_name().c_str(),
                        column_input.column_name().c_str(),
                        column_input.table_name().c_str());
-          return;
+          return result;
         }
       }
     }
@@ -360,40 +364,41 @@ Result validate_jobs_and_ops(
     {
       std::set<i32> used_sampling_ops;
       for (auto& sampling_args_assignment : job.sampling_args_assignment()) {
-        if (used_sampling_ops.count(sampling_arg.op_index()) > 0) {
-          RESULT_ERROR(result,
+        if (used_sampling_ops.count(sampling_args_assignment.op_index()) > 0) {
+          RESULT_ERROR(&result,
                        "Job %s tried to set sampling args for Op at %d "
                        "twice.",
                        job.output_table_name().c_str(),
-                       sampling_arg.op_index());
-          return;
+                       sampling_args_assignment.op_index());
+          return result;
         }
-        if (sampling_ops.count(sampling_arg.op_index()) == 0) {
-          RESULT_ERROR(result,
+        if (sampling_ops.count(sampling_args_assignment.op_index()) == 0) {
+          RESULT_ERROR(&result,
                        "Job %s tried to set sampling args for Op at %d, "
                        "but this Op is not a sampling Op.",
                        job.output_table_name().c_str(),
-                       sampling_arg.op_index());
-          return;
+                       sampling_args_assignment.op_index());
+          return result;
         }
-        used_sampling_ops.insert(sampling_arg.op_index());
+        used_sampling_ops.insert(sampling_args_assignment.op_index());
         // TODO(apoms): verify sampling args are valid
-        if (sampling_args_assignment.size() == 0) {
-          RESULT_ERROR(result,
+        if (sampling_args_assignment.sampling_args().size() == 0) {
+          RESULT_ERROR(&result,
                        "Job %s tried to set empty sampling args for Op at %d.",
                        job.output_table_name().c_str(),
-                       sampling_arg.op_index());
-          return;
+                       sampling_args_assignment.op_index());
+          return result;
         }
-        i32 slice_level = op_slice_level.at(sampling_arg.op_index());
+        i32 slice_level =
+            op_slice_level.at(sampling_args_assignment.op_index());
         if (slice_level == 0 &&
-            sampling_args_assignment.size() > 1) {
-          RESULT_ERROR(result,
+            sampling_args_assignment.sampling_args().size() > 1) {
+          RESULT_ERROR(&result,
                        "Job %s tried to set multiple sampling args for "
                        "Op at %d that has not been sliced.",
                        job.output_table_name().c_str(),
-                       sampling_arg.op_index());
-          return;
+                       sampling_args_assignment.op_index());
+          return result;
         }
       }
     }
@@ -410,6 +415,7 @@ Result determine_input_rows_to_slices(
   const std::vector<i32>& op_slice_level = info.op_slice_level;
   const std::map<i64, i64>& input_ops = info.input_ops;
   const std::map<i64, i64>& slice_ops = info.slice_ops;
+  const std::map<i64, i64>& unslice_ops = info.unslice_ops;
   const std::map<i64, i64>& sampling_ops = info.sampling_ops;
   const std::map<i64, std::vector<i64>>& op_children = info.op_children;
   std::vector<std::map<i64, i64>>& slice_input_rows = info.slice_input_rows;
@@ -426,7 +432,8 @@ Result determine_input_rows_to_slices(
     slice_input_rows.emplace_back();
     std::map<i64, i64>& job_slice_input_rows = slice_input_rows.back();
     slice_output_rows.emplace_back();
-    std::map<i64, i64>& job_slice_output_rows = slice_output_rows.back();
+    std::map<i64, std::vector<i64>>& job_slice_output_rows =
+        slice_output_rows.back();
     unslice_input_rows.emplace_back();
     std::map<i64, std::vector<i64>>& job_unslice_input_rows =
         unslice_input_rows.back();
@@ -450,7 +457,7 @@ Result determine_input_rows_to_slices(
         if (!result.success()) {
           return result;
         }
-        domain_samplers.emplace_back(sampler);
+        samplers.emplace_back(sampler);
       }
     }
     // Each Op can have a vector of outputs because of one level slicing
@@ -489,7 +496,7 @@ Result determine_input_rows_to_slices(
             RESULT_ERROR(
                 &result,
                 "Job %s specified multiple inputs with a differing "
-                "number of slice groups for %s Op at %ld (%ld vs %ld).",
+                "number of slice groups for %s Op at %ld (%lu vs %lu).",
                 job.output_table_name().c_str(), ops[op_idx].name().c_str(),
                 op_idx, first_input_column_slice_groups.size(),
                 input_column_slice_groups.size());
@@ -499,14 +506,15 @@ Result determine_input_rows_to_slices(
           for (size_t i = 0; i < first_input_column_slice_groups.size(); ++i) {
             if (input_column_slice_groups.at(i) !=
                 first_input_column_slice_groups.at(i)) {
-              RESULT_ERROR(&result,
-                           "Job %s specified multiple inputs with a differing "
-                           "number of rows for slice group %d for %s Op at %ld "
-                           "(%ld vs %ld).",
-                           job.output_table_name().c_str(),
-                           i, ops[op_idx].name().c_str(), op_idx,
-                           input_column_slice_groups.at(i),
-                           first_input_column_slice_groups.at(i));
+              RESULT_ERROR(
+                  &result,
+                  "Job %s specified multiple inputs with a differing "
+                  "number of rows for slice group %lu for %s Op at %ld "
+                  "(%lu vs %lu).",
+                  job.output_table_name().c_str(), i,
+                  ops[op_idx].name().c_str(), op_idx,
+                  input_column_slice_groups.at(i),
+                  first_input_column_slice_groups.at(i));
               return result;
             }
           }
@@ -523,11 +531,11 @@ Result determine_input_rows_to_slices(
       }
       // Check if this is a sampling Op
       if (sampling_ops.count(op_idx) > 0) {
-        i64 sampling_op_idx = samping_ops.at(op_idx);
+        i64 sampling_op_idx = sampling_ops.at(op_idx);
         // Verify number of samplers is equal to number of slice groups
         if (domain_samplers.at(op_idx).size() != slice_group_outputs.size()) {
           RESULT_ERROR(&result,
-                       "Job %s specified %d samplers but there are %d slice "
+                       "Job %s specified %lu samplers but there are %lu slice "
                        "groups for %s Op at %ld.",
                        job.output_table_name().c_str(),
                        domain_samplers.at(op_idx).size(),
@@ -556,9 +564,11 @@ Result determine_input_rows_to_slices(
         assert(slice_group_outputs.size() == 0);
         // Create Partitioner to enumerate slices
         Partitioner* partitioner = nullptr;
-        result = make_partitioner(
+        result = make_partitioner_instance(
             ops.at(op_idx).partitioner_args().sampling_function(),
-            ops.at(op_idx).partitioner_args().sampling_args(),
+            std::vector<u8>(
+                ops.at(op_idx).partitioner_args().sampling_args().begin(),
+                ops.at(op_idx).partitioner_args().sampling_args().end()),
             slice_group_outputs.at(0),
             partitioner);
         if (!result.success()) {
@@ -576,12 +586,12 @@ Result determine_input_rows_to_slices(
         } else if (slice_group_outputs.size() != number_of_slice_groups) {
           RESULT_ERROR(
               &result,
-              "Job %s specified one slice with %d groups and another "
-              "slice with %d groups. Scanner currently does not "
+              "Job %s specified one slice with %lu groups and another "
+              "slice with %lu groups. Scanner currently does not "
               "support multiple slices with different numbers of groups "
               "in the same job.",
               job.output_table_name().c_str(),
-              slice_group_output.size(), number_of_slice_groups);
+              slice_group_outputs.size(), number_of_slice_groups);
           return result;
         }
         job_slice_output_rows.at(op_idx) = slice_group_outputs;
@@ -601,7 +611,7 @@ Result determine_input_rows_to_slices(
       }
       // Track size of output domain for this Op for use in boundary condition
       // check
-      job_output_total_rows_per_op.at(op_idx) = slice_group_outputs;
+      job_total_rows_per_op.at(op_idx) = slice_group_outputs;
 
       for (i64 child_op_idx : op_children.at(op_idx)) {
         op_num_inputs.at(child_op_idx).push_back(slice_group_outputs);
@@ -653,10 +663,12 @@ Result derive_slice_final_output_rows(
   result.set_success(true);
   // First create partitioner to determine slice groups
   Partitioner* partitioner = nullptr;
-  result = make_partitioner(
+  result = make_partitioner_instance(
       ops.at(slice_op_idx).partitioner_args().sampling_function(),
-      ops.at(slice_op_idx).partitioner_args().sampling_args(), slice_input_rows,
-      partitioner);
+      std::vector<u8>(
+          ops.at(slice_op_idx).partitioner_args().sampling_args().begin(),
+          ops.at(slice_op_idx).partitioner_args().sampling_args().end()),
+      slice_input_rows, partitioner);
   if (!result.success()) {
     return result;
   }
@@ -667,9 +679,9 @@ Result derive_slice_final_output_rows(
   for (size_t i = 0; i < partitioner->total_groups(); ++i) {
     const PartitionGroup& g = partitioner->group_at(i);
     // Traverse down all children until reaching the output
-    std::vector<i64> input_row_count(ops.size());
+    std::vector<i64> input_row_counts(ops.size());
     std::vector<i64> next_queue;
-    input_row_count[slice_op_idx] = g.rows.size();
+    input_row_counts[slice_op_idx] = g.rows.size();
     next_queue.push_back(slice_op_idx);
     while (!next_queue.empty()) {
       i64 op_idx = next_queue.back();
@@ -677,11 +689,16 @@ Result derive_slice_final_output_rows(
 
       auto& op = ops.at(op_idx);
       // Check if sampling Op or unslice Op
-      i64 input_row_count = input_row_count.at(op_idx);
+      i64 input_row_count = input_row_counts.at(op_idx);
       i64 output_row_count = input_row_count;
       if (op.name() == "Space" || op.name() == "SpaceFrame" ||
           op.name() == "Sample" || op.name() == "SampleFrame") {
-        auto& sa = saa.sampling_args(i);
+        proto::SamplingArgs sa;
+        for (auto& saa : job.sampling_args_assignment()) {
+          if (saa.op_index() == op_idx) {
+            sa = saa.sampling_args(i);
+          }
+        }
         DomainSampler* sampler;
         result = make_domain_sampler_instance(
             sa.sampling_function(), std::vector<u8>(sa.sampling_args().begin(),
@@ -693,10 +710,10 @@ Result derive_slice_final_output_rows(
         // Perform row count modification
         result =
             sampler->get_num_downstream_rows(input_row_count, output_row_count);
+        delete sampler;
         if (!result.success()) {
           return result;
         }
-        delete sampler;
       }
       else if (op.name() == UNSLICE_OP_NAME) {
       }
@@ -708,7 +725,7 @@ Result derive_slice_final_output_rows(
       }
 
       for (i64 cid : info.op_children.at(op_idx)) {
-        input_row_count.at(cid) = g.rows.size();
+        input_row_counts.at(cid) = g.rows.size();
         next_queue.push_back(cid);
       }
     }
@@ -725,12 +742,12 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
   std::map<i64, i64>& unslice_ops = info.unslice_ops;
   std::map<i64, i64>& sampling_ops = info.sampling_ops;
   std::map<i64, std::vector<i64>>& op_children = info.op_children;
-  std::map<i64, bool>& bounded_state_ops = results.bounded_state_ops;
-  std::map<i64, bool>& unbounded_state_ops = results.unbounded_state_ops;
+  std::map<i64, bool>& bounded_state_ops = info.bounded_state_ops;
+  std::map<i64, bool>& unbounded_state_ops = info.unbounded_state_ops;
 
-  std::map<i64, i32>& warmup_sizes = results.warmup_sizes;
-  std::map<i64, i32>& batch_sizes = results.batch_sizes;
-  std::map<i64, std::vector<i32>>& stencils = results.stencils;
+  std::map<i64, i32>& warmup_sizes = info.warmup_sizes;
+  std::map<i64, i32>& batch_sizes = info.batch_sizes;
+  std::map<i64, std::vector<i32>>& stencils = info.stencils;
 
   // Validate ops
   OpRegistry* op_registry = get_op_registry();
@@ -765,11 +782,11 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
     }
     for (auto& input : op.inputs()) {
       // Keep op children info for later analysis
-      op_children[input.op_idx()].push_back(op_idx);
+      op_children[input.op_index()].push_back(op_idx);
     }
 
     // Slice
-    int output_silce_level = input_slice_level;
+    int output_slice_level = input_slice_level;
     if (op.name() == SLICE_OP_NAME) {
       assert(output_slice_level == 0);
       size_t slice_ops_size = slice_ops.size();
@@ -828,14 +845,14 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
       // Use default batch if not specified
       i32 batch_size = op.batch() != -1
                            ? op.batch()
-                           : kernel_factory->preferred_batch_size();
+                           : factory->preferred_batch_size();
       batch_sizes[op_idx] = batch_size;
       // Use default stencil if not specified
       std::vector<i32> stencil;
       if (op.stencil_size() > 0) {
         stencil = std::vector<i32>(op.stencil().begin(), op.stencil().end());
       } else {
-        stencil = op_info->preferred_stencil();
+        stencil = info->preferred_stencil();
       }
       stencils[op_idx] = stencil;
       if (info->has_bounded_state()) {
@@ -854,11 +871,11 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
                           DAGAnalysisInfo& info) {
   auto rename_col = [](i32 op_idx, const std::string& n) {
     return std::to_string(op_idx) + "_" + n;
-  }
-  auto& remap_map = info.input_ops_to_first_ops_columns;
+  };
+  auto& remap_map = info.input_ops_to_first_op_columns;
   {
-    auto& first_op_input = ops.at(0).inputs(0);
-    first_op_input.set_column(rename_col(0, first_op_input.column()));
+    auto first_op_input = ops.at(0).mutable_inputs(0);
+    first_op_input->set_column(rename_col(0, first_op_input->column()));
     remap_map[0] = 0;
   }
   for (size_t op_idx = 1; op_idx < ops.size(); ++op_idx) {
@@ -866,29 +883,30 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
     // If input Op, add column to original input Op and get rid of existing
     // column
     if (op.name() == INPUT_OP_NAME) {
-      remap_map[op_idx] = op.at(0).inputs_size();
+      remap_map[op_idx] = ops.at(0).inputs_size();
 
       std::string new_column_name =
           rename_col(op_idx, op.inputs(op_idx).column());
-      OpInput* new_input = op.at(0).add_inputs();
+      proto::OpInput* new_input = ops.at(0).add_inputs();
       new_input->set_op_index(-1);
       new_input->set_column(new_column_name);
 
-      op.at(op_idx).clear_inputs();
+      ops.at(op_idx).clear_inputs();
     }
     // Remap all inputs to input Ops to the first Op
-    for (auto& input : op.inputs()) {
-      i32 input_op_idx = input.op_index();
+    for (size_t i = 0; i < op.inputs_size(); ++i) {
+      auto input = op.mutable_inputs(i);
+      i32 input_op_idx = input->op_index();
       if (remap_map.count(input_op_idx) > 0) {
-        input.set_op_index(remap_map.at(input_op_idx));
-        input.set_column(rename_col(input_op_idx, input.column()));
+        input->set_op_index(remap_map.at(input_op_idx));
+        input->set_column(rename_col(input_op_idx, input->column()));
       }
     }
   }
 }
 
-Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
-                                 LinearizedAnalysisInfo& results) {
+void perform_liveness_analysis(const std::vector<proto::Op>& ops,
+                               DAGAnalysisInfo& results) {
   const std::map<i64, bool>& bounded_state_ops = results.bounded_state_ops;
   const std::map<i64, bool>& unbounded_state_ops = results.unbounded_state_ops;
   const std::map<i64, i32>& warmup_sizes = results.warmup_sizes;
@@ -907,8 +925,9 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
   // Active intermediates
   std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
   {
-    auto& input_op = ops.Get(0);
-    for (const std::string& input_col : input_op.inputs(0).columns()) {
+    auto& input_op = ops.at(0);
+    for (const auto& col : input_op.inputs()) {
+      const std::string& input_col = col.column();
       // Set last used to first op so that all input ops are live to start
       // with. We could eliminate input columns which aren't used, but this
       // also requires modifying the samples.
@@ -916,22 +935,21 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
     }
   }
   for (size_t i = 1; i < ops.size(); ++i) {
-    auto& op = ops.Get(i);
+    auto& op = ops.at(i);
     // For each input, update the intermediate last used index to the
     // current index
     for (auto& eval_input : op.inputs()) {
       i32 parent_index = eval_input.op_index();
-      for (const std::string& parent_col : eval_input.columns()) {
-        bool found = false;
-        for (auto& kv : intermediates.at(parent_index)) {
-          if (std::get<0>(kv) == parent_col) {
-            found = true;
-            std::get<1>(kv) = i;
-            break;
-          }
+      const std::string& parent_col = eval_input.column();
+      bool found = false;
+      for (auto& kv : intermediates.at(parent_index)) {
+        if (std::get<0>(kv) == parent_col) {
+          found = true;
+          std::get<1>(kv) = i;
+          break;
         }
-        assert(found);
       }
+      assert(found);
     }
     if (op.name() == OUTPUT_OP_NAME) {
       continue;
@@ -970,7 +988,7 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
   for (size_t i = 1; i < ops.size(); ++i) {
     i32 op_index = i;
     auto& prev_columns = live_columns[i - 1];
-    auto& op = ops.Get(op_index);
+    auto& op = ops.at(op_index);
     // Determine which columns are no longer live
     {
       auto& unused = unused_outputs[i - 1];
@@ -1027,36 +1045,33 @@ Result perform_liveness_analysis(const std::vector<proto::Op>& ops,
     auto& mapping = column_mapping[op_index - 1];
     for (const auto& eval_input : op.inputs()) {
       i32 parent_index = eval_input.op_index();
-      for (const std::string& col : eval_input.columns()) {
-        i32 col_index = -1;
-        for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
-          const std::tuple<i32, std::string>& live_input = prev_columns[k];
-          if (parent_index == std::get<0>(live_input) &&
-              col == std::get<1>(live_input)) {
-            col_index = k;
-            break;
-          }
+      const std::string& col = eval_input.column();
+      i32 col_index = -1;
+      for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
+        const std::tuple<i32, std::string>& live_input = prev_columns[k];
+        if (parent_index == std::get<0>(live_input) &&
+            col == std::get<1>(live_input)) {
+          col_index = k;
+          break;
         }
-        assert(col_index != -1);
-        mapping.push_back(col_index);
       }
+      assert(col_index != -1);
+      mapping.push_back(col_index);
     }
   }
-  return results;
 }
 
 Result derive_stencil_requirements(
-    const DatabaseMetadata& meta,
-    const TableMetaCache& table_meta,
-    const proto::Job& job,
-    const std::vector<proto::Op>& ops,
+    const DatabaseMetadata& meta, const TableMetaCache& table_meta,
+    const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
-    i64 table_id,
-    i64 job_idx, i64 task_idx, const std::vector<i64>& output_rows,
-    i64 initial_work_item_size, LoadWorkEntry& output_entry,
+    i64 table_id, i64 job_idx, i64 task_idx,
+    const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams) {
-  const std::vector<std::vector<i32>>& stencils = analysis_results.stencils;
+  const std::map<i64, std::vector<i32>>& stencils = analysis_results.stencils;
+  const std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
+      analysis_results.live_columns;
 
   output_entry.set_table_id(table_id);
   output_entry.set_job_index(job_idx);
@@ -1065,10 +1080,11 @@ Result derive_stencil_requirements(
   i64 num_ops = ops.size();
 
   const std::map<i64, std::vector<i64>>& job_slice_output_rows =
-      info.slice_output_rows.at(job_id);
+      analysis_results.slice_output_rows.at(job_idx);
   const std::map<i64, std::vector<i64>>& job_unslice_input_rows =
-      info.unslice_input_rows.at(job_id);
+      analysis_results.unslice_input_rows.at(job_idx);
   // Create domain samplers
+  // Op -> slice
   std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
   for (const proto::SamplingArgsAssignment& saa :
        job.sampling_args_assignment()) {
@@ -1077,38 +1093,48 @@ Result derive_stencil_requirements(
     // Assign number of rows to correct op
     for (auto& sa : saa.sampling_args()) {
       DomainSampler* sampler;
-      result = make_domain_sampler_instance(
+      Result result = make_domain_sampler_instance(
           sa.sampling_function(),
           std::vector<u8>(sa.sampling_args().begin(), sa.sampling_args().end()),
           sampler);
       if (!result.success()) {
         return result;
       }
-      domain_samplers.emplace_back(sampler);
+      samplers.emplace_back(sampler);
     }
+  }
+
+  // Associate input ops with table ids
+  std::vector<i32> table_ids(job.inputs_size());
+  std::vector<i32> column_ids(job.inputs_size());
+  for (auto& col_input : job.inputs()) {
+    i32 col_idx =
+        analysis_results.input_ops_to_first_op_columns.at(col_input.op_index());
+    table_ids[col_idx] = meta.get_table_id(col_input.table_name());
+    column_ids[col_idx] = table_meta.at(col_input.table_name())
+                              .column_id(col_input.column_name());
   }
 
   // Compute the required rows for each kernel based on the stencil, sampling
   // operations, and slice operations.
-  i64 last_row = output_rows.back();
-  TableMetadata meta = table_meta.at(table_id);
   // For each Op, determine the set of rows needed in the live columns list
   // and the set of rows to feed to the Op at the current column mapping
   // Op -> Rows
-  std::vector<std::set<i64>> required_output_rows_at_op;
-  std::vector<std::vector<i64>> required_input_rows_at_op;
-  for (auto& columns : live_columns) {
-    required_output_rows_at_op.emplace_back();
-    required_input_rows_at_op.emplace_back();
-  }
-  // For the input Op
-  std::vector<std::set<i64>> required_input_op_rows;
-  required_input_op_rows.resize(ops.at(0).inputs_size());
+  std::vector<std::set<i64>> required_output_rows_at_op(ops.size());
+  std::vector<std::vector<i64>> required_input_rows_at_op(ops.size());
+  // Track inputs for ecah column of the input Op since different rnput Op
+  // colums may correspond to different tables and conservatively requesting
+  // all rows could cause an invalid access
+  std::vector<std::set<i64>> required_input_op_output_rows;
+  required_input_op_output_rows.resize(ops.at(0).inputs_size());
+  std::vector<std::vector<i64>> required_input_op_input_rows;
+  required_input_op_output_rows.resize(ops.at(0).inputs_size());
+  assert(ops.at(0).inputs_size() == job.inputs_size());
   // HACK(apoms): we currently propagate this boundary condition upward,
   // but that would technically cause the upstream sequence to have more
   // elements than required. Should we stop the boundary condition at the Op
   // by deduplication?
-  auto handle_boundary = [= boundary_condition](
+  auto handle_boundary = [boundary_condition](
       const std::vector<i64>& downstream_rows, i64 max_rows,
       std::vector<i64>& bounded_rows) {
     // Handle rows which touch boundaries
@@ -1116,15 +1142,15 @@ Result derive_stencil_requirements(
       i64 r = downstream_rows[i];
       if (r < 0 || r >= max_rows) {
         switch (boundary_condition) {
-          case BulkJobParameters::REPEAT_EDGE: {
+          case proto::BulkJobParameters::REPEAT_EDGE: {
             r = (r < 0) ? 0 : max_rows;
             break;
           }
-          case BulkJobParameters::REPEAT_NULL: {
+          case proto::BulkJobParameters::REPEAT_NULL: {
             r = -1;
             break;
           }
-          case BulkJobParameters::ERROR: {
+          case proto::BulkJobParameters::ERROR: {
             Result result;
             RESULT_ERROR(&result, "Boundary error.");
             return result;
@@ -1134,12 +1160,13 @@ Result derive_stencil_requirements(
       }
       bounded_rows.push_back(r);
     }
-  }
+  };
   // Walk up the Ops to derive upstream rows
   i32 slice_group = -1;
   {
     // Initialize output rows
-    required_output_rows_at_op.at(num_ops - 1) = output_rows;
+    required_output_rows_at_op.at(num_ops - 1) =
+        std::set<i64>(output_rows.begin(), output_rows.end());
     // For each kernel, derive the minimal required upstream elements
     for (i64 op_idx = num_ops - 1; op_idx >= 0; --op_idx) {
       auto& op = ops.at(op_idx);
@@ -1151,30 +1178,42 @@ Result derive_stencil_requirements(
       std::vector<i64> new_rows;
       // Input Op
       if (op.name() == INPUT_OP_NAME) {
-        // Perform boundary restriction
-        std::vector<i64> bounded_rows;
-        Result result = handle_boundary(downstream_rows, bounded_rows);
-        if (!result.succes()) {
-          return result;
-        }
+        // Determine input table this column came from
+        for (size_t i = 0; i < table_ids.size(); ++i) {
+          i32 table_id = table_ids[i];
+          std::vector<i64> output_rows(
+              required_input_op_output_rows.at(i).begin(),
+              required_input_op_output_rows.at(i).end());
+          std::sort(output_rows.begin(), output_rows.end());
+          std::vector<i64>& input_rows = required_input_op_input_rows.at(i);
+          i64 num_rows = table_meta.at(table_id).num_rows();
 
-        new_rows = bounded_rows;
+          // Perform boundary restriction
+          Result result = handle_boundary(output_rows, num_rows, input_rows);
+          if (!result.success()) {
+            return result;
+          }
+        }
       }
       // Sample or Space Op
       else if (op.name() == SAMPLE_OP_NAME ||
                op.name() == SPACE_OP_NAME) {
+        assert(slice_group != -1);
         // Use domain sampler
-        Result result = domain_samplers.at(op_idx)->get_upstream_rows(
-            downstream_rows, new_rows);
+        Result result = domain_samplers.at(op_idx)
+                            .at(slice_group)
+                            ->get_upstream_rows(downstream_rows, new_rows);
         if (!result.success()) {
           return result;
         }
       }
       // Space Op
       else if (op.name() == SPACE_OP_NAME) {
+        assert(slice_group != -1);
         // Use domain sampler
-        Result result = domain_samplers.at(op_idx)->get_upstream_rows(
-            downstream_rows, new_rows);
+        Result result = domain_samplers.at(op_idx)
+                            .at(slice_group)
+                            ->get_upstream_rows(downstream_rows, new_rows);
         if (!result.success()) {
           return result;
         }
@@ -1188,16 +1227,18 @@ Result derive_stencil_requirements(
         // that all rows are in the same slice
         assert(slice_group != -1);
 
-        const auto& slice_ouput_counts = job_slice_output_rows.at(op_idx);
+        const auto& slice_output_counts = job_slice_output_rows.at(op_idx);
         i64 offset = 0;
         for (i64 i = 0; i < slice_group; ++i) {
           offset += slice_output_counts.at(i);
         }
 
+        i64 rows_in_group = slice_output_counts.at(slice_group);
         // Perform boundary restriction
         std::vector<i64> bounded_rows;
-        Result result = handle_boundary(downstream_rows, bounded_rows);
-        if (!result.succes()) {
+        Result result =
+            handle_boundary(downstream_rows, rows_in_group, bounded_rows);
+        if (!result.success()) {
           return result;
         }
 
@@ -1241,7 +1282,7 @@ Result derive_stencil_requirements(
       else {
         assert(!is_builtin_op(op.name()));
         std::unordered_set<i64> current_rows;
-        const std::vector<i32>& stencil = stencils[i];
+        const std::vector<i32>& stencil = stencils.at(op_idx);
         current_rows.reserve(downstream_rows.size());
         for (i64 r : downstream_rows) {
           for (i64 s : stencil) {
@@ -1254,17 +1295,19 @@ Result derive_stencil_requirements(
 
       required_input_rows_at_op.at(op_idx) = new_rows;
       for (auto& input : op.inputs()) {
-        if (input.op_idx() == 0) {
+        if (input.op_index() == 0) {
+          // For the input Op, we track each input column separately since
+          // they may come from different tables
           i64 col_id = 0;
-          for (const auto& col : ops.at(input.op_idx()).inputs()) {
+          for (const auto& col : ops.at(input.op_index()).inputs()) {
             if (col.column() == input.column()) {
               break;
             }
             col_id++;
           }
-          assert(col_id != opts.at(input.op_idx()).inputs_size());
-          required_input_op_rows.at(col_id).insert(new_rows.begin(),
-                                                   new_rows.end());
+          assert(col_id != ops.at(input.op_index()).inputs_size());
+          required_input_op_output_rows.at(col_id).insert(new_rows.begin(),
+                                                          new_rows.end());
         }
         auto& input_outputs = required_output_rows_at_op.at(input.op_index());
         input_outputs.insert(new_rows.begin(), new_rows.end());
@@ -1281,24 +1324,18 @@ Result derive_stencil_requirements(
   // Get rid of input stream since this is already captured by the load samples
   task_streams.pop_front();
 
-  std::vector<i32> table_ids(job.inputs_size());
-  std::vector<i32> column_ids(job.inputs_size());
-  for (auto& col_input : job.inputs()) {
-    i32 col_idx =
-        analysis_results.input_ops_to_first_op_columns.at(col_input.op_index());
-    table_ids[col_idx] = meta.get_table_id(col_input.table_name());
-    column_ids[col_idx] = table_meta.at(col_input.table_name())
-                              .column_id(col_input.column_name());
-  }
   for (size_t i = 0; i < table_ids.size(); ++i) {
     auto out_sample = output_entry.add_samples();
     out_sample->set_table_id(table_ids[i]);
     out_sample->set_column_id(column_ids[i]);
     google::protobuf::RepeatedField<i64> data(
-        required_input_op_rows.at(i).begin(),
-        required_input_op_rows.at(i).end());
+        required_input_op_input_rows.at(i).begin(),
+        required_input_op_input_rows.at(i).end());
     out_sample->mutable_rows()->Swap(&data);
   }
+  Result result;
+  result.set_success(true);
+  return result;
 }
 
 }

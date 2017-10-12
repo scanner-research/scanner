@@ -854,7 +854,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   }
 
   // Write out database metadata so that workers can read it
-  write_job_metadata(storage_, JobMetadata(job_descriptor));
+  write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
   for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
     auto& job = job_params->jobs(job_idx);

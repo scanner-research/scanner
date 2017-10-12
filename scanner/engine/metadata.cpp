@@ -292,24 +292,26 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 /// BulkJobMetadata
 BulkJobMetadata::BulkJobMetadata() {}
 BulkJobMetadata::BulkJobMetadata(const BulkJobDescriptor& job) : Metadata(job) {
-  for (auto& c : descriptor_.columns()) {
-    columns_.push_back(c);
-    column_ids_.insert({c.name(), c.id()});
-  }
-  for (auto& t : descriptor_.tasks()) {
+  for (auto& t : descriptor_.jobs()) {
     table_names_.push_back(t.output_table_name());
   }
 }
 
 std::string BulkJobMetadata::descriptor_path(i32 job_id) {
-  return job_descriptor_path(job_id);
+  return bulk_job_descriptor_path(job_id);
 }
 
 i32 BulkJobMetadata::id() const { return descriptor_.id(); }
 
 std::string BulkJobMetadata::name() const { return descriptor_.name(); }
 
-i32 BulkJobMetadata::work_item_size() const { return descriptor_.work_item_size(); }
+i32 BulkJobMetadata::io_packet_size() const {
+  return descriptor_.io_packet_size();
+}
+
+i32 BulkJobMetadata::work_packet_size() const {
+  return descriptor_.work_packet_size();
+}
 
 i32 BulkJobMetadata::num_nodes() const { return descriptor_.num_nodes(); }
 
@@ -353,6 +355,15 @@ std::vector<i64> TableMetadata::end_rows() const {
 }
 
 const std::vector<Column>& TableMetadata::columns() const { return columns_; }
+
+bool TableMetadata::has_column(const std::string& name) const {
+  for (auto& c : descriptor_.columns()) {
+    if (c.name() == name) {
+      return true;
+    }
+  }
+  return false;
+}
 
 std::string TableMetadata::column_name(i32 column_id) const {
   for (auto& c : descriptor_.columns()) {

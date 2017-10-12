@@ -5,11 +5,10 @@
 namespace scanner {
 
 // Dummy Kernel
-class SpaceKernel : public Kernel {
+class SpaceKernel : public BatchedKernel {
  public:
   SpaceKernel(const KernelConfig& config)
-    : Kernel(config),
-      device_(config.devices[0]) {}
+    : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
@@ -21,21 +20,25 @@ class SpaceKernel : public Kernel {
 // Reserve Op name as builtin
 REGISTER_OP(Space).input("in").output("out");
 
-REGISTER_KERNEL(Space, SpaceKernel).device(DeviceType::CPU).num_devices(1);
-
-REGISTER_KERNEL(Space, SpaceKernel).device(DeviceType::GPU).num_devices(1);
-
-
-REGISTER_OP(SpaceFrame).frame_input("in").frame_output("out");
-
-REGISTER_KERNEL(DiscardFrame, DiscardKernel)
+REGISTER_KERNEL(Space, SpaceKernel)
     .device(DeviceType::CPU)
     .batch()
     .num_devices(1);
 
-REGISTER_KERNEL(DiscardFrame, DiscardKernel)
+REGISTER_KERNEL(Space, SpaceKernel)
     .device(DeviceType::GPU)
     .batch()
     .num_devices(1);
 
+REGISTER_OP(SpaceFrame).frame_input("in").frame_output("out");
+
+REGISTER_KERNEL(spaceFrame, SpaceKernel)
+    .device(DeviceType::CPU)
+    .batch()
+    .num_devices(1);
+
+REGISTER_KERNEL(SpaceFrame, SpaceKernel)
+    .device(DeviceType::GPU)
+    .batch()
+    .num_devices(1);
 }
