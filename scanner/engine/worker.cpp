@@ -1077,18 +1077,11 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
         derive_stencil_requirements(
-            meta,
-            table_meta,
-            jobs.at(new_work.job_index()),
-            ops,
-            analysis_results,
-            job_params->boundary_condition(),
-            new_work.table_id(),
-            new_work.job_index(),
-            new_work.task_index(),
+            meta, table_meta, jobs.at(new_work.job_index()), ops,
+            analysis_results, job_params->boundary_condition(),
+            new_work.table_id(), new_work.job_index(), new_work.task_index(),
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
-            work_packet_size,
             stenciled_entry, task_stream);
 
         // Determine which worker to allocate to
@@ -1245,7 +1238,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   // Execution done, write out profiler intervals for each worker
   // TODO: job_name -> job_id?
   i32 job_id = meta.get_bulk_job_id(job_params->job_name());
-  std::string profiler_file_name = job_profiler_path(job_id, node_id_);
+  std::string profiler_file_name = bulk_job_profiler_path(job_id, node_id_);
   std::unique_ptr<WriteFile> profiler_output;
   BACKOFF_FAIL(
       make_unique_write_file(storage_, profiler_file_name, profiler_output));

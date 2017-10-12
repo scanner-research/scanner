@@ -57,9 +57,8 @@ SaveWorker::~SaveWorker() {
   video_metadata_.clear();
 }
 
-void SaveWorker::feed(std::tuple<IOItem, EvalWorkEntry>& input_entry) {
-  IOItem& io_item = std::get<0>(input_entry);
-  EvalWorkEntry& work_entry = std::get<1>(input_entry);
+void SaveWorker::feed(EvalWorkEntry& input_entry) {
+  EvalWorkEntry& work_entry = input_entry;
 
   // Write out each output column to an individual data file
   i32 video_col_idx = 0;

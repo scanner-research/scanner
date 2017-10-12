@@ -69,7 +69,7 @@ make_domain_sampler_instance(const std::string& sampler_type,
                              DomainSampler*& sampler);
 
 struct PartitionGroup {
-  std::vector<i64> row;
+  std::vector<i64> rows;
 };
 
 class Partitioner {

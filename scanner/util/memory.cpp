@@ -347,14 +347,15 @@ class BlockAllocator {
 
 class LinkedAllocator {
  public:
-  LinkedAllocator(std::map<DeviceType, Allocator*> allocators)
+  LinkedAllocator(std::map<DeviceHandle, Allocator*> allocators)
     : allocators_(allocators) {}
 
   ~LinkedAllocator() {
     std::lock_guard<std::mutex> guard(lock_);
     for (Allocation& alloc : allocations_) {
-      for (auto& kv : alloc.buffers) {
-        allocators_.at(kv.first)->free(kv.second);
+      for (auto kv : alloc.buffers) {
+        auto& allocator = allocators_.at(kv.first);
+        allocator->free(kv.second);
       }
     }
     allocations_.clear();
@@ -403,15 +404,15 @@ class LinkedAllocator {
     Allocation& alloc = allocations_[index];
     if (alloc.refs.count(target_device) > 0) {
       // Add ref
-      alloc.refs[device] += refs;
+      alloc.refs[target_device] += refs;
     } else {
       // Copy
-      auto& allocator = allocators_.at(device);
+      auto& allocator = allocators_.at(source_device);
       u8* new_buffer = allocator->allocate(alloc.size);
       memcpy_buffer(new_buffer, target_device,
                     alloc.buffers[source_device], source_device, alloc.size);
-      alloc.refs[device] = refs;
-      alloc.buffers[device] = new_buffer;
+      alloc.refs[target_device] = refs;
+      alloc.buffers[target_device] = new_buffer;
     }
     // Set target_buffer to same offset as it would be in the allocation that
     // source_buffer is from
@@ -433,7 +434,7 @@ class LinkedAllocator {
     alloc.refs[device] -= 1;
 
     if (alloc.refs[device] == 0) {
-      allocator->free(alloc.buffer[device]);
+      allocator->free(alloc.buffers[device]);
       alloc.buffers.erase(device);
       alloc.refs.erase(device);
       if (alloc.refs.size() == 0) {
@@ -475,8 +476,8 @@ class LinkedAllocator {
     i32 num_alloc = allocations_.size();
     for (i32 i = 0; i < num_alloc; ++i) {
       Allocation alloc = allocations_[i];
-      if (alloc.buffer.count(device) > 0) {
-        u8* alloc_buffer = alloc.buffer[device];
+      if (alloc.buffers.count(device) > 0) {
+        u8* alloc_buffer = alloc.buffers[device];
         if (pointer_in_buffer(buffer, alloc_buffer,
                               alloc_buffer + alloc.size)) {
           index = i;
@@ -640,7 +641,7 @@ void add_buffer_ref(DeviceHandle device, u8* buffer) {
   add_buffer_refs(device, buffer, 1);
 }
 
-void add_buffer_refs(DeviceHandle device, u8* buffer, size_t refs) {
+void add_buffer_refs(DeviceHandle device, u8* buffer, i32 refs) {
   assert(buffer != nullptr);
 #ifdef USE_LINKED_ALLOCATOR
   return linked_allocator->add_refs(device, buffer, refs);

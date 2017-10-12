@@ -5,11 +5,10 @@
 namespace scanner {
 
 // Dummy Kernel
-class SampleKernel : public Kernel {
+class SampleKernel : public BatchedKernel {
  public:
   SampleKernel(const KernelConfig& config)
-    : Kernel(config),
-      device_(config.devices[0]) {}
+    : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
