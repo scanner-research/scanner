@@ -302,7 +302,6 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     kernel->reset();
   }
 
-  outputs_yielded_ = 0;
   final_output_handles_.clear();;
   final_output_columns_.clear();
   final_row_ids_.clear();
@@ -675,7 +674,6 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       }
     }
 
-
     // Remove elements from the element cache we won't access anymore
     i64 last_cache_element = 0;
     i64 min_used_row = kernel_valid_input_rows[row_end - kernel_stencil[0]];
@@ -726,6 +724,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
                                     side_output_columns[i].begin(),
                                     side_output_columns[i].end());
   }
+  for (size_t i = 0; i < side_output_columns.size(); ++i) {
+    final_row_ids_[i].insert(final_row_ids_[i].end(),
+                             side_row_ids[i].begin(),
+                             side_row_ids[i].end());
+  }
 
   profiler_.add_interval("feed", feed_start, now());
 }
@@ -747,34 +750,22 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   BatchedColumns& work_item_output_columns = output_work_entry.columns;
   std::vector<DeviceHandle>& work_item_output_handles =
       output_work_entry.column_handles;
+  std::vector<std::vector<i64>>& work_item_row_ids =
+      output_work_entry.row_ids;
   i32 num_final_output_columns = 0;
-
   num_final_output_columns = final_output_columns_.size();
-  work_item_output_columns.resize(final_output_columns_.size());
+  work_item_output_columns.resize(num_final_output_columns);
   work_item_output_handles = final_output_handles_;
-
-  i32 yieldable_rows = std::numeric_limits<i32>::max();
-  for (i32 i = 0; i < num_final_output_columns; ++i) {
-    yieldable_rows =
-        std::min((i32)final_output_columns_[i].size(), yieldable_rows);
-  }
+  work_item_row_ids.resize(num_final_output_columns);
 
   for (i32 i = 0; i < num_final_output_columns; ++i) {
-    work_item_output_columns[i].insert(
-        work_item_output_columns[i].end(), final_output_columns_[i].begin(),
-        final_output_columns_[i].begin() + yieldable_rows);
-    final_output_columns_[i].erase(
-        final_output_columns_[i].begin(),
-        final_output_columns_[i].begin() + yieldable_rows);
+    work_item_output_columns[i].insert(work_item_output_columns[i].end(),
+                                       final_output_columns_[i].begin(),
+                                       final_output_columns_[i].end());
+    work_item_row_ids[i].insert(work_item_row_ids[i].end(),
+                                final_row_ids_[i].begin(),
+                                final_row_ids_[i].end());
   }
-  output_work_entry.row_ids = std::vector<i64>(
-      valid_output_rows_.back().begin() + outputs_yielded_,
-      valid_output_rows_.back().begin() + outputs_yielded_ + yieldable_rows);
-
-  assert(output_work_entry.row_ids.size() ==
-         work_item_output_columns[0].size());
-
-  outputs_yielded_ += yieldable_rows;
 
   output_entry = output_work_entry;
 
@@ -864,19 +855,9 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   for (size_t i = 0; i < column_mapping_.size(); ++i) {
     i32 col_idx = column_mapping_[i];
     ColumnType column_type = columns_[i].type();
-    // Delete warmup frame outputs
-    for (i32 w = 0; w < warmup_frames; ++w) {
-      delete_element(work_entry.column_handles[col_idx],
-                     work_entry.columns[col_idx][w]);
-    }
     // Encode video frames
     if (compression_enabled_[i] && column_type == ColumnType::Video &&
         buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
-      {
-        auto start = work_entry.columns[col_idx].begin();
-        auto warmup_end = work_entry.columns[col_idx].begin() + warmup_frames;
-        work_entry.columns[col_idx].erase(start, warmup_end);
-      }
       auto& encoder = encoders_[encoder_idx];
       if (!encoder_configured_[encoder_idx]) {
         // Configure encoder
@@ -916,10 +897,9 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       move_if_different_address_space(
           profiler_, work_entry.column_handles[col_idx], CPU_DEVICE,
           work_entry.columns[col_idx]);
-      // Keep non-warmup frame outputs
       buffered_entry_.columns[i].insert(
           buffered_entry_.columns[i].end(),
-          work_entry.columns[col_idx].begin() + warmup_frames,
+          work_entry.columns[col_idx].begin(),
           work_entry.columns[col_idx].end());
     }
   }

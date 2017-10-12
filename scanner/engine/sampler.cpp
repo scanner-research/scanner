@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <vector>
+#include <algorithm>
 
 namespace scanner {
 namespace internal {
@@ -133,11 +134,11 @@ class StridedDomainSampler : public DomainSampler {
  private:
   Result valid_;
   proto::StridedSamplerArgs args_;
-}
+};
 
 class StridedRangesDomainSampler : public DomainSampler {
  public:
-  StridedRangeSampler(const std::vector<u8>& args)
+  StridedRangesDomainSampler(const std::vector<u8>& args)
     : DomainSampler("StridedRange") {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
@@ -345,9 +346,7 @@ class SpaceNullDomainSampler : public DomainSampler {
   }
 
   Result validate() override {
-    Result result;
-    result.set_success(true);
-    return result;
+    return valid_;
   }
 
   Result get_upstream_rows(const std::vector<i64>& downstream_rows,
@@ -409,19 +408,7 @@ class SpaceRepeatDomainSampler : public DomainSampler {
     }
   }
 
-  Result validate() override {
-    std::set<i64> required_rows;
-    for (i64 r : downstream_rows) {
-      required_rows.insert(r / args_.spacing());
-    }
-    for (i64 r : required_rows) {
-      upstream_rows.push_back(r);
-    }
-    std::sort(upstream_rows.begin(), upstream_rows.end());
-    Result result;
-    result.set_success(true);
-    return result;
-  }
+  Result validate() override { return valid_; }
 
   Result get_upstream_rows(const std::vector<i64>& input_rows,
                            std::vector<i64>& output_rows) const {
@@ -501,13 +488,14 @@ Result make_domain_sampler_instance(const std::string& sampler_type,
   return result;
 }
 
+namespace {
 
 using PartitionerFactory =
     std::function<Partitioner*(const std::vector<u8>&, i64 num_rows)>;
 
 class AllPartitioner : public Partitioner {
  public:
-  AllPartitioner(const std::vector<u8>& args, int64 num_rows)
+  AllPartitioner(const std::vector<u8>& args, i64 num_rows)
     : Partitioner("All", num_rows) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
@@ -517,25 +505,30 @@ class AllPartitioner : public Partitioner {
     if (args_.group_size() <= 0) {
       RESULT_ERROR(&valid_,
                    "All partitioner group size (%ld) must be greater than 0",
-                   args_.sample_size());
+                   args_.group_size());
       return;
     }
-    total_groups_ = (i64)std::ceil((float)num_rows_ / args_.groups_size());
-    for (i64 i = 0; i < num_rows_; i += args_.grups_size()) {
+    total_groups_ = (i64)std::ceil(num_rows_ / (float)args_.group_size());
+    for (i64 i = 0; i < num_rows_; i += args_.group_size()) {
       offset_at_group_.push_back(i);
     }
+    offset_at_group_.push_back(num_rows_);
   }
 
-  Result validate() override {
-    Result result;
-    result.set_success(true);
-    return result;
-  }
+  Result validate() override { return valid_; }
 
   i64 total_rows() const override { return num_rows_; }
 
   i64 total_groups() const override {
     return total_groups_;
+  }
+
+  std::vector<i64> total_rows_per_group() const override {
+    std::vector<i64> rows;
+    for (i64 i = 0; i < total_groups_; ++i) {
+      rows.push_back(offset_at_group_[i + 1] - offset_at_group_[i]);
+    }
+    return rows;
   }
 
   PartitionGroup next_group() override {
@@ -610,6 +603,7 @@ class StridedRangePartitioner : public Partitioner {
       offset_at_group_.push_back(total_rows_);
       total_rows_ += rows;
     }
+    offset_at_group_.push_back(total_rows_);
     total_groups_ = args_.starts_size();
   }
 
@@ -619,18 +613,26 @@ class StridedRangePartitioner : public Partitioner {
 
   i64 total_groups() const override { return total_groups_; }
 
-  RowSample next_group() override {
+  std::vector<i64> total_rows_per_group() const override {
+    std::vector<i64> rows;
+    for (i64 i = 0; i < total_groups_; ++i) {
+      rows.push_back(offset_at_group_[i + 1] - offset_at_group_[i]);
+    }
+    return rows;
+  }
+
+  PartitionGroup next_group() override {
     assert(curr_group_idx_ < total_groups_);
     return group_at(curr_group_idx_++);
   }
 
   void reset() override { curr_group_idx_ = 0; }
 
-  RowSample group_at(i64 group_idx) override {
+  PartitionGroup group_at(i64 group_idx) override {
     i64 stride = args_.stride();
     i64 s = args_.starts(group_idx);
     i64 e = args_.ends(group_idx);
-    RowSample group;
+    PartitionGroup group;
     for (i64 i = s; i < e; i += stride) {
       group.rows.push_back(i);
     }
@@ -666,6 +668,7 @@ class GatherPartitioner : public Partitioner {
       offset_at_group_.push_back(total_rows_);
       total_rows_ += rows;
     }
+    offset_at_group_.push_back(total_rows_);
     total_groups_ = args_.groups_size();
   }
 
@@ -675,6 +678,14 @@ class GatherPartitioner : public Partitioner {
 
   i64 total_groups() const override { return total_groups_; }
 
+  std::vector<i64> total_rows_per_group() const override {
+    std::vector<i64> rows;
+    for (i64 i = 0; i < total_groups_; ++i) {
+      rows.push_back(offset_at_group_[i + 1] - offset_at_group_[i]);
+    }
+    return rows;
+  }
+
   PartitionGroup next_group() override {
     assert(curr_group_idx_ < total_groups_);
     return group_at(curr_group_idx_++);
@@ -682,8 +693,8 @@ class GatherPartitioner : public Partitioner {
 
   void reset() override { curr_group_idx_ = 0; }
 
-  RowGroup group_at(i64 group_idx) override {
-    RowSample group;
+  PartitionGroup group_at(i64 group_idx) override {
+    PartitionGroup group;
     auto& s = args_.groups(curr_group_idx_);
     group.rows = std::vector<i64>(s.rows().begin(), s.rows().end());
     return group;

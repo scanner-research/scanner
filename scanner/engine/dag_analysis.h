@@ -15,6 +15,9 @@
 
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/table_meta_cache.h"
+#include "scanner/engine/runtime.h"
+
+#include <deque>
 
 namespace scanner {
 namespace internal {
@@ -107,15 +110,12 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                DAGAnalysisInfo& info);
 
 Result derive_stencil_requirements(
-    const DatabaseMetadata& meta,
-    const TableMetaCache& table_meta,
-    const proto::Job& job,
-    const std::vector<proto::Op>& ops,
+    const DatabaseMetadata& meta, const TableMetaCache& table_meta,
+    const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
-    i64 table_id,
-    i64 job_idx, i64 task_idx, const std::vector<i64> output_rows,
-    i64 initial_work_item_size, LoadWorkEntry& output_entry,
+    i64 table_id, i64 job_idx, i64 task_idx,
+    const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams);
 
 // Result derive_input_rows_from_output_rows(

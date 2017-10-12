@@ -56,6 +56,10 @@ struct DeviceHandle {
 
   bool operator!=(const DeviceHandle& other) { return !(*this == other); }
 
+  bool operator<(const DeviceHandle& other) const {
+    return type < other.type && id < other.id;
+  }
+
   bool can_copy_to(const DeviceHandle& other) {
     return !(this->type == DeviceType::GPU && other.type == DeviceType::GPU &&
              this->id != other.id);
