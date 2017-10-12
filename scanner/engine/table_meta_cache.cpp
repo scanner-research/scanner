@@ -45,7 +45,8 @@ bool TableMetaCache::exists(i32 table_id) const {
 
 void TableMetaCache::update(const TableMetadata& meta) {
   std::lock_guard<std::mutex> lock(lock_);
-  cache_[meta.name()] = meta;
+  i32 table_id = meta_.get_table_id(meta.name());
+  cache_[table_id] = meta;
 }
 
 
