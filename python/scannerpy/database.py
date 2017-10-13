@@ -24,13 +24,16 @@ from common import *
 from profiler import Profiler
 from config import Config
 from op import OpGenerator, Op, OpColumn
-from sampler import TableSampler
+from sampler import Sampler
+from partitioner import TaskPartitioner
 from collection import Collection
 from table import Table
 from column import Column
 from protobuf_generator import ProtobufGenerator
 
 from storehousepy import StorageConfig, StorageBackend
+from job import Job
+from bulk_job import BulkJob
 
 def start_master(port=None, config=None, config_path=None, block=False, watchdog=True):
     """
@@ -155,6 +158,8 @@ class Database:
         self._png_dump_prefix = '__png_dump_{:s}'
 
         self.ops = OpGenerator(self)
+        self.sampler = Sampler(self)
+        self.partitioner = TaskPartitioner(self)
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
 
@@ -834,100 +839,61 @@ class Database:
     def _get_output_columns(self, op_name):
         return self._get_op_info(op_name).output_columns
 
-    def _toposort(self, job):
-        op = job.op(self)
+    def _toposort(self, dag):
+        op = dag
+        # Perform DFS on modified graph
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
-        input_tables = []
 
-        # Coalesce multiple inputs into a single table
-        start_node = self.ops.Input([], None, None)
+        input_nodes = []
         explored_nodes = set()
         stack = [op]
-        to_change = []
         while len(stack) > 0:
             c = stack.pop()
             explored_nodes.add(c)
 
-            for input in c._inputs:
-                if input._op._name == "InputTable" and input._op != start_node:
-                    if not input._op in input_tables:
-                        input_tables.append(input._op)
-                    idx = input_tables.index(input._op)
-                    to_change.append((input, idx))
-                    input._op = start_node
-
-                if input._op not in explored_nodes:
-                    stack.append(input._op)
-
-        def input_col_name(col, idx):
-            if len(input_tables) > 1 and idx != 0:
-                return '{}{:d}'.format(col, idx)
-            else:
-                return col
-
-        for (input, idx) in to_change:
-            input._col = input_col_name(input._col, idx)
-
-        new_start_node_inputs = []
-        for i, t in enumerate(input_tables):
-            for c in t._inputs:
-                col = Column(c._table, c._descriptor, c._video_descriptor)
-                col._name = input_col_name(c._descriptor.name, i)
-                new_start_node_inputs.append(col)
-        start_node._inputs = new_start_node_inputs
-
-        # Perform DFS on modified graph
-        explored_nodes = set([start_node])
-        stack = [op]
-        while len(stack) > 0:
-            c = stack.pop()
-            explored_nodes.add(c)
-
-            if c._name == "InputTable": continue
+            if c._name == "Input":
+                input_nodes.append(c)
+                continue
 
             for input in c._inputs:
+                print(c._name)
+                print(input)
                 edges[input._op].append(c)
                 in_edges_left[c] += 1
 
                 if input._op not in explored_nodes:
                     stack.append(input._op)
 
+        # Keep track of position of input ops and sampling/slicing ops
+        # to use for associating job args to
+        input_ops = {}
+        sampling_slicing_ops = {}
+
         # Compute sorted list
         eval_sorted = []
         eval_index = {}
-        stack = [start_node]
+        stack = input_nodes[:]
         while len(stack) > 0:
             c = stack.pop()
             eval_sorted.append(c)
-            eval_index[c] = len(eval_sorted) - 1
+            op_idx = len(eval_sorted) - 1
+            eval_index[c] = op_idx
             for child in edges[c]:
                 in_edges_left[child] -= 1
                 if in_edges_left[child] == 0:
                     stack.append(child)
-
-        for c in eval_sorted[1:]:
-            for i in c._inputs:
-                if i._op in input_tables:
-                    idx = input_tables.index(i._op)
-                    i._col = input_col_name(i._col, idx)
-
-        eval_sorted[-1]._inputs.insert(
-            0, OpColumn(
-                self,
-                eval_sorted[0],
-                "index",
-                self.protobufs.Other))
-
-        task = input_tables[0]._generator()
-        if job.name() is not None:
-            task.output_table_name = job.name()
-
-        for t in input_tables[1:]:
-            task.samples.extend(t._generator().samples)
+            if c._name == "Input":
+                input_ops[c] = op_idx
+            elif (c._name == "Sample" or
+                  c._name == "Space" or
+                  c._name == "Slice" or
+                  c._name == "Unslice"):
+                sample_slicing_ops[c] = op_idx
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
-          task, input_tables[0]
+            input_ops, \
+            sampling_slicing_ops
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -941,10 +907,10 @@ class Database:
             raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
 
-    def run(self, jobs,
+    def run(self, bulk_job,
             force=False,
-            work_item_size=250,
-            io_item_size=-1,
+            work_packet_size=250,
+            io_packet_size=-1,
             cpu_pool=None,
             gpu_pool=None,
             pipeline_instances_per_node=None,
@@ -978,82 +944,81 @@ class Database:
             Either the output Collection if output_collection is specified
             or a list of Table objects.
         """
-        # Evaluate jobs if they are functions
-        if isinstance(jobs, list) and callable(jobs[0]):
-            def eval_job(job_fn):
-                return job_fn()
-            pool = ThreadPool(32)
-            try:
-                evaled_jobs = pool.map(eval_job, jobs)
-                jobs = evaled_jobs
-            except Exception, e:
-                pool.terminate()
-                raise
+        assert isinstance(bulk_job, BulkJob)
 
-        # Get compression annotations
-
+        # Collect compression annotations to add to job
         compression_options = []
         # For index column
-        opts = self.protobufs.OutputColumnCompression()
-        opts.codec = 'default'
-        compression_options.append(opts)
-        output_op = jobs[0].op(self) if isinstance(jobs, list) else jobs.op(self)
-        for out_col in output_op.inputs():
-            opts = self.protobufs.OutputColumnCompression()
-            opts.codec = 'default'
-            if out_col._type == self.protobufs.Video:
-                for k, v in out_col._encode_options.iteritems():
-                    if k == 'codec':
-                        opts.codec = v
-                    else:
-                        opts.options[k] = str(v)
-            compression_options.append(opts)
+        # opts = self.protobufs.OutputColumnCompression()
+        # opts.codec = 'default'
+        # compression_options.append(opts)
+        # output_op = bulk_job.dag()
+        # for out_col in output_op.inputs():
+        #     opts = self.protobufs.OutputColumnCompression()
+        #     opts.codec = 'default'
+        #     if out_col._type == self.protobufs.Video:
+        #         for k, v in out_col._encode_options.iteritems():
+        #             if k == 'codec':
+        #                 opts.codec = v
+        #             else:
+        #                 opts.options[k] = str(v)
+        #     compression_options.append(opts)
 
-        output_collection = None
-        if isinstance(jobs, list):
-            ops, task, _ = self._toposort(jobs[0])
-            tasks = [task] + [self._toposort(job)[1] for job in jobs[1:]]
-        else:
-            job = jobs
-            ops, task, input_op = self._toposort(job)
-            tasks = [task]
-            collection = input_op._collection
-            if collection is not None:
-                output_collection = job.name()
-                if self.has_collection(output_collection) and not force:
-                    raise ScannerException(
-                        'Collection with name {} already exists'
-                        .format(output_collection))
-                for t in collection.tables()[1:]:
-                    t_task = input_op._generator(t)
-                    t_task.output_table_name = '{}:{}'.format(
-                        output_collection,
-                        t.name().split(':')[-1])
-                    tasks.append(t_task)
+        sorted_ops, input_ops, sampling_slicing_ops = self._toposort(
+            bulk_job.dag())
 
         to_delete = []
-        for task in tasks:
-            if self.has_table(task.output_table_name):
+        for job in bulk_job.jobs():
+            if self.has_table(job.output_table_name()):
                 if force:
-                    to_delete.append(task.output_table_name)
+                    to_delete.append(job.output_table_name())
                 else:
-                    raise ScannerException('Job would overwrite existing table {}'
-                                           .format(task.output_table_name))
+                    raise ScannerException(
+                        'Job would overwrite existing table {}'
+                        .format(job.output_table_name()))
         self.delete_tables(to_delete)
 
-        job_params = self.protobufs.JobParameters()
+        job_params = self.protobufs.BulkJobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
-        job_params.task_set.tasks.extend(tasks)
-        job_params.task_set.ops.extend(ops)
-        job_params.task_set.compression.extend(compression_options)
-        job_params.pipeline_instances_per_node = pipeline_instances_per_node or -1
-        job_params.work_item_size = work_item_size
-        job_params.io_item_size = io_item_size
+        job_params.ops.extend(sorted_ops)
+        for job in bulk_job.jobs():
+            j = job_params.jobs.add()
+            j.output_table_name = job.output_table_name()
+            for op_col, args in job.op_args().iteritems():
+                op = op_col._op
+                print(op)
+                print(input_ops)
+                print(sampling_slicing_ops)
+                if op in input_ops:
+                    op_idx = input_ops[op]
+                    col_input = j.inputs.add()
+                    col_input.op_index = op_idx
+                    col_input.table_name = args._table.name()
+                    col_input.column_name = args.name()
+                elif op in sampling_slicing_ops:
+                    op_idx = sampling_slicing_ops[op]
+                    saa = j.sampling_args_assignment.add()
+                    saa.op_index = op_idx
+                    if not isinstance(args, list):
+                        args = [args]
+                    for arg in args:
+                        sa = saa.sampling_args.add()
+                        sa.CopyFrom(arg)
+                else:
+                    print('ERROR!')
+                    exit(1)
+        job_params.compression.extend(compression_options)
+        job_params.pipeline_instances_per_node = (
+            pipeline_instances_per_node or -1)
+        job_params.work_packet_size = work_packet_size
+        job_params.io_packet_size = io_packet_size
         job_params.show_progress = show_progress
         job_params.profiling = profiling
         job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu
         job_params.load_sparsity_threshold = load_sparsity_threshold
+        job_params.boundary_condition = (
+            self.protobufs.BulkJobParameters.REPEAT_EDGE)
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:
