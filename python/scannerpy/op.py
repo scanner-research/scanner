@@ -72,9 +72,14 @@ class OpGenerator:
 
     def __getattr__(self, name):
         if name == 'Input':
-            return lambda inputs, generator, collection: Op.input(self._db, inputs, generator, collection)
+            return lambda: Op.input(self._db).outputs()
+        elif name == 'FrameInput':
+            return lambda: Op.frame_input(self._db).outputs()
         elif name == 'Output':
-            return lambda inputs: Op.output(self._db, inputs)
+            def make_op(columns):
+                op = Op.output(self._db, columns)
+                return op
+            return make_op
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
@@ -95,15 +100,16 @@ class OpGenerator:
             warmup = kwargs.pop('warmup', 0)
             stencil = kwargs.pop('stencil', [])
             args = kwargs.pop('args', None)
-            op = Op(self._db, name, inputs, device, batch, warmup, stencil,
-                    kwargs if args is None else args)
+            op = Op(self._db, name, inputs, device, batch, warmup,
+                    stencil, kwargs if args is None else args)
             return op.outputs()
 
         return make_op
 
 
 class Op:
-    def __init__(self, db, name, inputs, device, batch=-1, warmup=0, stencil=[0], args={}):
+    def __init__(self, db, name, inputs, device, batch=-1, warmup=0,
+                 stencil=[0], args={}):
         self._db = db
         self._name = name
         self._inputs = inputs
@@ -112,53 +118,66 @@ class Op:
         self._warmup = warmup
         self._stencil = stencil
         self._args = args
-        self._task = None
+
+        if (name == 'Input' or
+            name == "Sample" or
+            name == "Space" or
+            name == "Slice" or
+            name == "Unslice"):
+            outputs = []
+            for c in inputs:
+                outputs.append(OpColumn(db, self, c._col, c._type))
+        elif name == "OutputTable":
+            outputs = []
+        else:
+            cols = self._db._get_output_columns(self._name)
+            outputs = [OpColumn(self._db, self, c.name, c.type) for c in cols]
+        self._outputs = outputs
 
     @classmethod
-    def input(cls, db, inputs, generator, collection):
-        c = cls(db, "InputTable", inputs, DeviceType.CPU)
-        c._generator = generator
-        c._collection = collection
+    def input(cls, db):
+        c = cls(db, "Input", [OpColumn(db, None, 'col', db.protobufs.Other)],
+                DeviceType.CPU)
+        return c
+
+    @classmethod
+    def frame_input(cls, db):
+        c = cls(db, "Input", [OpColumn(db, None, 'col', db.protobufs.Video)],
+                DeviceType.CPU)
         return c
 
     @classmethod
     def output(cls, db, inputs):
+        print(inputs)
         return cls(db, "OutputTable", inputs, DeviceType.CPU)
 
     def inputs(self):
         return self._inputs
 
     def outputs(self):
-        if self._name == "InputTable":
-            cols = [OpColumn(self._db, self, c.name(), c.type())
-                    for c in self._inputs][1:]
+        if len(self._outputs) == 1:
+            return self._outputs[0]
         else:
-            cols = self._db._get_output_columns(self._name)
-            cols = [OpColumn(self._db, self, c.name, c.type) for c in cols]
-        if len(cols) == 1:
-            return cols[0]
-        else:
-            return tuple(cols)
-
+            return tuple(self._outputs)
 
     def to_proto(self, indices):
         e = self._db.protobufs.Op()
         e.name = self._name
-        e.batch = self._batch
         e.device_type = DeviceType.to_proto(self._db.protobufs, self._device)
         e.stencil.extend(self._stencil)
+        e.batch = self._batch
         e.warmup = self._warmup
 
-        if e.name == "InputTable":
+        if e.name == "Input":
             inp = e.inputs.add()
-            inp.columns.extend([c.name() for c in self._inputs])
-            inp.op_index = 0
+            inp.column = self._inputs[0]._col
+            inp.op_index = -1
         else:
             for i in self._inputs:
                 inp = e.inputs.add()
                 idx = indices[i._op] if i._op is not None else -1
                 inp.op_index = idx
-                inp.columns.append(i._col)
+                inp.column = i._col
 
         if isinstance(self._args, dict):
             # To convert an arguments dict, we search for a protobuf with the

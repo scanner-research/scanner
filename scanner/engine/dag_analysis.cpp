@@ -442,22 +442,28 @@ Result determine_input_rows_to_slices(
         total_rows_per_op.back();
     // Create domain samplers using sampling args
     // Op idx -> samplers for each slice group
+    std::map<i64, proto::SamplingArgsAssignment> args_assignment;
     std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
     for (const proto::SamplingArgsAssignment& saa :
          job.sampling_args_assignment()) {
-      std::vector<std::unique_ptr<DomainSampler>>& samplers =
-          domain_samplers[saa.op_index()];
-      // Assign number of rows to correct op
-      for (auto& sa : saa.sampling_args()) {
-        DomainSampler* sampler;
-        result = make_domain_sampler_instance(
-            sa.sampling_function(), std::vector<u8>(sa.sampling_args().begin(),
-                                                    sa.sampling_args().end()),
-            sampler);
-        if (!result.success()) {
-          return result;
+      if (ops.at(saa.op_index()).name() == "Slice") {
+        args_assignment[saa.op_index()] = saa;
+      } else {
+        std::vector<std::unique_ptr<DomainSampler>>& samplers =
+            domain_samplers[saa.op_index()];
+        // Assign number of rows to correct op
+        for (auto& sa : saa.sampling_args()) {
+          DomainSampler* sampler;
+          result = make_domain_sampler_instance(
+              sa.sampling_function(),
+              std::vector<u8>(sa.sampling_args().begin(),
+                              sa.sampling_args().end()),
+              sampler);
+          if (!result.success()) {
+            return result;
+          }
+          samplers.emplace_back(sampler);
         }
-        samplers.emplace_back(sampler);
       }
     }
     // Each Op can have a vector of outputs because of one level slicing
@@ -564,11 +570,12 @@ Result determine_input_rows_to_slices(
         assert(slice_group_outputs.size() == 0);
         // Create Partitioner to enumerate slices
         Partitioner* partitioner = nullptr;
+        auto& args = args_assignment[op_idx].sampling_args(0);
         result = make_partitioner_instance(
-            ops.at(op_idx).partitioner_args().sampling_function(),
+            args.sampling_function(),
             std::vector<u8>(
-                ops.at(op_idx).partitioner_args().sampling_args().begin(),
-                ops.at(op_idx).partitioner_args().sampling_args().end()),
+                args.sampling_args().begin(),
+                args.sampling_args().end()),
             slice_group_outputs.at(0),
             partitioner);
         if (!result.success()) {
@@ -663,11 +670,20 @@ Result derive_slice_final_output_rows(
   result.set_success(true);
   // First create partitioner to determine slice groups
   Partitioner* partitioner = nullptr;
+  proto::SamplingArgs args;
+  {
+    bool found = false;
+    for (auto& saa : job.sampling_args_assignment()) {
+      if (saa.op_index() == slice_op_idx) {
+        args = saa.sampling_args(0);
+        found = true;
+      }
+    }
+    assert(found);
+  }
   result = make_partitioner_instance(
-      ops.at(slice_op_idx).partitioner_args().sampling_function(),
-      std::vector<u8>(
-          ops.at(slice_op_idx).partitioner_args().sampling_args().begin(),
-          ops.at(slice_op_idx).partitioner_args().sampling_args().end()),
+      args.sampling_function(),
+      std::vector<u8>(args.sampling_args().begin(), args.sampling_args().end()),
       slice_input_rows, partitioner);
   if (!result.success()) {
     return result;

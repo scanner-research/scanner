@@ -1,5 +1,4 @@
 from common import *
-from sampler import SamplerOp
 
 
 class Collection:
@@ -28,4 +27,5 @@ class Collection:
         return self._db.profiler(self._descriptor.job_id)
 
     def as_op(self):
-        return SamplerOp(self)
+        #return SamplerOp(self)
+        assert False

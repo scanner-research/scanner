@@ -120,11 +120,6 @@ message OpInput {
   string column = 2;
 }
 
-message PartitionerArgs {
-  string sampling_function = 1;
-  bytes sampling_args = 2;
-}
-
 message Op {
   string name = 1;
   repeated OpInput inputs = 2;
@@ -134,8 +129,6 @@ message Op {
   repeated int32 stencil = 5;
   int32 batch = 6;
   int32 warmup = 7;
-  // Used by Slice Op
-  PartitionerArgs partitioner_args = 8;
 }
 
 message OutputColumnCompression {
@@ -267,8 +260,9 @@ message SpaceRepeatSamplerArgs {
   int64 spacing = 1;
 }
 
-message AllPartitionerArgs {
-  int64 group_size = 1;
+message StridedPartitionerArgs {
+  int64 stride = 1;
+  int64 group_size = 2;
 }
 
 message StridedRangePartitionerArgs {
