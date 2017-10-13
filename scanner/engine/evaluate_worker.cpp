@@ -33,7 +33,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
   total_rows_ = 0;
   for (size_t i = 0; i < work_entry.columns.size(); ++i) {
     total_rows_ =
-        std::max(total_rows_, (i64)work_entry.columns[i].size());
+        std::max(total_rows_, (i64)work_entry.row_ids[i].size());
   }
 
   // FIXME: do we need this w/ multiple videos of different resolutions in the
@@ -167,8 +167,9 @@ bool PreEvaluateWorker::yield(i32 item_size,
                                work_entry.columns[c].begin() + column_end_row);
       entry.column_handles.push_back(work_entry.column_handles[c]);
     }
-    entry.row_ids.emplace_back(work_entry.row_ids[c].begin() + column_start_row,
-                               work_entry.row_ids[c].begin() + column_end_row);
+    entry.row_ids[c] =
+        std::vector<i64>(work_entry.row_ids[c].begin() + column_start_row,
+                         work_entry.row_ids[c].begin() + column_end_row);
   }
   profiler_.add_interval("yield", yield_start, now());
 
@@ -232,10 +233,10 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   element_cache_.resize(kernels_.size());
   element_cache_devices_.resize(kernels_.size());
   for (size_t i = 0; i < kernels_.size(); ++i) {
-    // Resize stencil cache to be the same size as the number of side output
-    // columns at that kernel since we need to save all columns
-    element_cache_[i].resize(arg_group_.live_columns[i].size());
-    element_cache_row_ids_[i].resize(arg_group_.live_columns[i].size());
+    // Resize stencil cache to be the same size as the number of inputs
+    // to the kernel
+    element_cache_[i].resize(arg_group_.column_mapping[i].size());
+    element_cache_row_ids_[i].resize(arg_group_.column_mapping[i].size());
   }
   valid_output_rows_.resize(kernels_.size());
   current_valid_input_idx_.assign(kernels_.size(), 0);
@@ -299,7 +300,9 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
 
   // Make the op aware of the format of the data
   for (auto& kernel : kernels_) {
-    kernel->reset();
+    if (kernel) {
+      kernel->reset();
+    }
   }
 
   final_output_handles_.clear();;
@@ -316,12 +319,12 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     std::vector<std::deque<i64>>& kernel_cache_row_ids =
         element_cache_row_ids_[k];
     auto& input_column_idx = arg_group_.column_mapping[k];
-    assert(!kernel_cache_devices.empty());
     for (i32 i = 0; i < input_column_idx.size(); ++i) {
       auto& row_id_deque = kernel_cache_row_ids[i];
       row_id_deque.clear();
       auto& cache_deque = kernel_cache[i];
       for (i64 j = 0; j < cache_deque.size(); ++j) {
+        assert(!kernel_cache_devices.empty());
         Element element = cache_deque.back();
         delete_element(kernel_cache_devices[i], element);
         cache_deque.pop_back();
@@ -370,6 +373,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Place all new input elements in side output columns into intermediate
     // cache. If different device, move all required values in the side output
     // columns to the proper device for this kernel
+    if (kernel_cache_devices.empty()) {
+      for (i32 i = 0; i < input_column_idx.size(); ++i) {
+        kernel_cache_devices.push_back(current_handle);
+      }
+    }
     for (i32 i = 0; i < input_column_idx.size(); ++i) {
       i32 in_col_idx = input_column_idx[i];
       assert(in_col_idx < side_output_columns.size());
@@ -623,7 +631,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
           i32 col_idx = side_output_columns.size() - num_output_columns + cidx;
           side_output_columns[col_idx].insert(
               side_output_columns[col_idx].end(), column.begin(), column.end());
-          auto& output_row_ids = side_row_ids[cidx];
+          auto& output_row_ids = side_row_ids[col_idx];
           output_row_ids.insert(
               output_row_ids.end(),
               kernel_cache_row_ids[0].begin() + (start - row_start),
@@ -646,6 +654,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       i32 first_col_idx = side_output_columns.size() - num_output_columns;
       for (i64 row_start = 0;
            row_start < side_output_columns[first_col_idx].size(); ++row_start) {
+        assert(!side_row_ids[first_col_idx].empty());
         assert(side_row_ids[first_col_idx][row_start] <=
                kernel_valid_output_rows[kernel_current_output_idx]);
         i64 next_row = kernel_valid_output_rows[kernel_current_output_idx];
@@ -718,6 +727,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   final_output_handles_ = side_output_handles;
   if (final_output_columns_.size() == 0) {
     final_output_columns_.resize(side_output_columns.size());
+    final_row_ids_.resize(side_output_columns.size());
   }
   for (size_t i = 0; i < side_output_columns.size(); ++i) {
     final_output_columns_[i].insert(final_output_columns_[i].end(),
@@ -821,10 +831,12 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
 
   // Setup row buffer if it was emptied
   if (buffered_entry_.columns.size() == 0) {
+    buffered_entry_.table_id = work_entry.table_id;
     buffered_entry_.job_index = work_entry.job_index;
     buffered_entry_.task_index = work_entry.task_index;
     buffered_entry_.last_in_task = work_entry.last_in_task;
     buffered_entry_.columns.resize(column_mapping_.size());
+    buffered_entry_.row_ids.resize(column_mapping_.size());
     assert(work_entry.column_handles.size() == columns_.size());
     buffered_entry_.column_types.clear();
     buffered_entry_.column_handles.clear();
@@ -901,6 +913,10 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
           buffered_entry_.columns[i].end(),
           work_entry.columns[col_idx].begin(),
           work_entry.columns[col_idx].end());
+      buffered_entry_.row_ids[i].insert(
+          buffered_entry_.row_ids[i].end(),
+          work_entry.row_ids[col_idx].begin(),
+          work_entry.row_ids[col_idx].end());
     }
   }
   // Delete unused columns

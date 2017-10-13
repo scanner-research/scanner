@@ -369,7 +369,10 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     auto io_start = now();
 
     u64 pos = start_keyframe_byte_offset;
-    s_read(video_file.get(), buffer, buffer_size, pos);
+    size_t size_read;
+    storehouse::StoreResult r =
+        video_file->read(pos, buffer_size, buffer, size_read);
+    //s_read(video_file.get(), buffer, buffer_size, pos);
 
     profiler.add_interval("io", io_start, now());
     profiler.increment("io_read", static_cast<i64>(buffer_size));
