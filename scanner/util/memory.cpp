@@ -373,6 +373,7 @@ class LinkedAllocator {
     std::lock_guard<std::mutex> guard(lock_);
     allocations_.push_back(alloc);
 
+    printf("buffer %p\n", buffer);
     return buffer;
   }
 
@@ -399,7 +400,7 @@ class LinkedAllocator {
     i32 index;
     bool found = find_buffer(source_device, source_buffer, index);
     LOG_IF(FATAL, !found)
-        << "Block allocator tried to copy or add ref to non-block buffer";
+        << "Linked allocator tried to copy or add ref to non-block buffer";
     // Check if requested device exists
     Allocation& alloc = allocations_[index];
     if (alloc.refs.count(target_device) > 0) {
@@ -508,7 +509,7 @@ static std::map<i32, PoolAllocator*> gpu_pool_allocators;
 static std::map<i32, BlockAllocator*> gpu_block_allocators;
 static std::unique_ptr<LinkedAllocator> linked_allocator;
 
-#define USE_LINKED_ALLOCATOR
+//#define USE_LINKED_ALLOCATOR
 
 #define PINNED_BUFFER_SIZE (32<<20)
 static std::map<i32, u8*> pinned_cpu_buffers;
@@ -772,9 +773,7 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
                          DeviceHandle src_device,
                          const std::vector<size_t>& sizes) {
   assert(src_device.can_copy_to(dest_device));
-  assert(dest_buffers.size() > 0);
   assert(src_buffers.size() > 0);
-  assert(dest_buffers.size() == src_buffers.size());
 
 #ifdef USE_LINKED_ALLOCATOR
   // If source buffers are all from same block, this will perform only one
@@ -792,7 +791,7 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
 
   BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
   BlockAllocator* src_allocator = block_allocator_for_device(src_device);
-  u8* dest_buff = dest_allocator->alloc(total_size);
+  u8* dest_buff = dest_allocator->allocate(total_size, sizes.size());
   for (size_t size : sizes) {
     dest_buffers.push_back(dest_buff);
     dest_buff += size;
