@@ -43,6 +43,7 @@ Result validate_jobs_and_ops(
   std::map<i64, std::vector<i64>>& op_children = info.op_children;
 
   Result result;
+  result.set_success(true);
   {
     // Validate ops
     OpRegistry* op_registry = get_op_registry();
@@ -403,6 +404,7 @@ Result validate_jobs_and_ops(
       }
     }
   }
+  return result;
 }
 
 Result determine_input_rows_to_slices(
@@ -618,7 +620,7 @@ Result determine_input_rows_to_slices(
       }
       // Track size of output domain for this Op for use in boundary condition
       // check
-      job_total_rows_per_op.at(op_idx) = slice_group_outputs;
+      job_total_rows_per_op[op_idx] = slice_group_outputs;
 
       for (i64 child_op_idx : op_children.at(op_idx)) {
         op_num_inputs.at(child_op_idx).push_back(slice_group_outputs);
@@ -995,20 +997,20 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
   }
 
   // The columns to remove for the current kernel
-  dead_columns.resize(ops.size() - 1);
+  dead_columns.resize(ops.size());
   // Outputs from the current kernel that are not used
-  unused_outputs.resize(ops.size() - 1);
+  unused_outputs.resize(ops.size());
   // Indices in the live columns list that are the inputs to the current
-  // kernel. Starts from the second evalutor (index 1)
-  column_mapping.resize(ops.size() - 1);
+  // kernel.
+  column_mapping.resize(ops.size());
   for (size_t i = 1; i < ops.size(); ++i) {
     i32 op_index = i;
     auto& prev_columns = live_columns[i - 1];
     auto& op = ops.at(op_index);
     // Determine which columns are no longer live
     {
-      auto& unused = unused_outputs[i - 1];
-      auto& dead = dead_columns[i - 1];
+      auto& unused = unused_outputs[i];
+      auto& dead = dead_columns[i];
       // For all parent Ops, check if we are the last Op to use
       // their output column
       size_t max_i = std::min((size_t)(ops.size() - 2), (size_t)i);
@@ -1058,7 +1060,7 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
     }
     // For each input to the Op, determine where in the live column list
     // that input is
-    auto& mapping = column_mapping[op_index - 1];
+    auto& mapping = column_mapping.at(op_index);
     for (const auto& eval_input : op.inputs()) {
       i32 parent_index = eval_input.op_index();
       const std::string& col = eval_input.column();
@@ -1144,7 +1146,7 @@ Result derive_stencil_requirements(
   std::vector<std::set<i64>> required_input_op_output_rows;
   required_input_op_output_rows.resize(ops.at(0).inputs_size());
   std::vector<std::vector<i64>> required_input_op_input_rows;
-  required_input_op_output_rows.resize(ops.at(0).inputs_size());
+  required_input_op_input_rows.resize(ops.at(0).inputs_size());
   assert(ops.at(0).inputs_size() == job.inputs_size());
   // HACK(apoms): we currently propagate this boundary condition upward,
   // but that would technically cause the upstream sequence to have more
@@ -1170,12 +1172,14 @@ Result derive_stencil_requirements(
             Result result;
             RESULT_ERROR(&result, "Boundary error.");
             return result;
-            break;
           }
         }
       }
       bounded_rows.push_back(r);
     }
+    Result result;
+    result.set_success(true);
+    return result;
   };
   // Walk up the Ops to derive upstream rows
   i32 slice_group = -1;
@@ -1310,23 +1314,26 @@ Result derive_stencil_requirements(
       }
 
       required_input_rows_at_op.at(op_idx) = new_rows;
-      for (auto& input : op.inputs()) {
-        if (input.op_index() == 0) {
-          // For the input Op, we track each input column separately since
-          // they may come from different tables
-          i64 col_id = 0;
-          for (const auto& col : ops.at(input.op_index()).inputs()) {
-            if (col.column() == input.column()) {
-              break;
+      // Input Op inputs do not connect to any other Ops
+      if (op.name() != INPUT_OP_NAME) {
+        for (auto& input : op.inputs()) {
+          if (input.op_index() == 0) {
+            // For the input Op, we track each input column separately since
+            // they may come from different tables
+            i64 col_id = 0;
+            for (const auto& col : ops.at(input.op_index()).inputs()) {
+              if (col.column() == input.column()) {
+                break;
+              }
+              col_id++;
             }
-            col_id++;
+            assert(col_id != ops.at(input.op_index()).inputs_size());
+            required_input_op_output_rows.at(col_id).insert(new_rows.begin(),
+                                                            new_rows.end());
           }
-          assert(col_id != ops.at(input.op_index()).inputs_size());
-          required_input_op_output_rows.at(col_id).insert(new_rows.begin(),
-                                                          new_rows.end());
+          auto& input_outputs = required_output_rows_at_op.at(input.op_index());
+          input_outputs.insert(new_rows.begin(), new_rows.end());
         }
-        auto& input_outputs = required_output_rows_at_op.at(input.op_index());
-        input_outputs.insert(new_rows.begin(), new_rows.end());
       }
 
       TaskStream s;

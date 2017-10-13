@@ -89,9 +89,9 @@ void load_driver(LoadInputQueue& load_work,
 
     while (true) {
       EvalWorkEntry output_entry;
-      i32 io_packet_size = 0;  // dummy for now
+      i32 io_packet_size = args.io_packet_size;
       if (worker.yield(io_packet_size, output_entry)) {
-        auto work_entry = output_entry;
+        auto& work_entry = output_entry;
         work_entry.first = !task_streams.empty();
         work_entry.last_in_task = worker.done();
         initial_eval_work[output_queue_idx].push(
@@ -308,6 +308,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     profiler.add_interval("task", work_start, now());
 
     if (result) {
+      printf("output task rows %d\n", output_entry.row_ids.size());
       output_entry.last_in_task = work_entry.last_in_task;
       output_work.push(std::make_tuple(args.id, output_entry));
     }
@@ -513,7 +514,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   timepoint_t base_time = now();
   const i32 work_packet_size = job_params->work_packet_size();
-  const i32 io_packet_size = job_params->io_packet_size();
+  const i32 io_packet_size = job_params->io_packet_size() != -1
+                                 ? job_params->io_packet_size()
+                                 : work_packet_size;
   i32 warmup_size = 0;
 
   OpRegistry* op_registry = get_op_registry();
@@ -638,11 +641,16 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   // Break up kernels into groups that run on the same device
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
-    DeviceType last_device_type = kernel_factories[0]->get_device_type();
+    bool first_op = true;
+    DeviceType last_device_type;
     groups.emplace_back();
-    for (size_t i = 0; i < kernel_factories.size(); ++i) {
+    for (size_t i = 1; i < kernel_factories.size() - 1; ++i) {
       KernelFactory* factory = kernel_factories[i];
       // Factory is nullptr when we are on a builtin op
+      if (factory != nullptr && first_op) {
+        last_device_type = factory->get_device_type();
+        first_op = false;
+      }
       if (factory != nullptr &&
           factory->get_device_type() != last_device_type) {
         // Does not use the same device as previous kernel, so push into new
@@ -848,7 +856,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       // HACK(apoms): we assume all ops in a kernel group use the
       //   same number of devices for now.
       // for (size_t i = 0; i < group.size(); ++i) {
-      KernelFactory* factory = std::get<0>(group[0]);
+      KernelFactory* factory = nullptr;
+      for (size_t i = 0; i < group.size(); ++i) {
+        if (std::get<0>(group[i]) != nullptr) {
+          factory = std::get<0>(group[i]) ;
+        }
+      }
+      assert(factory != nullptr);
       DeviceType device_type = factory->get_device_type();
       if (device_type == DeviceType::CPU) {
         for (i32 i = 0; i < factory->get_max_devices(); ++i) {

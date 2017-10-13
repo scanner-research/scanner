@@ -90,7 +90,7 @@ find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options regex REQUIRED)
+find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
 find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GoogleTest REQUIRED)
@@ -112,9 +112,9 @@ set(GTEST_LIBRARIES
 set(GTEST_LIB_MAIN
   "${THIRDPARTY_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
 
+message("${Boost_LIBRARIES}")
 set(SCANNER_LIBRARIES
   "${PROTOBUF_LIBRARY}"
-  "${STOREHOUSE_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
   "-L/opt/ffmpeg-3.3.1/lib"
   "-lswscale"
@@ -123,14 +123,16 @@ set(SCANNER_LIBRARIES
   "${BZIP2_LIBRARIES}"
   "${PROXYGEN_LIBRARIES}"
   "${FOLLY_LIBRARIES}"
-  "${Boost_LIBRARIES}"
-  "${Boost_LIBRARY_DIRS}/libboost_numpy.so"
   "${GFLAGS_LIBRARIES}"
   "${GLOG_LIBRARIES}"
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
-  "${PYTHON_LIBRARIES}"
+  "-lpython2.7"
+  "${Boost_LIBRARIES}"
+  "${Boost_LIBRARY_DIRS}/libboost_python.so"
+  "${Boost_LIBRARY_DIRS}/libboost_numpy.so"
+  "${STOREHOUSE_LIBRARIES}"
   "-ljpeg"
   "-lz"
   "-ldl"
@@ -144,10 +146,10 @@ include_directories(
   "${TINYTOML_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
-  "${Boost_INCLUDE_DIRS}"
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
-  "${PYTHON_INCLUDE_DIRS}")
+  "${PYTHON_INCLUDE_DIRS}"
+  "${Boost_INCLUDE_DIRS}")
 
 if (OpenCV_FOUND)
   list(APPEND SCANNER_LIBRARIES ${OpenCV_LIBRARIES})

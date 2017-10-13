@@ -388,10 +388,13 @@ class Database:
             self._worker_addresses = workers
 
         # Boot up C++ database bindings
+        print(self.config.storage_config)
+        print(self._db_path)
+        print(self._master_address)
         self._db = self._bindings.Database(
             self.config.storage_config,
-            self._db_path,
-            self._master_address)
+            str(self._db_path),
+            str(self._master_address))
 
         if self._start_cluster:
             if self._debug:
@@ -952,10 +955,11 @@ class Database:
         # opts = self.protobufs.OutputColumnCompression()
         # opts.codec = 'default'
         # compression_options.append(opts)
-        # output_op = bulk_job.dag()
-        # for out_col in output_op.inputs():
-        #     opts = self.protobufs.OutputColumnCompression()
-        #     opts.codec = 'default'
+        output_op = bulk_job.dag()
+        for out_col in output_op.inputs():
+            opts = self.protobufs.OutputColumnCompression()
+            opts.codec = 'default'
+            compression_options.append(opts)
         #     if out_col._type == self.protobufs.Video:
         #         for k, v in out_col._encode_options.iteritems():
         #             if k == 'codec':
@@ -987,9 +991,6 @@ class Database:
             j.output_table_name = job.output_table_name()
             for op_col, args in job.op_args().iteritems():
                 op = op_col._op
-                print(op)
-                print(input_ops)
-                print(sampling_slicing_ops)
                 if op in input_ops:
                     op_idx = input_ops[op]
                     col_input = j.inputs.add()
@@ -1055,7 +1056,7 @@ class Database:
 
         db_meta = self._load_db_metadata()
         job_id = None
-        for job in db_meta.jobs:
+        for job in db_meta.bulk_jobs:
             if job.name == job_name:
                 job_id = job.id
         if job_id is None:
@@ -1063,11 +1064,4 @@ class Database:
 
         # Return a new collection if the input was a collection, otherwise
         # return a table list
-        table_names = [task.output_table_name for task in tasks]
-        if output_collection is not None:
-            return self.new_collection(output_collection, table_names, force, job_id)
-        else:
-            if isinstance(jobs, list):
-                return [self.table(t) for t in table_names]
-            else:
-                return self.table(table_names[0])
+        return [self.table(job.output_table_name()) for job in bulk_job.jobs()]

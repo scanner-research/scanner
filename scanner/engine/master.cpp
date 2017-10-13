@@ -656,8 +656,10 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<proto::Op> ops(job_params->ops().begin(),
                              job_params->ops().end());
 
-  const i32 io_packet_size = job_params->io_packet_size();
   const i32 work_packet_size = job_params->work_packet_size();
+  const i32 io_packet_size = job_params->io_packet_size() != -1
+                                 ? job_params->io_packet_size()
+                                 : work_packet_size;
   if (io_packet_size > 0 && io_packet_size % work_packet_size != 0) {
     RESULT_ERROR(job_result,
                  "IO packet size must be a multiple of Work packet size.");
@@ -699,6 +701,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  printf("validate jobs\n");
   DAGAnalysisInfo dag_info;
   *job_result =
       validate_jobs_and_ops(meta_, *table_metas_.get(), jobs, ops, dag_info);
@@ -707,6 +710,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     finished_fn();
     return false;
   }
+  printf("after validate\n");
 
   // Map all input Ops into a single input collection
   const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.input_ops;
@@ -781,6 +785,13 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 bulk_job_id = meta_.add_bulk_job(job_params->job_name());
   job_descriptor.set_id(bulk_job_id);
   job_descriptor.set_name(job_params->job_name());
+  printf("determine input rows\n");
+  // Determine total output rows and slice input rows for using to
+  // split stream
+  *job_result = determine_input_rows_to_slices(meta_, *table_metas_.get(), jobs,
+                                               ops, dag_info);
+  slice_input_rows_per_job_ = dag_info.slice_input_rows;
+  total_output_rows_per_job_ = dag_info.total_output_rows;
 
   if (!job_result->success()) {
     // No database changes made at this point, so just return
@@ -788,12 +799,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     return false;
   }
 
-  // Determine total output rows and slice input rows for using to
-  // split stream
-  *job_result = determine_input_rows_to_slices(meta_, *table_metas_.get(), jobs,
-                                               ops, dag_info);
-  slice_input_rows_per_job_ = dag_info.slice_input_rows;
-  total_output_rows_per_job_ = dag_info.total_output_rows;
 
   // HACK(apoms): we currently split work into tasks in two ways:
   //  a) align with the natural boundaries defined by the slice partitioner
@@ -809,8 +814,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     if (slice_input_rows.size() == 0) {
       // No slices, so we can split as desired. Currently use IO packet size
       // since it is the smallest granularity we can specify
-      for (i64 r = 0; r < total_output_rows;
-           r += job_params->io_packet_size()) {
+      for (i64 r = 0; r < total_output_rows; r += io_packet_size) {
         partition_boundaries.push_back(r);
       }
       partition_boundaries.push_back(total_output_rows);
@@ -840,13 +844,17 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
       i64 s = partition_boundaries[pi];
       i64 e = partition_boundaries[pi + 1];
+      printf("task %d\nrows: ", pi);
       for (i64 r = s; r < e; ++r) {
+        printf("%d ", r);
         task_rows.push_back(r);
       }
+      printf("\n");
       total_tasks_++;
     }
   }
 
+  printf("after input rows\n");
   if (!job_result->success()) {
     // No database changes made at this point, so just return
     finished_fn();
