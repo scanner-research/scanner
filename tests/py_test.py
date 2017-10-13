@@ -1,5 +1,5 @@
 from scannerpy import (
-    Database, Config, DeviceType, ColumnType, Job, ProtobufGenerator)
+    Database, Config, DeviceType, ColumnType, BulkJob, Job, ProtobufGenerator)
 from scannerpy.stdlib import parsers
 import tempfile
 import toml
@@ -121,14 +121,14 @@ def test_table_properties(db):
     assert table.num_rows() == 720
     assert [c.name() for c in table.columns()] == ['index', 'frame']
 
-def test_collection(db):
-    c = db.new_collection('test', ['test1', 'test2'])
-    frame = c.as_op().strided(2)
-    job = Job(
-        columns = [db.ops.Histogram(frame = frame)],
-        name = '_ignore')
-    db.run(job, show_progress=False, force=True)
-    db.delete_collection('test')
+# def test_collection(db):
+#     c = db.new_collection('test', ['test1', 'test2'])
+#     frame = c.as_op().strided(2)
+#     job = Job(
+#         columns = [db.ops.Histogram(frame = frame)],
+#         name = '_ignore')
+#     db.run(job, show_progress=False, force=True)
+#     db.delete_collection('test')
 
 def test_summarize(db):
     db.summarize()
@@ -144,12 +144,20 @@ def test_load_video_column(db):
     next(db.table('test1').load(['frame']))
 
 def test_profiler(db):
-    frame = db.table('test1').as_op().all()
+    frame = db.ops.FrameInput()
+    hist = db.ops.Histogram(frame=frame)
+    output_op = db.ops.Output(columns=[hist])
+
     job = Job(
-        columns = [db.ops.Histogram(frame = frame)],
-        name = '_ignore')
-    output = db.run(job, show_progress=False, force=True)
-    profiler = output.profiler()
+        output_table_name='_ignore',
+        op_args={
+            frame: db.table('test1').column('frame')
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+
+    output = db.run(bulk_job, show_progress=False, force=True)
+    profiler = output[0].profiler()
     f = tempfile.NamedTemporaryFile(delete=False)
     f.close()
     profiler.write_trace(f.name)
@@ -172,13 +180,22 @@ def builder(cls):
 @builder
 class TestHistogram:
     def job(self, db, ty):
-        frame = db.table('test1').as_op().all()
-        histogram = db.ops.Histogram(frame = frame, device = ty)
-        return Job(columns = [histogram], name = 'test_hist')
+        frame = db.ops.FrameInput()
+        hist = db.ops.Histogram(frame=frame, device=ty)
+        output_op = db.ops.Output(columns=[hist])
+
+        job = Job(
+            output_table_name='test_hist',
+            op_args={
+                frame: db.table('test1').column('frame')
+            }
+        )
+        bulk_job = BulkJob(dag=output_op, jobs=[job])
+        return bulk_job
 
     def run(self, db, job):
-        table = db.run(job, force=True, show_progress=False)
-        next(table.load([1], parsers.histograms))
+        tables = db.run(job, force=True, show_progress=False)
+        next(tables[0].load([1], parsers.histograms))
 
 # @builder
 # class TestOpticalFlow:
@@ -206,17 +223,40 @@ def test_python_kernel(db):
     db.register_python_kernel('TestPy', DeviceType.CPU,
                               cwd + '/test_py_kernel.py')
 
-    frame = db.table('test1').as_op().range(0, 30)
-    test_out= db.ops.TestPy(frame = frame)
-    job = Job(columns = [test_out], name = 'test_py')
-    table = db.run(job, force=True, show_progress=False)
-    next(table.load(['dummy']))
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    test_out = db.ops.TestPy(frame=range_frame)
+    output_op = db.ops.Output(columns=[test_out])
+
+    job = Job(
+        output_table_name='test_hist',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    next(tables[0].load(['dummy']))
 
 def test_blur(db):
-    frame = db.table('test1').as_op().range(0, 30)
-    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3)
-    job = Job(columns = [blurred_frame], name = 'test_blur')
-    table = db.run(job, force=True, show_progress=False)
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    blurred_frame = db.ops.BlurFrame(frame=range_frame, kernel_size=3)
+    output_op = db.ops.Output(columns=[blurred_frame])
+
+    job = Job(
+        output_table_name='test_blur',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    table = tables[0]
+
     fid, frames = next(table.load(['frame']))
     frame_array = frames[0]
     assert fid == 0

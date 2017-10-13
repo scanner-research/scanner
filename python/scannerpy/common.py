@@ -36,15 +36,3 @@ class ColumnType(enum.Enum):
             return protobufs.Video
         else:
             raise ScannerException('Invalid column type')
-
-
-class Job:
-    def __init__(self, columns, name=None):
-        self._columns = columns
-        self._name = name
-
-    def name(self):
-        return self._name
-
-    def op(self, db):
-        return db.ops.Output(inputs=self._columns)

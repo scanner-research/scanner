@@ -493,35 +493,44 @@ namespace {
 using PartitionerFactory =
     std::function<Partitioner*(const std::vector<u8>&, i64 num_rows)>;
 
-class AllPartitioner : public Partitioner {
+class StridedPartitioner : public Partitioner {
  public:
-  AllPartitioner(const std::vector<u8>& args, i64 num_rows)
-    : Partitioner("All", num_rows) {
+  StridedPartitioner(const std::vector<u8>& args, i64 num_rows)
+    : Partitioner("Strided", num_rows) {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_, "All sampler provided with invalid protobuf args");
       return;
     }
-    if (args_.group_size() <= 0) {
+    if (args_.stride() <= 0) {
       RESULT_ERROR(&valid_,
-                   "All partitioner group size (%ld) must be greater than 0",
-                   args_.group_size());
+                   "Strided partitioner stride (%ld) must be greater than 0",
+                   args_.stride());
       return;
     }
-    total_groups_ = (i64)std::ceil(num_rows_ / (float)args_.group_size());
-    for (i64 i = 0; i < num_rows_; i += args_.group_size()) {
+    if (args_.group_size() <= 0) {
+      RESULT_ERROR(
+          &valid_,
+          "Strided partitioner group size (%ld) must be greater than 0",
+          args_.group_size());
+      return;
+    }
+    i64 num_strided_rows = (num_rows_ + args_.stride() - 1) / args_.stride();
+    total_groups_ =
+        (i64)std::ceil(num_strided_rows / (float)args_.group_size());
+    for (i64 i = 0; i < num_strided_rows; i += args_.group_size()) {
       offset_at_group_.push_back(i);
     }
-    offset_at_group_.push_back(num_rows_);
+    offset_at_group_.push_back(num_strided_rows);
   }
 
   Result validate() override { return valid_; }
 
-  i64 total_rows() const override { return num_rows_; }
-
-  i64 total_groups() const override {
-    return total_groups_;
+  i64 total_rows() const override {
+    return (num_rows_ + args_.stride() - 1) / args_.stride();
   }
+
+  i64 total_groups() const override { return total_groups_; }
 
   std::vector<i64> total_rows_per_group() const override {
     std::vector<i64> rows;
@@ -546,7 +555,7 @@ class AllPartitioner : public Partitioner {
     assert(e <= total_rows());
     PartitionGroup group;
     for (i64 i = s; i < e; ++i) {
-      group.rows.push_back(i);
+      group.rows.push_back(i * args_.stride());
     }
     return group;
   }
@@ -557,7 +566,7 @@ class AllPartitioner : public Partitioner {
 
  private:
   Result valid_;
-  proto::AllPartitionerArgs args_;
+  proto::StridedPartitionerArgs args_;
   i64 curr_group_idx_ = 0;
   i64 total_groups_;
   std::vector<i64> offset_at_group_;
@@ -725,7 +734,7 @@ Result make_partitioner_instance(const std::string& sampler_type,
                                  const std::vector<u8>& sampler_args,
                                  i64 num_rows, Partitioner*& sampler) {
   static std::map<std::string, PartitionerFactory> samplers = {
-      {"All", make_factory<AllPartitioner>()},
+      {"Strided", make_factory<StridedPartitioner>()},
       {"StridedRange", make_factory<StridedRangePartitioner>()},
       {"Gather", make_factory<GatherPartitioner>()}};
 
