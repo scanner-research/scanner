@@ -2,7 +2,6 @@ from common import *
 from column import Column
 import struct
 from itertools import izip
-from sampler import SamplerOp
 from timeit import default_timer as now
 
 class Table:
@@ -94,7 +93,9 @@ class Table:
             return columns
 
     def as_op(self):
-        return SamplerOp(self)
+        #return SamplerOp(self)
+        assert False
+
 
     def num_rows(self):
         self._need_descriptor()
