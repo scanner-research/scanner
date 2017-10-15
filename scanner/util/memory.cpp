@@ -373,7 +373,6 @@ class LinkedAllocator {
     std::lock_guard<std::mutex> guard(lock_);
     allocations_.push_back(alloc);
 
-    printf("buffer %p\n", buffer);
     return buffer;
   }
 

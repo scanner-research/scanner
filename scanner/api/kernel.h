@@ -79,12 +79,16 @@ inline void insert_frame(Element& element, Frame* frame) {
   element = ::scanner::Element{frame};
 }
 
-inline void add_element_ref(DeviceHandle device, Element& element) {
+inline Element add_element_ref(DeviceHandle device, Element& element) {
+  Element ele;
   if (element.is_frame) {
     Frame* frame = element.as_frame();
     add_buffer_ref(device, frame->data);
+    // Copy frame because Frame is not referenced counted
+    return ::scanner::Element{new Frame(frame->as_frame_info(), frame->data)};
   } else {
     add_buffer_ref(device, element.buffer);
+    return element;
   }
 }
 

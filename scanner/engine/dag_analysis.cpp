@@ -158,11 +158,11 @@ Result validate_jobs_and_ops(
         }
         size_t slice_ops_size = slice_ops.size();
         slice_ops[op_idx] = slice_ops_size;
+        output_slice_level += 1;
         op_outputs.emplace_back();
         for (auto& input : op.inputs()) {
           op_outputs.back().push_back(input.column());
         }
-        output_slice_level += 1;
       }
       // Unslice
       else if (op.name() == UNSLICE_OP_NAME) {
@@ -174,11 +174,11 @@ Result validate_jobs_and_ops(
         }
         size_t unslice_ops_size = unslice_ops.size();
         unslice_ops[op_idx] = unslice_ops_size;
+        output_slice_level -= 1;
         op_outputs.emplace_back();
         for (auto& input : op.inputs()) {
           op_outputs.back().push_back(input.column());
         }
-        output_slice_level -= 1;
       }
       // Sample & Space
       else if (op.name() == "Sample" || op.name() == "SampleFrame" ||
@@ -373,10 +373,11 @@ Result validate_jobs_and_ops(
                        sampling_args_assignment.op_index());
           return result;
         }
-        if (sampling_ops.count(sampling_args_assignment.op_index()) == 0) {
+        if (sampling_ops.count(sampling_args_assignment.op_index()) == 0 &&
+            slice_ops.count(sampling_args_assignment.op_index()) == 0) {
           RESULT_ERROR(&result,
                        "Job %s tried to set sampling args for Op at %d, "
-                       "but this Op is not a sampling Op.",
+                       "but this Op is not a sampling or slicing Op.",
                        job.output_table_name().c_str(),
                        sampling_args_assignment.op_index());
           return result;
@@ -569,7 +570,7 @@ Result determine_input_rows_to_slices(
       // Check if this is a slice op
       if (slice_ops.count(op_idx) > 0) {
         assert(op_slice_level.at(op_idx) == 1);
-        assert(slice_group_outputs.size() == 0);
+        assert(slice_group_outputs.size() == 1);
         // Create Partitioner to enumerate slices
         Partitioner* partitioner = nullptr;
         auto& args = args_assignment[op_idx].sampling_args(0);
@@ -585,7 +586,7 @@ Result determine_input_rows_to_slices(
         }
 
         // Track job slice inputs so we can determine number of groups later
-        job_slice_input_rows.at(op_idx) = slice_group_outputs.at(0);
+        job_slice_input_rows.insert({op_idx, slice_group_outputs.at(0)});
         // Update outputs with the new slice group outputs for this partition
         slice_group_outputs = partitioner->total_rows_per_group();
         delete partitioner;
@@ -603,14 +604,14 @@ Result determine_input_rows_to_slices(
               slice_group_outputs.size(), number_of_slice_groups);
           return result;
         }
-        job_slice_output_rows.at(op_idx) = slice_group_outputs;
+        job_slice_output_rows.insert({op_idx, slice_group_outputs});
       }
 
       // Check if this is an unslice op
       if (unslice_ops.count(op_idx) > 0) {
         assert(op_slice_level.at(op_idx) == 0);
 
-        job_unslice_input_rows.at(op_idx) = slice_group_outputs;
+        job_unslice_input_rows.insert({op_idx, slice_group_outputs});
         // Concatenate all slice group outputs
         i64 new_outputs = 0;
         for (i64 group_outputs : slice_group_outputs) {
@@ -693,6 +694,7 @@ Result derive_slice_final_output_rows(
   // Traverse down graph from each slice group and count the number of rows
   // produced. This is the partition offset that we will use to split the graph
   std::vector<i64>& slice_rows = slice_output_partition;
+  slice_rows.push_back(0);
   i64 current_offset = 0;
   for (size_t i = 0; i < partitioner->total_groups(); ++i) {
     const PartitionGroup& g = partitioner->group_at(i);
@@ -743,12 +745,12 @@ Result derive_slice_final_output_rows(
       }
 
       for (i64 cid : info.op_children.at(op_idx)) {
-        input_row_counts.at(cid) = g.rows.size();
+        input_row_counts.at(cid) = output_row_count;
         next_queue.push_back(cid);
       }
     }
   }
-  assert(slice_rows.size() == partitioner->total_groups());
+  assert(slice_rows.size() == partitioner->total_groups() + 1);
   return result;
 }
 
@@ -973,9 +975,23 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
       continue;
     }
     // Add this op's outputs to the intermediate list
-    const auto& op_info = op_registry->get_op_info(op.name());
-    for (const auto& output_column : op_info->output_columns()) {
-      intermediates[i].push_back(std::make_tuple(output_column.name(), i));
+    if (is_builtin_op(op.name())) {
+      for (auto& input : op.inputs()) {
+        std::string col = input.column();
+        // HACK(apoms): we remap input column names but don't update
+        // the downstream column. A better solution would be to
+        // explicitly enumerate the output column names during the initial
+        // dag analysis and keep it around.
+        if (ops.at(input.op_index()).name() == INPUT_OP_NAME) {
+          col = col.substr(col.find("_") + 1);
+        }
+        intermediates[i].push_back(std::make_tuple(col, i));
+      }
+    } else {
+      const auto& op_info = op_registry->get_op_info(op.name());
+      for (const auto& output_column : op_info->output_columns()) {
+        intermediates[i].push_back(std::make_tuple(output_column.name(), i));
+      }
     }
   }
 
@@ -1182,7 +1198,7 @@ Result derive_stencil_requirements(
     return result;
   };
   // Walk up the Ops to derive upstream rows
-  i32 slice_group = -1;
+  i32 slice_group = 0;
   {
     // Initialize output rows
     required_output_rows_at_op.at(num_ops - 1) =

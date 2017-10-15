@@ -5,9 +5,9 @@
 namespace scanner {
 
 // Dummy Kernel
-class SampleKernel : public BatchedKernel {
+class UnsliceKernel : public BatchedKernel {
  public:
-  SampleKernel(const KernelConfig& config)
+  UnsliceKernel(const KernelConfig& config)
     : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
@@ -18,21 +18,21 @@ class SampleKernel : public BatchedKernel {
 
 
 // Reserve Op name as builtin
-REGISTER_OP(Sample).input("col").output("out");
+REGISTER_OP(Unslice).input("col").output("out");
 
-REGISTER_KERNEL(Sample, SampleKernel).device(DeviceType::CPU).num_devices(1);
+REGISTER_KERNEL(Unslice, UnsliceKernel).device(DeviceType::CPU).num_devices(1);
 
-REGISTER_KERNEL(Sample, SampleKernel).device(DeviceType::GPU).num_devices(1);
+REGISTER_KERNEL(Unslice, UnsliceKernel).device(DeviceType::GPU).num_devices(1);
 
 
-REGISTER_OP(SampleFrame).frame_input("col").frame_output("out");
+REGISTER_OP(UnsliceFrame).frame_input("col").frame_output("out");
 
-REGISTER_KERNEL(SampleFrame, SampleKernel)
+REGISTER_KERNEL(UnsliceFrame, UnsliceKernel)
     .device(DeviceType::CPU)
     .batch()
     .num_devices(1);
 
-REGISTER_KERNEL(SampleFrame, SampleKernel)
+REGISTER_KERNEL(UnsliceFrame, UnsliceKernel)
     .device(DeviceType::GPU)
     .batch()
     .num_devices(1);
