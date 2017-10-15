@@ -195,7 +195,7 @@ class TestHistogram:
 
     def run(self, db, job):
         tables = db.run(job, force=True, show_progress=False)
-        next(tables[0].load([1], parsers.histograms))
+        next(tables[0].load(['histogram'], parsers.histograms))
 
 # @builder
 # class TestOpticalFlow:
@@ -421,21 +421,22 @@ def test_clean_worker_shutdown(fault_db):
     shutdown_process.daemon = True
     shutdown_process.start()
 
-    frame = db.ops.FrameInput()
+    frame = fault_db.ops.FrameInput()
     range_frame = frame.sample()
-    sleep_frame = db.ops.SleepFrame(ignore = range_frame)
-    output_op = db.ops.Output(columns=[sleep_frame])
+    sleep_frame = fault_db.ops.SleepFrame(ignore = range_frame)
+    output_op = fault_db.ops.Output(columns=[sleep_frame])
 
     job = Job(
         output_table_name='test_shutdown',
         op_args={
-            frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 15),
+            frame: fault_db.table('test1').column('frame'),
+            range_frame: fault_db.sampler.range(0, 15),
         }
     )
     bulk_job = BulkJob(dag=output_op, jobs=[job])
     table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
+    table = table[0]
     assert len([_ for _, _ in table.column('dummy').load()]) == 15
 
     # Shutdown the spawned worker
@@ -523,21 +524,22 @@ def test_fault_tolerance(fault_db):
     killer_process.daemon = True
     killer_process.start()
 
-    frame = db.ops.FrameInput()
+    frame = fault_db.ops.FrameInput()
     range_frame = frame.sample()
-    sleep_frame = db.ops.SleepFrame(ignore = range_frame)
-    output_op = db.ops.Output(columns=[sleep_frame])
+    sleep_frame = fault_db.ops.SleepFrame(ignore = range_frame)
+    output_op = fault_db.ops.Output(columns=[sleep_frame])
 
     job = Job(
         output_table_name='test_fault',
         op_args={
-            frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 15),
+            frame: fault_db.table('test1').column('frame'),
+            range_frame: fault_db.sampler.range(0, 20),
         }
     )
     bulk_job = BulkJob(dag=output_op, jobs=[job])
     table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
+    table = table[0]
 
     assert len([_ for _, _ in table.column('dummy').load()]) == 20
 

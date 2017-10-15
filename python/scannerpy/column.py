@@ -1,6 +1,8 @@
 import struct
 import cv2
 import math
+from job import Job
+from bulk_job import BulkJob
 from common import *
 from stdlib import parsers
 from subprocess import Popen, PIPE
@@ -148,13 +150,19 @@ class Column:
                    self._table._descriptor.timestamp:
                     return png_table.load(['img'], parsers.image)
             pair = [(self._table.name(), png_table_name)]
-            if rows is None:
-                frame = self._table.as_op().all()
-            else:
-                frame = self._table.as_op().gather(rows)
+            op_args = {}
+            frame = self._db.ops.FrameInput()
+            op_args[frame] = self
+            enc_input = frame
+            if rows is not None:
+                sampled_frame = frame.sample()
+                op_args[sampled_frame] = self._db.sampler.gather(rows)
+                enc_input = sampled_frame
             img = self._db.ops.ImageEncoder(frame = frame)
-            job = Job(columns = [img], name = png_table_name)
-            [out_tbl] = self._db.run([job], force=True, show_progress=False)
+            output_op = self._db.ops.Output(columns=[img])
+            job = Job(output_table_name=png_table_name, op_args=op_args)
+            bulk_job = BulkJob(dag=output_op, jobs=[job])
+            [out_tbl] = self._db.run(bulk_job, force=True, show_progress=False)
             return out_tbl.load(['img'], parsers.image)
         elif self._descriptor.type == self._db.protobufs.Video:
             frame_type = self._video_descriptor.frame_type
