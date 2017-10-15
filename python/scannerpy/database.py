@@ -860,8 +860,6 @@ class Database:
                 continue
 
             for input in c._inputs:
-                print(c._name)
-                print(input)
                 edges[input._op].append(c)
                 in_edges_left[c] += 1
 
@@ -892,7 +890,7 @@ class Database:
                   c._name == "Space" or
                   c._name == "Slice" or
                   c._name == "Unslice"):
-                sample_slicing_ops[c] = op_idx
+                sampling_slicing_ops[c] = op_idx
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
             input_ops, \

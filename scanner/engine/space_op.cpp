@@ -18,7 +18,7 @@ class SpaceKernel : public BatchedKernel {
 
 
 // Reserve Op name as builtin
-REGISTER_OP(Space).input("in").output("out");
+REGISTER_OP(Space).input("col").output("out");
 
 REGISTER_KERNEL(Space, SpaceKernel)
     .device(DeviceType::CPU)
@@ -30,7 +30,7 @@ REGISTER_KERNEL(Space, SpaceKernel)
     .batch()
     .num_devices(1);
 
-REGISTER_OP(SpaceFrame).frame_input("in").frame_output("out");
+REGISTER_OP(SpaceFrame).frame_input("col").frame_output("out");
 
 REGISTER_KERNEL(spaceFrame, SpaceKernel)
     .device(DeviceType::CPU)

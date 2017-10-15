@@ -7,7 +7,7 @@ import os.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def detect_faces(db, input_tables_or_collection, sampling, output_name,
-                 width=960):
+                 width=960, return_profiling=False):
     descriptor = NetDescriptor.from_file(db, 'nets/caffe_facenet.toml')
     facenet_args = db.protobufs.FacenetArgs()
     facenet_args.threshold = 0.5
@@ -23,6 +23,7 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
     scales = [1.0, 0.5, 0.25, 0.125]
     batch_sizes = [int((2**i))
                    for i in range(len(scales))]
+    profilers = {}
     for scale, batch in zip(scales, batch_sizes):
         facenet_args.scale = scale
         caffe_args.batch_size = batch
@@ -56,6 +57,7 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
             job_fns.append(make_job)
 
         output = db.run(job_fns, force=True, work_item_size=batch * 4)
+        profilers[output.name] = output.profiler()
         outputs.append(output)
 
     # Register nms bbox op and kernel

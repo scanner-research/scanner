@@ -243,7 +243,7 @@ def test_python_kernel(db):
 def test_blur(db):
     frame = db.ops.FrameInput()
     range_frame = frame.sample()
-    blurred_frame = db.ops.BlurFrame(frame=range_frame, kernel_size=3)
+    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.ops.Output(columns=[blurred_frame])
 
     job = Job(
@@ -266,27 +266,59 @@ def test_blur(db):
     assert frame_array.shape[2] == 3
 
 def test_lossless(db):
-    frame = db.table('test1').as_op().range(0, 30)
-    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
-    job = Job(columns = [blurred_frame.lossless()],
-              name = 'test_blur_lossless')
-    table = db.run(job, force=True, show_progress=False)
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output_op = db.ops.Output(columns=[blurred_frame.lossless()])
+
+    job = Job(
+        output_table_name='test_blur_lossless',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    table = tables[0]
     next(table.load(['frame']))
 
 def test_compress(db):
-    frame = db.table('test1').as_op().range(0, 30)
-    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     compressed_frame = blurred_frame.compress(
         'video', bitrate = 1 * 1024 * 1024)
-    job = Job(columns = [compressed_frame], name = 'test_blur_compressed')
-    table = db.run(job, force=True, show_progress=False)
+    output_op = db.ops.Output(columns=[compressed_frame])
+
+    job = Job(
+        output_table_name='test_blur_compressed',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    table = tables[0]
     next(table.load(['frame']))
 
 def test_save_mp4(db):
-    frame = db.table('test1').as_op().range(0, 30, task_size=10)
-    blurred_frame = db.ops.Blur(frame = frame, kernel_size = 3, sigma = 0.1)
-    job = Job(columns = [blurred_frame], name = 'test_save_mp4')
-    table = db.run(job, force=True, show_progress=False)
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output_op = db.ops.Output(columns=[blurred_frame])
+
+    job = Job(
+        output_table_name='test_save_mp4',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    table = tables[0]
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
     table.columns('frame').save_mp4(f.name)
@@ -389,10 +421,20 @@ def test_clean_worker_shutdown(fault_db):
     shutdown_process.daemon = True
     shutdown_process.start()
 
-    frame = fault_db.table('test1').as_op().range(0, 15, task_size=1)
-    sleep_frame = fault_db.ops.SleepFrame(ignore = frame)
-    job = Job(columns = [sleep_frame], name = 'test_shutdown')
-    table = fault_db.run(job, pipeline_instances_per_node=1, force=True,
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    sleep_frame = db.ops.SleepFrame(ignore = range_frame)
+    output_op = db.ops.Output(columns=[sleep_frame])
+
+    job = Job(
+        output_table_name='test_shutdown',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 15),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
     assert len([_ for _, _ in table.column('dummy').load()]) == 15
 
@@ -481,11 +523,22 @@ def test_fault_tolerance(fault_db):
     killer_process.daemon = True
     killer_process.start()
 
-    frame = fault_db.table('test1').as_op().range(0, 20, task_size=1)
-    sleep_frame = fault_db.ops.SleepFrame(ignore = frame)
-    job = Job(columns = [sleep_frame], name = 'test_fault')
-    table = fault_db.run(job, pipeline_instances_per_node=1, force=True,
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    sleep_frame = db.ops.SleepFrame(ignore = range_frame)
+    output_op = db.ops.Output(columns=[sleep_frame])
+
+    job = Job(
+        output_table_name='test_fault',
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 15),
+        }
+    )
+    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
+
     assert len([_ for _, _ in table.column('dummy').load()]) == 20
 
     # Shutdown the spawned worker
