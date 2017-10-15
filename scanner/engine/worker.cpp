@@ -119,17 +119,19 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   PreEvaluateWorker worker(args);
   // We sort inputs into task work queues to ensure we process them
   // sequentially
-  std::map<i32, Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>>
+  std::map<std::tuple<i32, i32>,
+           Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>>
       task_work_queue;
   i32 work_packet_size = args.work_packet_size;
 
-  i32 active_task = -1;
+  std::tuple<i32, i32> active_job_task = std::make_tuple(-1, -1);
   while (true) {
     auto idle_start = now();
 
     // If we have no work at all or we do not have work for our current task..
     if (task_work_queue.empty() ||
-        (active_task != -1 && task_work_queue.at(active_task).size() <= 0)) {
+        (std::get<0>(active_job_task) != -1 &&
+         task_work_queue.at(active_job_task).size() <= 0)) {
       std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
       input_work.pop(entry);
 
@@ -139,24 +141,26 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
         break;
       }
 
-      task_work_queue[work_entry.job_index].push(entry);
+      task_work_queue[std::make_tuple(work_entry.job_index,
+                                      work_entry.task_index)]
+          .push(entry);
     }
 
     args.profiler.add_interval("idle", idle_start, now());
 
-    if (active_task == -1) {
+    if (std::get<0>(active_job_task) == -1) {
       // Choose the next task to work on
-      active_task = task_work_queue.begin()->first;
+      active_job_task = task_work_queue.begin()->first;
     }
 
     // Wait until we have the next io item for the current task
-    if (task_work_queue.at(active_task).size() <= 0) {
+    if (task_work_queue.at(active_job_task).size() <= 0) {
       continue;
     }
 
     // Grab next entry for active task
     std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
-    task_work_queue.at(active_task).pop(entry);
+    task_work_queue.at(active_job_task).pop(entry);
 
     auto& task_streams = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
@@ -169,8 +173,8 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     auto work_start = now();
 
     i32 total_rows = 0;
-    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-      total_rows = std::max(total_rows, (i32)work_entry.columns[i].size());
+    for (size_t i = 0; i < work_entry.row_ids.size(); ++i) {
+      total_rows = std::max(total_rows, (i32)work_entry.row_ids[i].size());
     }
 
     bool first = work_entry.first;
@@ -207,8 +211,8 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     }
 
     if (last) {
-      task_work_queue.erase(active_task);
-      active_task = -1;
+      task_work_queue.erase(active_job_task);
+      active_job_task = std::make_tuple(-1, -1);
     }
 
     profiler.add_interval("task", work_start, now());
@@ -329,7 +333,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 void save_coordinator(OutputEvalQueue& eval_work,
                       std::vector<SaveInputQueue>& save_work) {
   i32 num_save_workers = save_work.size();
-  std::map<i32, i32> task_to_worker_mapping;
+  std::map<std::tuple<i32, i32>, i32> task_to_worker_mapping;
   i32 last_worker_assigned = 0;
   while (true) {
     auto idle_start = now();
@@ -344,18 +348,19 @@ void save_coordinator(OutputEvalQueue& eval_work,
       break;
     }
 
-    i32 task_id = work_entry.job_index;
-    if (task_to_worker_mapping.count(task_id) == 0) {
+    auto job_task_id =
+        std::make_tuple(work_entry.job_index, work_entry.task_index);
+    if (task_to_worker_mapping.count(job_task_id) == 0) {
       // Assign worker to this task
-      task_to_worker_mapping[task_id] =
+      task_to_worker_mapping[job_task_id] =
           last_worker_assigned++ % num_save_workers;
     }
 
-    i32 assigned_worker = task_to_worker_mapping.at(task_id);
+    i32 assigned_worker = task_to_worker_mapping.at(job_task_id);
     save_work[assigned_worker].push(entry);
 
     if (work_entry.last_in_task) {
-      task_to_worker_mapping.erase(task_id);
+      task_to_worker_mapping.erase(job_task_id);
     }
   }
 }

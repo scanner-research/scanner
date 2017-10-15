@@ -12,6 +12,15 @@ class OpColumn:
         if self._type == self._db.protobufs.Video:
             self._encode_options = {'codec': 'default'}
 
+    def sample(self):
+        return self._db.ops.Sample(col=self)
+
+    def slice(self):
+        return self._db.ops.Slice(col=self)
+
+    def unslice(self):
+        return self._db.ops.Unslice(col=self)
+
     def compress(self, codec = 'video', **kwargs):
         self._assert_is_video()
         codecs = {'video': self.compress_video,
@@ -120,10 +129,10 @@ class Op:
         self._args = args
 
         if (name == 'Input' or
-            name == "Sample" or
-            name == "Space" or
-            name == "Slice" or
-            name == "Unslice"):
+            name == 'Space' or
+            name == 'Sample' or
+            name == 'Slice' or
+            name == 'Unslice'):
             outputs = []
             for c in inputs:
                 outputs.append(OpColumn(db, self, c._col, c._type))

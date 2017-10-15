@@ -33,6 +33,7 @@ class Sampler:
     def gather(self, rows):
         args = self._db.protobufs.GatherSamplerArgs()
         args.rows[:] = rows
+        sampling_args = self._db.protobufs.SamplingArgs()
         sampling_args.sampling_function = 'Gather'
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args
@@ -41,11 +42,11 @@ class Sampler:
         return self.strided_ranges([(start, end)], stride)
 
     def strided_ranges(self, intervals, stride):
-        args = self._db.protobufs.StridedSamplerArgs()
+        args = self._db.protobufs.StridedRangeSamplerArgs()
         args.stride = stride
         for start, end in intervals:
-            args.start.add(start)
-            args.end.add(end)
+            args.starts.add(start)
+            args.ends.add(end)
         sampling_args = self._db.protobufs.SamplingArgs()
         sampling_args.sampling_function = "StridedRanges"
         sampling_args.sampling_args = args.SerializeToString()

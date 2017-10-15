@@ -5,9 +5,9 @@
 namespace scanner {
 
 // Dummy Kernel
-class SampleKernel : public BatchedKernel {
+class SliceKernel : public BatchedKernel {
  public:
-  SampleKernel(const KernelConfig& config)
+  SliceKernel(const KernelConfig& config)
     : BatchedKernel(config) {}
 
   void execute(const BatchedColumns& input_columns,
@@ -18,21 +18,21 @@ class SampleKernel : public BatchedKernel {
 
 
 // Reserve Op name as builtin
-REGISTER_OP(Sample).input("col").output("out");
+REGISTER_OP(Slice).input("col").output("out");
 
-REGISTER_KERNEL(Sample, SampleKernel).device(DeviceType::CPU).num_devices(1);
+REGISTER_KERNEL(Slice, SliceKernel).device(DeviceType::CPU).num_devices(1);
 
-REGISTER_KERNEL(Sample, SampleKernel).device(DeviceType::GPU).num_devices(1);
+REGISTER_KERNEL(Slice, SliceKernel).device(DeviceType::GPU).num_devices(1);
 
 
-REGISTER_OP(SampleFrame).frame_input("col").frame_output("out");
+REGISTER_OP(SliceFrame).frame_input("col").frame_output("out");
 
-REGISTER_KERNEL(SampleFrame, SampleKernel)
+REGISTER_KERNEL(SliceFrame, SliceKernel)
     .device(DeviceType::CPU)
     .batch()
     .num_devices(1);
 
-REGISTER_KERNEL(SampleFrame, SampleKernel)
+REGISTER_KERNEL(SliceFrame, SliceKernel)
     .device(DeviceType::GPU)
     .batch()
     .num_devices(1);

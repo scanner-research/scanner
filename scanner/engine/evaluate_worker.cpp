@@ -257,6 +257,8 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   for (size_t i = 0; i < task_streams.size(); ++i) {
     assert(valid_output_rows_[i].size() == current_valid_input_idx_[i]);
   }
+  valid_input_rows_.clear();
+  valid_input_rows_set_.clear();
   valid_output_rows_.clear();
   valid_output_rows_set_.clear();
   current_valid_input_idx_.clear();
@@ -284,7 +286,7 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     i64 op_idx = kv.first;
     i64 slice_group = task_streams.at(op_idx).slice_group;
     auto& sampling_args =
-        arg_group_.sampling_args.at(job_idx).at(op_idx).at(slice_group);
+        arg_group_.sampling_args.at(op_idx).at(job_idx).at(slice_group);
     DomainSampler* sampler = nullptr;
     Result result = make_domain_sampler_instance(
         sampling_args.sampling_function(),
@@ -412,10 +414,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     // Figure out how many elements can be produced
     auto compute_producible_elements =
-        [kernel_element_cache_input_idx,
-         kernel_current_input_idx,
-         &kernel_valid_input_rows,
-         max_row_id_seen](i64 stencil, i64 batch) {
+        [kernel_element_cache_input_idx, kernel_current_input_idx,
+         &kernel_valid_input_rows, max_row_id_seen](i64 stencil, i64 batch) {
           i64 producible_rows = 0;
           for (i64 i = kernel_element_cache_input_idx;
                i < kernel_current_input_idx; ++i) {
@@ -478,18 +478,26 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       // element
       std::vector<i64> downstream_rows;
       std::vector<i64> downstream_upstream_mapping;
-      Result result =
-          sampler->get_downstream_rows(producible_row_ids, downstream_rows,
-                                       downstream_upstream_mapping);
+      Result result = sampler->get_downstream_rows(
+          producible_row_ids, downstream_rows, downstream_upstream_mapping);
       if (!result.success()) {
+      }
+
+      for (i64 r : producible_row_ids) {
+        printf("producible %ld\n", r);
+      }
+      for (size_t i = 0; i < downstream_rows.size(); ++i) {
+        printf("down stream %ld, up idx %ld\n", downstream_rows[i],
+               downstream_upstream_mapping[i]);
       }
       // Pass down rows and ref elements
       auto& output_column = side_output_columns.back();
       for (size_t i = 0; i < downstream_rows.size(); ++i) {
         i64 upstream_row_idx = downstream_upstream_mapping[i];
+        printf("upstream row idx %ld\n", upstream_row_idx);
         auto& element = *(kernel_cache.at(0).begin() + upstream_row_idx);
-        add_element_ref(current_handle, element);
-        output_column.push_back(element);
+        Element ele = add_element_ref(current_handle, element);
+        output_column.push_back(ele);
       }
       side_row_ids.back() = downstream_rows;
     } else if (op_name == SPACE_OP_NAME) {
@@ -510,8 +518,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
           output_column.emplace_back();
         } else {
           auto& element = *(kernel_cache.at(0).begin() + upstream_row_idx);
-          add_element_ref(current_handle, element);
-          output_column.push_back(element);
+          Element ele = add_element_ref(current_handle, element);
+          output_column.push_back(ele);
         }
       }
       side_row_ids.back() = downstream_rows;
@@ -529,8 +537,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       for (size_t i = 0; i < producible_row_ids.size(); ++i) {
         output_row_ids.push_back(producible_row_ids[i] - offset);
         auto& element = *(kernel_cache.at(0).begin() + i);
-        add_element_ref(current_handle, element);
-        output_column.push_back(element);
+        Element ele = add_element_ref(current_handle, element);
+        output_column.push_back(ele);
       }
     } else if (op_name == UNSLICE_OP_NAME) {
       // Remap row ids from sub domain to original domain
@@ -546,8 +554,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       for (size_t i = 0; i < producible_row_ids.size(); ++i) {
         output_row_ids.push_back(producible_row_ids[i] + offset);
         auto& element = *(kernel_cache.at(0).begin() + i);
-        add_element_ref(current_handle, element);
-        output_column.push_back(element);
+        Element ele = add_element_ref(current_handle, element);
+        output_column.push_back(ele);
       }
     } else {
       assert(!is_builtin_op(op_name));
@@ -685,12 +693,14 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     // Remove elements from the element cache we won't access anymore
     i64 last_cache_element = 0;
-    i64 min_used_row = kernel_valid_input_rows[row_end - kernel_stencil[0]];
+    i64 min_used_row = kernel_valid_input_rows[std::min(
+        row_end, (i64)kernel_valid_input_rows.size() - 1)];
+    min_used_row += kernel_stencil[0];
     {
       auto& row_id_deque = kernel_cache_row_ids[0];
       while (row_id_deque.size() > 0) {
         i64 cache_row = row_id_deque.front();
-        if (cache_row < min_used_row) {
+        if (cache_row <= min_used_row) {
           for (auto& deqs : kernel_cache_row_ids) {
             deqs.pop_front();
           }
@@ -775,6 +785,8 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
     work_item_row_ids[i].insert(work_item_row_ids[i].end(),
                                 final_row_ids_[i].begin(),
                                 final_row_ids_[i].end());
+    final_output_columns_[i].clear();
+    final_row_ids_[i].clear();
   }
 
   output_entry = output_work_entry;
@@ -964,6 +976,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         buffered_entry_.columns[0].size() > 0) {
       buffered_entries_.push_back(buffered_entry_);
       buffered_entry_.columns.clear();
+      buffered_entry_.row_ids.clear();
     }
   }
 }
