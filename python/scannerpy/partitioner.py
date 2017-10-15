@@ -12,7 +12,7 @@ class TaskPartitioner:
         self._db = db
 
     def all(self, group_size=DEFAULT_GROUP_SIZE):
-        return strided(1, group_size=group_size)
+        return self.strided(1, group_size=group_size)
 
     def strided(self, stride, group_size=DEFAULT_GROUP_SIZE):
         args = self._db.protobufs.StridedPartitionerArgs()

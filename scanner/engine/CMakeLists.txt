@@ -19,7 +19,9 @@ set(SOURCE_FILES
   python.cpp
   python_kernel.cpp
   sample_op.cpp
-  space_op.cpp)
+  space_op.cpp
+  slice_op.cpp
+  unslice_op.cpp)
 
 add_library(engine OBJECT
   ${SOURCE_FILES})

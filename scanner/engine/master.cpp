@@ -619,6 +619,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   slice_input_rows_per_job_.clear();
   total_output_rows_per_job_.clear();
   unallocated_job_tasks_.clear();
+  job_tasks_.clear();
   next_job_ = 0;
   num_jobs_ = -1;
   next_task_ = 0;
@@ -745,29 +746,47 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
     job_output_columns.emplace_back();
     std::vector<Column>& output_columns = job_output_columns.back();
-    for (const auto& input : last_op.inputs()) {
-      auto& input_op = ops.at(input.op_index());
+    // For an op column, find the Column info
+    std::function<Column(const proto::OpInput&)> determine_column_info =
+        [&determine_column_info, &ops, &input_op_idx_to_column,
+         op_registry](const proto::OpInput& op_input) -> Column {
+      i64 op_idx = op_input.op_index();
+      const std::string& col = op_input.column();
+      auto& input_op = ops.at(op_idx);
+      // For builtin ops, find non bulit-in parent column
+      if (input_op.name() != INPUT_OP_NAME && is_builtin_op(input_op.name())) {
+        // Find the column
+        for (auto& in : input_op.inputs()) {
+          if (in.column() == col) {
+            return determine_column_info(in);
+          }
+        }
+        assert(false);
+      }
+
       std::vector<Column> input_columns;
       if (input_op.name() == INPUT_OP_NAME) {
-        input_columns = {input_op_idx_to_column.at(input.op_index())};
+        input_columns = {input_op_idx_to_column.at(op_idx)};
       } else {
         OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
         input_columns = input_op_info->output_columns();
       }
-      const std::string& name = input.column();
+      const std::string& name = col;
       bool found = false;
       for (auto& col : input_columns) {
         if (col.name() == name) {
           Column c;
-          c.set_id(output_columns.size());
           c.set_name(name);
           c.set_type(col.type());
-          output_columns.push_back(c);
-          found = true;
-          break;
+          return c;
         }
       }
-      assert(found);
+      assert(false);
+    };
+    for (const auto& input : last_op.inputs()) {
+      Column c = determine_column_info(input);
+      c.set_id(output_columns.size());
+      output_columns.push_back(c);
     }
   }
   proto::BulkJobDescriptor job_descriptor;
