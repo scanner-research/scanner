@@ -45,8 +45,8 @@ class Sampler:
         args = self._db.protobufs.StridedRangeSamplerArgs()
         args.stride = stride
         for start, end in intervals:
-            args.starts.add(start)
-            args.ends.add(end)
+            args.starts.append(start)
+            args.ends.append(end)
         sampling_args = self._db.protobufs.SamplingArgs()
         sampling_args.sampling_function = "StridedRanges"
         sampling_args.sampling_args = args.SerializeToString()
