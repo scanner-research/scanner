@@ -12,11 +12,11 @@ class Table:
     """
     def __init__(self, db, name, id):
         self._db = db
-        self._columns = []
         # We pass name and id to avoid having to read the descriptor
         self._name = name
         self._id = id
         self._descriptor = None
+        self._video_descriptors = None
 
     def id(self):
         return self._id
@@ -30,17 +30,24 @@ class Table:
                 self._db.protobufs.TableDescriptor,
                 'tables/{}/descriptor.bin'.format(self._id))
 
-    def _load_columns(self):
+    def _load_column(self, name):
         self._need_descriptor()
-        for c in self._descriptor.columns:
-            video_descriptor = None
-            if c.type == self._db.protobufs.Video:
-                video_descriptor = self._db._load_descriptor(
-                    self._db.protobufs.VideoDescriptor,
-                    'tables/{:d}/{:d}_0_video_metadata.bin'.format(
-                        self._id,
-                        c.id))
-            self._columns.append(Column(self, c, video_descriptor))
+        if self._video_descriptors is None:
+            self._video_descriptors = []
+            for c in self._descriptor.columns:
+                video_descriptor = None
+                if c.type == self._db.protobufs.Video:
+                    video_descriptor = self._db._load_descriptor(
+                        self._db.protobufs.VideoDescriptor,
+                        'tables/{:d}/{:d}_0_video_metadata.bin'.format(
+                            self._id,
+                            c.id))
+                self._video_descriptors.append(video_descriptor)
+        for i, c in enumerate(self._descriptor.columns):
+            if c.name == name:
+                return c, self._video_descriptors[i]
+        raise ScannerException('Column {} not found in Table {}'
+                               .format(name, self._name))
 
     def _load_job(self):
         self._need_descriptor()
@@ -91,11 +98,6 @@ class Table:
             return col
         else:
             return columns
-
-    def as_op(self):
-        #return SamplerOp(self)
-        assert False
-
 
     def num_rows(self):
         self._need_descriptor()
