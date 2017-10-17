@@ -149,12 +149,12 @@ def test_profiler(db):
     output_op = db.ops.Output(columns=[hist])
 
     job = Job(
-        output_table_name='_ignore',
         op_args={
-            frame: db.table('test1').column('frame')
+            frame: db.table('test1').column('frame'),
+            output_op: '_ignore'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
 
     output = db.run(bulk_job, show_progress=False, force=True)
     profiler = output[0].profiler()
@@ -163,6 +163,109 @@ def test_profiler(db):
     profiler.write_trace(f.name)
     profiler.statistics()
     run(['rm', '-f', f.name])
+
+
+def test_sample(db):
+    def run_sampler_job(sampler_args, expected_rows):
+        frame = db.ops.FrameInput()
+        sample_frame = frame.sample()
+        output_op = db.ops.Output(columns=[sample_frame])
+
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                sample_frame: sampler_args,
+                output_op: 'test_sample',
+            }
+        )
+        bulk_job = BulkJob(output=output_op, jobs=[job])
+        tables = db.run(bulk_job, force=True, show_progress=False)
+        num_rows = 0
+        for (frame_index, _) in tables[0].column('frame').load():
+            num_rows += 1
+        assert num_rows == expected_rows
+
+    # Stride
+    expected = (db.table('test1').num_rows() + 8 - 1) / 8
+    run_sampler_job(db.sampler.strided(8), expected)
+    # Range
+    run_sampler_job(db.sampler.range(0, 30), 30)
+    # Strided Range
+    run_sampler_job(db.sampler.strided_range(0, 300, 10), 30)
+    # Gather
+    run_sampler_job(db.sampler.gather([0, 150, 377, 500]), 4)
+
+def test_space(db):
+    def run_spacer_job(spacing_args):
+        frame = db.ops.FrameInput()
+        hist = db.ops.Histogram(frame=frame)
+        sample_hist = hist.sample()
+        output_op = db.ops.Output(columns=[sample_hist])
+
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                sample_frame: sampler_args,
+                output_op: 'test_sample',
+            }
+        )
+        bulk_job = BulkJob(output=output_op, jobs=[job])
+        tables = db.run(bulk_job, force=True, show_progress=False)
+        return tables[0]
+
+    # Repeat
+    spacing_distance = 8
+    table = run_spacer_job(db.sampler.space_repeat(spacing_distance))
+    num_rows = 0
+    for (frame_index, hist) in tables[0].column('hist').load(parsers.histogram):
+        # Verify outputs are repeated correctly
+        if num_rows % spacing_distance == 0:
+            ref_hist = hist
+        assert len(frame_hists) == 3
+        for c in range(len(frame_hists)):
+            assert ref_hist[c] == frame_hists[c]
+        num_rows += 1
+    assert num_rows == db.table('test1').num_rows() * spacing_distance
+
+    # Null
+    table = run_spacer_job(db.sampler.space_null(spacing_distance))
+    num_rows = 0
+    for (frame_index, hist) in tables[0].column('hist').load(parsers.histogram):
+        # Verify outputs are None for null rows
+        if num_rows % spacing_distance == 0:
+            assert ref_hist is not None
+            assert len(frame_hists) == 3
+            assert frame_hists[0].shape[0] == 16
+            ref_hist = hist
+        else:
+            assert ref_hist is None
+        num_rows += 1
+    assert num_rows == db.table('test1').num_rows() * spacing_distance
+
+def test_slicing(db):
+    frame = db.ops.FrameInput()
+    slice_frame = frame.slice()
+    output_op = db.ops.Output(columns=[slice_frame])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            slice_frame: db.partitioner.all(50),
+            output_op: 'test_sample',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+
+    num_rows = 0
+    for (frame_index, _) in tables[0].column('frame').load():
+        num_rows += 1
+    assert num_rows == db.table('test1').num_rows()
+
+def test_bounded_state(db):
+    pass
+
+def test_unbounded_state(db):
+    pass
 
 def builder(cls):
     inst = cls()
@@ -185,36 +288,44 @@ class TestHistogram:
         output_op = db.ops.Output(columns=[hist])
 
         job = Job(
-            output_table_name='test_hist',
             op_args={
-                frame: db.table('test1').column('frame')
+                frame: db.table('test1').column('frame'),
+                output_op: 'test_hist'
             }
         )
-        bulk_job = BulkJob(dag=output_op, jobs=[job])
+        bulk_job = BulkJob(output=output_op, jobs=[job])
         return bulk_job
 
     def run(self, db, job):
         tables = db.run(job, force=True, show_progress=False)
         next(tables[0].load(['histogram'], parsers.histograms))
 
-# @builder
-# class TestOpticalFlow:
-#     def job(self, db, ty):
-#         frame = db.table('test1').as_op().range(0, 50, warmup_size=1)
-#         flow = db.ops.OpticalFlow(
-#             frame = frame,
-#             device = ty)
-#         return Job(columns = [flow], name = 'test_flow')
+@builder
+class TestOpticalFlow:
+    def job(self, db, ty):
+        frame = db.ops.FrameInput()
+        flow = db.ops.OpticalFlow(
+            frame = frame,
+            stencil = [-1, 0],
+            device = ty)
+        flow_range = flow.sample()
+        out = db.ops.Output(columns=[flow_range])
+        job = Job(op_args={
+            frame: db.table('test1').column('frame'),
+            flow_range: db.sampler.range(0, 50)
+            out: 'test_flow',
+        })
+        return BulkJob(output=out, jobs=[job])
 
-#     def run(self, db, job):
-#         table = db.run(job, force=True, show_progress=False)
-#         fid, flows = next(table.load(['flow']))
-#         flow_array = flows[0]
-#         assert fid == 0
-#         assert flow_array.dtype == np.float32
-#         assert flow_array.shape[0] == 480
-#         assert flow_array.shape[1] == 640
-#         assert flow_array.shape[2] == 2
+    def run(self, db, job):
+        [table] = db.run(job, force=True, show_progress=False)
+        fid, flows = next(table.load(['flow']))
+        flow_array = flows[0]
+        assert fid == 0
+        assert flow_array.dtype == np.float32
+        assert flow_array.shape[0] == 480
+        assert flow_array.shape[1] == 640
+        assert flow_array.shape[2] == 2
 
 def test_python_kernel(db):
     db.register_op('TestPy',
@@ -227,15 +338,14 @@ def test_python_kernel(db):
     range_frame = frame.sample()
     test_out = db.ops.TestPy(frame=range_frame)
     output_op = db.ops.Output(columns=[test_out])
-
     job = Job(
-        output_table_name='test_hist',
         op_args={
             frame: db.table('test1').column('frame'),
             range_frame: db.sampler.range(0, 30),
+            output_op: 'test_hist'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
 
     tables = db.run(bulk_job, force=True, show_progress=False)
     next(tables[0].load(['dummy']))
@@ -245,15 +355,14 @@ def test_blur(db):
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.ops.Output(columns=[blurred_frame])
-
     job = Job(
-        output_table_name='test_blur',
         op_args={
             frame: db.table('test1').column('frame'),
             range_frame: db.sampler.range(0, 30),
+            output_op: 'test_blur',
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
 
@@ -272,13 +381,13 @@ def test_lossless(db):
     output_op = db.ops.Output(columns=[blurred_frame.lossless()])
 
     job = Job(
-        output_table_name='test_blur_lossless',
         op_args={
             frame: db.table('test1').column('frame'),
             range_frame: db.sampler.range(0, 30),
+            output_op: 'test_blur_lossless'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
     next(table.load(['frame']))
@@ -292,13 +401,13 @@ def test_compress(db):
     output_op = db.ops.Output(columns=[compressed_frame])
 
     job = Job(
-        output_table_name='test_blur_compressed',
         op_args={
             frame: db.table('test1').column('frame'),
             range_frame: db.sampler.range(0, 30),
+            output_op: 'test_blur_compressed'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
     next(table.load(['frame']))
@@ -310,13 +419,13 @@ def test_save_mp4(db):
     output_op = db.ops.Output(columns=[blurred_frame])
 
     job = Job(
-        output_table_name='test_save_mp4',
         op_args={
             frame: db.table('test1').column('frame'),
             range_frame: db.sampler.range(0, 30),
+            output_op: 'test_save_mp4'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
@@ -427,13 +536,13 @@ def test_clean_worker_shutdown(fault_db):
     output_op = fault_db.ops.Output(columns=[sleep_frame])
 
     job = Job(
-        output_table_name='test_shutdown',
         op_args={
             frame: fault_db.table('test1').column('frame'),
             range_frame: fault_db.sampler.range(0, 15),
+            output_op: 'test_shutdown',
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
     table = table[0]
@@ -530,13 +639,13 @@ def test_fault_tolerance(fault_db):
     output_op = fault_db.ops.Output(columns=[sleep_frame])
 
     job = Job(
-        output_table_name='test_fault',
         op_args={
             frame: fault_db.table('test1').column('frame'),
             range_frame: fault_db.sampler.range(0, 20),
+            output_op: 'test_fault',
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
                          show_progress=False)
     table = table[0]

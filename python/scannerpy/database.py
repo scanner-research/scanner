@@ -870,6 +870,7 @@ class Database:
         # to use for associating job args to
         input_ops = {}
         sampling_slicing_ops = {}
+        output_ops = {}
 
         # Compute sorted list
         eval_sorted = []
@@ -891,6 +892,8 @@ class Database:
                   c._name == "Slice" or
                   c._name == "Unslice"):
                 sampling_slicing_ops[c] = op_idx
+            elif c._name == "OutputTable":
+                output_ops[c] = op_idx
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
             input_ops, \
@@ -946,47 +949,33 @@ class Database:
             or a list of Table objects.
         """
         assert isinstance(bulk_job, BulkJob)
+        assert isinstance(bulk_job.output(), Op)
 
         # Collect compression annotations to add to job
         compression_options = []
-        # For index column
-        # opts = self.protobufs.OutputColumnCompression()
-        # opts.codec = 'default'
-        # compression_options.append(opts)
-        output_op = bulk_job.dag()
+        output_op = bulk_job.output()
         for out_col in output_op.inputs():
             opts = self.protobufs.OutputColumnCompression()
             opts.codec = 'default'
+            if out_col._type == self.protobufs.Video:
+                for k, v in out_col._encode_options.iteritems():
+                    if k == 'codec':
+                        opts.codec = v
+                    else:
+                        opts.options[k] = str(v)
             compression_options.append(opts)
-        #     if out_col._type == self.protobufs.Video:
-        #         for k, v in out_col._encode_options.iteritems():
-        #             if k == 'codec':
-        #                 opts.codec = v
-        #             else:
-        #                 opts.options[k] = str(v)
-        #     compression_options.append(opts)
 
-        sorted_ops, input_ops, sampling_slicing_ops = self._toposort(
-            bulk_job.dag())
-
-        to_delete = []
-        for job in bulk_job.jobs():
-            if self.has_table(job.output_table_name()):
-                if force:
-                    to_delete.append(job.output_table_name())
-                else:
-                    raise ScannerException(
-                        'Job would overwrite existing table {}'
-                        .format(job.output_table_name()))
-        self.delete_tables(to_delete)
+        sorted_ops, input_ops, sampling_slicing_ops, output_ops = (
+            self._toposort(bulk_job.output()))
 
         job_params = self.protobufs.BulkJobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.ops.extend(sorted_ops)
+        job_output_table_names = []
         for job in bulk_job.jobs():
             j = job_params.jobs.add()
-            j.output_table_name = job.output_table_name()
+            output_table_name = None
             for op_col, args in job.op_args().iteritems():
                 op = op_col._op
                 if op in input_ops:
@@ -1004,9 +993,34 @@ class Database:
                     for arg in args:
                         sa = saa.sampling_args.add()
                         sa.CopyFrom(arg)
+                elif op in output_ops:
+                    op_idx = output_ops[op]
+                    assert isinstance(args, str)
+                    output_table_name = args
+                    job_output_table_names.append(args)
                 else:
-                    print('ERROR!')
-                    exit(1)
+                    raise ScannerException(
+                        'Attempted to bind arguments to Op %s which is not '
+                        'an input, sampling, spacing, slicing, or output Op.'
+                        .format(op.name()))
+            if output_table_name is None:
+                raise ScannerException(
+                    'Did not specify the output table name by binding a '
+                    'string to the output Op.')
+            j.output_table_name = output_table_name
+
+        # Delete tables if they exist and force was specified
+        to_delete = []
+        for name in job_output_table_names:
+            if self.has_table(name):
+                if force:
+                    to_delete.append(name)
+                else:
+                    raise ScannerException(
+                        'Job would overwrite existing table {}'
+                        .format(name))
+        self.delete_tables(to_delete)
+
         job_params.compression.extend(compression_options)
         job_params.pipeline_instances_per_node = (
             pipeline_instances_per_node or -1)

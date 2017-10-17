@@ -14,42 +14,55 @@ with Database() as db:
     # The Op DAG only sees the raw frames. For example, this table is stored
     # as compressed video.
     def make_blurred_frame():
-        frame = db.table('example').as_op().all()
+        frame = db.ops.FrameInput()
 
         blurred_frame = db.ops.Blur(
             frame = frame,
             kernel_size = 3,
             sigma = 0.5)
-        return blurred_frame
-
-    blurred_frame = make_blurred_frame()
+        return frame, blurred_frame
 
     # By default, if an Op outputs a frame with 3 channels with type uint8,
     # those frames will be compressed using video encoding. No other frame
     # type is currently compressed.
+    frame, blurred_frame = make_blurred_frame()
+    output_op = db.ops.Output(columns=[blurred_frame])
     job = Job(
-        columns = [blurred_frame],
-        name = 'output_table_name')
-    db.run(job, force=True)
+        op_args={
+            frame: db.table('example').column('frame'),
+            output_op: 'output_table_name',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    db.run(bulk_job, force=True)
 
+    frame, blurred_frame = make_blurred_frame()
     # The compression parameters can be controlled by annotating the column
-    blurred_frame = make_blurred_frame()
     low_quality_frame = blurred_frame.compress_video(quality = 35)
-
+    output_op = db.ops.Output(columns=[low_quality_frame])
     job = Job(
-        columns = [low_quality_frame],
-        name = 'low_quality_table')
-    db.run(job, force=True)
+        op_args={
+            frame: db.table('example').column('frame'),
+            output_op: 'low_quality_table',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    db.run(bulk_job, force=True)
 
     # If no compression is desired, this can be specified by indicating that
     # the column should be lossless.
-    blurred_frame = make_blurred_frame()
+    frame, blurred_frame = make_blurred_frame()
+    # The compression parameters can be controlled by annotating the column
     lossless_frame = blurred_frame.lossless()
-
+    output_op = db.ops.Output(columns=[lossless_frame])
     job = Job(
-        columns = [lossless_frame],
-        name = 'pristine_frame')
-    db.run(job, force=True)
+        op_args={
+            frame: db.table('example').column('frame'),
+            output_op: 'pristine_frame',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    db.run(bulk_job, force=True)
 
     # Any column which is saved as compressed video can be exported as an mp4
     # file by calling save_mp4 on the column. This will output a file called
