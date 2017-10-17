@@ -14,25 +14,33 @@ class Column:
     A column of a Table.
     """
 
-    def __init__(self, table, descriptor, video_descriptor):
+    def __init__(self, table, name):
         self._table = table
-        self._descriptor = descriptor
+        self._name = name
         self._db = table._db
         self._storage = table._db.config.storage
         self._db_path = table._db.config.db_path
-        self._video_descriptor = video_descriptor
-        # Used for overriding name
-        self._name = None
+
+        self._loaded = False
+        self._descriptor = None
+        self._video_descriptor = None
+
+    def _load(self):
+        if not self._loaded:
+            self._loaded = True
+            descriptor, video_descriptor = self._table.load_column(self._name)
+            self._descriptor = descriptor
+            self._video_descriptor = video_descriptor
 
     def name(self):
-        if self._name:
-            return self._name
-        return self._descriptor.name
+        return self._name
 
     def type(self):
+        self._load()
         return self._descriptor.type
 
     def id(self):
+        self._load()
         return self._descriptor.id
 
     def _load_output_file(self, item_id, rows, fn=None):
@@ -136,6 +144,7 @@ class Column:
             `fn`).
         """
 
+        self._load()
         # If the column is a video, then dump the requested frames to disk as
         # PNGs and return the decoded PNGs
         if (self._descriptor.type == self._db.protobufs.Video and
@@ -181,6 +190,7 @@ class Column:
             return self._load(fn, rows=rows)
 
     def save_mp4(self, output_name, fps=None, scale=None):
+        self._load()
         if not (self._descriptor.type == self._db.protobufs.Video and
                 self._video_descriptor.codec_type ==
                 self._db.protobufs.VideoDescriptor.H264):
