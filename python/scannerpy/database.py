@@ -609,7 +609,7 @@ class Database:
 
         self._storage.delete_file('{}/pydb/collection_{}.bin'.format(self._db_path, id))
 
-    def new_collection(self, collection_name, table_names, force=False, job_id=None):
+    def new_collection(self, collection_name, tables, force=False, job_id=None):
         """
         Creates a new Collection from a list of tables.
 
@@ -633,7 +633,12 @@ class Database:
                     'Collection with name {} already exists'
                     .format(collection_name))
 
-        last_id = self._collections.ids[-1] if len(self._collections.ids) > 0 else -1
+        table_names = []
+        for table in tables:
+            table_names.append(table.name())
+
+        last_id = (
+            self._collections.ids[-1] if len(self._collections.ids) > 0 else -1)
         new_id = last_id + 1
         self._collections.ids.append(new_id)
         self._collections.names.append(collection_name)
