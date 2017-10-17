@@ -26,8 +26,7 @@ with Database() as db:
     frame = db.ops.FrameInput()
     hist = db.ops.Histogram(frame=frame)
     output_op = db.ops.Output(columns=[hist])
-    # You can use a collection the same way you use a table when defining a
-    # computation.
+    # You can use a collection to enumerate tables
     jobs = []
     for table in input_collection.tables():
         job = Job(
