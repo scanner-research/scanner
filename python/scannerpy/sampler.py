@@ -51,3 +51,19 @@ class Sampler:
         sampling_args.sampling_function = "StridedRanges"
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args
+
+    def space_null(self, spacing):
+        args = self._db.protobufs.SpaceNullSamplerArgs()
+        args.spacing = spacing
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "SpaceNull"
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args
+
+    def space_repeat(self, spacing):
+        args = self._db.protobufs.SpaceRepeatSamplerArgs()
+        args.spacing = spacing
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "SpaceRepeat"
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args

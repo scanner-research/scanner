@@ -15,6 +15,9 @@ class OpColumn:
     def sample(self):
         return self._db.ops.Sample(col=self)
 
+    def space(self):
+        return self._db.ops.Space(col=self)
+
     def slice(self):
         return self._db.ops.Slice(col=self)
 

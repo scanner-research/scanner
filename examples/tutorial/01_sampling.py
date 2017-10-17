@@ -21,12 +21,12 @@ with Database() as db:
     # a specific column. In the same way we used the op_args argument to bind
     # a table to an input column, we bind a sampling directive to strided_frame.
     job = Job(
-        output_table_name='example_hist_strided',
         op_args={
             frame: db.table('example').column('frame'),
             # The "strided" sampling mode will run over # every 8th frame,
             # i.e. frames [0, 8, 16, ...]
-            strided_frame: db.sampler.strided(8)
+            strided_frame: db.sampler.strided(8),
+            output_op: 'example_hist_strided'
         }
     )
     bulk_job = BulkJob(dag=output_op, jobs=[job])

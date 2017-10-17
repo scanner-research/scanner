@@ -462,7 +462,10 @@ Result make_domain_sampler_instance(const std::string& sampler_type,
       {"All", make_domain_factory<DefaultDomainSampler>()},
       {"Strided", make_domain_factory<StridedDomainSampler>()},
       {"StridedRanges", make_domain_factory<StridedRangesDomainSampler>()},
-      {"Gather", make_domain_factory<GatherDomainSampler>()}};
+      {"Gather", make_domain_factory<GatherDomainSampler>()}
+      {"SpaceNull", make_domain_factory<SpaceNullDomainSampler>()},
+      {"SpaceRepeat", make_domain_factory<SpaceRepeatDomainSampler>()}
+  };
 
   Result result;
   result.set_success(true);
