@@ -668,7 +668,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     return false;
   }
 
-  i32 warmup_size = 0;
   i32 total_rows = 0;
 
   meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
