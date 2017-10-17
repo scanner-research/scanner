@@ -16,9 +16,10 @@ import util
 # ~/.scanner.toml configuration file.
 with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
 
-    # Create a Scanner table from our video in the format (table name, video path).
-    # If any videos fail to ingest, they'll show up in the failed list. If force
-    # is true, it will overwrite existing tables of the same name.
+    # Create a Scanner table from our video in the format (table name,
+    # video path). If any videos fail to ingest, they'll show up in the failed
+    # list. If force is true, it will overwrite existing tables of the same
+    # name.
     example_video_path = util.download_video()
     [input_table], failed = db.ingest_videos([
         ('example', example_video_path),
@@ -44,11 +45,11 @@ with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
 
     # A job defines a table you want to create. In op_args, we bind the frame
     # input column from above to the table we want to read from and name
-    # the output table 'example_hist'.
+    # the output table 'example_hist' by binding a string to output_op.
     job = Job(
-        output_table_name='example_hist',
         op_args={
-            frame: db.table('example').column('frame')
+            frame: db.table('example').column('frame'),
+            output_op: 'example_hist'
         }
     )
     # Multiple tables can be created using the same execution graph using
@@ -60,9 +61,9 @@ with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
     # bar while Scanner is computing the outputs.
     output_tables = db.run(bulk_job, force=True)
 
-    # Load the histograms from a column of the output table. The parsers.histograms
-    # function  converts the raw bytes output by Scanner into a numpy array for each
-    # channel.
+    # Load the histograms from a column of the output table. The
+    # parsers.histograms  function  converts the raw bytes output by Scanner
+    # into a numpy array for each channel.
     video_hists = output_tables[0].load(['histogram'], parsers.histograms)
 
     # Loop over the column's rows. Each row is a tuple of the frame number and

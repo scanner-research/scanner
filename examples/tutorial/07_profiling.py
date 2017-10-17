@@ -6,10 +6,17 @@ from scannerpy import Database, Job, DeviceType
 
 with Database() as db:
 
-    frame = db.table('example').as_op().all()
+    frame = db.ops.FrameInput()
     histogram = db.ops.Histogram(frame = frame)
-    job = Job(columns = [histogram], name = 'example_hist_profile')
-    output_table = db.run(job, force=True)
+    output_op = db.ops.Output(columns=[histogram])
+    job = Job(
+        op_args={
+            frame: db.table('example').column('frame')
+            output_op: 'example_hist_profile',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    [output_table] = db.run(bulk_job, force=True)
 
     # The profiler contains information about how long different parts of your
     # computation take to run. We use Google Chrome's trace format, which you
