@@ -1317,15 +1317,40 @@ Result derive_stencil_requirements(
       // Regular Op
       else {
         assert(!is_builtin_op(op.name()));
-        std::unordered_set<i64> current_rows;
-        const std::vector<i32>& stencil = stencils.at(op_idx);
         current_rows.reserve(downstream_rows.size());
-        for (i64 r : downstream_rows) {
-          for (i64 s : stencil) {
-            current_rows.insert(r + s);
+
+        std::unordered_set<i64> current_rows;
+        // If bounded state, we need to handle warmup
+        if (bounded_state_ops.count(op_idx) > 0) {
+          i32 warmup = warmup_sizes.at(op_idx);
+          for (i64 r : downstream_rows) {
+            // Check that we have all warmup rows
+            for (i64 i = 0; i < warmup; ++i) {
+              i64 req_row = r - i;
+              if (req_row < 0) {
+                continue;
+              }
+              current_rows.insert(req_row);
+            }
           }
         }
-        new_rows = std::vector<i64>(current_rows.begin(), current_rows.end());
+        // If unbounded state, we need all upstream inputs from 0
+        else if (unbounded_state_ops.count(op_idx) > 0) {
+          i32 max_required_row = downstream_rows.back();
+          for (i64 i = 0; i < max_required_row; ++i) {
+            current_rows.insert(i);
+          }
+        }
+
+        // Ensure we have inputs for stenciling kernels
+        std::unordered_set<i64> stencil_rows;
+        const std::vector<i32>& stencil = stencils.at(op_idx);
+        for (i64 r : current_rows) {
+          for (i64 s : stencil) {
+            stencil_rows.insert(r + s);
+          }
+        }
+        new_rows = std::vector<i64>(stencil_rows.begin(), stencil_rows.end());
         std::sort(new_rows.begin(), new_rows.end());
       }
 

@@ -1074,6 +1074,4 @@ class Database:
         if job_id is None:
             raise ScannerException('Internal error: job id not found after run')
 
-        # Return a new collection if the input was a collection, otherwise
-        # return a table list
         return [self.table(job.output_table_name()) for job in bulk_job.jobs()]
