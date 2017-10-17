@@ -391,7 +391,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         if (row_ids[r] == kernel_valid_input_rows[kernel_current_input_idx]) {
           // Insert row ids for valid elements into cache
           kernel_cache_row_ids[i].push_back(row_ids[r]);
-          valid_inputs.push_back(side_output_columns[in_col_idx][r]);
+          Element element(side_output_columns[in_col_idx][r]);
+          // We provide the input index to the kernel so that it can detect
+          // non-consecutive elements
+          element.index = row_ids[r];
+          valid_inputs.push_back(element);
           kernel_current_input_idx++;
         }
       }
