@@ -789,7 +789,6 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
   }
 
   BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
-  BlockAllocator* src_allocator = block_allocator_for_device(src_device);
   u8* dest_buff = dest_allocator->allocate(total_size, sizes.size());
   for (size_t size : sizes) {
     dest_buffers.push_back(dest_buff);
