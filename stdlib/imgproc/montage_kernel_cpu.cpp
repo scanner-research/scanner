@@ -1,15 +1,14 @@
 #include "scanner/api/kernel.h"
 #include "scanner/api/op.h"
-#include "scanner/util/cuda.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
 #include "stdlib/stdlib.pb.h"
 
 namespace scanner {
 
-class MontageKernelGPU : public BatchedKernel, public VideoKernel {
+class MontageKernelCPU : public BatchedKernel, public VideoKernel {
  public:
-  MontageKernelGPU(const KernelConfig& config)
+  MontageKernelCPU(const KernelConfig& config)
     : BatchedKernel(config),
       device_(config.devices[0]),
       frames_seen_(0),
@@ -26,29 +25,27 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
     frames_per_row_ = args_.frames_per_row();
   }
 
-  ~MontageKernelGPU() {
+  ~MontageKernelCPU() {
     if (montage_buffer_ != nullptr) {
       delete_buffer(device_, montage_buffer_);
     }
   }
 
   void reset() {
-    set_device();
     if (montage_width_ != 0) {
       if (montage_buffer_ != nullptr) {
         delete_buffer(device_, montage_buffer_);
       }
       montage_buffer_ =
           new_buffer(device_, montage_width_ * montage_height_ * 3);
-      montage_image_ = cvc::GpuMat(montage_height_, montage_width_, CV_8UC3,
-                                   montage_buffer_);
+      montage_image_ =
+          cv::Mat(montage_height_, montage_width_, CV_8UC3, montage_buffer_);
       montage_image_.setTo(0);
       frames_seen_ = 0;
     }
   }
 
   void new_frame_info() override {
-    set_device();
     frame_width_ = frame_info_.width();
     frame_height_ = frame_info_.height();
 
@@ -65,15 +62,13 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
     auto& frame_col = input_columns[0];
     check_frame(device_, frame_col[0]);
 
-    set_device();
-
     assert(montage_buffer_ != nullptr);
     i32 input_count = num_rows(frame_col);
     for (i32 i = 0; i < input_count; ++i) {
-      cvc::GpuMat img = frame_to_gpu_mat(frame_col[i].as_const_frame());
+      cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
       i64 x = frames_seen_ % frames_per_row_;
       i64 y = frames_seen_ / frames_per_row_;
-      cvc::GpuMat montage_subimg =
+      cv::Mat montage_subimg =
           montage_image_(cv::Rect(target_width_ * x, target_height_ * y,
                                   target_width_, target_height_));
       cvc::resize(img, montage_subimg, cv::Size(target_width_, target_height_));
@@ -83,18 +78,13 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
         assert(montage_buffer_ != nullptr);
         FrameInfo info(montage_height_, montage_width_, 3, FrameType::U8);
         insert_frame(output_columns[0], new Frame(info, montage_buffer_));
-        montage_image_ = cvc::GpuMat();
+        montage_image_ = cv::Mat();
         montage_buffer_ = nullptr;
       } else {
         FrameInfo info(montage_height_, montage_width_, 3, FrameType::U8);
         insert_frame(output_columns[0], new_frame(device_, info));
       }
     }
-  }
-
-  void set_device() {
-    CUDA_PROTECT({ CU_CHECK(cudaSetDevice(device_.id)); });
-    cvc::setDevice(device_.id);
   }
 
  private:
@@ -112,12 +102,16 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
   i64 montage_height_;
 
   u8* montage_buffer_;
-  cvc::GpuMat montage_image_;
+  cv::Mat montage_image_;
   i64 frames_seen_;
 };
 
-REGISTER_KERNEL(Montage, MontageKernelGPU)
-    .device(DeviceType::GPU)
-    .batch()
+REGISTER_OP(Montage)
+.frame_input("frame")
+.frame_output("montage")
+.unbounded_state();
+
+REGISTER_KERNEL(Montage, MontageKernelCPU)
+    .device(DeviceType::CPU)
     .num_devices(1);
 }
