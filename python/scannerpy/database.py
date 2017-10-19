@@ -711,7 +711,7 @@ class Database:
                        for i in range(len(videos))]
         tables, failures = self.ingest_videos(zip(table_names, videos), force)
         collection = self.new_collection(
-            collection_name, [t.name() for t in tables], force)
+            collection_name, tables, force)
         return collection, failures
 
     def has_collection(self, name):

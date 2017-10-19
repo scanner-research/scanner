@@ -217,7 +217,7 @@ def test_space(db):
     spacing_distance = 8
     table = run_spacer_job(db.sampler.space_repeat(spacing_distance))
     num_rows = 0
-    for (frame_index, hist) in table.column('hist').load(parsers.histograms):
+    for (frame_index, hist) in table.column('histogram').load(parsers.histograms):
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
@@ -230,7 +230,7 @@ def test_space(db):
     # Null
     table = run_spacer_job(db.sampler.space_null(spacing_distance))
     num_rows = 0
-    for (frame_index, hist) in table.column('hist').load(parsers.histograms):
+    for (frame_index, hist) in table.column('histogram').load(parsers.histograms):
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
             assert ref_hist is not None

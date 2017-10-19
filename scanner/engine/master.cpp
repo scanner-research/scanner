@@ -907,7 +907,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     for (i64 r : end_rows) {
       table_desc.add_end_rows(r);
     }
-    table_desc.set_job_id(job_idx);
+    table_desc.set_job_id(bulk_job_id);
 
     write_table_metadata(storage_, TableMetadata(table_desc));
     table_metas_->update(TableMetadata(table_desc));
