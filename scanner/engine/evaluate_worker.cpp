@@ -522,7 +522,6 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       auto& output_column = side_output_columns.back();
       for (size_t i = 0; i < downstream_rows.size(); ++i) {
         i64 upstream_row_idx = downstream_upstream_mapping[i];
-        printf("upstream row idx %ld\n", upstream_row_idx);
         auto& element = *(kernel_cache.at(0).begin() + upstream_row_idx);
         Element ele = add_element_ref(current_handle, element);
         output_column.push_back(ele);

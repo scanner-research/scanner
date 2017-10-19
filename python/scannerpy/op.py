@@ -160,7 +160,6 @@ class Op:
 
     @classmethod
     def output(cls, db, inputs):
-        print(inputs)
         return cls(db, "OutputTable", inputs, DeviceType.CPU)
 
     def inputs(self):
