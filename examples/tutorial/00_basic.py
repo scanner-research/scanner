@@ -14,7 +14,8 @@ import util
 
 # Initialize a connection to the Scanner database. Loads configuration from the
 # ~/.scanner.toml configuration file.
-with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
+# with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
+with Database() as db:
 
     # Create a Scanner table from our video in the format (table name,
     # video path). If any videos fail to ingest, they'll show up in the failed
@@ -55,7 +56,7 @@ with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
     # Multiple tables can be created using the same execution graph using
     # a bulk job. Here we specify the execution graph (or DAG) by providing
     # the output_op and also specify the jobs we wish to compute.
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
 
     # This executes the job and produces the output table. You'll see a progress
     # bar while Scanner is computing the outputs.
@@ -74,3 +75,4 @@ with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
         assert frame_hists[0].shape[0] == 16
         num_rows += 1
     assert num_rows == db.table('example').num_rows()
+    print(db.summarize())
