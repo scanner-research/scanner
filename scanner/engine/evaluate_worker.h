@@ -157,8 +157,8 @@ class EvaluateWorker {
   // Inputs
   std::vector<std::set<i64>> valid_input_rows_set_;
   std::vector<std::vector<i64>> valid_input_rows_;
-  // Tracks which input we should expect next
-  std::vector<i64> current_valid_input_idx_;
+  // Tracks which input we should expect next for which column
+  std::vector<std::vector<i64>> current_valid_input_idx_;
 
   // Outputs to compute
   std::vector<std::set<i64>> compute_rows_set_;

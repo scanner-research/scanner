@@ -239,7 +239,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
     element_cache_row_ids_[i].resize(arg_group_.column_mapping[i].size());
   }
   valid_output_rows_.resize(kernels_.size());
-  current_valid_input_idx_.assign(kernels_.size(), 0);
+  current_valid_input_idx_.resize(kernels_.size());
   current_valid_output_idx_.assign(kernels_.size(), 0);
 
   args.profiler.add_interval("setup", now(), setup_start);
@@ -260,7 +260,9 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   job_idx_ = job_idx;
   task_idx_ = task_idx;
   for (size_t i = 0; i < task_streams.size(); ++i) {
-    assert(valid_output_rows_[i].size() == current_valid_input_idx_[i]);
+    for (i64 used_rows : current_valid_input_idx_[i]) {
+      assert(valid_output_rows_[i].size() == used_rows);
+    }
   }
   valid_input_rows_.clear();
   valid_input_rows_set_.clear();
@@ -276,14 +278,18 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
 
   current_element_cache_input_idx_.clear();
   slice_group_ = -1;
-  for (auto& ts : task_streams) {
+  for (size_t k = 0; k < task_streams.size(); ++k) {
+    auto& ts = task_streams[k];
     if (ts.slice_group != -1) {
       slice_group_ = ts.slice_group;
     }
     valid_input_rows_.push_back(ts.valid_input_rows);
     valid_input_rows_set_.push_back(
         std::set<i64>(ts.valid_input_rows.begin(), ts.valid_input_rows.end()));
-    current_valid_input_idx_.push_back(0);
+    current_valid_input_idx_.emplace_back();
+    for(i64 i = 0; i < arg_group_.column_mapping[k].size(); ++i) {
+      current_valid_input_idx_.back().push_back(0);
+    }
 
     compute_rows_.push_back(ts.compute_input_rows);
     compute_rows_set_.push_back(std::set<i64>(
@@ -356,7 +362,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     std::vector<i64>& kernel_valid_input_rows = valid_input_rows_[k];
     std::set<i64>& kernel_valid_input_rows_set = valid_input_rows_set_[k];
-    i64& kernel_current_input_idx = current_valid_input_idx_[k];
+    std::vector<i64>& kernel_current_input_idx = current_valid_input_idx_[k];
 
     std::vector<i64>& kernel_compute_rows = compute_rows_[k];
     i64& kernel_current_compute_idx = current_compute_idx_[k];
@@ -389,9 +395,10 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       // Select elements which this kernel requires as inputs
       auto& row_ids = side_row_ids[in_col_idx];
       ElementList valid_inputs;
+      i64& current_input_idx = kernel_current_input_idx[i];
       for (size_t r = 0; r < row_ids.size(); ++r) {
-        assert(row_ids[r] <= kernel_valid_input_rows[kernel_current_input_idx]);
-        if (row_ids[r] == kernel_valid_input_rows[kernel_current_input_idx]) {
+        assert(row_ids[r] <= kernel_valid_input_rows[current_input_idx]);
+        if (row_ids[r] == kernel_valid_input_rows[current_input_idx]) {
           // Insert row ids for valid elements into cache
           kernel_cache_row_ids[i].push_back(row_ids[r]);
           Element element(side_output_columns[in_col_idx][r]);
@@ -399,28 +406,36 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
           // non-consecutive elements
           element.index = row_ids[r];
           valid_inputs.push_back(element);
-          kernel_current_input_idx++;
-        }
-        assert(row_ids[r] <= kernel_compute_rows[kernel_current_compute_idx]);
-        if (row_ids[r] == kernel_compute_rows[kernel_current_compute_idx]) {
-          kernel_current_compute_idx++;
+          current_input_idx++;
         }
       }
-      auto copy_start = now();
-      ElementList list =
-          copy_or_ref_elements(profiler_, side_output_handles[in_col_idx],
-                               current_handle, valid_inputs);
-      profiler_.add_interval("op_marshal", copy_start, now());
-      // Insert new elements into cache
-      kernel_cache[i].insert(kernel_cache[i].end(), list.begin(), list.end());
+      if (valid_inputs.size() > 0) {
+        auto copy_start = now();
+        ElementList list =
+            copy_or_ref_elements(profiler_, side_output_handles[in_col_idx],
+                                 current_handle, valid_inputs);
+        profiler_.add_interval("op_marshal", copy_start, now());
+        // Insert new elements into cache
+        kernel_cache[i].insert(kernel_cache[i].end(), list.begin(), list.end());
+      }
     }
     // Determine the highest row seen so we know how many elements we
     // might be able to produce
-    assert(input_column_idx.size() > 0);
-    i64 max_row_id_seen = kernel_cache_row_ids[0].back();
-    for (i32 i = 1; i < input_column_idx.size(); ++i) {
-      max_row_id_seen =
-          std::min(max_row_id_seen, kernel_cache_row_ids[i].back());
+    i64 max_row_id_seen = -1;
+    if (input_column_idx.size() > 0 && kernel_cache_row_ids[0].size() > 0) {
+      max_row_id_seen = kernel_cache_row_ids[0].back();
+      for (i32 i = 1; i < input_column_idx.size(); ++i) {
+        max_row_id_seen =
+            std::min(max_row_id_seen, kernel_cache_row_ids[i].back());
+      }
+      // Update current compute position
+      for (i64 i = 0; i < kernel_cache_row_ids[0].size(); ++i) {
+        i64 row_id = kernel_cache_row_ids[0][i];
+        assert(row_id <= kernel_compute_rows[kernel_current_compute_idx]);
+        if (row_id == kernel_compute_rows[kernel_current_compute_idx]) {
+          kernel_current_compute_idx++;
+        }
+      }
     }
 
     // Figure out how many elements can be produced
@@ -451,6 +466,9 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       producible_elements = compute_producible_elements(0, 1);
       num_output_columns = 1;
       kernel_stencil = {0};
+      if (op_name == INPUT_OP_NAME) {
+        num_output_columns = 0;
+      }
     } else {
       kernel_stencil = arg_group_.kernel_stencils[k];
       i32 kernel_batch_size = arg_group_.kernel_batch_sizes[k];
@@ -493,6 +511,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       Result result = sampler->get_downstream_rows(
           producible_row_ids, downstream_rows, downstream_upstream_mapping);
       if (!result.success()) {
+        VLOG(1) << "Sampler failed: " << result.msg();
+        THREAD_RETURN_SUCCESS();
       }
 
       // Pass down rows and ref elements
@@ -513,6 +533,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       Result result = sampler->get_downstream_rows(
           producible_row_ids, downstream_rows, downstream_upstream_mapping);
       if (!result.success()) {
+        VLOG(1) << "Sampler failed: " << result.msg();
+        THREAD_RETURN_SUCCESS();
       }
       // For each available input, expand it by placing nulls or repeats
       auto& output_column = side_output_columns.back();
@@ -657,7 +679,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     i64 row_end = row_start + producible_elements;
     // Filter outputs to only the ones that will be used downstream
     // For each output row, check if it is in the valid output rows
-    {
+    if (num_output_columns > 0) {
       BatchedColumns temp_output_columns(num_output_columns);
       std::vector<std::vector<i64>> temp_row_ids(num_output_columns);
 
@@ -699,30 +721,33 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     }
 
     // Remove elements from the element cache we won't access anymore
-    i64 last_cache_element = 0;
-    i64 min_used_row = kernel_valid_input_rows[std::min(
-        row_end, (i64)kernel_valid_input_rows.size() - 1)];
-    min_used_row += kernel_stencil[0];
-    {
-      auto& row_id_deque = kernel_cache_row_ids[0];
-      while (row_id_deque.size() > 0) {
-        i64 cache_row = row_id_deque.front();
-        if (cache_row <= min_used_row) {
-          for (auto& deqs : kernel_cache_row_ids) {
-            deqs.pop_front();
+    if (kernel_valid_input_rows.size() > 0) {
+      i64 last_cache_element = 0;
+      i64 min_used_row = kernel_valid_input_rows[std::min(
+          row_end, (i64)kernel_valid_input_rows.size() - 1)];
+      min_used_row += kernel_stencil[0];
+      {
+        auto& row_id_deque = kernel_cache_row_ids[0];
+        while (row_id_deque.size() > 0) {
+          i64 cache_row = row_id_deque.front();
+          if (cache_row <= min_used_row) {
+            for (auto& deqs : kernel_cache_row_ids) {
+              deqs.pop_front();
+            }
+            for (size_t i = 0; i < kernel_cache.size(); ++i) {
+              auto device = side_output_handles[i];
+              auto& cache_deque = kernel_cache[i];
+              assert(cache_deque.size() > 0);
+              Element element = cache_deque.front();
+              delete_element(device, element);
+              cache_deque.pop_front();
+            }
+          } else {
+            break;
           }
-          for (size_t i = 0; i < kernel_cache.size(); ++i) {
-            auto device = side_output_handles[i];
-            auto& cache_deque = kernel_cache[i];
-            Element element = cache_deque.front();
-            delete_element(device, element);
-            cache_deque.pop_front();
-          }
-        } else {
-          break;
         }
+        kernel_element_cache_input_idx += producible_elements;
       }
-      kernel_element_cache_input_idx += producible_elements;
     }
 
     // Remove dead columns from side_output_handles
