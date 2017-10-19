@@ -1244,10 +1244,14 @@ Result derive_stencil_requirements(
       }
       // Sample or Space Op
       else if (op.name() == SAMPLE_OP_NAME) {
-        assert(slice_group != -1);
         // Use domain sampler
+        i32 slice = 0;
+        if (analysis_results.op_slice_level.at(op_idx) > 0) {
+          assert(slice_group != -1);
+          slice = slice_group;
+        }
         Result result = domain_samplers.at(op_idx)
-                            .at(slice_group)
+                            .at(slice)
                             ->get_upstream_rows(downstream_rows, new_rows);
         if (!result.success()) {
           return result;
@@ -1255,11 +1259,14 @@ Result derive_stencil_requirements(
       }
       // Space Op
       else if (op.name() == SPACE_OP_NAME) {
-        assert(slice_group != -1);
         // Use domain sampler
-        Result result = domain_samplers.at(op_idx)
-                            .at(slice_group)
-                            ->get_upstream_rows(downstream_rows, new_rows);
+        i32 slice = 0;
+        if (analysis_results.op_slice_level.at(op_idx) > 0) {
+          assert(slice_group != -1);
+          slice = slice_group;
+        }
+        Result result = domain_samplers.at(op_idx).at(slice)->get_upstream_rows(
+            downstream_rows, new_rows);
         if (!result.success()) {
           return result;
         }
@@ -1334,7 +1341,7 @@ Result derive_stencil_requirements(
           i32 warmup = warmup_sizes.at(op_idx);
           for (i64 r : downstream_rows) {
             // Check that we have all warmup rows
-            for (i64 i = 0; i < warmup; ++i) {
+            for (i64 i = 0; i <= warmup; ++i) {
               i64 req_row = r - i;
               if (req_row < 0) {
                 continue;
@@ -1346,7 +1353,7 @@ Result derive_stencil_requirements(
         // If unbounded state, we need all upstream inputs from 0
         else if (unbounded_state_ops.count(op_idx) > 0) {
           i32 max_required_row = downstream_rows.back();
-          for (i64 i = 0; i < max_required_row; ++i) {
+          for (i64 i = 0; i <= max_required_row; ++i) {
             current_rows.insert(i);
           }
         } else {
