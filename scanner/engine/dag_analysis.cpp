@@ -906,7 +906,7 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
       remap_map[op_idx] = ops.at(0).inputs_size();
 
       std::string new_column_name =
-          rename_col(op_idx, op.inputs(op_idx).column());
+          rename_col(op_idx, op.inputs(0).column());
       proto::OpInput* new_input = ops.at(0).add_inputs();
       new_input->set_op_index(-1);
       new_input->set_column(new_column_name);
@@ -918,7 +918,7 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
       auto input = op.mutable_inputs(i);
       i32 input_op_idx = input->op_index();
       if (remap_map.count(input_op_idx) > 0) {
-        input->set_op_index(remap_map.at(input_op_idx));
+        input->set_op_index(0);
         input->set_column(rename_col(input_op_idx, input->column()));
       }
     }
@@ -976,6 +976,8 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
     }
     // Add this op's outputs to the intermediate list
     if (is_builtin_op(op.name())) {
+      // Make sure it is initialized even if no inputs
+      intermediates[i] = {};
       for (auto& input : op.inputs()) {
         std::string col = input.column();
         // HACK(apoms): we remap input column names but don't update
@@ -1220,20 +1222,23 @@ Result derive_stencil_requirements(
       std::vector<i64> new_rows;
       // Input Op
       if (op.name() == INPUT_OP_NAME) {
-        // Determine input table this column came from
-        for (size_t i = 0; i < table_ids.size(); ++i) {
-          i32 table_id = table_ids[i];
-          std::vector<i64> output_rows(
-              required_input_op_output_rows.at(i).begin(),
-              required_input_op_output_rows.at(i).end());
-          std::sort(output_rows.begin(), output_rows.end());
-          std::vector<i64>& input_rows = required_input_op_input_rows.at(i);
-          i64 num_rows = table_meta.at(table_id).num_rows();
+        // Ignore if it is not the first input
+        if (op_idx == 0) {
+          // Determine input table this column came from
+          for (size_t i = 0; i < table_ids.size(); ++i) {
+            i32 table_id = table_ids[i];
+            std::vector<i64> output_rows(
+                required_input_op_output_rows.at(i).begin(),
+                required_input_op_output_rows.at(i).end());
+            std::sort(output_rows.begin(), output_rows.end());
+            std::vector<i64>& input_rows = required_input_op_input_rows.at(i);
+            i64 num_rows = table_meta.at(table_id).num_rows();
 
-          // Perform boundary restriction
-          Result result = handle_boundary(output_rows, num_rows, input_rows);
-          if (!result.success()) {
-            return result;
+            // Perform boundary restriction
+            Result result = handle_boundary(output_rows, num_rows, input_rows);
+            if (!result.success()) {
+              return result;
+            }
           }
         }
       }
@@ -1370,14 +1375,15 @@ Result derive_stencil_requirements(
           if (input.op_index() == 0) {
             // For the input Op, we track each input column separately since
             // they may come from different tables
-            i64 col_id = 0;
-            for (const auto& col : ops.at(input.op_index()).inputs()) {
+            i64 col_id = -1;
+            for (size_t i = 0; i < ops.at(0).inputs_size(); ++i) {
+              const auto& col = ops.at(0).inputs(i);
               if (col.column() == input.column()) {
+                col_id = i;
                 break;
               }
-              col_id++;
             }
-            assert(col_id != ops.at(input.op_index()).inputs_size());
+            assert(col_id != -1);
             required_input_op_output_rows.at(col_id).insert(new_rows.begin(),
                                                             new_rows.end());
           }
