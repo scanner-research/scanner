@@ -71,7 +71,7 @@ class MontageKernelCPU : public BatchedKernel, public VideoKernel {
       cv::Mat montage_subimg =
           montage_image_(cv::Rect(target_width_ * x, target_height_ * y,
                                   target_width_, target_height_));
-      cvc::resize(img, montage_subimg, cv::Size(target_width_, target_height_));
+      cv::resize(img, montage_subimg, cv::Size(target_width_, target_height_));
 
       frames_seen_++;
       if (frames_seen_ == num_frames_) {
