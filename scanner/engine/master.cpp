@@ -701,7 +701,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
-  printf("validate jobs\n");
   DAGAnalysisInfo dag_info;
   *job_result =
       validate_jobs_and_ops(meta_, *table_metas_.get(), jobs, ops, dag_info);
@@ -710,7 +709,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     finished_fn();
     return false;
   }
-  printf("after validate\n");
 
   // Map all input Ops into a single input collection
   const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.input_ops;
@@ -764,19 +762,23 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       }
 
       std::vector<Column> input_columns;
+      std::vector<Column> actual_columns;
       if (input_op.name() == INPUT_OP_NAME) {
-        input_columns = {input_op_idx_to_column.at(op_idx)};
+        Column col = input_op_idx_to_column.at(op_idx);
+        actual_columns = {col};
+        col.set_name(input_op.inputs(0).column());
+        input_columns = {col};
       } else {
         OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
         input_columns = input_op_info->output_columns();
+        actual_columns = input_columns;
       }
       const std::string& name = col;
       bool found = false;
-      for (auto& col : input_columns) {
-        if (col.name() == name) {
-          Column c;
-          c.set_name(name);
-          c.set_type(col.type());
+      for (size_t i = 0; i < input_columns.size(); ++i) {
+        auto& in_col = input_columns[i];
+        if (in_col.name() == name) {
+          Column c = actual_columns[i];
           return c;
         }
       }
@@ -803,7 +805,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 bulk_job_id = meta_.add_bulk_job(job_params->job_name());
   job_descriptor.set_id(bulk_job_id);
   job_descriptor.set_name(job_params->job_name());
-  printf("determine input rows\n");
   // Determine total output rows and slice input rows for using to
   // split stream
   *job_result = determine_input_rows_to_slices(meta_, *table_metas_.get(), jobs,
@@ -862,17 +863,13 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
       i64 s = partition_boundaries[pi];
       i64 e = partition_boundaries[pi + 1];
-      printf("task %d\nrows: ", pi);
       for (i64 r = s; r < e; ++r) {
-        printf("%d ", r);
         task_rows.push_back(r);
       }
-      printf("\n");
       total_tasks_++;
     }
   }
 
-  printf("after input rows\n");
   if (!job_result->success()) {
     // No database changes made at this point, so just return
     finished_fn();

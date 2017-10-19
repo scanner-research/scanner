@@ -6,7 +6,7 @@ namespace scanner {
 
 class TestIncrementKernel : public Kernel {
  public:
-  DiscardKernel(const KernelConfig& config)
+  TestIncrementKernel(const KernelConfig& config)
     : Kernel(config),
       device_(config.devices[0]) {}
 

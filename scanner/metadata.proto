@@ -193,7 +193,8 @@ message ImageDecodeArgs {
 message LoadSample {
   int32 table_id = 1;
   int32 column_id = 2;
-  repeated int64 rows = 4 [packed=true];
+  repeated int64 input_row_ids = 3 [packed=true];
+  repeated int64 output_row_ids = 4 [packed=true];
 }
 
 message LoadWorkEntry {
