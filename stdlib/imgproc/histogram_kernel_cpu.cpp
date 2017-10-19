@@ -32,11 +32,13 @@ class HistogramKernelCPU : public BatchedKernel {
 
       for (i32 j = 0; j < 3; ++j) {
         int channels[] = {j};
-        cv::Mat out(BINS, 1, CV_32S, output_buf + j * BINS * sizeof(int));
+        cv::Mat hist;
         cv::calcHist(&img, 1, channels, cv::Mat(),
-                     out,
+                     hist,
                      1, &BINS,
                      &histRange);
+        cv::Mat out(BINS, 1, CV_32SC1, output_buf + j * BINS * sizeof(int));
+        hist.convertTo(out, CV_32SC1);
       }
 
       insert_element(output_columns[0], output_buf, hist_size);
@@ -54,3 +56,4 @@ REGISTER_KERNEL(Histogram, HistogramKernelCPU)
     .batch()
     .num_devices(1);
 }
+
