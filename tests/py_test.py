@@ -119,7 +119,7 @@ def test_table_properties(db):
     assert table.id() == 0
     assert table.name() == 'test1'
     assert table.num_rows() == 720
-    assert [c.name() for c in table.columns()] == ['index', 'frame']
+    assert [c for c in table.column_names()] == ['index', 'frame']
 
 # def test_collection(db):
 #     c = db.new_collection('test', ['test1', 'test2'])
@@ -199,14 +199,14 @@ def test_space(db):
     def run_spacer_job(spacing_args):
         frame = db.ops.FrameInput()
         hist = db.ops.Histogram(frame=frame)
-        sample_hist = hist.sample()
-        output_op = db.ops.Output(columns=[sample_hist])
+        space_hist = hist.space()
+        output_op = db.ops.Output(columns=[space_hist])
 
         job = Job(
             op_args={
                 frame: db.table('test1').column('frame'),
-                sample_frame: sampler_args,
-                output_op: 'test_sample',
+                space_hist: spacing_args,
+                output_op: 'test_space',
             }
         )
         bulk_job = BulkJob(output=output_op, jobs=[job])
@@ -217,7 +217,7 @@ def test_space(db):
     spacing_distance = 8
     table = run_spacer_job(db.sampler.space_repeat(spacing_distance))
     num_rows = 0
-    for (frame_index, hist) in tables[0].column('hist').load(parsers.histogram):
+    for (frame_index, hist) in table.column('hist').load(parsers.histograms):
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
@@ -230,7 +230,7 @@ def test_space(db):
     # Null
     table = run_spacer_job(db.sampler.space_null(spacing_distance))
     num_rows = 0
-    for (frame_index, hist) in tables[0].column('hist').load(parsers.histogram):
+    for (frame_index, hist) in table.column('hist').load(parsers.histograms):
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
             assert ref_hist is not None
@@ -245,12 +245,13 @@ def test_space(db):
 def test_slicing(db):
     frame = db.ops.FrameInput()
     slice_frame = frame.slice()
-    output_op = db.ops.Output(columns=[slice_frame])
+    unsliced_frame = slice_frame.unslice()
+    output_op = db.ops.Output(columns=[unsliced_frame])
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
             slice_frame: db.partitioner.all(50),
-            output_op: 'test_sample',
+            output_op: 'test_slicing',
         }
     )
     bulk_job = BulkJob(output=output_op, jobs=[job])
@@ -312,13 +313,18 @@ class TestOpticalFlow:
         out = db.ops.Output(columns=[flow_range])
         job = Job(op_args={
             frame: db.table('test1').column('frame'),
-            flow_range: db.sampler.range(0, 50)
+            flow_range: db.sampler.range(0, 50),
             out: 'test_flow',
         })
         return BulkJob(output=out, jobs=[job])
 
     def run(self, db, job):
         [table] = db.run(job, force=True, show_progress=False)
+        num_rows = 0
+        for (frame_index, _) in table.column('flow').load():
+            num_rows += 1
+        assert num_rows == 50
+
         fid, flows = next(table.load(['flow']))
         flow_array = flows[0]
         assert fid == 0
@@ -430,7 +436,7 @@ def test_save_mp4(db):
     table = tables[0]
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
-    table.columns('frame').save_mp4(f.name)
+    table.column('frame').save_mp4(f.name)
     run(['rm', '-rf', f.name])
 
 @pytest.fixture()
@@ -446,7 +452,7 @@ def fault_db():
         cfg_path = f.name
 
     # Setup and ingest video
-    with Database(config_path=cfg_path, debug=True) as db:
+    with Database(config_path=cfg_path) as db:
         # Download video from GCS
         url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
