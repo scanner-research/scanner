@@ -388,9 +388,6 @@ class Database:
             self._worker_addresses = workers
 
         # Boot up C++ database bindings
-        print(self.config.storage_config)
-        print(self._db_path)
-        print(self._master_address)
         self._db = self._bindings.Database(
             self.config.storage_config,
             str(self._db_path),
