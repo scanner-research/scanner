@@ -412,7 +412,12 @@ class SpaceRepeatDomainSampler : public DomainSampler {
 
   Result get_upstream_rows(const std::vector<i64>& input_rows,
                            std::vector<i64>& output_rows) const {
-    output_rows = input_rows;
+    std::unordered_set<i64> required_rows;
+    for (i64 r : input_rows) {
+      required_rows.insert(r / args_.spacing());
+    }
+    output_rows = std::vector<i64>(required_rows.begin(), required_rows.end());
+    std::sort(output_rows.begin(), output_rows.end());
     Result result;
     result.set_success(true);
     return result;
@@ -462,9 +467,9 @@ Result make_domain_sampler_instance(const std::string& sampler_type,
       {"All", make_domain_factory<DefaultDomainSampler>()},
       {"Strided", make_domain_factory<StridedDomainSampler>()},
       {"StridedRanges", make_domain_factory<StridedRangesDomainSampler>()},
-      {"Gather", make_domain_factory<GatherDomainSampler>()}
+      {"Gather", make_domain_factory<GatherDomainSampler>()},
       {"SpaceNull", make_domain_factory<SpaceNullDomainSampler>()},
-      {"SpaceRepeat", make_domain_factory<SpaceRepeatDomainSampler>()}
+      {"SpaceRepeat", make_domain_factory<SpaceRepeatDomainSampler>()},
   };
 
   Result result;

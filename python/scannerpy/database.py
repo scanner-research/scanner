@@ -902,7 +902,8 @@ class Database:
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
             input_ops, \
-            sampling_slicing_ops
+            sampling_slicing_ops, \
+            output_ops
 
     def _parse_size_string(self, s):
         (prefix, suffix) = (s[:-1], s[-1])
@@ -982,7 +983,10 @@ class Database:
             j = job_params.jobs.add()
             output_table_name = None
             for op_col, args in job.op_args().iteritems():
-                op = op_col._op
+                if isinstance(op_col, Op):
+                    op = op_col
+                else:
+                    op = op_col._op
                 if op in input_ops:
                     op_idx = input_ops[op]
                     col_input = j.inputs.add()
@@ -1079,4 +1083,4 @@ class Database:
         if job_id is None:
             raise ScannerException('Internal error: job id not found after run')
 
-        return [self.table(job.output_table_name()) for job in bulk_job.jobs()]
+        return [self.table(t) for t in job_output_table_names]

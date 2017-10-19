@@ -123,6 +123,7 @@ struct EvaluateWorkerArgs {
 class EvaluateWorker {
  public:
   EvaluateWorker(const EvaluateWorkerArgs& args);
+  ~EvaluateWorker();
 
   void new_task(i64 job_idx, i64 task_idx,
                 const std::vector<TaskStream>& task_streams);
@@ -132,6 +133,8 @@ class EvaluateWorker {
   bool yield(i32 item_size, EvalWorkEntry& output);
 
  private:
+  void clear_stencil_cache();
+
   const i32 node_id_;
   const i32 worker_id_;
 
@@ -150,14 +153,25 @@ class EvaluateWorker {
   i64 task_idx_;
   i64 slice_group_;
   std::map<i64, std::unique_ptr<DomainSampler>> domain_samplers_;
+
+  // Inputs
   std::vector<std::set<i64>> valid_input_rows_set_;
   std::vector<std::vector<i64>> valid_input_rows_;
   // Tracks which input we should expect next
   std::vector<i64> current_valid_input_idx_;
+
+  // Outputs to compute
+  std::vector<std::set<i64>> compute_rows_set_;
+  std::vector<std::vector<i64>> compute_rows_;
+  // Tracks which input we should expect next
+  std::vector<i64> current_compute_idx_;
+
+  // Outputs to keep
   std::vector<std::set<i64>> valid_output_rows_set_;
   std::vector<std::vector<i64>> valid_output_rows_;
   // Tracks which output we should expect next
   std::vector<i64> current_valid_output_idx_;
+
   // Per kernel -> per input column -> deque of element)
   std::vector<i64> current_element_cache_input_idx_;
   std::vector<std::vector<std::deque<Element>>> element_cache_;

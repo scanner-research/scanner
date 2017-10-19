@@ -104,6 +104,10 @@ void load_driver(LoadInputQueue& load_work,
       }
     }
     profiler.add_interval("task", work_start, now());
+    VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
+            << "): finished job task (" << load_work_entry.job_index() << ", "
+            << load_work_entry.task_index() << "), pushed to worker "
+            << output_queue_idx;
   }
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
           << "): thread finished";
@@ -135,11 +139,19 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
       input_work.pop(entry);
 
+
       auto& task_streams = std::get<0>(entry);
       EvalWorkEntry& work_entry = std::get<1>(entry);
+      VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
+              << "): got work " << work_entry.job_index << " " << work_entry.task_index;
       if (work_entry.job_index == -1) {
         break;
       }
+
+      VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
+              << "): "
+              << "received job task " << work_entry.job_index << ", "
+              << work_entry.task_index;
 
       task_work_queue[std::make_tuple(work_entry.job_index,
                                       work_entry.task_index)]
@@ -155,6 +167,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
     // Wait until we have the next io item for the current task
     if (task_work_queue.at(active_job_task).size() <= 0) {
+      std::this_thread::yield();
       continue;
     }
 
@@ -312,7 +325,6 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     profiler.add_interval("task", work_start, now());
 
     if (result) {
-      printf("output task rows %d\n", output_entry.row_ids.size());
       output_entry.last_in_task = work_entry.last_in_task;
       output_work.push(std::make_tuple(args.id, output_entry));
     }
@@ -754,6 +766,9 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         }
       }
     }
+    if (pipeline_instances_per_node == std::numeric_limits<i32>::max()) {
+      pipeline_instances_per_node = 1;
+    }
   }
 
   if (pipeline_instances_per_node <= 0) {
@@ -867,10 +882,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
           factory = std::get<0>(group[i]) ;
         }
       }
-      assert(factory != nullptr);
-      DeviceType device_type = factory->get_device_type();
+      DeviceType device_type = DeviceType::CPU;
+      i32 max_devices = 1;
+      // Factory should only be null if we only have builtin ops
+      if (factory != nullptr) {
+        device_type = factory->get_device_type();
+        max_devices = factory->get_max_devices();
+      } 
       if (device_type == DeviceType::CPU) {
-        for (i32 i = 0; i < factory->get_max_devices(); ++i) {
+        for (i32 i = 0; i < max_devices; ++i) {
           i32 device_id = 0;
           next_cpu_num++ % num_cpus;
           for (size_t i = 0; i < group.size(); ++i) {
@@ -880,7 +900,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
           }
         }
       } else {
-        for (i32 i = 0; i < factory->get_max_devices(); ++i) {
+        for (i32 i = 0; i < max_devices; ++i) {
           i32 device_id = gpu_ids[next_gpu_idx++ % num_gpus];
           for (size_t i = 0; i < group.size(); ++i) {
             KernelConfig& config = std::get<1>(group[i]);
