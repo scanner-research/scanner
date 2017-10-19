@@ -204,7 +204,7 @@ void LoadWorker::feed(LoadWorkEntry& input_entry) {
   current_row_ = 0;
   total_rows_ = 0;
   for (auto& sample : load_work_entry.samples()) {
-    total_rows_ = std::max((i64)sample.rows_size(), total_rows_);
+    total_rows_ = std::max((i64)sample.input_row_ids_size(), total_rows_);
   }
 }
 
@@ -238,14 +238,17 @@ bool LoadWorker::yield(i32 item_size,
     i32 table_id = sample.table_id();
     const TableMetadata& table_meta = table_metadata_->at(table_id);
 
-    i64 total_rows = sample.rows_size();
+    i64 total_rows = sample.input_row_ids_size();
     i64 row_start = current_row_;
     i64 row_end = std::min(current_row_ + item_size, total_rows);
 
-    const auto& sample_rows = sample.rows();
+    const auto& sample_rows = sample.input_row_ids();
+    const auto& output_row_ids = sample.output_row_ids();
     std::vector<i64> rows(sample_rows.begin() + row_start,
                           sample_rows.begin() + row_end);
-    eval_work_entry.row_ids.push_back(rows);
+    std::vector<i64> output_rows(output_row_ids.begin() + row_start,
+                                 output_row_ids.begin() + row_end);
+    eval_work_entry.row_ids.push_back(output_rows);
 
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();

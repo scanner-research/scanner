@@ -71,33 +71,8 @@ class Table:
         self._need_descriptor()
         return [c.name for c in self._descriptor.columns]
 
-    def column(self, index):
-        return self.columns(index)
-
-    def columns(self, index=None):
-        if len(self._columns) == 0:
-            self._load_columns()
-
-        columns = self._columns
-        if index is not None:
-            col = None
-            if isinstance(index, basestring):
-                for c in columns:
-                    if c.name() == index:
-                        col = c
-                        break
-                if col is None:
-                    raise ScannerException('Could not find column with name {}'
-                                           .format(index))
-            else:
-                assert isinstance(index, int)
-                if index < 0 or index >= len(columns):
-                    raise ScannerException('No column with index {}'
-                                           .format(index))
-                col = columns[index]
-            return col
-        else:
-            return columns
+    def column(self, name):
+        return Column(self, name)
 
     def num_rows(self):
         self._need_descriptor()
@@ -121,7 +96,7 @@ class Table:
             raise ScannerException('Ingested videos do not have profile data')
 
     def load(self, columns, fn=None, rows=None):
-        cols = [self.columns(c).load(rows=rows) for c in columns]
+        cols = [self.column(c).load(rows=rows) for c in columns]
         for tup in izip(*cols):
             row = tup[0][0]
             vals = [x for _, x in tup]

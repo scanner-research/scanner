@@ -1117,6 +1117,11 @@ Result derive_stencil_requirements(
       analysis_results.slice_output_rows.at(job_idx);
   const std::map<i64, std::vector<i64>>& job_unslice_input_rows =
       analysis_results.unslice_input_rows.at(job_idx);
+  const std::map<i64, bool>& bounded_state_ops =
+      analysis_results.bounded_state_ops;
+  const std::map<i64, bool>& unbounded_state_ops =
+      analysis_results.unbounded_state_ops;
+  const std::map<i64, i32>& warmup_sizes = analysis_results.warmup_sizes;
   // Create domain samplers
   // Op -> slice
   std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
@@ -1210,6 +1215,7 @@ Result derive_stencil_requirements(
           required_output_rows_at_op.at(op_idx).begin(),
           required_output_rows_at_op.at(op_idx).end());
       std::sort(downstream_rows.begin(), downstream_rows.end());
+      std::vector<i64> compute_rows;
       // Determine which upstream rows are needed for the requested output rows
       std::vector<i64> new_rows;
       // Input Op
@@ -1232,8 +1238,7 @@ Result derive_stencil_requirements(
         }
       }
       // Sample or Space Op
-      else if (op.name() == SAMPLE_OP_NAME ||
-               op.name() == SPACE_OP_NAME) {
+      else if (op.name() == SAMPLE_OP_NAME) {
         assert(slice_group != -1);
         // Use domain sampler
         Result result = domain_samplers.at(op_idx)
@@ -1317,9 +1322,8 @@ Result derive_stencil_requirements(
       // Regular Op
       else {
         assert(!is_builtin_op(op.name()));
-        current_rows.reserve(downstream_rows.size());
-
         std::unordered_set<i64> current_rows;
+        current_rows.reserve(downstream_rows.size());
         // If bounded state, we need to handle warmup
         if (bounded_state_ops.count(op_idx) > 0) {
           i32 warmup = warmup_sizes.at(op_idx);
@@ -1340,7 +1344,12 @@ Result derive_stencil_requirements(
           for (i64 i = 0; i < max_required_row; ++i) {
             current_rows.insert(i);
           }
+        } else {
+          current_rows.insert(downstream_rows.begin(), downstream_rows.end());
         }
+        compute_rows = std::vector<i64>(current_rows.begin(),
+                                        current_rows.end());
+        std::sort(compute_rows.begin(), compute_rows.end());
 
         // Ensure we have inputs for stenciling kernels
         std::unordered_set<i64> stencil_rows;
@@ -1377,9 +1386,14 @@ Result derive_stencil_requirements(
         }
       }
 
+      if (compute_rows.empty()) {
+        compute_rows = new_rows;
+      }
+
       TaskStream s;
       s.slice_group = slice_group;
       s.valid_input_rows = new_rows;
+      s.compute_input_rows = compute_rows;
       s.valid_output_rows = downstream_rows;
       task_streams.push_front(s);
     }
@@ -1392,10 +1406,14 @@ Result derive_stencil_requirements(
     auto out_sample = output_entry.add_samples();
     out_sample->set_table_id(table_ids[i]);
     out_sample->set_column_id(column_ids[i]);
-    google::protobuf::RepeatedField<i64> data(
+    google::protobuf::RepeatedField<i64> input_data(
         required_input_op_input_rows.at(i).begin(),
         required_input_op_input_rows.at(i).end());
-    out_sample->mutable_rows()->Swap(&data);
+    out_sample->mutable_input_row_ids()->Swap(&input_data);
+    google::protobuf::RepeatedField<i64> output_data(
+        required_input_op_output_rows.at(i).begin(),
+        required_input_op_output_rows.at(i).end());
+    out_sample->mutable_output_row_ids()->Swap(&output_data);
   }
   Result result;
   result.set_success(true);
