@@ -855,6 +855,8 @@ class Database:
         stack = [op]
         while len(stack) > 0:
             c = stack.pop()
+            if c in explored_nodes:
+                continue
             explored_nodes.add(c)
 
             if c._name == "Input":
