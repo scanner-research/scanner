@@ -261,7 +261,7 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   task_idx_ = task_idx;
   for (size_t i = 0; i < task_streams.size(); ++i) {
     for (i64 used_rows : current_valid_input_idx_[i]) {
-      assert(valid_output_rows_[i].size() == used_rows);
+      assert(valid_input_rows_[i].size() == used_rows);
     }
   }
   valid_input_rows_.clear();
@@ -308,9 +308,12 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   domain_samplers_.clear();
   for (auto& kv : arg_group_.sampling_args) {
     i64 op_idx = kv.first;
-    i64 slice_group = task_streams.at(op_idx).slice_group;
+    i64 slice = 0;
+    if (arg_group_.sampling_args.at(op_idx).size() > 1) {
+      slice = slice_group_;
+    }
     auto& sampling_args =
-        arg_group_.sampling_args.at(op_idx).at(job_idx).at(slice_group);
+        arg_group_.sampling_args.at(op_idx).at(job_idx).at(slice);
     DomainSampler* sampler = nullptr;
     Result result = make_domain_sampler_instance(
         sampling_args.sampling_function(),
@@ -735,7 +738,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
               deqs.pop_front();
             }
             for (size_t i = 0; i < kernel_cache.size(); ++i) {
-              auto device = side_output_handles[i];
+              auto device = kernel_cache_devices[i];
               auto& cache_deque = kernel_cache[i];
               assert(cache_deque.size() > 0);
               Element element = cache_deque.front();
@@ -896,6 +899,12 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
 
 void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   EvalWorkEntry& work_entry = entry;
+
+  // HACK(apoms): this will fail horrible and leak memory if
+  // we receive outputs at different rates.
+  if (entry.columns.empty() || entry.columns[0].empty()) {
+    return;
+  }
 
   // Setup row buffer if it was emptied
   if (buffered_entry_.columns.size() == 0) {
