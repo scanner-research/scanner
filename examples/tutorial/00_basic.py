@@ -6,6 +6,7 @@ import sys
 import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
+from timeit import default_timer as now
 
 ################################################################################
 # This file shows a sample end-to-end pipeline that ingests a video into       #
@@ -22,10 +23,13 @@ with Database() as db:
     # list. If force is true, it will overwrite existing tables of the same
     # name.
     example_video_path = util.download_video()
+
+    # test time
+    start = now()
     [input_table], failed = db.ingest_videos([
         ('example', example_video_path),
         ('thisshouldfail', 'thisshouldfail.mp4')], force=True)
-
+    print('Time to ingest videos: {:.6f}s'.format(now() - start))
     print(db.summarize())
     print('Failures:', failed)
 
@@ -60,7 +64,9 @@ with Database() as db:
 
     # This executes the job and produces the output table. You'll see a progress
     # bar while Scanner is computing the outputs.
+    start = now()
     output_tables = db.run(bulk_job, force=True)
+    print('Totaltime to decode + compute histograms: {:.6f}s'.format(now() - start))
 
     # Load the histograms from a column of the output table. The
     # parsers.histograms  function  converts the raw bytes output by Scanner

@@ -276,6 +276,7 @@ bool LoadWorker::yield(i32 item_size,
         encoding_type = entry.codec_type;
         if (entry.codec_type == proto::VideoDescriptor::H264) {
           // Video was encoded using h264
+          // printf("video was encoded using h264\n");
           read_video_column(profiler_, entry, valid_offsets, item_start_row,
                             eval_work_entry.columns[out_col_idx]);
         } else {
@@ -339,6 +340,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
   // the bytes starting at the iframe at or preceding the first frame
   // we are interested and will continue up to the bytes before the
   // iframe at or after the last frame we are interested in.
+  // printf("start frame: %d\n", start_frame);
   VideoIntervals intervals =
       slice_into_video_intervals(keyframe_positions, rows);
   size_t num_intervals = intervals.keyframe_index_intervals.size();
@@ -347,7 +349,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     size_t end_keyframe_index;
     std::tie(start_keyframe_index, end_keyframe_index) =
         intervals.keyframe_index_intervals[i];
-
+    printf("start_keyframe_index: %lu, end_keyframe_index: %lu\n", start_keyframe_index, end_keyframe_index);
     u64 start_keyframe_byte_offset =
         static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
     u64 end_keyframe_byte_offset =
@@ -372,11 +374,12 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     auto io_start = now();
 
     u64 pos = start_keyframe_byte_offset;
+    // printf("start_keyframe_byte_offset: %lu\n", pos);
     size_t size_read;
     storehouse::StoreResult r =
         video_file->read(pos, buffer_size, buffer, size_read);
     //s_read(video_file.get(), buffer, buffer_size, pos);
-
+    // printf("size_read: %u\n", size_read);
     profiler.add_interval("io", io_start, now());
     profiler.increment("io_read", static_cast<i64>(buffer_size));
 
