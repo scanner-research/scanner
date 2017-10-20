@@ -146,9 +146,12 @@ VideoIntervals slice_into_video_intervals(
       }
     }
     valid_frames.push_back(row);
+    // printf("row: %ld\n", row);
   }
   info.keyframe_index_intervals.push_back(
       std::make_tuple(start_keyframe_index, end_keyframe_index));
+  // printf("slice into: start_keyframe_index: %lu, end_keyframe_index: %lu\n", start_keyframe_index, end_keyframe_index);
+  // printf("number of valid_frames: %lu\n", valid_frames.size());
   info.valid_frames.push_back(valid_frames);
   return info;
 }
@@ -252,6 +255,7 @@ bool LoadWorker::yield(i32 item_size,
 
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();
+    // printf("num_items is: %lu\n", num_items);
     i32 col_id = sample.column_id();
 
     ColumnType column_type = ColumnType::Other;
@@ -349,7 +353,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     size_t end_keyframe_index;
     std::tie(start_keyframe_index, end_keyframe_index) =
         intervals.keyframe_index_intervals[i];
-    printf("start_keyframe_index: %lu, end_keyframe_index: %lu\n", start_keyframe_index, end_keyframe_index);
+    // printf("start_keyframe_index: %lu, end_keyframe_index: %lu\n", start_keyframe_index, end_keyframe_index);
     u64 start_keyframe_byte_offset =
         static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
     u64 end_keyframe_byte_offset =
