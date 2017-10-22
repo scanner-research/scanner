@@ -1013,7 +1013,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
-  printf("num_save_workers is :%d\n", num_save_workers);
+  // printf("num_save_workers is :%d\n", num_save_workers);
   std::vector<Profiler> save_thread_profilers;
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_thread_profilers.emplace_back(Profiler(base_time));

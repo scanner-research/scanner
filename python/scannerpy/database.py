@@ -817,6 +817,8 @@ class Database:
         else:
             job_id = job_name
 
+        # print('profiler return job_id: {}'.format(job_id))
+
         return Profiler(self, job_id)
 
     def _get_op_info(self, op_name):
@@ -923,7 +925,7 @@ class Database:
             cpu_pool=None,
             gpu_pool=None,
             pipeline_instances_per_node=None,
-            show_progress=True,
+            show_progress=False,
             profiling=False,
             load_sparsity_threshold=8,
             tasks_in_queue_per_pu=4):

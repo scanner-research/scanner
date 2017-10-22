@@ -719,6 +719,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   auto& last_op = ops.at(ops.size() - 1);
   assert(last_op.name() == OUTPUT_OP_NAME);
   std::vector<std::vector<Column>> job_output_columns;
+
   for (const auto& job : jobs) {
     // Get input columns from column inputs specified for each job
     std::map<i64, Column> input_op_idx_to_column;
