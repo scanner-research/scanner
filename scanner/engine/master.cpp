@@ -287,7 +287,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
                                 const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
   VLOG(1) << "Master received NewJob command";
-  printf("Master received newjob!\n");
+  // printf("Master received newjob!\n");
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 

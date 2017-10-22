@@ -490,7 +490,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                 proto::Result* job_result) {
   // Ensure that only one job is running at a time and that the worker
   // is in idle mode before transitioning to job start
-  printf("Worker received a NewJob!\n");
+  // printf("Worker received a NewJob!\n");
   State state = state_.get();
   bool ready = false;
   while (!ready) {
@@ -806,7 +806,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   }
 
   omp_set_num_threads(std::thread::hardware_concurrency());
-  printf("Number of threads: %d\n", std::thread::hardware_concurrency());
+  // printf("Number of threads: %d\n", std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
   i64 accepted_tasks = 0;
