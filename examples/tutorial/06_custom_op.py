@@ -1,4 +1,4 @@
-from scannerpy import Database, Job
+from scannerpy import Database, Job, DeviceType, BulkJob
 import os.path
 
 ################################################################################
@@ -33,3 +33,5 @@ with Database() as db:
     )
     bulk_job = BulkJob(output=output_op, jobs=[job])
     db.run(bulk_job, force=True)
+    print(db.summarize())
+
