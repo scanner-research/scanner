@@ -1003,7 +1003,7 @@ class Database:
                         sa.CopyFrom(arg)
                 elif op in output_ops:
                     op_idx = output_ops[op]
-                    assert isinstance(args, str)
+                    assert isinstance(args, basestring)
                     output_table_name = args
                     job_output_table_names.append(args)
                 else:
