@@ -87,11 +87,13 @@ inline Element add_element_ref(DeviceHandle device, Element& element) {
     Frame* frame = element.as_frame();
     add_buffer_ref(device, frame->data);
     // Copy frame because Frame is not referenced counted
-    return ::scanner::Element{new Frame(frame->as_frame_info(), frame->data)};
+    ele = ::scanner::Element{new Frame(frame->as_frame_info(), frame->data)};
   } else {
     add_buffer_ref(device, element.buffer);
-    return element;
+    ele = element;
   }
+  ele.index = element.index;
+  return ele;
 }
 
 inline void delete_element(DeviceHandle device, Element& element) {
