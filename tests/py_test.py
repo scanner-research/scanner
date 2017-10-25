@@ -541,90 +541,90 @@ def fault_db():
             vid2_path])
 
 
-def test_clean_worker_shutdown(fault_db):
-    spawn_port = 5010
-    def worker_shutdown_task(config, master_address, worker_address):
-        from scannerpy import ProtobufGenerator, Config, start_worker
-        import time
-        import grpc
-        import subprocess
+# def test_clean_worker_shutdown(fault_db):
+#     spawn_port = 5010
+#     def worker_shutdown_task(config, master_address, worker_address):
+#         from scannerpy import ProtobufGenerator, Config, start_worker
+#         import time
+#         import grpc
+#         import subprocess
 
-        c = Config(None)
+#         c = Config(None)
 
-        import scanner.metadata_pb2 as metadata_types
-        import scanner.engine.rpc_pb2 as rpc_types
-        import scanner.types_pb2 as misc_types
-        import libscanner as bindings
+#         import scanner.metadata_pb2 as metadata_types
+#         import scanner.engine.rpc_pb2 as rpc_types
+#         import scanner.types_pb2 as misc_types
+#         import libscanner as bindings
 
-        protobufs = ProtobufGenerator(config)
+#         protobufs = ProtobufGenerator(config)
 
-        # Wait to kill worker
-        time.sleep(8)
-        # Kill worker
-        channel = grpc.insecure_channel(
-            worker_address,
-            options=[('grpc.max_message_length', 24499183 * 2)])
-        worker = protobufs.WorkerStub(channel)
+#         # Wait to kill worker
+#         time.sleep(8)
+#         # Kill worker
+#         channel = grpc.insecure_channel(
+#             worker_address,
+#             options=[('grpc.max_message_length', 24499183 * 2)])
+#         worker = protobufs.WorkerStub(channel)
 
-        try:
-            worker.Shutdown(protobufs.Empty())
-        except grpc.RpcError as e:
-            status = e.code()
-            if status == grpc.StatusCode.UNAVAILABLE:
-                print('could not shutdown worker!')
-                exit(1)
-            else:
-                raise ScannerException('Worker errored with status: {}'
-                                       .format(status))
+#         try:
+#             worker.Shutdown(protobufs.Empty())
+#         except grpc.RpcError as e:
+#             status = e.code()
+#             if status == grpc.StatusCode.UNAVAILABLE:
+#                 print('could not shutdown worker!')
+#                 exit(1)
+#             else:
+#                 raise ScannerException('Worker errored with status: {}'
+#                                        .format(status))
 
-        # Wait a bit
-        time.sleep(15)
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        subprocess.call(['python ' +  script_dir + '/spawn_worker.py'],
-                        shell=True)
+#         # Wait a bit
+#         time.sleep(15)
+#         script_dir = os.path.dirname(os.path.realpath(__file__))
+#         subprocess.call(['python ' +  script_dir + '/spawn_worker.py'],
+#                         shell=True)
 
-    master_addr = fault_db._master_address
-    worker_addr = fault_db._worker_addresses[0]
-    shutdown_process = Process(target=worker_shutdown_task,
-                             args=(fault_db.config, master_addr, worker_addr))
-    shutdown_process.daemon = True
-    shutdown_process.start()
+#     master_addr = fault_db._master_address
+#     worker_addr = fault_db._worker_addresses[0]
+#     shutdown_process = Process(target=worker_shutdown_task,
+#                              args=(fault_db.config, master_addr, worker_addr))
+#     shutdown_process.daemon = True
+#     shutdown_process.start()
 
-    frame = fault_db.ops.FrameInput()
-    range_frame = frame.sample()
-    sleep_frame = fault_db.ops.SleepFrame(ignore = range_frame)
-    output_op = fault_db.ops.Output(columns=[sleep_frame])
+#     frame = fault_db.ops.FrameInput()
+#     range_frame = frame.sample()
+#     sleep_frame = fault_db.ops.SleepFrame(ignore = range_frame)
+#     output_op = fault_db.ops.Output(columns=[sleep_frame])
 
-    job = Job(
-        op_args={
-            frame: fault_db.table('test1').column('frame'),
-            range_frame: fault_db.sampler.range(0, 15),
-            output_op: 'test_shutdown',
-        }
-    )
-    bulk_job = BulkJob(output=output_op, jobs=[job])
-    table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
-                         show_progress=False)
-    table = table[0]
-    assert len([_ for _, _ in table.column('dummy').load()]) == 15
+#     job = Job(
+#         op_args={
+#             frame: fault_db.table('test1').column('frame'),
+#             range_frame: fault_db.sampler.range(0, 15),
+#             output_op: 'test_shutdown',
+#         }
+#     )
+#     bulk_job = BulkJob(output=output_op, jobs=[job])
+#     table = fault_db.run(bulk_job, pipeline_instances_per_node=1, force=True,
+#                          show_progress=False)
+#     table = table[0]
+#     assert len([_ for _, _ in table.column('dummy').load()]) == 15
 
-    # Shutdown the spawned worker
-    channel = grpc.insecure_channel(
-        'localhost:' + str(spawn_port),
-        options=[('grpc.max_message_length', 24499183 * 2)])
-    worker = fault_db.protobufs.WorkerStub(channel)
+#     # Shutdown the spawned worker
+#     channel = grpc.insecure_channel(
+#         'localhost:' + str(spawn_port),
+#         options=[('grpc.max_message_length', 24499183 * 2)])
+#     worker = fault_db.protobufs.WorkerStub(channel)
 
-    try:
-        worker.Shutdown(fault_db.protobufs.Empty())
-    except grpc.RpcError as e:
-        status = e.code()
-        if status == grpc.StatusCode.UNAVAILABLE:
-            print('could not shutdown worker!')
-            exit(1)
-        else:
-            raise ScannerException('Worker errored with status: {}'
-                                   .format(status))
-    shutdown_process.join()
+#     try:
+#         worker.Shutdown(fault_db.protobufs.Empty())
+#     except grpc.RpcError as e:
+#         status = e.code()
+#         if status == grpc.StatusCode.UNAVAILABLE:
+#             print('could not shutdown worker!')
+#             exit(1)
+#         else:
+#             raise ScannerException('Worker errored with status: {}'
+#                                    .format(status))
+#     shutdown_process.join()
 
 
 # def test_fault_tolerance(fault_db):
