@@ -17,10 +17,7 @@ install:
 - sudo add-apt-repository -y ppa:jonathonf/python-2.7
 - sudo apt-get update
 - sudo apt-get install -y doxygen graphviz python2.7
-- which pip
-- which python
-- python --version
-- pip install requests[security] --upgrade
+- sudo pip install requests[security] --upgrade
 - pip install doxypypy twine
 
 script: ./scripts/travis-build.sh
