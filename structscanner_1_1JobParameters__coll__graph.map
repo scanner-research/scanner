@@ -1,4 +1,0 @@
-<map id="scanner::JobParameters" name="scanner::JobParameters">
-<area shape="rect" id="node2" href="$structscanner_1_1TaskSet.html" title="Set of tasks and a pipeline to run in a single job. " alt="" coords="24,187,149,213"/>
-<area shape="rect" id="node3" href="$classscanner_1_1Op.html" title="Interface for a computation unit implemented by a Kernel. " alt="" coords="40,96,133,123"/>
-</map>

@@ -123,7 +123,7 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:ad6ef0afd37643a03bbbe1bdc6228ab91"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks if kernel arguments are valid.  <a href="#ad6ef0afd37643a03bbbe1bdc6228ab91">More...</a><br/></td></tr>
 <tr class="separator:ad6ef0afd37643a03bbbe1bdc6228ab91"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a17652872d8ffcaa778c73a40195429a2"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1BaseKernel.html#a17652872d8ffcaa778c73a40195429a2">reset</a> ()</td></tr>
-<tr class="memdesc:a17652872d8ffcaa778c73a40195429a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resets ops when about to receive non-consecutive inputs.  <a href="#a17652872d8ffcaa778c73a40195429a2">More...</a><br/></td></tr>
+<tr class="memdesc:a17652872d8ffcaa778c73a40195429a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Requests that kernel resets its logical state.  <a href="#a17652872d8ffcaa778c73a40195429a2">More...</a><br/></td></tr>
 <tr class="separator:a17652872d8ffcaa778c73a40195429a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8a9f5a9346f44c59c4a3a04b6c9a3779"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a8a9f5a9346f44c59c4a3a04b6c9a3779"></a>
 virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1BaseKernel.html#a8a9f5a9346f44c59c4a3a04b6c9a3779">execute_kernel</a> (const StenciledBatchedColumns &amp;input_columns, BatchedColumns &amp;output_columns)=0</td></tr>
@@ -131,7 +131,7 @@ virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" hr
 <tr class="separator:a8a9f5a9346f44c59c4a3a04b6c9a3779"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5915a3fc1e918d5b49e57302902d8cea"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a5915a3fc1e918d5b49e57302902d8cea"></a>
 virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscanner_1_1BaseKernel.html#a5915a3fc1e918d5b49e57302902d8cea">set_profiler</a> (Profiler *profiler)</td></tr>
-<tr class="memdesc:a5915a3fc1e918d5b49e57302902d8cea"><td class="mdescLeft">&#160;</td><td class="mdescRight">Do not call this function. <br/></td></tr>
+<tr class="memdesc:a5915a3fc1e918d5b49e57302902d8cea"><td class="mdescLeft">&#160;</td><td class="mdescRight">For internal use. <br/></td></tr>
 <tr class="separator:a5915a3fc1e918d5b49e57302902d8cea"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
@@ -170,8 +170,8 @@ static const i32&#160;</td><td class="memItemRight" valign="bottom"><b>Unlimited
 </table>
 </div><div class="memdoc">
 
-<p>Resets ops when about to receive non-consecutive inputs. </p>
-<p>Scanner tries to run ops on consecutive blocks of inputs to maximize the accuracy of stateful algorithms like video trackers. However, when the runtime provides an op with a non-consecutive input (because of work imbalance or other reasons), it will call reset to allow the op to reset its state. </p>
+<p>Requests that kernel resets its logical state. </p>
+<p>Scanner calls reset on a kernel when it provides non-consecutive inputs or when about to provide inputs from a difference slice. This allows unbounded or bounded state kernels to clear their logical state so that state from logically unrelated parts of the input do not affect the output. </p>
 
 <p>Reimplemented in <a class="el" href="classscanner_1_1StenciledBatchedKernel.html#a2ff618e5fd1c32ce1dd14bf0ae2a32b4">scanner::StenciledBatchedKernel</a>.</p>
 

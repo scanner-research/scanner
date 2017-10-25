@@ -1,3 +1,4 @@
 <map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="node1" href="$classscannerpy_1_1op_1_1OpColumn.html" title="scannerpy.op.OpColumn" alt="" coords="6,5,173,32"/>
+<area shape="rect" id="node2" href="$classscannerpy_1_1stdlib_1_1bbox__nms__kernel_1_1BBoxNMSKernel.html" title="scannerpy.stdlib.bbox\l_nms_kernel.BBoxNMSKernel" alt="" coords="113,5,311,46"/>
+<area shape="rect" id="node3" href="$classscannerpy_1_1stdlib_1_1pose__nms__kernel_1_1PoseNMSKernel.html" title="scannerpy.stdlib.pose\l_nms_kernel.PoseNMSKernel" alt="" coords="113,70,311,111"/>
 </map>
