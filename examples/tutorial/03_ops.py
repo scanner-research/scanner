@@ -72,14 +72,13 @@ with Database() as db:
 
 
     # Stencil
-    # Under construction...
     diff = db.ops.FrameDifference(
         frame = frame,
         stencil = [-1, 0])
 
 
     # Bounded State
-    # Under construction... *digging man GIF*
+    # Detailed documentation to come...
 
     # Unbounded State
-    # Under construction... *spinning construction sign GIF*
+    # Detailed documentation to come...

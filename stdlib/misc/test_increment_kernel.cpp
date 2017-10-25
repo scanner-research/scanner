@@ -10,8 +10,18 @@ class TestIncrementKernel : public Kernel {
     : Kernel(config),
       device_(config.devices[0]) {}
 
+  void reset() {
+    next_int_ = 0;
+  }
+
   void execute(const Columns& input_columns,
                Columns& output_columns) override {
+    if (last_row_ + 1 != input_columns[0].index) {
+      last_row_ = input_columns[0].index - 1;
+      reset();
+    }
+    last_row_++;
+
     u8* buffer = new_buffer(device_, sizeof(i64));
     *((i64*)buffer) = next_int_++;
     insert_element(output_columns[0], buffer, sizeof(i64));
@@ -20,6 +30,7 @@ class TestIncrementKernel : public Kernel {
  private:
   DeviceHandle device_;
   i64 next_int_ = 0;
+  i64 last_row_ = 0;
 };
 
 REGISTER_OP(TestIncrementUnbounded)
