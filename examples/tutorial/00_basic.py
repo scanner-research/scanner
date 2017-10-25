@@ -14,7 +14,7 @@ import util
 
 # Initialize a connection to the Scanner database. Loads configuration from the
 # ~/.scanner.toml configuration file.
-with Database(master="crissy:5001", workers=["crissy:5002"], debug=True) as db:
+with Database() as db:
 
     # Create a Scanner table from our video in the format (table name,
     # video path). If any videos fail to ingest, they'll show up in the failed
