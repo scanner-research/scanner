@@ -13,6 +13,7 @@ import socket
 import numpy as np
 import sys
 import grpc
+import struct
 
 try:
     run(['nvidia-smi'])
@@ -121,14 +122,24 @@ def test_table_properties(db):
     assert table.num_rows() == 720
     assert [c for c in table.column_names()] == ['index', 'frame']
 
-# def test_collection(db):
-#     c = db.new_collection('test', ['test1', 'test2'])
-#     frame = c.as_op().strided(2)
-#     job = Job(
-#         columns = [db.ops.Histogram(frame = frame)],
-#         name = '_ignore')
-#     db.run(job, show_progress=False, force=True)
-#     db.delete_collection('test')
+def test_collection(db):
+    c = db.new_collection('test', [db.table('test1'), db.table('test2')])
+
+    frame = db.ops.FrameInput()
+    hist = db.ops.Histogram(frame = frame)
+    output = db.ops.Output(columns=[hist])
+
+    jobs = []
+    for table in c.tables():
+        job = Job(op_args={
+            frame: table.column('frame'),
+            output: table.name() + '_ignore',
+        })
+        jobs.append(job)
+
+    bulk_job = BulkJob(output=output, jobs=jobs)
+    db.run(bulk_job, show_progress=False, force=True)
+    db.delete_collection('test')
 
 def test_summarize(db):
     db.summarize()
@@ -217,28 +228,27 @@ def test_space(db):
     spacing_distance = 8
     table = run_spacer_job(db.sampler.space_repeat(spacing_distance))
     num_rows = 0
-    for (frame_index, hist) in table.column('histogram').load(parsers.histograms):
+    for (frame_index, hist) in table.load(['histogram'], parsers.histograms):
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
-        assert len(frame_hists) == 3
-        for c in range(len(frame_hists)):
-            assert ref_hist[c] == frame_hists[c]
+        assert len(hist) == 3
+        for c in range(len(hist)):
+            assert (ref_hist[c] == hist[c]).all()
         num_rows += 1
     assert num_rows == db.table('test1').num_rows() * spacing_distance
 
     # Null
     table = run_spacer_job(db.sampler.space_null(spacing_distance))
     num_rows = 0
-    for (frame_index, hist) in table.column('histogram').load(parsers.histograms):
+    for (frame_index, hist) in table.load(['histogram'], parsers.histograms):
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
-            assert ref_hist is not None
-            assert len(frame_hists) == 3
-            assert frame_hists[0].shape[0] == 16
-            ref_hist = hist
+            assert hist is not None
+            assert len(hist) == 3
+            assert hist[0].shape[0] == 16
         else:
-            assert ref_hist is None
+            assert hist is None
         num_rows += 1
     assert num_rows == db.table('test1').num_rows() * spacing_distance
 
@@ -263,10 +273,54 @@ def test_slicing(db):
     assert num_rows == db.table('test1').num_rows()
 
 def test_bounded_state(db):
-    pass
+    warmup = 3
+
+    frame = db.ops.FrameInput()
+    increment = db.ops.TestIncrementBounded(ignore=frame, warmup=warmup)
+    sampled_increment = increment.sample()
+    output_op = db.ops.Output(columns=[sampled_increment])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            sampled_increment: db.sampler.gather([0, 10, 25, 26, 27]),
+            output_op: 'test_slicing',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+
+    num_rows = 0
+    expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
+    for (frame_index, buf) in tables[0].column('integer').load():
+        (val,) = struct.unpack('=q', buf)
+        assert val == expected_output[num_rows]
+        print(num_rows)
+        num_rows += 1
+    assert num_rows == 5
 
 def test_unbounded_state(db):
-    pass
+    frame = db.ops.FrameInput()
+    slice_frame = frame.slice()
+    increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
+    unsliced_increment = increment.unslice()
+    output_op = db.ops.Output(columns=[unsliced_increment])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            slice_frame: db.partitioner.all(50),
+            output_op: 'test_slicing',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+
+    num_rows = 0
+    for (frame_index, buf) in tables[0].column('integer').load():
+        (val,) = struct.unpack('=q', buf)
+        assert val == frame_index % 50
+        num_rows += 1
+    assert num_rows == db.table('test1').num_rows()
+
 
 def builder(cls):
     inst = cls()
