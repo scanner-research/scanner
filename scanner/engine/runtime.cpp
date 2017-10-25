@@ -192,6 +192,9 @@ ElementList copy_or_ref_elements(Profiler& profiler,
       insert_element(output_list, dest_buffers[b], sizes[b]);
     }
   }
+  for (i32 b = 0; b < (i32)column.size(); ++b) {
+    output_list[b].index = column[b].index;
+  }
   return output_list;
 }
 
