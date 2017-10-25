@@ -89,7 +89,10 @@ class Column:
         for j, buf_len in enumerate(lens):
             if rows_idx < len(rows) and j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]
-                if fn is not None:
+                # len(buf) == 0 when element is null
+                if len(buf) == 0:
+                    yield None
+                elif fn is not None:
                     yield fn(buf, self._db.protobufs)
                 else:
                     yield buf
