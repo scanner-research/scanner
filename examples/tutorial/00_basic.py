@@ -69,7 +69,6 @@ with Database() as db:
     output_tables = db.run(bulk_job, force=True)
     print('Totaltime to decode + compute histograms: {:.6f}s'.format(now() - start))
 
-
     # Load the histograms from a column of the output table. The
     # parsers.histograms  function  converts the raw bytes output by Scanner
     # into a numpy array for each channel.

@@ -35,4 +35,3 @@ with Database() as db:
     db.run(bulk_job, force=True)
 
     print(db.summarize())
-

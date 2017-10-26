@@ -373,7 +373,6 @@ class TestOpticalFlow:
         return BulkJob(output=out, jobs=[job])
 
     def run(self, db, job):
-
         [table] = db.run(job, force=True, show_progress=False)
         num_rows = 0
         for (frame_index, _) in table.column('flow').load():

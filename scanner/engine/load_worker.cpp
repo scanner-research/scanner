@@ -241,6 +241,7 @@ bool LoadWorker::yield(i32 item_size,
     i32 table_id = sample.table_id();
     const TableMetadata& table_meta = table_metadata_->at(table_id);
 
+
     i64 total_rows = sample.input_row_ids_size();
     i64 row_start = current_row_;
     i64 row_end = std::min(current_row_ + item_size, total_rows);
@@ -255,8 +256,6 @@ bool LoadWorker::yield(i32 item_size,
 
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();
-
-    // printf("num_items is: %lu\n", num_items);
 
     i32 col_id = sample.column_id();
 
@@ -282,7 +281,6 @@ bool LoadWorker::yield(i32 item_size,
         encoding_type = entry.codec_type;
         if (entry.codec_type == proto::VideoDescriptor::H264) {
           // Video was encoded using h264
-          // printf("video was encoded using h264\n");
 
           read_video_column(profiler_, entry, valid_offsets, item_start_row,
                             eval_work_entry.columns[out_col_idx]);
@@ -384,12 +382,12 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     auto io_start = now();
 
     u64 pos = start_keyframe_byte_offset;
-    // printf("start_keyframe_byte_offset: %lu\n", pos);
+
     size_t size_read;
     storehouse::StoreResult r =
         video_file->read(pos, buffer_size, buffer, size_read);
     //s_read(video_file.get(), buffer, buffer_size, pos);
-    // printf("size_read: %u\n", size_read);
+
     profiler.add_interval("io", io_start, now());
     profiler.increment("io_read", static_cast<i64>(buffer_size));
 
