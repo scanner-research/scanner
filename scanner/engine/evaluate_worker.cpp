@@ -143,6 +143,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
                                         num_rows * frame_info.size(), num_rows);
           decoders_[media_col_idx]->get_frames(buffer, num_rows);
           // printf("get num_rows frames: %d\n", num_rows);
+
           for (i64 n = 0; n < num_rows; ++n) {
             insert_frame(entry.columns[c],
                          new Frame(frame_info, buffer + frame_info.size() * n));

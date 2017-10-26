@@ -11,8 +11,10 @@ with Database() as db:
     output_op = db.ops.Output(columns=[histogram])
     job = Job(
         op_args={
+
             frame: db.table('example').column('frame'),
             output_op: 'example_hist_profile'
+
         }
     )
     bulk_job = BulkJob(output=output_op, jobs=[job])

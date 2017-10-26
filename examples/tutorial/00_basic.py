@@ -47,6 +47,7 @@ with Database() as db:
     # table at the end of the computation.
     output_op = db.ops.Output(columns=[hist])
 
+
     # A job defines a table you want to create. In op_args, we bind the frame
     # input column from above to the table we want to read from and name
     # the output table 'example_hist' by binding a string to output_op.
@@ -59,6 +60,7 @@ with Database() as db:
     # Multiple tables can be created using the same execution graph using
     # a bulk job. Here we specify the execution graph (or DAG) by providing
     # the output_op and also specify the jobs we wish to compute.
+
     bulk_job = BulkJob(output=output_op, jobs=[job])
 
     # This executes the job and produces the output table. You'll see a progress
@@ -66,6 +68,7 @@ with Database() as db:
     start = now()
     output_tables = db.run(bulk_job, force=True)
     print('Totaltime to decode + compute histograms: {:.6f}s'.format(now() - start))
+
 
     # Load the histograms from a column of the output table. The
     # parsers.histograms  function  converts the raw bytes output by Scanner
@@ -80,4 +83,6 @@ with Database() as db:
         assert frame_hists[0].shape[0] == 16
         num_rows += 1
     assert num_rows == db.table('example').num_rows()
+
     print(db.summarize())
+

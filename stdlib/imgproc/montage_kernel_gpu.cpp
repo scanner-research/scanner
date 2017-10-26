@@ -118,5 +118,6 @@ class MontageKernelGPU : public BatchedKernel, public VideoKernel {
 
 REGISTER_KERNEL(Montage, MontageKernelGPU)
     .device(DeviceType::GPU)
+    .batch()
     .num_devices(1);
 }
