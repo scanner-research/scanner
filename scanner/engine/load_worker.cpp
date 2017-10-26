@@ -425,8 +425,6 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     insert_element(element_list, decode_args_buffer, size);
 
   }
-
-  }
 }
 
 void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
