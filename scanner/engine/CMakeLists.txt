@@ -11,12 +11,17 @@ set(SOURCE_FILES
   evaluate_worker.cpp
   save_worker.cpp
   sampler.cpp
+  dag_analysis.cpp
   metadata.cpp
   kernel_registry.cpp
   op_registry.cpp
   table_meta_cache.cpp
   python.cpp
-  python_kernel.cpp)
+  python_kernel.cpp
+  sample_op.cpp
+  space_op.cpp
+  slice_op.cpp
+  unslice_op.cpp)
 
 add_library(engine OBJECT
   ${SOURCE_FILES})

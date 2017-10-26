@@ -13,7 +13,7 @@
 
 // Custom kernels must inherit the Kernel class or any subclass thereof,
 // e.g. the VideoKernel which provides support for processing video frames.
-class MyResizeKernel : public scanner::VideoKernel {
+class MyResizeKernel : public scanner::BatchedKernel {
  public:
   // To allow ops to be customized by users at a runtime, e.g. to define the
   // target width and height of the MyResizeKernel, Scanner uses Google's Protocol
@@ -23,8 +23,8 @@ class MyResizeKernel : public scanner::VideoKernel {
   // In Python, users will provide the argument fields to the op constructor,
   // and these will get serialized into a string. This string is part of the
   // general configuration each kernel receives from the runtime, config.args.
-  MyResizeKernel(const scanner::Kernel::Config& config)
-      : scanner::VideoKernel(config) {
+  MyResizeKernel(const scanner::KernelConfig& config)
+      : scanner::BatchedKernel(config) {
     // The protobuf arguments must be decoded from the input string.
     MyResizeArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
@@ -43,7 +43,7 @@ class MyResizeKernel : public scanner::VideoKernel {
 
     // This must be called at the top of the execute method in any VideoKernel.
     // See the VideoKernel for the implementation check_frame_info.
-    check_frame(scanner::CPU_DEVICE, frame_column[0]);
+    // scanner::VideoKernel::check_frame(scanner::CPU_DEVICE, frame_column[0]);
 
     auto& resized_frame_column = output_columns[0];
     scanner::FrameInfo output_frame_info(

@@ -17,6 +17,7 @@
 
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/video_index_entry.h"
+#include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 
@@ -31,17 +32,17 @@ struct LoadWorkerArgs {
   storehouse::StorageConfig* storage_config;
   Profiler& profiler;
   i32 load_sparsity_threshold;
-  i32 io_item_size;
-  i32 work_item_size;
+  i32 io_packet_size;
+  i32 work_packet_size;
 };
 
 class LoadWorker {
  public:
   LoadWorker(const LoadWorkerArgs& args);
 
-  void feed(std::tuple<IOItem, LoadWorkEntry>& input_entry);
+  void feed(LoadWorkEntry& input_entry);
 
-  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output_entry);
+  bool yield(i32 item_size, EvalWorkEntry& output_entry);
 
   bool done();
 
@@ -56,23 +57,22 @@ class LoadWorker {
   // Setup a distinct storage backend for each IO thread
   std::unique_ptr<storehouse::StorageBackend> storage_;
   // Caching table metadata
-  std::map<i32, TableMetadata> table_metadata_;
+  DatabaseMetadata meta_;
+  std::unique_ptr<TableMetaCache> table_metadata_;
   // To ammortize opening files
   i32 last_table_id_ = -1;
   std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index_;
   i32 load_sparsity_threshold_;
-  i32 io_item_size_;
-  i32 work_item_size_;
+  i32 io_packet_size_;
+  i32 work_packet_size_;
 
   // Continuation state
   bool first_item_;
   bool needs_configure_;
   bool needs_reset_;
-  std::tuple<IOItem, LoadWorkEntry> entry_;
-  i64 current_work_item_;
+  LoadWorkEntry entry_;
   i64 current_row_;
-  i64 total_work_items_;
-
+  i64 total_rows_;
 };
 
 void read_video_column(Profiler& profiler,

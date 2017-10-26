@@ -2,108 +2,68 @@ from common import *
 
 DEFAULT_TASK_SIZE = 250
 
-class TableSampler:
+class Sampler:
     """
     Utility for specifying which frames of a video (or which rows of a table)
     to run a computation over.
     """
 
-    def __init__(self, table):
-        self._table = table
-        self._db = table._db
+    def __init__(self, db):
+        self._db = db
 
-    def all(self, task_size=DEFAULT_TASK_SIZE, warmup_size=0):
-        sampler_args = self._db.protobufs.AllSamplerArgs()
-        sampler_args.sample_size = task_size
-        sampler_args.warmup_size = warmup_size
-        task = self._db.protobufs.Task()
-        #task.output_table_name = output_table_name
-        column_names = [c.name() for c in self._table.columns()]
-        sample = task.samples.add()
-        sample.table_name = self._table.name()
-        sample.column_names.extend(column_names)
-        sample.sampling_function = "All"
-        sample.sampling_args = sampler_args.SerializeToString()
-        return task
+    def all(self):
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "All"
+        return sampling_args
 
-    def strided(self, stride, task_size=DEFAULT_TASK_SIZE):
-        return self.strided_range(0, self._table.num_rows(), stride, task_size=task_size)
+    def strided(self, stride):
+        args = self._db.protobufs.StridedSamplerArgs()
+        args.stride = stride
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "Strided"
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args
 
-    def range(self, start, end, task_size=DEFAULT_TASK_SIZE, warmup_size=0):
-        return self.ranges([(start, end)], task_size=task_size,
-                           warmup_size=warmup_size)
+    def range(self, start, end):
+        return self.ranges([(start, end)])
 
-    def ranges(self, intervals, task_size=DEFAULT_TASK_SIZE, warmup_size=0):
-        return self.strided_ranges(
-            intervals, 1,
-            task_size=task_size,
-            warmup_size=warmup_size)
+    def ranges(self, intervals):
+        return self.strided_ranges(intervals, 1)
 
-    def gather(self, rows, task_size=DEFAULT_TASK_SIZE):
-        task = self._db.protobufs.Task()
-        #task.output_table_name = output_table_name
-        column_names = [c.name() for c in self._table.columns()]
-        sample = task.samples.add()
-        sample.table_name = self._table.name()
-        sample.column_names.extend(column_names)
-        sample.sampling_function = "Gather"
-        sampler_args = self._db.protobufs.GatherSamplerArgs()
-        s = 0
-        while s < len(rows):
-            e = min(s + task_size, len(rows))
-            sampler_args_sample = sampler_args.samples.add()
-            sampler_args_sample.rows[:] = rows[s:e]
-            s = e
-        sample.sampling_args = sampler_args.SerializeToString()
-        return task
+    def gather(self, rows):
+        args = self._db.protobufs.GatherSamplerArgs()
+        args.rows[:] = rows
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = 'Gather'
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args
 
-    def strided_range(self, start, end, stride, task_size=DEFAULT_TASK_SIZE,
-                      warmup_size=0):
-        return self.strided_ranges([(start, end)], stride,
-                                   task_size=task_size,
-                                   warmup_size=warmup_size)
+    def strided_range(self, start, end, stride):
+        return self.strided_ranges([(start, end)], stride)
 
-    def strided_ranges(self, intervals, stride, task_size=DEFAULT_TASK_SIZE,
-                      warmup_size=0):
-        task = self._db.protobufs.Task()
-        #task.output_table_name = output_table_name
-        num_rows = self._table.num_rows()
-        column_names = [c.name() for c in self._table.columns()]
-        sample = task.samples.add()
-        sample.table_name = self._table.name()
-        sample.column_names.extend(column_names)
-        sample.sampling_function = "StridedRange"
-        sampler_args = self._db.protobufs.StridedRangeSamplerArgs()
-        sampler_args.stride = stride
+    def strided_ranges(self, intervals, stride):
+        args = self._db.protobufs.StridedRangeSamplerArgs()
+        args.stride = stride
         for start, end in intervals:
-            s = start
-            while s < end:
-                ws = max(0, s - warmup_size * stride)
-                e = min(s + task_size * stride, end)
-                sampler_args.warmup_starts.append(ws)
-                sampler_args.starts.append(s)
-                sampler_args.ends.append(e)
-                s = e
-        sample.sampling_args = sampler_args.SerializeToString()
-        return task
+            args.starts.append(start)
+            args.ends.append(end)
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "StridedRanges"
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args
 
-class SamplerOp:
-    def __init__(self, table):
-        from collection import Collection
-        if isinstance(table, Collection):
-            self._collection = table
-            self._table = self._collection.tables(0)
-        else:
-            self._collection = None
-            self._table = table
+    def space_null(self, spacing):
+        args = self._db.protobufs.SpaceNullSamplerArgs()
+        args.spacing = spacing
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "SpaceNull"
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args
 
-    def __getattr__(self, attr):
-        def fn(*args, **kwargs):
-            def task_generator(t=self._table):
-                return getattr(TableSampler(t), attr)(*args, **kwargs)
-            return self._table._db.ops.Input(
-                self._table.columns(),
-                task_generator,
-                self._collection).outputs()
-
-        return fn
+    def space_repeat(self, spacing):
+        args = self._db.protobufs.SpaceRepeatSamplerArgs()
+        args.spacing = spacing
+        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args.sampling_function = "SpaceRepeat"
+        sampling_args.sampling_args = args.SerializeToString()
+        return sampling_args

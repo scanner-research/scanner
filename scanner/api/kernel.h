@@ -48,6 +48,8 @@ struct Element {
   u8* buffer;
   size_t size;
   bool is_frame;
+  // @brief the index of the element in the input domain
+  i64 index;
 };
 
 using ElementList = std::vector<Element>;
@@ -79,13 +81,19 @@ inline void insert_frame(Element& element, Frame* frame) {
   element = ::scanner::Element{frame};
 }
 
-inline void add_element_ref(DeviceHandle device, Element& element) {
+inline Element add_element_ref(DeviceHandle device, Element& element) {
+  Element ele;
   if (element.is_frame) {
     Frame* frame = element.as_frame();
     add_buffer_ref(device, frame->data);
+    // Copy frame because Frame is not referenced counted
+    ele = ::scanner::Element{new Frame(frame->as_frame_info(), frame->data)};
   } else {
     add_buffer_ref(device, element.buffer);
+    ele = element;
   }
+  ele.index = element.index;
+  return ele;
 }
 
 inline void delete_element(DeviceHandle device, Element& element) {
@@ -133,13 +141,13 @@ class BaseKernel {
   virtual void validate(proto::Result* result) { result->set_success(true); }
 
   /**
-   * @brief Resets ops when about to receive non-consecutive inputs.
+   * @brief Requests that kernel resets its logical state.
    *
-   * Scanner tries to run ops on consecutive blocks of inputs to
-   * maximize the accuracy of stateful algorithms like video trackers.
-   * However, when the runtime provides an op with a non-consecutive
-   * input (because of work imbalance or other reasons), it will call reset
-   * to allow the op to reset its state.
+   * Scanner calls reset on a kernel when it provides non-consecutive
+   * inputs or when about to provide inputs from a difference slice. This allows
+   * unbounded or bounded state kernels to clear their logical state so
+   * that state from logically unrelated parts of the input do not affect
+   * the output.
    */
   virtual void reset(){};
 
@@ -149,7 +157,9 @@ class BaseKernel {
   virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
                               BatchedColumns& output_columns) = 0;
 
-  //! Do not call this function.
+  /**
+   * @brief For internal use
+   **/
   virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
 
   /**

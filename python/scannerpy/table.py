@@ -2,7 +2,6 @@ from common import *
 from column import Column
 import struct
 from itertools import izip
-from sampler import SamplerOp
 from timeit import default_timer as now
 
 class Table:
@@ -13,11 +12,11 @@ class Table:
     """
     def __init__(self, db, name, id):
         self._db = db
-        self._columns = []
         # We pass name and id to avoid having to read the descriptor
         self._name = name
         self._id = id
         self._descriptor = None
+        self._video_descriptors = None
 
     def id(self):
         return self._id
@@ -31,17 +30,24 @@ class Table:
                 self._db.protobufs.TableDescriptor,
                 'tables/{}/descriptor.bin'.format(self._id))
 
-    def _load_columns(self):
+    def _load_column(self, name):
         self._need_descriptor()
-        for c in self._descriptor.columns:
-            video_descriptor = None
-            if c.type == self._db.protobufs.Video:
-                video_descriptor = self._db._load_descriptor(
-                    self._db.protobufs.VideoDescriptor,
-                    'tables/{:d}/{:d}_0_video_metadata.bin'.format(
-                        self._id,
-                        c.id))
-            self._columns.append(Column(self, c, video_descriptor))
+        if self._video_descriptors is None:
+            self._video_descriptors = []
+            for c in self._descriptor.columns:
+                video_descriptor = None
+                if c.type == self._db.protobufs.Video:
+                    video_descriptor = self._db._load_descriptor(
+                        self._db.protobufs.VideoDescriptor,
+                        'tables/{:d}/{:d}_0_video_metadata.bin'.format(
+                            self._id,
+                            c.id))
+                self._video_descriptors.append(video_descriptor)
+        for i, c in enumerate(self._descriptor.columns):
+            if c.name == name:
+                return c, self._video_descriptors[i]
+        raise ScannerException('Column {} not found in Table {}'
+                               .format(name, self._name))
 
     def _load_job(self):
         self._need_descriptor()
@@ -65,36 +71,8 @@ class Table:
         self._need_descriptor()
         return [c.name for c in self._descriptor.columns]
 
-    def column(self, index):
-        return self.columns(index)
-
-    def columns(self, index=None):
-        if len(self._columns) == 0:
-            self._load_columns()
-
-        columns = self._columns
-        if index is not None:
-            col = None
-            if isinstance(index, basestring):
-                for c in columns:
-                    if c.name() == index:
-                        col = c
-                        break
-                if col is None:
-                    raise ScannerException('Could not find column with name {}'
-                                           .format(index))
-            else:
-                assert isinstance(index, int)
-                if index < 0 or index >= len(columns):
-                    raise ScannerException('No column with index {}'
-                                           .format(index))
-                col = columns[index]
-            return col
-        else:
-            return columns
-
-    def as_op(self):
-        return SamplerOp(self)
+    def column(self, name):
+        return Column(self, name)
 
     def num_rows(self):
         self._need_descriptor()
@@ -113,12 +91,13 @@ class Table:
     def profiler(self):
         self._need_descriptor()
         if self._descriptor.job_id != -1:
+            # print('job_id is: {}'.format(self._descriptor.job_id))
             return self._db.profiler(self._descriptor.job_id)
         else:
             raise ScannerException('Ingested videos do not have profile data')
 
     def load(self, columns, fn=None, rows=None):
-        cols = [self.columns(c).load(rows=rows) for c in columns]
+        cols = [self.column(c).load(rows=rows) for c in columns]
         for tup in izip(*cols):
             row = tup[0][0]
             vals = [x for _, x in tup]

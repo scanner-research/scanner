@@ -30,17 +30,23 @@ class TableMetaCache {
 
   const TableMetadata& at(const std::string& table_name) const;
 
+  const TableMetadata& at(i32 table_id) const;
+
   bool exists(const std::string& table_name) const;
+
+  bool exists(i32 table_id) const;
 
   void update(const TableMetadata& meta);
 
  private:
   void memoized_read(const std::string& table_name) const;
 
+  void memoized_read(i32 table_id) const;
+
   storehouse::StorageBackend* storage_;
   const DatabaseMetadata& meta_;
   mutable std::mutex lock_;
-  mutable std::map<std::string, TableMetadata> cache_;
+  mutable std::map<i32, TableMetadata> cache_;
 };
 
 }

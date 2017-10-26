@@ -423,6 +423,9 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   // Save the table descriptor
   write_table_metadata(storage, TableMetadata(table_desc));
 
+  std::fflush(NULL);
+  sync();
+
   return succeeded;
 }
 

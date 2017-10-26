@@ -42,9 +42,10 @@ namespace internal {
 /// Work structs - structs used to exchange data between workers during
 ///   execution of the run command.
 struct EvalWorkEntry {
+  i64 table_id;
   i64 job_index;
   i64 task_index;
-  std::vector<i64> row_ids;
+  std::vector<std::vector<i64>> row_ids;
   BatchedColumns columns;
   std::vector<DeviceHandle> column_handles;
   // Below only for pre/evaluate/post workers
@@ -52,10 +53,8 @@ struct EvalWorkEntry {
   bool needs_configure;
   bool needs_reset;
   bool last_in_io_packet;
-  i64 warmup_rows;
   // Only for pre worker
   std::vector<proto::VideoDescriptor::VideoCodecType> video_encoding_type;
-  std::vector<i64> work_item_sizes;
   bool first;
   bool last_in_task;
   // For save and pre worker
@@ -64,17 +63,20 @@ struct EvalWorkEntry {
 };
 
 struct TaskStream {
+  i64 slice_group;
+  std::vector<i64> valid_input_rows;
+  std::vector<i64> compute_input_rows;
   std::vector<i64> valid_output_rows;
 };
 
 using LoadInputQueue =
-    Queue<std::tuple<i32, std::deque<TaskStream>, IOItem, LoadWorkEntry>>;
+    Queue<std::tuple<i32, std::deque<TaskStream>, LoadWorkEntry>>;
 using EvalQueue =
-    Queue<std::tuple<std::deque<TaskStream>, IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>;
 using OutputEvalQueue =
-    Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveInputQueue =
-    Queue<std::tuple<i32, IOItem, EvalWorkEntry>>;
+    Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveOutputQueue =
     Queue<std::tuple<i32, i64, i64>>;
 
@@ -107,9 +109,12 @@ void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle target_handle,
                                      BatchedColumns& columns);
 
-ElementList duplicate_elements(Profiler& profiler, DeviceHandle current_handle,
-                               DeviceHandle target_handle, ElementList& column);
+ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
+                          DeviceHandle target_handle, ElementList& column);
 
-std::tuple<i64, i64> determine_stencil_bounds(const proto::TaskSet& task_set);
+ElementList copy_or_ref_elements(Profiler& profiler,
+                                 DeviceHandle current_handle,
+                                 DeviceHandle target_handle,
+                                 ElementList& column);
 }
 }

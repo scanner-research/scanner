@@ -13,7 +13,7 @@ service Master {
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
   rpc NextWork (NodeInfo) returns (NewWork) {}
   rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
-  rpc NewJob (JobParameters) returns (Result) {}
+  rpc NewJob (BulkJobParameters) returns (Result) {}
   rpc IsJobDone (Empty) returns (JobResult) {}
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpPath) returns (Result) {}
@@ -25,7 +25,7 @@ service Master {
 }
 
 service Worker {
-  rpc NewJob (JobParameters) returns (Result) {}
+  rpc NewJob (BulkJobParameters) returns (Result) {}
   rpc LoadOp (OpPath) returns (Empty) {}
   rpc RegisterOp (OpRegistration) returns (Result) {}
   rpc RegisterPythonKernel (PythonKernelRegistration) returns (Result) {}
@@ -76,6 +76,9 @@ message OpRegistration {
   repeated Column output_columns = 4;
   bool can_stencil = 5;
   repeated int32 preferred_stencil = 6;
+  bool has_bounded_state = 7;
+  int32 warmup = 8;
+  bool has_unbounded_state = 9;
 }
 
 message PythonKernelRegistration {
@@ -102,29 +105,44 @@ message NodeInfo {
 
 message FinishedWorkParameters {
   int32 node_id = 1;
-  int64 task_id = 2;
-  int64 sample_id = 3;
+  int64 job_id = 2;
+  int64 task_id = 3;
+  int64 num_rows = 4;
 }
 
-message JobParameters {
+message BulkJobParameters {
   string job_name = 1;
-  TaskSet task_set = 2;
-  MemoryPoolConfig memory_pool_config = 3;
-  int32 pipeline_instances_per_node = 4;
-  int32 io_item_size = 5;
-  int32 work_item_size = 6;
-  int32 local_id = 7;
-  int32 local_total = 8;
-  bool show_progress = 10;
-  bool profiling = 11;
-  int32 load_sparsity_threshold = 12;
-  int32 tasks_in_queue_per_pu = 13;
+
+  repeated Op ops = 2; // Linearized DAG of Ops
+  repeated Job jobs = 3;
+
+  // Parameters
+  repeated OutputColumnCompression compression = 4;
+  MemoryPoolConfig memory_pool_config = 5;
+  int32 pipeline_instances_per_node = 6;
+  int32 io_packet_size = 7;
+  int32 work_packet_size = 8;
+  int32 local_id = 9;
+  int32 local_total = 10;
+  bool show_progress = 11;
+  bool profiling = 12;
+  int32 load_sparsity_threshold = 13;
+  int32 tasks_in_queue_per_pu = 14;
+  enum BoundaryCondition {
+    REPEAT_EDGE = 0;
+    REPEAT_NULL = 1;
+    ERROR = 2;
+  };
+  BoundaryCondition boundary_condition = 15;
 }
 
 message NewWork {
-  IOItem io_item = 1;
-  LoadWorkEntry load_work = 2;
-};
+  int32 table_id = 1;
+  int32 job_index = 2;
+  int32 task_index = 3;
+  repeated int64 output_rows = 4 [packed=true];
+  bool no_more_work = 5;
+}
 
 message OpInfoArgs {
   string op_name = 1;

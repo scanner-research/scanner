@@ -64,16 +64,17 @@ inline std::string table_item_metadata_path(i32 table_id, i32 column_id,
          std::to_string(item_id) + "_metadata.bin";
 }
 
-inline std::string job_directory(i32 job_id) {
-  return get_database_path() + "jobs/" + std::to_string(job_id);
+inline std::string bulk_job_directory(i32 bulk_job_id) {
+  return get_database_path() + "jobs/" + std::to_string(bulk_job_id);
 }
 
-inline std::string job_descriptor_path(i32 job_id) {
-  return job_directory(job_id) + "/descriptor.bin";
+inline std::string bulk_job_descriptor_path(i32 bulk_job_id) {
+  return bulk_job_directory(bulk_job_id) + "/descriptor.bin";
 }
 
-inline std::string job_profiler_path(i32 job_id, i32 node) {
-  return job_directory(job_id) + "/profile_" + std::to_string(node) + ".bin";
+inline std::string bulk_job_profiler_path(i32 bulk_job_id, i32 node) {
+  return bulk_job_directory(bulk_job_id) + "/profile_" + std::to_string(node) +
+         ".bin";
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -112,22 +113,22 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
   i32 add_table(const std::string& table);
   void remove_table(i32 table_id);
 
-  const std::vector<std::string>& job_names() const;
+  const std::vector<std::string>& bulk_job_names() const;
 
-  bool has_job(const std::string& job) const;
-  bool has_job(i32 job_id) const;
-  i32 get_job_id(const std::string& job_name) const;
-  const std::string& get_job_name(i32 job_id) const;
-  i32 add_job(const std::string& job_name);
-  void remove_job(i32 job_id);
+  bool has_bulk_job(const std::string& job) const;
+  bool has_bulk_job(i32 job_id) const;
+  i32 get_bulk_job_id(const std::string& job_name) const;
+  const std::string& get_bulk_job_name(i32 job_id) const;
+  i32 add_bulk_job(const std::string& job_name);
+  void remove_bulk_job(i32 job_id);
 
  private:
   i32 next_table_id_;
-  i32 next_job_id_;
+  i32 next_bulk_job_id_;
   std::vector<std::string> table_names_;
-  std::vector<std::string> job_names_;
+  std::vector<std::string> bulk_job_names_;
   std::map<i32, std::string> table_id_names_;
-  std::map<i32, std::string> job_id_names_;
+  std::map<i32, std::string> bulk_job_id_names_;
 };
 
 class VideoMetadata : public Metadata<proto::VideoDescriptor> {
@@ -168,10 +169,10 @@ class ImageFormatGroupMetadata
   std::vector<i64> compressed_sizes() const;
 };
 
-class JobMetadata : public Metadata<proto::JobDescriptor> {
+class BulkJobMetadata : public Metadata<proto::BulkJobDescriptor> {
  public:
-  JobMetadata();
-  JobMetadata(const Descriptor& job);
+  BulkJobMetadata();
+  BulkJobMetadata(const Descriptor& job);
 
   static std::string descriptor_path(i32 job_id);
 
@@ -179,7 +180,9 @@ class JobMetadata : public Metadata<proto::JobDescriptor> {
 
   std::string name() const;
 
-  i32 work_item_size() const;
+  i32 io_packet_size() const;
+
+  i32 work_packet_size() const;
 
   i32 num_nodes() const;
 
@@ -218,6 +221,8 @@ class TableMetadata : public Metadata<proto::TableDescriptor> {
   std::vector<i64> end_rows() const;
 
   const std::vector<proto::Column>& columns() const;
+
+  bool has_column(const std::string& name) const;
 
   std::string column_name(i32 column_id) const;
 
@@ -288,8 +293,10 @@ constexpr WriteFn<DatabaseMetadata> write_database_metadata =
 constexpr ReadFn<DatabaseMetadata> read_database_metadata =
     read_db_proto<DatabaseMetadata>;
 
-constexpr WriteFn<JobMetadata> write_job_metadata = write_db_proto<JobMetadata>;
-constexpr ReadFn<JobMetadata> read_job_metadata = read_db_proto<JobMetadata>;
+constexpr WriteFn<BulkJobMetadata> write_bulk_job_metadata =
+    write_db_proto<BulkJobMetadata>;
+constexpr ReadFn<BulkJobMetadata> read_bulk_job_metadata =
+    read_db_proto<BulkJobMetadata>;
 
 constexpr WriteFn<TableMetadata> write_table_metadata =
     write_db_proto<TableMetadata>;

@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job
+from scannerpy import Database, DeviceType, Job, BulkJob
 from scannerpy.stdlib import parsers
 from scipy.spatial import distance
 from subprocess import check_call as run
@@ -37,8 +37,8 @@ def compute_shot_boundaries(hists):
     n = len(diffs)
 
     # Plot the differences. Look at histogram-diffs.html
-    data = [go.Scatter(x=range(n),y=diffs)]
-    offline.plot(data, filename='histogram-diffs.html')
+    #data = [go.Scatter(x=range(n),y=diffs)]
+    #offline.plot(data, filename='histogram-diffs.html')
 
     # Do simple outlier detection to find boundaries between shots
     boundaries = []
@@ -49,7 +49,7 @@ def compute_shot_boundaries(hists):
     return boundaries
 
 
-def make_montage(n, frames):
+def make_monrage(n, frames):
     _, frame = frames.next()
     frame = frame[0]
     (frame_h, frame_w, _) = frame.shape
@@ -77,87 +77,135 @@ def make_montage(n, frames):
 
 
 def make_montage_scanner(db, table, shot_starts):
-    row_length = min(8, len(shot_starts))
-    rows_per_item = 1
-    target_width = 256
-
-    frame = table.as_op().gather(
-        shot_starts,
-        task_size = row_length * rows_per_item)
-
-    montage = db.ops.Montage(
-        frame = frame,
-        num_frames = row_length * rows_per_item,
-        target_width = target_width,
-        frames_per_row = row_length,
-        device = DeviceType.GPU)
-
-    job = Job(columns = [montage.lossless()], name = 'montage_image')
-    montage_table = db.run(job, force=True)
-
-    montage_img = np.zeros((0, target_width * row_length, 3), dtype=np.uint8)
-    for _, img in montage_table.load(['montage'],
-                                     rows=range(row_length * rows_per_item - 1,
-                                                len(shot_starts),
-                                                row_length * rows_per_item)):
-        img = np.flip(img[0], 2)
-        montage_img = np.vstack((montage_img, img))
     return montage_img
 
 
 def main():
-    movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
+    total_start = time.time()
+
+    #movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
+    #movie_path = '/n/scanner/datasets/movies/private/kubo_and_the_two_strings_2016.mp4'
+    movie_path = util.download_video()
+
     print('Detecting shots in movie {}'.format(movie_path))
     movie_name = os.path.basename(movie_path)
 
     # Use GPU kernels if we have a GPU
     if have_gpu():
         device = DeviceType.GPU
-        scanner_montage = True
     else:
         device = DeviceType.CPU
-        scanner_montage = False
 
+    device = DeviceType.CPU
     with Database() as db:
         print('Loading movie into Scanner database...')
         s = time.time()
-        [movie_table], _ = db.ingest_videos([(movie_name, movie_path)], force=True)
+
+        ############ ############ ############ ############
+        # 0. Ingest the video into the database
+        ############ ############ ############ ############
+        [movie_table], _ = db.ingest_videos([(movie_name, movie_path)],
+                                            force=True)
         print('Time: {:.1f}s'.format(time.time() - s))
+        print('Number of frames in movie: {:d}'.format(movie_table.num_rows()))
 
         s = time.time()
+        ############ ############ ############ ############
+        # 1. Run Histogram over the entire video in Scanner
+        ############ ############ ############ ############
         print('Computing a color histogram for each frame...')
-        frame = movie_table.as_op().all()
+        frame = db.ops.FrameInput()
         histogram = db.ops.Histogram(
             frame = frame,
             device = device)
-        job = Job(columns = [histogram], name = movie_name + '_hist')
-        hists_table = db.run(job, force=True)
-        print('\nTime: {:.1f}s'.format(time.time() - s))
+        output = db.ops.Output(columns=[histogram])
+        job = Job(op_args={
+            frame: movie_table.column('frame'),
+            output: movie_name + '_hist'
+        })
+        bulk_job = BulkJob(output=output, jobs=[job])
+        [hists_table] = db.run(bulk_job, force=True)
+
+        hists_table.profiler().write_trace('hist_shot.trace')
+
+        print('\nTime: {:.1f}s, {:.1f} fps'.format(
+            time.time() - s,
+            movie_table.num_rows() / (time.time() - s)))
 
         s = time.time()
+        ############ ############ ############ ############
+        # 2. Load histograms and compute shot boundaries
+        #    in python
+        ############ ############ ############ ############
         print('Computing shot boundaries...')
         # Read histograms from disk
         hists = [h for _, h in hists_table.load(['histogram'],
                                                 parsers.histograms)]
         boundaries = compute_shot_boundaries(hists)
+        print('Found {:d} shots.'.format(len(boundaries)))
         print('Time: {:.1f}s'.format(time.time() - s))
 
         s = time.time()
+        ############ ############ ############ ############
+        # 3. Create montage in Scanner
+        ############ ############ ############ ############
         print('Creating shot montage...')
-        if scanner_montage:
-            # Make montage in scanner
-            montage_img = make_montage_scanner(db, movie_table, boundaries)
-        else:
-            # Make montage in python
-            # Loading the frames for each shot boundary
-            frames = movie_table.load(['frame'], rows=boundaries)
-            montage_img = make_montage(len(boundaries), frames)
+
+        row_length = 16
+        rows_per_item = 1
+        target_width = 256
+
+        # Compute partial row montages that we will stack together
+        # at the end
+        frame = db.ops.FrameInput()
+        gather_frame = frame.sample()
+        sliced_frame = gather_frame.slice()
+        montage = db.ops.Montage(
+            frame = sliced_frame,
+            num_frames = row_length * rows_per_item,
+            target_width = target_width,
+            frames_per_row = row_length,
+            device = device)
+        sampled_montage = montage.sample()
+        output = db.ops.Output(
+            columns=[sampled_montage.unslice().lossless()])
+
+        item_size = row_length * rows_per_item
+
+        starts_remainder = len(boundaries) % item_size
+        evenly_divisible = (starts_remainder == 0)
+        if not evenly_divisible:
+            boundaries = boundaries[0:len(boundaries) - starts_remainder]
+
+        job = Job(op_args={
+            frame: movie_table.column('frame'),
+            gather_frame: db.sampler.gather(boundaries),
+            sliced_frame: db.partitioner.all(item_size),
+            sampled_montage: [db.sampler.gather([item_size - 1])
+                              for _ in range(len(boundaries) / item_size)],
+            output: 'montage_image'
+        })
+        bulk_job = BulkJob(output=output, jobs=[job])
+
+        [montage_table] = db.run(bulk_job, force=True)
+
+        montage_table.profiler().write_trace('montage_shot.trace')
+
+        # Stack all partial montages together
+        montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
+        for idx, img in montage_table.column('montage').load():
+            img = np.flip(img, 2)
+            montage_img = np.vstack((montage_img, img))
 
         print('')
         print('Time: {:.1f}s'.format(time.time() - s))
 
+        ############ ############ ############ ############
+        # 4. Write montage to disk
+        ############ ############ ############ ############
         cv2.imwrite('shots.jpg', montage_img)
         print('Successfully generated shots.jpg')
+        print('Total time: {:.2f} s'.format(time.time() - total_start))
 
 if __name__ == "__main__":
     main()

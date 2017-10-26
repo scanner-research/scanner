@@ -1,6 +1,8 @@
 import struct
 import cv2
 import math
+from job import Job
+from bulk_job import BulkJob
 from common import *
 from stdlib import parsers
 from subprocess import Popen, PIPE
@@ -12,25 +14,33 @@ class Column:
     A column of a Table.
     """
 
-    def __init__(self, table, descriptor, video_descriptor):
+    def __init__(self, table, name):
         self._table = table
-        self._descriptor = descriptor
+        self._name = name
         self._db = table._db
         self._storage = table._db.config.storage
         self._db_path = table._db.config.db_path
-        self._video_descriptor = video_descriptor
-        # Used for overriding name
-        self._name = None
+
+        self._loaded = False
+        self._descriptor = None
+        self._video_descriptor = None
+
+    def _load_meta(self):
+        if not self._loaded:
+            self._loaded = True
+            descriptor, video_descriptor = self._table._load_column(self._name)
+            self._descriptor = descriptor
+            self._video_descriptor = video_descriptor
 
     def name(self):
-        if self._name:
-            return self._name
-        return self._descriptor.name
+        return self._name
 
     def type(self):
+        self._load_meta()
         return self._descriptor.type
 
     def id(self):
+        self._load_meta()
         return self._descriptor.id
 
     def _load_output_file(self, item_id, rows, fn=None):
@@ -79,7 +89,10 @@ class Column:
         for j, buf_len in enumerate(lens):
             if rows_idx < len(rows) and j == rows[rows_idx]:
                 buf = contents[i:i+buf_len]
-                if fn is not None:
+                # len(buf) == 0 when element is null
+                if len(buf) == 0:
+                    yield None
+                elif fn is not None:
                     yield fn(buf, self._db.protobufs)
                 else:
                     yield buf
@@ -134,6 +147,7 @@ class Column:
             `fn`).
         """
 
+        self._load_meta()
         # If the column is a video, then dump the requested frames to disk as
         # PNGs and return the decoded PNGs
         if (self._descriptor.type == self._db.protobufs.Video and
@@ -148,13 +162,20 @@ class Column:
                    self._table._descriptor.timestamp:
                     return png_table.load(['img'], parsers.image)
             pair = [(self._table.name(), png_table_name)]
-            if rows is None:
-                frame = self._table.as_op().all()
-            else:
-                frame = self._table.as_op().gather(rows)
+            op_args = {}
+            frame = self._db.ops.FrameInput()
+            op_args[frame] = self
+            enc_input = frame
+            if rows is not None:
+                sampled_frame = frame.sample()
+                op_args[sampled_frame] = self._db.sampler.gather(rows)
+                enc_input = sampled_frame
             img = self._db.ops.ImageEncoder(frame = frame)
-            job = Job(columns = [img], name = png_table_name)
-            [out_tbl] = self._db.run([job], force=True, show_progress=False)
+            output_op = self._db.ops.Output(columns=[img])
+            op_args[output_op] = png_table_name
+            job = Job(op_args=op_args)
+            bulk_job = BulkJob(output=output_op, jobs=[job])
+            [out_tbl] = self._db.run(bulk_job, force=True, show_progress=False)
             return out_tbl.load(['img'], parsers.image)
         elif self._descriptor.type == self._db.protobufs.Video:
             frame_type = self._video_descriptor.frame_type
@@ -173,6 +194,7 @@ class Column:
             return self._load(fn, rows=rows)
 
     def save_mp4(self, output_name, fps=None, scale=None):
+        self._load_meta()
         if not (self._descriptor.type == self._db.protobufs.Video and
                 self._video_descriptor.codec_type ==
                 self._db.protobufs.VideoDescriptor.H264):

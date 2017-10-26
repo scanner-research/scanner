@@ -1,4 +1,4 @@
-from scannerpy import Database, Job
+from scannerpy import Database, Job, DeviceType, BulkJob
 import os.path
 
 ################################################################################
@@ -19,12 +19,20 @@ with Database() as db:
     # takes a path to the generated python file for the arg protobuf.
     db.load_op('resize_op/build/libresize_op.so', 'resize_op/build/resize_pb2.py')
 
-    frame = db.table('example').as_op().all()
-
+    frame = db.ops.FrameInput()
     # Then we use our op just like in the other examples.
     resize = db.ops.MyResize(
         frame = frame,
         width = 200, height = 300)
+    output_op = db.ops.Output(columns=[resize])
+    job = Job(
+        op_args={
+            frame: db.table('example').column('frame'),
+            output_op: 'example_resized',
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    db.run(bulk_job, force=True)
 
-    job = Job(columns = [resize], name = 'example_resized')
-    db.run(job, force=True)
+    print(db.summarize())
+

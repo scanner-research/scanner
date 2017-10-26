@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 
 # Uncomment the line below and change the Scanner path to the repo you cloned:
-# set(SCANNER_PATH /path/to/scanner)
+set(SCANNER_PATH /opt/scanner)
 if(NOT SCANNER_PATH)
   message(FATAL_ERROR "You need to update the SCANNER_PATH in resize_op/CMakeLists.txt first.")
 endif()

@@ -10,23 +10,34 @@ import util
 
 with Database() as db:
 
-    # Instead of ingesting each video into a table individually, we can group video
-    # tables into a single entity called a collection. Here, we create a collection
-    # called "example_collection" from the video in the previous example.
-    # Collections do not incur any runtime overhead, but are simply an abstraction
-    # for more easily managing your videos.
+    # Instead of ingesting each video into a table individually, we can group
+    # video # tables into a single entity called a collection. Here, we create
+    # a collection # called "example_collection" from the video in the previous
+    # example. # Collections do not incur any runtime overhead, but are simply
+    # an abstraction for more easily managing your videos.
     example_video_path = util.download_video()
     input_collection, _ = db.ingest_video_collection(
         'example_collection', [example_video_path], force=True)
     print(db.summarize())
 
-    # You can use a collection the same way you use a table when defining a
-    # computation. This will run your computation over every table in the
-    # collection using the sampling mode you specify.
-    frame = input_collection.as_op().range(0, 100)
-    histogram = db.ops.Histogram(frame = frame)
-    job = Job(columns = [histogram], name = 'example_hist_collection')
-    output_collection = db.run(job, force=True)
-
     # You can retrieve table objects off the collection.
-    output_table = output_collection.tables(0)
+    table = output_collection.tables(0)
+
+    frame = db.ops.FrameInput()
+    hist = db.ops.Histogram(frame=frame)
+    output_op = db.ops.Output(columns=[hist])
+    # You can use a collection to enumerate tables
+    jobs = []
+    for table in input_collection.tables():
+        job = Job(
+            op_args={
+                frame: table.column('frame'),
+                output_op: table.name() + '_output'
+            }
+        )
+        jobs.append(job)
+    bulk_job = BulkJob(dag=output_op, jobs=jobs)
+    output_tables = db.run(bulk_job, force=True, pipeline_instances_per_node=1)
+
+    # You can create new collections from existing tables
+    hist_collection = db.new_collection('hist_collection', output_tables)

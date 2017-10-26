@@ -17,6 +17,7 @@
 
 #include "scanner/engine/kernel_factory.h"
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/sampler.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 #include "scanner/video/decoder_automata.h"
@@ -36,6 +37,7 @@ struct PreEvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
   i32 num_cpus;
+  i32 work_packet_size;
 
   // Per worker arguments
   i32 worker_id;
@@ -47,9 +49,9 @@ class PreEvaluateWorker {
  public:
   PreEvaluateWorker(const PreEvaluateWorkerArgs& args);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry, bool is_first_in_task);
+  void feed(EvalWorkEntry& entry, bool is_first_in_task);
 
-  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
+  bool yield(i32 item_size, EvalWorkEntry& output);
 
  private:
   const i32 node_id_;
@@ -59,9 +61,7 @@ class PreEvaluateWorker {
 
   Profiler& profiler_;
 
-  i32 last_table_id_ = -1;
-  i32 last_end_row_ = -1;
-  i32 last_item_id_ = -1;
+  i32 last_job_idx_ = -1;
 
   DeviceHandle decoder_output_handle_;
   std::vector<std::unique_ptr<DecoderAutomata>> decoders_;
@@ -70,23 +70,25 @@ class PreEvaluateWorker {
   bool first_item_;
   bool needs_configure_;
   bool needs_reset_;
-  std::tuple<IOItem, EvalWorkEntry> entry_;
+  EvalWorkEntry entry_;
   i64 current_row_;
   i64 total_rows_;
 
   std::vector<std::vector<proto::DecodeArgs>> decode_args_;
 };
 
-struct EvaluateWorkerArgs {
-  // Uniform arguments
-  i32 node_id;
-  std::mutex& startup_lock;
-  std::condition_variable& startup_cv;
-  i32& startup_count;
-
-  // Per worker arguments
-  i32 ki;
-  i32 kg;
+struct OpArgGroup {
+  std::vector<std::string> op_names;
+  /// For sampling ops
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<proto::SamplingArgs>>> sampling_args;
+  /// For slice ops
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<i64>>> slice_output_rows;
+  /// For unslice ops
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<i64>>> unslice_input_rows;
+  /// For regular kernels
   std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   // Discarded after kernel use
@@ -99,6 +101,19 @@ struct EvaluateWorkerArgs {
   std::vector<std::vector<i32>> kernel_stencils;
   // Batch size needed by kernels
   std::vector<i32> kernel_batch_sizes;
+};
+
+struct EvaluateWorkerArgs {
+  // Uniform arguments
+  i32 node_id;
+  std::mutex& startup_lock;
+  std::condition_variable& startup_cv;
+  i32& startup_count;
+
+  // Per worker arguments
+  i32 ki;
+  i32 kg;
+  OpArgGroup arg_group;
 
   Profiler& profiler;
   proto::Result& result;
@@ -108,54 +123,71 @@ struct EvaluateWorkerArgs {
 class EvaluateWorker {
  public:
   EvaluateWorker(const EvaluateWorkerArgs& args);
+  ~EvaluateWorker();
 
-  void new_task(const std::vector<TaskStream>& task_streams);
+  void new_task(i64 job_idx, i64 task_idx,
+                const std::vector<TaskStream>& task_streams);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+  void feed(EvalWorkEntry& entry);
 
-  bool yield(i32 item_size, std::tuple<IOItem, EvalWorkEntry>& output);
+  bool yield(i32 item_size, EvalWorkEntry& output);
 
  private:
+  void clear_stencil_cache();
+
   const i32 node_id_;
   const i32 worker_id_;
 
   Profiler& profiler_;
 
-  std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories_;
+  OpArgGroup arg_group_;
   std::vector<DeviceHandle> kernel_devices_;
   std::vector<i32> kernel_num_outputs_;
   std::vector<std::unique_ptr<BaseKernel>> kernels_;
 
-  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns_;
-  std::vector<std::vector<i32>> dead_columns_;
-  std::vector<std::vector<i32>> unused_outputs_;
-  std::vector<std::vector<i32>> column_mapping_;
-  std::vector<std::vector<i32>> kernel_stencils_;
-  std::vector<i32> kernel_batch_sizes_;
-
   // Used for computing complement of column mapping
   std::vector<std::set<i32>> column_mapping_set_;
 
-  // Task state
+  /// Task state
+  i64 job_idx_;
+  i64 task_idx_;
+  i64 slice_group_;
+  std::map<i64, std::unique_ptr<DomainSampler>> domain_samplers_;
+
+  // Inputs
+  std::vector<std::set<i64>> valid_input_rows_set_;
+  std::vector<std::vector<i64>> valid_input_rows_;
+  // Tracks which input we should expect next for which column
+  std::vector<std::vector<i64>> current_valid_input_idx_;
+
+  // Outputs to compute
+  std::vector<std::set<i64>> compute_rows_set_;
+  std::vector<std::vector<i64>> compute_rows_;
+  // Tracks which input we should expect next
+  std::vector<i64> current_compute_idx_;
+
+  // Outputs to keep
   std::vector<std::set<i64>> valid_output_rows_set_;
   std::vector<std::vector<i64>> valid_output_rows_;
-  std::vector<i64> current_valid_idx_;
+  // Tracks which output we should expect next
+  std::vector<i64> current_valid_output_idx_;
+
   // Per kernel -> per input column -> deque of element)
-  std::vector<std::vector<std::deque<Element>>> stencil_cache_;
+  std::vector<i64> current_element_cache_input_idx_;
+  std::vector<std::vector<std::deque<Element>>> element_cache_;
   // Per kernel -> per input column -> device handle
-  std::vector<std::vector<DeviceHandle>> stencil_cache_devices_;
-  // Per kernel -> deque of row ids
-  std::vector<std::deque<i64>> stencil_cache_row_ids_;
+  std::vector<std::vector<DeviceHandle>> element_cache_devices_;
+  // Per kernel -> per input column -> deque of row ids
+  std::vector<std::vector<std::deque<i64>>> element_cache_row_ids_;
 
   // Continutation state
-  std::tuple<IOItem, EvalWorkEntry> entry_;
+  EvalWorkEntry entry_;
   i32 current_input_;
   i32 total_inputs_;
 
-  i64 outputs_yielded_;
   std::vector<DeviceHandle> final_output_handles_;
   std::vector<std::deque<Element>> final_output_columns_;
-  std::vector<i64> final_row_ids_;
+  std::vector<std::vector<i64>> final_row_ids_;
 };
 
 struct ColumnCompressionOptions {
@@ -180,9 +212,9 @@ class PostEvaluateWorker {
  public:
   PostEvaluateWorker(const PostEvaluateWorkerArgs& args);
 
-  void feed(std::tuple<IOItem, EvalWorkEntry>& entry);
+  void feed(EvalWorkEntry& entry);
 
-  bool yield(std::tuple<IOItem, EvalWorkEntry>& output);
+  bool yield(EvalWorkEntry& output);
 
  private:
   Profiler& profiler_;
@@ -200,7 +232,7 @@ class PostEvaluateWorker {
   // Generator state
   EvalWorkEntry buffered_entry_;
   i64 current_offset_;
-  std::deque<std::tuple<IOItem, EvalWorkEntry>> buffered_entries_;
+  std::deque<EvalWorkEntry> buffered_entries_;
 };
 }
 }

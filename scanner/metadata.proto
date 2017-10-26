@@ -4,7 +4,7 @@ package scanner.proto;
 
 // Database metadata messages
 message DatabaseDescriptor {
-  message Job {
+  message BulkJob {
     int32 id = 1;
     string name = 2;
   }
@@ -14,9 +14,9 @@ message DatabaseDescriptor {
     string name = 2;
   }
 
-  int32 next_job_id = 1;
+  int32 next_bulk_job_id = 1;
   int32 next_table_id = 2;
-  repeated Job jobs = 3;
+  repeated BulkJob bulk_jobs = 3;
   repeated Table tables = 4;
 }
 
@@ -115,29 +115,17 @@ message TableDescriptor {
   int64 timestamp = 7;
 }
 
-// Task set messages
-message TableSample {
-  string table_name = 1;
-  repeated string column_names = 2;
-  string sampling_function = 3;
-  bytes sampling_args = 4;
-}
-
-message Task {
-  string output_table_name = 2;
-  repeated TableSample samples = 3;
-}
-
 message OpInput {
   int32 op_index = 1;
-  repeated string columns = 2;
+  string column = 2;
 }
 
 message Op {
   string name = 1;
   repeated OpInput inputs = 2;
-  DeviceType device_type = 3;
-  bytes kernel_args = 4;
+  bytes kernel_args = 3;
+  // Used by kernels
+  DeviceType device_type = 4;
   repeated int32 stencil = 5;
   int32 batch = 6;
   int32 warmup = 7;
@@ -148,20 +136,36 @@ message OutputColumnCompression {
   map<string, string> options = 2;
 }
 
-message TaskSet {
-  repeated Task tasks = 1;
-  repeated Op ops = 2;
-  repeated OutputColumnCompression compression = 3;
+message ColumnInput {
+  int32 op_index = 1;
+  string table_name = 2;
+  string column_name = 3;
 }
 
-message JobDescriptor {
+message SamplingArgs {
+  string sampling_function = 1;
+  bytes sampling_args = 2;
+}
+
+message SamplingArgsAssignment {
+  int32 op_index = 1;
+  // Repeated to allow for slices
+  repeated SamplingArgs sampling_args = 2;
+}
+
+message Job {
+  string output_table_name = 1;
+  repeated ColumnInput inputs = 2;
+  repeated SamplingArgsAssignment sampling_args_assignment = 3;
+}
+
+message BulkJobDescriptor {
   int32 id = 1;
   string name = 2;
-  int32 io_item_size = 3;
-  int32 work_item_size = 4;
+  int32 io_packet_size = 3;
+  int32 work_packet_size = 4;
   int32 num_nodes = 5;
-  repeated Task tasks = 6;
-  repeated Column columns = 7;
+  repeated Job jobs = 6;
 }
 
 // Interal messages
@@ -188,16 +192,16 @@ message ImageDecodeArgs {
 
 message LoadSample {
   int32 table_id = 1;
-  repeated int32 column_ids = 2;
-  int64 warmup_size = 3;
-  repeated int64 rows = 4 [packed=true];
+  int32 column_id = 2;
+  repeated int64 input_row_ids = 3 [packed=true];
+  repeated int64 output_row_ids = 4 [packed=true];
 }
 
 message LoadWorkEntry {
-  int32 job_index = 1;
-  int32 task_index = 2;
-  repeated LoadSample samples = 3;
-  repeated int64 work_item_sizes = 4;
+  int32 table_id = 1;
+  int32 job_index = 2;
+  int32 task_index = 3;
+  repeated LoadSample samples = 4;
 }
 
 message MemoryPoolConfig {
@@ -233,38 +237,47 @@ message MachineParameters {
   repeated int32 gpu_ids = 4;
 }
 
-message IOItem {
-  // @brief the output table id
-  int32 table_id = 1;
-  // @brief the unique id for this item in the table
-  int64 item_id = 2;
-  // @brief the first row in this item
-  int64 start_row = 3;
-  // @brief the row after the last row in this item
-  int64 end_row = 4;
-}
-
 // Sampler args
-
-message AllSamplerArgs {
-  int64 sample_size = 1;
-  int64 warmup_size = 2;
+message StridedSamplerArgs {
+  int64 stride = 1;
 }
 
 message StridedRangeSamplerArgs {
   int64 stride = 1;
-  repeated int64 warmup_starts = 2;
-  repeated int64 starts = 3;
-  repeated int64 ends = 4;
+  repeated int64 starts = 2;
+  repeated int64 ends = 3;
 }
 
 message GatherSamplerArgs {
-  message Sample {
-    repeated int64 warmup_rows = 1 [packed=true];
-    repeated int64 rows = 2 [packed=true];
+  repeated int64 rows = 1 [packed=true];
+}
+
+
+message SpaceNullSamplerArgs {
+  int64 spacing = 1;
+}
+
+message SpaceRepeatSamplerArgs {
+  int64 spacing = 1;
+}
+
+message StridedPartitionerArgs {
+  int64 stride = 1;
+  int64 group_size = 2;
+}
+
+message StridedRangePartitionerArgs {
+  int64 stride = 1;
+  repeated int64 starts = 2;
+  repeated int64 ends = 3;
+}
+
+message GatherPartitionerArgs {
+  message GatherList {
+    repeated int64 rows = 1 [packed=true];
   }
 
-  repeated Sample samples = 1;
+  repeated GatherList groups = 1;
 }
 
 message PythonArgs {

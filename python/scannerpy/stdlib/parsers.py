@@ -38,6 +38,9 @@ def poses(buf, protobufs):
 
 
 def histograms(bufs, protobufs):
+    # bufs[0] is None when element is null
+    if bufs[0] is None:
+        return None
     return np.split(np.frombuffer(bufs[0], dtype=np.dtype(np.int32)), 3)
 
 
@@ -48,6 +51,8 @@ def frame_info(buf, protobufs):
 
 
 def flow(bufs, protobufs):
+    if bufs[0] is None:
+        return None
     output = np.frombuffer(bufs[0], dtype=np.dtype(np.float32))
     info = frame_info(bufs[1], db)
     return output.reshape((info.height, info.width, 2))

@@ -16,6 +16,7 @@
 #include "scanner/engine/master.h"
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/sampler.h"
+#include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
@@ -28,272 +29,6 @@
 
 namespace scanner {
 namespace internal {
-namespace {
-void validate_task_set(DatabaseMetadata& meta, const proto::TaskSet& task_set,
-                       Result* result) {
-  auto& tasks = task_set.tasks();
-  // Validate tasks
-  std::set<std::string> task_output_table_names;
-  for (auto& task : task_set.tasks()) {
-    if (task.output_table_name() == "") {
-      RESULT_ERROR(result,
-                   "Task specified with empty output table name. Output "
-                   "tables can not have empty names")
-          return;
-    }
-    if (meta.has_table(task.output_table_name())) {
-      RESULT_ERROR(result,
-                   "Task specified with duplicate output table name. A table "
-                   "with name %s already exists.",
-                   task.output_table_name().c_str());
-      return;
-    }
-    if (task_output_table_names.count(task.output_table_name()) > 0) {
-      RESULT_ERROR(result,
-                   "Multiple tasks specified with output table name %s. "
-                   "Table names must be unique.",
-                   task.output_table_name().c_str());
-          return;
-    }
-    task_output_table_names.insert(task.output_table_name());
-    if (task.samples().size() == 0) {
-      RESULT_ERROR(result,
-                   "Task %s did not specify any tables to sample from. Tasks "
-                   "must sample from at least one table.",
-                   task.output_table_name().c_str());
-      return;
-    } else {
-      for (auto& sample : task.samples()) {
-        if (!meta.has_table(sample.table_name())) {
-          RESULT_ERROR(result,
-                       "Task %s tried to sample from non-existent table %s. "
-                       "TableSample must sample from existing table.",
-                       task.output_table_name().c_str(),
-                       sample.table_name().c_str());
-          return;
-        }
-        // TODO(apoms): validate sampler functions
-        if (sample.column_names().size() == 0) {
-          RESULT_ERROR(result,
-                       "Task %s tried to sample zero columns from table %s. "
-                       "TableSample must sample at least one column",
-                       task.output_table_name().c_str(),
-                       sample.table_name().c_str());
-          return;
-        }
-      }
-    }
-  }
-  // Validate ops
-  {
-    OpRegistry* op_registry = get_op_registry();
-    KernelRegistry* kernel_registry = get_kernel_registry();
-
-    i32 op_idx = 0;
-    std::vector<std::string> op_names;
-    std::vector<std::vector<std::string>> op_outputs;
-    for (auto& op : task_set.ops()) {
-      op_names.push_back(op.name());
-
-      if (op_idx == 0) {
-        if (op.name() != "InputTable") {
-          RESULT_ERROR(result, "First Op is %s but must be Op InputTable",
-                       op.name().c_str());
-          return;
-        }
-        op_outputs.emplace_back();
-        for (auto& input : op.inputs()) {
-          for (auto& col : input.columns()) {
-            op_outputs.back().push_back(col);
-          }
-        }
-        op_idx++;
-        continue;
-      }
-      if (op.name() != "OutputTable") {
-        op_outputs.emplace_back();
-        if (!op_registry->has_op(op.name())) {
-          RESULT_ERROR(result, "Op %s is not registered.", op.name().c_str());
-          return;
-        } else {
-          for (auto& col :
-               op_registry->get_op_info(op.name())->output_columns()) {
-            op_outputs.back().push_back(col.name());
-          }
-        }
-        if (!kernel_registry->has_kernel(op.name(), op.device_type())) {
-          RESULT_ERROR(result,
-                       "Op %s at index %d requested kernel with device type "
-                       "%s but no such kernel exists.",
-                       op.name().c_str(), op_idx,
-                       (op.device_type() == DeviceType::CPU ? "CPU" : "GPU"));
-          return;
-        }
-      }
-      i32 input_count = 0;
-      for (auto& input : op.inputs()) {
-        if (input.op_index() >= op_idx) {
-          RESULT_ERROR(result,
-                       "Op %s at index %d referenced input index %d."
-                       "Ops must be specified in topo sort order.",
-                       op.name().c_str(), op_idx, input.op_index());
-          return;
-        } else {
-          std::string& input_op_name = op_names.at(input.op_index());
-          std::vector<std::string>& inputs = op_outputs.at(input.op_index());
-          input_count += input.columns().size();
-          for (auto& col : input.columns()) {
-            bool found = false;
-            for (auto& out_col : inputs) {
-              if (col == out_col) {
-                found = true;
-                break;
-              }
-            }
-            if (!found) {
-              RESULT_ERROR(result,
-                           "Op %s at index %d requested column %s from input "
-                           "Op %s at index %d but that Op does not have the "
-                           "requsted column.",
-                           op.name().c_str(), op_idx, col.c_str(),
-                           input_op_name.c_str(), input.op_index());
-          return;
-            }
-          }
-        }
-      }
-      if (op.name() != "OutputTable") {
-        OpInfo* info = op_registry->get_op_info(op.name());
-        KernelFactory* factory =
-            kernel_registry->get_kernel(op.name(), op.device_type());
-        // Check that the # of inputs match up
-        // TODO(apoms): type check for frame
-        if (!info->variadic_inputs()) {
-          i32 expected_inputs = info->input_columns().size();
-          if (expected_inputs != input_count) {
-            RESULT_ERROR(
-                result,
-                "Op %s at index %d expects %d input columns, but received %d",
-                op.name().c_str(), op_idx, expected_inputs, input_count);
-            return;
-          }
-        }
-
-        // Check that a stencil is not set on a non-stenciling kernel
-        // If can't stencil, then should have a zero size stencil or a size 1
-        // stencil with the element 0
-        if (!info->can_stencil() &&
-            !((op.stencil_size() == 0) ||
-              (op.stencil_size() == 1 && op.stencil(0) == 0))) {
-          RESULT_ERROR(
-              result,
-              "Op %s at index %d specified stencil but that Op was not "
-              "declared to support stenciling. Add .stencil() to the Op "
-              "declaration to support stenciling.",
-              op.name().c_str(), op_idx);
-          return;
-        }
-        // Check that a stencil is not set on a non-stenciling kernel
-        if (!factory->can_batch() && op.batch() > 1) {
-          RESULT_ERROR(
-              result,
-              "Op %s at index %d specified a batch size but the Kernel for "
-              "that Op was not declared to support batching. Add .batch() to "
-              "the Kernel declaration to support batching.",
-              op.name().c_str(), op_idx);
-          return;
-        }
-      }
-      op_idx++;
-    }
-    if (op_names.size() < 3) {
-      RESULT_ERROR(result,
-                   "Task set must specify at least three Ops: "
-                   "an InputTable Op, any other Op, and an OutputTable Op. "
-                   "However, only %lu Ops were specified.",
-                   op_names.size());
-      return;
-    } else {
-      if (op_names.front() != "InputTable") {
-        RESULT_ERROR(result, "First Op is %s but must be InputTable",
-                     op_names.front().c_str());
-        return;
-      }
-      if (op_names.back() != "OutputTable") {
-        RESULT_ERROR(result, "Last Op is %s but must be OutputTable",
-                     op_names.back().c_str());
-        return;
-      }
-    }
-  }
-}
-
-Result get_task_end_rows(
-    const TableMetaCache& table_metas,
-    const proto::Task& task, i64 min_stencil, i64 max_stencil,
-    std::vector<i64>& rows) {
-  Result result;
-  result.set_success(true);
-
-  std::vector<i64> table_num_rows;
-  for (auto& s : task.samples()) {
-    table_num_rows.push_back(table_metas.at(s.table_name()).num_rows());
-  }
-
-  TaskSampler sampler(table_metas, task);
-  result = sampler.validate();
-  if (!result.success()) {
-    return result;
-  }
-  i64 start_rows_lost = 0;
-  i64 num_samples = sampler.total_samples();
-  for (i64 i = 0; i < num_samples; ++i) {
-    proto::NewWork new_work;
-    result = sampler.next_work(new_work);
-    if (!result.success()) {
-      rows.clear();
-      return result;
-    }
-
-    i64 requested_start_row = new_work.io_item().start_row();
-    i64 requested_end_row = new_work.io_item().end_row();
-
-    i64 work_item_start_reduction = 0;
-    i64 work_item_end_reduction = 0;
-    for (i32 j = 0; j < new_work.load_work().samples_size(); j++) {
-      auto& s = new_work.load_work().samples(j);
-      // If this IO item is near the start or end, we should check if it
-      // is attempting to produce invalid rows due to a stencil
-      // requirement that can not be fulfilled
-
-      // Check if near start
-      i64 min_requested = s.rows(0) + min_stencil;
-      if (min_requested < 0) {
-        work_item_start_reduction =
-            std::max(-min_requested, work_item_start_reduction);
-      }
-      // Check if near end
-      i64 max_requested = s.rows(s.rows_size() - 1) + max_stencil;
-      if (max_requested > table_num_rows[j]) {
-        work_item_end_reduction =
-            std::max(max_requested - table_num_rows[j], work_item_end_reduction);
-      }
-    }
-    requested_end_row -= work_item_start_reduction;
-    requested_end_row -= work_item_end_reduction;
-
-    requested_start_row -= start_rows_lost;
-    requested_end_row -= start_rows_lost;
-
-    start_rows_lost += work_item_start_reduction;
-    if ((requested_start_row < requested_end_row) &&
-        (requested_end_row - start_rows_lost > 0)) {
-      rows.push_back(requested_end_row - start_rows_lost);
-    }
-  }
-  return result;
-}
-}
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
@@ -445,69 +180,59 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   VLOG(1) << "Master received NextWork command";
   if (!worker_active_.at(node_info->node_id())) {
     // Worker is not active
-    new_work->mutable_io_item()->set_item_id(-1);
+    new_work->set_no_more_work(true);
     return grpc::Status::OK;
   }
 
   // If we do not have any outstanding work, try and create more
-  if (unallocated_task_samples_.empty()) {
+  if (unallocated_job_tasks_.empty()) {
     // If we have no more samples for this task, try and get another task
-    if (next_sample_ == num_samples_) {
+    if (next_task_ == num_tasks_) {
       // Check if there are any tasks left
-      if (next_task_ < num_tasks_ && task_result_.success()) {
-        // More tasks left
-        auto sampler = new TaskSampler(
-            *table_metas_.get(), job_params_.task_set().tasks(next_task_));
-        task_result_ = sampler->validate();
-        if (task_result_.success()) {
-          next_sample_ = 0;
-          num_samples_ = sampler->total_samples();
-          next_task_++;
-          VLOG(1) << "Tasks left: " << num_tasks_ - next_task_;
-          task_samplers_[next_task_ - 1].reset(sampler);
-        } else {
-          delete sampler;
-        }
+      if (next_job_ < num_jobs_ && task_result_.success()) {
+        next_task_ = 0;
+        num_tasks_ = job_tasks_.at(next_job_).size();
+        next_job_++;
+        VLOG(1) << "Jobs left: " << num_jobs_ - next_job_;
       }
     }
 
     // Create more work if possible
-    if (next_sample_ < num_samples_) {
-      i64 current_task = next_task_ - 1;
-      i64 current_sample = next_sample_;
+    if (next_task_ < num_tasks_) {
+      i64 current_job = next_job_ - 1;
+      i64 current_task = next_task_;
 
-      unallocated_task_samples_.push_front(
-          std::make_tuple(current_task, current_sample));
-      task_sampler_samples_left_[current_task]++;
-      next_sample_++;
+      unallocated_job_tasks_.push_front(
+          std::make_tuple(current_job, current_task));
+      next_task_++;
     }
   }
 
-  if (unallocated_task_samples_.empty()) {
+  if (unallocated_job_tasks_.empty()) {
     // No more work
-    new_work->mutable_io_item()->set_item_id(-1);
+    new_work->set_no_more_work(true);
     return grpc::Status::OK;
   }
 
   // Grab the next task sample
-  std::tuple<i64, i64> task_sample_id = unallocated_task_samples_.back();
-  unallocated_task_samples_.pop_back();
+  std::tuple<i64, i64> job_task_id = unallocated_job_tasks_.back();
+  unallocated_job_tasks_.pop_back();
 
-  // Get task sampler for our task sample
-  assert(next_sample_ <= num_samples_);
-  auto& sampler = task_samplers_.at(std::get<0>(task_sample_id));
+  assert(next_task_ <= num_tasks_);
 
-  // Get the task sample
-  task_result_ = sampler->sample_at(std::get<1>(task_sample_id), *new_work);
-  if (!task_result_.success()) {
-    // Task sampler failed for some reason
-    new_work->mutable_io_item()->set_item_id(-1);
-    return grpc::Status::OK;
+  i64 job_idx;
+  i64 task_idx;
+  std::tie(job_idx, task_idx) = job_task_id;
+  new_work->set_table_id(job_to_table_id_.at(job_idx));
+  new_work->set_job_index(job_idx);
+  new_work->set_task_index(task_idx);
+  const auto& task_rows = job_tasks_.at(job_idx).at(task_idx);
+  for (i64 r : task_rows) {
+    new_work->add_output_rows(r);
   }
-  new_work->mutable_load_work()->set_job_index(std::get<0>(task_sample_id));
 
   // Track sample assigned to worker
-  active_task_samples_[node_info->node_id()].insert(task_sample_id);
+  active_job_tasks_[node_info->node_id()].insert(job_task_id);
   worker_histories_[node_info->node_id()].tasks_assigned += 1;
 
   return grpc::Status::OK;
@@ -520,8 +245,9 @@ grpc::Status MasterImpl::FinishedWork(
   VLOG(1) << "Master received FinishedWork command";
 
   i32 worker_id = params->node_id();
+  i64 job_id = params->job_id();
   i64 task_id = params->task_id();
-  i64 sample_id = params->sample_id();
+  i64 num_rows = params->num_rows();
 
   if (!worker_active_[worker_id]) {
     // Technically the task was finished, but we don't count it for now
@@ -529,30 +255,24 @@ grpc::Status MasterImpl::FinishedWork(
     return grpc::Status::OK;
   }
 
-  auto& worker_samples = active_task_samples_.at(worker_id);
+  auto& worker_tasks = active_job_tasks_.at(worker_id);
 
-  std::tuple<i64, i64> task_sample = std::make_tuple(task_id, sample_id);
-  assert(worker_samples.count(task_sample) > 0);
-  worker_samples.erase(task_sample);
+  std::tuple<i64, i64> job_tasks = std::make_tuple(job_id, task_id);
+  assert(worker_tasks.count(job_tasks) > 0);
+  worker_tasks.erase(job_tasks);
 
-  task_sampler_samples_left_[task_id]--;
   worker_histories_[worker_id].tasks_retired += 1;
 
-  i64 active_task = next_task_ - 1;
-  // If there are no more samples left in the task, we can get rid of the
-  // TaskSampler object (assuming it's not the active task)
-  if (task_id != active_task && task_sampler_samples_left_.at(task_id) == 0) {
-    task_samplers_.erase(task_id);
-  }
+  i64 active_job = next_job_ - 1;
 
-  total_samples_used_++;
+  total_tasks_used_++;
   if (bar_) {
-    bar_->Progressed(total_samples_used_);
+    bar_->Progressed(total_tasks_used_);
   }
 
-  if (total_samples_used_ == total_samples_) {
+  if (total_tasks_used_ == total_tasks_) {
     VLOG(1) << "Master FinishedWork triggered finished!";
-    assert(next_task_ == num_tasks_);
+    assert(next_job_ == num_jobs_);
     {
       std::unique_lock<std::mutex> lock(finished_mutex_);
       finished_ = true;
@@ -564,9 +284,10 @@ grpc::Status MasterImpl::FinishedWork(
 }
 
 grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
-                                const proto::JobParameters* job_params,
+                                const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
   VLOG(1) << "Master received NewJob command";
+  // printf("Master received newjob!\n");
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
@@ -580,7 +301,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
 
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
-    active_job_ = true;
+    active_bulk_job_ = true;
   }
   active_cv_.notify_all();
 
@@ -592,7 +313,7 @@ grpc::Status MasterImpl::IsJobDone(grpc::ServerContext* context,
                                    proto::JobResult* job_result) {
   VLOG(1) << "Master received IsJobDone command";
   std::unique_lock<std::mutex> lock(active_mutex_);
-  if (!active_job_) {
+  if (!active_bulk_job_) {
     job_result->set_finished(true);
     job_result->mutable_result()->CopyFrom(job_result_);
   } else {
@@ -701,8 +422,12 @@ grpc::Status MasterImpl::RegisterOp(
     if (stencil.empty()) {
       stencil = {0};
     }
+    bool has_bounded_state = op_registration->has_bounded_state();
+    i32 warmup = op_registration->warmup();
+    bool has_unbounded_state = op_registration->has_unbounded_state();
     OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                              output_columns, can_stencil, stencil);
+                              output_columns, can_stencil, stencil,
+                              has_bounded_state, warmup, has_unbounded_state);
     OpRegistry* registry = get_op_registry();
     *result = registry->add_op(name, info);
   }
@@ -867,7 +592,7 @@ void MasterImpl::start_job_processor() {
       {
         std::unique_lock<std::mutex> lock(active_mutex_);
         active_cv_.wait(
-            lock, [this] { return active_job_ || trigger_shutdown_.raised(); });
+            lock, [this] { return active_bulk_job_ || trigger_shutdown_.raised(); });
       }
       if (trigger_shutdown_.raised()) break;
       // Start processing job
@@ -880,7 +605,7 @@ void MasterImpl::stop_job_processor() {
   // Wake up job processor
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
-    active_job_ = true;
+    active_bulk_job_ = true;
   }
   active_cv_.notify_all();
   if (job_processor_thread_.joinable()) {
@@ -888,18 +613,20 @@ void MasterImpl::stop_job_processor() {
   }
 }
 
-bool MasterImpl::process_job(const proto::JobParameters* job_params,
+bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   // Reset job state
-  unallocated_task_samples_.clear();
+  job_to_table_id_.clear();
+  slice_input_rows_per_job_.clear();
+  total_output_rows_per_job_.clear();
+  unallocated_job_tasks_.clear();
+  job_tasks_.clear();
+  next_job_ = 0;
+  num_jobs_ = -1;
   next_task_ = 0;
   num_tasks_ = -1;
-  task_samplers_.clear();
-  task_sampler_samples_left_.clear();
-  next_sample_ = 0;
-  num_samples_ = -1;
   task_result_.set_success(true);
-  active_task_samples_.clear();
+  active_job_tasks_.clear();
   worker_histories_.clear();
   unfinished_workers_.clear();
   local_ids_.clear();
@@ -908,8 +635,8 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   statuses_.clear();
   replies_.clear();
   rpcs_.clear();
-  total_samples_used_ = 0;
-  total_samples_ = 0;
+  total_tasks_used_ = 0;
+  total_tasks_ = 0;
 
   job_result->set_success(true);
 
@@ -921,104 +648,35 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
     finished_cv_.notify_all();
     {
       std::unique_lock<std::mutex> lock(finished_mutex_);
-      active_job_ = false;
+      active_bulk_job_ = false;
     }
     active_cv_.notify_all();
   };
 
-  const i32 io_item_size = job_params->io_item_size();
-  const i32 work_item_size = job_params->work_item_size();
-  if (io_item_size > 0 && io_item_size % work_item_size != 0) {
+  std::vector<proto::Job> jobs(job_params->jobs().begin(),
+                               job_params->jobs().end());
+  std::vector<proto::Op> ops(job_params->ops().begin(),
+                             job_params->ops().end());
+
+  const i32 work_packet_size = job_params->work_packet_size();
+  const i32 io_packet_size = job_params->io_packet_size() != -1
+                                 ? job_params->io_packet_size()
+                                 : work_packet_size;
+  if (io_packet_size > 0 && io_packet_size % work_packet_size != 0) {
     RESULT_ERROR(job_result,
                  "IO packet size must be a multiple of Work packet size.");
     finished_fn();
     return false;
   }
 
-  i32 warmup_size = 0;
   i32 total_rows = 0;
 
   meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   DatabaseMetadata meta_copy =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
 
-  validate_task_set(meta_, job_params->task_set(), job_result);
-  if (!job_result->success()) {
-    // No database changes made at this point, so just return
-    finished_fn();
-    return false;
-  }
-
   // Setup table metadata cache
   table_metas_.reset(new TableMetaCache(storage_, meta_));
-
-  // Get output columns from last output op
-  std::vector<Column> input_table_columns;
-  {
-    for (auto& sample : job_params->task_set().tasks(0).samples()) {
-      const TableMetadata& table = table_metas_->at(sample.table_name());
-      std::vector<Column> table_columns = table.columns();
-      for (const std::string& c : sample.column_names()) {
-        for (Column& col : table_columns) {
-          if (c == col.name()) {
-            Column new_col;
-            new_col.CopyFrom(col);
-            new_col.set_id(input_table_columns.size());
-            input_table_columns.push_back(new_col);
-          }
-        }
-      }
-    }
-  }
-
-  auto& ops = job_params->task_set().ops();
-  OpRegistry* op_registry = get_op_registry();
-  auto& last_op = ops.Get(ops.size() - 1);
-  assert(last_op.name() == "OutputTable");
-  std::vector<Column> output_columns;
-  for (const auto& eval_input : last_op.inputs()) {
-    auto& input_op = ops.Get(eval_input.op_index());
-    std::vector<Column> input_columns;
-    if (input_op.name() == "InputTable") {
-      input_columns = input_table_columns;
-    } else {
-      OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
-      input_columns = input_op_info->output_columns();
-    }
-    for (const std::string& name : eval_input.columns()) {
-      bool found = false;
-      for (auto& col : input_columns) {
-        if (col.name() == name) {
-          Column c;
-          c.set_id(output_columns.size());
-          c.set_name(name);
-          c.set_type(col.type());
-          output_columns.push_back(c);
-          found = true;
-          break;
-        }
-      }
-      assert(found);
-    }
-  }
-  proto::JobDescriptor job_descriptor;
-  job_descriptor.set_io_item_size(io_item_size);
-  job_descriptor.set_work_item_size(work_item_size);
-  job_descriptor.set_num_nodes(workers_.size());
-
-  for (size_t i = 0; i < output_columns.size(); ++i) {
-    Column* col = job_descriptor.add_columns();
-    col->CopyFrom(output_columns[i]);
-  }
-
-  auto& tasks = job_params->task_set().tasks();
-  job_descriptor.mutable_tasks()->CopyFrom(tasks);
-
-  // Add job name into database metadata so we can look up what jobs have
-  // been run
-  i32 job_id = meta_.add_job(job_params->job_name());
-  job_descriptor.set_id(job_id);
-  job_descriptor.set_name(job_params->job_name());
 
   // Prefetch table metadata for all tables in samplers
   {
@@ -1028,9 +686,9 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
       table_metas_->update(read_table_metadata(storage_, table_path));
     };
     std::set<std::string> tables_to_read;
-    for (auto& task : job_params->task_set().tasks()) {
-      for (auto& s : task.samples()) {
-        tables_to_read.insert(s.table_name());
+    for (auto& job : jobs) {
+      for (auto& column_input : job.inputs()) {
+        tables_to_read.insert(column_input.table_name());
       }
     }
     // TODO(apoms): make this a thread pool instead of spawning potentially
@@ -1044,39 +702,176 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
     }
   }
 
-  i64 min_stencil, max_stencil;
-  std::tie(min_stencil, max_stencil) =
-      determine_stencil_bounds(job_params->task_set());
-  for (auto& task : job_params->task_set().tasks()) {
-    i32 table_id = meta_.add_table(task.output_table_name());
-    proto::TableDescriptor table_desc;
-    table_desc.set_id(table_id);
-    table_desc.set_name(task.output_table_name());
-    table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
-                                 now().time_since_epoch())
-                                 .count());
-    // Set columns equal to the last op's output columns
-    for (size_t i = 0; i < output_columns.size(); ++i) {
-      Column* col = table_desc.add_columns();
-      col->CopyFrom(output_columns[i]);
-    }
-    table_metas_->update(TableMetadata(table_desc));
-    std::vector<i64> end_rows;
-    Result result = get_task_end_rows(*table_metas_.get(), task, min_stencil,
-                                      max_stencil, end_rows);
-    if (!result.success()) {
-      *job_result = result;
-      break;
-    }
-    total_samples_ += end_rows.size();
-    for (i64 r : end_rows) {
-      table_desc.add_end_rows(r);
-    }
-    table_desc.set_job_id(job_id);
-
-    write_table_metadata(storage_, TableMetadata(table_desc));
-    table_metas_->update(TableMetadata(table_desc));
+  DAGAnalysisInfo dag_info;
+  *job_result =
+      validate_jobs_and_ops(meta_, *table_metas_.get(), jobs, ops, dag_info);
+  if (!job_result->success()) {
+    // No database changes made at this point, so just return
+    finished_fn();
+    return false;
   }
+
+  // Map all input Ops into a single input collection
+  const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.input_ops;
+
+  // Get output columns from last output op to set as output table columns
+  OpRegistry* op_registry = get_op_registry();
+  auto& last_op = ops.at(ops.size() - 1);
+  assert(last_op.name() == OUTPUT_OP_NAME);
+  std::vector<std::vector<Column>> job_output_columns;
+
+  for (const auto& job : jobs) {
+    // Get input columns from column inputs specified for each job
+    std::map<i64, Column> input_op_idx_to_column;
+    {
+      for (auto& ci : job.inputs()) {
+        const TableMetadata& table = table_metas_->at(ci.table_name());
+        std::vector<Column> table_columns = table.columns();
+        const std::string& c = ci.column_name();
+        bool found = false;
+        for (Column& col : table_columns) {
+          if (c == col.name()) {
+            Column new_col;
+            new_col.CopyFrom(col);
+            new_col.set_id(0);
+            input_op_idx_to_column[ci.op_index()] = new_col;
+            found = true;
+            break;
+          }
+        }
+        assert(found);
+      }
+    }
+
+    job_output_columns.emplace_back();
+    std::vector<Column>& output_columns = job_output_columns.back();
+    // For an op column, find the Column info
+    std::function<Column(const proto::OpInput&)> determine_column_info =
+        [&determine_column_info, &ops, &input_op_idx_to_column,
+         op_registry](const proto::OpInput& op_input) -> Column {
+      i64 op_idx = op_input.op_index();
+      const std::string& col = op_input.column();
+      auto& input_op = ops.at(op_idx);
+      // For builtin ops, find non bulit-in parent column
+      if (input_op.name() != INPUT_OP_NAME && is_builtin_op(input_op.name())) {
+        // Find the column
+        for (auto& in : input_op.inputs()) {
+          if (in.column() == col) {
+            return determine_column_info(in);
+          }
+        }
+        assert(false);
+      }
+
+      std::vector<Column> input_columns;
+      std::vector<Column> actual_columns;
+      if (input_op.name() == INPUT_OP_NAME) {
+        Column col = input_op_idx_to_column.at(op_idx);
+        actual_columns = {col};
+        col.set_name(input_op.inputs(0).column());
+        input_columns = {col};
+      } else {
+        OpInfo* input_op_info = op_registry->get_op_info(input_op.name());
+        input_columns = input_op_info->output_columns();
+        actual_columns = input_columns;
+      }
+      const std::string& name = col;
+      bool found = false;
+      for (size_t i = 0; i < input_columns.size(); ++i) {
+        auto& in_col = input_columns[i];
+        if (in_col.name() == name) {
+          Column c = actual_columns[i];
+          return c;
+        }
+      }
+      assert(false);
+    };
+    for (const auto& input : last_op.inputs()) {
+      Column c = determine_column_info(input);
+      c.set_id(output_columns.size());
+      output_columns.push_back(c);
+    }
+  }
+  proto::BulkJobDescriptor job_descriptor;
+  job_descriptor.set_io_packet_size(io_packet_size);
+  job_descriptor.set_work_packet_size(work_packet_size);
+  job_descriptor.set_num_nodes(workers_.size());
+
+  {
+    auto& jobs = job_params->jobs();
+    job_descriptor.mutable_jobs()->CopyFrom(jobs);
+  }
+
+  // Add job name into database metadata so we can look up what jobs have
+  // been run
+  i32 bulk_job_id = meta_.add_bulk_job(job_params->job_name());
+  job_descriptor.set_id(bulk_job_id);
+  job_descriptor.set_name(job_params->job_name());
+  // Determine total output rows and slice input rows for using to
+  // split stream
+  *job_result = determine_input_rows_to_slices(meta_, *table_metas_.get(), jobs,
+                                               ops, dag_info);
+  slice_input_rows_per_job_ = dag_info.slice_input_rows;
+  total_output_rows_per_job_ = dag_info.total_output_rows;
+
+  if (!job_result->success()) {
+    // No database changes made at this point, so just return
+    finished_fn();
+    return false;
+  }
+
+
+  // HACK(apoms): we currently split work into tasks in two ways:
+  //  a) align with the natural boundaries defined by the slice partitioner
+  //  b) use a user-specified size to chunk up the output sequence
+
+  // Job -> task -> rows
+  total_tasks_ = 0;
+  for (size_t i = 0; i < jobs.size(); ++i) {
+    auto& slice_input_rows = slice_input_rows_per_job_[i];
+    i64 total_output_rows = total_output_rows_per_job_[i];
+
+    std::vector<i64> partition_boundaries;
+    if (slice_input_rows.size() == 0) {
+      // No slices, so we can split as desired. Currently use IO packet size
+      // since it is the smallest granularity we can specify
+      for (i64 r = 0; r < total_output_rows; r += io_packet_size) {
+        partition_boundaries.push_back(r);
+      }
+      partition_boundaries.push_back(total_output_rows);
+    } else {
+      // Split stream into partitions, respecting slice boundaries
+      // We assume there is only one slice for now since
+      // they all must have the same number of groups
+      assert(slice_input_rows.size() == 1);
+      // Derive the output rows produced by each slice group
+      i64 slice_op_idx = slice_input_rows.begin()->first;
+      i64 slice_in_rows = slice_input_rows.begin()->second;
+      *job_result = derive_slice_final_output_rows(
+          jobs.at(i), ops, slice_op_idx, slice_in_rows, dag_info,
+          partition_boundaries);
+      if (!job_result->success()) {
+        // No database changes made at this point, so just return
+        finished_fn();
+        return false;
+      }
+    }
+    assert(partition_boundaries.back() == total_output_rows);
+    job_tasks_.emplace_back();
+    auto& tasks = job_tasks_.back();
+    for (i64 pi = 0; pi < partition_boundaries.size() - 1; ++pi) {
+      tasks.emplace_back();
+      auto& task_rows = tasks.back();
+
+      i64 s = partition_boundaries[pi];
+      i64 e = partition_boundaries[pi + 1];
+      for (i64 r = s; r < e; ++r) {
+        task_rows.push_back(r);
+      }
+      total_tasks_++;
+    }
+  }
+
   if (!job_result->success()) {
     // No database changes made at this point, so just return
     finished_fn();
@@ -1084,21 +879,55 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
   }
 
   // Write out database metadata so that workers can read it
-  write_job_metadata(storage_, JobMetadata(job_descriptor));
+  write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
+
+  for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
+    auto& job = job_params->jobs(job_idx);
+    i32 table_id = meta_.add_table(job.output_table_name());
+    job_to_table_id_[job_idx] = table_id;
+    proto::TableDescriptor table_desc;
+    table_desc.set_id(table_id);
+    table_desc.set_name(job.output_table_name());
+    table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
+                                 now().time_since_epoch())
+                                 .count());
+    // Set columns equal to the last op's output columns
+    for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
+      Column* col = table_desc.add_columns();
+      col->CopyFrom(job_output_columns[job_idx][i]);
+    }
+    table_metas_->update(TableMetadata(table_desc));
+
+    i64 total_rows = 0;
+    std::vector<i64> end_rows;
+    auto& tasks = job_tasks_.at(job_idx);
+    for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
+      i64 task_rows = tasks.at(task_id).size();
+      total_rows += task_rows;
+      end_rows.push_back(total_rows);
+    }
+    for (i64 r : end_rows) {
+      table_desc.add_end_rows(r);
+    }
+    table_desc.set_job_id(bulk_job_id);
+
+    write_table_metadata(storage_, TableMetadata(table_desc));
+    table_metas_->update(TableMetadata(table_desc));
+  }
 
   // Setup initial task sampler
   task_result_.set_success(true);
-  next_sample_ = 0;
-  num_samples_ = 0;
   next_task_ = 0;
-  num_tasks_ = job_params->task_set().tasks_size();
+  num_tasks_ = 0;
+  next_job_ = 0;
+  num_jobs_ = jobs.size();
 
   write_database_metadata(storage_, meta_);
 
-  VLOG(1) << "Total tasks: " << num_tasks_;
+  VLOG(1) << "Total jobs: " << num_jobs_;
 
   if (job_params->show_progress()) {
-    bar_.reset(new ProgressBar(total_samples_, ""));
+    bar_.reset(new ProgressBar(total_tasks_, ""));
   } else {
     bar_.reset(nullptr);
   }
@@ -1153,7 +982,7 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
                    << " returned error: " << replies_[worker_id]->msg();
       job_result->set_success(false);
       job_result->set_msg(replies_[worker_id]->msg());
-      next_task_ = num_tasks_;
+      next_job_ = num_jobs_;
     }
     unfinished_workers_[worker_id] = false;
   };
@@ -1189,12 +1018,13 @@ bool MasterImpl::process_job(const proto::JobParameters* job_params,
     // Overwrite database metadata with copy from prior to modification
     write_database_metadata(storage_, meta_copy);
   }
+
   if (!task_result_.success()) {
     job_result->CopyFrom(task_result_);
   } else {
-    assert(next_task_ == num_tasks_);
+    assert(next_job_ == num_jobs_);
     if (bar_) {
-      bar_->Progressed(total_samples_);
+      bar_->Progressed(total_tasks_);
     }
   }
 
@@ -1247,7 +1077,7 @@ void MasterImpl::stop_worker_pinger() {
 
 void MasterImpl::start_job_on_worker(i32 worker_id,
                                      const std::string& address) {
-  proto::JobParameters w_job_params;
+  proto::BulkJobParameters w_job_params;
   w_job_params.MergeFrom(job_params_);
 
   auto& worker = workers_.at(worker_id);
@@ -1273,32 +1103,15 @@ void MasterImpl::start_job_on_worker(i32 worker_id,
 
 void MasterImpl::stop_job_on_worker(i32 worker_id) {
   // Place workers active tasks back into the unallocated task samples
-  if (active_task_samples_.count(worker_id) > 0) {
-    // Keep track of which tasks the worker was assigned
-    std::set<i64> tasks;
+  if (active_job_tasks_.count(worker_id) > 0) {
     // Place workers active tasks back into the unallocated task samples
-    for (const std::tuple<i64, i64>& worker_task_sample :
-         active_task_samples_.at(worker_id)) {
-      unallocated_task_samples_.push_back(worker_task_sample);
-      tasks.insert(std::get<0>(worker_task_sample));
+    for (const std::tuple<i64, i64>& worker_job_task :
+         active_job_tasks_.at(worker_id)) {
+      unallocated_job_tasks_.push_back(worker_job_task);
     }
     VLOG(1) << "Reassigning worker " << worker_id << "'s "
-            << active_task_samples_.at(worker_id).size() << " task samples.";
-    active_task_samples_.erase(worker_id);
-
-    // Create samplers for all tasks that are not active
-    for (i64 task_id : tasks) {
-      if (task_samplers_.count(task_id) == 0) {
-        auto sampler = new TaskSampler(
-            *table_metas_.get(), job_params_.task_set().tasks(task_id));
-        task_result_ = sampler->validate();
-        if (task_result_.success()) {
-          task_samplers_[task_id].reset(sampler);
-        } else {
-          delete sampler;
-        }
-      }
-    }
+            << active_job_tasks_.at(worker_id).size() << " task samples.";
+    active_job_tasks_.erase(worker_id);
   }
 
   worker_histories_[worker_id].end_time = now();
@@ -1322,7 +1135,7 @@ void MasterImpl::remove_worker(i32 node_id) {
 
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
-    if (active_job_ && client_contexts_.count(node_id) > 0) {
+    if (active_bulk_job_ && client_contexts_.count(node_id) > 0) {
       stop_job_on_worker(node_id);
     }
   }

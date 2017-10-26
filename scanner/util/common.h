@@ -47,7 +47,6 @@ using proto::MemoryPoolConfig;
 using proto::BoundingBox;
 using proto::Point;
 using proto::Result;
-using proto::IOItem;
 
 struct DeviceHandle {
  public:
@@ -56,6 +55,10 @@ struct DeviceHandle {
   }
 
   bool operator!=(const DeviceHandle& other) { return !(*this == other); }
+
+  bool operator<(const DeviceHandle& other) const {
+    return type < other.type && id < other.id;
+  }
 
   bool can_copy_to(const DeviceHandle& other) {
     return !(this->type == DeviceType::GPU && other.type == DeviceType::GPU &&
