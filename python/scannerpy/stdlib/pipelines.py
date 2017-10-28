@@ -1,5 +1,5 @@
 from . import NetDescriptor, writers, bboxes, poses, parsers
-from .. import DeviceType, Job
+from .. import DeviceType, Job, BulkJob
 from ..collection import Collection
 import math
 import os.path
@@ -55,12 +55,12 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
             jobs.append(job)
 
         bulk_job = BulkJob(output=output, jobs=jobs)
-        output = db.run(bulk_job, force=True, work_item_size=batch * 4)
+        output = db.run(bulk_job, force=True, work_packet_size=batch * 4)
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
 
     # Register nms bbox op and kernel
-    db.register_op('BBoxNMS', [], ['poses'], variadic_inputs=True)
+    db.register_op('BBoxNMS', [], ['bboxes'], variadic_inputs=True)
     kernel_path = script_dir + '/bbox_nms_kernel.py'
     db.register_python_kernel('BBoxNMS', DeviceType.CPU, kernel_path)
     # scale = max(width / float(max_width), 1.0)
@@ -74,7 +74,7 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
     for i in range(len(input_frame_columns)):
         op_args = {}
         for bi, cols in enumerate(outputs):
-            op_args[bbox_inputs[bi]] = cols[i]
+            op_args[bbox_inputs[bi]] = cols[i].column('bboxes')
         op_args[output] = '{}_boxes_{}'.format(output_name, i)
         jobs.append(Job(op_args=op_args))
     bulk_job = BulkJob(output=output, jobs=jobs)
@@ -120,7 +120,7 @@ def detect_poses(db, input_frame_columns, sampling, output_name,
             })
             jobs.append(job)
         bulk_job = BulkJob(output=output, jobs=jobs)
-        output = db.run(bulk_job, force=True, work_item_size=8)
+        output = db.run(bulk_job, force=True, work_packet_size=8)
         outputs.append(output)
 
     # Register nms pose op and kernel
