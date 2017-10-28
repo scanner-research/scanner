@@ -29,7 +29,7 @@ with Database() as db:
             output_op: 'output_table',
         }
     )
-    bulk_job = BulkJob(dag=dag, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
 
     db.run(bulk_job, force=True)
 

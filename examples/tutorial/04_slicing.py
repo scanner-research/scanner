@@ -33,7 +33,7 @@ with Database(debug=True) as db:
             output_op: 'example_hist_sliced'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     output_tables = db.run(bulk_job, force=True, pipeline_instances_per_node=2)
 
     # Loop over the column's rows. Each row is a tuple of the frame number and
@@ -71,7 +71,7 @@ with Database(debug=True) as db:
             output_op: 'example_hist_sliced_gath'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     output_tables = db.run(bulk_job, force=True, pipeline_instances_per_node=2)
 
     # Loop over the column's rows. Each row is a tuple of the frame number and

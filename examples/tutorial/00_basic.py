@@ -55,7 +55,7 @@ with Database() as db:
     # Multiple tables can be created using the same execution graph using
     # a bulk job. Here we specify the execution graph (or DAG) by providing
     # the output_op and also specify the jobs we wish to compute.
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
 
     # This executes the job and produces the output table. You'll see a progress
     # bar while Scanner is computing the outputs.
