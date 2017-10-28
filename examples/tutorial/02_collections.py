@@ -36,7 +36,7 @@ with Database() as db:
             }
         )
         jobs.append(job)
-    bulk_job = BulkJob(dag=output_op, jobs=jobs)
+    bulk_job = BulkJob(output=output_op, jobs=jobs)
     output_tables = db.run(bulk_job, force=True, pipeline_instances_per_node=1)
 
     # You can create new collections from existing tables
