@@ -6,18 +6,13 @@ import os.path
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-def detect_faces(db, input_tables_or_collection, sampling, output_name,
+def detect_faces(db, input_frame_columns, output_sampling, output_name,
                  width=960, return_profiling=False):
     descriptor = NetDescriptor.from_file(db, 'nets/caffe_facenet.toml')
     facenet_args = db.protobufs.FacenetArgs()
     facenet_args.threshold = 0.5
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
-
-    if isinstance(input_tables_or_collection, Collection):
-        input_tables = [input_tables_or_collection]
-    else:
-        input_tables = input_tables_or_collection
 
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
@@ -28,36 +23,40 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
         facenet_args.scale = scale
         caffe_args.batch_size = batch
 
-        job_fns = []
-        for i, input_table in enumerate(input_tables):
-            def make_job(idx=i, input_table=input_table):
-                frame = sampling(input_table.as_op())
-                #resized = db.ops.Resize(
-                #    frame = frame,
-                #    width = width, height = 0,
-                #    min = True, preserve_aspect = True,
-                #    device = DeviceType.GPU)
-                frame_info = db.ops.InfoFromFrame(frame = frame)
-                facenet_input = db.ops.FacenetInput(
-                    frame = frame,
-                    args = facenet_args,
-                    device = DeviceType.GPU)
-                facenet = db.ops.Facenet(
-                    facenet_input = facenet_input,
-                    args = facenet_args,
-                    device = DeviceType.GPU)
-                facenet_output = db.ops.FacenetOutput(
-                    facenet_output = facenet,
-                    original_frame_info = frame_info,
-                    args = facenet_args)
-                job = Job(
-                    columns = [facenet_output],
-                    name = '{}_{}_faces_{}'.format(output_name, idx, scale))
-                return job
-            job_fns.append(make_job)
+        frame = db.ops.FrameInput()
+        #resized = db.ops.Resize(
+        #    frame = frame,
+        #    width = width, height = 0,
+        #    min = True, preserve_aspect = True,
+        #    device = DeviceType.GPU)
+        frame_info = db.ops.InfoFromFrame(frame = frame)
+        facenet_input = db.ops.FacenetInput(
+            frame = frame,
+            args = facenet_args,
+            device = DeviceType.GPU)
+        facenet = db.ops.Facenet(
+            facenet_input = facenet_input,
+            args = facenet_args,
+            device = DeviceType.GPU)
+        facenet_output = db.ops.FacenetOutput(
+            facenet_output = facenet,
+            original_frame_info = frame_info,
+            args = facenet_args)
+        sampled_output = facenet_output.sample()
+        output = db.ops.Output(columns=[sampled_output])
 
-        output = db.run(job_fns, force=True, work_item_size=batch * 4)
-        profilers[output.name] = output.profiler()
+        jobs = []
+        for i, frame_column in enumerate(input_frame_columns):
+            job = Job(op_args={
+                frame: frame_column,
+                sampled_output: output_sampling,
+                output: '{}_{}_faces_{}'.format(output_name, i, scale)
+            })
+            jobs.append(job)
+
+        bulk_job = BulkJob(output=output, jobs=jobs)
+        output = db.run(bulk_job, force=True, work_item_size=batch * 4)
+        profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
 
     # Register nms bbox op and kernel
@@ -66,37 +65,23 @@ def detect_faces(db, input_tables_or_collection, sampling, output_name,
     db.register_python_kernel('BBoxNMS', DeviceType.CPU, kernel_path)
     # scale = max(width / float(max_width), 1.0)
     scale = 1.0
-    if isinstance(outputs[0], Collection):
-        job_fns = []
-        for i in range(len(outputs[0].tables())):
-            def make_job(i=i):
-                inputs = [c.tables(i) for c in outputs]
-                nmsed_bboxes = db.ops.BBoxNMS(*inputs, scale=scale)
-                job = Job(
-                    columns = [nmsed_bboxes],
-                    name = '{}_boxes_{}'.format(output_name, i))
-                return job
-            job_fns.append(make_job)
-        out_tables = db.run(job_fns, force=True)
-        return db.new_collection(
-            output_name,
-            [t.name() for t in out_tables],
-            force=True)
-    else:
-        job_fns = []
-        for i in range(len(outputs[0])):
-            def make_job(i=i):
-                inputs = [c[i].as_op().all() for c in outputs]
-                nmsed_bboxes = db.ops.BBoxNMS(*inputs, scale=scale)
-                job = Job(
-                    columns = [nmsed_bboxes],
-                    name = '{}_boxes_{}'.format(output_name, i))
-                return job
-            job_fns.append(make_job)
-        return db.run(job_fns, force=True)
+
+    bbox_inputs = [db.ops.Input() for _ in outputs]
+    nmsed_bboxes = db.ops.BBoxNMS(*bbox_inputs, scale=scale)
+    output = db.ops.Output(columns=[nmsed_bboxes])
+
+    jobs = []
+    for i in range(len(input_frame_columns)):
+        op_args = {}
+        for bi, cols in enumerate(outputs):
+            op_args[bbox_inputs[bi]] = cols[i]
+        op_args[output] = '{}_boxes_{}'.format(output_name, i)
+        jobs.append(Job(op_args=op_args))
+    bulk_job = BulkJob(output=output, jobs=jobs)
+    return db.run(bulk_job, force=True)
 
 
-def detect_poses(db, input_tables_or_collection, sampling, output_name,
+def detect_poses(db, input_frame_columns, sampling, output_name,
                  height=480):
     descriptor = NetDescriptor.from_file(db, 'nets/cpm2.toml')
     cpm2_args = db.protobufs.CPM2Args()
@@ -104,38 +89,38 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
     caffe_args.batch_size = 1
 
-    if isinstance(input_tables_or_collection, Collection):
-        input_tables = [input_tables_or_collection]
-    else:
-        input_tables = input_tables_or_collection
-
     outputs = []
     scales = [1.0, 0.7, 0.49, 0.343]
     for scale in scales:
         cpm2_args.scale = 368.0/height * scale
-        job_fns = []
-        for i, input_table in enumerate(input_tables):
-            def make_job(idx=i, input_table=input_table):
-                frame = sampling(input_table.as_op())
-                frame_info = db.ops.InfoFromFrame(frame = frame)
-                cpm2_input = db.ops.CPM2Input(
-                    frame = frame,
-                    args = cpm2_args,
-                    device = DeviceType.GPU)
-                cpm2_resized_map, cpm2_joints = db.ops.CPM2(
-                    cpm2_input = cpm2_input,
-                    args = cpm2_args,
-                    device = DeviceType.GPU)
-                poses_out = db.ops.CPM2Output(
-                    cpm2_resized_map = cpm2_resized_map,
-                    cpm2_joints = cpm2_joints,
-                    original_frame_info = frame_info,
-                    args = cpm2_args)
-                return Job(
-                    columns = [poses_out],
-                    name = '{}_{}_poses_{}'.format(output_name, idx, scale))
-            job_fns.append(make_job)
-        output = db.run(job_fns, force=True, work_item_size=8)
+
+        frame = db.ops.FrameInput()
+        frame_info = db.ops.InfoFromFrame(frame = frame)
+        cpm2_input = db.ops.CPM2Input(
+            frame = frame,
+            args = cpm2_args,
+            device = DeviceType.GPU)
+        cpm2_resized_map, cpm2_joints = db.ops.CPM2(
+            cpm2_input = cpm2_input,
+            args = cpm2_args,
+            device = DeviceType.GPU)
+        poses_out = db.ops.CPM2Output(
+            cpm2_resized_map = cpm2_resized_map,
+            cpm2_joints = cpm2_joints,
+            original_frame_info = frame_info,
+            args = cpm2_args)
+        sampled_poses = poses_out.sample()
+        output = db.ops.Output(columns=[sampled_poses])
+
+        jobs = []
+        for i, input_frame_column in enumerate(input_frame_columns):
+            job = Job(op_args={
+                frame: input_frame_column,
+                output: '{}_{}_poses_{}'.format(output_name, i, scale)
+            })
+            jobs.append(job)
+        bulk_job = BulkJob(output=output, jobs=jobs)
+        output = db.run(bulk_job, force=True, work_item_size=8)
         outputs.append(output)
 
     # Register nms pose op and kernel
@@ -143,31 +128,19 @@ def detect_poses(db, input_tables_or_collection, sampling, output_name,
     kernel_path = script_dir + '/pose_nms_kernel.py'
     db.register_python_kernel('PoseNMS', DeviceType.CPU, kernel_path)
 
-    if isinstance(outputs[0], Collection):
-        job_fns = []
-        for i in range(len(outputs[0].tables())):
-            def make_job(i=i):
-                inputs = [c.tables(i) for c in outputs]
-                nmsed_poses = db.ops.PoseNMS(*inputs, height=height)
-                job = Job(
-                    columns = [nmsed_poses],
-                    name = '{}_poses_{}'.format(output_name, i))
-                return job
-            job_fns.append(make_job)
-        out_tables = db.run(job_fns, force=True)
-        return db.new_collection(
-            output_name,
-            [t.name() for t in out_tables],
-            force=True)
-    else:
-        job_fns = []
-        for i in range(len(outputs[0])):
-            def make_job(i=i):
-                inputs = [c[i].as_op().all() for c in outputs]
-                nmsed_poses = db.ops.PoseNMS(*inputs, height=height)
-                job = Job(
-                    columns = [nmsed_poses],
-                    name = '{}_poses_{}'.format(output_name, i))
-                return job
-            job_fns.append(make_job)
-        return db.run(job_fns, force=True)
+    pose_inputs = [db.ops.Input() for _ in outputs]
+    nmsed_poses = db.ops.PoseNMS(*bbox_inputs, height=height)
+    output = db.ops.Output(columns=[nmsed_poses])
+
+    jobs = []
+    for i in range(len(input_frame_columns)):
+        op_args = {}
+        for bi, cols in enumerate(outputs):
+            op_args[pose_inputs[bi]] = cols[i]
+        op_args[output] = '{}_poses_{}'.format(output_name, i)
+        job = Job(op_args=op_args)
+        jobs.append(job)
+    bulk_job = BulkJob(output=output, jobs=jobs)
+    outputs =  db.run(bulk_job, force=True)
+    profilers['nms'] = outputs[0].profiler()
+    return outputs
