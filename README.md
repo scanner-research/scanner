@@ -61,7 +61,7 @@ cd examples
 jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
 ```
 
-Then in your browser, go to [http://localhost:8888](http://localhost:8888) and copy in the token from the Jupyter console logs. Click "Walkthrough.ipynb" and follow the directions in the notebook.
+Then in your browser, go to [http://localhost:8888/notebooks/Walkthrough.ipynb](http://localhost:8888/notebooks/Walkthrough.ipynb) and copy in the token from the console logs. Follow the instructions in the Jupyter notebook.
 
 ## Learning Scanner ##
 
