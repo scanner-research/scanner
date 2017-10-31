@@ -75,11 +75,6 @@ def make_monrage(n, frames):
 
     return img
 
-
-def make_montage_scanner(db, table, shot_starts):
-    return montage_img
-
-
 def main():
     total_start = time.time()
 

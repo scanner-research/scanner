@@ -29,7 +29,7 @@ with Database() as db:
             output_op: 'example_hist_strided'
         }
     )
-    bulk_job = BulkJob(dag=output_op, jobs=[job])
+    bulk_job = BulkJob(output=output_op, jobs=[job])
     output_tables = db.run(bulk_job, force=True, pipeline_instances_per_node=1)
 
     # Loop over the column's rows. Each row is a tuple of the frame number and

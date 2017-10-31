@@ -15,9 +15,9 @@
             "width",
         ]
         channel_ordering = [
-            "blue"
-            "green"
-            "red"
+            "blue",
+            "green",
+            "red",
         ]
 
 [mean-image]

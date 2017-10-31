@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job
+from scannerpy import Database, DeviceType, Job, BulkJob
 from scannerpy.stdlib import NetDescriptor, parsers, bboxes
 import math
 import os
@@ -12,19 +12,21 @@ import numpy as np
 
 util.download_video()
 
-with Database(debug=True) as db:
+with Database() as db:
+    video_path = util.download_video()
+    if True or not db.has_table('example'):
+        print('Ingesting video into Scanner ...')
+        db.ingest_videos([('example', video_path)], force=True)
+
+    input_table = db.table('example')
+
     descriptor = NetDescriptor.from_file(db, 'nets/faster_rcnn_coco.toml')
     caffe_args = db.protobufs.CaffeArgs()
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
     caffe_args.batch_size = 1
 
-    video_path = util.download_video()
-    if True or not db.has_table('example'):
-        print('Ingesting video into Scanner ...')
-        db.ingest_videos([('example', video_path)], force=True)
-    input_table = db.table('example')
 
-    frame = input_table.as_op().range(800, 1600, task_size = 100)
+    frame = db.ops.FrameInput()
     caffe_frame = db.ops.CaffeInput(
         frame = frame,
         args = caffe_args,
@@ -39,13 +41,17 @@ with Database(debug=True) as db:
         fc7 = fc7,
         args = caffe_args,
         device = DeviceType.CPU)
+    output = db.ops.Output(columns=[bboxes, feature])
 
-    job = Job(columns = [bboxes, feature], name = 'detections')
-    output = db.run(job, pipeline_instances_per_node = 1, work_item_size = 10, io_item_size = 40, force=True)
+    job = Job(op_args={
+        frame: input_table.column('frame'),
+        output: input_table.name() + '_detections'
+    })
+    bulk_job = BulkJob(output=output, jobs=[job])
+    [output] = db.run(bulk_job, pipeline_instances_per_node = 1,
+                      work_packet_size = 10, io_packet_size = 40, force=True)
 
-    #exit(0)
-
-    output = db.table('detections')
+    output = db.table(input_table.name() + '_detections')
 
     output.profiler().write_trace('detect_test.trace')
 
