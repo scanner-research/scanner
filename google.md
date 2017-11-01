@@ -20,7 +20,19 @@ You will need to store your videos in Google Cloud Storage. Cloud Storage is org
 gsutil mb gs://scanner-data
 ```
 
-## 4. Set up your Scanner config
+## 4. Enable S3 interoperability
+
+We use an S3 API to access GCS (for good reasons), so you need to explicitly enable this feature. Go here: [https://console.cloud.google.com/storage/settings](https://console.cloud.google.com/storage/settings)
+
+Click *Enable interoperability access* and then click *Create a new key*. Into your local shell, run:
+```bash
+export AWS_ACCESS_KEY_ID=<Access Key>
+export AWS_SECRET_ACCESS_KEY=<Secret>
+```
+
+I would recommend putting these in your shell's `.*rc` file as well.
+
+## 5. Set up your Scanner config
 
 Change the storage heading in your `~/.scanner.toml` to use GCS:
 ```toml
@@ -30,14 +42,14 @@ bucket = "<your bucket name>"
 db_path = "scanner_db"
 ```
 
-## 5. Upload your videos into your bucket
+## 6. Upload your videos into your bucket
 
 You can copy videos onto GCS like this:
 ```bash
 gsutil cp example.mp4 gs://scanner-data/videos/
 ```
 
-## 6. You're done!
+## 7. You're done!
 
 Now, whenever you want to specify an ingest path, it does not need a leading slash and should not include the bucket name. For example, with the config above, the following is a valid ingest path:
 ```
