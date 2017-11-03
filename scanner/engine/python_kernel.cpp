@@ -83,7 +83,7 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
       py::list cols;
       for (i32 j = 0; j < input_columns.size(); ++j) {
         // HACK(wcrichto): should pass column type in config and check here
-        if (config_.input_columns[j] == "frame") {
+        if (config_.input_column_types[j] == proto::ColumnType::Video) {
           const Frame* frame = input_columns[j][i].as_const_frame();
           np::ndarray frame_np =
               np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),

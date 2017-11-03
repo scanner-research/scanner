@@ -649,8 +649,16 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
     // Tell kernel what its inputs are from the Op DAG
     // (for variadic inputs)
-    for (auto& input : op.inputs()) {
+    auto& input_columns = op_info->input_columns();
+    for (int i = 0; i < op.inputs().size(); ++i) {
+      auto input = op.inputs(i);
       kernel_config.input_columns.push_back(input.column());
+      if (input_columns.size() == 0) {
+        // We ccan have 0 columns in op info if variadic arguments
+        kernel_config.input_column_types.push_back(ColumnType::Other);
+      } else {
+        kernel_config.input_column_types.push_back(input_columns[i].type());
+      }
     }
     kernel_configs.push_back(kernel_config);
   }
@@ -888,7 +896,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       if (factory != nullptr) {
         device_type = factory->get_device_type();
         max_devices = factory->get_max_devices();
-      } 
+      }
       if (device_type == DeviceType::CPU) {
         for (i32 i = 0; i < max_devices; ++i) {
           i32 device_id = 0;
