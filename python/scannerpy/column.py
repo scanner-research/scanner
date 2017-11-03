@@ -170,7 +170,7 @@ class Column:
                 sampled_frame = frame.sample()
                 op_args[sampled_frame] = self._db.sampler.gather(rows)
                 enc_input = sampled_frame
-            img = self._db.ops.ImageEncoder(frame = frame)
+            img = self._db.ops.ImageEncoder(frame = enc_input)
             output_op = self._db.ops.Output(columns=[img])
             op_args[output_op] = png_table_name
             job = Job(op_args=op_args)
