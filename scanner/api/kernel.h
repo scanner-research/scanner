@@ -111,6 +111,7 @@ struct KernelConfig {
   std::vector<DeviceHandle> devices;  //! Non-empty set of devices provided to
                                       //! the kernel.
   std::vector<std::string> input_columns;
+  std::vector<proto::ColumnType> input_column_types;
   std::vector<std::string> output_columns;
   std::vector<u8> args;  //! Byte-string of proto args if given.
   i32 node_id;

@@ -1,11 +1,11 @@
 import tensorflow as tf
 
 class TensorFlowKernel:
-    def __init__(self):
+    def __init__(self, protobufs, config):
         # TODO: wrap this in "with device"
-        self.graph = self.build_graph()
         config = tf.ConfigProto(allow_soft_placement = True)
-        self.sess = tf.Session(config=config, graph=self.graph)
+        self.sess = tf.Session(config=config)
+        self.graph = self.build_graph(self.sess)
 
     def close(self):
         self.sess.close()

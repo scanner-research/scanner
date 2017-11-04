@@ -1010,9 +1010,9 @@ class Database:
                     job_output_table_names.append(args)
                 else:
                     raise ScannerException(
-                        'Attempted to bind arguments to Op %s which is not '
+                        'Attempted to bind arguments to Op {} which is not '
                         'an input, sampling, spacing, slicing, or output Op.'
-                        .format(op.name()))
+                        .format(op.name()))  # FIXME(apoms): op.name() is unbound
             if output_table_name is None:
                 raise ScannerException(
                     'Did not specify the output table name by binding a '
