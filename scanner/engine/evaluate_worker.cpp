@@ -309,7 +309,7 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   for (auto& kv : arg_group_.sampling_args) {
     i64 op_idx = kv.first;
     i64 slice = 0;
-    if (arg_group_.sampling_args.at(op_idx).size() > 1) {
+    if (arg_group_.sampling_args.at(op_idx).at(job_idx).size() > 1) {
       slice = slice_group_;
     }
     auto& sampling_args =
