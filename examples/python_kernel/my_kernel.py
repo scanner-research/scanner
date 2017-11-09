@@ -9,6 +9,7 @@ class MyOpKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
+        print('list size :{:d}'.format(len(input_columns)))
         return [struct.pack('=q', 9000)]
 
 KERNEL = MyOpKernel

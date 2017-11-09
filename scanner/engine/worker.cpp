@@ -813,8 +813,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     memory_pool_initialized_ = true;
   }
 
-  omp_set_num_threads(std::thread::hardware_concurrency());
-  // printf("Number of threads: %d\n", std::thread::hardware_concurrency());
+  int num_threads = 4;
+  // omp_set_num_threads(std::thread::hardware_concurrency());
+  omp_set_num_threads(num_threads);
+  printf("Number of threads: %d\n", std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
   i64 accepted_tasks = 0;
