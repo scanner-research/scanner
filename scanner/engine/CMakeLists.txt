@@ -1,5 +1,7 @@
 get_property(dirs DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-configure_file(python.in.cpp python.cpp)
+configure_file(build_flags.in.cpp build_flags.cpp)
+
+add_executable(build_flags build_flags.cpp)
 
 set(SOURCE_FILES
   runtime.cpp

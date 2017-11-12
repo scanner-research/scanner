@@ -29,19 +29,6 @@ class GILRelease {
 
 namespace py = boost::python;
 
-std::string get_include() {
-  // This variable is filled in at compile time by CMake.
-  return "@dirs@";
-}
-
-std::string other_flags() {
-#ifdef HAVE_CUDA
-  return "-DHAVE_CUDA";
-#else
-  return "";
-#endif
-}
-
 template <typename T>
 inline std::vector<T> to_std_vector(const py::object& iterable) {
   return std::vector<T>(py::stl_input_iterator<T>(iterable),
