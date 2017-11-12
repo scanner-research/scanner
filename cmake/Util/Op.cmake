@@ -44,7 +44,7 @@ function(build_op)
   if("${args_NO_FLAGS}" STREQUAL "")
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
-      COMMAND python -c "import scannerpy; scannerpy.Database().print_build_flags()")
+      COMMAND python -c "import scannerpy.stdlib.build_flags")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")

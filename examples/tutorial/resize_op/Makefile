@@ -1,6 +1,6 @@
 # Scanner outputs build flags that add Scanner to your library and include paths
 # as well as cover common flags for building a shared library.
-SCANNER_FLAGS = `python -c "import scannerpy; scannerpy.Database().print_build_flags()"`
+SCANNER_FLAGS = `python -c "import scannerpy.stdlib.build_flags"`
 
 # Change this to whatever your OpenCV directory is
 OpenCV_DIR=/opt/opencv-3.2.0

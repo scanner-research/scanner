@@ -191,32 +191,6 @@ class Database:
         self.stop_cluster()
         del self._db
 
-    def get_build_flags(self):
-        """
-        Gets the g++ build flags for compiling custom ops.
-
-        For example, to compile a custom kernel:
-        \code{.sh}
-        export SCANNER_FLAGS=`python -c "import scannerpy as sp; print(sp.Database().get_build_flags())"`
-        g++ mykernel.cpp -o mylib.so `echo $SCANNER_FLAGS`
-        \endcode
-
-        Returns:
-           A flag string.
-        """
-
-        include_dirs = self._bindings.get_include().split(";")
-        include_dirs.append(self.config.module_dir + "/include")
-        include_dirs.append(self.config.module_dir + "/build")
-        flags = '{include} -std=c++11 -fPIC -shared -L{libdir} -lscanner {other}'
-        return flags.format(
-            include=" ".join(["-I " + d for d in include_dirs]),
-            libdir='{}/build'.format(self.config.module_dir),
-            other=self._bindings.other_flags())
-
-    def print_build_flags(self):
-        sys.stdout.write(self.get_build_flags())
-
     def summarize(self):
         summary = ''
         db_meta = self._load_db_metadata()
