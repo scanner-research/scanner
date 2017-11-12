@@ -6,7 +6,7 @@ c = Config()
 build_flags_output = [
     s.strip()
     for s in sp.check_output(
-        [c.config['scanner_path'] + '/scanner/engine/build_flags']).split("\n")
+        [c.config['scanner_path'] + '/build/scanner/engine/build_flags']).split("\n")
 ]
 include_dirs = build_flags_output[0].split(";")
 include_dirs.append(c.module_dir + "/include")

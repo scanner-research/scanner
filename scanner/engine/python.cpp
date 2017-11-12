@@ -135,8 +135,6 @@ BOOST_PYTHON_MODULE(libscanner) {
   def("start_worker", start_worker_wrapper);
   def("ingest_videos", ingest_videos_wrapper);
   def("wait_for_server_shutdown", wait_for_server_shutdown_wrapper);
-  def("get_include", get_include);
-  def("other_flags", other_flags);
   def("default_machine_params", default_machine_params_wrapper);
   def("new_table", new_table_wrapper);
 }
