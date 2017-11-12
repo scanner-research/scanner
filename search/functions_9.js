@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['set_5fprofiler',['set_profiler',['../classscanner_1_1BaseKernel.html#a5915a3fc1e918d5b49e57302902d8cea',1,'scanner::BaseKernel::set_profiler()'],['../classscanner_1_1StenciledBatchedKernel.html#a1e2795ffeb8e1d8866fbfb6d198b3f59',1,'scanner::StenciledBatchedKernel::set_profiler()']]],
-  ['start_5fcluster',['start_cluster',['../classscannerpy_1_1database_1_1Database.html#a2ad31e38ecaf4beb29a2a3342be15d07',1,'scannerpy::database::Database']]]
+  ['validate',['validate',['../classscanner_1_1BaseKernel.html#ad6ef0afd37643a03bbbe1bdc6228ab91',1,'scanner::BaseKernel::validate()'],['../classscanner_1_1StenciledBatchedKernel.html#acbb09f4ced6e40c50e2621d810e7a85e',1,'scanner::StenciledBatchedKernel::validate()']]]
 ];

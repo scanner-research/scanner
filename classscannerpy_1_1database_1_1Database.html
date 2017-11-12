@@ -111,12 +111,6 @@ def&#160;</td><td class="memItemRight" valign="bottom"><b>__enter__</b></td></tr
 <tr class="memitem:a318adf0841a9e08faa6e39dfe9e8499d"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a318adf0841a9e08faa6e39dfe9e8499d"></a>
 def&#160;</td><td class="memItemRight" valign="bottom"><b>__exit__</b></td></tr>
 <tr class="separator:a318adf0841a9e08faa6e39dfe9e8499d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8b145232ee31be8dd1cbd7fdb4e704b0"><td class="memItemLeft" align="right" valign="top">def&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classscannerpy_1_1database_1_1Database.html#a8b145232ee31be8dd1cbd7fdb4e704b0">get_build_flags</a></td></tr>
-<tr class="memdesc:a8b145232ee31be8dd1cbd7fdb4e704b0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Gets the g++ build flags for compiling custom ops.  <a href="#a8b145232ee31be8dd1cbd7fdb4e704b0">More...</a><br/></td></tr>
-<tr class="separator:a8b145232ee31be8dd1cbd7fdb4e704b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0652a7e4823560437eb7a492dca53ec7"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a0652a7e4823560437eb7a492dca53ec7"></a>
-def&#160;</td><td class="memItemRight" valign="bottom"><b>print_build_flags</b></td></tr>
-<tr class="separator:a0652a7e4823560437eb7a492dca53ec7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae55d58d253095a0c8d634b3bc95b64b9"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ae55d58d253095a0c8d634b3bc95b64b9"></a>
 def&#160;</td><td class="memItemRight" valign="bottom"><b>summarize</b></td></tr>
 <tr class="separator:ae55d58d253095a0c8d634b3bc95b64b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -266,28 +260,6 @@ Public Attributes</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a class="anchor" id="a8b145232ee31be8dd1cbd7fdb4e704b0"></a>
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">def scannerpy.database.Database.get_build_flags </td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname"><em>self</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Gets the g++ build flags for compiling custom ops. </p>
-<p>For example, to compile a custom kernel: </p>
-<div class="fragment"><div class="line">export SCANNER_FLAGS=`python -c <span class="stringliteral">&quot;import scannerpy as sp; print(sp.Database().get_build_flags())&quot;</span>`</div>
-<div class="line">g++ mykernel.cpp -o mylib.so `echo $SCANNER_FLAGS`</div>
-</div><!-- fragment --><dl class="section return"><dt>Returns</dt><dd>A flag string. </dd></dl>
-
-</div>
-</div>
 <a class="anchor" id="a57fbf35ba0f77c9a7a7b34014b36aeb6"></a>
 <div class="memitem">
 <div class="memproto">
