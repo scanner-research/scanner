@@ -24,9 +24,9 @@ with Database() as db:
     # for local storage:
     # example_video_path = util.download_video()
 
-    # for s3 storage:
+    # for s3 storage: need to upload video to <bucket-name>/videos/example.mp4
     example_video_path = 'videos/example.mp4'
-    
+
     [input_table], failed = db.ingest_videos([
         ('example', example_video_path),
         ('thisshouldfail', 'thisshouldfail.mp4')], force=True)
