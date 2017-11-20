@@ -5,7 +5,6 @@ from subprocess import check_output
 from common import *
 from storehousepy import StorageConfig, StorageBackend
 
-
 def read_line(s):
     return sys.stdin.readline().strip()
 

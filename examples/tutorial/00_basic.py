@@ -15,13 +15,14 @@ from timeit import default_timer as now
 
 # Initialize a connection to the Scanner database. Loads configuration from the
 # ~/.scanner.toml configuration file.
-with Database() as db:
+with Database(debug=True) as db:
 
     # Create a Scanner table from our video in the format (table name,
     # video path). If any videos fail to ingest, they'll show up in the failed
     # list. If force is true, it will overwrite existing tables of the same
     # name.
-    example_video_path = util.download_video()
+    # example_video_path = util.download_video()
+    example_video_path = 'videos/example.mp4'
 
     # test time
     start = now()

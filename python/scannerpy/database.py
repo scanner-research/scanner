@@ -165,16 +165,14 @@ class Database:
         self._op_cache = {}
 
         self._workers = {}
-        self.start_cluster(master, workers);
+        # self.start_cluster(master, workers);
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
 
         pydbpath_info = self._storage.get_file_info(pydb_path+'/')
         
-        print pydbpath_info.file_exists
-        print pydbpath_info.file_is_folder
-        print('dir name is: {:s}'.format(pydb_path))
+
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
             print('{:s} not exist, make_dir'.format(pydb_path))
             self._storage.make_dir(pydb_path)
@@ -185,6 +183,7 @@ class Database:
         self._collections = self._load_descriptor(
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
+        self.start_cluster(master, workers)
 
     def __del__(self):
         self.stop_cluster()
