@@ -20,7 +20,13 @@ with Database() as db:
     # video path). If any videos fail to ingest, they'll show up in the failed
     # list. If force is true, it will overwrite existing tables of the same
     # name.
-    example_video_path = util.download_video()
+
+    # for local storage:
+    # example_video_path = util.download_video()
+
+    # for s3 storage:
+    example_video_path = 'videos/example.mp4'
+    
     [input_table], failed = db.ingest_videos([
         ('example', example_video_path),
         ('thisshouldfail', 'thisshouldfail.mp4')], force=True)
