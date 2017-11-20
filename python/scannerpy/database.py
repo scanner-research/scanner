@@ -154,6 +154,7 @@ class Database:
         # Setup database metadata
         self._db_path = self.config.db_path
         self._storage = self.config.storage
+
         self._cached_db_metadata = None
         self._png_dump_prefix = '__png_dump_{:s}'
 
@@ -170,8 +171,12 @@ class Database:
         pydb_path = '{}/pydb'.format(self._db_path)
 
         pydbpath_info = self._storage.get_file_info(pydb_path+'/')
-
+        
+        print pydbpath_info.file_exists
+        print pydbpath_info.file_is_folder
+        print('dir name is: {:s}'.format(pydb_path))
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
+            print('{:s} not exist, make_dir'.format(pydb_path))
             self._storage.make_dir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
             self._update_collections()
