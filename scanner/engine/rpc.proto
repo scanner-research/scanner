@@ -86,6 +86,7 @@ message PythonKernelRegistration {
   DeviceType device_type = 2;
   string kernel_str = 3;
   string pickled_config = 4;
+  int32 batch_size = 5;
 }
 
 message IngestParameters {
