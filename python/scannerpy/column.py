@@ -185,6 +185,8 @@ class Column:
                 dtype = np.float32
             elif frame_type == self._db.protobufs.F64:
                 dtype = np.float64
+            # else:
+            #     dtype = np.uint8 # Qian: fixit! some nasty things happened
             parser_fn = parsers.raw_frame_gen(self._video_descriptor.height,
                                               self._video_descriptor.width,
                                               self._video_descriptor.channels,

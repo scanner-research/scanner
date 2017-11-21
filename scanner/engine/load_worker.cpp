@@ -146,9 +146,12 @@ VideoIntervals slice_into_video_intervals(
       }
     }
     valid_frames.push_back(row);
+    // printf("row: %ld\n", row);
   }
   info.keyframe_index_intervals.push_back(
       std::make_tuple(start_keyframe_index, end_keyframe_index));
+  // printf("slice into: start_keyframe_index: %lu, end_keyframe_index: %lu\n", start_keyframe_index, end_keyframe_index);
+  // printf("number of valid_frames: %lu\n", valid_frames.size());
   info.valid_frames.push_back(valid_frames);
   return info;
 }
@@ -238,6 +241,7 @@ bool LoadWorker::yield(i32 item_size,
     i32 table_id = sample.table_id();
     const TableMetadata& table_meta = table_metadata_->at(table_id);
 
+
     i64 total_rows = sample.input_row_ids_size();
     i64 row_start = current_row_;
     i64 row_end = std::min(current_row_ + item_size, total_rows);
@@ -252,6 +256,7 @@ bool LoadWorker::yield(i32 item_size,
 
     RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
     size_t num_items = intervals.item_ids.size();
+
     i32 col_id = sample.column_id();
 
     ColumnType column_type = ColumnType::Other;
@@ -276,6 +281,7 @@ bool LoadWorker::yield(i32 item_size,
         encoding_type = entry.codec_type;
         if (entry.codec_type == proto::VideoDescriptor::H264) {
           // Video was encoded using h264
+
           read_video_column(profiler_, entry, valid_offsets, item_start_row,
                             eval_work_entry.columns[out_col_idx]);
         } else {
@@ -339,6 +345,8 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
   // the bytes starting at the iframe at or preceding the first frame
   // we are interested and will continue up to the bytes before the
   // iframe at or after the last frame we are interested in.
+  // printf("start frame: %d\n", start_frame);
+
   VideoIntervals intervals =
       slice_into_video_intervals(keyframe_positions, rows);
   size_t num_intervals = intervals.keyframe_index_intervals.size();
@@ -347,6 +355,8 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     size_t end_keyframe_index;
     std::tie(start_keyframe_index, end_keyframe_index) =
         intervals.keyframe_index_intervals[i];
+
+    // printf("start_keyframe_index: %lu, end_keyframe_index: %lu\n", start_keyframe_index, end_keyframe_index);
 
     u64 start_keyframe_byte_offset =
         static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
@@ -372,6 +382,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     auto io_start = now();
 
     u64 pos = start_keyframe_byte_offset;
+
     size_t size_read;
     storehouse::StoreResult r =
         video_file->read(pos, buffer_size, buffer, size_read);
@@ -379,6 +390,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
 
     profiler.add_interval("io", io_start, now());
     profiler.increment("io_read", static_cast<i64>(buffer_size));
+
 
     proto::DecodeArgs decode_args;
     decode_args.set_width(index_entry.width);
@@ -392,10 +404,12 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
                                  start_frame);
     for (i64 k : all_keyframes) {
       decode_args.add_keyframes(k + start_frame);
+
     }
     for (i64 k : all_keyframes_byte_offsets) {
       decode_args.add_keyframe_byte_offsets(k);
     }
+
     for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
       decode_args.add_valid_frames(intervals.valid_frames[i][j] + start_frame);
     }
@@ -407,6 +421,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     bool result = decode_args.SerializeToArray(decode_args_buffer, size);
     assert(result);
     insert_element(element_list, decode_args_buffer, size);
+
   }
 }
 

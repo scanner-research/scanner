@@ -154,6 +154,7 @@ class Database:
         # Setup database metadata
         self._db_path = self.config.db_path
         self._storage = self.config.storage
+
         self._cached_db_metadata = None
         self._png_dump_prefix = '__png_dump_{:s}'
 
@@ -170,8 +171,10 @@ class Database:
         pydb_path = '{}/pydb'.format(self._db_path)
 
         pydbpath_info = self._storage.get_file_info(pydb_path+'/')
+        
 
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
+            print('{:s} not exist, make_dir'.format(pydb_path))
             self._storage.make_dir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
             self._update_collections()
@@ -553,7 +556,8 @@ class Database:
             self.protobufs.add_module(proto_path)
         self._try_rpc(lambda: self._master.RegisterOp(op_registration))
 
-    def register_python_kernel(self, op_name, device_type, kernel_path):
+    def register_python_kernel(self, op_name, device_type, kernel_path, 
+                               batch=-1):
         with open(kernel_path, 'r') as f:
             kernel_str = f.read()
         py_registration = self.protobufs.PythonKernelRegistration()
@@ -562,6 +566,7 @@ class Database:
                                                           device_type)
         py_registration.kernel_str = kernel_str
         py_registration.pickled_config = pickle.dumps(self.config)
+        py_registration.batch_size = batch
         self._try_rpc(
             lambda: self._master.RegisterPythonKernel(py_registration))
 
@@ -791,6 +796,8 @@ class Database:
         else:
             job_id = job_name
 
+        # print('profiler return job_id: {}'.format(job_id))
+
         return Profiler(self, job_id)
 
     def _get_op_info(self, op_name):
@@ -897,7 +904,7 @@ class Database:
             cpu_pool=None,
             gpu_pool=None,
             pipeline_instances_per_node=None,
-            show_progress=True,
+            show_progress=False,
             profiling=False,
             load_sparsity_threshold=8,
             tasks_in_queue_per_pu=4):
