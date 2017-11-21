@@ -9,6 +9,9 @@ class MyOpKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
-        return [struct.pack('=q', 9000)]
+        input_count = len(input_columns[0])
+        column_count = len(input_columns)
+        return [[struct.pack('=q', 9000) for _ in xrange(input_count)] 
+                 for _ in xrange(column_count)]
 
 KERNEL = MyOpKernel

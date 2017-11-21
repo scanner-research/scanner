@@ -553,7 +553,8 @@ class Database:
             self.protobufs.add_module(proto_path)
         self._try_rpc(lambda: self._master.RegisterOp(op_registration))
 
-    def register_python_kernel(self, op_name, device_type, kernel_path):
+    def register_python_kernel(self, op_name, device_type, kernel_path, 
+                               batch=-1):
         with open(kernel_path, 'r') as f:
             kernel_str = f.read()
         py_registration = self.protobufs.PythonKernelRegistration()
@@ -562,6 +563,7 @@ class Database:
                                                           device_type)
         py_registration.kernel_str = kernel_str
         py_registration.pickled_config = pickle.dumps(self.config)
+        py_registration.batch_size = batch
         self._try_rpc(
             lambda: self._master.RegisterPythonKernel(py_registration))
 

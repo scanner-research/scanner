@@ -72,42 +72,50 @@ PythonKernel::~PythonKernel() {
 void PythonKernel::execute(const BatchedColumns& input_columns,
                            BatchedColumns& output_columns) {
   i32 input_count = (i32)num_rows(input_columns[0]);
-
   PyGILState_STATE gstate = PyGILState_Ensure();
 
   try {
     py::object main = py::import("__main__");
     py::object kernel = main.attr("kernel");
 
-    for (i32 i = 0; i < input_count; ++i) {
-      py::list cols;
-      for (i32 j = 0; j < input_columns.size(); ++j) {
-        // HACK(wcrichto): should pass column type in config and check here
-        if (config_.input_column_types[j] == proto::ColumnType::Video) {
-          const Frame* frame = input_columns[j][i].as_const_frame();
-          np::ndarray frame_np =
-              np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),
+    py::list batched_cols;
+    for (i32 j = 0; j < input_columns.size(); ++j) {
+      py::list rows;
+      // HACK(wcrichto): should pass column type in config and check here
+      if (config_.input_column_types[j] == proto::ColumnType::Video) {
+        for (i32 i = 0; i < input_count; ++i) {
+          const Frame *frame = input_columns[j][i].as_const_frame();
+          np::ndarray frame_np = 
+            np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),
                             py::make_tuple(frame->height(), frame->width(),
                                            frame->channels()),
                             py::make_tuple(frame->width() * frame->channels(),
                                            frame->channels(), 1),
                             py::object());
-          cols.append(frame_np);
-        } else {
-          cols.append(py::str((char const*)input_columns[j][i].buffer,
+          rows.append(frame_np);
+        }
+      } else {
+        for (i32 i = 0; i < input_count; ++i) {
+          rows.append(py::str((char const*)input_columns[j][i].buffer,
                               input_columns[j][i].size));
         }
       }
+      batched_cols.append(rows);
+    }
 
-      py::list out_cols = py::extract<py::list>(kernel.attr("execute")(cols));
-      LOG_IF(FATAL, py::len(out_cols) != output_columns.size())
+    py::list batched_out_cols = py::extract<py::list>(kernel.attr("execute")(batched_cols));
+    LOG_IF(FATAL, py::len(batched_out_cols) != output_columns.size())
           << "Incorrect number of output columns. Expected "
           << output_columns.size();
 
-      for (i32 j = 0; j < output_columns.size(); ++j) {
-        // HACK(wcrichto): should pass column type in config and check here
-        if (config_.output_columns[j] == "frame") {
-          np::ndarray frame_np = py::extract<np::ndarray>(out_cols[j]);
+    for (i32 j = 0; j < output_columns.size(); ++j) {
+      // push all rows to that column
+      LOG_IF(FATAL, py::len(batched_out_cols[j]) != input_count)
+          << "Incorrect number of output rows. Expected "
+          << input_count;
+      if (config_.output_columns[j] == "frame") {
+        for (i32 i = 0; i < input_count; ++i) {
+          np::ndarray frame_np = py::extract<np::ndarray>(batched_out_cols[j][i]);
           FrameType frame_type;
           {
             np::dtype dtype = frame_np.get_dtype();
@@ -148,8 +156,10 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
             LOG(FATAL) << "Can not support ndim != 3.";
           }
           insert_frame(output_columns[j], frame);
-        } else {
-          std::string field = py::extract<std::string>(out_cols[j]);
+        }
+      } else {
+        for (i32 i = 0; i < input_count; ++i) {
+          std::string field = py::extract<std::string>(batched_out_cols[j][i]);
           size_t size = field.size();
           u8* buf = new_buffer(device_, size);
           memcpy_buffer(buf, device_, (u8*)field.data(), CPU_DEVICE, size);
@@ -157,6 +167,7 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
         }
       }
     }
+    
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }
