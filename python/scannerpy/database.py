@@ -165,7 +165,7 @@ class Database:
         self._op_cache = {}
 
         self._workers = {}
-        # self.start_cluster(master, workers);
+        self.start_cluster(master, workers);
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
@@ -183,7 +183,6 @@ class Database:
         self._collections = self._load_descriptor(
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
-        self.start_cluster(master, workers)
 
     def __del__(self):
         self.stop_cluster()
