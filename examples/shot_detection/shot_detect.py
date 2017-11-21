@@ -79,7 +79,9 @@ def main():
     total_start = time.time()
 
     #movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
-    movie_path = '/n/scanner/datasets/movies/private/kubo_and_the_two_strings_2016.mp4'
+    #movie_path = '/n/scanner/datasets/movies/private/kubo_and_the_two_strings_2016.mp4'
+    movie_path = util.download_video()
+
     print('Detecting shots in movie {}'.format(movie_path))
     movie_name = os.path.basename(movie_path)
 
@@ -118,6 +120,9 @@ def main():
         })
         bulk_job = BulkJob(output=output, jobs=[job])
         [hists_table] = db.run(bulk_job, force=True)
+
+        hists_table.profiler().write_trace('hist_shot.trace')
+
         print('\nTime: {:.1f}s, {:.1f} fps'.format(
             time.time() - s,
             movie_table.num_rows() / (time.time() - s)))
@@ -178,6 +183,8 @@ def main():
         bulk_job = BulkJob(output=output, jobs=[job])
 
         [montage_table] = db.run(bulk_job, force=True)
+
+        montage_table.profiler().write_trace('montage_shot.trace')
 
         # Stack all partial montages together
         montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)

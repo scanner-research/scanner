@@ -1,4 +1,4 @@
-from scannerpy import Database, Job, DeviceType
+from scannerpy import Database, Job, DeviceType, BulkJob
 
 ################################################################################
 # This tutorial shows how to look at profiling information for your job.       #
@@ -11,8 +11,8 @@ with Database() as db:
     output_op = db.ops.Output(columns=[histogram])
     job = Job(
         op_args={
-            frame: db.table('example').column('frame')
-            output_op: 'example_hist_profile',
+            frame: db.table('example').column('frame'),
+            output_op: 'example_hist_profile'
         }
     )
     bulk_job = BulkJob(output=output_op, jobs=[job])
@@ -28,3 +28,5 @@ with Database() as db:
     # loading bytes from disk or the thread running your kernels. If you have
     # multiple pipelines or multiple nodes, you will see many of these evaluate
     # threads.
+    print(db.summarize())
+

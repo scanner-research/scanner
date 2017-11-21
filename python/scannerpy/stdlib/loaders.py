@@ -19,3 +19,6 @@ def bboxes(db, buf):
 
 def histograms(buf):
     return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
+
+def classes(buf):
+    return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 1)

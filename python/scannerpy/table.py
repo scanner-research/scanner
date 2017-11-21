@@ -91,6 +91,7 @@ class Table:
     def profiler(self):
         self._need_descriptor()
         if self._descriptor.job_id != -1:
+            # print('job_id is: {}'.format(self._descriptor.job_id))
             return self._db.profiler(self._descriptor.job_id)
         else:
             raise ScannerException('Ingested videos do not have profile data')

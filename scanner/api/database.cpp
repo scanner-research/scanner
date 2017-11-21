@@ -63,7 +63,8 @@ internal::DatabaseParameters machine_params_to_db_params(
 
 MachineParameters default_machine_params() {
   MachineParameters machine_params;
-  machine_params.num_cpus = std::thread::hardware_concurrency();
+  // machine_params.num_cpus = std::thread::hardware_concurrency();
+  machine_params.num_cpus = 4;
   machine_params.num_load_workers = 8;
   machine_params.num_save_workers = 2;
 #ifdef HAVE_CUDA

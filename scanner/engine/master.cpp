@@ -287,6 +287,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
                                 const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
   VLOG(1) << "Master received NewJob command";
+  // printf("Master received newjob!\n");
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
@@ -461,6 +462,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     const std::string& kernel_str = python_kernel->kernel_str();
     const std::string& pickled_config = python_kernel->pickled_config();
     const int batch_size = python_kernel->batch_size();
+
     // Create a kernel builder function
     auto constructor = [kernel_str, pickled_config](const KernelConfig& config) {
       return new PythonKernel(config, kernel_str, pickled_config);
@@ -725,6 +727,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   auto& last_op = ops.at(ops.size() - 1);
   assert(last_op.name() == OUTPUT_OP_NAME);
   std::vector<std::vector<Column>> job_output_columns;
+
   for (const auto& job : jobs) {
     // Get input columns from column inputs specified for each job
     std::map<i64, Column> input_op_idx_to_column;
