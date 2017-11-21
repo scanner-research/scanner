@@ -6,7 +6,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 with Database() as db:
     db.register_op('MyOp', [('frame', ColumnType.Video)], ['test'])
     kernel_path = script_dir + '/my_kernel.py'
-    db.register_python_kernel('MyOp', DeviceType.CPU, kernel_path, 1)
+    db.register_python_kernel('MyOp', DeviceType.CPU, kernel_path, batch=1)
 
     frame = db.ops.FrameInput()
     test = db.ops.MyOp(frame = frame, batch = 50)

@@ -392,7 +392,7 @@ def test_python_kernel(db):
                    [('frame', ColumnType.Video)],
                    ['dummy'])
     db.register_python_kernel('TestPy', DeviceType.CPU,
-                              cwd + '/test_py_kernel.py')
+                              cwd + '/test_py_kernel.py', batch=10)
 
     frame = db.ops.FrameInput()
     range_frame = frame.sample()
