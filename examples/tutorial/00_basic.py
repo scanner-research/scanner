@@ -21,7 +21,6 @@ with Database() as db:
     # list. If force is true, it will overwrite existing tables of the same
     # name.
     example_video_path = util.download_video()
-
     [input_table], failed = db.ingest_videos([
         ('example', example_video_path),
         ('thisshouldfail', 'thisshouldfail.mp4')], force=True)
