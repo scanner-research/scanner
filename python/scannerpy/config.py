@@ -5,7 +5,6 @@ from subprocess import check_output
 from common import *
 from storehousepy import StorageConfig, StorageBackend
 
-
 def read_line(s):
     return sys.stdin.readline().strip()
 
@@ -69,6 +68,11 @@ class Config(object):
         elif storage_type == 'gcs':
             storage_config = StorageConfig.make_gcs_config(
                 storage['bucket'].encode('latin-1'))
+        elif storage_type == 's3':
+            storage_config = StorageConfig.make_s3_config(
+                storage['bucket'].encode('latin-1'),
+                storage['region'].encode('latin-1'),
+                storage['endpoint'].encode('latin-1'))
         else:
             raise ScannerException(
                 'Unsupported storage type {}'.format(storage_type))

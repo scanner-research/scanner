@@ -490,6 +490,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                 proto::Result* job_result) {
   // Ensure that only one job is running at a time and that the worker
   // is in idle mode before transitioning to job start
+  // printf("Worker received a NewJob!\n");
   State state = state_.get();
   bool ready = false;
   while (!ready) {
@@ -744,6 +745,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   assert(num_kernel_groups > 0);  // is this actually necessary?
 
   i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
+  // printf("pipeline_instances_per_node is: %d\n", pipeline_instances_per_node);
+  // printf("num_cpus is: %d\n", db_params_.num_cpus);
   // If ki per node is -1, we set a smart default. Currently, we calculate the
   // maximum possible kernel instances without oversubscribing any part of the
   // pipeline, either CPU or GPU.
@@ -810,7 +813,10 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     memory_pool_initialized_ = true;
   }
 
-  omp_set_num_threads(std::thread::hardware_concurrency());
+  int num_threads = 4;
+  // omp_set_num_threads(std::thread::hardware_concurrency());
+  omp_set_num_threads(num_threads);
+  printf("Number of threads: %d\n", std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
   i64 accepted_tasks = 0;
@@ -823,6 +829,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
+  // printf("db num_load_workers is: %d\n", num_load_workers);
   std::vector<Profiler> load_thread_profilers;
   for (i32 i = 0; i < num_load_workers; ++i) {
     load_thread_profilers.emplace_back(Profiler(base_time));
@@ -861,6 +868,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::condition_variable startup_cv;
   i32 startup_count = 0;
   i32 eval_total = 0;
+  // printf("pipeline_instances_per_node is: %d\n", pipeline_instances_per_node);
+  // printf("num_kernel_groups is: %d\n", num_kernel_groups);
   for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
     auto& work_queues = eval_work[ki];
     std::vector<Profiler>& eval_thread_profilers = eval_profilers[ki];
@@ -1014,6 +1023,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
+  // printf("num_save_workers is :%d\n", num_save_workers);
   std::vector<Profiler> save_thread_profilers;
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_thread_profilers.emplace_back(Profiler(base_time));
@@ -1308,6 +1318,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   i64 out_rank = node_id_;
   // Load worker profilers
   u8 load_worker_count = num_load_workers;
+  // printf("num_load_workers: %d\n", num_load_workers);
   s_write(profiler_output.get(), load_worker_count);
   for (i32 i = 0; i < num_load_workers; ++i) {
     write_profiler_to_file(profiler_output.get(), out_rank, "load", "", i,
@@ -1516,6 +1527,7 @@ void WorkerImpl::register_with_master() {
   proto::MachineParameters* params = worker_info.mutable_params();
   params->set_num_cpus(db_params_.num_cpus);
   params->set_num_load_workers(db_params_.num_cpus);
+  // printf("register num_load_workers: %d\n", db_params_.num_cpus);
   params->set_num_save_workers(db_params_.num_cpus);
   for (i32 gpu_id : db_params_.gpu_ids) {
     params->add_gpu_ids(gpu_id);

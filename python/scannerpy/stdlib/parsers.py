@@ -43,6 +43,11 @@ def histograms(bufs, protobufs):
         return None
     return np.split(np.frombuffer(bufs[0], dtype=np.dtype(np.int32)), 3)
 
+def classes(bufs, protobufs):
+    if bufs[0] is None:
+        return None
+    return np.split(np.frombuffer(bufs[0], dtype=np.dtype(np.int32)), 1)
+
 
 def frame_info(buf, protobufs):
     info = protobufs.FrameInfo()
