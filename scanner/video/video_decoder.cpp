@@ -34,11 +34,14 @@ namespace internal {
 std::vector<VideoDecoderType> VideoDecoder::get_supported_decoder_types() {
   std::vector<VideoDecoderType> decoder_types;
 #ifdef HAVE_NVIDIA_VIDEO_HARDWARE
+  printf("has NVIDIA video decoder hardware\n");
   decoder_types.push_back(VideoDecoderType::NVIDIA);
 #endif
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
+  printf("has INTEL video decoder hardware\n");
   decoder_types.push_back(VideoDecoderType::INTEL);
 #endif
+  // printf("only has software decoder\n");
   decoder_types.push_back(VideoDecoderType::SOFTWARE);
 
   return decoder_types;
@@ -63,6 +66,7 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceHandle device_handle,
   switch (type) {
     case VideoDecoderType::NVIDIA: {
 #ifdef HAVE_NVIDIA_VIDEO_HARDWARE
+      printf("has NVIDIA video decoder hardware\n");
       // HACK(apoms): we are just going to assume all processing is done in the
       //   default context for now and retain it ourselves. Ideally we would
       //   allow the user to pass in the CUcontext they want to use for
@@ -85,12 +89,14 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceHandle device_handle,
     }
     case VideoDecoderType::INTEL: {
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
+      printf("has INTEL video decoder hardware\n");
       decoder = new IntelVideoDecoder(device_handle.id, device_handle.type);
 #else
 #endif
       break;
     }
     case VideoDecoderType::SOFTWARE: {
+      // printf("only has software decoder\n");
       decoder = new SoftwareVideoDecoder(device_handle.id, device_handle.type,
                                          num_devices);
       break;

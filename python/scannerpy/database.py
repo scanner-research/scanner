@@ -154,6 +154,7 @@ class Database:
         # Setup database metadata
         self._db_path = self.config.db_path
         self._storage = self.config.storage
+
         self._cached_db_metadata = None
         self._png_dump_prefix = '__png_dump_{:s}'
 
@@ -164,14 +165,16 @@ class Database:
         self._op_cache = {}
 
         self._workers = {}
-        self.start_cluster(master, workers);
+        # self.start_cluster(master, workers);
 
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
 
         pydbpath_info = self._storage.get_file_info(pydb_path+'/')
+        
 
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
+            print('{:s} not exist, make_dir'.format(pydb_path))
             self._storage.make_dir(pydb_path)
             self._collections = self.protobufs.CollectionsDescriptor()
             self._update_collections()
@@ -180,6 +183,7 @@ class Database:
         self._collections = self._load_descriptor(
             self.protobufs.CollectionsDescriptor,
             'pydb/descriptor.bin')
+        self.start_cluster(master, workers)
 
     def __del__(self):
         self.stop_cluster()
@@ -791,6 +795,8 @@ class Database:
         else:
             job_id = job_name
 
+        # print('profiler return job_id: {}'.format(job_id))
+
         return Profiler(self, job_id)
 
     def _get_op_info(self, op_name):
@@ -897,7 +903,7 @@ class Database:
             cpu_pool=None,
             gpu_pool=None,
             pipeline_instances_per_node=None,
-            show_progress=True,
+            show_progress=False,
             profiling=False,
             load_sparsity_threshold=8,
             tasks_in_queue_per_pu=4):
