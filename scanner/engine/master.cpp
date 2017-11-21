@@ -469,8 +469,12 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     };
     // Create a new kernel factory
     // TODO(apoms): Support batching and # of devices in python kernels
-    KernelFactory* factory =
-        new KernelFactory(op_name, device_type, 1, true, batch_size, constructor);
+    KernelFactory* factory;
+    if (batch_size > 0) {
+      factory = new KernelFactory(op_name, device_type, 1, true, batch_size, constructor);
+    } else {
+      factory = new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+    }
     // Register the kernel
     KernelRegistry* registry = get_kernel_registry();
     registry->add_kernel(op_name, factory);

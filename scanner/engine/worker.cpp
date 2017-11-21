@@ -1438,8 +1438,13 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
     return new PythonKernel(config, kernel_str, pickled_config);
   };
   // Create a new kernel factory
-  KernelFactory* factory =
-      new KernelFactory(op_name, device_type, 1, true, batch_size, constructor);
+  KernelFactory* factory;
+  if (batch_size > 0) {
+    factory = new KernelFactory(op_name, device_type, 1, true, batch_size, constructor);
+  } else {
+    factory = new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+  }
+      
   // Register the kernel
   KernelRegistry* registry = get_kernel_registry();
   registry->add_kernel(op_name, factory);
