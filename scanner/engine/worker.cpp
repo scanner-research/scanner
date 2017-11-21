@@ -1424,13 +1424,16 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
   DeviceType device_type = python_kernel->device_type();
   const std::string& kernel_str = python_kernel->kernel_str();
   const std::string& pickled_config = python_kernel->pickled_config();
+  const int batch_size = python_kernel->batch_size();
   // Create a kernel builder function
-  auto constructor = [kernel_str, pickled_config](const KernelConfig& config) {
-    return new PythonKernel(config, kernel_str, pickled_config);
+  auto constructor = [kernel_str, pickled_config, batch_size](
+    const KernelConfig& config) {
+    return new PythonKernel(config, kernel_str, pickled_config, batch_size);
   };
   // Create a new kernel factory
-  KernelFactory* factory =
-      new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+  bool can_batch = (batch_size > 1);
+  KernelFactory* factory = new KernelFactory(op_name, device_type, 1, 
+                                  can_batch, batch_size, constructor);
   // Register the kernel
   KernelRegistry* registry = get_kernel_registry();
   registry->add_kernel(op_name, factory);

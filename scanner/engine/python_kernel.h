@@ -11,7 +11,8 @@ namespace scanner {
 class PythonKernel : public BatchedKernel {
  public:
   PythonKernel(const KernelConfig& config, const std::string& kernel_str,
-               const std::string& pickled_config);
+               const std::string& pickled_config,
+               const int preferred_batch = 1);
 
   ~PythonKernel();
 
@@ -19,8 +20,13 @@ class PythonKernel : public BatchedKernel {
                BatchedColumns& output_columns) override;
 
  private:
+  void batched_python_execute(const BatchedColumns& input_columns,
+                              BatchedColumns& output_columns);
+  void single_python_execute(const BatchedColumns& input_columns,
+                             BatchedColumns& output_columns);
   KernelConfig config_;
   DeviceHandle device_;
+  bool can_batch_;
 };
 
 }
