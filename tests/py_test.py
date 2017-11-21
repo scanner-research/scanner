@@ -410,6 +410,29 @@ def test_python_kernel(db):
     tables = db.run(bulk_job, force=True, show_progress=False)
     next(tables[0].load(['dummy']))
 
+def test_python_batch_kernel(db):
+    db.register_op('TestPyBatch',
+                   [('frame', ColumnType.Video)],
+                   ['dummy'])
+    db.register_python_kernel('TestPyBatch', DeviceType.CPU,
+                              cwd + '/test_py_batch_kernel.py', batch=10)
+
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
+    output_op = db.ops.Output(columns=[test_out])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_hist'
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    next(tables[0].load(['dummy']))
+
 def test_blur(db):
     frame = db.ops.FrameInput()
     range_frame = frame.sample()
