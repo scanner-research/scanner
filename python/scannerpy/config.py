@@ -71,7 +71,9 @@ class Config(object):
                 storage['bucket'].encode('latin-1'))
         elif storage_type == 's3':
             storage_config = StorageConfig.make_s3_config(
-                storage['bucket'].encode('latin-1'))
+                storage['bucket'].encode('latin-1'),
+                storage['region'].encode('latin-1'),
+                storage['endpoint'].encode('latin-1'))
         else:
             raise ScannerException(
                 'Unsupported storage type {}'.format(storage_type))
