@@ -461,6 +461,8 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     DeviceType device_type = python_kernel->device_type();
     const std::string& kernel_str = python_kernel->kernel_str();
     const std::string& pickled_config = python_kernel->pickled_config();
+    const int batch_size = python_kernel->batch_size();
+
     // Create a kernel builder function
     auto constructor = [kernel_str, pickled_config](const KernelConfig& config) {
       return new PythonKernel(config, kernel_str, pickled_config);
@@ -468,7 +470,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     // Create a new kernel factory
     // TODO(apoms): Support batching and # of devices in python kernels
     KernelFactory* factory =
-        new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+        new KernelFactory(op_name, device_type, 1, true, batch_size, constructor);
     // Register the kernel
     KernelRegistry* registry = get_kernel_registry();
     registry->add_kernel(op_name, factory);

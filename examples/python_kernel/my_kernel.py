@@ -24,14 +24,17 @@ class MyOpKernel(scannerpy.Kernel):
 
   def execute(self, input_columns):
     # cv2_im = cv2.cvtColor(input_columns[0],cv2.COLOR_BGR2RGB)
-    pil_im = Image.fromarray(input_columns[0])
-    width, height = pil_im.size
-    print('width {}, height {}'.format(width, height))
+    # pil_im = Image.fromarray(input_columns[0])
+    # width, height = pil_im.size
+    # print('width {}, height {}'.format(width, height))
+    print np.shape(input_columns)
     # print arr
     # arr = input_columns[0]
     # jpeg_image = encode(arr)
     # print('Raw={:d}, Jpeg={:d}'.format(len(encode(arr, format="bmp")), len(jpeg_image)))
       # print('list size :{:d}'.format(len(input_columns[0])))
-    return [struct.pack('=q', 9000)]
+    input_count = len(input_columns[0])
+
+    return [[struct.pack('=q', 9000) for _ in xrange(input_count)]]
 
 KERNEL = MyOpKernel

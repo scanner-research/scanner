@@ -396,7 +396,7 @@ def test_python_kernel(db):
 
     frame = db.ops.FrameInput()
     range_frame = frame.sample()
-    test_out = db.ops.TestPy(frame=range_frame)
+    test_out = db.ops.TestPy(frame=range_frame, batch = 10)
     output_op = db.ops.Output(columns=[test_out])
     job = Job(
         op_args={

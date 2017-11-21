@@ -9,7 +9,7 @@ with Database() as db:
     db.register_python_kernel('MyOp', DeviceType.CPU, kernel_path)
 
     frame = db.ops.FrameInput()
-    test = db.ops.MyOp(frame = frame)
+    test = db.ops.MyOp(frame = frame, batch = 50)
     output = db.ops.Output(columns=[test])
 
     job = Job(op_args={
