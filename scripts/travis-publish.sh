@@ -1,3 +1,8 @@
+# Exit if this is not the master branch
+if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
+    return 0;
+fi
+
 # Commit docs
 REPO_PATH=git@github.com:scanner-research/scanner.git
 HTML_PATH=build/doc/html
