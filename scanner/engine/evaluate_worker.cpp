@@ -919,11 +919,12 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
     buffered_entry_.frame_sizes.clear();
     buffered_entry_.compressed.clear();
     for (size_t i = 0; i < columns_.size(); ++i) {
+      i32 col_idx = column_mapping_[i];
       buffered_entry_.column_types.push_back(columns_[i].type());
       buffered_entry_.column_handles.push_back(CPU_DEVICE);
       if (columns_[i].type() == ColumnType::Video) {
-        assert(work_entry.columns[i].size() > 0);
-        Frame* frame = work_entry.columns[i][0].as_frame();
+        assert(work_entry.columns[col_idx].size() > 0);
+        Frame* frame = work_entry.columns[col_idx][0].as_frame();
         buffered_entry_.frame_sizes.push_back(frame->as_frame_info());
       }
       buffered_entry_.compressed.push_back(compression_enabled_[i]);
