@@ -475,14 +475,18 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     } else {
       kernel_stencil = arg_group_.kernel_stencils[k];
       i32 kernel_batch_size = arg_group_.kernel_batch_sizes[k];
-      producible_elements =
-          compute_producible_elements(kernel_stencil.back(), kernel_batch_size);
+
+      i64 bs = kernel_batch_size;
       // If end of task, we set batch size to 1 to get all remaining elements
-      if (kernel_valid_input_rows.size() - producible_elements <
-          kernel_batch_size) {
-        producible_elements =
-            compute_producible_elements(kernel_stencil.back(), 1);
+      assert(kernel_current_input_idx.size() > 0);
+      i64 rows_left_in_task =
+          kernel_valid_input_rows.size() - kernel_current_input_idx[0];
+      if (rows_left_in_task < kernel_batch_size) {
+        bs = 1;
       }
+      producible_elements =
+          compute_producible_elements(kernel_stencil.back(), bs);
+
       auto& unused_outputs = arg_group_.unused_outputs[k];
       num_output_columns = kernel_num_outputs_[k] - unused_outputs.size();
     }
