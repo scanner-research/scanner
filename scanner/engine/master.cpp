@@ -37,6 +37,9 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   set_database_path(params.db_path);
 
+  // Perform database consistency checks on startup
+  recover_database();
+
   start_job_processor();
 }
 
@@ -587,6 +590,18 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
   });
 }
 
+void MasterImpl::recover_database() {
+  // TODO(apoms): handle uncommitted database tables
+  meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+  for (const auto& name : meta_.table_names()) {
+    i32 table_id = meta_.get_table_id(name);
+    if (!meta_.table_is_committed(table_id)) {
+      // 
+    }
+  }
+  write_database_metadata(storage_, meta_);
+}
+
 void MasterImpl::start_job_processor() {
   job_processor_thread_ = std::thread([this]() {
     while (!trigger_shutdown_.raised()) {
@@ -674,9 +689,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 total_rows = 0;
 
   meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-  DatabaseMetadata meta_copy =
-      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-
   // Setup table metadata cache
   table_metas_.reset(new TableMetaCache(storage_, meta_));
 
@@ -882,6 +894,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Write out database metadata so that workers can read it
   write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
+  std::vector<i32> job_uncommitted_tables_;
   for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
     auto& job = job_params->jobs(job_idx);
     i32 table_id = meta_.add_table(job.output_table_name());
@@ -912,6 +925,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     table_desc.set_job_id(bulk_job_id);
 
+    job_uncommitted_tables_.push_back(table_id);
     write_table_metadata(storage_, TableMetadata(table_desc));
     table_metas_->update(TableMetadata(table_desc));
   }
@@ -1015,10 +1029,20 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // No need to check status of workers anymore
   stop_worker_pinger();
 
-  if (!job_result->success()) {
-    // Overwrite database metadata with copy from prior to modification
-    write_database_metadata(storage_, meta_copy);
+  // If we are shutting down, then the job did not finish and we should fail
+  if (trigger_shutdown_.raised()) {
+    job_result->set_success(false);
   }
+
+  if (job_result->success()) {
+    // Commit all tables since the job was successful
+    for (i32 tid : job_uncommitted_tables_) {
+      meta_.commit_table(tid);
+    }
+    // Commit job since it was successful
+    meta_.commit_bulk_job(bulk_job_id);
+  }
+  write_database_metadata(storage_, meta_);
 
   if (!task_result_.success()) {
     job_result->CopyFrom(task_result_);

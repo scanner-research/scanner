@@ -207,6 +207,9 @@ class Database:
                     ', '.join(self.table(t.id).column_names())
                     for t in db_meta.tables
                 ]),
+                ('Committed', ['true' if self.table(t.id).committed()
+                               else 'false'
+                               for t in db_meta.tables]),
             ]),
         ]
 
@@ -259,12 +262,14 @@ class Database:
             # table id cache
             self._table_id = {}
             self._table_name = {}
+            self._table_committed = {}
             for i, table in enumerate(self._cached_db_metadata.tables):
                 if table.name in self._table_name:
                     raise ScannerException(
                         'Internal error: multiple tables with same name: {}'.format(name))
                 self._table_id[table.id] = i
                 self._table_name[table.name] = i
+                self._table_committed[table.id] = table.committed
         return self._cached_db_metadata
 
     def _connect_to_worker(self, address):
@@ -726,6 +731,8 @@ class Database:
         idxs_to_delete = []
         for name in names:
             assert name in self._table_name
+            t = self.table(name)
+            t._need_descriptor()
             idxs_to_delete.append(self._table_name[name])
         idxs_to_delete.sort()
         for idx in reversed(idxs_to_delete):
@@ -980,6 +987,11 @@ class Database:
                     op_idx = input_ops[op]
                     col_input = j.inputs.add()
                     col_input.op_index = op_idx
+                    if not args._table.committed():
+                        raise ScannerException(
+                            'Attempted to bind table {name} to Input Op but '
+                            'table {name} is not committed.'
+                            .format(name=args._table.name()))
                     col_input.table_name = args._table.name()
                     col_input.column_name = args.name()
                 elif op in sampling_slicing_ops:

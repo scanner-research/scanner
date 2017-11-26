@@ -26,11 +26,14 @@ class Table:
 
     def _need_descriptor(self):
         if self._descriptor is None:
+            print('tables/{}/descriptor.bin'.format(self._id))
             self._descriptor = self._db._load_descriptor(
                 self._db.protobufs.TableDescriptor,
                 'tables/{}/descriptor.bin'.format(self._id))
 
     def _load_column(self, name):
+        if not self.committed():
+            raise ScannerException('Table has not committed yet.')
         self._need_descriptor()
         if self._video_descriptors is None:
             self._video_descriptors = []
@@ -81,6 +84,9 @@ class Table:
     def _parse_index(self, bufs, db):
         return struct.unpack("=Q", bufs[0])[0]
 
+    def committed(self):
+        return self._db._table_committed[self._id]
+
     def parent_rows(self):
         self._need_descriptor()
         if self._descriptor.job_id == -1:
@@ -89,6 +95,8 @@ class Table:
         return [i for _, i in self.load(['index'], fn=self._parse_index)]
 
     def profiler(self):
+        if not self.committed():
+            raise ScannerException('Table has not committed yet.')
         self._need_descriptor()
         if self._descriptor.job_id != -1:
             return self._db.profiler(self._descriptor.job_id)
@@ -96,6 +104,8 @@ class Table:
             raise ScannerException('Ingested videos do not have profile data')
 
     def load(self, columns, fn=None, rows=None):
+        if not self.committed():
+            raise ScannerException('Table has not committed yet.')
         cols = [self.column(c).load(rows=rows) for c in columns]
         for tup in izip(*cols):
             row = tup[0][0]

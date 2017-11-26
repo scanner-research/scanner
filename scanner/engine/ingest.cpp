@@ -814,6 +814,8 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
       LOG(WARNING) << "Failed to ingest video " << paths[i] << "!";
       failed_videos.push_back({paths[i], bad_messages[i]});
       meta.remove_table(table_ids[i]);
+    } else {
+      meta.commit_table(table_ids[i]);
     }
   }
   if (num_bad_videos == table_names.size()) {

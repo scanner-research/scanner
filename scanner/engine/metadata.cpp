@@ -72,11 +72,12 @@ DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
   for (int i = 0; i < descriptor_.tables_size(); ++i) {
     const DatabaseDescriptor::Table& table = descriptor_.tables(i);
     table_id_names_.insert({table.id(), table.name()});
+    table_committed_.insert({table.id(), table.committed()});
   }
   for (int i = 0; i < descriptor_.bulk_jobs_size(); ++i) {
     const DatabaseDescriptor_BulkJob& bulk_job = descriptor_.bulk_jobs(i);
     bulk_job_id_names_.insert({bulk_job.id(), bulk_job.name()});
-    bulk_job_names_.push_back(bulk_job.name());
+    bulk_job_committed_.insert({bulk_job.id(), bulk_job.committed()});
   }
 }
 
@@ -90,12 +91,14 @@ const DatabaseDescriptor& DatabaseMetadata::get_descriptor() const {
     auto table = descriptor_.add_tables();
     table->set_id(kv.first);
     table->set_name(kv.second);
+    table->set_committed(table_committed_.at(kv.first));
   }
 
   for (auto& kv : bulk_job_id_names_) {
     auto bulk_job = descriptor_.add_bulk_jobs();
     bulk_job->set_id(kv.first);
     bulk_job->set_name(kv.second);
+    bulk_job->set_committed(bulk_job_committed_.at(kv.first));
   }
 
   return descriptor_;
@@ -105,7 +108,7 @@ std::string DatabaseMetadata::descriptor_path() {
   return database_metadata_path();
 }
 
-const std::vector<std::string> DatabaseMetadata::table_names() const {
+std::vector<std::string> DatabaseMetadata::table_names() const {
   std::vector<std::string> names;
   for (auto& entry : table_id_names_) {
     names.push_back(entry.second);
@@ -147,8 +150,19 @@ i32 DatabaseMetadata::add_table(const std::string& table) {
   if (!has_table(table)) {
     table_id = next_table_id_++;
     table_id_names_[table_id] = table;
+    table_committed_[table_id] = false;
   }
   return table_id;
+}
+
+void DatabaseMetadata::commit_table(i32 table_id) {
+  assert(table_id_names_.count(table_id) > 0);
+  table_committed_[table_id] = true;
+}
+
+bool DatabaseMetadata::table_is_committed(i32 table_id) const {
+  assert(table_id_names_.count(table_id) > 0);
+  return table_committed_.at(table_id);
 }
 
 void DatabaseMetadata::remove_table(i32 table_id) {
@@ -157,7 +171,11 @@ void DatabaseMetadata::remove_table(i32 table_id) {
 }
 
 const std::vector<std::string>& DatabaseMetadata::bulk_job_names() const {
-  return bulk_job_names_;
+  std::vector<std::string> names;
+  for (auto& entry : bulk_job_id_names_) {
+    names.push_back(entry.second);
+  }
+  return names;
 }
 
 bool DatabaseMetadata::has_bulk_job(const std::string& bulk_job) const {
@@ -192,7 +210,19 @@ const std::string& DatabaseMetadata::get_bulk_job_name(i32 bulk_job_id) const {
 i32 DatabaseMetadata::add_bulk_job(const std::string& bulk_job_name) {
   i32 bulk_job_id = next_bulk_job_id_++;
   bulk_job_id_names_[bulk_job_id] = bulk_job_name;
+  bulk_job_committed_[bulk_job_id] = false;
   return bulk_job_id;
+}
+
+void DatabaseMetadata::commit_bulk_job(i32 bulk_job_id) {
+  assert(bulk_job_id_names_.count(bulk_job_id) > 0);
+  bulk_job_committed_[bulk_job_id] = true;
+
+}
+
+bool DatabaseMetadata::bulk_job_is_committed(i32 bulk_job_id) const {
+  assert(bulk_job_id_names_.count(bulk_job_id) > 0);
+  return bulk_job_committed_.at(bulk_job_id);
 }
 
 void DatabaseMetadata::remove_bulk_job(i32 bulk_job_id) {
