@@ -1,15 +1,35 @@
 from . import NetDescriptor, writers, bboxes, poses, parsers
 from .. import DeviceType, Job, BulkJob
 from ..collection import Collection
+from .util import download_temp_file
 import math
 import os.path
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def detect_faces(db, input_frame_columns, output_sampling, output_name,
-                 width=960, return_profiling=False):
-    descriptor = NetDescriptor.from_file(db, 'nets/caffe_facenet.toml')
+                 width=960, prototxt_path=None, model_weights_path=None,
+                 templates_path=None,
+                 return_profiling=False):
+    if prototxt_path is None:
+        prototxt_path = download_temp_file(
+            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_deploy.prototxt')
+    if model_weights_path is None:
+        model_weights_path = download_temp_file(
+            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_deploy.caffemodel')
+    if templates_path is None:
+        templates_path = download_temp_file(
+            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_templates.bin')
+
+    descriptor = NetDescriptor(db)
+    descriptor.model_path = prototxt_path
+    descriptor.model_weights_path = model_weights_path
+    descriptor.input_layer_names = ['data']
+    descriptor.output_layer_names = ['score_final']
+    descriptor.mean_colors = [119.29959869, 110.54627228, 101.8384321]
+
     facenet_args = db.protobufs.FacenetArgs()
+    facenet_args.templates_path = templates_path
     facenet_args.threshold = 0.5
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
@@ -81,8 +101,7 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
     return db.run(bulk_job, force=True)
 
 
-def detect_poses(db, input_frame_columns, sampling, output_name,
-                 height=480):
+def detect_poses(db, input_frame_columns, sampling, output_name, height=480):
     descriptor = NetDescriptor.from_file(db, 'nets/cpm2.toml')
     cpm2_args = db.protobufs.CPM2Args()
     caffe_args = cpm2_args.caffe_args

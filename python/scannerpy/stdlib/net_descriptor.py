@@ -2,15 +2,119 @@ from ..common import *
 import toml
 
 
-class NetDescriptor:
+class NetDescriptor(object):
     def __init__(self, db):
         self._descriptor = db.protobufs.NetDescriptor()
+        self._descriptor.input_width = -1
+        self._descriptor.input_height = -1
+        self._descriptor.pad_mod = -1
 
     def _val(self, dct, key, default):
         if key in dct:
             return dct[key]
         else:
             return default
+
+    @property
+    def model_path(self):
+        return self._descriptor.model_path
+
+    @model_path.setter
+    def model_path(self, value):
+        print(self._descriptor)
+        self._descriptor.model_path = value
+        print(self._descriptor)
+
+    @property
+    def model_weights_path(self):
+        return self._descriptor.model_weights_path
+
+    @model_weights_path.setter
+    def model_weights_path(self, value):
+        self._descriptor.model_weights_path = value
+
+    @property
+    def input_layer_names(self):
+        return self._descriptor.input_layer_names[:]
+
+    @input_layer_names.setter
+    def input_layer_names(self, value):
+        del self._descriptor.input_layer_names[:]
+        self._descriptor.input_layer_names.extend(value)
+
+    @property
+    def output_layer_names(self):
+        return self._descriptor.output_layer_names[:]
+
+    @output_layer_names.setter
+    def output_layer_names(self, value):
+        del self._descriptor.output_layer_names[:]
+        self._descriptor.output_layer_names.extend(value)
+
+    @property
+    def input_width(self):
+        return self._descriptor.input_width
+
+    @input_width.setter
+    def input_width(self, value):
+        self._descriptor.input_width = value
+
+    @property
+    def input_height(self):
+        return self._descriptor.input_height
+
+    @input_width.setter
+    def input_height(self, value):
+        self._descriptor.input_height = value
+
+    @property
+    def normalize(self):
+        return self._descriptor.normalize
+
+    @normalize.setter
+    def normalize(self, value):
+        self._descriptor.normalize = value
+
+    @property
+    def preserve_aspect_ratio(self):
+        return self._descriptor.preserve_aspect_ratio
+
+    @preserve_aspect_ratio.setter
+    def normalize(self, value):
+        self._descriptor.preserve_aspect_ratio = value
+
+    @property
+    def transpose(self):
+        return self._descriptor.transpose
+
+    @transpose.setter
+    def transpose(self, value):
+        self._descriptor.transpose = value
+
+    @property
+    def pad_mod(self):
+        return self._descriptor.pad_mod
+
+    @pad_mod.setter
+    def pad_mod(self, value):
+        self._descriptor.pad_mod = value
+
+    @property
+    def uses_python(self):
+        return self._descriptor.uses_python
+
+    @uses_python.setter
+    def uses_python(self, value):
+        self._descriptor.uses_python = value
+
+    @property
+    def mean_colors(self):
+        return self._descriptor.mean_colors
+
+    @uses_python.setter
+    def mean_colors(self, value):
+        del self._descriptor.mean_colors[:]
+        self._descriptor.mean_colors.extend(value)
 
     @classmethod
     def from_file(cls, db, path):

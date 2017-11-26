@@ -7,7 +7,7 @@ CPUs or GPUs.
 
 * [Install](https://github.com/scanner-research/scanner#install)
 * [Running Scanner](https://github.com/scanner-research/scanner#running-scanner)
-* [Tutorial & Examples](https://github.com/scanner-research/scanner#tutorials-&-examples)
+* [Tutorials & Examples](https://github.com/scanner-research/scanner#tutorials--examples)
 * [Documentation](https://github.com/scanner-research/scanner#documentation)
 * [Contributing](https://github.com/scanner-research/scanner#contributing)
 
@@ -51,44 +51,41 @@ to build Scanner from source. To start processing some videos, check out [Runnin
 
 Since Scanner programs are written using a high-level python API, running a
 Scanner program is as simple as executing a python script. Let's run a Scanner
-job now to find all the human faces in one of your videos. Run the following
-commands:
+job now to find all the human faces in one of your videos (if you don't have a
+video on-hand, you can download our example video from here:
+https://storage.googleapis.com/scanner-data/tutorial_assets/star_wars_heros.mp4).
+Run the following commands:
 
 ```bash
-cd path/to/scanner/your/directory
+cd path/to/your/scanner/directory
+% Download the neural network model for detecting faces
+bash nets/get_caffe_facenet.sh
+% Run the Scanner program
 python examples/face_detection/face_detect.py path/to/your/video/file.mp4
+
 ```
 
-You should see a progress bar indicating the video is being processed. When
-finished, there will be an mp4 file in your current directory called `
+You should see several progress bars indicating the video is being processed. 
+When finished, there will be an mp4 file in your current directory called `
 <your video file name>_faces.mp4` with bounding boxes drawn over every
 face in the original video. Congratulations, you just ran your first Scanner
 program! Here's a few next steps:
 
-* To learn how to start writing your own Scanner programs, dive into the API with the [tutorials](https://github.com/scanner-research/scanner#tutorials-&-examples).
-* To run other Scanner programs on your videos, check out the [examples](https://github.com/scanner-research/scanner#tutorials-&-examples).
+* To learn how to start writing your own Scanner programs, dive into the API with the [tutorials](https://github.com/scanner-research/scanner#tutorials--examples).
+* To run other Scanner programs on your videos, check out the [examples](https://github.com/scanner-research/scanner#tutorials--examples).
 * If you're looking for a code reference, check out the [documentation](https://github.com/scanner-research/scanner#documentation)
 
 ## Tutorials & Examples
 
-TODO(apoms)
+The tutorials and examples are located in the
+[examples](https://github.com/scanner-research/scanner/tree/master/examples)
+directory. Some of the examples include:
 
 * [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/face_detect.py)
 * [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection/shot_detect.py)
 * [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search/search.py)
 
-[Click here to see more code examples of using Scanner.](https://github.com/scanner-research/scanner/tree/master/examples/tutorial)
-
-Then inside your Docker container, run:
-
-```bash
-cd examples
-jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
-```
-
-Then in your browser, go to [http://localhost:8888/notebooks/Walkthrough.ipynb](http://localhost:8888/notebooks/Walkthrough.ipynb) and copy in the token from the console logs. Follow the instructions in the Jupyter notebook.
-
-## Documentation
+## Documentation & How-To's
 
 TODO(apoms)
 

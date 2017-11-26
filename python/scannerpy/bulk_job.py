@@ -1,4 +1,4 @@
-class BulkJob:
+class BulkJob(object):
     """
     Specifies a set of jobs that will share the same execution DAG.
     """

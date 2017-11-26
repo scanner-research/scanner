@@ -26,8 +26,9 @@ message CaffeArgs {
 
 message FacenetArgs {
   CaffeArgs caffe_args = 1;
-  float scale = 2;
-  float threshold = 3;
+  string templates_path = 2;
+  float scale = 3;
+  float threshold = 4;
 }
 
 message CPM2Args {

@@ -17,8 +17,7 @@ class FacenetOutputKernel : public BatchedKernel, public VideoKernel {
     scale_ = args.scale();
     threshold_ = args.threshold();
 
-    std::ifstream template_file{"nets/caffe_facenet/facenet_templates.bin",
-                                std::ifstream::binary};
+    std::ifstream template_file{args.templates_path(), std::ifstream::binary};
     LOG_IF(FATAL, !template_file.good()) << "Could not find template file.";
     templates_.resize(num_templates_, std::vector<float>(4));
     for (i32 t = 0; t < 25; ++t) {
