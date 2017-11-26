@@ -287,7 +287,7 @@ class GatherDomainSampler : public DomainSampler {
       if (in_row >= args_.rows_size()) {
         RESULT_ERROR(&valid,
                      "Gather sampler received out of bounds request for "
-                     "row %ld (max requestable row is %ld).",
+                     "row %ld (max requestable row is %d).",
                      in_row,
                      args_.rows_size());
         return valid;

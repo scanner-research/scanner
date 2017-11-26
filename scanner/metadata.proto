@@ -7,11 +7,13 @@ message DatabaseDescriptor {
   message BulkJob {
     int32 id = 1;
     string name = 2;
+    bool committed = 3;
   }
 
   message Table {
     int32 id = 1;
     string name = 2;
+    bool committed = 3;
   }
 
   int32 next_bulk_job_id = 1;

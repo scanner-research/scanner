@@ -101,6 +101,8 @@ class MasterImpl final : public proto::Master::Service {
                       i32 timeout_ms = 50000);
 
  private:
+  void recover_database();
+
   void start_job_processor();
 
   void stop_job_processor();

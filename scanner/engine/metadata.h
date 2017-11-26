@@ -104,13 +104,15 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
 
   static std::string descriptor_path();
 
-  const std::vector<std::string> table_names() const;
+  std::vector<std::string> table_names() const;
 
   bool has_table(const std::string& table) const;
   bool has_table(i32 table_id) const;
   i32 get_table_id(const std::string& table) const;
   const std::string& get_table_name(i32 table_id) const;
   i32 add_table(const std::string& table);
+  void commit_table(i32 table_id);
+  bool table_is_committed(i32 table_id) const;
   void remove_table(i32 table_id);
 
   const std::vector<std::string>& bulk_job_names() const;
@@ -120,15 +122,18 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
   i32 get_bulk_job_id(const std::string& job_name) const;
   const std::string& get_bulk_job_name(i32 job_id) const;
   i32 add_bulk_job(const std::string& job_name);
+  void commit_bulk_job(i32 job_id);
+  bool bulk_job_is_committed(i32 job_id) const;
   void remove_bulk_job(i32 job_id);
 
  private:
   i32 next_table_id_;
   i32 next_bulk_job_id_;
-  std::vector<std::string> table_names_;
-  std::vector<std::string> bulk_job_names_;
   std::map<i32, std::string> table_id_names_;
+  std::map<i32, bool> table_committed_;
+
   std::map<i32, std::string> bulk_job_id_names_;
+  std::map<i32, bool> bulk_job_committed_;
 };
 
 class VideoMetadata : public Metadata<proto::VideoDescriptor> {
