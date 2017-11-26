@@ -58,10 +58,8 @@ Run the following commands:
 
 ```bash
 cd path/to/your/scanner/directory
-% Download the neural network model for detecting faces
-bash nets/get_caffe_facenet.sh
 % Run the Scanner program
-python examples/face_detection/face_detect.py path/to/your/video/file.mp4
+python examples/face_detection/detect.py path/to/your/video/file.mp4
 
 ```
 
@@ -81,7 +79,7 @@ The tutorials and examples are located in the
 [examples](https://github.com/scanner-research/scanner/tree/master/examples)
 directory. Some of the examples include:
 
-* [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/face_detect.py)
+* [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/detect.py)
 * [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection/shot_detect.py)
 * [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search/search.py)
 
