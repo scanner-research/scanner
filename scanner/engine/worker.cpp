@@ -1189,6 +1189,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
     for (i32 i = 0; i < num_save_workers; ++i) {
       save_work[i].clear();
     }
+    retired_tasks.clear();
   }
 
   auto push_exit_message = [](EvalQueue& q) {
@@ -1262,10 +1263,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < num_save_workers; ++i) {
+    // Wait until save thread is polling on save_work
+    while(save_work[i].size() >= 0) {
+      retired_tasks.clear();
+    }
     push_save_exit_message(save_work[i]);
   }
   for (i32 i = 0; i < num_save_workers; ++i) {
-    // Wait until eval has finished
     save_threads[i].join();
   }
 

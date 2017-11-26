@@ -339,7 +339,15 @@ class Database:
 
     def _stop_heartbeat(self):
         self._heartbeat_queue.put(0)
-        self._heartbeat_process.join()
+
+    def _handle_signal(self, signum, frame):
+        if (signum == signal.SIGINT or
+            signum == signal.SIGTERM or
+            signum == signal.SIGKILL):
+            # Stop cluster
+            self._stop_heartbeat()
+            self.stop_cluster()
+            sys.exit(1)
 
     def start_cluster(self, master, workers):
         """
@@ -368,6 +376,12 @@ class Database:
             str(self._master_address))
 
         if self._start_cluster:
+            # Set handler to shutdown cluster on signal
+            # TODO(apoms): we should clear these handlers when stopping
+            # the cluster
+            signal.signal(signal.SIGINT, self._handle_signal)
+            signal.signal(signal.SIGTERM, self._handle_signal)
+
             if self._debug:
                 self._master_conn = None
                 self._worker_conns = None
