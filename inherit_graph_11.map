@@ -1,3 +1,8 @@
 <map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="node1" href="$classscannerpy_1_1bulk__job_1_1BulkJob.html" title="Specifies a set of jobs that will share the same execution DAG. " alt="" coords="6,5,191,32"/>
+<area shape="rect" id="node2" href="$classscannerpy_1_1bulk__job_1_1BulkJob.html" title="Specifies a set of jobs that will share the same execution DAG. " alt="" coords="119,5,305,32"/>
+<area shape="rect" id="node3" href="$classscannerpy_1_1column_1_1Column.html" title="A column of a Table. " alt="" coords="123,56,301,83"/>
+<area shape="rect" id="node4" href="$classscannerpy_1_1config_1_1Config.html" title="scannerpy.config.Config" alt="" coords="131,107,293,133"/>
+<area shape="rect" id="node5" href="$classscannerpy_1_1database_1_1Database.html" title="Entrypoint for all Scanner operations. " alt="" coords="113,157,311,184"/>
+<area shape="rect" id="node6" href="$classscannerpy_1_1kernel_1_1Kernel.html" title="scannerpy.kernel.Kernel" alt="" coords="131,208,293,235"/>
+<area shape="rect" id="node7" href="$classscannerpy_1_1stdlib_1_1net__descriptor_1_1NetDescriptor.html" title="scannerpy.stdlib.net\l_descriptor.NetDescriptor" alt="" coords="127,259,297,301"/>
 </map>
