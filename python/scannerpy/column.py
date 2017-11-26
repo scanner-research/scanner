@@ -9,7 +9,7 @@ from subprocess import Popen, PIPE
 import tempfile
 import os
 
-class Column:
+class Column(object):
     """
     A column of a Table.
     """
@@ -240,4 +240,6 @@ class Column:
                 fps = vid_fps,
                 extra_args = args,
                 output_name=output_name))
-        Popen(cmd, shell=True).wait()
+        rc = Popen(cmd, shell=True).wait()
+        if rc != 0:
+            raise ScannerException('ffmpeg failed during mp4 export!')

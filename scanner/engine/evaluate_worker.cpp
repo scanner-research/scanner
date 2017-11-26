@@ -215,7 +215,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
       kernel->validate(&args.result);
       VLOG(1) << "Kernel finished validation " << args.result.success();
       if (!args.result.success()) {
-        VLOG(1) << "Kernel validate failed: " << args.result.msg();
+        LOG(ERROR) << "Kernel validate failed: " << args.result.msg();
         THREAD_RETURN_SUCCESS();
       }
       kernels_.emplace_back(kernel);

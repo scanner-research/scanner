@@ -108,7 +108,7 @@ def start_worker(master_address, machine_params=None, port=None, config=None,
     return result
 
 
-class Database:
+class Database(object):
     """
     Entrypoint for all Scanner operations.
 
