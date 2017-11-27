@@ -36,6 +36,16 @@ message CPM2Args {
   float scale = 2;
 }
 
+message OpenPoseArgs {
+  string model_directory = 1;
+
+  int32 pose_num_scales = 2;
+  float pose_scale_gap = 3;
+
+  int32 hand_num_scales = 4;
+  float hand_scale_gap = 5;
+}
+
 message Camera {
   repeated float p = 1 [packed=true];
 }

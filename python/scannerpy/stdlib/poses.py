@@ -5,14 +5,79 @@ import cv2
 import copy
 from collections import defaultdict
 
-from scannerpy.table import Table
-import scannerpy.stdlib.parsers
+class Pose(object):
+    POSE_KEYPOINTS = 18
+    FACE_KEYPOINTS = 70
+    HAND_KEYPOINTS = 21
 
-def scale_pose(pose, scale):
-    new_pose = pose.copy()
-    for i in range(15):
-        new_pose[i] *= scale
-    return new_pose
+    Nose = 0
+    Neck = 1
+    RShoulder = 2
+    RElbow = 3
+    RWrist = 4
+    LShoulder = 5
+    LElbow = 6
+    LWrist = 7
+    RHip = 8
+    RKnee = 9
+    RAnkle = 10
+    LHip = 11
+    LKnee = 12
+    LAnkle = 13
+    REye = 14
+    LEye = 15
+    REar = 16
+    LEar = 17
+    Background = 18
+
+    def __init__(self):
+        self.keypoints = np.zeros(
+            (Pose.POSE_KEYPOINTS +
+             Pose.FACE_KEYPOINTS +
+             Pose.HAND_KEYPOINTS * 2,
+             3))
+
+    def _format_keypoints(self):
+        return self.keypoints
+
+    def pose_keypoints(self):
+        kp = self._format_keypoints()
+        return kp[:self.POSE_KEYPOINTS, :]
+
+    def face_keypoints(self):
+        kp = self._format_keypoints()
+        return kp[self.POSE_KEYPOINTS:(self.POSE_KEYPOINTS+self.FACE_KEYPOINTS), :]
+
+    def hand_keypoints(self):
+        kp = self._format_keypoints()
+        base = kp[self.POSE_KEYPOINTS+self.FACE_KEYPOINTS:, :]
+        return [base[:self.HAND_KEYPOINTS, :], base[self.HAND_KEYPOINTS:, :]]
+
+    def face_bbox(self):
+        p = self.pose_keypoints()
+        l = p[16, :2]
+        r = p[17, :2]
+        o = p[0, :2]
+        up = o + [r[1] - l[1], l[0] - r[0]]
+        down = o + [l[1] - r[1], r[0] - l[0]]
+        face = np.array([l, r, up, down])
+
+        xmin = face[:, 0].min()
+        xmax = face[:, 0].max()
+        ymin = face[:, 1].min()
+        ymax = face[:, 1].max()
+
+        score = min(p[16, 2], p[17, 2], p[0, 2])
+        return [(xmin, ymin), (xmax, ymax), score]
+
+    @staticmethod
+    def from_buffer(keypoints_buffer):
+        pose = Pose()
+        shape = pose.keypoints.shape
+        pose.keypoints = (
+            np.frombuffer(keypoints_buffer, dtype=np.float32).reshape(shape))
+        return pose
+
 
 def nms(orig_poses, overlapThresh):
     # if there are no boxes, return an empty list

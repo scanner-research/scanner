@@ -15,14 +15,12 @@ if (BUILD_CUDA)
     facenet_kernel.cpp)
 endif()
 
-if (BUILD_CPM2_OPS)
-  list(APPEND SOURCE_FILES
-    cpm2_output_kernel_cpu.cpp)
-  if (BUILD_CUDA)
-    list(APPEND SOURCE_FILES
-      cpm2_input_kernel_gpu.cpp
-      cpm2_kernel.cpp)
+if (BUILD_OPENPOSE_OPS)
+  if (NOT BUILD_CUDA)
+    # TODO(apoms): add warning
   endif()
+  list(APPEND SOURCE_FILES
+    openpose_kernel.cpp)
 endif()
 
 add_halide_target(caffe_input_transformer_cpu.cpp host)
