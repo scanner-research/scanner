@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import os.path
 import sys
@@ -20,20 +21,20 @@ from string import ascii_uppercase
 from threading import Thread
 from multiprocessing.dummy import Pool as ThreadPool
 
-from common import *
-from profiler import Profiler
-from config import Config
-from op import OpGenerator, Op, OpColumn
-from sampler import Sampler
-from partitioner import TaskPartitioner
-from collection import Collection
-from table import Table
-from column import Column
-from protobuf_generator import ProtobufGenerator
+from scannerpy.common import *
+from scannerpy.profiler import Profiler
+from scannerpy.config import Config
+from scannerpy.op import OpGenerator, Op, OpColumn
+from scannerpy.sampler import Sampler
+from scannerpy.partitioner import TaskPartitioner
+from scannerpy.collection import Collection
+from scannerpy.table import Table
+from scannerpy.column import Column
+from scannerpy.protobuf_generator import ProtobufGenerator
+from scannerpy.job import Job
+from scannerpy.bulk_job import BulkJob
 
 from storehousepy import StorageConfig, StorageBackend
-from job import Job
-from bulk_job import BulkJob
 
 def start_master(port=None, config=None, config_path=None, block=False, watchdog=True):
     """

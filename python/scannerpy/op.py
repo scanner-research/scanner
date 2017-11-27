@@ -1,6 +1,8 @@
-from common import *
+from __future__ import absolute_import, division, print_function, unicode_literals
 import grpc
 import copy
+
+from scannerpy.common import *
 
 class OpColumn:
     def __init__(self, db, op, col, typ):

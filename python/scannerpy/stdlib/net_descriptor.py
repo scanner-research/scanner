@@ -1,6 +1,7 @@
-from ..common import *
+from __future__ import absolute_import, division, print_function, unicode_literals
 import toml
 
+from scannerpy.common import *
 
 class NetDescriptor(object):
     def __init__(self, db):

@@ -1,7 +1,10 @@
-from ..table import Table
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
 import cv2
-import parsers
+
+from scannerpy.table import Table
+import scannerpy.stdlib.parsers
 
 def nms(orig_boxes, overlapThresh):
     # if there are no boxes, return an empty list

@@ -1,9 +1,12 @@
-from ..table import Table
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
 import cv2
-import parsers
 import copy
 from collections import defaultdict
+
+from scannerpy.table import Table
+import scannerpy.stdlib.parsers
 
 def scale_pose(pose, scale):
     new_pose = pose.copy()

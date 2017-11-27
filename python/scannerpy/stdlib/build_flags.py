@@ -1,5 +1,8 @@
-from .. import Config
+from __future__ import absolute_import, division, print_function, unicode_literals
 import subprocess as sp
+
+from scannerpy.config import Config
+
 
 c = Config()
 
