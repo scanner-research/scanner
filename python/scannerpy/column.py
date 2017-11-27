@@ -52,7 +52,8 @@ class Column(object):
             self._db_path, self._table._descriptor.id,
             self._descriptor.id, item_id)
         try:
-            metadata_contents = self._storage.read(metadata_path)
+            metadata_contents = self._storage.read(
+                metadata_path.encode('ascii'))
         except UserWarning:
             raise ScannerException('Path {} does not exist'.format(
                 metadata_path))
@@ -61,7 +62,7 @@ class Column(object):
             self._db_path, self._table._descriptor.id,
             self._descriptor.id, item_id)
         try:
-            contents = self._storage.read(path)
+            contents = self._storage.read(path.encode('ascii'))
         except UserWarning:
             raise ScannerException('Path {} does not exist'.format(path))
 
@@ -218,7 +219,7 @@ class Column(object):
         # Copy all files locally before calling ffmpeg
         for in_path, temp_path in zip(paths, temp_paths):
             with open(temp_path, 'w') as f:
-                f.write(self._storage.read(in_path))
+                f.write(self._storage.read(in_path.encode('ascii')))
 
         files = '|'.join(temp_paths)
 

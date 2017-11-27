@@ -61,7 +61,7 @@ def start_master(port=None, config=None, config_path=None, block=False, watchdog
         config.storage_config,
         config.db_path,
         config.master_address + ':' + port)
-    result = bindings.start_master(db, port, watchdog)
+    result = bindings.start_master(db, port.encode('ascii'), watchdog)
     if not result.success:
         raise ScannerException('Failed to start master: {}'.format(result.msg))
     if block:
@@ -101,7 +101,8 @@ def start_worker(master_address, machine_params=None, port=None, config=None,
         config.db_path,
         master_address)
     machine_params = machine_params or bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params, str(port), watchdog)
+    result = bindings.start_worker(db, machine_params,
+                                   str(port).encode('ascii'), watchdog)
     if not result.success:
         raise ScannerException('Failed to start worker: {}'.format(result.msg))
     if block:
@@ -170,10 +171,11 @@ class Database(object):
         # Initialize database if it does not exist
         pydb_path = '{}/pydb'.format(self._db_path)
 
-        pydbpath_info = self._storage.get_file_info(pydb_path+'/')
+        pydbpath_info = self._storage.get_file_info(
+            (pydb_path+'/').encode('ascii'))
 
         if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
-            self._storage.make_dir(pydb_path)
+            self._storage.make_dir(pydb_path.encode('ascii'))
             self._collections = self.protobufs.CollectionsDescriptor()
             self._update_collections()
 
@@ -231,7 +233,7 @@ class Database(object):
                             for name, c in cols]
             table_width = sum(max_col_lens) + 3*(num_cols-1)
             label = '** {} **'.format(label)
-            summary += ' ' * (table_width/2 - len(label)/2) + label + '\n'
+            summary += ' ' * int(table_width/2 - len(label)/2) + label + '\n'
             summary += '-' * table_width + '\n'
             col_name_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
             col_name_fmt = col_name_fmt.format(*max_col_lens)
@@ -246,12 +248,13 @@ class Database(object):
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
         d.ParseFromString(
-            self._storage.read('{}/{}'.format(self._db_path, path)))
+            self._storage.read(
+                ('{}/{}'.format(self._db_path, path)).encode('ascii')))
         return d
 
     def _save_descriptor(self, descriptor, path):
         self._storage.write(
-            '{}/{}'.format(self._db_path, path),
+            ('{}/{}'.format(self._db_path, path)).encode('ascii'),
             descriptor.SerializeToString())
 
     def _load_db_metadata(self):
@@ -378,8 +381,8 @@ class Database(object):
         # Boot up C++ database bindings
         self._db = self._bindings.Database(
             self.config.storage_config,
-            str(self._db_path),
-            str(self._master_address))
+            str(self._db_path).encode('ascii'),
+            str(self._master_address).encode('ascii'))
 
         if self._start_cluster:
             # Set handler to shutdown cluster on signal
@@ -600,7 +603,9 @@ class Database(object):
         del self._collections.names[index]
         del self._collections.ids[index]
 
-        self._storage.delete_file('{}/pydb/collection_{}.bin'.format(self._db_path, id))
+        self._storage.delete_file(
+            ('{}/pydb/collection_{}.bin'.format(
+                self._db_path, id)).encode('ascii'))
 
     def new_collection(self, collection_name, tables, force=False, job_id=None):
         """
@@ -776,7 +781,7 @@ class Database(object):
         cols.insert(0, "index")
         for i, row in enumerate(rows):
             row.insert(0, struct.pack('=Q', i))
-        self._bindings.new_table(self._db, name, cols, rows)
+        self._bindings.new_table(self._db, name.encode('ascii'), cols, rows)
         self._cached_db_metadata = None
         return self.table(name)
 
