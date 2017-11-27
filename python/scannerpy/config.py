@@ -1,8 +1,10 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import toml
 import sys
 from subprocess import check_output
-from common import *
+
+from scannerpy.common import *
 from storehousepy import StorageConfig, StorageBackend
 
 

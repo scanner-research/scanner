@@ -1,8 +1,10 @@
-from common import *
-from column import Column
+from __future__ import absolute_import, division, print_function, unicode_literals
 import struct
 from itertools import izip
 from timeit import default_timer as now
+
+from scannerpy.common import *
+from scannerpy.column import Column
 
 class Table:
     """

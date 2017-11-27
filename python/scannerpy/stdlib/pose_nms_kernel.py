@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import scannerpy
 import scannerpy.stdlib.parsers as parsers
 import scannerpy.stdlib.writers as writers

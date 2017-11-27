@@ -1,6 +1,8 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import struct
 import json
-from common import *
+
+from scannerpy.common import *
 
 
 def read_advance(fmt, buf, offset):

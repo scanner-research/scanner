@@ -1,13 +1,15 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import struct
 import cv2
 import math
-from job import Job
-from bulk_job import BulkJob
-from common import *
-from stdlib import parsers
 from subprocess import Popen, PIPE
 import tempfile
 import os
+
+from scannerpy.stdlib import parsers
+from scannerpy.common import *
+from scannerpy.job import Job
+from scannerpy.bulk_job import BulkJob
 
 class Column(object):
     """

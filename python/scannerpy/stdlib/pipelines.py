@@ -1,9 +1,11 @@
-from . import NetDescriptor, writers, bboxes, poses, parsers
-from .. import DeviceType, Job, BulkJob
-from ..collection import Collection
-from .util import download_temp_file
+from __future__ import absolute_import, division, print_function, unicode_literals
 import math
 import os.path
+
+from scannerpy import DeviceType, Job, BulkJob
+from scannerpy.stdlib import NetDescriptor, writers, bboxes, poses, parsers
+from scannerpy.collection import Collection
+from scannerpy.stdlib.util import download_temp_file
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
