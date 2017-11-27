@@ -3,7 +3,7 @@ include(${SCANNER_PATH}/cmake/Util/Op.cmake)
 
 option(BUILD_IMGPROC_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
-option(BUILD_CPM2_OPS "" OFF)
+option(BUILD_OPENPOSE_OPS "" OFF)
 option(BUILD_MOTION_OPS "" ON)
 option(BUILD_VIZ_OPS "" ON)
 option(BUILD_OPENFACE_OPS "" OFF)
@@ -45,6 +45,12 @@ else()
   add_definitions(-DCPU_ONLY)
 endif()
 
+if (BUILD_OPENPOSE_OPS)
+  find_package(OpenPose REQUIRED)
+  include_directories(${OPENPOSE_INCLUDE_DIRS})
+  list(APPEND STDLIB_LIBRARIES "${OPENPOSE_LIBRARIES}")
+endif()
+
 set(TARGETS)
 if (BUILD_CAFFE_OPS)
   add_subdirectory(caffe)
@@ -75,6 +81,7 @@ if (BUILD_VIZ_OPS)
   add_subdirectory(viz)
   list(APPEND TARGETS viz)
 endif()
+
 
 
 add_subdirectory(misc)

@@ -19,8 +19,11 @@ def temp_directory():
     return path
 
 
-def download_temp_file(url):
-    local_path = os.path.join(temp_directory(), url.rsplit('/', 1)[-1])
+def download_temp_file(url, local_path=None):
+    if local_path is None:
+        local_path = url.rsplit('/', 1)[-1]
+    local_path = os.path.join(temp_directory(), local_path)
+    mkdir_p(os.path.dirname(local_path))
     if not os.path.isfile(local_path):
         print('Downloading {:s} to {:s}...'.format(url, local_path))
         f = urllib2.urlopen(url)

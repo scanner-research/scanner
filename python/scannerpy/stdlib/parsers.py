@@ -3,6 +3,8 @@ import numpy as np
 import cv2
 import struct
 
+from scannerpy.stdlib.poses import Pose
+
 def bboxes(buf, protobufs):
     (num_bboxes,) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
@@ -16,26 +18,19 @@ def bboxes(buf, protobufs):
         bboxes.append(box)
     return bboxes
 
-
 def poses(buf, protobufs):
-    (num_bodies,) = struct.unpack("=Q", buf[:8])
-    buf = buf[8:]
-    bodies = []
-    for i in range(num_bodies):
-        (num_joints,) = struct.unpack("=Q", buf[:8])
-        buf = buf[8:]
-        joints = np.zeros((num_joints, 3))
-        for i in range(num_joints):
-            point_size, = struct.unpack("=Q", buf[:8])
-            buf = buf[8:]
-            point = protobufs.Point()
-            point.ParseFromString(buf[:point_size])
-            buf = buf[point_size:]
-            joints[i, 0] = point.y
-            joints[i, 1] = point.x
-            joints[i, 2] = point.score
-        bodies.append(joints)
-    return bodies
+    if len(buf) == 1:
+        return []
+
+    kp_size = (Pose.POSE_KEYPOINTS +
+               Pose.FACE_KEYPOINTS +
+               Pose.HAND_KEYPOINTS * 2) * 3
+    poses = []
+    all_kp = np.frombuffer(buf, dtype=np.float32)
+    for j in range(0, len(all_kp), kp_size):
+        pose = Pose.from_buffer(all_kp[j:(j+kp_size)].tobytes())
+        poses.append(pose)
+    return poses
 
 
 def histograms(bufs, protobufs):
