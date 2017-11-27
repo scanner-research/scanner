@@ -26,6 +26,14 @@ namespace scanner {
 
 //! Element in a Scanner table, byte buffer of arbitrary size.
 struct Element {
+  Element() = default;
+  Element(const Element&) = default;
+  Element(Element&&) = default;
+  Element& operator=(const Element&) = default;
+
+  Element(u8* buffer, size_t size);
+  Element(Frame* frame);
+
   inline Frame* as_frame() { return reinterpret_cast<Frame*>(buffer); }
   inline const Frame* as_const_frame() const {
     return reinterpret_cast<Frame*>(buffer);
@@ -37,13 +45,9 @@ struct Element {
     return reinterpret_cast<FrameInfo*>(buffer);
   }
 
-  Element() = default;
-  Element(const Element&) = default;
-  Element(Element&&) = default;
-  Element& operator=(const Element&) = default;
-
-  Element(u8* buffer, size_t size);
-  Element(Frame* frame);
+  inline bool is_null() const {
+    return buffer == nullptr;
+  }
 
   u8* buffer;
   size_t size;
@@ -82,6 +86,9 @@ inline void insert_frame(Element& element, Frame* frame) {
 }
 
 inline Element add_element_ref(DeviceHandle device, Element& element) {
+  if (element.is_null()) {
+    return Element();
+  }
   Element ele;
   if (element.is_frame) {
     Frame* frame = element.as_frame();
@@ -97,6 +104,9 @@ inline Element add_element_ref(DeviceHandle device, Element& element) {
 }
 
 inline void delete_element(DeviceHandle device, Element& element) {
+  if (element.is_null()) {
+    return;
+  }
   if (element.is_frame) {
     Frame* frame = element.as_frame();
     delete_buffer(device, frame->data);
