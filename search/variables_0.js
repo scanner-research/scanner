@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['config',['config',['../classscannerpy_1_1database_1_1Database.html#aa3fd8a86cda34bb924189d95d2dc79dc',1,'scannerpy::database::Database']]]
+  ['config',['config',['../classpython_1_1scannerpy_1_1database_1_1Database.html#a91d3d602540441fc3bf6a51cf546569b',1,'python::scannerpy::database::Database']]]
 ];

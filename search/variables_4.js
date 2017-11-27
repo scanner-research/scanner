@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['ops',['ops',['../classscannerpy_1_1database_1_1Database.html#a77f1b14450c7cbd30607ef268e6b6a6c',1,'scannerpy::database::Database']]]
+  ['ops',['ops',['../classpython_1_1scannerpy_1_1database_1_1Database.html#a50c16871650e3b48f0dee1eb12cead60',1,'python::scannerpy::database::Database']]]
 ];

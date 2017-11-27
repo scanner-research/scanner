@@ -1,3 +1,4 @@
 <map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="node1" href="$structscanner_1_1Database_1_1ServerState.html" title="scanner::Database::\lServerState" alt="" coords="6,5,146,46"/>
+<area shape="rect" id="node2" href="$classpython_1_1scannerpy_1_1common_1_1ColumnType.html" title="Enum for specifying what the type of a column is. " alt="" coords="110,5,293,46"/>
+<area shape="rect" id="node3" href="$classpython_1_1scannerpy_1_1common_1_1DeviceType.html" title="Enum for specifying where an Op should run. " alt="" coords="110,70,293,111"/>
 </map>
