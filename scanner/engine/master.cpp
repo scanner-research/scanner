@@ -49,7 +49,7 @@ MasterImpl::~MasterImpl() {
     std::unique_lock<std::mutex> lock(finished_mutex_);
     finished_ = true;
   }
-  finished_cv_.notify_one();
+  finished_cv_.notify_all();
 
   stop_job_processor();
 
@@ -196,7 +196,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
         next_task_ = 0;
         num_tasks_ = job_tasks_.at(next_job_).size();
         next_job_++;
-        VLOG(1) << "Jobs left: " << num_jobs_ - next_job_;
+        VLOG(1) << "Tasks left: " << total_tasks_ - total_tasks_used_;
       }
     }
 
@@ -299,7 +299,7 @@ grpc::Status MasterImpl::NewJob(grpc::ServerContext* context,
     std::unique_lock<std::mutex> lock(finished_mutex_);
     finished_ = false;
   }
-  finished_cv_.notify_one();
+  finished_cv_.notify_all();
 
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
@@ -608,8 +608,9 @@ void MasterImpl::start_job_processor() {
       // Wait on not finished
       {
         std::unique_lock<std::mutex> lock(active_mutex_);
-        active_cv_.wait(
-            lock, [this] { return active_bulk_job_ || trigger_shutdown_.raised(); });
+        active_cv_.wait(lock, [this] {
+          return active_bulk_job_ || trigger_shutdown_.raised();
+        });
       }
       if (trigger_shutdown_.raised()) break;
       // Start processing job
@@ -1008,7 +1009,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   {
     std::unique_lock<std::mutex> lock(finished_mutex_);
-    finished_cv_.wait(lock, [this] { return finished_; });
+    finished_cv_.wait(lock, [this] { return finished_.load(); });
   }
   // Get responses for all active workers that we have not gotten responses
   // for yet
@@ -1025,9 +1026,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   for (int i = 0; i < num_unfinished; ++i) {
     check_worker_fn();
   }
-
-  // No need to check status of workers anymore
-  stop_worker_pinger();
 
   // If we are shutting down, then the job did not finish and we should fail
   if (trigger_shutdown_.raised()) {
@@ -1056,48 +1054,58 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   std::fflush(NULL);
   sync();
 
+  // No need to check status of workers anymore
+  stop_worker_pinger();
+
   finished_fn();
 
   VLOG(1) << "Master finished job";
 }
 
 void MasterImpl::start_worker_pinger() {
-  while (!finished_) {
-    std::map<i32, proto::Worker::Stub*> ws;
-    {
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      for (auto& kv : workers_) {
+  pinger_active_ = true;
+  pinger_thread_ = std::thread([this]() {
+    while (!finished_ && pinger_active_) {
+      std::map<i32, proto::Worker::Stub*> ws;
+      {
+        std::unique_lock<std::mutex> lk(work_mutex_);
+        for (auto& kv : workers_) {
+          i32 worker_id = kv.first;
+          auto& worker = kv.second;
+          if (!worker_active_[worker_id]) continue;
+
+          ws.insert({worker_id, kv.second.get()});
+        }
+      }
+
+      for (auto& kv : ws) {
         i32 worker_id = kv.first;
         auto& worker = kv.second;
-        if (!worker_active_[worker_id]) continue;
 
-        ws.insert({worker_id, kv.second.get()});
+        grpc::ClientContext ctx;
+        proto::Empty empty1;
+        proto::Empty empty2;
+        grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
+        if (!status.ok()) {
+          // Worker not responding, remove it from active workers
+          LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
+                       << "Removing worker from active list.";
+          remove_worker(worker_id);
+        }
       }
+      // FIXME(apoms): this sleep is unfortunate because it means a
+      //               job must take at least this long. A solution
+      //               would be to put it in a separate thread.
+      std::this_thread::sleep_for(std::chrono::seconds(5));
     }
-
-    for (auto& kv : ws) {
-      i32 worker_id = kv.first;
-      auto& worker = kv.second;
-
-      grpc::ClientContext ctx;
-      proto::Empty empty1;
-      proto::Empty empty2;
-      grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
-      if (!status.ok()) {
-        // Worker not responding, remove it from active workers
-        LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
-                     << "Removing worker from active list.";
-        remove_worker(worker_id);
-      }
-    }
-    // FIXME(apoms): this sleep is unfortunate because it means a
-    //               job must take at least this long. A solution
-    //               would be to put it in a separate thread.
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-  }
+  });
 }
 
 void MasterImpl::stop_worker_pinger() {
+  if (pinger_thread_.joinable()) {
+    pinger_active_ = false;
+    pinger_thread_.join();
+  }
 }
 
 void MasterImpl::start_job_on_worker(i32 worker_id,

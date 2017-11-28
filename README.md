@@ -58,7 +58,7 @@ Run the following commands:
 
 ```bash
 cd path/to/your/scanner/directory
-% Run the Scanner program
+# Run the Scanner program
 python examples/face_detection/detect.py path/to/your/video/file.mp4
 
 ```
