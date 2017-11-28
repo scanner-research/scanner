@@ -160,10 +160,10 @@ class EvaluateWorker {
   // Tracks which input we should expect next for which column
   std::vector<std::vector<i64>> current_valid_input_idx_;
 
-  // Outputs to compute
+  // List of row ids of the uutputs to compute
   std::vector<std::set<i64>> compute_rows_set_;
   std::vector<std::vector<i64>> compute_rows_;
-  // Tracks which input we should expect next
+  // Tracks which index in compute_rows_ we should expect next
   std::vector<i64> current_compute_idx_;
 
   // Outputs to keep

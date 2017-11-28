@@ -400,8 +400,10 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       ElementList valid_inputs;
       i64& current_input_idx = kernel_current_input_idx[i];
       for (size_t r = 0; r < row_ids.size(); ++r) {
-        assert(row_ids[r] <= kernel_valid_input_rows[current_input_idx]);
-        if (row_ids[r] == kernel_valid_input_rows[current_input_idx]) {
+        assert(current_input_idx >= kernel_valid_input_rows.size() ||
+               row_ids[r] <= kernel_valid_input_rows[current_input_idx]);
+        if (current_input_idx < kernel_valid_input_rows.size() &&
+            row_ids[r] == kernel_valid_input_rows[current_input_idx]) {
           // Insert row ids for valid elements into cache
           kernel_cache_row_ids[i].push_back(row_ids[r]);
           Element element(side_output_columns[in_col_idx][r]);
@@ -434,8 +436,10 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       // Update current compute position
       for (i64 i = 0; i < kernel_cache_row_ids[0].size(); ++i) {
         i64 row_id = kernel_cache_row_ids[0][i];
-        assert(row_id <= kernel_compute_rows[kernel_current_compute_idx]);
-        if (row_id == kernel_compute_rows[kernel_current_compute_idx]) {
+        assert(kernel_current_compute_idx >= kernel_compute_rows.size() ||
+               row_id <= kernel_compute_rows[kernel_current_compute_idx]);
+        if (kernel_current_compute_idx < kernel_compute_rows.size() &&
+            row_id == kernel_compute_rows[kernel_current_compute_idx]) {
           kernel_current_compute_idx++;
         }
       }
@@ -622,14 +626,17 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
             for (i64 s : kernel_stencil) {
               i64 desired_row = curr_row + s;
               // Search for desired stencil element
+              bool found = false;
               for (; last_cache_element < cache_row_deque.size();
                    ++last_cache_element) {
                 i64 cache_row_id = cache_row_deque[last_cache_element];
                 if (desired_row == cache_row_id) {
                   input_stencil.push_back(cache_deque[last_cache_element]);
+                  found = true;
                   break;
                 }
               }
+              assert(found);
             }
             assert(input_stencil.size() == kernel_stencil.size());
           }
@@ -736,7 +743,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         auto& row_id_deque = kernel_cache_row_ids[0];
         while (row_id_deque.size() > 0) {
           i64 cache_row = row_id_deque.front();
-          if (cache_row <= min_used_row) {
+          if (cache_row < min_used_row) {
             for (auto& deqs : kernel_cache_row_ids) {
               deqs.pop_front();
             }
