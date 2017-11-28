@@ -12,6 +12,7 @@ import struct
 import signal
 import copy
 import collections
+import subprocess
 
 from timeit import default_timer as now
 from multiprocessing import Process, Queue
@@ -193,6 +194,15 @@ class Database(object):
     def __exit__(self, exception_type, exception_val, exception_tb):
         self.stop_cluster()
         del self._db
+
+    def has_gpu(self):
+        try:
+            with open(os.devnull, 'w') as f:
+                subprocess.check_call(['nvidia-smi'], stdout=f, stderr=f)
+            return True
+        except OSError:
+            pass
+        return False
 
     def summarize(self):
         summary = ''

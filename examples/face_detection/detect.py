@@ -16,18 +16,22 @@ with Database() as db:
     [input_table], _ = db.ingest_videos(
         [(movie_name, movie_path)], force=True)
 
+    sampler = db.sampler.all()
+
     print('Detecting faces...')
     bboxes_table = pipelines.detect_faces(
-        db, [input_table.column('frame')], db.sampler.all(),
+        db, [input_table.column('frame')], sampler,
         movie_name + '_bboxes')[0]
 
     print('Drawing faces onto video...')
     frame = db.ops.FrameInput()
+    sampled_frame = frame.sample()
     bboxes = db.ops.Input()
-    out_frame = db.ops.DrawBox(frame = frame, bboxes = bboxes)
+    out_frame = db.ops.DrawBox(frame = sampled_frame, bboxes = bboxes)
     output = db.ops.Output(columns=[out_frame])
     job = Job(op_args={
         frame: input_table.column('frame'),
+        sampled_frame: sampler,
         bboxes: bboxes_table.column('bboxes'),
         output: movie_name + '_bboxes_overlay',
     })

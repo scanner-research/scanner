@@ -121,6 +121,9 @@ class MasterImpl final : public proto::Master::Service {
   void remove_worker(i32 node_id);
 
 
+  std::thread pinger_thread_;
+  std::atomic<bool> pinger_active_;
+
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;
   i32 next_worker_id_ = 0;
@@ -149,7 +152,7 @@ class MasterImpl final : public proto::Master::Service {
   // True if all work for job is done
   std::mutex finished_mutex_;
   std::condition_variable finished_cv_;
-  bool finished_ = true;
+  std::atomic<bool> finished_{true};
   Result job_result_;
 
   std::thread job_processor_thread_;

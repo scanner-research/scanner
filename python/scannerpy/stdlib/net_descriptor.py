@@ -22,9 +22,7 @@ class NetDescriptor(object):
 
     @model_path.setter
     def model_path(self, value):
-        print(self._descriptor)
         self._descriptor.model_path = value
-        print(self._descriptor)
 
     @property
     def model_weights_path(self):

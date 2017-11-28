@@ -36,6 +36,13 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
     caffe_args = facenet_args.caffe_args
     caffe_args.net_descriptor.CopyFrom(descriptor.as_proto())
 
+    if db.has_gpu():
+        device = DeviceType.GPU
+        pipeline_instances = -1
+    else:
+        device = DeviceType.CPU
+        pipeline_instances = 8
+
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
     batch_sizes = [int((2**i))
@@ -50,16 +57,15 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         #    frame = frame,
         #    width = width, height = 0,
         #    min = True, preserve_aspect = True,
-        #    device = DeviceType.GPU)
         frame_info = db.ops.InfoFromFrame(frame = frame)
         facenet_input = db.ops.FacenetInput(
             frame = frame,
             args = facenet_args,
-            device = DeviceType.GPU)
+            device = device)
         facenet = db.ops.Facenet(
             facenet_input = facenet_input,
             args = facenet_args,
-            device = DeviceType.GPU)
+            device = device)
         facenet_output = db.ops.FacenetOutput(
             facenet_output = facenet,
             original_frame_info = frame_info,
@@ -67,6 +73,7 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         sampled_output = facenet_output.sample()
         output = db.ops.Output(columns=[sampled_output])
 
+        print(output_sampling)
         jobs = []
         for i, frame_column in enumerate(input_frame_columns):
             job = Job(op_args={
@@ -77,7 +84,8 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
             jobs.append(job)
 
         bulk_job = BulkJob(output=output, jobs=jobs)
-        output = db.run(bulk_job, force=True, work_packet_size=batch * 4)
+        output = db.run(bulk_job, force=True, work_packet_size=batch * 4,
+                        pipeline_instances_per_node=pipeline_instances)
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
 
@@ -154,10 +162,17 @@ def detect_poses(db, input_frame_columns, sampling, output_name, batch=1,
     pose_args.hand_num_scales = 4
     pose_args.hand_scale_gap = 0.4
 
+    if db.has_gpu():
+        device = DeviceType.GPU
+        pipeline_instances = -1
+    else:
+        device = DeviceType.CPU
+        pipeline_instances = 8
+
     frame = db.ops.FrameInput()
     poses_out = db.ops.OpenPose(
         frame=frame,
-        device=DeviceType.GPU,
+        device=device,
         args=pose_args,
         batch=batch)
     sampled_poses = poses_out.sample()
@@ -172,5 +187,6 @@ def detect_poses(db, input_frame_columns, sampling, output_name, batch=1,
         })
         jobs.append(job)
     bulk_job = BulkJob(output=output, jobs=jobs)
-    output = db.run(bulk_job, force=True, work_packet_size=8)
+    output = db.run(bulk_job, force=True, work_packet_size=8,
+                    pipeline_instances_per_node=pipeline_instances)
     return output
