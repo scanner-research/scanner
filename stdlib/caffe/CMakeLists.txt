@@ -4,6 +4,7 @@ set(SOURCE_FILES
   caffe_input_kernel.cpp
   caffe_input_kernel_cpu.cpp
   facenet_input_kernel_cpu.cpp
+  facenet_kernel.cpp
   facenet_output_kernel_cpu.cpp
   yolo_output_kernel_cpu.cpp
   faster_rcnn_kernel.cpp
@@ -12,8 +13,7 @@ if (BUILD_CUDA)
   list(APPEND SOURCE_FILES
     caffe_kernel_gpu.cpp
     caffe_input_kernel_gpu.cpp
-    facenet_input_kernel_gpu.cpp
-    facenet_kernel.cpp)
+    facenet_input_kernel_gpu.cpp)
 endif()
 
 if (BUILD_OPENPOSE_OPS)
