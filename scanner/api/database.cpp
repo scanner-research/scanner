@@ -198,6 +198,7 @@ Result Database::new_table(const std::string& table_name,
 
   table_desc.add_end_rows(rows.size());
   table_desc.set_job_id(-1);
+  meta.commit_table(table_id);
 
   internal::write_table_metadata(storage_.get(),
                                  internal::TableMetadata(table_desc));

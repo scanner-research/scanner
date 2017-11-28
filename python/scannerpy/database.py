@@ -791,7 +791,9 @@ class Database(object):
         cols.insert(0, "index")
         for i, row in enumerate(rows):
             row.insert(0, struct.pack('=Q', i))
-        self._bindings.new_table(self._db, name.encode('ascii'), cols, rows)
+        self._bindings.new_table(self._db, name.encode('ascii'),
+                                 [s.encode('ascii') for s in cols],
+                                 rows)
         self._cached_db_metadata = None
         return self.table(name)
 
