@@ -59,7 +59,7 @@ cd path/to/your/scanner/directory
 # Download an example video (or use your own)
 wget https://storage.googleapis.com/scanner-data/tutorial_assets/star_wars_heros.mp4
 # Run the Scanner program
-python examples/face_detection/main.py star_wars_heros.mp4
+python examples/apps/face_detection/main.py star_wars_heros.mp4
 
 ```
 
