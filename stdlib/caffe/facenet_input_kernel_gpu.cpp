@@ -165,8 +165,6 @@ class FacenetInputKernel : public BatchedKernel, public VideoKernel {
   std::vector<cv::cuda::GpuMat> planar_input_g_;
 };
 
-REGISTER_OP(FacenetInput).frame_input("frame").frame_output("facenet_input");
-
 REGISTER_KERNEL(FacenetInput, FacenetInputKernel)
     .device(DeviceType::GPU)
     .num_devices(1);

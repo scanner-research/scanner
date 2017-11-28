@@ -1184,7 +1184,7 @@ Result derive_stencil_requirements(
       if (r < 0 || r >= max_rows) {
         switch (boundary_condition) {
           case proto::BulkJobParameters::REPEAT_EDGE: {
-            r = (r < 0) ? 0 : max_rows;
+            r = (r < 0) ? 0 : max_rows - 1;
             break;
           }
           case proto::BulkJobParameters::REPEAT_NULL: {
