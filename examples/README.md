@@ -21,13 +21,15 @@ Then in your browser, go to [http://localhost:8888/notebooks/Walkthrough.ipynb](
 
 ## Applications
 
-* [face_detection](https://github.com/scanner-research/scanner/blob/master/examples/face_detection): Location and recognizing faces in a video.
-* [shot_detection](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection): Segmenting a video into shots. Same application as the walkthrough.
-* [reverse_image_search](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search): Searching through a video by image.
-* [depth_from_stereo](https://github.com/scanner-research/scanner/blob/master/examples/depth_from_stereo): Computing a per-pixel depth image from two views of the same location.
-* [hyperlapse](https://github.com/scanner-research/scanner/blob/master/examples/hyperlapse): Creating more stable timelapse videos with the [Hyperlapse](https://www.microsoft.com/en-us/research/publication/real-time-hyperlapse-creation-via-optimal-frame-selection/) algorithm.
+* [face_detection](https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection): Location and recognizing faces in a video.
+* [shot_detection](https://github.com/scanner-research/scanner/blob/master/examples/apps/shot_detection): Segmenting a video into shots. Same application as the walkthrough.
+* [reverse_image_search](https://github.com/scanner-research/scanner/blob/master/examples/apps/reverse_image_search): Searching through a video by image.
+* [depth_from_stereo](https://github.com/scanner-research/scanner/blob/master/examples/apps/depth_from_stereo): Computing a per-pixel depth image from two views of the same location.
+* [hyperlapse](https://github.com/scanner-research/scanner/blob/master/examples/apps/hyperlapse): Creating more stable timelapse videos with the [Hyperlapse](https://www.microsoft.com/en-us/research/publication/real-time-hyperlapse-creation-via-optimal-frame-selection/) algorithm.
+* [optical_flow](https://github.com/scanner-research/scanner/blob/master/examples/apps/optical_flow): Using OpenCV to compute flow fields within a video.
 
-## Op examples
-* [caffe](https://github.com/scanner-research/scanner/blob/master/examples/caffe): How to use different Caffe nets in Scanner.
-* [halide](https://github.com/scanner-research/scanner/blob/master/examples/halide): Integrating Halide kernels into Scanner.
-* [opticalflow](https://github.com/scanner-research/scanner/blob/master/examples/opticalflow): Using OpenCV to compute flow fields within a video.
+## How-Tos
+* [tensorflow](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/tensorflow): Integrating TensorFlow networks into Scanner.
+* [caffe](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/caffe): How to use different Caffe nets in Scanner.
+* [python_kernel](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/python_kernel): How to create python kernels to use in scanner 
+* [halide](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/halide): Integrating Halide kernels into Scanner.

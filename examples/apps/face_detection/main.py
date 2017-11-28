@@ -7,7 +7,11 @@ import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
 
-movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
+if len(sys.argv) <= 1:
+    print('Usage: main.py <video_file>')
+    exit(1)
+
+movie_path = sys.argv[1]
 print('Detecting faces in movie {}'.format(movie_path))
 movie_name = os.path.splitext(os.path.basename(movie_path))[0]
 

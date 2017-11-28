@@ -9,9 +9,14 @@ import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 import util
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+POSE_KERNEL_PATH = os.path.join(SCRIPT_DIR, 'pose_draw_kernel.py')
 
-movie_path = util.download_video() if len(sys.argv) <= 1 else sys.argv[1]
+if len(sys.argv) <= 1:
+    print('Usage: main.py <video_file>')
+    exit(1)
+
+movie_path = sys.argv[1]
 print('Detecting poses in video {}'.format(movie_path))
 movie_name = os.path.splitext(os.path.basename(movie_path))[0]
 
@@ -32,8 +37,7 @@ with Database() as db:
     print('Drawing on frames...')
     db.register_op('PoseDraw', [('frame', ColumnType.Video), 'poses'],
                    [('frame', ColumnType.Video)])
-    db.register_python_kernel('PoseDraw', DeviceType.CPU,
-                              script_dir + '/pose_draw_kernel.py')
+    db.register_python_kernel('PoseDraw', DeviceType.CPU, POSE_KERNEL_PATH)
     frame = db.ops.FrameInput()
     sampled_frame = frame.sample()
     poses = db.ops.Input()
