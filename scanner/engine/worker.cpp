@@ -381,11 +381,7 @@ void save_driver(SaveInputQueue& save_work,
                  SaveOutputQueue& output_work,
                  SaveWorkerArgs args) {
   Profiler& profiler = args.profiler;
-  SaveWorker worker(args);
-
-  i32 processed = 0;
-  i32 active_job = -1;
-  i32 active_task = -1;
+  std::map<std::tuple<i32, i32>, std::unique_ptr<SaveWorker>> workers;
   while (true) {
     auto idle_start = now();
 
@@ -407,19 +403,20 @@ void save_driver(SaveInputQueue& save_work,
 
     auto work_start = now();
 
-    if (work_entry.job_index != active_job ||
-        work_entry.task_index != active_task) {
-      active_job = work_entry.job_index;
-      active_task = work_entry.task_index;
-
-      worker.new_task(work_entry.table_id, work_entry.task_index,
-                      work_entry.column_types);
-      processed = 0;
+    // Check if we have a worker for this task
+    auto job_task_id =
+        std::make_tuple(work_entry.job_index, work_entry.task_index);
+    if (workers.count(job_task_id) == 0) {
+      SaveWorker* worker = new SaveWorker(args);
+      worker->new_task(work_entry.table_id, work_entry.task_index,
+                       work_entry.column_types);
+      workers[job_task_id].reset(worker);
     }
-    processed++;
+
+    auto& worker = workers.at(job_task_id);
 
     auto input_entry = work_entry;
-    worker.feed(input_entry);
+    worker->feed(input_entry);
 
     VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
             << "): finished task (" << work_entry.job_index << ", "
@@ -430,6 +427,7 @@ void save_driver(SaveInputQueue& save_work,
     if (work_entry.last_in_task) {
       output_work.push(std::make_tuple(pipeline_instance, work_entry.job_index,
                                        work_entry.task_index));
+      workers.erase(job_task_id);
     }
   }
 

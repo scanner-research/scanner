@@ -432,14 +432,16 @@ void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
     // Read number of elements in file
     u64 pos = 0;
     while (pos < file_size) {
-      num_elements += s_read<u64>(file.get(), pos);
+      u64 elements = s_read<u64>(file.get(), pos);
 
       // Read element sizes from work item file header
       size_t prev_size = element_sizes.size();
-      element_sizes.resize(prev_size + num_elements);
+      element_sizes.resize(prev_size + elements);
       s_read(file.get(),
              reinterpret_cast<u8*>(element_sizes.data() + prev_size),
-             num_elements * sizeof(i64), pos);
+             elements * sizeof(i64), pos);
+
+      num_elements += elements;
     }
     assert(pos == file_size);
   }
@@ -456,10 +458,12 @@ void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
   u64 pos = 0;
   // Determine start and end position of elements to read in file
   u64 start_offset = 0;
+  assert(item_start <= element_sizes.size());
   for (i64 i = 0; i < item_start; ++i) {
     start_offset += element_sizes[i];
   }
   u64 end_offset = start_offset;
+  assert(item_end <= element_sizes.size());
   for (i64 i = item_start; i < item_end; ++i) {
     end_offset += element_sizes[i];
   }
