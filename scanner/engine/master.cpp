@@ -469,11 +469,29 @@ grpc::Status MasterImpl::RegisterPythonKernel(
       const KernelConfig& config) {
       return new PythonKernel(config, kernel_str, pickled_config, batch_size);
     };
+    // Set all input and output columns to be CPU
+    std::map<std::string, DeviceType> input_devices;
+    std::map<std::string, DeviceType> output_devices;
+    {
+      OpRegistry* registry = get_op_registry();
+      OpInfo* info = registry->get_op_info(op_name);
+      if (info->variadic_inputs()) {
+        assert(device_type != DeviceType::GPU);
+      } else {
+        for (const auto& in_col : info->input_columns()) {
+          input_devices[in_col.name()] = DeviceType::CPU;
+        }
+      }
+      for (const auto& out_col : info->output_columns()) {
+        output_devices[out_col.name()] = DeviceType::CPU;
+      }
+    }
     // Create a new kernel factory
-    // TODO(apoms): Support batching and # of devices in python kernels
     bool can_batch = (batch_size > 1);
-    KernelFactory* factory = new KernelFactory(op_name, device_type, 1, 
-                                    can_batch, batch_size, constructor);
+    KernelFactory* factory =
+        new KernelFactory(op_name, device_type, 1, input_devices,
+                          output_devices, can_batch, batch_size, constructor);
+
     // Register the kernel
     KernelRegistry* registry = get_kernel_registry();
     registry->add_kernel(op_name, factory);

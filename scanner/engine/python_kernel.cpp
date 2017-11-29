@@ -39,18 +39,53 @@ PythonKernel::PythonKernel(const KernelConfig& config,
   try {
     py::object main = py::import("__main__");
     main.attr("kernel_str") = py::str(kernel_str);
-    main.attr("args") =
-        py::str((const char*)config.args.data(), config.args.size());
     main.attr("config_str") = py::str(pickled_config);
+
+    py::list devices;
+    py::list device_ids;
+    for (auto& handle : config.devices) {
+      devices.append(py::object(handle.type == DeviceType::CPU ? 0 : 1));
+      device_ids.append(py::object(handle.id));
+    }
+    py::list input_columns;
+    for (auto& inc : config.input_columns) {
+      input_columns.append(inc);
+    }
+    py::list input_column_types;
+    for (auto& inc : config.input_column_types) {
+      input_column_types.append(py::object(inc == ColumnType::Other ? 0 : 1));
+    }
+    py::list output_columns;
+    for (auto& outc : config.output_columns) {
+      output_columns.append(outc);
+    }
+    py::str args((const char*)config.args.data(), config.args.size());
+    py::object node_id(config.node_id);
+
+    main.attr("devices") = devices;
+    main.attr("device_ids") = device_ids;
+    main.attr("input_columns") = input_columns;
+    main.attr("input_column_types") = input_column_types;
+    main.attr("output_columns") = output_columns;
+    main.attr("args") = args;
+    main.attr("node_id") = node_id;
+
     py::object main_namespace = main.attr("__dict__");
     py::exec(
         "import pickle\n"
-        "from scannerpy import Config\n"
+        "from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig, "
+        "ColumnType\n"
         "from scannerpy.protobuf_generator import ProtobufGenerator\n"
         "config = pickle.loads(config_str)\n"
         "protobufs = ProtobufGenerator(config)\n"
+        "handles = [DeviceHandle(DeviceType(d), di)\n"
+        "           for d, di in zip(devices, device_ids)]\n"
+        "input_types = [ColumnType(c) for c in input_column_types]\n"
+        "kernel_config = KernelConfig(handles, input_columns,\n"
+        "                             input_column_types, output_columns,\n"
+        "                             args, node_id)\n"
         "exec(kernel_str)\n"
-        "kernel = KERNEL(args, protobufs)",
+        "kernel = KERNEL(kernel_config, protobufs)",
         main_namespace);
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
@@ -86,8 +121,8 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
       if (config_.input_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
           const Frame *frame = input_columns[j][i].as_const_frame();
-          np::ndarray frame_np = 
-            np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),
+          np::ndarray frame_np =
+              np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),
                             py::make_tuple(frame->height(), frame->width(),
                                            frame->channels()),
                             py::make_tuple(frame->width() * frame->channels(),
@@ -104,10 +139,11 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
       batched_cols.append(rows);
     }
 
-    py::list batched_out_cols = py::extract<py::list>(kernel.attr("execute")(batched_cols));
+    py::list batched_out_cols =
+        py::extract<py::list>(kernel.attr("execute")(batched_cols));
     LOG_IF(FATAL, py::len(batched_out_cols) != output_columns.size())
-          << "Incorrect number of output columns. Expected "
-          << output_columns.size();
+        << "Incorrect number of output columns. Expected "
+        << output_columns.size();
 
     for (i32 j = 0; j < output_columns.size(); ++j) {
       // push all rows to that column
@@ -116,7 +152,8 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
           << input_count;
       if (config_.output_columns[j] == "frame") {
         for (i32 i = 0; i < input_count; ++i) {
-          np::ndarray frame_np = py::extract<np::ndarray>(batched_out_cols[j][i]);
+          np::ndarray frame_np =
+              py::extract<np::ndarray>(batched_out_cols[j][i]);
           FrameType frame_type;
           {
             np::dtype dtype = frame_np.get_dtype();
@@ -143,7 +180,7 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
             strides.push_back(frame_np.strides(n));
           }
           FrameInfo frame_info(shapes, frame_type);
-          Frame* frame = new_frame(device_, frame_info);
+          Frame* frame = new_frame(CPU_DEVICE, frame_info);
           const char* frame_data = frame_np.get_data();
 
           if (ndim == 3) {
@@ -162,8 +199,8 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
         for (i32 i = 0; i < input_count; ++i) {
           std::string field = py::extract<std::string>(batched_out_cols[j][i]);
           size_t size = field.size();
-          u8* buf = new_buffer(device_, size);
-          memcpy_buffer(buf, device_, (u8*)field.data(), CPU_DEVICE, size);
+          u8* buf = new_buffer(CPU_DEVICE, size);
+          memcpy_buffer(buf, CPU_DEVICE, (u8*)field.data(), CPU_DEVICE, size);
           insert_element(output_columns[j], buf, size);
         }
       }
@@ -241,7 +278,7 @@ void PythonKernel::single_python_execute(const BatchedColumns& input_columns,
             strides.push_back(frame_np.strides(n));
           }
           FrameInfo frame_info(shapes, frame_type);
-          Frame* frame = new_frame(device_, frame_info);
+          Frame* frame = new_frame(CPU_DEVICE, frame_info);
           const char* frame_data = frame_np.get_data();
 
           if (ndim == 3) {
@@ -258,8 +295,8 @@ void PythonKernel::single_python_execute(const BatchedColumns& input_columns,
         } else {
           std::string field = py::extract<std::string>(out_cols[j]);
           size_t size = field.size();
-          u8* buf = new_buffer(device_, size);
-          memcpy_buffer(buf, device_, (u8*)field.data(), CPU_DEVICE, size);
+          u8* buf = new_buffer(CPU_DEVICE, size);
+          memcpy_buffer(buf, CPU_DEVICE, (u8*)field.data(), CPU_DEVICE, size);
           insert_element(output_columns[j], buf, size);
         }
       }

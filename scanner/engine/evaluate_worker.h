@@ -142,6 +142,8 @@ class EvaluateWorker {
 
   OpArgGroup arg_group_;
   std::vector<DeviceHandle> kernel_devices_;
+  std::vector<std::vector<DeviceHandle>> kernel_input_devices_;
+  std::vector<std::vector<DeviceHandle>> kernel_output_devices_;
   std::vector<i32> kernel_num_outputs_;
   std::vector<std::unique_ptr<BaseKernel>> kernels_;
 

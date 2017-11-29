@@ -196,17 +196,49 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
       KernelFactory* factory = std::get<0>(arg_group_.kernel_factories[i]);
       if (factory == nullptr) {
         kernel_devices_.push_back(last_device);
+        kernel_input_devices_.push_back({last_device});
+        kernel_output_devices_.push_back({last_device});
         kernel_num_outputs_.push_back(1);
         kernels_.emplace_back(nullptr);
         continue;
       }
+      OpInfo* op_info = registry->get_op_info(factory->get_op_name());
       const KernelConfig& config = std::get<1>(arg_group_.kernel_factories[i]);
       kernel_devices_.push_back(config.devices[0]);
+      kernel_input_devices_.emplace_back();
+      if (op_info->variadic_inputs()) {
+        DeviceHandle handle = config.devices[0];
+        for (int i = 0; i < config.input_columns.size(); ++i) {
+          kernel_input_devices_.back().push_back(handle);
+        }
+      } else {
+        const auto& input_devices = factory->get_input_devices();
+        for (const auto& in_col : op_info->input_columns()) {
+          const auto& col_name = in_col.name();
+          DeviceType type = config.devices[0].type;
+          printf("input device name %s\n", col_name.c_str());
+          if (input_devices.count(col_name)) {
+            type = input_devices.at(col_name);
+          }
+          kernel_input_devices_.back().push_back(
+              DeviceHandle{type, config.devices[0].id});
+        }
+      }
+      kernel_output_devices_.emplace_back();
+      {
+        const auto& output_devices = factory->get_output_devices();
+        for (const auto& out_col : op_info->output_columns()) {
+          const auto& col_name = out_col.name();
+          DeviceType type = config.devices[0].type;
+          if (output_devices.count(col_name)) {
+            type = output_devices.at(col_name);
+          }
+          kernel_output_devices_.back().push_back(
+              DeviceHandle{type, config.devices[0].id});
+        }
+      }
       last_device = config.devices[0];
-      kernel_num_outputs_.push_back(
-          registry->get_op_info(factory->get_op_name())
-              ->output_columns()
-              .size());
+      kernel_num_outputs_.push_back(op_info->output_columns().size());
 
 #ifdef HAVE_CUDA
       cudaSetDevice(0);
@@ -362,6 +394,10 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
     const std::string& op_name = arg_group_.op_names.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
+    const std::vector<DeviceHandle>& current_input_handles =
+        kernel_input_devices_[k];
+    const std::vector<DeviceHandle>& current_output_handles =
+        kernel_output_devices_[k];
 
     std::vector<i64>& kernel_valid_input_rows = valid_input_rows_[k];
     std::set<i64>& kernel_valid_input_rows_set = valid_input_rows_set_[k];
@@ -387,9 +423,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Place all new input elements in side output columns into intermediate
     // cache. If different device, move all required values in the side output
     // columns to the proper device for this kernel
+    assert(op_name == INPUT_OP_NAME ||
+           current_input_handles.size() == input_column_idx.size());
     if (kernel_cache_devices.empty()) {
       for (i32 i = 0; i < input_column_idx.size(); ++i) {
-        kernel_cache_devices.push_back(current_handle);
+        kernel_cache_devices.push_back(current_input_handles[i]);
       }
     }
     for (i32 i = 0; i < input_column_idx.size(); ++i) {
@@ -418,7 +456,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         auto copy_start = now();
         ElementList list =
             copy_or_ref_elements(profiler_, side_output_handles[in_col_idx],
-                                 current_handle, valid_inputs);
+                                 current_input_handles[i], valid_inputs);
         profiler_.add_interval("op_marshal", copy_start, now());
         // Insert new elements into cache
         kernel_cache[i].insert(kernel_cache[i].end(), list.begin(), list.end());
@@ -504,10 +542,27 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         kernel_compute_rows.begin() + kernel_element_cache_input_idx +
             producible_elements);
 
-    for (i32 c = 0; c < num_output_columns; ++c) {
-      side_output_handles.push_back(current_handle);
-      side_output_columns.emplace_back();
-      side_row_ids.emplace_back();
+    {
+      // Get the output handles for only the columns that are used
+      std::vector<DeviceHandle> used_output_column_handles;
+      auto& unused_outputs = arg_group_.unused_outputs[k];
+      for (i32 c = 0; c < kernel_num_outputs_[k]; ++c) {
+        bool found = false;
+        for (int i = 0; i < unused_outputs.size(); ++i) {
+          if (c == unused_outputs[i]) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          used_output_column_handles.push_back(current_output_handles[c]);
+        }
+      }
+      for (i32 c = 0; c < num_output_columns; ++c) {
+        side_output_handles.push_back(used_output_column_handles[c]);
+        side_output_columns.emplace_back();
+        side_row_ids.emplace_back();
+      }
     }
 
     if (op_name == INPUT_OP_NAME) {
@@ -597,7 +652,6 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     } else {
       assert(!is_builtin_op(op_name));
       // If a regular kernel
-      DeviceHandle current_handle = kernel_devices_[k];
       std::unique_ptr<BaseKernel>& kernel = kernels_[k];
       i32 kernel_batch_size = arg_group_.kernel_batch_sizes[k];
       i64 row_start = kernel_element_cache_input_idx;
@@ -643,7 +697,6 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         }
 
         // Setup output buffers to receive op output
-        DeviceHandle output_handle = current_handle;
         BatchedColumns output_columns;
         output_columns.resize(num_output_columns);
 
@@ -660,7 +713,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
               unused_outputs[unused_outputs.size() - 1 - y];
           ElementList& column = output_columns[unused_col_idx];
           for (Element& element : column) {
-            delete_element(current_handle, element);
+            delete_element(current_output_handles[unused_col_idx], element);
           }
           output_columns.erase(output_columns.begin() + unused_col_idx);
         }
