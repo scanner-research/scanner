@@ -5,6 +5,11 @@ language: cpp
 services:
 - docker
 
+addons:
+  apt:
+    packages:
+      - docker-ce
+
 env:
   global:
     - DOCKER_REPO=scannerresearch/scanner
