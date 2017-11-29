@@ -41,7 +41,7 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         pipeline_instances = -1
     else:
         device = DeviceType.CPU
-        pipeline_instances = 8
+        pipeline_instances = 1
 
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
@@ -166,7 +166,7 @@ def detect_poses(db, input_frame_columns, sampling, output_name, batch=1,
         pipeline_instances = -1
     else:
         device = DeviceType.CPU
-        pipeline_instances = 8
+        pipeline_instances = 1
 
     frame = db.ops.FrameInput()
     poses_out = db.ops.OpenPose(

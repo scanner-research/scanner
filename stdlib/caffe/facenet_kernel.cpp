@@ -38,6 +38,9 @@ REGISTER_OP(Facenet)
     .frame_input("facenet_input")
     .frame_output("facenet_output");
 
-REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::CPU).num_devices(1);
+REGISTER_KERNEL(Facenet, FacenetKernel)
+    .device(DeviceType::CPU)
+    .num_devices(Kernel::UnlimitedDevices);
+
 REGISTER_KERNEL(Facenet, FacenetKernel).device(DeviceType::GPU).num_devices(1);
 }
