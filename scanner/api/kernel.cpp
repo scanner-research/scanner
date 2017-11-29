@@ -132,11 +132,14 @@ KernelRegistration::KernelRegistration(const KernelBuilder& builder) {
   const std::string& name = builder.name_;
   DeviceType type = builder.device_type_;
   i32 num_devices = builder.num_devices_;
+  auto& input_devices = builder.input_devices_;
+  auto& output_devices = builder.output_devices_;
   bool can_batch = builder.can_batch_;
   i32 preferred_batch = builder.preferred_batch_size_;
   KernelConstructor constructor = builder.constructor_;
   internal::KernelFactory* factory = new internal::KernelFactory(
-      name, type, num_devices, can_batch, preferred_batch, constructor);
+      name, type, num_devices, input_devices, output_devices, can_batch,
+      preferred_batch, constructor);
   internal::KernelRegistry* registry = internal::get_kernel_registry();
   registry->add_kernel(name, factory);
 }
