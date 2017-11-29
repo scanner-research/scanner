@@ -73,7 +73,6 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         sampled_output = facenet_output.sample()
         output = db.ops.Output(columns=[sampled_output])
 
-        print(output_sampling)
         jobs = []
         for i, frame_column in enumerate(input_frame_columns):
             job = Job(op_args={

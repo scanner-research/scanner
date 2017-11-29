@@ -4,7 +4,7 @@ import subprocess
 import cv2
 import sys
 import os.path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import util
 
 if len(sys.argv) <= 1:

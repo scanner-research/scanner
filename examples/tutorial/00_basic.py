@@ -1,5 +1,6 @@
 from scannerpy import Database, DeviceType, Job, BulkJob
 from scannerpy.stdlib import parsers
+
 import numpy as np
 import cv2
 import sys
