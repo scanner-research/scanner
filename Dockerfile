@@ -1,4 +1,5 @@
-FROM scannerresearch/scanner-base:ubuntu16.04
+ARG tag=gpu
+FROM scannerresearch/scanner-base:ubuntu16.04-${tag}
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
 ARG gpu=ON

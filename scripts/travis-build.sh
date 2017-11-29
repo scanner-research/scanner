@@ -15,12 +15,14 @@ build_docker() {
     # We add -local to make sure it doesn't run the remote image if the build fails.
     if [ "$1" = "cpu" ]
     then
-         docker build -t $DOCKER_REPO:$1-local . --build-arg gpu=OFF
-         docker run $DOCKER_REPO:$1-local /bin/bash \
-                -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
-         docker rm $(docker ps -a -f status=exited -q)
+        docker build -t $DOCKER_REPO:$1-local . \
+               --build-arg gpu=OFF --build-arg tag=cpu
+        docker run $DOCKER_REPO:$1-local /bin/bash \
+               -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
+        docker rm $(docker ps -a -f status=exited -q)
     else
-         docker build -t $DOCKER_REPO:$1-local . --build-arg gpu=ON
+        docker build -t $DOCKER_REPO:$1-local . \
+               --build-arg gpu=ON --build-arg tag=gpu
     fi
 
     if [ $PUSH -eq 0 ]; then
