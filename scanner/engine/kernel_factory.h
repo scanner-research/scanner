@@ -38,10 +38,14 @@ namespace internal {
 class KernelFactory {
  public:
   KernelFactory(const std::string& op_name, DeviceType type, i32 max_devices,
+                const std::map<std::string, DeviceType>& input_devices,
+                const std::map<std::string, DeviceType>& output_devices,
                 bool can_batch, i32 batch_size, KernelConstructor constructor)
     : op_name_(op_name),
       type_(type),
       max_devices_(max_devices),
+      input_devices_(input_devices),
+      output_devices_(output_devices),
       can_batch_(can_batch),
       preferred_batch_size_(batch_size),
       constructor_(constructor) {}
@@ -52,6 +56,14 @@ class KernelFactory {
   DeviceType get_device_type() const { return type_; }
 
   i32 get_max_devices() const { return max_devices_; }
+
+  const std::map<std::string, DeviceType>& get_input_devices() const {
+    return input_devices_;
+  }
+
+  const std::map<std::string, DeviceType>& get_output_devices() const {
+    return output_devices_;
+  }
 
   bool can_batch() const { return can_batch_; }
 
@@ -67,6 +79,8 @@ class KernelFactory {
   std::string op_name_;
   DeviceType type_;
   i32 max_devices_;
+  std::map<std::string, DeviceType> input_devices_;
+  std::map<std::string, DeviceType> output_devices_;
   bool can_batch_;
   i32 preferred_batch_size_;
   KernelConstructor constructor_;

@@ -424,6 +424,18 @@ class KernelBuilder {
     return *this;
   }
 
+  KernelBuilder& input_device(const std::string& input_name,
+                              DeviceType device_type) {
+    input_devices_[input_name] = device_type;
+    return *this;
+  }
+
+  KernelBuilder& output_device(const std::string& output_name,
+                               DeviceType device_type) {
+    output_devices_[output_name] = device_type;
+    return *this;
+  }
+
   KernelBuilder& batch(i32 preferred_batch_size = 1) {
     can_batch_ = true;
     preferred_batch_size = preferred_batch_size;
@@ -435,6 +447,8 @@ class KernelBuilder {
   KernelConstructor constructor_;
   DeviceType device_type_;
   i32 num_devices_;
+  std::map<std::string, DeviceType> input_devices_;
+  std::map<std::string, DeviceType> output_devices_;
   bool can_batch_;
   i32 preferred_batch_size_;
 };

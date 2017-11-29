@@ -9,7 +9,7 @@ class PoseNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
         args = protobufs.PoseNMSArgs()
-        args.ParseFromString(config)
+        args.ParseFromString(config.args)
         self.height = args.height
 
     def close(self):

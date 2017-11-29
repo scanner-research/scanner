@@ -24,6 +24,12 @@ class DeviceType(enum.Enum):
             raise ScannerException('Invalid device type')
 
 
+class DeviceHandle(object):
+    def __init__(self, device, device_id):
+        self.device = device
+        self.device_id = device_id
+
+
 class ColumnType(enum.Enum):
     """ Enum for specifying what the type of a column is. """
     Blob = 0
