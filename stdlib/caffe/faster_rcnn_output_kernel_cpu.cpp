@@ -110,5 +110,5 @@ REGISTER_OP(FasterRCNNOutput)
 
 REGISTER_KERNEL(FasterRCNNOutput, FasterRCNNOutputKernel)
     .device(DeviceType::CPU)
-    .num_devices(1);
+    .num_devices(Kernel::UnlimitedDevices);
 }

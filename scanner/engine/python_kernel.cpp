@@ -43,7 +43,6 @@ PythonKernel::PythonKernel(const KernelConfig& config,
         py::str((const char*)config.args.data(), config.args.size());
     main.attr("config_str") = py::str(pickled_config);
     py::object main_namespace = main.attr("__dict__");
-    // TODO(wcrichto): pass kernel config in as well (e.g. device info)
     py::exec(
         "import pickle\n"
         "from scannerpy import Config\n"
