@@ -79,9 +79,9 @@ The tutorials and examples are located in the
 [examples](https://github.com/scanner-research/scanner/tree/master/examples)
 directory. Some of the examples include:
 
-* [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/face_detection/detect.py)
-* [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/shot_detection/shot_detect.py)
-* [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/reverse_image_search/search.py)
+* [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection/)
+* [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/apps/shot_detection/)
+* [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/apps/reverse_image_search/)
 
 ## Documentation & How-To's
 
