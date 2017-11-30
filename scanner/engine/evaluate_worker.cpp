@@ -216,7 +216,6 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
         for (const auto& in_col : op_info->input_columns()) {
           const auto& col_name = in_col.name();
           DeviceType type = config.devices[0].type;
-          printf("input device name %s\n", col_name.c_str());
           if (input_devices.count(col_name)) {
             type = input_devices.at(col_name);
           }
