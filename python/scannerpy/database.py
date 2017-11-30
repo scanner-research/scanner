@@ -338,13 +338,14 @@ class Database(object):
         def heartbeat_task(q, master_address):
             import scanner.metadata_pb2 as metadata_types
             import scanner.engine.rpc_pb2 as rpc_types
+            import scanner.engine.rpc_pb2_grpc as grpc_types
             import scanner.types_pb2 as misc_types
             import libscanner as bindings
 
             channel = grpc.insecure_channel(
                 master_address,
                 options=[('grpc.max_message_length', 24499183 * 2)])
-            master = rpc_types.MasterStub(channel)
+            master = grpc_types.MasterStub(channel)
             while q.empty():
                 master.PokeWatchdog(rpc_types.Empty())
                 time.sleep(1)

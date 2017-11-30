@@ -11,8 +11,9 @@ class ProtobufGenerator:
 
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
+        import scanner.engine.rpc_pb2_grpc as rpc_grpc_types
         import scanner.types_pb2 as misc_types
-        for mod in [misc_types, rpc_types, metadata_types]:
+        for mod in [misc_types, rpc_types, rpc_grpc_types, metadata_types]:
             self.add_module(mod)
         self.add_module(
             '{}/build/stdlib/stdlib_pb2.py'.format(cfg.module_dir))
