@@ -74,15 +74,14 @@ def main(movie_path):
     movie_name = os.path.basename(movie_path)
 
     # Use GPU kernels if we have a GPU
-    if db.has_gpu():
-        device = DeviceType.GPU
-    else:
-        device = DeviceType.CPU
-
-    device = DeviceType.CPU
     with Database() as db:
         print('Loading movie into Scanner database...')
         s = time.time()
+
+        if db.has_gpu():
+            device = DeviceType.GPU
+        else:
+            device = DeviceType.CPU
 
         ############ ############ ############ ############
         # 0. Ingest the video into the database
