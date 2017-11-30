@@ -51,6 +51,11 @@ MasterImpl::~MasterImpl() {
   }
   finished_cv_.notify_all();
 
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    cq_.Shutdown();
+  }
+
   stop_job_processor();
 
   stop_worker_pinger();
@@ -58,7 +63,6 @@ MasterImpl::~MasterImpl() {
     watchdog_thread_.join();
   }
   delete storage_;
-  cq_.Shutdown();
 }
 
 // Expects context->peer() to return a string in the format
@@ -1003,8 +1007,10 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   auto check_worker_fn = [&]() {
     void* got_tag;
     bool ok = false;
-    GPR_ASSERT(cq_.Next(&got_tag, &ok));
-    // GPR_ASSERT((i64)got_tag < workers_.size());
+    auto status = (cq_.Next(&got_tag, &ok));
+    if (status == grpc::CompletionQueue::NextStatus::SHUTDOWN) {
+      return;
+    }
     assert(ok);
 
     i64 worker_id = (i64)got_tag;
