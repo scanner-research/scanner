@@ -407,7 +407,7 @@ class Database(object):
                 self._worker_conns = None
                 machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port, True).success
+                    self._db, self.config.master_port.encode('ascii'), True).success
                 assert res
                 res = self._connect_to_master()
                 assert res
@@ -417,7 +417,7 @@ class Database(object):
                 for i in range(len(self._worker_addresses)):
                     res = self._bindings.start_worker(
                         self._db, machine_params,
-                        str(int(self.config.worker_port) + i), True).success
+                        str(int(self.config.worker_port) + i).encode('ascii'), True).success
                     assert res
             else:
                 master_port = self._master_address.partition(':')[2]
@@ -587,7 +587,7 @@ class Database(object):
             self.protobufs.add_module(proto_path)
         self._try_rpc(lambda: self._master.RegisterOp(op_registration))
 
-    def register_python_kernel(self, op_name, device_type, kernel_path, 
+    def register_python_kernel(self, op_name, device_type, kernel_path,
                                batch=1):
         with open(kernel_path, 'r') as f:
             kernel_str = f.read()
