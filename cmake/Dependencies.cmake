@@ -34,7 +34,7 @@ endif()
 
 ###### Required Dependencies #######
 find_package(SaneProtobuf REQUIRED)
-#find_package(GRPC REQUIRED)
+find_package(GRPC REQUIRED)
 find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -61,10 +61,8 @@ set(GTEST_LIB_MAIN ${GOOGLETEST_MAIN})
 set(SCANNER_LIBRARIES
   "${PROTOBUF_LIBRARY}"
   "-L/h/apoms/repos/scanner/thirdparty/install/lib"
-  "-lgrpc++_unsecure -lgrpc -lgpr"
+  "${GRPC_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
-  "-L/opt/ffmpeg-3.3.1/lib"
-  "-lswscale"
   "${LIBLZMA_LIBRARIES}"
   "${BZIP2_LIBRARIES}"
   "${GFLAGS_LIBRARIES}"
@@ -89,6 +87,7 @@ include_directories(
   "."
   "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files
   "${PROTOBUF_INCLUDE_DIRS}"
+  "${GRPC_INCLUDE_DIRS}"
   "${FFMPEG_INCLUDE_DIR}"
   "${TINYTOML_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"

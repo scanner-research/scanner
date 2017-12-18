@@ -81,7 +81,8 @@ mkdir -p $INSTALL_PREFIX
 if [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
     while true; do
-        echo -n "Do you have boost>=1.63.0 installed? [y/N]: "
+        echo "Do you have boost>=1.63.0 installed with the modules: "
+        echo "thread, program_options, regex, python, numpy? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_BOOST=false
@@ -370,6 +371,7 @@ if [[ $INSTALL_CAFFE_CPU == true ]]; then
               .. && \
         make -j${cores} && \
         make install && \
+        cd .. && \
         cp -r external/mkl/mklml_lnx_2018.0.20170908/* $INSTALL_PREFIX && \
         cp -r external/mkldnn/install/* $INSTALL_PREFIX && \
         touch $BUILD_DIR/caffe.done \
@@ -430,3 +432,6 @@ echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
 echo "TINYTOML_DIR=$TINYTOML_DIR" >> $DEP_FILE
 
 echo "Done installing required dependencies!"
+echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH so the installed "
+echo "depenedencies can be found!"
+echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH"
