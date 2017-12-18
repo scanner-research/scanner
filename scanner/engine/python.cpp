@@ -61,7 +61,8 @@ std::string default_machine_params_wrapper() {
   return output;
 }
 
-proto::Result start_master_wrapper(Database& db, const std::string& port, bool watchdog) {
+proto::Result start_master_wrapper(Database& db, const std::string& port,
+                                   bool watchdog) {
   GILRelease r;
   return db.start_master(default_machine_params(), port, watchdog);
 }

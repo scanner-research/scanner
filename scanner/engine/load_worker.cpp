@@ -336,9 +336,9 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
 
   // Read the bytes from the file that correspond to the sequences of
   // frames we are interested in decoding. This sequence will contain
-  // the bytes starting at the iframe at or preceding the first frame
+  // the bytes starting at the first iframe at or preceding the first frame
   // we are interested and will continue up to the bytes before the
-  // iframe at or after the last frame we are interested in.
+  // first iframe at or after the last frame we are interested in.
   VideoIntervals intervals =
       slice_into_video_intervals(keyframe_positions, rows);
   size_t num_intervals = intervals.keyframe_index_intervals.size();

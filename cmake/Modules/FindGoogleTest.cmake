@@ -33,6 +33,11 @@ find_library(GOOGLETEST_LIBRARY gtest
   ${GOOGLETEST_ROOT_DIR}/lib
   ${CMAKE_SOURCE_DIR}/thirdparty/build/bin/googletest/lib)
 
+find_library(GOOGLETEST_MAIN gtest_main
+  PATHS
+  ${GOOGLETEST_ROOT_DIR}/lib
+  ${CMAKE_SOURCE_DIR}/thirdparty/build/bin/googletest/lib)
+
 find_package_handle_standard_args(GOOGLETEST DEFAULT_MSG
     GOOGLETEST_INCLUDE_DIR GOOGLETEST_LIBRARY)
 
