@@ -1,0 +1,44 @@
+# Scanner base image for Ubuntu 16.04
+
+FROM nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04
+MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
+ARG cores=1
+ARG cpu_only=OFF
+
+ADD . /opt/scanner
+
+# Apt-installable dependencies
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    add-apt-repository -y ppa:jonathonf/python-2.7 && \
+    apt-get update && \
+    apt-get install -y libssl-dev libcurl3-dev liblzma-dev libeigen3-dev  \
+    libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libgflags-dev \
+    libx264-dev libopenjpeg-dev libxvidcore-dev \
+    libpng-dev libjpeg-dev libbz2-dev git python-pip wget \
+    libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
+    llvm clang python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
+    liblapacke-dev swig yasm python2.7 cpio
+ADD thirdparty/cuda/libnvcuvid.so.367.48 /usr/lib/x86_64-linux-gnu/libnvcuvid.so
+RUN ln -s /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so \
+       /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so.1
+ENV CUDA_LIB_PATH /usr/local/cuda/lib64/stubs
+
+# Non-apt-installable dependencies
+ENV deps /deps
+RUN mkdir ${deps}
+WORKDIR ${deps}
+
+# CMake
+RUN wget "https://cmake.org/files/v3.8/cmake-3.8.1.tar.gz" && \
+    tar -xf cmake-3.8.1.tar.gz && cd ${deps}/cmake-3.8.1 && \
+    ./bootstrap --parallel=${cores} && \
+    make install -j${cores} && \
+    rm -rf ${deps}/cmake-3.8.1.tar.gz ${deps}/cmake-3.8.1
+
+# Python dependencies
+ADD requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+WORKDIR /
