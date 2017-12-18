@@ -1,0 +1,14 @@
+# Scanner base CPU image for Ubuntu 16.04
+
+ARG base_tag
+FROM ${base_tag}
+MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
+ARG cores=1
+
+WORKDIR /opt/scanner
+RUN bash deps.sh --install-all --prefix=/usr/local
+
+ENV PYTHONPATH /usr/local/python:${PYTHONPATH}
+ENV PYTHONPATH /usr/local/lib/python2.7/site-packages:${PYTHONPATH}
+
+WORKDIR /

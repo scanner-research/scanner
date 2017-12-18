@@ -16,9 +16,10 @@ INSTALL_FFMPEG=true
 INSTALL_OPENCV=true
 INSTALL_PROTOBUF=true
 INSTALL_GRPC=true
-INSTALL_CAFFE_CPU=false
-INSTALL_CAFFE_GPU=true
+INSTALL_CAFFE=false
 INSTALL_HALIDE=true
+
+USE_GPU=false
 
 # Assume not installed
 INSTALL_TINYTOML=true
@@ -33,6 +34,10 @@ do
 key="$1"
 
 case $key in
+    -g|--use-gpu)
+    USE_GPU=true
+    shift # past arg
+    ;;
     -p|--prefix)
     INSTALL_PREFIX="$2"
     shift # past arg
@@ -82,7 +87,7 @@ if [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
     while true; do
         echo "Do you have boost>=1.63.0 installed with the modules: "
-        echo "thread, program_options, regex, python, numpy? [y/N]: "
+        echo -n "thread, program_options, regex, python, numpy? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_BOOST=false
@@ -193,8 +198,7 @@ if [[ $INSTALL_ALL == false ]]; then
         echo -n "Do you have caffe>=rc5 or intel-caffe>=1.0.6 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
-            INSTALL_CAFFE_CPU=false
-            INSTALL_CAFFE_GPU=false
+            INSTALL_CAFFE=false
             echo -n "Where is your caffe install? [/usr/local]: "
             read install_location
             if [[ $install_location == "" ]]; then
@@ -204,15 +208,14 @@ if [[ $INSTALL_ALL == false ]]; then
             fi
             break
         else
+            INSTALL_CAFFE=true
             echo -n "Do you plan to use GPUs for CNN evaluation? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
-                INSTALL_CAFFE_GPU=true
-                INSTALL_CAFFE_CPU=false
+                USE_GPU=true
                 break
             else
-                INSTALL_CAFFE_GPU=false
-                INSTALL_CAFFE_CPU=true
+                USE_GPU=false
                 break
             fi
         fi
@@ -353,7 +356,7 @@ git clone https://github.com/google/googletest && \
         || { echo 'Installing googletest failed!' ; exit 1; }
 echo "Done installing googletest"
 
-if [[ $INSTALL_CAFFE_CPU == true ]]; then
+if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]]; then
     # Intel Caffe 1.0.6
     cd $BUILD_DIR
     rm -fr caffe
@@ -378,7 +381,7 @@ if [[ $INSTALL_CAFFE_CPU == true ]]; then
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_CAFFE_GPU == true ]]; then
+if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]]; then
     cd $BUILD_DIR
     # Intel MKL
     rm -fr mkl
