@@ -152,7 +152,7 @@ function(PROTOBUF_GENERATE_CPP SRCS HDRS USE_GRPC)
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}.grpc.pb.cc"
         "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}.grpc.pb.h"
         COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE}
-        ARGS --plugin=protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin --grpc_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path} ${ABS_FIL}
+        ARGS --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN} --grpc_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path} ${ABS_FIL}
         DEPENDS ${ABS_FIL} ${PROTOBUF_PROTOC_EXECUTABLE}
         COMMENT "Running C++ protocol buffer compiler on ${FIL}"
         VERBATIM)
@@ -218,7 +218,7 @@ function(PROTOBUF_GENERATE_PYTHON SRCS USE_GRPC)
         "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py")
       add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${DIR_FIL}/${FIL_WE}_pb2.py"
-        COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE} --python_out ${CMAKE_CURRENT_BINARY_DIR} --plugin=protoc-gen-grpc_python=/usr/local/bin/grpc_python_plugin --grpc_python_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path}  ${ABS_FIL}
+        COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE} --python_out ${CMAKE_CURRENT_BINARY_DIR} --plugin=protoc-gen-grpc_python=${GRPC_PYTHON_PLUGIN} --grpc_python_out ${CMAKE_CURRENT_BINARY_DIR} ${_protobuf_include_path}  ${ABS_FIL}
         DEPENDS ${ABS_FIL} ${PROTOBUF_PROTOC_EXECUTABLE}
         COMMENT "Running Python protocol buffer compiler on ${FIL}"
         VERBATIM )
@@ -334,6 +334,23 @@ find_program(PROTOBUF_PROTOC_EXECUTABLE
 )
 mark_as_advanced(PROTOBUF_PROTOC_EXECUTABLE)
 
+find_program(GRPC_PYTHON_PLUGIN
+    NAMES grpc_python_plugin
+    DOC ""
+    PATHS
+    ${PROTOBUF_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Release
+    ${PROTOBUF_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Debug
+)
+mark_as_advanced(GRPC_PYTHON_PLUGIN)
+
+find_program(GRPC_CPP_PLUGIN
+    NAMES grpc_cpp_plugin
+    DOC ""
+    PATHS
+    ${PROTOBUF_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Release
+    ${PROTOBUF_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Debug
+)
+mark_as_advanced(GRPC_CPP_PLUGIN)
 
 include(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(Protobuf DEFAULT_MSG

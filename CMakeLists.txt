@@ -19,7 +19,6 @@ project(Scanner)
 ###### Config options #####
 option(BUILD_CUDA "" ON)
 option(BUILD_TESTS "" ON)
-option(BUILD_SERVER "" OFF)
 option(ENABLE_PROFILING "" OFF)
 
 if (BUILD_TESTS)
@@ -65,115 +64,7 @@ if (ENABLE_PROFILING)
   add_definitions(-DSCANNER_PROFILING)
 endif()
 
-###### Optional Dependencies #######
-if (BUILD_CUDA)
-  find_package(CUDA REQUIRED)
-  add_definitions(-DHAVE_CUDA)
-  include_directories(${CUDA_INCLUDE_DIRS})
-  if(COMPILER_SUPPORTS_CXX1Y)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
-  endif()
-endif()
-
-if (BUILD_CUDA)
-  add_library(scanner_halide scanner/util/halide_context.cpp)
-endif()
-
-set(OPENCV_DESIRED_COMPONENTS core highgui imgproc)
-if (BUILD_CUDA)
-  list(APPEND OPENCV_DESIRED_COMPONENTS cudaimgproc cudaarithm)
-endif()
-
-###### Required Dependencies #######
-find_package(SaneProtobuf REQUIRED)
-find_package(FFmpeg REQUIRED)
-find_package(LibLZMA REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
-find_package(GFlags REQUIRED)
-find_package(Glog REQUIRED)
-find_package(GoogleTest REQUIRED)
-find_package(CURL REQUIRED)
-find_package(Iconv REQUIRED)
-find_package(Storehouse REQUIRED CONFIG
-  PATHS "thirdparty/build/bin/storehouse")
-find_package(TinyToml REQUIRED)
-find_package(PythonLibs 2.7 EXACT REQUIRED)
-find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-find_package(OpenMP REQUIRED)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-
-set(GTEST_INCLUDE_DIRS
-  "${THIRDPARTY_OUTPUT_PATH}/googletest/include")
-set(GTEST_LIBRARIES
-  "${THIRDPARTY_OUTPUT_PATH}/googletest/lib/libgtest.a")
-set(GTEST_LIB_MAIN
-  "${THIRDPARTY_OUTPUT_PATH}/googletest/lib/libgtest_main.a")
-
-message("${Boost_LIBRARIES}")
-set(SCANNER_LIBRARIES
-  "${PROTOBUF_LIBRARY}"
-  "${FFMPEG_LIBRARIES}"
-  "-L/opt/ffmpeg-3.3.1/lib"
-  "-lswscale"
-  "${LIBLZMA_LIBRARIES}"
-  "${OPENSSL_LIBRARIES}"
-  "${BZIP2_LIBRARIES}"
-  "${PROXYGEN_LIBRARIES}"
-  "${FOLLY_LIBRARIES}"
-  "${GFLAGS_LIBRARIES}"
-  "${GLOG_LIBRARIES}"
-  "${CURL_LIBRARIES}"
-  "${ICONV_LIBRARIES}"
-  "${SCANNER_LIBRARIES}"
-  "-lpython2.7"
-  "${Boost_LIBRARIES}"
-  "${Boost_LIBRARY_DIRS}/libboost_python.so"
-  "${Boost_LIBRARY_DIRS}/libboost_numpy.so"
-  "${STOREHOUSE_LIBRARIES}"
-  "-ljpeg"
-  "-lz"
-  "-ldl"
-  "-lgrpc++_unsecure -lgrpc -lgpr")
-
-include_directories(
-  "."
-  "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files
-  "${PROTOBUF_INCLUDE_DIRS}"
-  "${FFMPEG_INCLUDE_DIR}"
-  "${TINYTOML_INCLUDE_DIR}"
-  "${STOREHOUSE_INCLUDE_DIRS}"
-  "${OPENSSL_INCLUDE_DIR}"
-  "${GLOG_INCLUDE_DIRS}"
-  "${LIBLZMA_INCLUDE_DIRS}"
-  "${PYTHON_INCLUDE_DIRS}"
-  "${Boost_INCLUDE_DIRS}")
-
-if (OpenCV_FOUND)
-  list(APPEND SCANNER_LIBRARIES ${OpenCV_LIBRARIES})
-  include_directories(${OpenCV_INCLUDE_DIRS})
-  add_definitions(-DHAVE_OPENCV)
-endif()
-
-if (BUILD_TESTS)
-  include_directories("${GTEST_INCLUDE_DIRS}")
-endif()
-
-if (BUILD_CUDA)
-  list(APPEND SCANNER_LIBRARIES
-    util_cuda
-    "${CUDA_LIBRARIES}"
-    "/usr/lib/x86_64-linux-gnu/libnvcuvid.so"
-    "-lcuda")
-endif()
-
-if (APPLE)
-  include_directories(
-    "/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Versions/Current/Headers/")
-elseif()
-endif()
+include(cmake/Dependencies.cmake)
 
 ###### Project code #######
 set(PROTO_FILES
