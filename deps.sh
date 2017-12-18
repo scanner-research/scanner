@@ -70,10 +70,10 @@ HALIDE_DIR=$INSTALL_PREFIX
 STOREHOUSE_DIR=$INSTALL_PREFIX
 TINYTOML_DIR=$INSTALL_PREFIX
 
-C_INCLUDE_PATH=$INSTALL_PREFIX/include:$C_INCLUDE_PATH
-LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
-PATH=$INSTALL_PREFIX/bin:$PATH
-PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig:$PGK_CONFIG_PATH
+export C_INCLUDE_PATH=$INSTALL_PREFIX/include:$C_INCLUDE_PATH
+export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
+export PATH=$INSTALL_PREFIX/bin:$PATH
+export PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig:$PGK_CONFIG_PATH
 
 mkdir -p $BUILD_DIR
 mkdir -p $INSTALL_PREFIX
@@ -289,8 +289,10 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
     rm -fr grpc
     git clone -b v1.7.2 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
-        make LDFLAGS=-L$INSTALL_PREFIX/lib -j$cores && \
-        make install LDFLAGS=-L$INSTALL_PREFIX/lib prefix=$INSTALL_PREFIX && \
+        make EXTRA_CFLAGS=-I$INSTALL_PREFIX/include \
+             EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib -j$cores && \
+        make install EXTRA_CFLAGS=-I$INSTALL_PREFIX/include \
+             EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib prefix=$INSTALL_PREFIX && \
         touch $BUILD_DIR/grpc.done \
             || { echo 'Installing gRPC failed!' ; exit 1; }
     echo "Done installing gRPC 1.7.2"
