@@ -1,11 +1,13 @@
 # FindHalide.cmake
 # ... shamelessly based on FindJeMalloc.cmake
 
-
 set(HALIDE_ROOT_DIR "" CACHE PATH "Folder contains Halide")
 
 if (NOT "$ENV{Halide_DIR}" STREQUAL "")
   set(HALIDE_ROOT_DIR $ENV{Halide_DIR} CACHE PATH "Folder contains Halide"
+    FORCE)
+elseif (Halide_DIR)
+  set(HALIDE_ROOT_DIR ${Halide_DIR} CACHE PATH "Folder contains Halide"
     FORCE)
 endif()
 
