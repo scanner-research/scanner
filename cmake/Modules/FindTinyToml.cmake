@@ -12,7 +12,11 @@ include(FindPackageHandleStandardArgs)
 set(TINYTOML_ROOT_DIR "" CACHE PATH "Folder contains TinyToml")
 
 if (NOT "$ENV{TinyToml_DIR}" STREQUAL "")
-  set(TINYTOML_ROOT_DIR $ENV{TinyToml_DIR})
+  set(TINYTOML_ROOT_DIR $ENV{TinyToml_DIR} CACHE PATH "Folder contains TinyToml"
+    FORCE)
+elseif(TinyToml_DIR)
+  set(TINYTOML_ROOT_DIR TinyToml_DIR CACHE PATH "Folder contains TinyToml"
+    FORCE)
 endif()
 
 # We are testing only a couple of files in the include directories

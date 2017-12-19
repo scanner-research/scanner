@@ -432,9 +432,9 @@ echo "GRPC_DIR=$GRPC_DIR" >> $DEP_FILE
 echo "CAFFE_DIR=$CAFFE_DIR" >> $DEP_FILE
 echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
 echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
-echo "TINYTOML_DIR=$TINYTOML_DIR" >> $DEP_FILE
+echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
 
 echo "Done installing required dependencies!"
 echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH so the installed "
 echo "depenedencies can be found!"
-echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH"
+echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"
