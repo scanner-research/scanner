@@ -46,7 +46,7 @@ find_package(GoogleTest REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
-  PATHS "${CMAKE_SOURCE_DIR}/thirdparty/build/bin/storehouse")
+  PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install")
 find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
 find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
@@ -60,7 +60,6 @@ set(GTEST_LIB_MAIN ${GOOGLETEST_MAIN})
 
 set(SCANNER_LIBRARIES
   "${PROTOBUF_LIBRARY}"
-  "-L/h/apoms/repos/scanner/thirdparty/install/lib"
   "${GRPC_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
   "${LIBLZMA_LIBRARIES}"
