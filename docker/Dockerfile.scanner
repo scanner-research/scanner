@@ -6,11 +6,12 @@ ARG gpu=ON
 
 ADD . /opt/scanner
 WORKDIR /opt/scanner
+ENV Caffe_DIR /usr/local
 RUN cd /opt/scanner && \
     mkdir build && cd build && \
     cmake -D BUILD_IMGPROC_OPS=ON \
           -D BUILD_CAFFE_OPS=ON \
-          -D BUILD_OPENFACE_OPS=ON \
+          -D BUILD_OPENFACE_OPS=OFF \
           -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
           .. && \
