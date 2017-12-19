@@ -6,10 +6,7 @@ ARG gpu=ON
 
 ADD . /opt/scanner
 WORKDIR /opt/scanner
-RUN bash deps.sh cd thirdparty && mkdir build && cd build && \
-    cmake -D CMAKE_BUILD_TYPE=Release .. && \
-    make -j ${cores} && \
-    cd /opt/scanner && \
+RUN cd /opt/scanner && \
     mkdir build && cd build && \
     cmake -D BUILD_IMGPROC_OPS=ON \
           -D BUILD_CAFFE_OPS=ON \
