@@ -228,7 +228,7 @@ if [[ $INSTALL_BOOST == true ]] && [[ ! -f $BUILD_DIR/boost.done ]] ; then
     rm -fr boost*
     wget "https://dl.bintray.com/boostorg/release/1.63.0/source/boost_1_63_0.tar.gz" && \
         tar -xf boost_1_63_0.tar.gz && cd boost_1_63_0 && ./bootstrap.sh && \
-        ./b2 install --prefix=$INSTALL_PREFIX && \
+        ./b2 install --prefix=$INSTALL_PREFIX -j${cores} && \
         rm -rf $BUILD_DIR/boost_1_63_0.tar.gz && touch $BUILD_DIR/boost.done \
             || { echo 'Installing boost failed!' ; exit 1; }
     echo "Done installing boost 1.63.0"
