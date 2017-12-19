@@ -4,6 +4,7 @@ NO_CACHE=false
 CORES=16
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCANNER_DIR=$DIR/..
 
 for dir in $DIR/*/
 do
@@ -14,14 +15,14 @@ do
     base_tag=scannerresearch/scanner-base:$base
     docker build --build-arg cores=$CORES \
            --no-cache=$NO_CACHE -t $base_tag \
-           -f $dir/Dockerfile.base $dir
+           -f $dir/Dockerfile.base $SCANNER_DIR
 
     tag=scannerresearch/scanner-base:$base-gpu
     docker build \
            --build-arg base_tag=$base_tag \
            --build-arg cores=$CORES \
            --no-cache=$NO_CACHE -t $tag \
-           -f $dir/Dockerfile.gpu $dir
+           -f $dir/Dockerfile.gpu $SCANNER_DIR
     docker push $tag
 
     tag=scannerresearch/scanner-base:$base-cpu
@@ -30,6 +31,6 @@ do
            --build-arg cores=$CORES \
            --build-arg cpu_only=ON \
            --no-cache=$NO_CACHE -t $tag \
-           -f $dir/Dockerfile.cpu $dir
+           -f $dir/Dockerfile.cpu $SCANNER_DIR
     docker push $tag
 done
