@@ -15,7 +15,7 @@ if (NOT "$ENV{TinyToml_DIR}" STREQUAL "")
   set(TINYTOML_ROOT_DIR $ENV{TinyToml_DIR} CACHE PATH "Folder contains TinyToml"
     FORCE)
 elseif(TinyToml_DIR)
-  set(TINYTOML_ROOT_DIR TinyToml_DIR CACHE PATH "Folder contains TinyToml"
+  set(TINYTOML_ROOT_DIR ${TinyToml_DIR} CACHE PATH "Folder contains TinyToml"
     FORCE)
 endif()
 
