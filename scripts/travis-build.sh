@@ -16,10 +16,10 @@ build_docker() {
     if [ "$1" = "cpu" ]
     then
         docker build -t $DOCKER_REPO:$1-local . \
-               --build-arg gpu=OFF --build-arg tag=cpu
-        docker run $DOCKER_REPO:$1-local /bin/bash \
-               -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test" \
+               --build-arg gpu=OFF --build-arg tag=cpu \
                -f docker/Dockerfile.scanner
+        docker run $DOCKER_REPO:$1-local /bin/bash \
+               -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
         docker rm $(docker ps -a -f status=exited -q)
     else
         docker build -t $DOCKER_REPO:$1-local . \
