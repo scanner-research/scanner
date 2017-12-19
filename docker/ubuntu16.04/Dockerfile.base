@@ -5,8 +5,6 @@ MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
 ARG cpu_only=OFF
 
-ADD . /opt/scanner
-
 # Apt-installable dependencies
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y software-properties-common && \
@@ -19,7 +17,7 @@ RUN apt-get update && apt-get upgrade -y && \
     libpng-dev libjpeg-dev libbz2-dev git python-pip wget \
     libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
     llvm clang python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
-    liblapacke-dev swig yasm python2.7 cpio
+    liblapacke-dev swig yasm python2.7 cpio curl unzip
 ADD thirdparty/cuda/libnvcuvid.so.367.48 /usr/lib/x86_64-linux-gnu/libnvcuvid.so
 RUN ln -s /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so \
        /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so.1
@@ -40,5 +38,7 @@ RUN wget "https://cmake.org/files/v3.8/cmake-3.8.1.tar.gz" && \
 # Python dependencies
 ADD requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
+
+ADD . /opt/scanner
 
 WORKDIR /
