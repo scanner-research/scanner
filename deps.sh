@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cores=8
+cores=$(nproc)
 
 LOCAL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 BUILD_DIR=$LOCAL_DIR/thirdparty/build
@@ -34,6 +34,10 @@ do
 key="$1"
 
 case $key in
+    -c|--cores)
+    cores="$2"
+    shift # past arg
+    shift # past value
     -g|--use-gpu)
     USE_GPU=true
     shift # past arg
@@ -293,9 +297,9 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
     rm -fr grpc
     git clone -b v1.7.2 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
-        make EXTRA_CFLAGS=-I$INSTALL_PREFIX/include \
+        make EXTRA_CPPFLAGS=-I$INSTALL_PREFIX/include \
              EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib -j$cores && \
-        make install EXTRA_CFLAGS=-I$INSTALL_PREFIX/include \
+        make install EXTRA_CPPFLAGS=-I$INSTALL_PREFIX/include \
              EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib prefix=$INSTALL_PREFIX && \
         touch $BUILD_DIR/grpc.done \
             || { echo 'Installing gRPC failed!' ; exit 1; }
