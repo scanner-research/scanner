@@ -38,6 +38,7 @@ case $key in
     cores="$2"
     shift # past arg
     shift # past value
+    ;;
     -g|--use-gpu)
     USE_GPU=true
     shift # past arg
