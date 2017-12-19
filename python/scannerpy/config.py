@@ -14,9 +14,12 @@ def read_line(s):
 
 class Config(object):
     def __init__(self, config_path=None, db_path=None):
-        log.basicConfig(
-            level=log.DEBUG,
-            format='%(levelname)s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
+        log.setLevel(logging.DEBUG)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
+        handler.setFormatter(formatter)
+        log.addHandler(handler)
+
         self.config_path = config_path or self.default_config_path()
 
         if not os.path.isfile(self.config_path):

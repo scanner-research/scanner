@@ -1,9 +1,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
-import logging as log
+import logging
 import numpy as np
 import enum
 from collections import defaultdict
 
+log = logging.getLogger('scanner')
 
 class ScannerException(Exception):
     pass
