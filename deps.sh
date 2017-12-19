@@ -406,6 +406,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]]; then
         cd caffe && cp $FILES_DIR/caffe/Makefile.config Makefile.config && \
         mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
+              -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX \
               -DINTEL_ROOT=$INSTALL_PREFIX/intel \
               -DBLAS=mkl \
               -DCUDA_ARCH_NAME="Manual" \
