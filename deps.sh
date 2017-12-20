@@ -1,5 +1,29 @@
 #!/bin/bash
 
+# test required libraries
+libs=(libssl-dev libcurl3-dev liblzma-dev libeigen3-dev  \
+    libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libgflags-dev \
+    libx264-dev libopenjpeg-dev libxvidcore-dev \
+    libpng-dev libjpeg-dev libbz2-dev git python-pip wget \
+    libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
+    llvm clang python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
+    liblapacke-dev swig yasm python2.7 cpio cmake zip)
+
+for lib in "${libs[@]}"
+do
+    dpkg-query -l $lib &> /dev/null
+    if [[ $? != 0 ]]; then
+        echo "$lib is not installed. abort"
+        exit 1
+    fi
+done
+
+# test if numpy in default python path
+if ! python -c "import numpy" &> /dev/null; then
+    echo "numpy not found in $(which python). abort"
+    exit 1
+fi
+
 cores=$(nproc)
 
 LOCAL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -232,20 +256,20 @@ if [[ $INSTALL_BOOST == true ]] && [[ ! -f $BUILD_DIR/boost.done ]] ; then
     cd $BUILD_DIR
     rm -fr boost*
     wget "https://dl.bintray.com/boostorg/release/1.63.0/source/boost_1_63_0.tar.gz" && \
-        tar -xf boost_1_63_0.tar.gz && cd boost_1_63_0 && ./bootstrap.sh && \
+    tar -xf boost_1_63_0.tar.gz && cd boost_1_63_0 && \
+        ./bootstrap.sh --with-libraries=program_options,filesystem,python,thread,regex && \
         ./b2 install --prefix=$INSTALL_PREFIX -j${cores} && \
         rm -rf $BUILD_DIR/boost_1_63_0.tar.gz && touch $BUILD_DIR/boost.done \
             || { echo 'Installing boost failed!' ; exit 1; }
     echo "Done installing boost 1.63.0"
 fi
 
-
 if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
     echo "Installing ffmpeg 3.3.1..."
     # FFMPEG
     cd $BUILD_DIR
     rm -fr ffmpeg
-    git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
+    git clone -b n3.3.1 --depth 1 https://github.com/FFmpeg/FFmpeg ffmpeg && cd ffmpeg && \
     ./configure --prefix=$INSTALL_PREFIX --extra-version=0ubuntu0.16.04.1 \
                 --toolchain=hardened --cc=cc --cxx=g++ --enable-gpl \
                 --enable-shared --disable-stripping \
@@ -261,13 +285,13 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
     echo "Installing OpenCV 3.2.0..."
     cd $BUILD_DIR
     rm -rf opencv opencv_contrib ceres-solver
-    git clone -b 3.2.0 https://github.com/opencv/opencv && \
-        git clone -b 3.2.0  https://github.com/opencv/opencv_contrib && \
-        git clone -b 1.12.0 https://github.com/ceres-solver/ceres-solver && \
-        cd ceres-solver && mkdir build && cd build && \
+    git clone -b 3.2.0 --depth 1 https://github.com/opencv/opencv && \
+        git clone -b 3.2.0  --depth 1 https://github.com/opencv/opencv_contrib && \
+        git clone -b 1.12.0 --depth 1 https://github.com/ceres-solver/ceres-solver && \
+        cd ceres-solver && mkdir -p build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
         make install -j$cores && \
-        mkdir $BUILD_DIR/opencv/build && cd $BUILD_DIR/opencv/build && \
+        mkdir -p $BUILD_DIR/opencv/build && cd $BUILD_DIR/opencv/build && \
         cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
               -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF -D ENABLE_FAST_MATH=1 \
               -D CUDA_FAST_MATH=1 -D WITH_CUBLAS=1 -D WITH_NVCUVID=1 \
@@ -284,7 +308,7 @@ if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
     echo "Installing protobuf 3.4.1..."
     cd $BUILD_DIR
     rm -fr protobuf
-    git clone -b v3.4.1 https://github.com/google/protobuf.git && \
+    git clone -b v3.4.1 --depth 1 https://github.com/google/protobuf.git && \
         cd protobuf && bash ./autogen.sh && \
         ./configure --prefix=$INSTALL_PREFIX && make -j$cores && \
         make install && touch $BUILD_DIR/protobuf.done \
@@ -297,7 +321,7 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
     echo "Installing gRPC 1.7.2..."
     cd $BUILD_DIR
     rm -fr grpc
-    git clone -b v1.7.2 https://github.com/grpc/grpc && \
+    git clone -b v1.7.2 --depth 1 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
         make EXTRA_CPPFLAGS=-I$INSTALL_PREFIX/include \
              EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib -j$cores && \
@@ -314,7 +338,7 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
     echo "Installing Halide..."
     cd $BUILD_DIR
     rm -fr Halide
-    git clone -b release_2016_10_25 https://github.com/halide/Halide && \
+    git clone -b release_2016_10_25 --depth 1 https://github.com/halide/Halide && \
         cd Halide && \
         make distrib -j$cores && \
         cp -r distrib/* $INSTALL_PREFIX && \
@@ -340,7 +364,7 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
     echo "Done installing storehouse"
 fi
 
-if [[ $INSTALL_TINYTOML == true ]]; then
+if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
     echo "Installing tinytoml..."
     cd $BUILD_DIR
     rm -fr tinytoml
@@ -352,23 +376,25 @@ if [[ $INSTALL_TINYTOML == true ]]; then
     echo "Done installing tinytoml"
 fi
 
-echo "Installing googletest..."
-cd $BUILD_DIR
-rm -fr googletest
-git clone https://github.com/google/googletest && \
-    cd googletest && mkdir build && cd build && \
-    cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
-    make -j${cores} && make install && \
-    touch $BUILD_DIR/googletest.done \
-        || { echo 'Installing googletest failed!' ; exit 1; }
-echo "Done installing googletest"
+if [[ ! -f $BUILD_DIR/googletest.done ]]; then
+    echo "Installing googletest..."
+    cd $BUILD_DIR
+    rm -fr googletest
+    git clone https://github.com/google/googletest && \
+        cd googletest && mkdir build && cd build && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
+        make -j${cores} && make install && \
+        touch $BUILD_DIR/googletest.done \
+            || { echo 'Installing googletest failed!' ; exit 1; }
+    echo "Done installing googletest"
+fi
 
 if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]]; then
     # Intel Caffe 1.0.6
     cd $BUILD_DIR
     rm -fr caffe
     # Use more recent mkldnn commit to fix gcc bug
-    git clone -b 1.0.6 https://github.com/intel/caffe && \
+    git clone -b 1.0.6 --depth 1 https://github.com/intel/caffe && \
         cd caffe && \
         cp $FILES_DIR/caffe/Makefile.config Makefile.config && \
         rm mkldnn.commit && \
@@ -404,7 +430,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]]; then
     cd $BUILD_DIR
     # Caffe rc5
     rm -fr caffe
-    git clone -b rc5 https://github.com/BVLC/caffe && \
+    git clone -b rc5 --depth 1 https://github.com/BVLC/caffe && \
         cd caffe && cp $FILES_DIR/caffe/Makefile.config Makefile.config && \
         mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
