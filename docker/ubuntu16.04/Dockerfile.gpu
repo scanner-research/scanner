@@ -5,14 +5,11 @@ FROM ${base_tag}
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
 
-WORKDIR ${deps}
-
 WORKDIR /opt/scanner
 RUN bash ./deps.sh --install-all --prefix /usr/local --use-gpu
 
 ENV LD_LIBRARY_PATH /usr/local/intel/mkl/lib:${LD_LIBRARY_PATH}
 ENV PYTHONPATH /usr/local/python:${PYTHONPATH}
 ENV PYTHONPATH /usr/local/lib/python2.7/site-packages:${PYTHONPATH}
-
 
 WORKDIR /
