@@ -302,6 +302,7 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
              EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib -j$cores && \
         make install EXTRA_CPPFLAGS=-I$INSTALL_PREFIX/include \
              EXTRA_LDFLAGS=-L$INSTALL_PREFIX/lib prefix=$INSTALL_PREFIX && \
+        ldconfig -n $INSTALL_PREFIX/lib && \
         touch $BUILD_DIR/grpc.done \
             || { echo 'Installing gRPC failed!' ; exit 1; }
     echo "Done installing gRPC 1.7.2"
