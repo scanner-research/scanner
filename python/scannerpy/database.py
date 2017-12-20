@@ -35,7 +35,7 @@ from scannerpy.protobuf_generator import ProtobufGenerator
 from scannerpy.job import Job
 from scannerpy.bulk_job import BulkJob
 
-from storehousepy import StorageConfig, StorageBackend
+from storehouse import StorageConfig, StorageBackend
 
 def start_master(port=None, config=None, config_path=None, block=False, watchdog=True):
     """

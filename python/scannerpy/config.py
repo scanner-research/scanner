@@ -5,7 +5,7 @@ import sys
 from subprocess import check_output
 
 from scannerpy.common import *
-from storehousepy import StorageConfig, StorageBackend
+from storehouse import StorageConfig, StorageBackend
 
 
 def read_line(s):
