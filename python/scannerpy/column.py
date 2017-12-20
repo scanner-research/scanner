@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import struct
-import cv2
 import math
 from subprocess import Popen, PIPE
 import tempfile
