@@ -9,6 +9,7 @@ build
 **/*.pyc
 **/*.trace
 thirdparty
+!thirdparty/resources
 !thirdparty/CMakeLists.txt
 python/*.egg-info
 
