@@ -14,7 +14,6 @@ import copy
 import collections
 import subprocess
 
-from timeit import default_timer as now
 from multiprocessing import Process, Queue
 from subprocess import Popen, PIPE
 from random import choice
@@ -37,7 +36,16 @@ from scannerpy.bulk_job import BulkJob
 
 from storehouse import StorageConfig, StorageBackend
 
-def start_master(port=None, config=None, config_path=None, block=False, watchdog=True):
+import scannerpy.libscanner as bindings
+import scanner.metadata_pb2 as metadata_types
+import scanner.engine.rpc_pb2 as rpc_types
+import scanner.engine.rpc_pb2_grpc as grpc_types
+import scanner.types_pb2 as misc_types
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
+def start_master(port=None, config=None, config_path=None, block=False,
+                 watchdog=True):
     """
     Start a master server instance on this node.
 
@@ -57,7 +65,6 @@ def start_master(port=None, config=None, config_path=None, block=False, watchdog
     port = port or config.master_port
 
     # Load all protobuf types
-    import libscanner as bindings
     db = bindings.Database(
         config.storage_config,
         config.db_path,
@@ -95,7 +102,6 @@ def start_worker(master_address, machine_params=None, port=None, config=None,
     port = port or config.worker_port
 
     # Load all protobuf types
-    import libscanner as bindings
     db = bindings.Database(
         config.storage_config,
         #storage_config,
@@ -151,7 +157,6 @@ class Database(object):
 
         self._master = None
 
-        import libscanner as bindings
         self._bindings = bindings
 
         # Setup database metadata
@@ -336,12 +341,6 @@ class Database(object):
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
         def heartbeat_task(q, master_address):
-            import scanner.metadata_pb2 as metadata_types
-            import scanner.engine.rpc_pb2 as rpc_types
-            import scanner.engine.rpc_pb2_grpc as grpc_types
-            import scanner.types_pb2 as misc_types
-            import libscanner as bindings
-
             channel = grpc.insecure_channel(
                 master_address,
                 options=[('grpc.max_message_length', 24499183 * 2)])
@@ -499,9 +498,8 @@ class Database(object):
                 raise ScannerException('Timed out waiting to connect to master')
 
         # Load stdlib
-        stdlib_path = '{}/build/stdlib'.format(self.config.module_dir)
-        self.load_op('{}/libstdlib.so'.format(stdlib_path),
-                     '{}/stdlib_pb2.py'.format(stdlib_path))
+        self.load_op('{}/libstdlib.so'.format(SCRIPT_DIR),
+                     '{}/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def stop_cluster(self):
         if self._start_cluster:
