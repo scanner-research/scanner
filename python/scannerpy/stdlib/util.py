@@ -31,3 +31,20 @@ def download_temp_file(url, local_path=None):
             local_f.write(f.read())
     return local_path
 
+
+def download_temp_youtube_video(url, local_path=None):
+    # Get filename
+    https://youtu.be/SHoHdkUw-Is  '--restrict-filenames --get-filename'
+    ~/.local/bin/youtube-dl -f 266 https://youtu.be/SHoHdkUw-Is -o
+    if local_path is None:
+        local_path = url.rsplit('/', 1)[-1]
+    local_path = os.path.join(temp_directory(), local_path)
+    mkdir_p(os.path.dirname(local_path))
+    if not os.path.isfile(local_path):
+        print('Downloading {:s} to {:s}...'.format(url, local_path))
+        f = urllib2.urlopen(url)
+        with open(local_path, 'wb') as local_f:
+            local_f.write(f.read())
+    return local_path
+
+~/.local/bin/youtube-dl -f 266 https://youtu.be/SHoHdkUw-Is -o

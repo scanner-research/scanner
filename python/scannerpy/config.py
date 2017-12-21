@@ -100,13 +100,9 @@ class Config(object):
     def default_config():
         hostname = check_output(['hostname']).strip()
 
-        scanner_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), '..', '..'))
-
         db_path = os.path.expanduser('~') + '/.scanner_db'
 
         return {
-            'scanner_path': scanner_path,
             'storage': {
                 'type': 'posix',
                 'db_path': db_path,
