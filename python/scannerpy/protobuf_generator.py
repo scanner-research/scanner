@@ -5,12 +5,12 @@ import sys
 
 from scannerpy.common import *
 
+import scanner.stdlib.stdlib_pb2 as stdlib_types
 import scannerpy.libscanner as bindings
 import scanner.metadata_pb2 as metadata_types
 import scanner.engine.rpc_pb2 as rpc_types
 import scanner.engine.rpc_pb2_grpc as grpc_types
 import scanner.types_pb2 as misc_types
-import scanner.stdlib.stdlib_pb2 as stdlib_types
 
 class ProtobufGenerator:
     def __init__(self, cfg):
