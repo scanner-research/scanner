@@ -19,4 +19,3 @@ RUN cd /opt/scanner && \
     cd .. && rm -fr python/scannerpy/build && \
     python python/setup.py bdist_wheel && \
     pip install dist/scannerpy-0.1.13-py2-none-any.whl
-ENV PYTHONPATH=/opt/scanner/python:$PYTHONPATH
