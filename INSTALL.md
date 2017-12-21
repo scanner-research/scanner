@@ -85,8 +85,14 @@ pip install -r requirements.txt
 
 ## 3. Run deps.sh
 
-To install or specify where your *major* dependencies are, run the `deps.sh`
-script in the top-level directory. This script will query you for each major
+To install or specify where your *major* dependencies are, from the top-level
+directory run:
+
+```bash
+bash ./deps.sh
+```
+
+This script will query you for each major
 dependency and install those that are not already installed. By default,
 it will install the dependencies to a local directory inside the scanner repo
 (it will not install system-wide).

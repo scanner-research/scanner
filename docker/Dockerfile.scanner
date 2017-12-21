@@ -15,5 +15,7 @@ RUN cd /opt/scanner && \
           -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
           .. && \
-    make -j ${cores}
+    make -j ${cores} && \
+    cd .. && python python/setup.py && \
+    pip install dist/scannerpy-0.1.13-py2-none-any.whl
 ENV PYTHONPATH=/opt/scanner/python:$PYTHONPATH
