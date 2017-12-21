@@ -9,7 +9,7 @@ scikit-image==0.12.3
 enum34==1.1.6
 matplotlib==2.0.0
 seaborn==0.7.1
-grpcio==1.7.0
+grpcio==1.7.3
 doxypypy==0.8.8.6
 pytest==3.0.6
 twine==1.8.1

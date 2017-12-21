@@ -7,7 +7,6 @@ BUILD_DIR=$LOCAL_DIR/thirdparty/build
 DEFAULT_INSTALL_DIR=$LOCAL_DIR/thirdparty/install
 FILES_DIR=$LOCAL_DIR/thirdparty/resources
 
-
 POSITIONAL=()
 
 # Ask if installed
@@ -267,11 +266,14 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
         cd ceres-solver && mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
         make install -j$cores && \
-        mkdir $BUILD_DIR/opencv/build && cd $BUILD_DIR/opencv/build && \
+        mkdir -p $BUILD_DIR/opencv/build && cd $BUILD_DIR/opencv/build && \
         cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
               -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF -D ENABLE_FAST_MATH=1 \
               -D CUDA_FAST_MATH=1 -D WITH_CUBLAS=1 -D WITH_NVCUVID=1 \
               -D BUILD_opencv_rgbd=OFF \
+              -D BUILD_opencv_cnn_3dobj=OFF \
+              -D BUILD_TIFF=OFF \
+              -D WITH_TIFF=OFF \
               -D OPENCV_EXTRA_MODULES_PATH=$BUILD_DIR/opencv_contrib/modules \
               .. && \
         make install -j$cores && touch $BUILD_DIR/opencv.done \
@@ -444,5 +446,5 @@ echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
 
 echo "Done installing required dependencies!"
 echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH so the installed "
-echo "depenedencies can be found!"
+echo "dependencies can be found!"
 echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"

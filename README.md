@@ -21,11 +21,11 @@ There are two ways to build and run Scanner on your machine:
 
 ### Docker
 First, install [Docker](https://docs.docker.com/engine/installation/#supported-platforms).
-If you have a GPU and you're running on Linux, install [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) and run:
+If you have a GPU and you're running on Linux, install [nvidia-docker 1.0](https://github.com/NVIDIA/nvidia-docker/tree/1.0) and run:
 
 ```bash
 pip install --upgrade nvidia-docker-compose
-wget http://raw.githubusercontent.com/scanner-research/scanner/master/docker-compose.yml
+wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
 nvidia-docker-compose pull gpu
 nvidia-docker-compose run --service-ports gpu /bin/bash
 ```
@@ -34,7 +34,7 @@ Otherwise, you should run:
 
 ```bash
 pip install --upgrade docker-compose
-wget http://raw.githubusercontent.com/scanner-research/scanner/master/docker-compose.yml
+wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
 docker-compose pull cpu
 docker-compose run --service-ports cpu /bin/bash
 ```
@@ -44,7 +44,7 @@ Scanner directory inside the docker container. To start processing some videos,
 check out [Running Scanner](https://github.com/scanner-research/scanner#running-scanner)
 
 ### From Source
-Follow the instructions at [Build Instructions](https://github.com/scanner-research/scanner/wiki/Building-Scanner-from-Source)
+Follow the instructions at [INSTALL](https://github.com/scanner-research/scanner/blob/master/INSTALL.md)
 to build Scanner from source. To start processing some videos, check out [Running Scanner](https://github.com/scanner-research/scanner#running-scanner).
 
 ## Running Scanner
@@ -73,7 +73,7 @@ program! Here's a few next steps:
 * To run other Scanner programs on your videos, check out the [examples](https://github.com/scanner-research/scanner#tutorials--examples).
 * If you're looking for a code reference, check out the [documentation](https://github.com/scanner-research/scanner#documentation)
 
-## Tutorials & Examples
+## Tutorials & Examples & How-To's
 
 The tutorials and examples are located in the
 [examples](https://github.com/scanner-research/scanner/tree/master/examples)
@@ -83,7 +83,7 @@ directory. Some of the examples include:
 * [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/apps/shot_detection/)
 * [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/apps/reverse_image_search/)
 
-## Documentation & How-To's
+## Documentation
 
 TODO(apoms)
 

@@ -148,9 +148,3 @@ add_subdirectory(stdlib)
 if (BUILD_TESTS)
   add_subdirectory(tests)
 endif()
-
-execute_process(
-  COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/python/scannerpy/include
-  COMMAND ln -fs ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/python/scannerpy/build
-  COMMAND ln -fs ${CMAKE_SOURCE_DIR}/scanner ${CMAKE_SOURCE_DIR}/python/scannerpy/include
-  OUTPUT_VARIABLE FOO)
