@@ -499,7 +499,7 @@ class Database(object):
 
         # Load stdlib
         self.load_op('{}/libstdlib.so'.format(SCRIPT_DIR),
-                     '{}/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
+                     '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def stop_cluster(self):
         if self._start_cluster:
