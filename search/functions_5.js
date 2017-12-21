@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['load',['load',['../classpython_1_1scannerpy_1_1column_1_1Column.html#a0ec13d1e5372da0e962b60f98165e847',1,'python::scannerpy::column::Column']]],
-  ['load_5fop',['load_op',['../classpython_1_1scannerpy_1_1database_1_1Database.html#af270efe1e8f7d8805aade1daa9c32ff0',1,'python::scannerpy::database::Database']]]
+  ['load',['load',['../classscannerpy_1_1column_1_1Column.html#ae1230c709703a9e0e0086758845c345c',1,'scannerpy::column::Column']]],
+  ['load_5fop',['load_op',['../classscannerpy_1_1database_1_1Database.html#a3530343c70785fbe497adf43f066bf09',1,'scannerpy::database::Database']]]
 ];
