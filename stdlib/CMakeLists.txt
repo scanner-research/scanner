@@ -82,8 +82,6 @@ if (BUILD_VIZ_OPS)
   list(APPEND TARGETS viz)
 endif()
 
-
-
 add_subdirectory(misc)
 list(APPEND TARGETS misc)
 
@@ -107,7 +105,7 @@ foreach (TARGET ${TARGETS})
   add_dependencies(${TARGET} stdlib_proto_files)
 endforeach()
 
-target_link_libraries(stdlib PUBLIC "${STDLIB_LIBRARIES}")
+target_link_libraries(stdlib PUBLIC "${STDLIB_LIBRARIES}" scanner)
 
 if (HALIDE_TARGETS)
   foreach(HALIDE_TARGET ${HALIDE_TARGETS})
