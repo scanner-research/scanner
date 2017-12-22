@@ -93,6 +93,11 @@ copy_partial_tree(
     os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'),
     '*.inl')
 
+copy_partial_tree(
+    os.path.join(BUILD_DIR, 'scanner'),
+    os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'),
+    '*.h')
+
 include_files = glob_files(
     os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
 
