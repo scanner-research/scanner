@@ -2,15 +2,13 @@
 # op. It sets a few default flags and exposes a function build_op for simplifying
 # the build process. See examples/tutorial/04_custom_op.py for an example usage.
 
-if(NOT SCANNER_PATH)
-  message(FATAL_ERROR "Set SCANNER_PATH to the Scanner repo directory before including Op.cmake.")
-endif()
-list(APPEND CMAKE_MODULE_PATH "${SCANNER_PATH}/cmake/Modules/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_FILE}/Modules")
 
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX1Y)
 if(NOT COMPILER_SUPPORTS_CXX1Y)
-  message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++1y support.")
+  message(FATAL_ERROR
+    "The compiler ${CMAKE_CXX_COMPILER} has no C++1y support.")
 endif()
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -19,7 +17,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 function(build_op)
-  set(options )
+  set(options)
   set(oneValueArgs LIB_NAME PROTO_SRC NO_FLAGS)
   set(multiValueArgs CPP_SRCS)
   cmake_parse_arguments(args "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -31,7 +29,8 @@ function(build_op)
     set(PROTOBUF_IMPORT_DIRS "${SCANNER_PATH}")
     protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS OFF ${args_PROTO_SRC})
     protobuf_generate_python(PROTO_PY OFF ${args_PROTO_SRC})
-    add_custom_target(${args_LIB_NAME}_proto_files DEPENDS ${PROTO_HDRS} ${PROTO_PY})
+    add_custom_target(${args_LIB_NAME}_proto_files
+      DEPENDS ${PROTO_HDRS} ${PROTO_PY})
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS} ${PROTO_SRCS})
     add_dependencies(${args_LIB_NAME} ${args_LIB_NAME}_proto_files)
     target_link_libraries(${args_LIB_NAME} PUBLIC "${PROTOBUF_LIBRARY}")
@@ -39,12 +38,11 @@ function(build_op)
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
 
-  target_link_libraries(${args_LIB_NAME} PUBLIC "${SCANNER_PATH}/build/libscanner.so")
-
   if("${args_NO_FLAGS}" STREQUAL "")
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
-      COMMAND python -c "import scannerpy.stdlib.build_flags")
+      COMMAND
+      python -c "import scannerpy.stdlib.build_flags as b; b.get_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
