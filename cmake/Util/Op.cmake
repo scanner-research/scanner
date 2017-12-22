@@ -2,7 +2,7 @@
 # op. It sets a few default flags and exposes a function build_op for simplifying
 # the build process. See examples/tutorial/04_custom_op.py for an example usage.
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_FILE}/Modules")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/Modules")
 
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX1Y)
@@ -42,7 +42,7 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
       COMMAND
-      python -c "import scannerpy.stdlib.build_flags as b; b.get_flags()")
+      python -c "import scannerpy.stdlib.build_flags as b; b.print_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
