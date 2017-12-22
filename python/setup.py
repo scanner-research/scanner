@@ -2,6 +2,7 @@ from setuptools import setup, find_packages
 import os
 import os.path
 import shutil
+import glob
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCANNERPY_DIR = os.path.join(SCRIPT_DIR, 'scannerpy')
@@ -11,12 +12,12 @@ PIP_DIR = os.path.join(BUILD_DIR, 'pip')
 
 # Make a pip directory in the build directory
 shutil.rmtree(PIP_DIR, ignore_errors=True)
+shutil.copytree(SCRIPT_DIR, PIP_DIR)
 #os.makedirs(PIP_DIR)
 #os.makedirs(PIP_DIR + '/scanner')
 #os.makedirs(PIP_DIR + '/scanner/stdlib')
 
 # Copy python into pip directory
-shutil.copytree(SCRIPT_DIR, PIP_DIR)
 #shutil.copytree(SCANNERPY_DIR, PIP_DIR + '/scannerpy')
 
 # Copy libraries into pip directory
@@ -27,32 +28,78 @@ LIBRARIES = [
 for library in LIBRARIES:
     shutil.copy(library, PIP_DIR + '/scannerpy/')
 
-PROTO_HEADERS = [
-    (os.path.join(BUILD_DIR, 'scanner', 'metadata_pb2.py'),
-     os.path.join(PIP_DIR, 'scanner')),
+def copy_partial_tree(from_dir, to_dir, pattern):
+    dest_paths = []
+    try:
+        os.makedirs(to_dir)
+    except:
+        pass
+    for f in glob.glob(os.path.join(from_dir, pattern)):
+        print(f)
+        shutil.copy(f, to_dir)
+        dest_paths.append(os.path.join(to_dir, os.path.basename(f)))
 
-    (os.path.join(BUILD_DIR, 'scanner', 'types_pb2.py'),
-     os.path.join(PIP_DIR, 'scanner')),
+    # List all directories in from_dir
+    for d in [p for p in os.listdir(from_dir)
+              if os.path.isdir(os.path.join(from_dir, p))]:
+        print('dir', d)
+        dest_paths += copy_partial_tree(
+            os.path.join(from_dir, d),
+            os.path.join(to_dir, d),
+            pattern)
+    return dest_paths
 
-    (os.path.join(BUILD_DIR, 'scanner', 'engine', 'rpc_pb2.py'),
-     os.path.join(PIP_DIR, 'scanner', 'engine')),
+def glob_files(path, prefix=''):
+    all_paths = os.listdir(path)
+    files = [os.path.join(prefix, p) for p in all_paths
+             if os.path.isfile(os.path.join(path, p))]
+    for d in [p for p in all_paths
+              if os.path.isdir(os.path.join(path, p))]:
+        files += glob_files(os.path.join(path, d),
+                            prefix=os.path.join(prefix, d))
+    return files
 
-    (os.path.join(BUILD_DIR, 'scanner', 'engine', 'rpc_pb2_grpc.py'),
-     os.path.join(PIP_DIR, 'scanner', 'engine')),
 
-    (os.path.join(BUILD_DIR, 'scanner', 'types_pb2.py'),
-     os.path.join(PIP_DIR, 'scanner')),
+# Copy built protobuf python files
+copy_partial_tree(
+    os.path.join(BUILD_DIR, 'scanner'),
+     os.path.join(PIP_DIR, 'scanner'),
+    '*.py')
+copy_partial_tree(
+    os.path.join(BUILD_DIR, 'stdlib'),
+     os.path.join(PIP_DIR, 'scanner', 'stdlib'),
+    '*.py')
 
-    (os.path.join(BUILD_DIR, 'stdlib', 'stdlib_pb2.py'),
-     os.path.join(PIP_DIR, 'scanner', 'stdlib'))
-]
-for src, dest in PROTO_HEADERS:
-    shutil.copy(src, dest)
+# Copy cmake files
+os.makedirs(os.path.join(PIP_DIR, 'scannerpy', 'cmake'))
+shutil.copy(
+    os.path.join(SCANNER_DIR, 'cmake', 'Util', 'Op.cmake'),
+    os.path.join(PIP_DIR, 'scannerpy', 'cmake'))
+copy_partial_tree(
+     os.path.join(SCANNER_DIR, 'cmake', 'Modules'),
+     os.path.join(PIP_DIR, 'scannerpy', 'cmake', 'Modules'),
+    '*')
+
+cmake_files = glob_files(
+    os.path.join(PIP_DIR, 'scannerpy', 'cmake'), 'cmake')
+
+# Copy scanner headers
+copy_partial_tree(
+    os.path.join(SCANNER_DIR, 'scanner'),
+     os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'),
+    '*.h')
+copy_partial_tree(
+    os.path.join(SCANNER_DIR, 'scanner'),
+    os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'),
+    '*.inl')
+
+include_files = glob_files(
+    os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
 
 package_data = {
     'scannerpy': [
         './*.so'
-    ]
+    ] + include_files + cmake_files
 }
 
 REQUIRED_PACKAGES = [

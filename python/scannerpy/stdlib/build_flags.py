@@ -1,21 +1,20 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
-import subprocess as sp
+import os.path
 
-from scannerpy.config import Config
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
+def get_include():
+    return os.path.join(SCRIPT_DIR, '..', 'include')
 
-c = Config()
+def get_lib():
+    return os.path.join(SCRIPT_DIR, '..')
 
-build_flags_output = [
-    s.strip()
-    for s in sp.check_output(
-        [c.config['scanner_path'] + '/build/scanner/engine/build_flags']).split("\n")
-]
-include_dirs = build_flags_output[0].split(";")
-include_dirs.append(c.module_dir + "/include")
-include_dirs.append(c.module_dir + "/build")
-flags = '{include} -std=c++11 -fPIC -shared -L{libdir} -lscanner {other}'
-print(flags.format(
-    include=" ".join(["-I " + d for d in include_dirs]),
-    libdir='{}/build'.format(c.module_dir),
-    other=build_flags_output[1]))
+def get_cmake():
+    return os.path.join(SCRIPT_DIR, '..', 'cmake')
+
+def get_flags():
+    return (
+        '-std=c++11 -I{include} -L{libdir} -lscanner'.format(
+            include=get_include(),
+            libdir=get_lib()))
+
