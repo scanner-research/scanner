@@ -19,5 +19,5 @@ RUN cd /opt/scanner && \
     cd .. && rm -fr python/scannerpy/build && \
     python python/setup.py bdist_wheel && \
     pip install dist/scannerpy-0.1.13-py2-none-any.whl
-RUN LD_LIBRARY_PATH \
+ENV LD_LIBRARY_PATH \
        "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
