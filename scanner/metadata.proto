@@ -59,6 +59,11 @@ message Column {
 }
 
 message VideoDescriptor {
+  enum VideoContainerType {
+    MP4 = 0;
+    NONE = 1;
+  }
+
   enum VideoCodecType {
     H264 = 0;
     RAW = 1;
@@ -91,10 +96,12 @@ message VideoDescriptor {
   repeated int64 keyframes_per_video = 19;
   repeated int64 size_per_video = 20;
 
-  repeated int64 keyframe_positions = 9 [packed=true];
-  repeated int64 keyframe_timestamps = 10 [packed=true];
-  repeated int64 keyframe_byte_offsets = 11 [packed=true];
+  repeated uint64 sample_offsets = 9 [packed=true];
+  repeated uint64 sample_sizes = 10 [packed=true];
+  repeated uint64 keyframe_indices = 11 [packed=true];
   bytes metadata_packets = 12;
+  string data_path = 21;
+  bool inplace = 22;
 }
 
 message ImageFormatGroupDescriptor {
@@ -172,15 +179,18 @@ message BulkJobDescriptor {
 
 // Interal messages
 message DecodeArgs {
-  int32 width = 4;
-  int32 height = 5;
+  int32 width = 10;
+  int32 height = 11;
   int64 start_keyframe = 6;
   int64 end_keyframe = 7;
   repeated int64 keyframes = 1;
-  repeated int64 keyframe_byte_offsets = 2;
-  repeated int64 valid_frames = 3;
+  repeated int64 keyframe_indices = 2;
+  repeated uint64 sample_offsets = 3;
+  repeated uint64 sample_sizes = 4;
+  repeated int64 valid_frames = 5;
   int64 encoded_video = 8;
   int64 encoded_video_size = 9;
+  bytes metadata = 12;
 }
 
 message ImageDecodeArgs {

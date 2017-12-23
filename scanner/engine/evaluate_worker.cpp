@@ -43,6 +43,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
   }
 
   // Setup decoders if they have not been initialized yet
+  i32 media_col_idx = 0;
   if (decoders_.empty()) {
     auto init_start = now();
     VideoDecoderType decoder_type;
@@ -61,16 +62,52 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
       num_devices = num_cpus_;
     }
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
-      if (work_entry.column_types[c] == ColumnType::Video) {
-        decoders_.emplace_back(
-            new DecoderAutomata(device_handle_, num_devices, decoder_type));
-        decoders_.back()->set_profiler(&profiler_);
+      if (work_entry.column_types[c] == ColumnType::Video &&
+          work_entry.video_encoding_type[media_col_idx] ==
+              proto::VideoDescriptor::H264) {
+        if (work_entry.inplace_video[c]) {
+          hwang::DeviceHandle hd;
+          switch (device_handle_.type) {
+            case DeviceType::CPU:
+              hd.type = hwang::DeviceType::CPU;
+              break;
+            case DeviceType::GPU:
+              hd.type = hwang::DeviceType::GPU;
+              break;
+            default:
+              std::abort();
+          }
+          hd.id = device_handle_.id;
+
+          hwang::VideoDecoderType vd;
+          switch (decoder_type) {
+            case VideoDecoderType::SOFTWARE:
+              vd = hwang::VideoDecoderType::SOFTWARE;
+              break;
+            case VideoDecoderType::NVIDIA:
+              vd = hwang::VideoDecoderType::NVIDIA;
+              break;
+            default:
+              std::abort();
+          }
+
+          inplace_decoders_.emplace_back(
+              new hwang::DecoderAutomata(hd, num_devices, vd));
+          //decoders_.back()->set_profiler(&profiler_);
+          decoders_.emplace_back(nullptr);
+        } else {
+          decoders_.emplace_back(
+              new DecoderAutomata(device_handle_, num_devices, decoder_type));
+          decoders_.back()->set_profiler(&profiler_);
+          inplace_decoders_.emplace_back(nullptr);
+        }
+        media_col_idx++;
       }
     }
     profiler_.add_interval("init", init_start, now());
   }
 
-  i32 media_col_idx = 0;
+  media_col_idx = 0;
   auto setup_start = now();
   // Deserialize all decode args into protobufs
   decode_args_.clear();
@@ -91,7 +128,38 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
         assert(result);
         delete_element(CPU_DEVICE, element);
       }
-      decoders_[media_col_idx]->initialize(args);
+
+      if (!work_entry.inplace_video[c]) {
+        decoders_[media_col_idx]->initialize(args);
+      } else {
+        // Translate into encoded data
+        std::vector<hwang::DecoderAutomata::EncodedData> encoded_data;
+        for (auto &da : args) {
+          encoded_data.emplace_back();
+          hwang::DecoderAutomata::EncodedData& ed = encoded_data.back();
+          u8* video_data = reinterpret_cast<u8*>(da.encoded_video());
+          size_t video_data_size = da.encoded_video_size();
+          ed.encoded_video =
+              std::vector<u8>(video_data, video_data + video_data_size);
+          ed.width = da.width();
+          ed.height = da.height();
+          ed.start_keyframe = da.start_keyframe();
+          ed.end_keyframe = da.end_keyframe();
+          ed.sample_offsets = std::vector<u64>(da.sample_offsets().begin(),
+                                               da.sample_offsets().end());
+          ed.sample_sizes = std::vector<u64>(da.sample_sizes().begin(),
+                                             da.sample_sizes().end());
+          ed.keyframes =
+              std::vector<u64>(da.keyframes().begin(), da.keyframes().end());
+          ed.valid_frames = std::vector<u64>(da.valid_frames().begin(),
+                                             da.valid_frames().end());
+        }
+        if (args.size() > 0) {
+          std::vector<u8> metadata(args.back().metadata().begin(),
+                                   args.back().metadata().end());
+          inplace_decoders_[media_col_idx]->initialize(encoded_data, metadata);
+        }
+      }
       media_col_idx++;
     }
   }
@@ -141,7 +209,11 @@ bool PreEvaluateWorker::yield(i32 item_size,
                                FrameType::U8);
           u8* buffer = new_block_buffer(decoder_output_handle_,
                                         num_rows * frame_info.size(), num_rows);
-          decoders_[media_col_idx]->get_frames(buffer, num_rows);
+          if (!work_entry.inplace_video[c]) {
+            decoders_[media_col_idx]->get_frames(buffer, num_rows);
+          } else {
+            inplace_decoders_[media_col_idx]->get_frames(buffer, num_rows);
+          }
           for (i64 n = 0; n < num_rows; ++n) {
             insert_frame(entry.columns[c],
                          new Frame(frame_info, buffer + frame_info.size() * n));

@@ -21,6 +21,7 @@ INSTALL_HALIDE=true
 USE_GPU=false
 
 # Assume not installed
+INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
 
@@ -76,6 +77,7 @@ PROTOBUF_DIR=$INSTALL_PREFIX
 GRPC_DIR=$INSTALL_PREFIX
 CAFFE_DIR=$INSTALL_PREFIX
 HALIDE_DIR=$INSTALL_PREFIX
+HWANG_DIR=$INSTALL_PREFIX
 STOREHOUSE_DIR=$INSTALL_PREFIX
 TINYTOML_DIR=$INSTALL_PREFIX
 
@@ -198,6 +200,7 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         fi
     done
+
     while true; do
         echo -n "Do you have caffe>=rc5 or intel-caffe>=1.0.6 installed? [y/N]: "
         read yn
@@ -342,6 +345,28 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
     echo "Done installing storehouse"
 fi
 
+if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
+    echo "Installing hwang..."
+    cd $BUILD_DIR
+    rm -fr hwang
+    git clone https://github.com/scanner-research/hwang && \
+        cd hwang && \
+        git checkout cd10ac6a9cc685cd84bd5b0669607488a1a18f20 && \
+        bash ./deps.sh -a \
+             --with-boost $INSTALL_PREFIX \
+             --with-ffmpeg $INSTALL_PREFIX \
+             --with-protobuf $INSTALL_PREFIX \
+             --cores ${cores} && \
+        mkdir -p build && cd build && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=ON && \
+        make -j${cores} && make install -j${cores} && cd .. && \
+        cd python && python setup.py bdist_wheel && \
+        pip install dist/hwang-0.1.0-py2-none-any.whl && \
+        touch $BUILD_DIR/hwang.done \
+            || { echo 'Installing hwang failed!' ; exit 1; }
+    echo "Done installing hwang"
+fi
+
 if [[ $INSTALL_TINYTOML == true ]]; then
     echo "Installing tinytoml..."
     cd $BUILD_DIR
@@ -424,14 +449,6 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]]; then
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_OPENCV == true ]]; then
-    echo "Add $INSTALL_PREFIX/lib/python2.7/dist-packages to your PYTHONPATH to use OpenCV from Python"
-fi
-if [[ $INSTALL_CAFFE_CPU == true ]] || [[ $INSTALL_CAFFE_GPU == true ]]; then
-    echo "Add $INSTALL_PREFIX/python to your PYTHONPATH to use Caffe from Python"
-fi
-#echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH"
-
 DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE
 echo "BOOST_DIR=$BOOST_DIR" >> $DEP_FILE
@@ -441,6 +458,7 @@ echo "PROTOBUF_DIR=$PROTOBUF_DIR" >> $DEP_FILE
 echo "GRPC_DIR=$GRPC_DIR" >> $DEP_FILE
 echo "CAFFE_DIR=$CAFFE_DIR" >> $DEP_FILE
 echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
+echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
 echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
 echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
 
@@ -448,3 +466,10 @@ echo "Done installing required dependencies!"
 echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH so the installed "
 echo "dependencies can be found!"
 echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"
+if [[ $INSTALL_OPENCV == true ]]; then
+    echo "Add $INSTALL_PREFIX/lib/python2.7/dist-packages to your PYTHONPATH to use OpenCV from Python"
+fi
+if [[ $INSTALL_CAFFE_CPU == true ]] || [[ $INSTALL_CAFFE_GPU == true ]]; then
+    echo "Add $INSTALL_PREFIX/python to your PYTHONPATH to use Caffe from Python"
+fi
+#echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH"

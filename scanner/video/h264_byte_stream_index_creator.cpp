@@ -175,13 +175,12 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
       if (frame_ == 0 || is_new_access_unit(sps_map_, pps_map_, prev_sh_, sh)) {
         frame_++;
         size_t bytestream_offset;
+        sample_offsets_.push_back(nal_bytestream_offset);
+        size_t total_size = 0;
         if (nal_unit_type == 5) {
           // Insert an SPS NAL if we did not see one in the meta packet
           // sequence
-          keyframe_byte_offsets_.push_back(nal_bytestream_offset);
-          keyframe_positions_.push_back(frame_ - 1);
-          // TODO(apoms): Add timestamp info back in
-          keyframe_timestamps_.push_back(frame_ - 1);
+          keyframe_indices_.push_back(frame_ - 1);
           saw_sps_nal_ = false;
           VLOG(2) << "keyframe " << frame_ - 1 << ", byte offset "
                   << meta_packet_sequence_start_offset_;
@@ -198,7 +197,6 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
             size += static_cast<i32>(pps_nal.size());
           }
 
-          s_write(demuxed_bytestream_, size);
           for (auto& kv : sps_nal_bytes_) {
             auto& sps_nal = kv.second;
             s_write(demuxed_bytestream_, sps_nal.data(), sps_nal.size());
@@ -210,14 +208,18 @@ bool H264ByteStreamIndexCreator::feed_packet(u8* data, size_t size) {
           // Append the packet to the stream
           s_write(demuxed_bytestream_, orig_data, orig_size);
 
-          bytestream_pos_ += sizeof(size) + size;
+          bytestream_pos_ += size;
+
+          total_size = size;
         } else {
-          s_write(demuxed_bytestream_, orig_size);
           // Append the packet to the stream
           s_write(demuxed_bytestream_, orig_data, orig_size);
 
-          bytestream_pos_ += sizeof(orig_size) + orig_size;
+          bytestream_pos_ += orig_size;
+
+          total_size = orig_size;
         }
+        sample_sizes_.push_back(total_size);
       }
       in_meta_packet_sequence_ = false;
       prev_sh_ = sh;

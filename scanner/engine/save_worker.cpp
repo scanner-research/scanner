@@ -117,31 +117,37 @@ void SaveWorker::feed(EvalWorkEntry& input_entry) {
         i64 frame = index_creator.frames();
         i32 num_non_ref_frames = index_creator.num_non_ref_frames();
         const std::vector<u8>& metadata_bytes = index_creator.metadata_bytes();
-        const std::vector<i64>& keyframe_positions =
-            index_creator.keyframe_positions();
-        const std::vector<i64>& keyframe_timestamps =
-            index_creator.keyframe_timestamps();
-        const std::vector<i64>& keyframe_byte_offsets =
-            index_creator.keyframe_byte_offsets();
+        const std::vector<u64>& keyframe_indices =
+            index_creator.keyframe_indices();
+        const std::vector<u64>& sample_offsets =
+            index_creator.sample_offsets();
+        const std::vector<u64>& sample_sizes =
+            index_creator.sample_sizes();
 
         video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
         video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
 
         video_descriptor.set_frames(video_descriptor.frames() + frame);
         video_descriptor.add_frames_per_video(frame);
-        video_descriptor.add_keyframes_per_video(keyframe_positions.size());
+        video_descriptor.add_keyframes_per_video(keyframe_indices.size());
         video_descriptor.add_size_per_video(index_creator.bytestream_pos());
         video_descriptor.set_metadata_packets(metadata_bytes.data(),
                                               metadata_bytes.size());
 
-        for (i64 v : keyframe_positions) {
-          video_descriptor.add_keyframe_positions(v);
+        const std::string output_path =
+            table_item_output_path(video_descriptor.table_id(), out_idx,
+                                   video_descriptor.item_id());
+        video_descriptor.set_data_path(output_path);
+        video_descriptor.set_inplace(false);
+
+        for (u64 v : keyframe_indices) {
+          video_descriptor.add_keyframe_indices(v);
         }
-        for (i64 v : keyframe_timestamps) {
-          video_descriptor.add_keyframe_timestamps(v);
+        for (u64 v : sample_offsets) {
+          video_descriptor.add_sample_offsets(v);
         }
-        for (i64 v : keyframe_byte_offsets) {
-          video_descriptor.add_keyframe_byte_offsets(v);
+        for (u64 v : sample_sizes) {
+          video_descriptor.add_sample_sizes(v);
         }
       } else {
         // Non h264 compressible video column

@@ -117,7 +117,10 @@ RowIntervals slice_into_row_intervals(const TableMetadata& table,
 }
 
 VideoIntervals slice_into_video_intervals(
-    const std::vector<i64>& keyframe_positions, const std::vector<i64>& rows) {
+    const std::vector<u64>& keyframe_positions,
+    const std::vector<u64>& sample_offsets,
+    const std::vector<u64>& sample_sizes,
+    const std::vector<i64>& rows) {
   VideoIntervals info;
   assert(keyframe_positions.size() >= 2);
   size_t start_keyframe_index = 0;
@@ -126,6 +129,12 @@ VideoIntervals slice_into_video_intervals(
   std::vector<i64> valid_frames;
   for (i64 row : rows) {
     if (row >= next_keyframe) {
+      // Check if this keyframe is adjacent
+      uint64_t last_endpoint = sample_offsets.at(next_keyframe - 1) +
+                               sample_sizes.at(next_keyframe - 1);
+      bool is_adjacent =
+          (last_endpoint == sample_offsets.at(next_keyframe));
+
       assert(end_keyframe_index < keyframe_positions.size() - 1);
       next_keyframe = keyframe_positions[++end_keyframe_index];
       if (row >= next_keyframe) {
@@ -260,6 +269,7 @@ bool LoadWorker::yield(i32 item_size,
       // video frame column
       FrameInfo info;
       proto::VideoDescriptor::VideoCodecType encoding_type;
+      bool inplace = false;
       for (size_t i = 0; i < num_items; ++i) {
         i32 item_id = intervals.item_ids[i];
         i64 item_start_row = intervals.item_start_offsets[i];
@@ -271,6 +281,7 @@ bool LoadWorker::yield(i32 item_size,
               read_video_index(storage_.get(), table_id, col_id, item_id);
         }
         const VideoIndexEntry& entry = index_.at(key);
+        inplace = entry.inplace;
         info = FrameInfo(entry.height, entry.width, entry.channels,
                          entry.frame_type);
         encoding_type = entry.codec_type;
@@ -293,9 +304,11 @@ bool LoadWorker::yield(i32 item_size,
       if (num_items == 0) {
         eval_work_entry.frame_sizes.emplace_back();
         eval_work_entry.video_encoding_type.emplace_back();
+        eval_work_entry.inplace_video.push_back(false);
       } else {
         eval_work_entry.frame_sizes.push_back(info);
         eval_work_entry.video_encoding_type.push_back(encoding_type);
+        eval_work_entry.inplace_video.push_back(inplace);
       }
       media_col_idx++;
     } else {
@@ -310,6 +323,7 @@ bool LoadWorker::yield(i32 item_size,
         read_other_column(table_id, col_id, item_id, item_start, item_end,
                           valid_offsets, eval_work_entry.columns[out_col_idx]);
       }
+      eval_work_entry.inplace_video.push_back(false);
     }
     eval_work_entry.column_types.push_back(column_type);
     eval_work_entry.column_handles.push_back(CPU_DEVICE);
@@ -330,17 +344,17 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
                        ElementList& element_list) {
   std::unique_ptr<RandomReadFile> video_file = index_entry.open_file();
   u64 file_size = index_entry.file_size;
-  const std::vector<i64>& keyframe_positions = index_entry.keyframe_positions;
-  const std::vector<i64>& keyframe_byte_offsets =
-      index_entry.keyframe_byte_offsets;
+  const std::vector<u64>& keyframe_indices = index_entry.keyframe_indices;
+  const std::vector<u64>& sample_offsets = index_entry.sample_offsets;
+  const std::vector<u64>& sample_sizes = index_entry.sample_sizes;
 
   // Read the bytes from the file that correspond to the sequences of
   // frames we are interested in decoding. This sequence will contain
   // the bytes starting at the first iframe at or preceding the first frame
   // we are interested and will continue up to the bytes before the
   // first iframe at or after the last frame we are interested in.
-  VideoIntervals intervals =
-      slice_into_video_intervals(keyframe_positions, rows);
+  VideoIntervals intervals = slice_into_video_intervals(
+      keyframe_indices, sample_offsets, sample_sizes, rows);
   size_t num_intervals = intervals.keyframe_index_intervals.size();
   for (size_t i = 0; i < num_intervals; ++i) {
     size_t start_keyframe_index;
@@ -348,22 +362,26 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     std::tie(start_keyframe_index, end_keyframe_index) =
         intervals.keyframe_index_intervals[i];
 
-    u64 start_keyframe_byte_offset =
-        static_cast<u64>(keyframe_byte_offsets[start_keyframe_index]);
-    u64 end_keyframe_byte_offset =
-        static_cast<u64>(keyframe_byte_offsets[end_keyframe_index]);
+    i64 start_keyframe = keyframe_indices[start_keyframe_index];
+    i64 end_keyframe = keyframe_indices[end_keyframe_index];
 
-    i64 start_keyframe = keyframe_positions[start_keyframe_index];
-    i64 end_keyframe = keyframe_positions[end_keyframe_index];
+    u64 start_keyframe_byte_offset =
+        static_cast<u64>(sample_offsets[start_keyframe]);
+    u64 end_keyframe_byte_offset =
+        static_cast<u64>(sample_offsets[end_keyframe]);
+
     std::vector<i64> all_keyframes;
-    for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
-      all_keyframes.push_back(keyframe_positions[i]);
+    std::vector<i64> all_keyframe_indices;
+    for (size_t i = start_keyframe_index; i <= end_keyframe_index; ++i) {
+      all_keyframes.push_back(keyframe_indices[i]);
+      all_keyframe_indices.push_back(keyframe_indices[i] - keyframe_indices[0]);
     }
 
-    std::vector<i64> all_keyframes_byte_offsets;
-    for (size_t i = start_keyframe_index; i < end_keyframe_index + 1; ++i) {
-      all_keyframes_byte_offsets.push_back(keyframe_byte_offsets[i] -
-                                           start_keyframe_byte_offset);
+    std::vector<u64> all_offsets;
+    std::vector<u64> all_sizes;
+    for (size_t i = start_keyframe; i <= end_keyframe; ++i) {
+      all_offsets.push_back(sample_offsets[i] - start_keyframe_byte_offset);
+      all_sizes.push_back(sample_sizes[i]);
     }
 
     size_t buffer_size = end_keyframe_byte_offset - start_keyframe_byte_offset;
@@ -386,21 +404,29 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     // We add the start frame of this item to all frames since the decoder
     // works in terms of absolute frame numbers, instead of item relative
     // frame numbers
-    decode_args.set_start_keyframe(keyframe_positions[start_keyframe_index] +
+    decode_args.set_start_keyframe(keyframe_indices[start_keyframe_index] +
                                    start_frame);
-    decode_args.set_end_keyframe(keyframe_positions[end_keyframe_index] +
+    decode_args.set_end_keyframe(keyframe_indices[end_keyframe_index] +
                                  start_frame);
     for (i64 k : all_keyframes) {
       decode_args.add_keyframes(k + start_frame);
     }
-    for (i64 k : all_keyframes_byte_offsets) {
-      decode_args.add_keyframe_byte_offsets(k);
+    for (i64 k : all_keyframe_indices) {
+      decode_args.add_keyframe_indices(k);
+    }
+    for (u64 k : all_offsets) {
+      decode_args.add_sample_offsets(k);
+    }
+    for (u64 k : all_sizes) {
+      decode_args.add_sample_sizes(k);
     }
     for (size_t j = 0; j < intervals.valid_frames[i].size(); ++j) {
       decode_args.add_valid_frames(intervals.valid_frames[i][j] + start_frame);
     }
     decode_args.set_encoded_video((i64)buffer);
     decode_args.set_encoded_video_size(buffer_size);
+    decode_args.set_metadata(index_entry.metadata.data(),
+                             index_entry.metadata.size());
 
     size_t size = decode_args.ByteSizeLong();
     u8* decode_args_buffer = new_buffer(CPU_DEVICE, size);

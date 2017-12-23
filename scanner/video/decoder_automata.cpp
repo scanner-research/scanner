@@ -270,9 +270,9 @@ void DecoderAutomata::feeder() {
       i32 encoded_packet_size = 0;
       const u8* encoded_packet = NULL;
       if (feeder_buffer_offset_ < encoded_buffer_size) {
-        encoded_packet_size = *reinterpret_cast<const i32*>(
-            encoded_buffer + feeder_buffer_offset_);
-        feeder_buffer_offset_ += sizeof(i32);
+        u64 start_keyframe = encoded_data_[fdi].start_keyframe();
+        encoded_packet_size = encoded_data_[fdi].sample_sizes().Get(
+            feeder_current_frame_ - start_keyframe);
         encoded_packet = encoded_buffer + feeder_buffer_offset_;
         assert(0 <= encoded_packet_size &&
                encoded_packet_size < encoded_buffer_size);

@@ -49,6 +49,7 @@ struct EvalWorkEntry {
   BatchedColumns columns;
   std::vector<DeviceHandle> column_handles;
   // Below only for pre/evaluate/post workers
+  std::vector<bool> inplace_video;
   std::vector<ColumnType> column_types;
   bool needs_configure;
   bool needs_reset;

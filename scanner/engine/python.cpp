@@ -84,12 +84,13 @@ proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
 }
 
 py::list ingest_videos_wrapper(Database& db, const py::list table_names,
-                               const py::list paths) {
+                               const py::list paths,
+                               bool inplace) {
   std::vector<FailedVideo> failed_videos;
   {
     GILRelease r;
     db.ingest_videos(to_std_vector<std::string>(table_names),
-                     to_std_vector<std::string>(paths), failed_videos);
+                     to_std_vector<std::string>(paths), inplace, failed_videos);
   }
   return to_py_list<FailedVideo>(failed_videos);
 }

@@ -23,6 +23,8 @@
 #include "scanner/video/decoder_automata.h"
 #include "scanner/video/video_encoder.h"
 
+#include "hwang/decoder_automata.h"
+
 namespace scanner {
 namespace internal {
 
@@ -65,6 +67,7 @@ class PreEvaluateWorker {
 
   DeviceHandle decoder_output_handle_;
   std::vector<std::unique_ptr<DecoderAutomata>> decoders_;
+  std::vector<std::unique_ptr<hwang::DecoderAutomata>> inplace_decoders_;
 
   // Continuation state
   bool first_item_;

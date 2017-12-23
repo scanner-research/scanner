@@ -657,7 +657,7 @@ class Database(object):
 
         return self.collection(collection_name)
 
-    def ingest_videos(self, videos, force=False):
+    def ingest_videos(self, videos, inplace=False, force=False):
         """
         Creates a Table from a video.
 
@@ -689,6 +689,7 @@ class Database(object):
         ingest_params = self.protobufs.IngestParameters()
         ingest_params.table_names.extend(table_names)
         ingest_params.video_paths.extend(paths)
+        ingest_params.inplace = inplace
         ingest_result = self._try_rpc(
             lambda: self._master.IngestVideos(ingest_params))
         if not ingest_result.result.success:

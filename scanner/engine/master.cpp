@@ -172,6 +172,7 @@ grpc::Status MasterImpl::IngestVideos(grpc::ServerContext* context,
                                              params->table_names().end()),
                     std::vector<std::string>(params->video_paths().begin(),
                                              params->video_paths().end()),
+                    params->inplace(),
                     failed_videos));
   for (auto& failed : failed_videos) {
     result->add_failed_paths(failed.path);

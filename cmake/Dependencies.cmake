@@ -47,6 +47,7 @@ find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
   PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install")
+find_package(Hwang REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(PythonLibs 2.7 EXACT REQUIRED)
 find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
@@ -59,6 +60,7 @@ set(GTEST_LIBRARIES ${GOOGLETEST_LIBRARIES})
 set(GTEST_LIB_MAIN ${GOOGLETEST_MAIN})
 
 set(SCANNER_LIBRARIES
+  "${HWANG_LIBRARY}"
   "${PROTOBUF_LIBRARY}"
   "${GRPC_LIBRARIES}"
   "${FFMPEG_LIBRARIES}"
@@ -85,6 +87,7 @@ message(${SCANNER_LIBRARIES})
 include_directories(
   "."
   "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files
+  "${HWANG_INCLUDE_DIRS}"
   "${PROTOBUF_INCLUDE_DIRS}"
   "${GRPC_INCLUDE_DIRS}"
   "${FFMPEG_INCLUDE_DIR}"
