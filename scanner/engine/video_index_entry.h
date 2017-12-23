@@ -28,6 +28,8 @@ struct VideoIndexEntry {
   std::unique_ptr<storehouse::RandomReadFile> open_file() const;
 
   storehouse::StorageBackend* storage;
+  std::string path;
+  bool inplace;
   i32 table_id;
   i32 column_id;
   i32 item_id;
@@ -41,8 +43,11 @@ struct VideoIndexEntry {
   std::vector<i64> frames_per_video;
   std::vector<i64> keyframes_per_video;
   std::vector<i64> size_per_video;
-  std::vector<i64> keyframe_positions;
-  std::vector<i64> keyframe_byte_offsets;
+
+  std::vector<u64> keyframe_indices;
+  std::vector<u64> sample_offsets;
+  std::vector<u64> sample_sizes;
+  std::vector<u8> metadata;
 };
 
 VideoIndexEntry read_video_index(storehouse::StorageBackend *storage,

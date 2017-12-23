@@ -58,12 +58,10 @@ TEST(DecoderAutomata, GetAllFrames) {
   for (i64 r = 0; r < video_meta.frames(); ++r) {
     decode_args.add_valid_frames(r);
   }
-  for (i64 k : video_meta.keyframe_positions()) {
-    decode_args.add_keyframes(k);
-  }
-  for (i64 k : video_meta.keyframe_byte_offsets()) {
-    decode_args.add_keyframe_byte_offsets(k);
-  }
+  // for (i64 k : video_meta.keyframe_indices()) {
+  //   decode_args.add_keyframes(k);
+  //   decode_args.add_keyframe_byte_offsets(video_meta.sample_offsets().at(k));
+  // }
   decode_args.set_encoded_video((i64)video_buffer);
   decode_args.set_encoded_video_size(video_bytes.size());
 
@@ -110,12 +108,10 @@ TEST(DecoderAutomata, GetStridedFrames) {
   for (i64 r = 0; r < video_meta.frames(); r += 2) {
     decode_args.add_valid_frames(r);
   }
-  for (i64 k : video_meta.keyframe_positions()) {
-    decode_args.add_keyframes(k);
-  }
-  for (i64 k : video_meta.keyframe_byte_offsets()) {
-    decode_args.add_keyframe_byte_offsets(k);
-  }
+  // for (i64 k : video_meta.keyframe_indices()) {
+  //   decode_args.add_keyframes(k);
+  //   decode_args.add_keyframe_byte_offsets(video_meta.sample_offsets().at(k));
+  // }
   decode_args.set_encoded_video((i64)video_buffer);
   decode_args.set_encoded_video_size(video_bytes.size());
 

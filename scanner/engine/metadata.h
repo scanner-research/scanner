@@ -156,8 +156,13 @@ class VideoMetadata : public Metadata<proto::VideoDescriptor> {
   std::vector<i64> frames_per_video() const;
   std::vector<i64> keyframes_per_video() const;
   std::vector<i64> size_per_video() const;
-  std::vector<i64> keyframe_positions() const;
-  std::vector<i64> keyframe_byte_offsets() const;
+
+  std::vector<u64> keyframe_indices() const;
+  std::vector<u64> sample_offsets() const;
+  std::vector<u64> sample_sizes() const;
+  std::vector<u8> metadata() const;
+  std::string data_path() const;
+  bool inplace() const;
 };
 
 class ImageFormatGroupMetadata

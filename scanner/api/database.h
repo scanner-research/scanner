@@ -58,6 +58,7 @@ class Database {
 
   Result ingest_videos(const std::vector<std::string>& table_names,
                        const std::vector<std::string>& paths,
+                       bool inplace,
                        std::vector<FailedVideo>& failed_videos);
 
   Result new_table(const std::string& table_name,

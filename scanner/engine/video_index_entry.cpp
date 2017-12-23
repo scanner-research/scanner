@@ -20,9 +20,9 @@ namespace internal {
 
 std::unique_ptr<storehouse::RandomReadFile> VideoIndexEntry::open_file() const {
   std::unique_ptr<storehouse::RandomReadFile> file;
-  BACKOFF_FAIL(storehouse::make_unique_random_read_file(
-      storage, table_item_output_path(table_id, column_id, item_id),
-      file));
+  const std::string p =
+      inplace ? path : table_item_output_path(table_id, column_id, item_id);
+  BACKOFF_FAIL(storehouse::make_unique_random_read_file(storage, p, file));
   return std::move(file);
 }
 
@@ -42,6 +42,8 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   i32 item_id = video_meta.item_id();
 
   // Open the video file for reading
+  index_entry.path = video_meta.data_path();
+  index_entry.inplace = video_meta.inplace();
   index_entry.storage = storage;
   index_entry.table_id = table_id;
   index_entry.column_id = column_id;
@@ -52,18 +54,17 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   index_entry.frame_type = video_meta.frame_type();
   index_entry.codec_type = video_meta.codec_type();
 
-  std::unique_ptr<storehouse::RandomReadFile> file;
-  BACKOFF_FAIL(storehouse::make_unique_random_read_file(
-      storage, table_item_output_path(table_id, column_id, item_id),
-      file));
+  std::unique_ptr<storehouse::RandomReadFile> file = index_entry.open_file();
   BACKOFF_FAIL(file->get_size(index_entry.file_size));
   index_entry.num_encoded_videos = video_meta.num_encoded_videos();
   index_entry.frames_per_video = video_meta.frames_per_video();
   index_entry.keyframes_per_video = video_meta.keyframes_per_video();
   index_entry.size_per_video = video_meta.size_per_video();
-  index_entry.keyframe_positions = video_meta.keyframe_positions();
-  index_entry.keyframe_byte_offsets = video_meta.keyframe_byte_offsets();
+  index_entry.keyframe_indices = video_meta.keyframe_indices();
+  index_entry.sample_offsets = video_meta.sample_offsets();
+  index_entry.sample_sizes = video_meta.sample_sizes();
   if (index_entry.codec_type == proto::VideoDescriptor::H264) {
+    index_entry.metadata = video_meta.metadata();
     // Update keyframe positions and byte offsets so that the separately
     // encoded videos seem like they are one
     i64 frame_offset = 0;
@@ -72,8 +73,11 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
     for (i64 v = 0; v < index_entry.num_encoded_videos; ++v) {
       for (i64 i = 0; i < index_entry.keyframes_per_video[v]; ++i) {
         i64 fo = keyframe_offset + i;
-        index_entry.keyframe_positions[fo] += frame_offset;
-        index_entry.keyframe_byte_offsets[fo] += byte_offset;
+        index_entry.keyframe_indices[fo] += frame_offset;
+      }
+      for (i64 i = 0; i < index_entry.frames_per_video[v]; ++i) {
+        i64 fo = frame_offset + i;
+        index_entry.sample_offsets[fo] += byte_offset;
       }
       frame_offset += index_entry.frames_per_video[v];
       keyframe_offset += index_entry.keyframes_per_video[v];
@@ -83,8 +87,8 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
     // Place total frames at the end of keyframe positions and total file size
     // at the end of byte offsets to make interval calculation not need to
     // deal with edge cases surrounding those
-    index_entry.keyframe_positions.push_back(video_meta.frames());
-    index_entry.keyframe_byte_offsets.push_back(index_entry.file_size);
+    index_entry.keyframe_indices.push_back(video_meta.frames());
+    index_entry.sample_offsets.push_back(index_entry.file_size);
   }
 
   return index_entry;

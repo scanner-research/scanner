@@ -142,8 +142,10 @@ Result Database::start_worker(const MachineParameters& machine_params,
 
 Result Database::ingest_videos(const std::vector<std::string>& table_names,
                                const std::vector<std::string>& paths,
+                               bool inplace,
                                std::vector<FailedVideo>& failed_videos) {
   internal::ingest_videos(storage_config_, db_path_, table_names, paths,
+                          inplace,
                           failed_videos);
   Result result;
   result.set_success(true);

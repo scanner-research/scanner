@@ -92,6 +92,7 @@ message PythonKernelRegistration {
 message IngestParameters {
   repeated string table_names = 1;
   repeated string video_paths = 2;
+  bool inplace = 3;
 }
 
 message IngestResult {

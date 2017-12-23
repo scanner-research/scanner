@@ -34,11 +34,9 @@ class H264ByteStreamIndexCreator {
   bool feed_packet(u8* data, size_t size);
 
   const std::vector<u8>& metadata_bytes() { return metadata_bytes_; }
-  const std::vector<i64>& keyframe_positions() { return keyframe_positions_; }
-  const std::vector<i64>& keyframe_timestamps() { return keyframe_timestamps_; }
-  const std::vector<i64>& keyframe_byte_offsets() {
-    return keyframe_byte_offsets_;
-  };
+  const std::vector<u64>& sample_offsets() { return sample_offsets_; }
+  const std::vector<u64>& sample_sizes() { return sample_sizes_; }
+  const std::vector<u64>& keyframe_indices() { return keyframe_indices_; }
 
   i32 frames() { return frame_; };
   i32 num_non_ref_frames() { return num_non_ref_frames_; };
@@ -54,9 +52,9 @@ class H264ByteStreamIndexCreator {
 
   u64 bytestream_pos_ = 0;
   std::vector<u8> metadata_bytes_;
-  std::vector<i64> keyframe_positions_;
-  std::vector<i64> keyframe_timestamps_;
-  std::vector<i64> keyframe_byte_offsets_;
+  std::vector<u64> sample_offsets_;
+  std::vector<u64> sample_sizes_;
+  std::vector<u64> keyframe_indices_;
 
   i64 frame_ = 0;
   bool in_meta_packet_sequence_ = false;

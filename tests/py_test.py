@@ -104,6 +104,10 @@ def db():
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
+        db.ingest_videos([('test1_inplace', vid1_path),
+                          ('test2_inplace', vid2_path)],
+                         inplace=True)
+
         yield db
 
         # Tear down
@@ -116,11 +120,13 @@ def db():
 def test_new_database(db): pass
 
 def test_table_properties(db):
-    table = db.table('test1')
-    assert table.id() == 0
-    assert table.name() == 'test1'
-    assert table.num_rows() == 720
-    assert [c for c in table.column_names()] == ['index', 'frame']
+    for name, i in [('test1', 0),
+                    ('test1_inplace', 2)]:
+        table = db.table(name)
+        assert table.id() == i
+        assert table.name() == name
+        assert table.num_rows() == 720
+        assert [c for c in table.column_names()] == ['index', 'frame']
 
 def test_collection(db):
     c = db.new_collection('test', [db.table('test1'), db.table('test2')])
@@ -145,14 +151,15 @@ def test_summarize(db):
     db.summarize()
 
 def test_load_video_column(db):
-    next(db.table('test1').load(['frame']))
-    # Gather rows
-    rows = [0, 10, 100, 200]
-    frames = [_ for _ in db.table('test1').load(['frame'], rows=rows)]
-    assert len(frames) == len(rows)
+    for name in ['test1', 'test1_inplace']:
+        next(db.table(name).load(['frame']))
 
-def test_load_video_column(db):
-    next(db.table('test1').load(['frame']))
+def test_gather_video_column(db):
+    for name in ['test1', 'test1_inplace']:
+        # Gather rows
+        rows = [0, 10, 100, 200]
+        frames = [_ for _ in db.table(name).load(['frame'], rows=rows)]
+        assert len(frames) == len(rows)
 
 def test_profiler(db):
     frame = db.ops.FrameInput()
