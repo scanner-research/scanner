@@ -463,8 +463,9 @@ echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
 echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
 
 echo "Done installing required dependencies!"
-echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH so the installed "
-echo "dependencies can be found!"
+echo -n "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH and "
+echo -n "add $INSTALL_PREFIX/bin to your PATH so the installed "
+echo -n "dependencies can be found! "
 echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"
 if [[ $INSTALL_OPENCV == true ]]; then
     echo "Add $INSTALL_PREFIX/lib/python2.7/dist-packages to your PYTHONPATH to use OpenCV from Python"
