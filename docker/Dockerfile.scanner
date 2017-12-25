@@ -7,6 +7,8 @@ ARG gpu=ON
 ADD . /opt/scanner
 WORKDIR /opt/scanner
 ENV Caffe_DIR /usr/local
+ENV LD_LIBRARY_PATH \
+       "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 RUN cd /opt/scanner && \
     mkdir build && cd build && \
     cmake -D BUILD_IMGPROC_OPS=ON \
@@ -19,5 +21,3 @@ RUN cd /opt/scanner && \
     cd .. && rm -fr python/scannerpy/build && \
     python python/setup.py bdist_wheel && \
     pip install dist/scannerpy-0.1.13-py2-none-any.whl
-ENV LD_LIBRARY_PATH \
-       "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
