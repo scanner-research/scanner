@@ -24,6 +24,7 @@ function(build_op)
 
   include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
+  # Build protobuf files if they exist
   if(NOT("${args_PROTO_SRC}" STREQUAL ""))
     find_package(SaneProtobuf REQUIRED)
     set(PROTOBUF_IMPORT_DIRS "${SCANNER_PATH}")
@@ -38,7 +39,15 @@ function(build_op)
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
 
+  # NO_FLAGS is primarily for special treatment of libstdlib right now
   if("${args_NO_FLAGS}" STREQUAL "")
+    # Explictly link libscanner.so
+    execute_process(
+      OUTPUT_VARIABLE SCANNER_LIB_PATH
+      COMMAND
+      python -c "import scannerpy.stdlib.build_flags as b; b.print_lib()")
+    target_link_libraries(${args_LIB_NAME} PUBLIC "${SCANNER_LIB_PATH}/libscanner.so")
+
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
       COMMAND
@@ -46,8 +55,5 @@ function(build_op)
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
-    set_target_properties(
-      ${args_LIB_NAME} PROPERTIES
-      LINK_FLAGS "${BUILD_FLAGS}")
   endif()
 endfunction()
