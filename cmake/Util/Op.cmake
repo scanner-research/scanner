@@ -46,5 +46,8 @@ function(build_op)
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
+    set_target_properties(
+      ${args_LIB_NAME} PROPERTIES
+      LINK_FLAGS "${BUILD_FLAGS}")
   endif()
 endfunction()
