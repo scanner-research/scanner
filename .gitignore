@@ -17,3 +17,4 @@ python/*.egg-info
 **/*.mkv
 
 python/scannerpy/include
+dist
