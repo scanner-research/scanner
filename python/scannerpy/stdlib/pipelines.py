@@ -9,7 +9,7 @@ from scannerpy.stdlib.util import temp_directory, download_temp_file
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-def detect_faces(db, input_frame_columns, output_sampling, output_name,
+def detect_faces(db, input_frame_columns, output_sampling, output_prefixes,
                  width=960, prototxt_path=None, model_weights_path=None,
                  templates_path=None,
                  return_profiling=False):
@@ -43,6 +43,18 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         device = DeviceType.CPU
         pipeline_instances = 1
 
+    if type(output_prefixes) is list:
+        assert(len(output_prefix) == len(input_frame_columns))
+        output_names = [
+            prefix + '_boxes'
+            for prefix in output_prefixes
+        ]
+    else:
+        output_names = [
+            prefix + '_boxes_{}'.format(i)
+            for i in range(len(input_frame_columns))
+        ]
+
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
     batch_sizes = [int((2**i))
@@ -74,11 +86,11 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         output = db.ops.Output(columns=[sampled_output])
 
         jobs = []
-        for i, frame_column in enumerate(input_frame_columns):
+        for output_name, frame_column in zip(output_names, input_frame_columns):
             job = Job(op_args={
                 frame: frame_column,
                 sampled_output: output_sampling,
-                output: '{}_{}_faces_{}'.format(output_name, i, scale)
+                output: '{}_{}'.format(output_name, scale)
             })
             jobs.append(job)
 
@@ -104,7 +116,7 @@ def detect_faces(db, input_frame_columns, output_sampling, output_name,
         op_args = {}
         for bi, cols in enumerate(outputs):
             op_args[bbox_inputs[bi]] = cols[i].column('bboxes')
-        op_args[output] = '{}_boxes_{}'.format(output_name, i)
+        op_args[output] = output_names[i]
         jobs.append(Job(op_args=op_args))
     bulk_job = BulkJob(output=output, jobs=jobs)
     return db.run(bulk_job, force=True)

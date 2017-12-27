@@ -42,8 +42,11 @@ message OpenPoseArgs {
   int32 pose_num_scales = 2;
   float pose_scale_gap = 3;
 
-  int32 hand_num_scales = 4;
-  float hand_scale_gap = 5;
+  bool compute_hands = 4;
+  int32 hand_num_scales = 5;
+  float hand_scale_gap = 6;
+
+  bool compute_face = 7;
 }
 
 message Camera {

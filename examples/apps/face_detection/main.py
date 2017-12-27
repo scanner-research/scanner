@@ -23,9 +23,9 @@ with Database() as db:
     sampler = db.sampler.all()
 
     print('Detecting faces...')
-    bboxes_table = pipelines.detect_faces(
+    [bboxes_table] = pipelines.detect_faces(
         db, [input_table.column('frame')], sampler,
-        movie_name + '_bboxes')[0]
+        movie_name + '_bboxes')
 
     print('Drawing faces onto video...')
     frame = db.ops.FrameInput()

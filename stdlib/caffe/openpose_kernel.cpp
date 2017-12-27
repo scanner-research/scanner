@@ -48,9 +48,9 @@ class OpenPoseKernel : public scanner::BatchedKernel,
                                                   false};
 
     const op::WrapperStructFace wrapperStructFace{
-        true, {368, 368}, op::RenderMode::None, 0.6, 0.7, 0.2};
+      args.compute_face(), {368, 368}, op::RenderMode::None, 0.6, 0.7, 0.2};
 
-    const op::WrapperStructHand wrapperStructHand{true,
+    const op::WrapperStructHand wrapperStructHand{args.compute_hands(),
                                                   {368, 368},
                                                   args.hand_num_scales(),
                                                   args.hand_scale_gap(),
@@ -92,23 +92,30 @@ class OpenPoseKernel : public scanner::BatchedKernel,
       size_t size =
           num_people > 0 ? TOTAL_KEYPOINTS * num_people * 3 * sizeof(float) : 1;
       float* kp = new float[size / sizeof(float)];
+      std::memset(kp, 0, size);
       float* curr_kp = kp;
       for (int i = 0; i < num_people; ++i) {
         std::memcpy(curr_kp,
                     datum.poseKeypoints.getPtr() + i * POSE_KEYPOINTS * 3,
                     POSE_KEYPOINTS * 3 * sizeof(float));
         curr_kp += POSE_KEYPOINTS * 3;
-        std::memcpy(curr_kp,
-                    datum.faceKeypoints.getPtr() + i * FACE_KEYPOINTS * 3,
-                    FACE_KEYPOINTS * 3 * sizeof(float));
+        if (datum.faceKeypoints.getPtr() != nullptr) {
+          std::memcpy(curr_kp,
+                      datum.faceKeypoints.getPtr() + i * FACE_KEYPOINTS * 3,
+                      FACE_KEYPOINTS * 3 * sizeof(float));
+        }
         curr_kp += FACE_KEYPOINTS * 3;
-        std::memcpy(curr_kp,
-                    datum.handKeypoints[0].getPtr() + i * HAND_KEYPOINTS * 3,
-                    HAND_KEYPOINTS * 3 * sizeof(float));
+        if (datum.handKeypoints[0].getPtr() != nullptr) {
+          std::memcpy(curr_kp,
+                      datum.handKeypoints[0].getPtr() + i * HAND_KEYPOINTS * 3,
+                      HAND_KEYPOINTS * 3 * sizeof(float));
+        }
         curr_kp += HAND_KEYPOINTS * 3;
-        std::memcpy(curr_kp,
-                    datum.handKeypoints[1].getPtr() + i * HAND_KEYPOINTS * 3,
-                    HAND_KEYPOINTS * 3 * sizeof(float));
+        if (datum.handKeypoints[1].getPtr() != nullptr) {
+          std::memcpy(curr_kp,
+                      datum.handKeypoints[1].getPtr() + i * HAND_KEYPOINTS * 3,
+                      HAND_KEYPOINTS * 3 * sizeof(float));
+        }
         curr_kp += HAND_KEYPOINTS * 3;
       }
 
