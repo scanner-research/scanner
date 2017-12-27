@@ -390,7 +390,8 @@ git clone https://github.com/google/googletest && \
         || { echo 'Installing googletest failed!' ; exit 1; }
 echo "Done installing googletest"
 
-if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]]; then
+if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
+       [[ ! -f $BUILD_DIR/caffe.done ]]; then
     # Intel Caffe 1.0.6
     cd $BUILD_DIR
     rm -fr caffe
@@ -415,7 +416,8 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]]; then
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]]; then
+if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]] && \
+       [[ ! -f $BUILD_DIR/caffe.done ]]; then
     cd $BUILD_DIR
     # Intel MKL
     rm -fr mkl
