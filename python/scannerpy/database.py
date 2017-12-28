@@ -289,6 +289,21 @@ class Database(object):
                 self._table_id[table.id] = i
                 self._table_name[table.name] = i
                 self._table_committed[table.id] = table.committed
+
+            self._table_descriptor = {}
+            # Read all table descriptors from database
+            get_tables_params = self.protobufs.GetTablesParams()
+            for table_name in self._table_name:
+                get_tables_params.tables.append(table_name)
+            get_tables_result = self._try_rpc(lambda: self._master.GetTables(
+                get_tables_params))
+            if not get_tables_result.result.success:
+                raise ScannerException(
+                    'Internal error: GetTables returned error: {}'.format(
+                        get_tables_result.result.msg))
+            for table in get_tables_result.tables:
+                self._table_descriptor[table.id] = table
+
         return self._cached_db_metadata
 
     def _connect_to_worker(self, address):
@@ -743,19 +758,11 @@ class Database(object):
         return False
 
     def delete_tables(self, names):
-        db_meta = self._load_db_metadata()
-        idxs_to_delete = []
+        delete_tables_params = self.protobufs.DeleteTablesParams()
         for name in names:
-            assert name in self._table_name
-            t = self.table(name)
-            t._need_descriptor()
-            idxs_to_delete.append(self._table_name[name])
-        idxs_to_delete.sort()
-        for idx in reversed(idxs_to_delete):
-            del db_meta.tables[idx]
-        self._save_descriptor(db_meta, 'db_metadata.bin')
+            delete_tables_params.tables.append(name)
+        self._try_rpc(lambda: self._master.DeleteTables(delete_tables_params))
         self._cached_db_metadata = None
-        self._load_db_metadata()
 
     def delete_table(self, name):
         self.delete_tables([name])
@@ -817,7 +824,9 @@ class Database(object):
         else:
             raise ScannerException('Invalid table identifier')
 
-        return Table(self, table_name, table_id)
+        table = Table(self, table_name, table_id)
+        table._descriptor = self._table_descriptor[table_id]
+        return table
 
     def profiler(self, job_name):
         db_meta = self._load_db_metadata()

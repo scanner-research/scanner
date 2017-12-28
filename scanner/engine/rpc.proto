@@ -4,6 +4,16 @@ import "scanner/metadata.proto";
 package scanner.proto;
 
 service Master {
+  /// Database metadata methods
+
+  // List table info
+  rpc ListTables (Empty) returns (ListTablesResult) {}
+  // Get table info
+  rpc GetTables (GetTablesParams) returns (GetTablesResult) {}
+  // Delete table in the database
+  rpc DeleteTables (DeleteTablesParams) returns (Empty) {}
+
+  /// Worker registration methods
   // Called after a new worker spawns to register with the master
   rpc RegisterWorker (WorkerParams) returns (Registration) {}
   // Called when a worker is removed
@@ -11,10 +21,8 @@ service Master {
   rpc ActiveWorkers (Empty) returns (RegisteredWorkers) {}
   // Ingest videos into the system
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
-  rpc NextWork (NodeInfo) returns (NewWork) {}
-  rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
-  rpc NewJob (BulkJobParameters) returns (Result) {}
   rpc IsJobDone (Empty) returns (JobResult) {}
+
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpPath) returns (Result) {}
   rpc RegisterOp (OpRegistration) returns (Result) {}
@@ -22,6 +30,11 @@ service Master {
   rpc GetOpInfo (OpInfoArgs) returns (OpInfo) {}
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
+
+  // Internal
+  rpc NextWork (NodeInfo) returns (NewWork) {}
+  rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
+  rpc NewJob (BulkJobParameters) returns (Result) {}
 }
 
 service Worker {
@@ -46,6 +59,22 @@ message JobResult {
   Result result = 2;
 }
 
+message ListTablesResult {
+  repeated string tables = 1;
+}
+
+message GetTablesParams {
+  repeated string tables = 1;
+}
+
+message GetTablesResult {
+  Result result = 1;
+  repeated TableDescriptor tables = 2;
+}
+
+message DeleteTablesParams {
+  repeated string tables = 1;
+}
 
 message WorkerParams {
   string port = 1;
