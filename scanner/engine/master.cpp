@@ -1009,8 +1009,8 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
         table_metas_->update(TableMetadata(table_desc));
       }
       // Write table metadata in parallel
-      auto write_meta = [&](std::vector<i64> table_ids) {
-        for (i64 table_id : table_ids) {
+      auto write_meta = [&](std::vector<i32> table_ids) {
+        for (i32 table_id : table_ids) {
           write_table_metadata(storage_, table_metas_->at(table_id));
         }
       };
