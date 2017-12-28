@@ -6,7 +6,8 @@ MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
 
 WORKDIR /opt/scanner
-RUN bash ./deps.sh --install-all --prefix /usr/local
+RUN bash ./deps.sh --install-all --prefix /usr/local && \
+    rm -rf /opt/scanner
 
 ENV PYTHONPATH /usr/local/python:${PYTHONPATH}
 ENV PYTHONPATH /usr/local/lib/python2.7/site-packages:${PYTHONPATH}
