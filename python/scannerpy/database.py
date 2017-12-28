@@ -469,12 +469,17 @@ class Database(object):
                 self._start_heartbeat()
 
                 # Start workers now that master is ready
-                self._worker_conns = [
-                    self._run_remote_cmd(w, worker_cmd.format(
-                        master=self._master_address,
-                        config=pickled_config,
-                        worker_port=w.partition(':')[2]))
-                    for w in self._worker_addresses]
+                self._worker_conns = []
+                ignored_nodes = 0
+                for w in self._worker_addresses:
+                    try:
+                        self._run_remote_cmd(w, worker_cmd.format(
+                            master=self._master_address,
+                            config=pickled_config,
+                            worker_port=w.partition(':')[2]))
+                    except:
+                        print('WARNING: Failed to ssh into {:s}, ignoring'.format(w))
+                        ignored_nodes += 1
                 slept_so_far = 0
                 # Has to be this long for GCS
                 sleep_time = 60
@@ -497,6 +502,9 @@ class Database(object):
                     self._worker_conns = None
                     raise ScannerException(
                         'Timed out waiting for workers to connect to master')
+                if ignored_nodes > 0:
+                    print('Ignored {:d} nodes during startup.'.format(
+                        ignored_nodes))
         else:
             self._master_conn = None
             self._worker_conns = None
