@@ -205,7 +205,7 @@ class Database(object):
             with open(os.devnull, 'w') as f:
                 subprocess.check_call(['nvidia-smi'], stdout=f, stderr=f)
             return True
-        except OSError:
+        except:
             pass
         return False
 
@@ -473,10 +473,10 @@ class Database(object):
                 ignored_nodes = 0
                 for w in self._worker_addresses:
                     try:
-                        self._run_remote_cmd(w, worker_cmd.format(
+                        self._worker_conns.append(self._run_remote_cmd(w, worker_cmd.format(
                             master=self._master_address,
                             config=pickled_config,
-                            worker_port=w.partition(':')[2]))
+                            worker_port=w.partition(':')[2])))
                     except:
                         print('WARNING: Failed to ssh into {:s}, ignoring'.format(w))
                         ignored_nodes += 1
