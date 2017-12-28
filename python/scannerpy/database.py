@@ -67,8 +67,8 @@ def start_master(port=None, config=None, config_path=None, block=False,
     # Load all protobuf types
     db = bindings.Database(
         config.storage_config,
-        config.db_path,
-        config.master_address + ':' + port)
+        config.db_path.encode('ascii')
+        (config.master_address + ':' + port).encode('ascii'))
     result = bindings.start_master(db, port.encode('ascii'), watchdog)
     if not result.success:
         raise ScannerException('Failed to start master: {}'.format(result.msg))
@@ -105,8 +105,8 @@ def start_worker(master_address, machine_params=None, port=None, config=None,
     db = bindings.Database(
         config.storage_config,
         #storage_config,
-        config.db_path,
-        master_address)
+        config.db_path.encode('ascii'),
+        master_address.encode('ascii'))
     machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params,
                                    str(port).encode('ascii'), watchdog)
