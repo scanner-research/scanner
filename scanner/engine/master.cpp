@@ -1009,15 +1009,25 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
         table_metas_->update(TableMetadata(table_desc));
       }
       // Write table metadata in parallel
-      auto write_meta = [&](i64 table_id) {
-        write_table_metadata(storage_, table_metas_->at(table_id));
+      auto write_meta = [&](std::vector<i64> table_ids) {
+        for (i64 table_id : table_ids) {
+          write_table_metadata(storage_, table_metas_->at(table_id));
+        }
       };
       std::vector<std::thread> threads;
-      for (i64 table_id : job_uncommitted_tables_) {
-        threads.emplace_back(write_meta, table_id);
+      i32 num_threads = std::thread::hardware_concurrency() * 4;
+      i32 job_idx = 0;
+      for (i64 tid = 0; tid < num_threads; ++tid) {
+        std::vector<i32> table_ids;
+        i32 jobs_to_compute = (job_params->jobs_size() - job_idx) / (num_threads - tid);
+        for (i32 i = job_idx; i < job_idx + jobs_to_compute; ++i) {
+          table_ids.push_back(i);
+        }
+        threads.emplace_back(write_meta, table_ids);
+        job_idx += jobs_to_compute;
       }
-      for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
-        threads[job_idx].join();
+      for (i64 tid = 0; tid < num_threads; ++tid) {
+        threads[tid].join();
       }
     }
 
