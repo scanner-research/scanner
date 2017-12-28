@@ -974,39 +974,49 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
     write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
     std::vector<i32> job_uncommitted_tables_;
-    for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
-      auto& job = job_params->jobs(job_idx);
-      i32 table_id = meta_.add_table(job.output_table_name());
-      job_to_table_id_[job_idx] = table_id;
-      proto::TableDescriptor table_desc;
-      table_desc.set_id(table_id);
-      table_desc.set_name(job.output_table_name());
-      table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
-                                   now().time_since_epoch())
-                                   .count());
-      // Set columns equal to the last op's output columns
-      for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
-        Column* col = table_desc.add_columns();
-        col->CopyFrom(job_output_columns[job_idx][i]);
-      }
-      table_metas_->update(TableMetadata(table_desc));
+    {
+      auto add_table_metadata = [&](i64 job_idx) {
+        auto& job = job_params->jobs(job_idx);
+        i32 table_id = meta_.add_table(job.output_table_name());
+        job_to_table_id_[job_idx] = table_id;
+        proto::TableDescriptor table_desc;
+        table_desc.set_id(table_id);
+        table_desc.set_name(job.output_table_name());
+        table_desc.set_timestamp(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                now().time_since_epoch())
+                .count());
+        // Set columns equal to the last op's output columns
+        for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
+          Column* col = table_desc.add_columns();
+          col->CopyFrom(job_output_columns[job_idx][i]);
+        }
+        table_metas_->update(TableMetadata(table_desc));
 
-      i64 total_rows = 0;
-      std::vector<i64> end_rows;
-      auto& tasks = job_tasks_.at(job_idx);
-      for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
-        i64 task_rows = tasks.at(task_id).size();
-        total_rows += task_rows;
-        end_rows.push_back(total_rows);
-      }
-      for (i64 r : end_rows) {
-        table_desc.add_end_rows(r);
-      }
-      table_desc.set_job_id(bulk_job_id);
+        i64 total_rows = 0;
+        std::vector<i64> end_rows;
+        auto& tasks = job_tasks_.at(job_idx);
+        for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
+          i64 task_rows = tasks.at(task_id).size();
+          total_rows += task_rows;
+          end_rows.push_back(total_rows);
+        }
+        for (i64 r : end_rows) {
+          table_desc.add_end_rows(r);
+        }
+        table_desc.set_job_id(bulk_job_id);
 
-      job_uncommitted_tables_.push_back(table_id);
-      write_table_metadata(storage_, TableMetadata(table_desc));
-      table_metas_->update(TableMetadata(table_desc));
+        job_uncommitted_tables_.push_back(table_id);
+        write_table_metadata(storage_, TableMetadata(table_desc));
+        table_metas_->update(TableMetadata(table_desc));
+      };
+      std::vector<std::thread> threads;
+      for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
+        threads.emplace_back(add_table_metadata, job_idx);
+      }
+      for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
+        threads[job_idx].join();
+      }
     }
 
     // Setup initial task sampler
