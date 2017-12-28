@@ -27,7 +27,6 @@ from scannerpy.config import Config
 from scannerpy.op import OpGenerator, Op, OpColumn
 from scannerpy.sampler import Sampler
 from scannerpy.partitioner import TaskPartitioner
-from scannerpy.collection import Collection
 from scannerpy.table import Table
 from scannerpy.column import Column
 from scannerpy.protobuf_generator import ProtobufGenerator
@@ -174,22 +173,6 @@ class Database(object):
         self._workers = {}
         self.start_cluster(master, workers);
 
-        # Initialize database if it does not exist
-        pydb_path = '{}/pydb'.format(self._db_path)
-
-        pydbpath_info = self._storage.get_file_info(
-            (pydb_path+'/').encode('ascii'))
-
-        if not (pydbpath_info.file_exists and pydbpath_info.file_is_folder):
-            self._storage.make_dir(pydb_path.encode('ascii'))
-            self._collections = self.protobufs.CollectionsDescriptor()
-            self._update_collections()
-
-        # Load database descriptors from disk
-        self._collections = self._load_descriptor(
-            self.protobufs.CollectionsDescriptor,
-            'pydb/descriptor.bin')
-
     def __del__(self):
         self.stop_cluster()
 
@@ -230,15 +213,6 @@ class Database(object):
                                for t in db_meta.tables]),
             ]),
         ]
-
-        if len(self._collections.names) > 0:
-            tables.append(('COLLECTIONS', [
-                ('Name', self._collections.names),
-                ('# tables', [
-                    str(len(self.collection(id).table_names()))
-                    for id in self._collections.ids
-                ])
-            ]))
 
         for table_idx, (label, cols) in enumerate(tables):
             if table_idx > 0:
@@ -622,63 +596,6 @@ class Database(object):
         self._try_rpc(
             lambda: self._master.RegisterPythonKernel(py_registration))
 
-    def _update_collections(self):
-        self._save_descriptor(self._collections, 'pydb/descriptor.bin')
-
-    def delete_collection(self, collection_name):
-        if collection_name not in self._collections.names:
-            raise ScannerException('Collection with name {} does not exist'
-                                   .format(collection_name))
-
-        index = self._collections.names[:].index(collection_name)
-        id = self._collections.ids[index]
-        del self._collections.names[index]
-        del self._collections.ids[index]
-
-        self._storage.delete_file(
-            ('{}/pydb/collection_{}.bin'.format(
-                self._db_path, id)).encode('ascii'))
-
-    def new_collection(self, collection_name, tables, force=False, job_id=None):
-        """
-        Creates a new Collection from a list of tables.
-
-        Args:
-            collection_name: String name of the collection to create.
-            table_names: List of table name strings to put in the collection.
-
-        Kwargs:
-            force: TODO(wcrichto)
-            job_id: TODO(wcrichto)
-
-        Returns:
-            The new Collection object.
-        """
-
-        if collection_name in self._collections.names:
-            if force:
-                self.delete_collection(collection_name)
-            else:
-                raise ScannerException(
-                    'Collection with name {} already exists'
-                    .format(collection_name))
-
-        table_names = []
-        for table in tables:
-            table_names.append(table.name())
-
-        last_id = (
-            self._collections.ids[-1] if len(self._collections.ids) > 0 else -1)
-        new_id = last_id + 1
-        self._collections.ids.append(new_id)
-        self._collections.names.append(collection_name)
-        self._update_collections()
-        collection = self.protobufs.CollectionDescriptor()
-        collection.tables.extend(table_names)
-        collection.job_id = -1 if job_id is None else job_id
-        self._save_descriptor(collection, 'pydb/collection_{}.bin'.format(new_id))
-
-        return self.collection(collection_name)
 
     def ingest_videos(self, videos, inplace=False, force=False):
         """
@@ -723,41 +640,6 @@ class Database(object):
         return ([self.table(t) for (t, p) in videos
                 if p not in ingest_result.failed_paths],
                 failures)
-
-    def ingest_video_collection(self, collection_name, videos, force=False):
-        """
-        Creates a Collection from a list of videos.
-
-        Args:
-            collection_name: String name of the Collection to create.
-            videos: List of video paths.
-
-        Kwargs:
-            force: TODO(wcrichto)
-
-        Returns:
-            (Collection, list of (path, reason) failures to ingest)
-        """
-        table_names = ['{}:{:03d}'.format(collection_name, i)
-                       for i in range(len(videos))]
-        tables, failures = self.ingest_videos(zip(table_names, videos), force)
-        collection = self.new_collection(
-            collection_name, tables, force)
-        return collection, failures
-
-    def has_collection(self, name):
-        return name in self._collections.names
-
-    def collection(self, name):
-        if isinstance(name, basestring):
-            index = self._collections.names[:].index(name)
-            id = self._collections.ids[index]
-        else:
-            id = name
-        collection = self._load_descriptor(
-            self.protobufs.CollectionDescriptor,
-            'pydb/collection_{}.bin'.format(id))
-        return Collection(self, name, collection)
 
     def has_table(self, name):
         db_meta = self._load_db_metadata()
@@ -959,32 +841,6 @@ class Database(object):
             profiling=False,
             load_sparsity_threshold=8,
             tasks_in_queue_per_pu=4):
-        """
-        Runs a computation over a set of inputs.
-
-        Args:
-            tasks: The set of inputs to run the computation on. If tasks is a
-                   Collection, then the computation is run on all frames of all
-                   tables in the collection. Otherwise, tasks should be generated
-                   by the Sampler.
-            outputs: TODO(wcrichto)
-
-        Kwargs:
-            output_collection: If this is not None, then a new collection with
-                               this name will be created for all the output
-                               tables.
-            force: TODO(wcrichto)
-            work_item_size: TODO(wcrichto)
-            io_item_size: TODO(wcrichto)
-            cpu_pool: TODO(wcrichto)
-            gpu_pool: TODO(wcrichto)
-            pipeline_instances_per_node: TODO(wcrichto)
-            show_progress: TODO(wcrichto)
-
-        Returns:
-            Either the output Collection if output_collection is specified
-            or a list of Table objects.
-        """
         assert isinstance(bulk_job, BulkJob)
         assert isinstance(bulk_job.output(), Op)
 
