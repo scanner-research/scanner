@@ -489,8 +489,8 @@ class Database(object):
                         raise ScannerException(
                             ('Master has more workers than requested ' +
                              '({:d} vs {:d})').format(len(active_workers.workers),
-                                                      len(self._worker_addresses)))
-                    if (len(active_workers.workers) == len(self._worker_addresses)):
+                                                      len(self._worker_conns)))
+                    if (len(active_workers.workers) == len(self._worker_conns)):
                         break
                     time.sleep(0.3)
                     slept_so_far += 0.3
