@@ -685,8 +685,6 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
       i32 table_id = meta_.get_table_id(name);
       if (!meta_.table_is_committed(table_id)) {
         //
-      } else {
-        valid_table_names.push_back(name);
       }
     }
     // Prefetch table metadata for all tables
@@ -699,7 +697,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
       // TODO(apoms): make this a thread pool instead of spawning potentially
       // thousands of threads
       std::vector<std::thread> threads;
-      for (const std::string& t : valid_table_names) {
+      for (const auto& t : meta_.table_names()) {
         threads.emplace_back(load_table_meta, t);
       }
       for (auto& thread : threads) {
