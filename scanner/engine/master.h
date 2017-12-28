@@ -40,6 +40,23 @@ class MasterImpl final : public proto::Master::Service {
   static std::string get_worker_address_from_grpc_context(
       grpc::ServerContext* context);
 
+  grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
+                        Result* result);
+
+  // Database query methods
+  grpc::Status ListTables(grpc::ServerContext* context,
+                         const proto::Empty* empty,
+                         proto::ListTablesResult* result);
+
+  grpc::Status GetTables(grpc::ServerContext* context,
+                         const proto::GetTablesParams* params,
+                         proto::GetTablesResult* result);
+
+  grpc::Status DeleteTables(grpc::ServerContext* context,
+                            const proto::DeleteTablesParams* params,
+                            proto::Empty* empty);
+
+  // Worker methods
   grpc::Status RegisterWorker(grpc::ServerContext* context,
                               const proto::WorkerParams* worker_info,
                               proto::Registration* registration);
@@ -52,28 +69,12 @@ class MasterImpl final : public proto::Master::Service {
                              const proto::Empty* empty,
                              proto::RegisteredWorkers* registered_workers);
 
+
   grpc::Status IngestVideos(grpc::ServerContext* context,
                             const proto::IngestParameters* params,
                             proto::IngestResult* result);
 
-  grpc::Status NextWork(grpc::ServerContext* context,
-                        const proto::NodeInfo* node_info,
-                        proto::NewWork* new_work);
-
-  grpc::Status FinishedWork(grpc::ServerContext* context,
-                            const proto::FinishedWorkParameters* params,
-                            proto::Empty* empty);
-
-  grpc::Status NewJob(grpc::ServerContext* context,
-                      const proto::BulkJobParameters* job_params,
-                      proto::Result* job_result);
-
-  grpc::Status IsJobDone(grpc::ServerContext* context,
-                         const proto::Empty* empty,
-                         proto::JobResult* job_result);
-
-  grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty1,
-                    proto::Empty* empty2);
+  // Op and Kernel methods
 
   grpc::Status GetOpInfo(grpc::ServerContext* context,
                          const proto::OpInfoArgs* op_info_args,
@@ -91,17 +92,36 @@ class MasterImpl final : public proto::Master::Service {
       const proto::PythonKernelRegistration* python_kernel,
       proto::Result* result);
 
-  grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
-                        Result* result);
+  grpc::Status IsJobDone(grpc::ServerContext* context,
+                         const proto::Empty* empty,
+                         proto::JobResult* job_result);
+
+  grpc::Status NextWork(grpc::ServerContext* context,
+                        const proto::NodeInfo* node_info,
+                        proto::NewWork* new_work);
+
+  grpc::Status FinishedWork(grpc::ServerContext* context,
+                            const proto::FinishedWorkParameters* params,
+                            proto::Empty* empty);
+
+  grpc::Status NewJob(grpc::ServerContext* context,
+                      const proto::BulkJobParameters* job_params,
+                      proto::Result* job_result);
+
+  // Misc methods 
+  grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty1,
+                    proto::Empty* empty2);
 
   grpc::Status PokeWatchdog(grpc::ServerContext* context,
                             const proto::Empty* empty, proto::Empty* result);
+
+  //
 
   void start_watchdog(grpc::Server* server, bool enable_timeout,
                       i32 timeout_ms = 50000);
 
  private:
-  void recover_database();
+  void recover_and_init_database();
 
   void start_job_processor();
 
