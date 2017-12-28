@@ -137,6 +137,8 @@ grpc::Status MasterImpl::DeleteTables(grpc::ServerContext* context,
 
   // TODO(apoms): delete the actual table data
 
+  write_database_metadata(storage_, meta_);
+
   return grpc::Status::OK;
 }
 

@@ -345,13 +345,13 @@ class Database(object):
         return result
 
     def _run_remote_cmd(self, host, cmd):
-        host_ip, _, _ = host.partition(':')
-        host_ip = unicode(socket.gethostbyname(host_ip), "utf-8")
+        host_name, _, _ = host.partition(':')
+        host_ip = unicode(socket.gethostbyname(host_name), "utf-8")
         if ipaddress.ip_address(host_ip).is_loopback:
             return Popen(cmd, shell=True)
         else:
             cmd = cmd.replace('"', '\\"')
-            return Popen("ssh {} \"cd {} && {}\"".format(host_ip, os.getcwd(), cmd), shell=True)
+            return Popen("ssh {} \"cd {} && {}\"".format(host_name, os.getcwd(), cmd), shell=True)
 
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
