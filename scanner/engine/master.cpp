@@ -1021,7 +1021,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
         std::vector<i32> table_ids;
         i32 jobs_to_compute = (job_params->jobs_size() - job_idx) / (num_threads - tid);
         for (i32 i = job_idx; i < job_idx + jobs_to_compute; ++i) {
-          table_ids.push_back(i);
+          table_ids.push_back(job_uncommitted_tables_[i]);
         }
         threads.emplace_back(write_meta, table_ids);
         job_idx += jobs_to_compute;
