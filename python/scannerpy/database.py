@@ -67,7 +67,7 @@ def start_master(port=None, config=None, config_path=None, block=False,
     # Load all protobuf types
     db = bindings.Database(
         config.storage_config,
-        config.db_path.encode('ascii')
+        config.db_path.encode('ascii'),
         (config.master_address + ':' + port).encode('ascii'))
     result = bindings.start_master(db, port.encode('ascii'), watchdog)
     if not result.success:
