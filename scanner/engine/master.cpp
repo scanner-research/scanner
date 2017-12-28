@@ -975,7 +975,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
 
     std::vector<i32> job_uncommitted_tables_;
     {
-      auto add_table_metadata = [&](i64 job_idx) {
+      for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
         auto& job = job_params->jobs(job_idx);
         i32 table_id = meta_.add_table(job.output_table_name());
         job_to_table_id_[job_idx] = table_id;
@@ -1005,14 +1005,16 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
           table_desc.add_end_rows(r);
         }
         table_desc.set_job_id(bulk_job_id);
-
         job_uncommitted_tables_.push_back(table_id);
-        write_table_metadata(storage_, TableMetadata(table_desc));
         table_metas_->update(TableMetadata(table_desc));
+      }
+      // Write table metadata in parallel
+      auto write_table_metadata = [&](i64 job_idx) {
+        write_table_metadata(storage_, table_metas_->at(job_idx));
       };
       std::vector<std::thread> threads;
       for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
-        threads.emplace_back(add_table_metadata, job_idx);
+        threads.emplace_back(write_table_metadata, job_idx);
       }
       for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
         threads[job_idx].join();
