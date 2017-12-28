@@ -485,7 +485,7 @@ class Database(object):
                 sleep_time = 60
                 while slept_so_far < sleep_time:
                     active_workers = self._master.ActiveWorkers(self.protobufs.Empty())
-                    if (len(active_workers.workers) > len(self._worker_addresses)):
+                    if (len(active_workers.workers) > len(self._worker_conns)):
                         raise ScannerException(
                             ('Master has more workers than requested ' +
                              '({:d} vs {:d})').format(len(active_workers.workers),
