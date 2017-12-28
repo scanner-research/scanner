@@ -304,7 +304,8 @@ bool Database::database_exists() {
   internal::set_database_path(db_path_);
   std::string db_meta_path = internal::DatabaseMetadata::descriptor_path();
   storehouse::FileInfo info;
-  storehouse::StoreResult result = storage_->get_file_info(db_meta_path, info);
+  storehouse::StoreResult result;
+  EXP_BACKOFF(storage_->get_file_info(db_meta_path, info), result);
   return (result == storehouse::StoreResult::Success);
 }
 }
