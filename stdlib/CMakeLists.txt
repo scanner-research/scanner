@@ -3,7 +3,7 @@ include(${SCANNER_PATH}/cmake/Util/Op.cmake)
 
 option(BUILD_IMGPROC_OPS "" ON)
 option(BUILD_CAFFE_OPS "" ON)
-option(BUILD_OPENPOSE_OPS "" OFF)
+option(BUILD_OPENPOSE_OPS "" ON)
 option(BUILD_MOTION_OPS "" ON)
 option(BUILD_VIZ_OPS "" ON)
 option(BUILD_OPENFACE_OPS "" OFF)

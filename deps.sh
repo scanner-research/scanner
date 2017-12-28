@@ -17,6 +17,7 @@ INSTALL_PROTOBUF=true
 INSTALL_GRPC=true
 INSTALL_CAFFE=true
 INSTALL_HALIDE=true
+INSTALL_OPENPOSE=true
 
 USE_GPU=false
 
@@ -80,6 +81,7 @@ HALIDE_DIR=$INSTALL_PREFIX
 HWANG_DIR=$INSTALL_PREFIX
 STOREHOUSE_DIR=$INSTALL_PREFIX
 TINYTOML_DIR=$INSTALL_PREFIX
+OPENPOSE_DIR=$INSTALL_PREFIX
 
 export C_INCLUDE_PATH=$INSTALL_PREFIX/include:$C_INCLUDE_PATH
 export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
@@ -197,6 +199,25 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         else
             INSTALL_HALIDE=true
+            break
+        fi
+    done
+
+    while true; do
+        echo -n "Do you have OpenPose (v1.2.0) installed? [y/N]: "
+        read yn
+        if [[ $yn == y ]] || [[ $yn == Y ]]; then
+            INSTALL_OPENPOSE=false
+            echo -n "Where is your OpenPose install? [/usr/local]: "
+            read install_location
+            if [[ $install_location == "" ]]; then
+                OPENPOSE_DIR=/usr/local
+            else
+                OPENPOSE_DIR=$install_location
+            fi
+            break
+        else
+            INSTALL_OPENPOSE=true
             break
         fi
     done
@@ -367,7 +388,7 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     echo "Done installing hwang"
 fi
 
-if [[ $INSTALL_TINYTOML == true ]]; then
+if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
     echo "Installing tinytoml..."
     cd $BUILD_DIR
     rm -fr tinytoml
@@ -379,16 +400,18 @@ if [[ $INSTALL_TINYTOML == true ]]; then
     echo "Done installing tinytoml"
 fi
 
-echo "Installing googletest..."
-cd $BUILD_DIR
-rm -fr googletest
-git clone https://github.com/google/googletest && \
-    cd googletest && mkdir build && cd build && \
-    cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
-    make -j${cores} && make install && \
-    touch $BUILD_DIR/googletest.done \
-        || { echo 'Installing googletest failed!' ; exit 1; }
-echo "Done installing googletest"
+if [[ ! -f $BUILD_DIR/googletest.done ]]; then
+    echo "Installing googletest..."
+    cd $BUILD_DIR
+    rm -fr googletest
+    git clone https://github.com/google/googletest && \
+        cd googletest && mkdir build && cd build && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
+        make -j${cores} && make install && \
+        touch $BUILD_DIR/googletest.done \
+            || { echo 'Installing googletest failed!' ; exit 1; }
+    echo "Done installing googletest"
+fi
 
 if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
        [[ ! -f $BUILD_DIR/caffe.done ]]; then
@@ -450,6 +473,31 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]] && \
         touch $BUILD_DIR/caffe.done \
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
+
+if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
+    cd $BUILD_DIR
+    rm -rf openpose
+    git clone -b v1.2.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose && \
+        cd openpose && mkdir build && cd build && \
+        cmake -D CMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
+              -D CMAKE_PREFIX_PATH=$INSTALL_PREFIX \
+              -D OpenCV_DIR=$INSTALL_PREFIX \
+              -D BUILD_CAFFE=OFF \
+              -D Caffe_INCLUDE_DIRS=$CAFFE_DIR/include \
+              -D Caffe_LIBS=$CAFFE_DIR/lib/libcaffe.so \
+              -D BOOST_ROOT=$BOOST_DIR \
+              -D BUILD_EXAMPLES=Off \
+              -D BUILD_DOCS=Off \
+              -D DOWNLOAD_COCO_MODEL=Off \
+              -D DOWNLOAD_HAND_MODEL=Off \
+              -D DOWNLOAD_FACE_MODEL=Off \
+              .. && \
+        make install -j${cores} && \
+        touch $BUILD_DIR/openpose.done \
+              || { echo 'Installing OpenPose failed!'; exit 1; }
+fi
+
+
 
 DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE

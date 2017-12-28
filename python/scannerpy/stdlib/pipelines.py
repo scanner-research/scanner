@@ -9,7 +9,7 @@ from scannerpy.stdlib.util import temp_directory, download_temp_file
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-def detect_faces(db, input_frame_columns, output_sampling, output_prefixes,
+def detect_faces(db, input_frame_columns, output_samplings, output_prefixes,
                  width=960, prototxt_path=None, model_weights_path=None,
                  templates_path=None,
                  return_profiling=False):
@@ -55,6 +55,10 @@ def detect_faces(db, input_frame_columns, output_sampling, output_prefixes,
             for i in range(len(input_frame_columns))
         ]
 
+    if type(output_samplings) is not list:
+        output_samplings = [output_samplings for _ in range(len(input_frame_columns))]
+
+
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
     batch_sizes = [int((2**i))
@@ -86,7 +90,7 @@ def detect_faces(db, input_frame_columns, output_sampling, output_prefixes,
         output = db.ops.Output(columns=[sampled_output])
 
         jobs = []
-        for output_name, frame_column in zip(output_names, input_frame_columns):
+        for output_name, frame_column, output_sampling in zip(output_names, input_frame_columns, output_samplings):
             job = Job(op_args={
                 frame: frame_column,
                 sampled_output: output_sampling,
