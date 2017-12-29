@@ -713,11 +713,11 @@ void MasterImpl::recover_and_init_database() {
   }
 
   // Prefetch table metadata for all tables
-  VLOG(1) << "Prefetching table metadata";
-  {
+  if (db_params_.prefetch_table_metadata) {
+    VLOG(1) << "Prefetching table metadata";
     auto load_table_meta = [&](const std::string& table_name) {
       std::string table_path =
-          TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+      TableMetadata::descriptor_path(meta_.get_table_id(table_name));
       table_metas_->update(read_table_metadata(storage_, table_path));
     };
 

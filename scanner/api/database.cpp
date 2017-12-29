@@ -57,6 +57,7 @@ internal::DatabaseParameters machine_params_to_db_params(
   db.num_load_workers = params.num_load_workers;
   db.num_save_workers = params.num_save_workers;
   db.gpu_ids = params.gpu_ids;
+  db.prefetch_table_metadata = true;
   return db;
 }
 }
@@ -94,7 +95,8 @@ Database::Database(storehouse::StorageConfig* storage_config,
 
 Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& port,
-                              bool watchdog) {
+                              bool watchdog,
+                              bool prefetch_table_metadata) {
   if (master_state_ != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
@@ -104,6 +106,7 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_.reset(new ServerState);
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
+  params.prefetch_table_metadata = prefetch_table_metadata;
 
   auto master_service = scanner::internal::get_master_service(params);
   master_state_->service.reset(master_service);
