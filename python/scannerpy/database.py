@@ -268,17 +268,19 @@ class Database(object):
 
             self._table_descriptor = {}
             # Read all table descriptors from database
-            get_tables_params = self.protobufs.GetTablesParams()
-            for table_name in self._table_name:
-                get_tables_params.tables.append(table_name)
-            get_tables_result = self._try_rpc(lambda: self._master.GetTables(
-                get_tables_params))
-            if not get_tables_result.result.success:
-                raise ScannerException(
-                    'Internal error: GetTables returned error: {}'.format(
-                        get_tables_result.result.msg))
-            for table in get_tables_result.tables:
-                self._table_descriptor[table.id] = table
+            NUM_TABLES_TO_READ = 10000
+            for i in range(0, len(self._table_name), NUM_TABLES_TO_READ):
+                get_tables_params = self.protobufs.GetTablesParams()
+                for table_name in self._table_name[i:i+NUM_TABLES_TO_READ]:
+                    get_tables_params.tables.append(table_name)
+                get_tables_result = self._try_rpc(lambda: self._master.GetTables(
+                    get_tables_params))
+                if not get_tables_result.result.success:
+                    raise ScannerException(
+                        'Internal error: GetTables returned error: {}'.format(
+                            get_tables_result.result.msg))
+                for table in get_tables_result.tables:
+                    self._table_descriptor[table.id] = table
 
         return self._cached_db_metadata
 

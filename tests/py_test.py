@@ -513,13 +513,13 @@ def no_workers_db():
     with open('/tmp/config_test', 'w') as f:
         cfg = Config.default_config()
         cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master_port'] = '5005'
-        cfg['network']['worker_port'] = '5006'
+        cfg['network']['master_port'] = '5020'
+        cfg['network']['worker_port'] = '5021'
         f.write(toml.dumps(cfg))
         cfg_path = f.name
 
     # Setup and ingest video
-    with Database(workers=[], config_path=cfg_path) as db:
+    with Database(debug=True, workers=[], config_path=cfg_path) as db:
         # Download video from GCS
         url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
