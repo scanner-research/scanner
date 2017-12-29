@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 NO_CACHE=false
 CORES=$(nproc)
@@ -18,20 +19,20 @@ do
                --build-arg cores=$CORES \
                --build-arg base_tag=$base_tag \
                --no-cache=$NO_CACHE \
-               -t scannerresearch/scanner-base:$1 \
-               -f $dir/Dockerfile.base \
-               .
+               -t scannerresearch/scanner-base:$2 \
+               -f $dir/Dockerfile.$1 \
+               $dir
     }
 
     function push {
         docker push scannerresearch/scanner-base:$1
     }
 
-    build $base
+    build base $base
 
-    build gpu
-    push gpu
+    build gpu $base-gpu
+    push $base-gpu
 
-    build cpu
-    push cpu
+    build cpu $base-cpu
+    push $base-cpu
 done

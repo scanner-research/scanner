@@ -274,7 +274,7 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
                 --enable-shared --disable-stripping \
                 --disable-decoder=libschroedinger \
                 --enable-avresample --enable-libx264 --enable-nonfree && \
-    make install -j${cores} && touch $BUILD_DIR/ffmpeg.done \
+    make -j${cores} && make install && touch $BUILD_DIR/ffmpeg.done \
         || { echo 'Installing ffmpeg failed!' ; exit 1; }
     echo "Done installing ffmpeg 3.3.1"
 fi
@@ -361,6 +361,7 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
         mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBOOST_ROOT=$BOOST_DIR && make -j${cores} && \
         make install && \
+        cd .. && ./build.sh && \
         touch $BUILD_DIR/storehouse.done \
             || { echo 'Installing storehouse failed!' ; exit 1; }
     echo "Done installing storehouse"
