@@ -21,6 +21,7 @@
 #include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
 #include "scanner/util/glog.h"
+#include "scanner/util/thread_pool.h"
 #include "scanner/engine/python_kernel.h"
 
 #include <grpc/support/log.h>
@@ -32,6 +33,8 @@ namespace internal {
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
+  VLOG(1) << "Creating master...";
+
   init_glog("scanner_master");
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
@@ -41,6 +44,7 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
   recover_and_init_database();
 
   start_job_processor();
+  VLOG(1) << "Master created.";
 }
 
 MasterImpl::~MasterImpl() {
@@ -690,7 +694,12 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
   });
 }
 
+static const i32 NUM_PREFETCH_THREADS = 64;
+
 void MasterImpl::recover_and_init_database() {
+  VLOG(1) << "Initializing database...";
+
+  VLOG(1) << "Reading database metadata";
   // TODO(apoms): handle uncommitted database tables
   meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   // Setup table metadata cache
@@ -702,28 +711,38 @@ void MasterImpl::recover_and_init_database() {
       //
     }
   }
+
   // Prefetch table metadata for all tables
+  VLOG(1) << "Prefetching table metadata";
   {
     auto load_table_meta = [&](const std::string& table_name) {
       std::string table_path =
           TableMetadata::descriptor_path(meta_.get_table_id(table_name));
       table_metas_->update(read_table_metadata(storage_, table_path));
     };
-    // TODO(apoms): make this a thread pool instead of spawning potentially
-    // thousands of threads
-    std::vector<std::thread> threads;
+
+    VLOG(1) << "Spawning thread pool";
+    ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
+    std::vector<std::future<void>> futures;
     for (const auto& t : meta_.table_names()) {
-      threads.emplace_back(load_table_meta, t);
+      futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
     }
-    for (auto& thread : threads) {
-      thread.join();
+
+    VLOG(1) << "Waiting on futures";
+    for (auto& future : futures) {
+      future.wait();
     }
+
+    VLOG(1) << "Prefetch complete.";
   }
 
+  VLOG(1) << "Writing database metadata";
   write_database_metadata(storage_, meta_);
+  VLOG(1) << "Database initialized.";
 }
 
 void MasterImpl::start_job_processor() {
+  VLOG(1) << "Starting job processor";
   job_processor_thread_ = std::thread([this]() {
     while (!trigger_shutdown_.raised()) {
       // Wait on not finished
@@ -1173,6 +1192,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 }
 
 void MasterImpl::start_worker_pinger() {
+  VLOG(1) << "Starting worker pinger";
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
     while (!finished_ && pinger_active_) {
