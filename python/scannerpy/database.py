@@ -424,7 +424,7 @@ class Database(object):
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
                     'start_master(port=\'{master_port:s}\', block=True, config=config)\" ' +
-                    ' > /tmp/scanner_master.out 2>&1 < /dev/null').format(
+                    '').format(
                         master_port=master_port,
                         config=pickled_config)
                 worker_cmd = (
@@ -433,7 +433,7 @@ class Database(object):
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
                     'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\" ' +
-                    ' > /tmp/scanner_worker.out 2>&1 < /dev/null')
+                    '')
                 self._master_conn = self._run_remote_cmd(self._master_address,
                                                          master_cmd,
                                                          nohup=True)
