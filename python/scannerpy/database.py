@@ -151,6 +151,7 @@ class Database(object):
             self.config = Config(config_path)
 
         self._start_cluster = start_cluster
+        self._prefetch_table_metadata = prefetch_table_metadata
         self._debug = debug
         if debug is None:
             self._debug = (master is None and workers is None)
@@ -173,7 +174,7 @@ class Database(object):
 
         self._workers = {}
         self._worker_conns = None
-        self.start_cluster(master, workers, prefetch_table_metadata);
+        self.start_cluster(master, workers);
 
     def __del__(self):
         self.stop_cluster()
@@ -267,22 +268,23 @@ class Database(object):
                 self._table_name[table.name] = i
                 self._table_committed[table.id] = table.committed
 
-            self._table_descriptor = {}
-            # Read all table descriptors from database
-            NUM_TABLES_TO_READ = 10000
-            table_names = self._table_name.keys()
-            for i in range(0, len(table_names), NUM_TABLES_TO_READ):
-                get_tables_params = self.protobufs.GetTablesParams()
-                for table_name in table_names[i:i+NUM_TABLES_TO_READ]:
-                    get_tables_params.tables.append(table_name)
-                get_tables_result = self._try_rpc(lambda: self._master.GetTables(
-                    get_tables_params))
-                if not get_tables_result.result.success:
-                    raise ScannerException(
-                        'Internal error: GetTables returned error: {}'.format(
-                            get_tables_result.result.msg))
-                for table in get_tables_result.tables:
-                    self._table_descriptor[table.id] = table
+            if self._prefetch_table_metadata:
+                self._table_descriptor = {}
+                # Read all table descriptors from database
+                NUM_TABLES_TO_READ = 10000
+                table_names = self._table_name.keys()
+                for i in range(0, len(table_names), NUM_TABLES_TO_READ):
+                    get_tables_params = self.protobufs.GetTablesParams()
+                    for table_name in table_names[i:i+NUM_TABLES_TO_READ]:
+                        get_tables_params.tables.append(table_name)
+                    get_tables_result = self._try_rpc(lambda: self._master.GetTables(
+                        get_tables_params))
+                    if not get_tables_result.result.success:
+                        raise ScannerException(
+                            'Internal error: GetTables returned error: {}'.format(
+                                get_tables_result.result.msg))
+                    for table in get_tables_result.tables:
+                        self._table_descriptor[table.id] = table
 
         return self._cached_db_metadata
 
@@ -369,7 +371,7 @@ class Database(object):
             self.stop_cluster()
             sys.exit(1)
 
-    def start_cluster(self, master, workers, prefetch_table_metadata=True):
+    def start_cluster(self, master, workers):
         """
         Starts  a Scanner cluster.
 
@@ -407,7 +409,7 @@ class Database(object):
                 self._worker_conns = None
                 machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port.encode('ascii'), True, prefetch_table_metadata).success
+                    self._db, self.config.master_port.encode('ascii'), True, self._prefetch_table_metadata).success
                 assert res
                 res = self._connect_to_master()
                 assert res
@@ -431,7 +433,7 @@ class Database(object):
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
-                        prefetch=prefetch_table_metadata)
+                        prefetch=self._prefetch_table_metadata)
                 worker_cmd = (
                     'python -c ' +
                     '\"from scannerpy import start_worker\n' +
@@ -732,7 +734,9 @@ class Database(object):
             raise ScannerException('Invalid table identifier')
 
         table = Table(self, table_name, table_id)
-        table._descriptor = self._table_descriptor[table_id]
+        if self._prefetch_table_metadata:
+            table._descriptor = self._table_descriptor[table_id]
+
         return table
 
     def profiler(self, job_name):
