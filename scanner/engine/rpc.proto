@@ -178,7 +178,8 @@ message NewWork {
   int32 job_index = 2;
   int32 task_index = 3;
   repeated int64 output_rows = 4 [packed=true];
-  bool no_more_work = 5;
+  bool wait_for_work = 5;
+  bool no_more_work = 6;
 }
 
 message OpInfoArgs {
