@@ -10,6 +10,7 @@ ENV Caffe_DIR /usr/local
 ENV LD_LIBRARY_PATH \
        "/usr/local/cuda/lib64:$LD_LIBRARY_PATH:/usr/local/cuda/lib64/stubs"
 RUN cd /opt/scanner && \
+    (bash deps.sh --install-none --prefix /usr/local) && \
     mkdir build && cd build && \
     cmake -D BUILD_IMGPROC_OPS=ON \
           -D BUILD_CAFFE_OPS=ON \

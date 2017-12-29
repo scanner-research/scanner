@@ -25,10 +25,12 @@ USE_GPU=false
 INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
+INSTALL_GOOGLETEST=true
 
 INSTALL_PREFIX=$DEFAULT_INSTALL_DIR
 
 INSTALL_ALL=false
+INSTALL_NONE=false
 
 while [[ $# -gt 0 ]]
 do
@@ -51,6 +53,10 @@ case $key in
     ;;
     -a|--install-all)
     INSTALL_ALL=true
+    shift # past arg
+    ;;
+    -n|--install-none)
+    INSTALL_NONE=true
     shift # past arg
     ;;
     *)    # unknown option
@@ -91,7 +97,21 @@ export PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig:$PGK_CONFIG_PATH
 mkdir -p $BUILD_DIR
 mkdir -p $INSTALL_PREFIX
 
-if [[ $INSTALL_ALL == false ]]; then
+if [[ $INSTALL_NONE == true ]]; then
+    INSTALL_BOOST=false
+    INSTALL_FFMPEG=false
+    INSTALL_OPENCV=false
+    INSTALL_PROTOBUF=false
+    INSTALL_GRPC=false
+    INSTALL_CAFFE=false
+    INSTALL_HALIDE=false
+    INSTALL_OPENPOSE=false
+    INSTALL_HWANG=false
+    INSTALL_TINYTOML=false
+    INSTALL_STOREHOUSE=false
+    INSTALL_GOOGLETEST=false
+
+elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
     while true; do
         echo "Do you have boost>=1.63.0 installed with the modules: "
@@ -112,6 +132,7 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         fi
     done
+
     while true; do
         echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
         read yn
@@ -130,6 +151,7 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         fi
     done
+
     while true; do
         echo -n "Do you have opencv>=3.2.0 with contrib installed? [y/N]: "
         read yn
@@ -148,6 +170,7 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         fi
     done
+
     while true; do
         echo -n "Do you have protobuf>=3.4.0 installed? [y/N]: "
         read yn
@@ -166,6 +189,7 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         fi
     done
+
     while true; do
         echo -n "Do you have grpc>=1.7.2 installed? [y/N]: "
         read yn
@@ -184,6 +208,7 @@ if [[ $INSTALL_ALL == false ]]; then
             break
         fi
     done
+
     while true; do
         echo -n "Do you have halide (release_2016_10_25) installed? [y/N]: "
         read yn
@@ -401,7 +426,7 @@ if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
     echo "Done installing tinytoml"
 fi
 
-if [[ ! -f $BUILD_DIR/googletest.done ]]; then
+if [[ $INSTALL_GOOGLETEST == true ]] && ! -f $BUILD_DIR/googletest.done ]]; then
     echo "Installing googletest..."
     cd $BUILD_DIR
     rm -fr googletest
