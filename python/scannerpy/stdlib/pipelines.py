@@ -106,6 +106,7 @@ def detect_faces(db,
             bulk_job,
             force=True,
             work_packet_size=batch * 4,
+            io_packet_size=10000,
             pipeline_instances_per_node=pipeline_instances)
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
