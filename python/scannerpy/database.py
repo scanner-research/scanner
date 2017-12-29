@@ -200,6 +200,7 @@ class Database(object):
 
         tables = [
             ('TABLES', [
+                ('ID', [str(t.id) for t in db_meta.tables]),
                 ('Name', [t.name for t in db_meta.tables]),
                 ('# rows', [
                     str(self.table(t.id).num_rows()) for t in db_meta.tables
