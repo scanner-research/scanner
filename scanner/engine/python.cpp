@@ -62,9 +62,9 @@ std::string default_machine_params_wrapper() {
 }
 
 proto::Result start_master_wrapper(Database& db, const std::string& port,
-                                   bool watchdog) {
+                                   bool watchdog, bool prefetch_table_metadata) {
   GILRelease r;
-  return db.start_master(default_machine_params(), port, watchdog);
+  return db.start_master(default_machine_params(), port, watchdog, prefetch_table_metadata);
 }
 
 proto::Result start_worker_wrapper(Database& db, const std::string& params_s,

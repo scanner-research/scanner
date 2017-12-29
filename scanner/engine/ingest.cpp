@@ -308,8 +308,8 @@ bool parse_video_inplace(storehouse::StorageBackend* storage,
   const std::vector<u64>& sample_offsets = index.sample_offsets();
   const std::vector<u64>& sample_sizes = index.sample_sizes();
 
-  VLOG(1) << "Num frames: " << frame;
-  VLOG(1) << "Average GOP length: " << frame / (float)keyframe_indices.size();
+  VLOG(2) << "Num frames: " << frame;
+  VLOG(2) << "Average GOP length: " << frame / (float)keyframe_indices.size();
 
   // Create index column
   std::string index_path = table_item_output_path(table_id, 0, 0);
@@ -515,10 +515,10 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   const std::vector<u64>& sample_offsets = index_creator.sample_offsets();
   const std::vector<u64>& sample_sizes = index_creator.sample_sizes();
 
-  VLOG(1) << "Num frames: " << frame;
-  VLOG(1) << "Num non-reference frames: " << num_non_ref_frames;
-  VLOG(1) << "% non-reference frames: " << num_non_ref_frames / (float)frame;
-  VLOG(1) << "Average GOP length: " << frame / (float)keyframe_indices.size();
+  VLOG(2) << "Num frames: " << frame;
+  VLOG(2) << "Num non-reference frames: " << num_non_ref_frames;
+  VLOG(2) << "% non-reference frames: " << num_non_ref_frames / (float)frame;
+  VLOG(2) << "Average GOP length: " << frame / (float)keyframe_indices.size();
 
   // Cleanup video decoder
   cleanup_video_codec(state);

@@ -44,7 +44,7 @@ import scanner.types_pb2 as misc_types
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 def start_master(port=None, config=None, config_path=None, block=False,
-                 watchdog=True):
+                 watchdog=True, prefetch_table_metadata=True):
     """
     Start a master server instance on this node.
 
@@ -68,7 +68,7 @@ def start_master(port=None, config=None, config_path=None, block=False,
         config.storage_config,
         config.db_path.encode('ascii'),
         (config.master_address + ':' + port).encode('ascii'))
-    result = bindings.start_master(db, port.encode('ascii'), watchdog)
+    result = bindings.start_master(db, port.encode('ascii'), watchdog, prefetch_table_metadata)
     if not result.success:
         raise ScannerException('Failed to start master: {}'.format(result.msg))
     if block:
@@ -128,7 +128,8 @@ class Database(object):
 
     def __init__(self, master=None, workers=None,
                  config_path=None, config=None,
-                 debug=None, start_cluster=True):
+                 debug=None, start_cluster=True,
+                 prefetch_table_metadata=True):
         """
         Initializes a Scanner database.
 
@@ -172,7 +173,7 @@ class Database(object):
 
         self._workers = {}
         self._worker_conns = None
-        self.start_cluster(master, workers);
+        self.start_cluster(master, workers, prefetch_table_metadata);
 
     def __del__(self):
         self.stop_cluster()
@@ -368,7 +369,7 @@ class Database(object):
             self.stop_cluster()
             sys.exit(1)
 
-    def start_cluster(self, master, workers):
+    def start_cluster(self, master, workers, prefetch_table_metadata=True):
         """
         Starts  a Scanner cluster.
 
@@ -406,7 +407,7 @@ class Database(object):
                 self._worker_conns = None
                 machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port.encode('ascii'), True).success
+                    self._db, self.config.master_port.encode('ascii'), True, prefetch_table_metadata).success
                 assert res
                 res = self._connect_to_master()
                 assert res
@@ -426,10 +427,11 @@ class Database(object):
                     '\"from scannerpy import start_master\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_master(port=\'{master_port:s}\', block=True, config=config)\" ' +
+                    'start_master(port=\'{master_port:s}\', block=True, config=config, prefetch_table_metadata={prefetch})\" ' +
                     '').format(
                         master_port=master_port,
-                        config=pickled_config)
+                        config=pickled_config,
+                        prefetch=prefetch_table_metadata)
                 worker_cmd = (
                     'python -c ' +
                     '\"from scannerpy import start_worker\n' +

@@ -51,7 +51,8 @@ class Database {
            const std::string& db_path, const std::string& master_address);
 
   Result start_master(const MachineParameters& params, const std::string& port,
-                      bool watchdog = true);
+                      bool watchdog = true,
+                      bool prefetch_table_metadata = true);
 
   Result start_worker(const MachineParameters& params, const std::string& port,
                       bool watchdog = true);
