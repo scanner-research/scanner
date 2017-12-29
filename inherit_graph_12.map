@@ -1,3 +1,4 @@
 <map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="node1" href="$classscannerpy_1_1collection_1_1Collection.html" title="A set of Table objects. " alt="" coords="5,5,208,32"/>
+<area shape="rect" id="node2" href="$classscannerpy_1_1common_1_1ColumnType.html" title="Enum for specifying what the type of a column is. " alt="" coords="110,5,325,32"/>
+<area shape="rect" id="node3" href="$classscannerpy_1_1common_1_1DeviceType.html" title="Enum for specifying where an Op should run. " alt="" coords="112,56,323,83"/>
 </map>
