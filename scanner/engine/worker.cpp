@@ -465,6 +465,9 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
   // Set up Python runtime if any kernels need it
   Py_Initialize();
+
+  // Processes jobs in the background
+  start_job_processor();
 }
 
 WorkerImpl::~WorkerImpl() {
@@ -473,6 +476,8 @@ WorkerImpl::~WorkerImpl() {
 
   try_unregister();
   trigger_shutdown_.set();
+
+  stop_job_processor();
 
   if (watchdog_thread_.joinable()) {
     watchdog_thread_.join();
@@ -517,7 +522,291 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   job_result->set_success(true);
   set_database_path(db_params_.db_path);
 
-  // Setup up table metadata cache for use in other operations
+  job_params_.Clear();
+  job_params_.MergeFrom(*job_params);
+  {
+    std::unique_lock<std::mutex> lock(finished_mutex_);
+    finished_ = false;
+  }
+  finished_cv_.notify_all();
+
+  {
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    active_bulk_job_ = true;
+  }
+  active_cv_.notify_all();
+
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
+                                const proto::OpPath* op_path,
+                                proto::Empty* empty) {
+  const std::string& so_path = op_path->path();
+  VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
+  void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  LOG_IF(FATAL, handle == nullptr)
+      << "dlopen of " << so_path << " failed: " << dlerror();
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::RegisterOp(
+    grpc::ServerContext* context, const proto::OpRegistration* op_registration,
+    proto::Result* result) {
+  const std::string& name = op_registration->name();
+  const bool variadic_inputs = op_registration->variadic_inputs();
+  std::vector<Column> input_columns;
+  size_t i = 0;
+  for (auto& c : op_registration->input_columns()) {
+    Column col;
+    col.set_id(i++);
+    col.set_name(c.name());
+    col.set_type(c.type());
+    input_columns.push_back(col);
+  }
+  std::vector<Column> output_columns;
+  i = 0;
+  for (auto& c : op_registration->output_columns()) {
+    Column col;
+    col.set_id(i++);
+    col.set_name(c.name());
+    col.set_type(c.type());
+    output_columns.push_back(col);
+  }
+  bool can_stencil = op_registration->can_stencil();
+  std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
+                                 op_registration->preferred_stencil().end());
+  if (stencil.empty()) {
+    stencil = {0};
+  }
+  bool has_bounded_state = op_registration->has_bounded_state();
+  i32 warmup = op_registration->warmup();
+  bool has_unbounded_state = op_registration->has_unbounded_state();
+  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
+                            output_columns, can_stencil, stencil,
+                            has_bounded_state, warmup, has_unbounded_state);
+  OpRegistry* registry = get_op_registry();
+  registry->add_op(name, info);
+  VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;
+
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::RegisterPythonKernel(
+    grpc::ServerContext* context,
+    const proto::PythonKernelRegistration* python_kernel,
+    proto::Result* result) {
+  const std::string& op_name = python_kernel->op_name();
+  DeviceType device_type = python_kernel->device_type();
+  const std::string& kernel_str = python_kernel->kernel_str();
+  const std::string& pickled_config = python_kernel->pickled_config();
+  const int batch_size = python_kernel->batch_size();
+  // Create a kernel builder function
+  auto constructor = [kernel_str, pickled_config, batch_size](
+    const KernelConfig& config) {
+    return new PythonKernel(config, kernel_str, pickled_config, batch_size);
+  };
+  // Set all input and output columns to be CPU
+  std::map<std::string, DeviceType> input_devices;
+  std::map<std::string, DeviceType> output_devices;
+  {
+    OpRegistry* registry = get_op_registry();
+    OpInfo* info = registry->get_op_info(op_name);
+    if (info->variadic_inputs()) {
+      assert(device_type != DeviceType::GPU);
+    } else {
+      for (const auto& in_col : info->input_columns()) {
+        input_devices[in_col.name()] = DeviceType::CPU;
+      }
+    }
+    for (const auto& out_col : info->output_columns()) {
+      output_devices[out_col.name()] = DeviceType::CPU;
+    }
+  }
+  // Create a new kernel factory
+  bool can_batch = (batch_size > 1);
+  KernelFactory* factory =
+      new KernelFactory(op_name, device_type, 1, input_devices, output_devices,
+                        can_batch, batch_size, constructor);
+  // Register the kernel
+  KernelRegistry* registry = get_kernel_registry();
+  registry->add_kernel(op_name, factory);
+  VLOG(1) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
+                                  const proto::Empty* empty, Result* result) {
+  State state = state_.get();
+  switch (state) {
+    case RUNNING_JOB: {
+      // trigger_shutdown will inform job to stop working
+      break;
+    }
+    case SHUTTING_DOWN: {
+      // Already shutting down
+      result->set_success(true);
+      return grpc::Status::OK;
+    }
+    case INITIALIZING: {
+      break;
+    }
+    case IDLE: {
+      break;
+    }
+  }
+  state_.set(SHUTTING_DOWN);
+  try_unregister();
+  // Inform watchdog that we are done for
+  trigger_shutdown_.set();
+  result->set_success(true);
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
+                                      const proto::Empty* empty,
+                                      proto::Empty* result) {
+  watchdog_awake_ = true;
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
+                              const proto::Empty* empty1,
+                              proto::Empty* empty2) {
+  return grpc::Status::OK;
+}
+
+void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
+                                i32 timeout_ms) {
+  watchdog_thread_ = std::thread([this, server, enable_timeout, timeout_ms]() {
+    double time_since_check = 0;
+    // Wait until shutdown is triggered or watchdog isn't woken up
+    if (!enable_timeout) {
+      trigger_shutdown_.wait();
+    }
+    while (!trigger_shutdown_.raised()) {
+      auto sleep_start = now();
+      trigger_shutdown_.wait_for(timeout_ms);
+      time_since_check += nano_since(sleep_start) / 1e6;
+      if (time_since_check > timeout_ms) {
+        if (!watchdog_awake_) {
+          // Watchdog not woken, time to bail out
+          LOG(ERROR) << "Worker did not receive heartbeat in " << timeout_ms
+                     << "ms. Shutting down.";
+          trigger_shutdown_.set();
+        }
+        watchdog_awake_ = false;
+        time_since_check = 0;
+      }
+    }
+    // Shutdown self
+    server->Shutdown();
+  });
+}
+
+void WorkerImpl::register_with_master() {
+  assert(state_.get() == State::INITIALIZING);
+
+  VLOG(1) << "Worker try to register with master";
+
+  grpc::ClientContext context;
+  proto::WorkerParams worker_info;
+  proto::Registration registration;
+
+  worker_info.set_port(worker_port_);
+  proto::MachineParameters* params = worker_info.mutable_params();
+  params->set_num_cpus(db_params_.num_cpus);
+  params->set_num_load_workers(db_params_.num_cpus);
+  params->set_num_save_workers(db_params_.num_cpus);
+  for (i32 gpu_id : db_params_.gpu_ids) {
+    params->add_gpu_ids(gpu_id);
+  }
+
+  grpc::Status status =
+      master_->RegisterWorker(&context, worker_info, &registration);
+  LOG_IF(FATAL, !status.ok())
+      << "Worker could not contact master server at " << master_address_ << " ("
+      << status.error_code() << "): " << status.error_message();
+  VLOG(1) << "Worker registered with master";
+
+  node_id_ = registration.node_id();
+
+  state_.set(State::IDLE);
+}
+
+void WorkerImpl::try_unregister() {
+  if (state_.get() != State::INITIALIZING && !unregistered_.test_and_set()) {
+    grpc::ClientContext ct;
+    proto::NodeInfo node_info;
+    proto::Empty em;
+    node_info.set_node_id(node_id_);
+    grpc::Status status = master_->UnregisterWorker(&ct, node_info, &em);
+    if (!status.ok()) {
+      VLOG(1) << "Worker could not unregister from master server "
+              << "(" << status.error_code() << "): " << status.error_message();
+    }
+  }
+}
+
+void WorkerImpl::start_job_processor() {
+  job_processor_thread_ = std::thread([this]() {
+    while (!trigger_shutdown_.raised()) {
+      // Wait on not finished
+      {
+        std::unique_lock<std::mutex> lock(active_mutex_);
+        active_cv_.wait(lock, [this] {
+          return active_bulk_job_ || trigger_shutdown_.raised();
+        });
+      }
+      if (trigger_shutdown_.raised()) break;
+      // Start processing job
+      bool result = process_job(&job_params_, &job_result_);
+      // Set to idle if we finished without a shutdown
+      state_.test_and_set(RUNNING_JOB, IDLE);
+    }
+  });
+}
+
+void WorkerImpl::stop_job_processor() {
+  // Wake up job processor
+  {
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    active_bulk_job_ = true;
+  }
+  active_cv_.notify_all();
+  if (job_processor_thread_.joinable()) {
+    job_processor_thread_.join();
+  }
+}
+
+bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
+                             proto::Result* job_result) {
+  job_result->set_success(true);
+  auto finished_fn = [&]() {
+    {
+      grpc::ClientContext context;
+      proto::FinishedJobParams node_info;
+      proto::Empty empty;
+      node_info.set_node_id(node_id_);
+
+      grpc::Status status = master_->FinishedJob(&context, node_info, &empty);
+    }
+
+    {
+      std::unique_lock<std::mutex> lock(finished_mutex_);
+      finished_ = true;
+    }
+    finished_cv_.notify_all();
+    {
+      std::unique_lock<std::mutex> lock(finished_mutex_);
+      active_bulk_job_ = false;
+    }
+    active_cv_.notify_all();
+  };
+
+  set_database_path(db_params_.db_path);
+
+  // Setup table metadata cache for use in other operations
   DatabaseMetadata meta =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   TableMetaCache table_meta(storage_, meta);
@@ -618,7 +907,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                    "Scanner is configured with zero available GPUs but a GPU "
                    "op was requested! Please configure Scanner to have "
                    "at least one GPU using the `gpu_ids` config option.");
-      return grpc::Status::OK;
+      finished_fn();
+      return false;
     }
 
     if (!kernel_registry->has_kernel(name, requested_device_type)) {
@@ -628,7 +918,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
           "exists for that configuration.",
           op.name().c_str(),
           (requested_device_type == DeviceType::CPU ? "CPU" : "GPU"));
-      return grpc::Status::OK;
+      finished_fn();
+      return false;
     }
 
     KernelFactory* kernel_factory =
@@ -782,7 +1073,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                  "BulkJobParameters.pipeline_instances_per_node must -1 for "
                  "auto-default or "
                  " greater than 0 for manual configuration.");
-    return grpc::Status::OK;
+    finished_fn();
+    return false;
   }
 
   // Set up memory pool if different than previous memory pool
@@ -792,13 +1084,15 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
         job_params->memory_pool_config().cpu().use_pool()) {
       RESULT_ERROR(job_result,
                    "Cannot oversubscribe CPUs and also use CPU memory pool");
-      return grpc::Status::OK;
+      finished_fn();
+      return false;
     }
     if (db_params_.gpu_ids.size() < local_total * pipeline_instances_per_node &&
         job_params->memory_pool_config().gpu().use_pool()) {
       RESULT_ERROR(job_result,
                    "Cannot oversubscribe GPUs and also use GPU memory pool");
-      return grpc::Status::OK;
+      finished_fn();
+      return false;
     }
     if (memory_pool_initialized_) {
       destroy_memory_allocators();
@@ -1278,7 +1572,8 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   }
 
   if (!job_result->success()) {
-    return grpc::Status::OK;
+    finished_fn();
+    return false;
   }
 
   // Write out total time interval
@@ -1353,221 +1648,11 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   std::fflush(NULL);
   sync();
 
-  VLOG(1) << "Worker " << node_id_ << " finished NewJob";
+  finished_fn();
 
-  // Set to idle if we finished without a shutdown
-  state_.test_and_set(RUNNING_JOB, IDLE);
+  VLOG(1) << "Worker " << node_id_ << " finished job";
 
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
-                                const proto::OpPath* op_path,
-                                proto::Empty* empty) {
-  const std::string& so_path = op_path->path();
-  VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
-  void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
-  LOG_IF(FATAL, handle == nullptr)
-      << "dlopen of " << so_path << " failed: " << dlerror();
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::RegisterOp(
-    grpc::ServerContext* context, const proto::OpRegistration* op_registration,
-    proto::Result* result) {
-  const std::string& name = op_registration->name();
-  const bool variadic_inputs = op_registration->variadic_inputs();
-  std::vector<Column> input_columns;
-  size_t i = 0;
-  for (auto& c : op_registration->input_columns()) {
-    Column col;
-    col.set_id(i++);
-    col.set_name(c.name());
-    col.set_type(c.type());
-    input_columns.push_back(col);
-  }
-  std::vector<Column> output_columns;
-  i = 0;
-  for (auto& c : op_registration->output_columns()) {
-    Column col;
-    col.set_id(i++);
-    col.set_name(c.name());
-    col.set_type(c.type());
-    output_columns.push_back(col);
-  }
-  bool can_stencil = op_registration->can_stencil();
-  std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
-                                 op_registration->preferred_stencil().end());
-  if (stencil.empty()) {
-    stencil = {0};
-  }
-  bool has_bounded_state = op_registration->has_bounded_state();
-  i32 warmup = op_registration->warmup();
-  bool has_unbounded_state = op_registration->has_unbounded_state();
-  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                            output_columns, can_stencil, stencil,
-                            has_bounded_state, warmup, has_unbounded_state);
-  OpRegistry* registry = get_op_registry();
-  registry->add_op(name, info);
-  VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;
-
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::RegisterPythonKernel(
-    grpc::ServerContext* context,
-    const proto::PythonKernelRegistration* python_kernel,
-    proto::Result* result) {
-  const std::string& op_name = python_kernel->op_name();
-  DeviceType device_type = python_kernel->device_type();
-  const std::string& kernel_str = python_kernel->kernel_str();
-  const std::string& pickled_config = python_kernel->pickled_config();
-  const int batch_size = python_kernel->batch_size();
-  // Create a kernel builder function
-  auto constructor = [kernel_str, pickled_config, batch_size](
-    const KernelConfig& config) {
-    return new PythonKernel(config, kernel_str, pickled_config, batch_size);
-  };
-  // Set all input and output columns to be CPU
-  std::map<std::string, DeviceType> input_devices;
-  std::map<std::string, DeviceType> output_devices;
-  {
-    OpRegistry* registry = get_op_registry();
-    OpInfo* info = registry->get_op_info(op_name);
-    if (info->variadic_inputs()) {
-      assert(device_type != DeviceType::GPU);
-    } else {
-      for (const auto& in_col : info->input_columns()) {
-        input_devices[in_col.name()] = DeviceType::CPU;
-      }
-    }
-    for (const auto& out_col : info->output_columns()) {
-      output_devices[out_col.name()] = DeviceType::CPU;
-    }
-  }
-  // Create a new kernel factory
-  bool can_batch = (batch_size > 1);
-  KernelFactory* factory =
-      new KernelFactory(op_name, device_type, 1, input_devices, output_devices,
-                        can_batch, batch_size, constructor);
-  // Register the kernel
-  KernelRegistry* registry = get_kernel_registry();
-  registry->add_kernel(op_name, factory);
-  VLOG(1) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
-                                  const proto::Empty* empty, Result* result) {
-  State state = state_.get();
-  switch (state) {
-    case RUNNING_JOB: {
-      // trigger_shutdown will inform job to stop working
-      break;
-    }
-    case SHUTTING_DOWN: {
-      // Already shutting down
-      result->set_success(true);
-      return grpc::Status::OK;
-    }
-    case INITIALIZING: {
-      break;
-    }
-    case IDLE: {
-      break;
-    }
-  }
-  state_.set(SHUTTING_DOWN);
-  try_unregister();
-  // Inform watchdog that we are done for
-  trigger_shutdown_.set();
-  result->set_success(true);
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
-                                      const proto::Empty* empty,
-                                      proto::Empty* result) {
-  watchdog_awake_ = true;
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
-                              const proto::Empty* empty1,
-                              proto::Empty* empty2) {
-  return grpc::Status::OK;
-}
-
-void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
-                                i32 timeout_ms) {
-  watchdog_thread_ = std::thread([this, server, enable_timeout, timeout_ms]() {
-    double time_since_check = 0;
-    // Wait until shutdown is triggered or watchdog isn't woken up
-    if (!enable_timeout) {
-      trigger_shutdown_.wait();
-    }
-    while (!trigger_shutdown_.raised()) {
-      auto sleep_start = now();
-      trigger_shutdown_.wait_for(timeout_ms);
-      time_since_check += nano_since(sleep_start) / 1e6;
-      if (time_since_check > timeout_ms) {
-        if (!watchdog_awake_) {
-          // Watchdog not woken, time to bail out
-          LOG(ERROR) << "Worker did not receive heartbeat in " << timeout_ms
-                     << "ms. Shutting down.";
-          trigger_shutdown_.set();
-        }
-        watchdog_awake_ = false;
-        time_since_check = 0;
-      }
-    }
-    // Shutdown self
-    server->Shutdown();
-  });
-}
-
-void WorkerImpl::register_with_master() {
-  assert(state_.get() == State::INITIALIZING);
-
-  VLOG(1) << "Worker try to register with master";
-
-  grpc::ClientContext context;
-  proto::WorkerParams worker_info;
-  proto::Registration registration;
-
-  worker_info.set_port(worker_port_);
-  proto::MachineParameters* params = worker_info.mutable_params();
-  params->set_num_cpus(db_params_.num_cpus);
-  params->set_num_load_workers(db_params_.num_cpus);
-  params->set_num_save_workers(db_params_.num_cpus);
-  for (i32 gpu_id : db_params_.gpu_ids) {
-    params->add_gpu_ids(gpu_id);
-  }
-
-  grpc::Status status =
-      master_->RegisterWorker(&context, worker_info, &registration);
-  LOG_IF(FATAL, !status.ok())
-      << "Worker could not contact master server at " << master_address_ << " ("
-      << status.error_code() << "): " << status.error_message();
-  VLOG(1) << "Worker registered with master";
-
-  node_id_ = registration.node_id();
-
-  state_.set(State::IDLE);
-}
-
-void WorkerImpl::try_unregister() {
-  if (state_.get() != State::INITIALIZING && !unregistered_.test_and_set()) {
-    grpc::ClientContext ct;
-    proto::NodeInfo node_info;
-    proto::Empty em;
-    node_info.set_node_id(node_id_);
-    grpc::Status status = master_->UnregisterWorker(&ct, node_info, &em);
-    if (!status.ok()) {
-      VLOG(1) << "Worker could not unregister from master server "
-              << "(" << status.error_code() << "): " << status.error_message();
-    }
-  }
+  return true;
 }
 
 }

@@ -171,6 +171,7 @@ class Database(object):
         self._op_cache = {}
 
         self._workers = {}
+        self._worker_conns = None
         self.start_cluster(master, workers);
 
     def __del__(self):
@@ -319,14 +320,20 @@ class Database(object):
                                        .format(status))
         return result
 
-    def _run_remote_cmd(self, host, cmd):
+    def _run_remote_cmd(self, host, cmd, nohup=False):
         host_name, _, _ = host.partition(':')
         host_ip = unicode(socket.gethostbyname(host_name), "utf-8")
         if ipaddress.ip_address(host_ip).is_loopback:
             return Popen(cmd, shell=True)
         else:
             cmd = cmd.replace('"', '\\"')
-            return Popen("ssh {} \"cd {} && {}\"".format(host_name, os.getcwd(), cmd), shell=True)
+            return Popen("ssh {} \"cd {} && {} {} {}\"".format(
+                host_name,
+                os.getcwd(),
+                '' if nohup else '',
+                cmd,
+                '' if nohup else ''),
+                         shell=True)
 
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
@@ -416,7 +423,8 @@ class Database(object):
                     '\"from scannerpy import start_master\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_master(port=\'{master_port:s}\', block=True, config=config)\"').format(
+                    'start_master(port=\'{master_port:s}\', block=True, config=config)\" ' +
+                    ' > /tmp/scanner_master.out 2>&1 < /dev/null').format(
                         master_port=master_port,
                         config=pickled_config)
                 worker_cmd = (
@@ -424,9 +432,11 @@ class Database(object):
                     '\"from scannerpy import start_worker\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\"')
+                    'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\" ' +
+                    ' > /tmp/scanner_worker.out 2>&1 < /dev/null')
                 self._master_conn = self._run_remote_cmd(self._master_address,
-                                                         master_cmd)
+                                                         master_cmd,
+                                                         nohup=True)
 
                 # Wait for master to start
                 slept_so_far = 0
@@ -451,7 +461,8 @@ class Database(object):
                         self._worker_conns.append(self._run_remote_cmd(w, worker_cmd.format(
                             master=self._master_address,
                             config=pickled_config,
-                            worker_port=w.partition(':')[2])))
+                            worker_port=w.partition(':')[2]),
+                        nohup=True))
                     except:
                         print('WARNING: Failed to ssh into {:s}, ignoring'.format(w))
                         ignored_nodes += 1
