@@ -269,9 +269,10 @@ class Database(object):
             self._table_descriptor = {}
             # Read all table descriptors from database
             NUM_TABLES_TO_READ = 10000
-            for i in range(0, len(self._table_name), NUM_TABLES_TO_READ):
+            table_names = self._table_name.keys()
+            for i in range(0, len(table_names), NUM_TABLES_TO_READ):
                 get_tables_params = self.protobufs.GetTablesParams()
-                for table_name in self._table_name[i:i+NUM_TABLES_TO_READ]:
+                for table_name in table_names[i:i+NUM_TABLES_TO_READ]:
                     get_tables_params.tables.append(table_name)
                 get_tables_result = self._try_rpc(lambda: self._master.GetTables(
                     get_tables_params))
