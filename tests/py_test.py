@@ -1,5 +1,6 @@
 from scannerpy import (
-    Database, Config, DeviceType, ColumnType, BulkJob, Job, ProtobufGenerator)
+    Database, Config, DeviceType, ColumnType, BulkJob, Job, ProtobufGenerator,
+    ScannerException)
 from scannerpy.stdlib import parsers
 import tempfile
 import toml
@@ -112,10 +113,10 @@ def db():
 
         # Tear down
         run(['rm', '-rf',
-            cfg['storage']['db_path'],
-            cfg_path,
-            vid1_path,
-            vid2_path])
+           cfg['storage']['db_path'],
+           cfg_path,
+           vid1_path,
+           vid2_path])
 
 def test_new_database(db): pass
 
@@ -504,6 +505,76 @@ def test_save_mp4(db):
     f.close()
     table.column('frame').save_mp4(f.name)
     run(['rm', '-rf', f.name])
+
+@pytest.fixture()
+def no_workers_db():
+    # Create new config
+    #with tempfile.NamedTemporaryFile(delete=False) as f:
+    with open('/tmp/config_test', 'w') as f:
+        cfg = Config.default_config()
+        cfg['storage']['db_path'] = tempfile.mkdtemp()
+        cfg['network']['master_port'] = '5005'
+        cfg['network']['worker_port'] = '5006'
+        f.write(toml.dumps(cfg))
+        cfg_path = f.name
+
+    # Setup and ingest video
+    with Database(workers=[], config_path=cfg_path) as db:
+        # Download video from GCS
+        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            host = socket.gethostname()
+            # HACK: special proxy case for Ocean cluster
+            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
+                resp = requests.get(url, stream=True, proxies={
+                    'https': 'http://proxy.pdl.cmu.edu:3128/'
+                })
+            else:
+                resp = requests.get(url, stream=True)
+            assert resp.ok
+            for block in resp.iter_content(1024):
+                f.write(block)
+            vid1_path = f.name
+
+        # Make a second one shorter than the first
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            vid2_path = f.name
+        run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
+             '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path])
+
+        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+
+        yield db
+
+        # Tear down
+        run(['rm', '-rf',
+            cfg['storage']['db_path'],
+            cfg_path,
+            vid1_path,
+            vid2_path])
+
+def test_no_workers(no_workers_db):
+    db = no_workers_db
+
+    frame = db.ops.FrameInput()
+    hist = db.ops.Histogram(frame=frame)
+    output_op = db.ops.Output(columns=[hist])
+
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            output_op: '_ignore'
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+
+    exc = False
+    try:
+        output = db.run(bulk_job, show_progress=False, force=True)
+    except ScannerException:
+        exc = True
+
+    assert exc
 
 @pytest.fixture()
 def fault_db():

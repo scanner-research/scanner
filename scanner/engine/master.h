@@ -104,6 +104,10 @@ class MasterImpl final : public proto::Master::Service {
                             const proto::FinishedWorkParameters* params,
                             proto::Empty* empty);
 
+  grpc::Status FinishedJob(grpc::ServerContext* context,
+                           const proto::FinishedJobParams* params,
+                           proto::Empty* empty);
+
   grpc::Status NewJob(grpc::ServerContext* context,
                       const proto::BulkJobParameters* job_params,
                       proto::Result* job_result);
@@ -134,24 +138,22 @@ class MasterImpl final : public proto::Master::Service {
 
   void stop_worker_pinger();
 
-  void start_job_on_worker(i32 node_id, const std::string& address);
+  void start_job_on_workers(const std::vector<i32>& worker_ids);
 
   void stop_job_on_worker(i32 node_id);
 
   void remove_worker(i32 node_id);
 
+  void terminate_job();
+
+  DatabaseParameters db_params_;
 
   std::thread pinger_thread_;
   std::atomic<bool> pinger_active_;
 
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;
-  i32 next_worker_id_ = 0;
-  std::map<i32, bool> worker_active_;
-  std::map<i32, std::unique_ptr<proto::Worker::Stub>> workers_;
-  std::map<i32, std::string> worker_addresses_;
   Flag trigger_shutdown_;
-  DatabaseParameters db_params_;
   storehouse::StorageBackend* storage_;
   DatabaseMetadata meta_;
   std::unique_ptr<TableMetaCache> table_metas_;
@@ -159,7 +161,12 @@ class MasterImpl final : public proto::Master::Service {
   std::vector<std::string> so_paths_;
   std::vector<proto::OpRegistration> op_registrations_;
   std::vector<proto::PythonKernelRegistration> py_kernel_registrations_;
-  proto::BulkJobParameters job_params_;
+
+  // Worker state
+  i32 next_worker_id_ = 0;
+  std::map<i32, bool> worker_active_;
+  std::map<i32, std::unique_ptr<proto::Worker::Stub>> workers_;
+  std::map<i32, std::string> worker_addresses_;
 
   i64 total_tasks_used_;
   i64 total_tasks_;
@@ -168,6 +175,7 @@ class MasterImpl final : public proto::Master::Service {
   std::mutex active_mutex_;
   std::condition_variable active_cv_;
   bool active_bulk_job_ = false;
+  proto::BulkJobParameters job_params_;
 
   // True if all work for job is done
   std::mutex finished_mutex_;
@@ -197,6 +205,10 @@ class MasterImpl final : public proto::Master::Service {
   // Total samples in the current task
   i64 num_tasks_;
   Result task_result_;
+
+  //============================================================================
+  // Assignment of tasks to jobs
+  //============================================================================
   // Tracks tasks assigned to worker so they can be reassigned if the worker
   // fails
   // Worker id -> (job_id, task_id)
@@ -216,12 +228,6 @@ class MasterImpl final : public proto::Master::Service {
   // Worker connections
   std::map<std::string, i32> local_ids_;
   std::map<std::string, i32> local_totals_;
-  grpc::CompletionQueue cq_;
-  std::map<i32, std::unique_ptr<grpc::ClientContext>> client_contexts_;
-  std::map<i32, std::unique_ptr<grpc::Status>> statuses_;
-  std::map<i32, std::unique_ptr<proto::Result>> replies_;
-  std::map<i32, std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
-      rpcs_;
 };
 }
 }

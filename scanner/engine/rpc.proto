@@ -34,6 +34,7 @@ service Master {
   // Internal
   rpc NextWork (NodeInfo) returns (NewWork) {}
   rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
+  rpc FinishedJob (FinishedJobParams) returns (Empty) {}
   rpc NewJob (BulkJobParameters) returns (Result) {}
 }
 
@@ -139,6 +140,11 @@ message FinishedWorkParameters {
   int64 job_id = 2;
   int64 task_id = 3;
   int64 num_rows = 4;
+}
+
+message FinishedJobParams {
+  int32 node_id = 1;
+  Result result = 2;
 }
 
 message BulkJobParameters {

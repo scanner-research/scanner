@@ -68,6 +68,13 @@ class WorkerImpl final : public proto::Worker::Service {
  private:
   void try_unregister();
 
+  void start_job_processor();
+
+  void stop_job_processor();
+
+  bool process_job(const proto::BulkJobParameters* job_params,
+                   proto::Result* job_result);
+
   enum State {
     INITIALIZING,
     IDLE,
@@ -91,6 +98,23 @@ class WorkerImpl final : public proto::Worker::Service {
   std::map<std::string, TableMetadata*> table_metas_;
   bool memory_pool_initialized_ = false;
   MemoryPoolConfig cached_memory_pool_config_;
+
+  // True if the worker is executing a job
+  std::mutex active_mutex_;
+  std::condition_variable active_cv_;
+  bool active_bulk_job_ = false;
+  proto::BulkJobParameters job_params_;
+
+  // True if all work for job is done
+  std::mutex finished_mutex_;
+  std::condition_variable finished_cv_;
+  std::atomic<bool> finished_{true};
+  Result job_result_;
+
+
+  std::thread job_processor_thread_;
+  // Manages modification of all of the below structures
+  std::mutex work_mutex_;
 };
 }
 }
