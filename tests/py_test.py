@@ -128,24 +128,6 @@ def test_table_properties(db):
         assert table.num_rows() == 720
         assert [c for c in table.column_names()] == ['index', 'frame']
 
-def test_collection(db):
-    c = db.new_collection('test', [db.table('test1'), db.table('test2')])
-
-    frame = db.ops.FrameInput()
-    hist = db.ops.Histogram(frame = frame)
-    output = db.ops.Output(columns=[hist])
-
-    jobs = []
-    for table in c.tables():
-        job = Job(op_args={
-            frame: table.column('frame'),
-            output: table.name() + '_ignore',
-        })
-        jobs.append(job)
-
-    bulk_job = BulkJob(output=output, jobs=jobs)
-    db.run(bulk_job, show_progress=False, force=True)
-    db.delete_collection('test')
 
 def test_summarize(db):
     db.summarize()
@@ -706,7 +688,7 @@ def fault_db():
 #             time.sleep(10)
 
 #             # Force kill worker process to trigger fault tolerance
-#             os.killpg(os.getpgid(p.pid), signal.SIGTERM) 
+#             os.killpg(os.getpgid(p.pid), signal.SIGTERM)
 #             p.communicate()
 
 #             # Wait for fault tolerance to kick in
