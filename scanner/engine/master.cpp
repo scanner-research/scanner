@@ -535,8 +535,13 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   }
 
   if (unallocated_job_tasks_.empty()) {
-    // No more work
-    new_work->set_no_more_work(true);
+    if (finished_) {
+      // No more work
+      new_work->set_no_more_work(true);
+    } else {
+      // Still have tasks that might be reassigned
+      new_work->set_wait_for_work(true);
+    }
     return grpc::Status::OK;
   }
 

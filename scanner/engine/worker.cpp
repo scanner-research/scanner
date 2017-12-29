@@ -1406,7 +1406,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         break;
       }
 
-      if (new_work.no_more_work()) {
+      if (new_work.wait_for_work()) {
+        // Waiting for more work
+        VLOG(1) << "Node " << node_id_ << " received wait for work signal.";
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      }
+      else if (new_work.no_more_work()) {
         // No more work left
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         finished = true;
