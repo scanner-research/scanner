@@ -8,19 +8,28 @@ from scannerpy.stdlib.util import temp_directory, download_temp_file
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-def detect_faces(db, input_frame_columns, output_samplings, output_prefixes,
-                 width=960, prototxt_path=None, model_weights_path=None,
+
+def detect_faces(db,
+                 input_frame_columns,
+                 output_samplings,
+                 output_names,
+                 width=960,
+                 prototxt_path=None,
+                 model_weights_path=None,
                  templates_path=None,
                  return_profiling=False):
     if prototxt_path is None:
         prototxt_path = download_temp_file(
-            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_deploy.prototxt')
+            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_deploy.prototxt'
+        )
     if model_weights_path is None:
         model_weights_path = download_temp_file(
-            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_deploy.caffemodel')
+            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_deploy.caffemodel'
+        )
     if templates_path is None:
         templates_path = download_temp_file(
-            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_templates.bin')
+            'https://storage.googleapis.com/scanner-data/nets/caffe_facenet/facenet_templates.bin'
+        )
 
     descriptor = NetDescriptor(db)
     descriptor.model_path = prototxt_path
@@ -42,26 +51,24 @@ def detect_faces(db, input_frame_columns, output_samplings, output_prefixes,
         device = DeviceType.CPU
         pipeline_instances = 1
 
-    if type(output_prefixes) is list:
-        assert(len(output_prefix) == len(input_frame_columns))
+    if type(output_names) is not list:
         output_names = [
-            prefix + '_boxes'
-            for prefix in output_prefixes
-        ]
-    else:
-        output_names = [
-            prefix + '_boxes_{}'.format(i)
+            '{}_{}'.format(output_names, i)
             for i in range(len(input_frame_columns))
         ]
+    else:
+        assert (len(output_names) == len(input_frame_columns))
 
     if type(output_samplings) is not list:
-        output_samplings = [output_samplings for _ in range(len(input_frame_columns))]
-
+        output_samplings = [
+            output_samplings for _ in range(len(input_frame_columns))
+        ]
+    else:
+        assert (len(output_samplings) == len(input_frame_columns))
 
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
-    batch_sizes = [int((2**i))
-                   for i in range(len(scales))]
+    batch_sizes = [int((2**i)) for i in range(len(scales))]
     profilers = {}
     for scale, batch in zip(scales, batch_sizes):
         facenet_args.scale = scale
@@ -72,24 +79,21 @@ def detect_faces(db, input_frame_columns, output_samplings, output_prefixes,
         #    frame = frame,
         #    width = width, height = 0,
         #    min = True, preserve_aspect = True,
-        frame_info = db.ops.InfoFromFrame(frame = frame)
+        frame_info = db.ops.InfoFromFrame(frame=frame)
         facenet_input = db.ops.FacenetInput(
-            frame = frame,
-            args = facenet_args,
-            device = device)
+            frame=frame, args=facenet_args, device=device)
         facenet = db.ops.Facenet(
-            facenet_input = facenet_input,
-            args = facenet_args,
-            device = device)
+            facenet_input=facenet_input, args=facenet_args, device=device)
         facenet_output = db.ops.FacenetOutput(
-            facenet_output = facenet,
-            original_frame_info = frame_info,
-            args = facenet_args)
+            facenet_output=facenet,
+            original_frame_info=frame_info,
+            args=facenet_args)
         sampled_output = facenet_output.sample()
         output = db.ops.Output(columns=[sampled_output])
 
         jobs = []
-        for output_name, frame_column, output_sampling in zip(output_names, input_frame_columns, output_samplings):
+        for output_name, frame_column, output_sampling in zip(
+                output_names, input_frame_columns, output_samplings):
             job = Job(op_args={
                 frame: frame_column,
                 sampled_output: output_sampling,
@@ -98,8 +102,11 @@ def detect_faces(db, input_frame_columns, output_samplings, output_prefixes,
             jobs.append(job)
 
         bulk_job = BulkJob(output=output, jobs=jobs)
-        output = db.run(bulk_job, force=True, work_packet_size=batch * 4,
-                        pipeline_instances_per_node=pipeline_instances)
+        output = db.run(
+            bulk_job,
+            force=True,
+            work_packet_size=batch * 4,
+            pipeline_instances_per_node=pipeline_instances)
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
 
@@ -125,7 +132,11 @@ def detect_faces(db, input_frame_columns, output_samplings, output_prefixes,
     return db.run(bulk_job, force=True)
 
 
-def detect_poses(db, input_frame_columns, sampling, output_name, batch=1,
+def detect_poses(db,
+                 input_frame_columns,
+                 sampling,
+                 output_name,
+                 batch=1,
                  models_path=None,
                  pose_model_weights_path=None,
                  hand_prototxt_path=None,
@@ -185,10 +196,7 @@ def detect_poses(db, input_frame_columns, sampling, output_name, batch=1,
 
     frame = db.ops.FrameInput()
     poses_out = db.ops.OpenPose(
-        frame=frame,
-        device=device,
-        args=pose_args,
-        batch=batch)
+        frame=frame, device=device, args=pose_args, batch=batch)
     sampled_poses = poses_out.sample()
     output = db.ops.Output(columns=[sampled_poses])
 
@@ -201,6 +209,9 @@ def detect_poses(db, input_frame_columns, sampling, output_name, batch=1,
         })
         jobs.append(job)
     bulk_job = BulkJob(output=output, jobs=jobs)
-    output = db.run(bulk_job, force=True, work_packet_size=8,
-                    pipeline_instances_per_node=pipeline_instances)
+    output = db.run(
+        bulk_job,
+        force=True,
+        work_packet_size=8,
+        pipeline_instances_per_node=pipeline_instances)
     return output
