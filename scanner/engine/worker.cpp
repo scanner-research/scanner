@@ -472,9 +472,14 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
 WorkerImpl::~WorkerImpl() {
   State state = state_.get();
+  bool was_initializing = state == State::INITIALIZING;
   state_.set(State::SHUTTING_DOWN);
 
-  try_unregister();
+  // Master is dead if we failed during initialization
+  if (!was_initializing) {
+    try_unregister();
+  }
+
   trigger_shutdown_.set();
 
   stop_job_processor();
@@ -704,7 +709,7 @@ void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
   });
 }
 
-void WorkerImpl::register_with_master() {
+Result WorkerImpl::register_with_master() {
   assert(state_.get() == State::INITIALIZING);
 
   VLOG(1) << "Worker try to register with master";
@@ -724,14 +729,24 @@ void WorkerImpl::register_with_master() {
 
   grpc::Status status =
       master_->RegisterWorker(&context, worker_info, &registration);
-  LOG_IF(FATAL, !status.ok())
+  if (!status.ok()) {
+    Result result;
+    result.set_success(false);
+    LOG(WARNING)
       << "Worker could not contact master server at " << master_address_ << " ("
       << status.error_code() << "): " << status.error_message();
+    return result;
+  }
+
   VLOG(1) << "Worker registered with master";
 
   node_id_ = registration.node_id();
 
   state_.set(State::IDLE);
+
+  Result result;
+  result.set_success(true);
+  return result;
 }
 
 void WorkerImpl::try_unregister() {
