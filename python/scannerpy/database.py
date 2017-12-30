@@ -997,16 +997,19 @@ class Database(object):
                     'tasks': job_status.total_tasks - job_status.tasks_done,
                     'workers': job_status.num_workers,
                 })
+                time_str = time.strftime('%l:%M%p %z on %b %d, %Y')
                 if last_jobs_failed < job_status.jobs_failed:
                     num_jobs_failed = job_status.jobs_failed - last_jobs_failed
-                    pbar.write('{:d} {:s} failed'.format(
+                    pbar.write('{:d} {:s} failed at {:s}'.format(
                         num_jobs_failed,
-                        'job' if num_jobs < 2 else 'jobs'))
+                        'job' if num_jobs < 2 else 'jobs',
+                        time_str))
                 if last_failed_workers < job_status.failed_workers:
                     num_workers_failed = job_status.failed_workers - last_failed_workers
-                    pbar.write('{:d} {:s} failed'.format(
+                    pbar.write('{:d} {:s} failed at {:s}'.format(
                         num_workers_failed,
-                        'worker' if num_workers_failed < 2 else 'workers'))
+                        'worker' if num_workers_failed < 2 else 'workers',
+                        time_str))
                 last_jobs_failed = job_status.jobs_failed
                 last_failed_workers = job_status.failed_workers
             else:
