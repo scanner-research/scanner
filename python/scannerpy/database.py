@@ -45,7 +45,8 @@ import scanner.types_pb2 as misc_types
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 def start_master(port=None, config=None, config_path=None, block=False,
-                 watchdog=True, prefetch_table_metadata=True):
+                 watchdog=True, prefetch_table_metadata=True,
+                 no_workers_timeout=30):
     """
     Start a master server instance on this node.
 
@@ -69,7 +70,9 @@ def start_master(port=None, config=None, config_path=None, block=False,
         config.storage_config,
         config.db_path.encode('ascii'),
         (config.master_address + ':' + port).encode('ascii'))
-    result = bindings.start_master(db, port.encode('ascii'), watchdog, prefetch_table_metadata)
+    result = bindings.start_master(db, port.encode('ascii'), watchdog,
+                                   prefetch_table_metadata,
+                                   no_workers_timeout)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(result.msg()))
     if block:
@@ -130,7 +133,8 @@ class Database(object):
     def __init__(self, master=None, workers=None,
                  config_path=None, config=None,
                  debug=None, start_cluster=True,
-                 prefetch_table_metadata=True):
+                 prefetch_table_metadata=True,
+                 no_workers_timeout=30):
         """
         Initializes a Scanner database.
 
@@ -153,6 +157,7 @@ class Database(object):
 
         self._start_cluster = start_cluster
         self._prefetch_table_metadata = prefetch_table_metadata
+        self._no_workers_timeout = no_workers_timeout
         self._debug = debug
         if debug is None:
             self._debug = (master is None and workers is None)
@@ -410,7 +415,9 @@ class Database(object):
                 self._worker_conns = None
                 machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port.encode('ascii'), True, self._prefetch_table_metadata).success
+                    self._db, self.config.master_port.encode('ascii'), True,
+                    self._prefetch_table_metadata,
+                    self._no_workers_timeout).success
                 assert res
                 res = self._connect_to_master()
                 assert res
@@ -430,11 +437,12 @@ class Database(object):
                     '\"from scannerpy import start_master\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_master(port=\'{master_port:s}\', block=True, config=config, prefetch_table_metadata={prefetch})\" ' +
+                    'start_master(port=\'{master_port:s}\', block=True, config=config, prefetch_table_metadata={prefetch}, no_workers_timeout={no_workers})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
-                        prefetch=self._prefetch_table_metadata)
+                        prefetch=self._prefetch_table_metadata,
+                        no_workers=self._no_workers_timeout)
                 worker_cmd = (
                     'python -c ' +
                     '\"from scannerpy import start_worker\n' +
@@ -1012,8 +1020,7 @@ class Database(object):
                         time_str))
                 last_jobs_failed = job_status.jobs_failed
                 last_failed_workers = job_status.failed_workers
-            else:
-                time.sleep(1.0)
+            time.sleep(1.0)
 
         if pbar is not None:
             pbar.close()

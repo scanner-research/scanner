@@ -223,7 +223,8 @@ class MasterImpl final : public proto::Master::Service {
   };
   std::map<i64, WorkerHistory> worker_histories_;
   std::map<i32, bool> unfinished_workers_;
-  std::atomic<i64> num_failed_workers_;
+  std::vector<i32> unstarted_workers_;
+  std::atomic<i64> num_failed_workers_{0};
 
   std::map<i64, std::map<i64, i64>> job_task_num_rows_;
 
