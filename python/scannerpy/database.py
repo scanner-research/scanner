@@ -978,7 +978,8 @@ class Database(object):
         while True:
             try:
                 job_status = self._master.GetJobStatus(self.protobufs.Empty())
-                if show_progress and pbar is None:
+                if show_progress and pbar is None and job_status.jobs_remaining != 0 \
+                   and job_status.tasks_remaining != 0:
                     total_tasks = job_status.tasks_remaining
                     pbar = tqdm(total=total_tasks)
             except grpc.RpcError as e:
