@@ -19,7 +19,6 @@
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/sampler.h"
-#include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
 
 #include <mutex>
@@ -92,9 +91,9 @@ class MasterImpl final : public proto::Master::Service {
       const proto::PythonKernelRegistration* python_kernel,
       proto::Result* result);
 
-  grpc::Status IsJobDone(grpc::ServerContext* context,
-                         const proto::Empty* empty,
-                         proto::JobResult* job_result);
+  grpc::Status GetJobStatus(grpc::ServerContext* context,
+                            const proto::Empty* empty,
+                            proto::JobStatus* job_status);
 
   grpc::Status NextWork(grpc::ServerContext* context,
                         const proto::NodeInfo* node_info,
@@ -112,7 +111,7 @@ class MasterImpl final : public proto::Master::Service {
                       const proto::BulkJobParameters* job_params,
                       proto::Result* job_result);
 
-  // Misc methods 
+  // Misc methods
   grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty1,
                     proto::Empty* empty2);
 
@@ -157,7 +156,6 @@ class MasterImpl final : public proto::Master::Service {
   storehouse::StorageBackend* storage_;
   DatabaseMetadata meta_;
   std::unique_ptr<TableMetaCache> table_metas_;
-  std::unique_ptr<ProgressBar> bar_;
   std::vector<std::string> so_paths_;
   std::vector<proto::OpRegistration> op_registrations_;
   std::vector<proto::PythonKernelRegistration> py_kernel_registrations_;

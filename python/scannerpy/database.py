@@ -13,6 +13,7 @@ import signal
 import copy
 import collections
 import subprocess
+from tqdm import tqdm
 
 from multiprocessing import Process, Queue
 from subprocess import Popen, PIPE
@@ -948,7 +949,6 @@ class Database(object):
             pipeline_instances_per_node or -1)
         job_params.work_packet_size = work_packet_size
         job_params.io_packet_size = io_packet_size
-        job_params.show_progress = show_progress
         job_params.profiling = profiling
         job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu
         job_params.load_sparsity_threshold = load_sparsity_threshold
@@ -972,18 +972,35 @@ class Database(object):
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(job_params))
 
+        pbar = None
+        total_tasks = None
+        last_task_count = 0
         while True:
             try:
-                result = self._master.IsJobDone(self.protobufs.Empty())
+                job_status = self._master.GetJobStatus(self.protobufs.Empty())
+                if show_progress and pbar is None:
+                    total_tasks = job_status.tasks_remaining
+                    pbar = tqdm(total=total_tasks)
             except grpc.RpcError as e:
                 raise ScannerException(e)
-            if result.finished:
+            if pbar is not None:
+                tasks_completed = total_tasks - job_status.tasks_remaining
+                pbar.update(tasks_completed - last_task_count)
+                last_task_count = tasks_completed
+                pbar.set_postfix({
+                    'jobs': job_status.jobs_remaining,
+                    'tasks': job_status.tasks_remaining
+                })
+            if job_status.finished:
                 break
             else:
                 time.sleep(1.0)
 
-        if not result.result.success:
-            raise ScannerException(result.result.msg)
+        if pbar is not None:
+            pbar.close()
+
+        if not job_status.result.success:
+            raise ScannerException(job_status.result.msg)
 
         # Invalidate db metadata because of job run
         self._cached_db_metadata = None

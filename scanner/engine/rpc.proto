@@ -21,7 +21,7 @@ service Master {
   rpc ActiveWorkers (Empty) returns (RegisteredWorkers) {}
   // Ingest videos into the system
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
-  rpc IsJobDone (Empty) returns (JobResult) {}
+  rpc GetJobStatus (Empty) returns (JobStatus) {}
 
   rpc Ping (Empty) returns (Empty) {}
   rpc LoadOp (OpPath) returns (Result) {}
@@ -55,9 +55,11 @@ message Result {
   string msg = 2;
 }
 
-message JobResult {
+message JobStatus {
   bool finished = 1;
-  Result result = 2;
+  int32 tasks_remaining = 2;
+  int32 jobs_remaining = 3;
+  Result result = 4;
 }
 
 message ListTablesResult {
@@ -161,7 +163,6 @@ message BulkJobParameters {
   int32 work_packet_size = 8;
   int32 local_id = 9;
   int32 local_total = 10;
-  bool show_progress = 11;
   bool profiling = 12;
   int32 load_sparsity_threshold = 13;
   int32 tasks_in_queue_per_pu = 14;
