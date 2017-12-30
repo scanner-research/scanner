@@ -24,6 +24,7 @@
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
+#include "scanner/util/thread_pool.h"
 
 #include <arpa/inet.h>
 #include <grpc/grpc_posix.h>
@@ -254,7 +255,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       break;
     }
 
-    VLOG(2) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
+    VLOG(1) << "Evaluate (N/KI/G: " << args.node_id << "/" << args.ki << "/"
             << args.kg << "): processing job task " << work_entry.job_index
             << ", " << work_entry.task_index;
 
@@ -794,6 +795,8 @@ void WorkerImpl::stop_job_processor() {
   }
 }
 
+static const i32 NUM_PREFETCH_THREADS = 64;
+
 bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   job_result->set_success(true);
@@ -825,6 +828,31 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   DatabaseMetadata meta =
       read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
   TableMetaCache table_meta(storage_, meta);
+
+  // Initialize worker table metadata
+
+  {
+    VLOG(1) << "Prefetching table metadata";
+    auto load_table_meta = [&](const std::string& table_name) {
+      std::string table_path =
+          TableMetadata::descriptor_path(meta.get_table_id(table_name));
+      table_meta.update(read_table_metadata(storage_, table_path));
+    };
+
+    VLOG(1) << "Spawning thread pool";
+    ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
+    std::vector<std::future<void>> futures;
+    for (const auto& t : meta.table_names()) {
+      futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
+    }
+
+    VLOG(1) << "Waiting on futures";
+    for (auto& future : futures) {
+      future.wait();
+    }
+
+    VLOG(1) << "Prefetch complete.";
+  }
 
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
