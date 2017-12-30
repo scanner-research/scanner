@@ -205,13 +205,16 @@ class MasterImpl final : public proto::Master::Service {
   Result task_result_;
 
   //============================================================================
-  // Assignment of tasks to jobs
+  // Assignment of tasks to workers
   //============================================================================
   // Tracks tasks assigned to worker so they can be reassigned if the worker
   // fails
   // Worker id -> (job_id, task_id)
   std::map<i64, std::set<std::tuple<i64, i64>>> active_job_tasks_;
-  // Track assignment of tasks to worker for this job
+  // Tracks number of times a task has been failed so that a job can be removed
+  // if it is causing consistent failures
+  // job_id -> task_id -> num_failures
+  std::map<i64, std::map<i64, i64>> job_tasks_num_failures_;
   struct WorkerHistory {
     timepoint_t start_time;
     timepoint_t end_time;
@@ -220,6 +223,7 @@ class MasterImpl final : public proto::Master::Service {
   };
   std::map<i64, WorkerHistory> worker_histories_;
   std::map<i32, bool> unfinished_workers_;
+  std::atomic<i64> num_failed_workers_;
 
   std::map<i64, std::map<i64, i64>> job_task_num_rows_;
 

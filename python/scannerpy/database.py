@@ -975,25 +975,40 @@ class Database(object):
         pbar = None
         total_tasks = None
         last_task_count = 0
+        last_jobs_failed = 0
+        last_failed_workers = 0
         while True:
             try:
                 job_status = self._master.GetJobStatus(self.protobufs.Empty())
-                if show_progress and pbar is None and job_status.jobs_remaining != 0 \
-                   and job_status.tasks_remaining != 0:
-                    total_tasks = job_status.tasks_remaining
+                if show_progress and pbar is None and job_status.total_jobs != 0 \
+                   and job_status.total_tasks != 0:
+                    total_tasks = job_status.total_tasks
                     pbar = tqdm(total=total_tasks)
             except grpc.RpcError as e:
                 raise ScannerException(e)
+            if job_status.finished:
+                break
             if pbar is not None:
-                tasks_completed = total_tasks - job_status.tasks_remaining
+                tasks_completed = job_status.tasks_done
                 pbar.update(tasks_completed - last_task_count)
                 last_task_count = tasks_completed
                 pbar.set_postfix({
-                    'jobs': job_status.jobs_remaining,
-                    'tasks': job_status.tasks_remaining
+                    'jobs': job_status.total_jobs - job_status.jobs_done,
+                    'tasks': job_status.total_tasks - job_status.tasks_done,
+                    'workers': job_status.num_workers,
                 })
-            if job_status.finished:
-                break
+                if last_jobs_failed < job_status.jobs_failed:
+                    num_jobs_failed = job_status.jobs_failed - last_jobs_failed,
+                    pbar.write('{:d} {:s} failed'.format(
+                        num_jobs_failed,
+                        'job' if num_jobs < 2 else 'jobs'))
+                if last_failed_workers < job_status.failed_workers:
+                    num_workers_failed = job_status.failed_workers - last_failed_workers,
+                    pbar.write('{:d} {:s} failed'.format(
+                        num_workers_failed,
+                        'worker' if num_jobs < 2 else 'workers'))
+                last_jobs_failed = job_status.jobs_failed
+                last_failed_workers = job_status.failed_workers
             else:
                 time.sleep(1.0)
 
