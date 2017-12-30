@@ -57,9 +57,17 @@ message Result {
 
 message JobStatus {
   bool finished = 1;
-  int32 tasks_remaining = 2;
-  int32 jobs_remaining = 3;
-  Result result = 4;
+  Result result = 2;
+
+  int32 tasks_done = 3;
+  int32 total_tasks = 4;
+
+  int32 jobs_done = 5;
+  int32 jobs_failed = 6;
+  int32 total_jobs = 7;
+
+  int32 num_workers = 8;
+  int32 failed_workers = 9;
 }
 
 message ListTablesResult {

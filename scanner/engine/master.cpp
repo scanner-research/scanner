@@ -247,18 +247,37 @@ grpc::Status MasterImpl::IngestVideos(grpc::ServerContext* context,
 grpc::Status MasterImpl::GetJobStatus(grpc::ServerContext* context,
                                       const proto::Empty* empty,
                                       proto::JobStatus* job_status) {
-  VLOG(2) << "Master received IsJobDone command";
+  VLOG(2) << "Master received GetJobStatus command";
   std::unique_lock<std::mutex> lock(active_mutex_);
   if (!active_bulk_job_) {
     job_status->set_finished(true);
     job_status->mutable_result()->CopyFrom(job_result_);
-    job_status->set_tasks_remaining(0);
-    job_status->set_jobs_remaining(0);
+
+    job_status->set_tasks_done(0);
+    job_status->set_total_tasks(0);
+
+    job_status->set_jobs_done(0);
+    job_status->set_jobs_failed(0);
+    job_status->set_total_jobs(0);
   } else {
     job_status->set_finished(false);
-    job_status->set_tasks_remaining(total_tasks_ - total_tasks_used_);
-    job_status->set_jobs_remaining(num_jobs_ - next_job_ + 1);
+
+    job_status->set_tasks_done(total_tasks_used_);
+    job_status->set_total_tasks(total_tasks_);
+
+    job_status->set_jobs_done(next_job_ - 1);
+    job_status->set_jobs_failed(0);
+    job_status->set_total_jobs(num_jobs_);
   }
+  // Num workers
+  i32 num_workers = 0;
+  for (auto& kv : worker_active_) {
+    if (kv.second) {
+      num_workers++;
+    }
+  }
+  job_status->set_num_workers(num_workers);
+  job_status->set_failed_workers(num_failed_workers_);
   return grpc::Status::OK;
 }
 
@@ -796,6 +815,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   local_totals_.clear();
   total_tasks_used_ = 0;
   total_tasks_ = 0;
+  num_failed_workers_ = 0;
 
   job_result->set_success(true);
 
@@ -952,7 +972,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   //  b) use a user-specified size to chunk up the output sequence
 
   // Job -> task -> rows
-  total_tasks_ = 0;
+  i32 total_tasks_temp = 0;
   for (size_t i = 0; i < jobs.size(); ++i) {
     auto& slice_input_rows = slice_input_rows_per_job_[i];
     i64 total_output_rows = total_output_rows_per_job_[i];
@@ -994,9 +1014,10 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       for (i64 r = s; r < e; ++r) {
         task_rows.push_back(r);
       }
-      total_tasks_++;
+      total_tasks_temp++;
     }
   }
+  total_tasks_ = total_tasks_temp;
 
   if (!job_result->success()) {
     // No database changes made at this point, so just return
@@ -1217,6 +1238,7 @@ void MasterImpl::start_worker_pinger() {
           LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
                        << "Removing worker from active list.";
           remove_worker(worker_id);
+          num_failed_workers_++;
         }
       }
       // FIXME(apoms): this sleep is unfortunate because it means a
