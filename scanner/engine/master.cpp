@@ -174,17 +174,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
         << status.error_code() << "): " << status.error_message();
   }
 
-  if (!finished_) {
-    // Update locals
-    std::vector<std::string> split_addr = split(worker_address, ':');
-    std::string sans_port = split_addr[0];
-    if (local_totals_.count(sans_port) == 0) {
-      local_totals_[sans_port] = 0;
-    }
-    local_totals_[sans_port] += 1;
-
-    start_job_on_workers({node_id});
-  }
+  unstarted_workers_.push_back(node_id);
 
   return grpc::Status::OK;
 }
@@ -1123,6 +1113,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       }
     }
     start_job_on_workers(worker_ids);
+    unstarted_workers_.clear();
   }
 
   // Ping workers every 10 seconds to make sure they are alive
@@ -1153,9 +1144,10 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       double seconds_since = std::chrono::duration_cast<std::chrono::seconds>(
                                  now() - all_workers_finished_start)
                                  .count();
-      if (seconds_since > 30) {
+      if (seconds_since > db_params_.no_workers_timeout) {
         RESULT_ERROR(job_result,
-                     "No workers but have unfinished work after 30 seconds");
+                     "No workers but have unfinished work after %d seconds",
+                     db_params_.no_workers_timeout);
         finished_fn();
         return false;
       }
@@ -1165,6 +1157,24 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     if (all_workers_finished && finished_) {
       break;
+    }
+    // Check if we have unstarted workers and start them if so
+    {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      if (!unstarted_workers_.empty()) {
+        // Update locals
+        for (i32 wid : unstarted_workers_) {
+          const std::string& address = worker_addresses_.at(wid);
+          std::vector<std::string> split_addr = split(address, ':');
+          std::string sans_port = split_addr[0];
+          if (local_totals_.count(sans_port) == 0) {
+            local_totals_[sans_port] = 0;
+          }
+          local_totals_[sans_port] += 1;
+        }
+        start_job_on_workers(unstarted_workers_);
+      }
+      unstarted_workers_.clear();
     }
     std::this_thread::yield();
   }

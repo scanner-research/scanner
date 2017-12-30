@@ -89,6 +89,7 @@ struct DatabaseParameters {
   i32 num_save_workers;
   std::vector<i32> gpu_ids;
   bool prefetch_table_metadata;
+  i64 no_workers_timeout; // in seconds
 };
 
 class MasterImpl;
