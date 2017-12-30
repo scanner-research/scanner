@@ -1006,7 +1006,7 @@ class Database(object):
                     num_workers_failed = job_status.failed_workers - last_failed_workers,
                     pbar.write('{:d} {:s} failed'.format(
                         num_workers_failed,
-                        'worker' if num_jobs < 2 else 'workers'))
+                        'worker' if num_workers_failed < 2 else 'workers'))
                 last_jobs_failed = job_status.jobs_failed
                 last_failed_workers = job_status.failed_workers
             else:
