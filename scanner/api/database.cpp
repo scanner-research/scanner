@@ -133,13 +133,13 @@ Result Database::start_worker(const MachineParameters& machine_params,
   state.server = start(state.service, port);
   worker_states_.emplace_back(s);
 
-  // Setup watchdog
-  worker_service->start_watchdog(state.server.get(), watchdog);
-
   Result register_result = worker_service->register_with_master();
   if (!register_result.success()) {
     return register_result;
   }
+
+  // Setup watchdog
+  worker_service->start_watchdog(state.server.get(), watchdog);
 
   Result result;
   result.set_success(true);
