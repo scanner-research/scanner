@@ -136,7 +136,10 @@ Result Database::start_worker(const MachineParameters& machine_params,
   // Setup watchdog
   worker_service->start_watchdog(state.server.get(), watchdog);
 
-  worker_service->register_with_master();
+  Result register_result = worker_service->register_with_master();
+  if (!register_result.success()) {
+    return register_result;
+  }
 
   Result result;
   result.set_success(true);

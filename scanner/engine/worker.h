@@ -63,7 +63,7 @@ class WorkerImpl final : public proto::Worker::Service {
   void start_watchdog(grpc::Server* server, bool enable_timeout,
                       i32 timeout_ms = 50000);
 
-  void register_with_master();
+  Result register_with_master();
 
  private:
   void try_unregister();
