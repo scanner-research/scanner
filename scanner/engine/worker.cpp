@@ -312,7 +312,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
       break;
     }
 
-    VLOG(2) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+    VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
             << "): processing task " << work_entry.job_index << ", "
             << work_entry.task_index;
 
@@ -397,7 +397,7 @@ void save_driver(SaveInputQueue& save_work,
       break;
     }
 
-    VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
+    VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
             << "): processing job task (" << work_entry.job_index << ", "
             << work_entry.task_index << ")";
 
@@ -418,7 +418,7 @@ void save_driver(SaveInputQueue& save_work,
     auto input_entry = work_entry;
     worker->feed(input_entry);
 
-    VLOG(2) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
+    VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
             << "): finished task (" << work_entry.job_index << ", "
             << work_entry.task_index << ")";
 

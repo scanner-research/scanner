@@ -18,7 +18,6 @@
 #include "scanner/engine/sampler.h"
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
-#include "scanner/util/progress_bar.h"
 #include "scanner/util/util.h"
 #include "scanner/util/glog.h"
 #include "scanner/util/thread_pool.h"
@@ -32,7 +31,7 @@ namespace scanner {
 namespace internal {
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
-  : watchdog_awake_(true), db_params_(params), bar_(nullptr) {
+  : watchdog_awake_(true), db_params_(params) {
   VLOG(1) << "Creating master...";
 
   init_glog("scanner_master");
@@ -245,16 +244,20 @@ grpc::Status MasterImpl::IngestVideos(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status MasterImpl::IsJobDone(grpc::ServerContext* context,
-                                   const proto::Empty* empty,
-                                   proto::JobResult* job_result) {
-  VLOG(1) << "Master received IsJobDone command";
+grpc::Status MasterImpl::GetJobStatus(grpc::ServerContext* context,
+                                      const proto::Empty* empty,
+                                      proto::JobStatus* job_status) {
+  VLOG(2) << "Master received IsJobDone command";
   std::unique_lock<std::mutex> lock(active_mutex_);
   if (!active_bulk_job_) {
-    job_result->set_finished(true);
-    job_result->mutable_result()->CopyFrom(job_result_);
+    job_status->set_finished(true);
+    job_status->mutable_result()->CopyFrom(job_result_);
+    job_status->set_tasks_remaining(0);
+    job_status->set_jobs_remaining(0);
   } else {
-    job_result->set_finished(false);
+    job_status->set_finished(false);
+    job_status->set_tasks_remaining(total_tasks_ - total_tasks_used_);
+    job_status->set_jobs_remaining(num_jobs_ - next_job_ + 1);
   }
   return grpc::Status::OK;
 }
@@ -597,9 +600,6 @@ grpc::Status MasterImpl::FinishedWork(
   i64 active_job = next_job_ - 1;
 
   total_tasks_used_++;
-  if (bar_) {
-    bar_->Progressed(total_tasks_used_);
-  }
 
   if (total_tasks_used_ == total_tasks_) {
     VLOG(1) << "Master FinishedWork triggered finished!";
@@ -720,25 +720,25 @@ void MasterImpl::recover_and_init_database() {
   // Prefetch table metadata for all tables
   if (db_params_.prefetch_table_metadata) {
     VLOG(1) << "Prefetching table metadata";
-    auto load_table_meta = [&](const std::string& table_name) {
-      std::string table_path =
-      TableMetadata::descriptor_path(meta_.get_table_id(table_name));
-      table_metas_->update(read_table_metadata(storage_, table_path));
-    };
+      auto load_table_meta = [&](const std::string& table_name) {
+        std::string table_path =
+        TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+        table_metas_->update(read_table_metadata(storage_, table_path));
+      };
 
-    VLOG(1) << "Spawning thread pool";
-    ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
-    std::vector<std::future<void>> futures;
-    for (const auto& t : meta_.table_names()) {
-      futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
-    }
+      VLOG(1) << "Spawning thread pool";
+      ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
+      std::vector<std::future<void>> futures;
+      for (const auto& t : meta_.table_names()) {
+        futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
+      }
 
-    VLOG(1) << "Waiting on futures";
-    for (auto& future : futures) {
-      future.wait();
-    }
+      VLOG(1) << "Waiting on futures";
+      for (auto& future : futures) {
+        future.wait();
+      }
 
-    VLOG(1) << "Prefetch complete.";
+      VLOG(1) << "Prefetch complete.";
   }
 
   VLOG(1) << "Writing database metadata";
@@ -1076,12 +1076,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   VLOG(1) << "Total jobs: " << num_jobs_;
 
-  if (job_params->show_progress()) {
-    bar_.reset(new ProgressBar(total_tasks_, ""));
-  } else {
-    bar_.reset(nullptr);
-  }
-
   // TODO(apoms): change this to support adding and removing nodes
   //              the main change is that the workers should handle
   //              spawning sub processes instead of appearing as
@@ -1178,9 +1172,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     job_result->CopyFrom(task_result_);
   } else {
     assert(next_job_ == num_jobs_);
-    if (bar_) {
-      bar_->Progressed(total_tasks_);
-    }
   }
 
   std::fflush(NULL);
