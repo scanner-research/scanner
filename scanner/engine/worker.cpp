@@ -830,7 +830,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   TableMetaCache table_meta(storage_, meta);
 
   // Initialize worker table metadata
-
   if (db_params_.prefetch_table_metadata) {
     VLOG(1) << "Prefetching table metadata";
     auto load_table_meta = [&](const std::string& table_name) {
