@@ -56,7 +56,8 @@ class Database {
                       i64 no_workers_timeout = 30);
 
   Result start_worker(const MachineParameters& params, const std::string& port,
-                      bool watchdog = true);
+                      bool watchdog = true,
+                      bool prefetch_table_metadata = true);
 
   Result ingest_videos(const std::vector<std::string>& table_names,
                        const std::vector<std::string>& paths,
