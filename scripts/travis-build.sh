@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Writing output (bell) keeps travis from timing out
+# https://github.com/travis-ci/travis-ci/issues/7961
+function bell() {
+  while true; do
+    echo -e "\a"
+    sleep 60
+  done
+}
+bell &
+
 set -e
 
 # The Travis VM isn't big enough to hold two Docker images of Scanner,
@@ -44,3 +54,5 @@ fi
 
 build_docker cpu
 build_docker gpu
+
+exit $?
