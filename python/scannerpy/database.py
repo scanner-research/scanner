@@ -81,7 +81,7 @@ def start_master(port=None, config=None, config_path=None, block=False,
 
 
 def start_worker(master_address, machine_params=None, port=None, config=None,
-                 config_path=None, block=False, watchdog=True):
+                 config_path=None, block=False, watchdog=True, prefetch_table_metadata=True):
     """
     Start a worker instance on this node.
 
@@ -112,7 +112,8 @@ def start_worker(master_address, machine_params=None, port=None, config=None,
         master_address.encode('ascii'))
     machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params,
-                                   str(port).encode('ascii'), watchdog)
+                                   str(port).encode('ascii'), watchdog,
+                                   prefetch_table_metadata)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(result.msg()))
     if block:

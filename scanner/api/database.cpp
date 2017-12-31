@@ -125,9 +125,11 @@ Result Database::start_master(const MachineParameters& machine_params,
 
 Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port,
-                              bool watchdog) {
+                              bool watchdog,
+                              bool prefetch_table_metadata) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
+  params.prefetch_table_metadata = prefetch_table_metadata;
   ServerState* s = new ServerState;
   ServerState& state = *s;
   auto worker_service =
