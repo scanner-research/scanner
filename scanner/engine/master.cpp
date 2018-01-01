@@ -20,6 +20,7 @@
 #include "scanner/util/cuda.h"
 #include "scanner/util/util.h"
 #include "scanner/util/glog.h"
+#include "scanner/util/grpc.h"
 #include "scanner/util/thread_pool.h"
 #include "scanner/engine/python_kernel.h"
 
@@ -168,8 +169,9 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
     proto::OpPath op_path;
     proto::Empty empty;
     op_path.set_path(so_path);
-    grpc::Status status = workers_[node_id]->LoadOp(&ctx, op_path, &empty);
-    LOG_IF(FATAL, !status.ok())
+    grpc::Status status;
+    GRPC_BACKOFF(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status);
+    LOG_IF(WARNING, !status.ok())
         << "Master could not load op for worker at " << worker_address << " ("
         << status.error_code() << "): " << status.error_message();
   }
@@ -329,6 +331,12 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
       grpc::ClientContext ctx;
       proto::Empty empty;
       worker->LoadOp(&ctx, *op_path, &empty);
+      grpc::Status status;
+      GRPC_BACKOFF(worker->LoadOp(&ctx, *op_path, &empty), status);
+      const std::string& worker_address = worker_addresses_[kv.first];
+      LOG_IF(WARNING, !status.ok())
+          << "Master could not load op for worker at " << worker_address << " ("
+          << status.error_code() << "): " << status.error_message();
     }
   }
 
@@ -389,7 +397,13 @@ grpc::Status MasterImpl::RegisterOp(
       auto& worker = workers_[kv.first];
       grpc::ClientContext ctx;
       proto::Result w_result;
-      worker->RegisterOp(&ctx, *op_registration, &w_result);
+      grpc::Status status;
+      GRPC_BACKOFF(worker->RegisterOp(&ctx, *op_registration, &w_result),
+                   status);
+      const std::string& worker_address = worker_addresses_[kv.first];
+      LOG_IF(WARNING, !status.ok())
+          << "Master could not load op for worker at " << worker_address << " ("
+          << status.error_code() << "): " << status.error_message();
     }
   }
 
@@ -448,7 +462,14 @@ grpc::Status MasterImpl::RegisterPythonKernel(
       auto& worker = workers_[kv.first];
       grpc::ClientContext ctx;
       proto::Result w_result;
-      worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
+      grpc::Status status;
+      GRPC_BACKOFF(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
+                   status);
+      const std::string& worker_address = worker_addresses_[kv.first];
+      LOG_IF(WARNING, !status.ok())
+          << "Master could not register python kernel for worker at "
+          << worker_address << " (" << status.error_code()
+          << "): " << status.error_message();
     }
   }
 
@@ -566,6 +587,15 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
   i64 job_idx;
   i64 task_idx;
   std::tie(job_idx, task_idx) = job_task_id;
+
+  // If the job was blacklisted, then we throw it away
+  if (blacklisted_jobs_.count(job_idx) > 0) {
+    // TODO(apoms): we are telling the worker to re request work here
+    // but we should just loop this whole process again
+    new_work->set_wait_for_work(true);
+    return grpc::Status::OK;
+  }
+
   new_work->set_table_id(job_to_table_id_.at(job_idx));
   new_work->set_job_index(job_idx);
   new_work->set_task_index(task_idx);
@@ -608,7 +638,13 @@ grpc::Status MasterImpl::FinishedWork(
 
   i64 active_job = next_job_ - 1;
 
-  total_tasks_used_++;
+
+  // If job was blacklisted, then we have already updated total tasks
+  // used to reflect that and we should ignore it
+  if (blacklisted_jobs_.count(job_id) == 0) {
+    total_tasks_used_++;
+    tasks_used_per_job_[job_id]++;
+  }
 
   if (total_tasks_used_ == total_tasks_) {
     VLOG(1) << "Master FinishedWork triggered finished!";
@@ -630,12 +666,6 @@ grpc::Status MasterImpl::FinishedJob(grpc::ServerContext* context,
   VLOG(1) << "Master received FinishedJob command";
 
   i32 worker_id = params->node_id();
-
-  if (!worker_active_[worker_id]) {
-    // Technically the task was finished, but we don't count it for now
-    // because it would have been reinstered into the work queue
-    return grpc::Status::OK;
-  }
 
   unfinished_workers_[worker_id] = false;
 
@@ -701,7 +731,13 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
       grpc::ClientContext ctx;
       proto::Empty empty;
       proto::Result wresult;
-      workers_.at(i)->Shutdown(&ctx, empty, &wresult);
+      grpc::Status status;
+      GRPC_BACKOFF(workers_.at(i)->Shutdown(&ctx, empty, &wresult), status);
+      const std::string& worker_address = worker_addresses_[i];
+      LOG_IF(WARNING, !status.ok())
+          << "Master could not send shutdown message to worker at "
+          << worker_address << " (" << status.error_code()
+          << "): " << status.error_message();
     }
     // Shutdown self
     server->Shutdown();
@@ -729,25 +765,25 @@ void MasterImpl::recover_and_init_database() {
   // Prefetch table metadata for all tables
   if (db_params_.prefetch_table_metadata) {
     VLOG(1) << "Prefetching table metadata";
-      auto load_table_meta = [&](const std::string& table_name) {
-        std::string table_path =
-        TableMetadata::descriptor_path(meta_.get_table_id(table_name));
-        table_metas_->update(read_table_metadata(storage_, table_path));
-      };
+    auto load_table_meta = [&](const std::string& table_name) {
+      std::string table_path =
+          TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+      table_metas_->update(read_table_metadata(storage_, table_path));
+    };
 
-      VLOG(1) << "Spawning thread pool";
-      ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
-      std::vector<std::future<void>> futures;
-      for (const auto& t : meta_.table_names()) {
-        futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
-      }
+    VLOG(1) << "Spawning thread pool";
+    ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
+    std::vector<std::future<void>> futures;
+    for (const auto& t : meta_.table_names()) {
+      futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
+    }
 
-      VLOG(1) << "Waiting on futures";
-      for (auto& future : futures) {
-        future.wait();
-      }
+    VLOG(1) << "Waiting on futures";
+    for (auto& future : futures) {
+      future.wait();
+    }
 
-      VLOG(1) << "Prefetch complete.";
+    VLOG(1) << "Prefetch complete.";
   }
 
   VLOG(1) << "Writing database metadata";
@@ -805,6 +841,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   local_totals_.clear();
   total_tasks_used_ = 0;
   total_tasks_ = 0;
+  tasks_used_per_job_.clear();
   num_failed_workers_ = 0;
 
   job_result->set_success(true);
@@ -964,6 +1001,8 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Job -> task -> rows
   i32 total_tasks_temp = 0;
   for (size_t i = 0; i < jobs.size(); ++i) {
+    tasks_used_per_job_.push_back(0);
+
     auto& slice_input_rows = slice_input_rows_per_job_[i];
     i64 total_output_rows = total_output_rows_per_job_[i];
 
@@ -1125,7 +1164,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Wait until all workers are done and work has been completed
   auto all_workers_finished_start = now();
   while (true) {
-    // Check if we have unfinished
+    // Check if we have unfinished workers
     bool all_workers_finished = true;
     {
       std::unique_lock<std::mutex> lk(work_mutex_);
@@ -1146,7 +1185,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                                  .count();
       if (seconds_since > db_params_.no_workers_timeout) {
         RESULT_ERROR(job_result,
-                     "No workers but have unfinished work after %d seconds",
+                     "No workers but have unfinished work after %ld seconds",
                      db_params_.no_workers_timeout);
         finished_fn();
         return false;
@@ -1211,6 +1250,13 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // No need to check status of workers anymore
   stop_worker_pinger();
 
+  // Update job metadata with new # of nodes
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    job_descriptor.set_num_nodes(workers_.size());
+  }
+  write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
+
   finished_fn();
 
   VLOG(1) << "Master finished job";
@@ -1244,16 +1290,25 @@ void MasterImpl::start_worker_pinger() {
         proto::Empty empty2;
         grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
         if (!status.ok()) {
-          // Worker not responding, remove it from active workers
-          LOG(WARNING) << "Worker " << worker_id << " did not respond to Ping. "
-                       << "Removing worker from active list.";
-          remove_worker(worker_id);
-          num_failed_workers_++;
+          // Worker not responding, increment ping count
+          i64 num_failed_pings = ++pinger_number_of_failed_pings_[worker_id];
+          const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
+          if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL) {
+            // remove it from active workers
+            LOG(WARNING) << "Worker " << worker_id
+                         << " did not respond to Ping. "
+                         << "Removing worker from active list.";
+            remove_worker(worker_id);
+            num_failed_workers_++;
+          }
+        } else {
+          pinger_number_of_failed_pings_[worker_id] = 0;
         }
       }
       // FIXME(apoms): this sleep is unfortunate because it means a
       //               job must take at least this long. A solution
-      //               would be to put it in a separate thread.
+      //               would be to have this wait on a cv so it could
+      //               be woken up early.
       std::this_thread::sleep_for(std::chrono::seconds(5));
     }
   });
@@ -1322,12 +1377,24 @@ void MasterImpl::stop_job_on_worker(i32 worker_id) {
   // Place workers active tasks back into the unallocated task samples
   if (active_job_tasks_.count(worker_id) > 0) {
     // Place workers active tasks back into the unallocated task samples
+    VLOG(1) << "Reassigning worker " << worker_id << "'s "
+            << active_job_tasks_.at(worker_id).size() << " task samples.";
     for (const std::tuple<i64, i64>& worker_job_task :
          active_job_tasks_.at(worker_id)) {
       unallocated_job_tasks_.push_back(worker_job_task);
+
+      // The worker failure may be due to a bad task. We track number of times
+      // a task has failed to detect a bad task and remove it from this bulk
+      // job if it exceeds some threshold.
+      i64 job_id = std::get<0>(worker_job_task);
+      i64 task_id = std::get<1>(worker_job_task);
+
+      i64 num_failures = ++job_tasks_num_failures_[job_id][task_id];
+      const i64 TOTAL_FAILURES_BEFORE_REMOVAL = 5;
+      if (num_failures >= TOTAL_FAILURES_BEFORE_REMOVAL) {
+        blacklist_job(job_id);
+      }
     }
-    VLOG(1) << "Reassigning worker " << worker_id << "'s "
-            << active_job_tasks_.at(worker_id).size() << " task samples.";
     active_job_tasks_.erase(worker_id);
   }
 
@@ -1359,7 +1426,27 @@ void MasterImpl::remove_worker(i32 node_id) {
   VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 }
 
-void MasterImpl::terminate_job() { VLOG(1) << "Terminating job..."; }
+void MasterImpl::blacklist_job(i64 job_id) {
+  // All tasks in unallocated_job_tasks_ with this job id will be thrown away
+  blacklisted_jobs_.insert(job_id);
+  // Add number of remaining tasks to tasks used
+  i64 num_tasks_left_in_job =
+      job_tasks_[job_id].size() - tasks_used_per_job_[job_id];
+  total_tasks_used_ += num_tasks_left_in_job;
+
+  VLOG(1) << "Blacklisted job " << job_id;
+
+  // Check if blacklisting job finished the bulk job
+  if (total_tasks_used_ == total_tasks_) {
+    VLOG(1) << "Master blacklisting job triggered finished!";
+    assert(next_job_ == num_jobs_);
+    {
+      std::unique_lock<std::mutex> lock(finished_mutex_);
+      finished_ = true;
+    }
+    finished_cv_.notify_all();
+  }
+}
 
 }  // namespace internal
 }  // namespace scanner
