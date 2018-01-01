@@ -44,6 +44,28 @@ class Column(object):
         self._load_meta()
         return self._descriptor.id
 
+    def keyframes(self):
+        self._load_meta()
+        if (self._descriptor.type == self._db.protobufs.Video and
+            self._video_descriptor.codec_type ==
+            self._db.protobufs.VideoDescriptor.H264):
+            # For each encoded video, add start frame offset
+            frame_offset = 0
+            kf_offset = 0
+            keyframes = []
+            for frames_per_video, kfs_per_video in zip(
+                    self._video_descriptor.frames_per_video,
+                    self._video_descriptor.keyframes_per_video):
+                keyframes += [
+                    frame_offset + kfi
+                    for kfi in self._video_descriptor.keyframe_indices[
+                            kf_offset:kf_offset + kfs_per_video]]
+                frame_offset += frames_per_video
+                kf_offset += kfs_per_video
+            return keyframes
+        else:
+            return range(self._table.num_rows())
+
     def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
 
