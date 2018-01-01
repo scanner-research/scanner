@@ -52,7 +52,6 @@ if [ $PUSH -eq 0 ]; then
     docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 fi
 
-build_docker cpu
-build_docker gpu
+build_docker $BUILD_TYPE
 
 exit $?
