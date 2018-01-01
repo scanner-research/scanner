@@ -25,6 +25,7 @@
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 #include "scanner/util/thread_pool.h"
+#include "scanner/util/grpc.h"
 
 #include <arpa/inet.h>
 #include <grpc/grpc_posix.h>
@@ -716,10 +717,7 @@ Result WorkerImpl::register_with_master() {
 
   VLOG(1) << "Worker try to register with master";
 
-  grpc::ClientContext context;
   proto::WorkerParams worker_info;
-  proto::Registration registration;
-
   worker_info.set_port(worker_port_);
   proto::MachineParameters* params = worker_info.mutable_params();
   params->set_num_cpus(db_params_.num_cpus);
@@ -729,8 +727,10 @@ Result WorkerImpl::register_with_master() {
     params->add_gpu_ids(gpu_id);
   }
 
-  grpc::Status status =
-      master_->RegisterWorker(&context, worker_info, &registration);
+  proto::Registration registration;
+  grpc::Status status;
+  GRPC_BACKOFF(master_->RegisterWorker(&ctx, worker_info, &registration),
+               status);
   if (!status.ok()) {
     Result result;
     result.set_success(false);
@@ -753,15 +753,19 @@ Result WorkerImpl::register_with_master() {
 
 void WorkerImpl::try_unregister() {
   if (state_.get() != State::INITIALIZING && !unregistered_.test_and_set()) {
-    grpc::ClientContext ct;
     proto::NodeInfo node_info;
-    proto::Empty em;
     node_info.set_node_id(node_id_);
-    grpc::Status status = master_->UnregisterWorker(&ct, node_info, &em);
+
+    proto::Empty em;
+    grpc::Status status;
+    GRPC_BACKOFF(master_->UnregisterWorker(&ctx, node_info, &em), status);
     if (!status.ok()) {
-      VLOG(1) << "Worker could not unregister from master server "
-              << "(" << status.error_code() << "): " << status.error_message();
+      LOG(WARNING) << "Worker could not unregister from master server "
+                   << "(" << status.error_code()
+                   << "): " << status.error_message();
+      return;
     }
+    VLOG(1) << "Worker unregistered from master server.";
   }
 }
 
@@ -803,12 +807,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   job_result->set_success(true);
   auto finished_fn = [&]() {
     {
-      grpc::ClientContext context;
       proto::FinishedJobParams node_info;
-      proto::Empty empty;
       node_info.set_node_id(node_id_);
-
-      grpc::Status status = master_->FinishedJob(&context, node_info, &empty);
+      proto::Empty empty;
+      grpc::Status status;
+      GRPC_BACKOFF(master_->FinishedJob(&ctx, node_info, &empty), status);
+      LOG_IF(FATAL, !status.ok())
+          << "Worker could not send FinishedJob to master ("
+          << status.error_code() << "): " << status.error_message() << ". "
+          << "Failing since the master could hang if it sees the worker is "
+          << "still alive but has not finished its job.";
     }
 
     {
@@ -1403,14 +1411,15 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
       // Inform master that this task was finished
-      grpc::ClientContext context;
       proto::FinishedWorkParameters params;
-      proto::Empty empty;
 
       params.set_node_id(node_id_);
       params.set_job_id(std::get<1>(task_retired));
       params.set_task_id(std::get<2>(task_retired));
-      grpc::Status status = master_->FinishedWork(&context, params, &empty);
+
+      proto::Empty empty;
+      grpc::Status status;
+      GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
 
       // Update how much is in each pipeline instances work queue
       retired_work_for_queues[std::get<0>(task_retired)] += 1;
@@ -1437,12 +1446,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     i32 local_work = accepted_tasks - total_tasks_processed;
     if (local_work <
         pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
-      grpc::ClientContext context;
       proto::NodeInfo node_info;
-      proto::NewWork new_work;
-
       node_info.set_node_id(node_id_);
-      grpc::Status status = master_->NextWork(&context, node_info, &new_work);
+
+      proto::NewWork new_work;
+      grpc::Status status;
+      GRPC_BACKOFF(master_->NextWork(&ctx, node_info, &new_work), status);
       if (!status.ok()) {
         RESULT_ERROR(job_result,
                      "Worker %d could not get next work from master", node_id_);
