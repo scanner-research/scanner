@@ -115,6 +115,8 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_->service.reset(master_service);
   master_state_->server = start(master_state_->service, port);
 
+  // Register shutdown signal handler
+
   // Setup watchdog
   master_service->start_watchdog(master_state_->server.get(), watchdog);
 
@@ -137,6 +139,8 @@ Result Database::start_worker(const MachineParameters& machine_params,
   state.service.reset(worker_service);
   state.server = start(state.service, port);
   worker_states_.emplace_back(s);
+
+  // Register shutdown signal handler
 
   Result register_result = worker_service->register_with_master();
   if (!register_result.success()) {

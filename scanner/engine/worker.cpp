@@ -54,6 +54,7 @@ inline bool operator==(const MemoryPoolConfig& lhs,
          (lhs.gpu().use_pool() == rhs.gpu().use_pool()) &&
          (lhs.gpu().free_space() == rhs.gpu().free_space());
 }
+
 inline bool operator!=(const MemoryPoolConfig& lhs,
                        const MemoryPoolConfig& rhs) {
   return !(lhs == rhs);
@@ -1411,15 +1412,15 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       params.set_task_id(std::get<2>(task_retired));
       grpc::Status status = master_->FinishedWork(&context, params, &empty);
 
+      // Update how much is in each pipeline instances work queue
+      retired_work_for_queues[std::get<0>(task_retired)] += 1;
+
       if (!status.ok()) {
         RESULT_ERROR(job_result,
                      "Worker %d could not tell finished work to master",
                      node_id_);
         break;
       }
-
-      // Update how much is in each pipeline instances work queue
-      retired_work_for_queues[std::get<0>(task_retired)] += 1;
     }
     i64 total_tasks_processed = 0;
     for (i64 t : retired_work_for_queues) {

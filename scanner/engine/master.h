@@ -143,7 +143,7 @@ class MasterImpl final : public proto::Master::Service {
 
   void remove_worker(i32 node_id);
 
-  void terminate_job();
+  void blacklist_job(i64 job_id);
 
   DatabaseParameters db_params_;
 
@@ -170,6 +170,7 @@ class MasterImpl final : public proto::Master::Service {
 
   i64 total_tasks_used_;
   i64 total_tasks_;
+  std::vector<i64> tasks_used_per_job_;
 
   // True if the master is executing a job
   std::mutex active_mutex_;
@@ -193,6 +194,7 @@ class MasterImpl final : public proto::Master::Service {
   // Output rows for each job
   std::vector<i64> total_output_rows_per_job_;
   // All job task output rows
+  // Job -> Task -> task output rows
   std::vector<std::vector<std::vector<i64>>> job_tasks_;
   // Outstanding set of generated task samples that should be processed
   std::deque<std::tuple<i64, i64>> unallocated_job_tasks_;
@@ -217,6 +219,8 @@ class MasterImpl final : public proto::Master::Service {
   // if it is causing consistent failures
   // job_id -> task_id -> num_failures
   std::map<i64, std::map<i64, i64>> job_tasks_num_failures_;
+  // Tracks the jobs that have failed too many times and should be ignored
+  std::set<i64> blacklisted_jobs_;
   struct WorkerHistory {
     timepoint_t start_time;
     timepoint_t end_time;

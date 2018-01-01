@@ -19,6 +19,7 @@ namespace scanner {
   do {                                                                   \
     int sleep_debt__ = 1;                                                \
     while (true) {                                                       \
+      grpc::ClientContext ctx;                                           \
       const grpc::Status result__ = (expression__);                      \
       if (result__.error_code() == grpc::StatusCode::UNAVAILABLE) {      \
         double sleep_time__ =                                            \
