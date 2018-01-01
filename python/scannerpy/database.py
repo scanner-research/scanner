@@ -428,7 +428,9 @@ class Database(object):
                 for i in range(len(self._worker_addresses)):
                     res = self._bindings.start_worker(
                         self._db, machine_params,
-                        str(int(self.config.worker_port) + i).encode('ascii'), True).success
+                        str(int(self.config.worker_port) + i).encode('ascii'),
+                        True,
+                        self._prefetch_table_metadata).success
                     assert res
             else:
                 master_port = self._master_address.partition(':')[2]
@@ -457,7 +459,7 @@ class Database(object):
 
                 # Wait for master to start
                 slept_so_far = 0
-                sleep_time = 20
+                sleep_time = 60
                 while slept_so_far < sleep_time:
                     if self._connect_to_master():
                         break
