@@ -69,14 +69,14 @@ For FFMPEG
 ```bash
 apt-get -y install \
   build-essential autoconf automake build-essential cmake git libass-dev \
-  libfreetype6-dev \ libsdl2-dev libtheora-dev libtool libva-dev libvdpau-dev \
+  libfreetype6-dev libsdl2-dev libtheora-dev libtool libva-dev libvdpau-dev \
   libvorbis-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev mercurial \
   pkg-config texinfo wget zlib1g-dev
 ```
 
 ## 2. Python Pip Dependencies
 
-Scanner depends on several python packages installable via pip. From the 
+Scanner depends on several python packages installable via pip. From the
 top-level directory, run:
 
 ```bash
