@@ -762,6 +762,7 @@ def test_fault_tolerance(fault_db):
 
             # Force kill worker process to trigger fault tolerance
             os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+            p.kill()
             p.communicate()
 
             # Wait for fault tolerance to kick in

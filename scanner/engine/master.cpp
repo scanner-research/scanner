@@ -165,7 +165,6 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
 
   // Load ops into worker
   for (const std::string& so_path : so_paths_) {
-    grpc::ClientContext ctx;
     proto::OpPath op_path;
     proto::Empty empty;
     op_path.set_path(so_path);
@@ -328,9 +327,7 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   for (auto& kv : worker_active_) {
     if (kv.second) {
       auto& worker = workers_[kv.first];
-      grpc::ClientContext ctx;
       proto::Empty empty;
-      worker->LoadOp(&ctx, *op_path, &empty);
       grpc::Status status;
       GRPC_BACKOFF(worker->LoadOp(&ctx, *op_path, &empty), status);
       const std::string& worker_address = worker_addresses_[kv.first];
@@ -395,7 +392,6 @@ grpc::Status MasterImpl::RegisterOp(
   for (auto& kv : worker_active_) {
     if (kv.second) {
       auto& worker = workers_[kv.first];
-      grpc::ClientContext ctx;
       proto::Result w_result;
       grpc::Status status;
       GRPC_BACKOFF(worker->RegisterOp(&ctx, *op_registration, &w_result),
@@ -460,7 +456,6 @@ grpc::Status MasterImpl::RegisterPythonKernel(
   for (auto& kv : worker_active_) {
     if (kv.second) {
       auto& worker = workers_[kv.first];
-      grpc::ClientContext ctx;
       proto::Result w_result;
       grpc::Status status;
       GRPC_BACKOFF(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
@@ -721,18 +716,21 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
     }
     // Shutdown workers
     std::vector<i32> worker_ids;
+    std::map<i32, proto::Worker::Stub*> workers_copy;
     {
       std::unique_lock<std::mutex> lk(work_mutex_);
       for (auto& kv : workers_) {
-        worker_ids.push_back(kv.first);
+        if (worker_active_[kv.first]) {
+          worker_ids.push_back(kv.first);
+          workers_copy[kv.first] = workers_[kv.first].get();
+        }
       }
     }
     for (i32 i : worker_ids) {
-      grpc::ClientContext ctx;
       proto::Empty empty;
       proto::Result wresult;
       grpc::Status status;
-      GRPC_BACKOFF(workers_.at(i)->Shutdown(&ctx, empty, &wresult), status);
+      GRPC_BACKOFF(workers_copy.at(i)->Shutdown(&ctx, empty, &wresult), status);
       const std::string& worker_address = worker_addresses_[i];
       LOG_IF(WARNING, !status.ok())
           << "Master could not send shutdown message to worker at "
