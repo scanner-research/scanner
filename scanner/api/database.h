@@ -64,10 +64,6 @@ class Database {
                        bool inplace,
                        std::vector<FailedVideo>& failed_videos);
 
-  Result new_table(const std::string& table_name,
-                   const std::vector<std::string>& columns,
-                   const std::vector<std::vector<std::string>>& rows);
-
   Result delete_table(const std::string& table_name);
 
   Result shutdown_master();

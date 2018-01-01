@@ -55,6 +55,10 @@ class MasterImpl final : public proto::Master::Service {
                             const proto::DeleteTablesParams* params,
                             proto::Empty* empty);
 
+  grpc::Status NewTable(grpc::ServerContext* context,
+                        const proto::NewTableParams* params,
+                        proto::Empty* empty);
+
   // Worker methods
   grpc::Status RegisterWorker(grpc::ServerContext* context,
                               const proto::WorkerParams* worker_info,

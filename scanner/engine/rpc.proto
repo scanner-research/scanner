@@ -12,6 +12,7 @@ service Master {
   rpc GetTables (GetTablesParams) returns (GetTablesResult) {}
   // Delete table in the database
   rpc DeleteTables (DeleteTablesParams) returns (Empty) {}
+  rpc NewTable (NewTableParams) returns (Empty) {}
 
   /// Worker registration methods
   // Called after a new worker spawns to register with the master
@@ -85,6 +86,16 @@ message GetTablesResult {
 
 message DeleteTablesParams {
   repeated string tables = 1;
+}
+
+message NewTableRow {
+  repeated bytes columns = 1;
+}
+
+message NewTableParams {
+  string table_name = 1;
+  repeated string columns = 2;
+  repeated NewTableRow rows = 3;
 }
 
 message WorkerParams {

@@ -729,14 +729,19 @@ class Database(object):
                                        'name {}'.format(name))
         if fn is not None:
             rows = [fn(row, self.protobufs) for row in rows]
-        cols = copy.copy(columns)
-        cols.insert(0, "index")
+
+        params = self.protobufs.NewTableParams();
+        params.table_name = name
+        params.columns[:] = ["index"] + columns
+
         for i, row in enumerate(rows):
-            row.insert(0, struct.pack('=Q', i))
-        self._bindings.new_table(self._db, name.encode('ascii'),
-                                 [s.encode('ascii') for s in cols],
-                                 rows)
+            row_proto = params.rows.add()
+            row_proto.columns[:] = [struct.pack('=Q', i)] + row
+
+        self._try_rpc(lambda: self._master.NewTable(params))
+
         self._cached_db_metadata = None
+
         return self.table(name)
 
     def table(self, name):
