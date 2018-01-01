@@ -24,7 +24,6 @@
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
-#include "scanner/util/thread_pool.h"
 #include "scanner/util/grpc.h"
 
 #include <arpa/inet.h>
@@ -800,8 +799,6 @@ void WorkerImpl::stop_job_processor() {
   }
 }
 
-static const i32 NUM_PREFETCH_THREADS = 64;
-
 bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   job_result->set_success(true);
@@ -833,35 +830,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   set_database_path(db_params_.db_path);
 
-  // Setup table metadata cache for use in other operations
-  DatabaseMetadata meta =
-      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
-  TableMetaCache table_meta(storage_, meta);
-
-  // Initialize worker table metadata
-  if (db_params_.prefetch_table_metadata) {
-    VLOG(1) << "Prefetching table metadata";
-    auto load_table_meta = [&](const std::string& table_name) {
-      std::string table_path =
-          TableMetadata::descriptor_path(meta.get_table_id(table_name));
-      table_meta.update(read_table_metadata(storage_, table_path));
-    };
-
-    VLOG(1) << "Spawning thread pool";
-    ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
-    std::vector<std::future<void>> futures;
-    for (const auto& t : meta.table_names()) {
-      futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
-    }
-
-    VLOG(1) << "Waiting on futures";
-    for (auto& future : futures) {
-      future.wait();
-    }
-
-    VLOG(1) << "Prefetch complete.";
-  }
-
   i32 local_id = job_params->local_id();
   i32 local_total = job_params->local_total();
   // Controls if work should be distributed roundrobin or dynamically
@@ -879,6 +847,21 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                                job_params->jobs().end());
   std::vector<proto::Op> ops(job_params->ops().begin(),
                              job_params->ops().end());
+
+
+  // Setup table metadata cache for use in other operations
+  DatabaseMetadata meta =
+      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+  TableMetaCache table_meta(storage_, meta);
+
+  // Initialize worker table metadata
+  std::vector<std::string> required_tables;
+  for (auto& job : jobs) {
+    for (auto& input : job.inputs()) {
+      required_tables.push_back(input.table_name());
+    }
+  }
+  table_meta.prefetch(required_tables);
 
   DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);

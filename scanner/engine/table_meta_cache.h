@@ -38,6 +38,8 @@ class TableMetaCache {
 
   void update(const TableMetadata& meta);
 
+  void prefetch(const std::vector<std::string> table_names);
+
  private:
   void memoized_read(const std::string& table_name) const;
 

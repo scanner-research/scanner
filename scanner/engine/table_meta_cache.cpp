@@ -14,9 +14,12 @@
  */
 
 #include "scanner/engine/table_meta_cache.h"
+#include "scanner/util/thread_pool.h"
 
 namespace scanner {
 namespace internal {
+
+static const i32 NUM_PREFETCH_THREADS = 64;
 
 TableMetaCache::TableMetaCache(storehouse::StorageBackend* storage,
                                const DatabaseMetadata& meta)
@@ -47,6 +50,28 @@ void TableMetaCache::update(const TableMetadata& meta) {
   std::lock_guard<std::mutex> lock(lock_);
   i32 table_id = meta_.get_table_id(meta.name());
   cache_[table_id] = meta;
+}
+
+void TableMetaCache::prefetch(const std::vector<std::string> table_names) {
+  VLOG(1) << "Prefetching table metadata";
+  auto load_table_meta = [&](const std::string& table_name) {
+    std::string table_path = TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+    update(read_table_metadata(storage_, table_path));
+  };
+
+  VLOG(1) << "Spawning thread pool";
+  ThreadPool prefetch_pool(NUM_PREFETCH_THREADS);
+  std::vector<std::future<void>> futures;
+  for (const auto& t : table_names) {
+    futures.emplace_back(prefetch_pool.enqueue(load_table_meta, t));
+  }
+
+  VLOG(1) << "Waiting on futures";
+  for (auto& future : futures) {
+    future.wait();
+  }
+
+  VLOG(1) << "Prefetch complete.";
 }
 
 
