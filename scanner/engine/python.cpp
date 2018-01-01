@@ -104,19 +104,6 @@ Result wait_for_server_shutdown_wrapper(Database& db) {
   return db.wait_for_server_shutdown();
 }
 
-Result new_table_wrapper(Database& db, const std::string& name,
-                         const py::list columns, const py::list rows) {
-  std::vector<py::list> rows_py1 = to_std_vector<py::list>(rows);
-  std::vector<std::vector<std::string>> rows_py2;
-  for (auto l : rows_py1) {
-    rows_py2.push_back(to_std_vector<std::string>(l));
-  }
-  std::vector<std::string> columns_py = to_std_vector<std::string>(columns);
-
-  GILRelease r;
-  return db.new_table(name, columns_py, rows_py2);
-}
-
 boost::shared_ptr<Database> initWrapper(storehouse::StorageConfig* sc,
                                         const std::string& db_path,
                                         const std::string& master_addr) {
@@ -142,6 +129,5 @@ BOOST_PYTHON_MODULE(libscanner) {
   def("ingest_videos", ingest_videos_wrapper);
   def("wait_for_server_shutdown", wait_for_server_shutdown_wrapper);
   def("default_machine_params", default_machine_params_wrapper);
-  def("new_table", new_table_wrapper);
 }
 }
