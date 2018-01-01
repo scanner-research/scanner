@@ -30,8 +30,7 @@ namespace scanner {
         if (sleep_debt__ < 64) {                                         \
           sleep_debt__ *= 2;                                             \
         } else {                                                         \
-          LOG(FATAL) << "GRPC_BACKOFF: reached max backoff.";            \
-          std::exit(1);                                                  \
+          LOG(WARNING) << "GRPC_BACKOFF: reached max backoff.";          \
         }                                                                \
         LOG(WARNING) << "GRPC_BACKOFF: transient failure, sleeping for " \
                      << sleep_time__ << " seconds.";                     \
