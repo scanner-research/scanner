@@ -13,6 +13,9 @@
 
 #pragma once
 
+#include <cstdlib>
+#include <unistd.h>
+
 namespace scanner {
 
 #define GRPC_BACKOFF(expression__, status__)                             \
@@ -28,7 +31,7 @@ namespace scanner {
           sleep_debt__ *= 2;                                             \
         } else {                                                         \
           LOG(FATAL) << "GRPC_BACKOFF: reached max backoff.";            \
-          exit(1);                                                       \
+          std::exit(1);                                                  \
         }                                                                \
         LOG(WARNING) << "GRPC_BACKOFF: transient failure, sleeping for " \
                      << sleep_time__ << " seconds.";                     \
