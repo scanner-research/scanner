@@ -421,7 +421,11 @@ class Database(object):
                     self._no_workers_timeout).success
                 assert res
                 res = self._connect_to_master()
-                assert res
+                if not res:
+                    raise ScannerException(
+                        'Failed to connect to local master process on port '
+                        '{:s}. (Is there another process that is bound to that '
+                        'port already?)'.format(self.config.master_port))
 
                 self._start_heartbeat()
 
@@ -431,7 +435,12 @@ class Database(object):
                         str(int(self.config.worker_port) + i).encode('ascii'),
                         True,
                         self._prefetch_table_metadata).success
-                    assert res
+                    if not res:
+                        raise ScannerException(
+                            'Failed to start local worker on port {:d} and '
+                            'connect to master. (Is there another process that '
+                            'is bound to that port already?)'.format(
+                                self.config.worker_port))
             else:
                 master_port = self._master_address.partition(':')[2]
                 pickled_config = pickle.dumps(self.config)
@@ -440,7 +449,10 @@ class Database(object):
                     '\"from scannerpy import start_master\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_master(port=\'{master_port:s}\', block=True, config=config, prefetch_table_metadata={prefetch}, no_workers_timeout={no_workers})\" ' +
+                    'start_master(port=\'{master_port:s}\', block=True,\n' +
+                    '             config=config,\n' +
+                    '             prefetch_table_metadata={prefetch},\n' +
+                    '             no_workers_timeout={no_workers})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
@@ -451,7 +463,9 @@ class Database(object):
                     '\"from scannerpy import start_worker\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_worker(\'{master:s}\', port=\'{worker_port:s}\', block=True, config=config)\" ' +
+                    'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
+                    '             block=True,\n' +
+                    '             config=config)\" ' +
                     '')
                 self._master_conn = self._run_remote_cmd(self._master_address,
                                                          master_cmd,
