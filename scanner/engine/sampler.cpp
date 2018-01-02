@@ -139,7 +139,7 @@ class StridedDomainSampler : public DomainSampler {
 class StridedRangesDomainSampler : public DomainSampler {
  public:
   StridedRangesDomainSampler(const std::vector<u8>& args)
-    : DomainSampler("StridedRange") {
+    : DomainSampler("StridedRanges") {
     valid_.set_success(true);
     if (!args_.ParseFromArray(args.data(), args.size())) {
       RESULT_ERROR(&valid_,

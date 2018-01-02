@@ -36,6 +36,7 @@ class TaskPartitioner:
         for rows in groups:
             gather_group = args.groups_add()
             gather_group.rows[:] = rows
+        sampling_args = self._db.protobufs.SamplingArgs()
         sampling_args.sampling_function = 'Gather'
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args
@@ -48,7 +49,8 @@ class TaskPartitioner:
         args.stride = stride
         for start, end in intervals:
             args.starts.append(start)
-            args.ends.append(ends)
+            args.ends.append(end)
+        sampling_args = self._db.protobufs.SamplingArgs()
         sampling_args.sampling_function = 'StridedRange'
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args
