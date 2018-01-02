@@ -612,7 +612,7 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
                                   const proto::NodeInfo* node_info,
                                   proto::NewWork* new_work) {
   std::unique_lock<std::mutex> lk(work_mutex_);
-  VLOG(1) << "Master received NextWork command";
+  VLOG(2) << "Master received NextWork command";
   if (!worker_active_.at(node_info->node_id())) {
     // Worker is not active
     new_work->set_no_more_work(true);
@@ -691,7 +691,7 @@ grpc::Status MasterImpl::FinishedWork(
     grpc::ServerContext* context, const proto::FinishedWorkParameters* params,
     proto::Empty* empty) {
   std::unique_lock<std::mutex> lk(work_mutex_);
-  VLOG(1) << "Master received FinishedWork command";
+  VLOG(2) << "Master received FinishedWork command";
 
   i32 worker_id = params->node_id();
   i64 job_id = params->job_id();
