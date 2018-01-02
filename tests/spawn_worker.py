@@ -13,7 +13,7 @@ import scannerpy.libscanner as bindings
 con = Config(config_path='/tmp/config_test')
 protobufs = ProtobufGenerator(con)
 
-master_address = 'localhost:5005'
+master_address = str(con.master_address) + ':' + str(con.master_port)
 port = int(sys.argv[1])
 
 params = bindings.default_machine_params()

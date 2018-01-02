@@ -69,6 +69,7 @@ def db():
     # Create new config
     with tempfile.NamedTemporaryFile(delete=False) as f:
         cfg = Config.default_config()
+        cfg['network']['master'] = 'localhost'
         cfg['storage']['db_path'] = tempfile.mkdtemp()
         f.write(toml.dumps(cfg))
         cfg_path = f.name
@@ -503,6 +504,7 @@ def no_workers_db():
     with open('/tmp/config_test', 'w') as f:
         cfg = Config.default_config()
         cfg['storage']['db_path'] = tempfile.mkdtemp()
+        cfg['network']['master'] = 'localhost'
         cfg['network']['master_port'] = '5020'
         cfg['network']['worker_port'] = '5021'
         f.write(toml.dumps(cfg))
@@ -575,13 +577,16 @@ def fault_db():
     with open('/tmp/config_test', 'w') as f:
         cfg = Config.default_config()
         cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master_port'] = '5005'
-        cfg['network']['worker_port'] = '5006'
+        cfg['network']['master'] = 'localhost'
+        cfg['network']['master_port'] = '5010'
+        cfg['network']['worker_port'] = '5011'
         f.write(toml.dumps(cfg))
         cfg_path = f.name
 
     # Setup and ingest video
-    with Database(config_path=cfg_path, no_workers_timeout=120) as db:
+    with Database(master='localhost:5010',
+                  workers=[],
+                  config_path=cfg_path, no_workers_timeout=120) as db:
         # Download video from GCS
         url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
@@ -705,10 +710,10 @@ def fault_db():
 
 
 def test_fault_tolerance(fault_db):
-    force_kill_spawn_port = 5010
-    normal_spawn_port = 5011
+    force_kill_spawn_port = 5012
+    normal_spawn_port = 5013
 
-    def worker_killer_task(config, master_address, worker_address):
+    def worker_killer_task(config, master_address):
         from scannerpy import ProtobufGenerator, Config, start_worker
         import time
         import grpc
@@ -724,23 +729,6 @@ def test_fault_tolerance(fault_db):
         import scannerpy.libscanner as bindings
 
         protobufs = ProtobufGenerator(config)
-
-        # Kill worker
-        channel = grpc.insecure_channel(
-            worker_address,
-            options=[('grpc.max_message_length', 24499183 * 2)])
-        worker = protobufs.WorkerStub(channel)
-
-        try:
-            worker.Shutdown(protobufs.Empty())
-        except grpc.RpcError as e:
-            status = e.code()
-            if status == grpc.StatusCode.UNAVAILABLE:
-                print('could not shutdown worker!')
-                exit(1)
-            else:
-                raise ScannerException('Worker errored with status: {}'
-                                       .format(status))
 
         # Spawn a worker that we will force kill
         script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -775,10 +763,9 @@ def test_fault_tolerance(fault_db):
                 shell=True)
 
     master_addr = fault_db._master_address
-    worker_addr = fault_db._worker_addresses[0]
     killer_process = Process(
         target=worker_killer_task,
-        args=(fault_db.config, master_addr, worker_addr))
+        args=(fault_db.config, master_addr))
     killer_process.daemon = True
     killer_process.start()
 
@@ -827,8 +814,9 @@ def blacklist_db():
     with open('/tmp/config_test', 'w') as f:
         cfg = Config.default_config()
         cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master_port'] = '5005'
-        cfg['network']['worker_port'] = '5006'
+        cfg['network']['master'] = 'localhost'
+        cfg['network']['master_port'] = '5055'
+        cfg['network']['worker_port'] = '5056'
         f.write(toml.dumps(cfg))
         cfg_path = f.name
 
