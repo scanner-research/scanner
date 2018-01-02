@@ -714,12 +714,18 @@ grpc::Status MasterImpl::FinishedWork(
 
   i64 active_job = next_job_ - 1;
 
-
   // If job was blacklisted, then we have already updated total tasks
   // used to reflect that and we should ignore it
   if (blacklisted_jobs_.count(job_id) == 0) {
     total_tasks_used_++;
     tasks_used_per_job_[job_id]++;
+
+    if (tasks_used_per_job_[job_id] == job_tasks_[job_id].size()) {
+      i32 tid = job_uncommitted_tables_[job_id];
+      meta_.commit_table(tid);
+      write_database_metadata(storage_, meta_);
+
+    }
   }
 
   if (total_tasks_used_ == total_tasks_) {
@@ -1127,7 +1133,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Write out database metadata so that workers can read it
   write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
-  std::vector<i32> job_uncommitted_tables_;
+  job_uncommitted_tables_.clear();
   {
     for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
       auto& job = job_params->jobs(job_idx);
@@ -1299,14 +1305,6 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   }
 
   if (job_result->success()) {
-    // Commit all tables since the job was successful
-    for (i32 job_idx = 0; job_idx < job_uncommitted_tables_.size(); ++job_idx) {
-      // If a job was blacklisted, it did not finish and we should not commit it
-      if (blacklisted_jobs_.count(job_idx) == 0) {
-        i32 tid = job_uncommitted_tables_[job_idx];
-        meta_.commit_table(tid);
-      }
-    }
     // Commit job since it was successful
     meta_.commit_bulk_job(bulk_job_id);
   }
