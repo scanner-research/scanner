@@ -381,6 +381,15 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path, Result* result) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   const std::string& so_path = op_path->path();
+
+  for (auto& loaded_path : so_paths_) {
+    if (loaded_path == so_path) {
+      LOG(WARNING) << "Master received redundant request to load op " << so_path;
+      result->set_success(true);
+      return grpc::Status::OK;
+    }
+  }
+
   {
     std::ifstream infile(so_path);
     if (!infile.good()) {
@@ -920,7 +929,9 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                                  : work_packet_size;
   if (io_packet_size > 0 && io_packet_size % work_packet_size != 0) {
     RESULT_ERROR(job_result,
-                 "IO packet size must be a multiple of Work packet size.");
+                 "IO packet size (%d) must be a multiple of work packet size (%d).",
+                 io_packet_size,
+                 work_packet_size);
     finished_fn();
     return false;
   }
