@@ -819,3 +819,78 @@ def test_fault_tolerance(fault_db):
             raise ScannerException('Worker errored with status: {}'
                                    .format(status))
     killer_process.join()
+
+@pytest.fixture()
+def blacklist_db():
+    # Create new config
+    #with tempfile.NamedTemporaryFile(delete=False) as f:
+    with open('/tmp/config_test', 'w') as f:
+        cfg = Config.default_config()
+        cfg['storage']['db_path'] = tempfile.mkdtemp()
+        cfg['network']['master_port'] = '5005'
+        cfg['network']['worker_port'] = '5006'
+        f.write(toml.dumps(cfg))
+        cfg_path = f.name
+
+    # Setup and ingest video
+    master = 'localhost:5050'
+    workers = ['localhost:{:04d}'.format(5051 + d) for d in range(4)]
+    with Database(config_path=cfg_path, no_workers_timeout=120,
+                  master=master, workers=workers) as db:
+        # Download video from GCS
+        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            host = socket.gethostname()
+            # HACK: special proxy case for Ocean cluster
+            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
+                resp = requests.get(url, stream=True, proxies={
+                    'https': 'http://proxy.pdl.cmu.edu:3128/'
+                })
+            else:
+                resp = requests.get(url, stream=True)
+            assert resp.ok
+            for block in resp.iter_content(1024):
+                f.write(block)
+            vid1_path = f.name
+
+        # Make a second one shorter than the first
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            vid2_path = f.name
+        run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
+             '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path])
+
+        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+
+        yield db
+
+        # Tear down
+        run(['rm', '-rf',
+            cfg['storage']['db_path'],
+            cfg_path,
+            vid1_path,
+            vid2_path])
+
+def test_job_blacklist(blacklist_db):
+    db = blacklist_db
+    db.register_op('TestPyFail',
+                   [('frame', ColumnType.Video)],
+                   ['dummy'])
+    db.register_python_kernel('TestPyFail', DeviceType.CPU,
+                              cwd + '/test_py_fail_kernel.py')
+
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    failed_output = db.ops.TestPyFail(frame=range_frame)
+    output_op = db.ops.Output(columns=[failed_output])
+
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 1),
+            output_op: 'test_py_fail'
+        }
+    )
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+    table = tables[0]
+    assert table.committed() == False

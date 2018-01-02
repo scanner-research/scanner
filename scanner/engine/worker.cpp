@@ -1379,6 +1379,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                    node_id_);
       break;
     }
+    if (!job_result->success()) {
+      VLOG(1) << "Worker " << node_id_ << " in error, stopping.";
+      break;
+    }
     // We batch up retired tasks to avoid sync overhead
     std::vector<std::tuple<i32, i64, i64>> batched_retired_tasks;
     while (retired_tasks.size() > 0) {
