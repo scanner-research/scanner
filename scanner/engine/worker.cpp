@@ -1104,7 +1104,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   if (pipeline_instances_per_node <= 0) {
     RESULT_ERROR(job_result,
-                 "BulkJobParameters.pipeline_instances_per_node (%d) must -1 "
+                 "BulkJobParameters.pipeline_instances_per_node (%d) must be -1 "
                  "for auto-default or greater than 0 for manual configuration.",
                  pipeline_instances_per_node);
     finished_fn();

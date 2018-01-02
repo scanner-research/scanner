@@ -816,13 +816,13 @@ def blacklist_db():
         cfg['storage']['db_path'] = tempfile.mkdtemp()
         cfg['network']['master'] = 'localhost'
         cfg['network']['master_port'] = '5055'
-        cfg['network']['worker_port'] = '5056'
+        cfg['network']['worker_port'] = '5060'
         f.write(toml.dumps(cfg))
         cfg_path = f.name
 
     # Setup and ingest video
-    master = 'localhost:5050'
-    workers = ['localhost:{:04d}'.format(5051 + d) for d in range(4)]
+    master = 'localhost:5055'
+    workers = ['localhost:{:04d}'.format(5060 + d) for d in range(4)]
     with Database(config_path=cfg_path, no_workers_timeout=120,
                   master=master, workers=workers) as db:
         # Download video from GCS
@@ -879,6 +879,7 @@ def test_job_blacklist(blacklist_db):
         }
     )
     bulk_job = BulkJob(output=output_op, jobs=[job])
-    tables = db.run(bulk_job, force=True, show_progress=False)
+    tables = db.run(bulk_job, force=True, show_progress=False,
+                    pipeline_instances_per_node=1)
     table = tables[0]
     assert table.committed() == False
