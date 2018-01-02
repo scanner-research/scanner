@@ -745,6 +745,15 @@ grpc::Status MasterImpl::FinishedJob(grpc::ServerContext* context,
 
   unfinished_workers_[worker_id] = false;
 
+  if (!params->result().success()) {
+    LOG(WARNING) << "Worker " << worker_id << " sent FinishedJob with error: "
+                 << params->result().msg();
+  }
+
+  if (active_bulk_job_) {
+    stop_job_on_worker(worker_id);
+  }
+
   return grpc::Status::OK;
 }
 
@@ -1291,8 +1300,12 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   if (job_result->success()) {
     // Commit all tables since the job was successful
-    for (i32 tid : job_uncommitted_tables_) {
-      meta_.commit_table(tid);
+    for (i32 job_idx = 0; job_idx < job_uncommitted_tables_.size(); ++job_idx) {
+      // If a job was blacklisted, it did not finish and we should not commit it
+      if (blacklisted_jobs_.count(job_idx) == 0) {
+        i32 tid = job_uncommitted_tables_[job_idx];
+        meta_.commit_table(tid);
+      }
     }
     // Commit job since it was successful
     meta_.commit_bulk_job(bulk_job_id);
@@ -1451,7 +1464,7 @@ void MasterImpl::stop_job_on_worker(i32 worker_id) {
       i64 task_id = std::get<1>(worker_job_task);
 
       i64 num_failures = ++job_tasks_num_failures_[job_id][task_id];
-      const i64 TOTAL_FAILURES_BEFORE_REMOVAL = 5;
+      const i64 TOTAL_FAILURES_BEFORE_REMOVAL = 3;
       if (num_failures >= TOTAL_FAILURES_BEFORE_REMOVAL) {
         blacklist_job(job_id);
       }
