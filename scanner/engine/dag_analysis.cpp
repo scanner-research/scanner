@@ -449,7 +449,7 @@ Result determine_input_rows_to_slices(
     std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
     for (const proto::SamplingArgsAssignment& saa :
          job.sampling_args_assignment()) {
-      if (ops.at(saa.op_index()).name() == "Slice") {
+      if (ops.at(saa.op_index()).name() == SLICE_OP_NAME) {
         args_assignment[saa.op_index()] = saa;
       } else {
         std::vector<std::unique_ptr<DomainSampler>>& samplers =
@@ -1132,16 +1132,19 @@ Result derive_stencil_requirements(
     std::vector<std::unique_ptr<DomainSampler>>& samplers =
         domain_samplers[saa.op_index()];
     // Assign number of rows to correct op
-    for (auto& sa : saa.sampling_args()) {
-      DomainSampler* sampler;
-      Result result = make_domain_sampler_instance(
-          sa.sampling_function(),
-          std::vector<u8>(sa.sampling_args().begin(), sa.sampling_args().end()),
-          sampler);
-      if (!result.success()) {
-        return result;
+    if (ops.at(saa.op_index()).name() != SLICE_OP_NAME) {
+      for (auto& sa : saa.sampling_args()) {
+        DomainSampler* sampler;
+        Result result = make_domain_sampler_instance(
+            sa.sampling_function(),
+            std::vector<u8>(sa.sampling_args().begin(),
+                            sa.sampling_args().end()),
+            sampler);
+        if (!result.success()) {
+          return result;
+        }
+        samplers.emplace_back(sampler);
       }
-      samplers.emplace_back(sampler);
     }
   }
 
