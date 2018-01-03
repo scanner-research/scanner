@@ -269,7 +269,8 @@ T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
   T descriptor;
   size_t size;
   BACKOFF_FAIL(file->get_size(size));
-  std::vector<u8> data = storehouse::read_entire_file(file, pos, std::max(size, (size_t) 1024*1024));
+  std::vector<u8> data = storehouse::read_entire_file(
+      file, pos, std::max(size, (size_t)1024 * 1024));
   descriptor.ParseFromArray(data.data(), data.size());
   return descriptor;
 }

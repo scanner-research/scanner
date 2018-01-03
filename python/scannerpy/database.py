@@ -940,7 +940,8 @@ class Database(object):
             show_progress=True,
             profiling=False,
             load_sparsity_threshold=8,
-            tasks_in_queue_per_pu=4):
+            tasks_in_queue_per_pu=4,
+            task_timeout=0):
         assert isinstance(bulk_job, BulkJob)
         assert isinstance(bulk_job.output(), Op)
 
@@ -1032,6 +1033,7 @@ class Database(object):
         job_params.load_sparsity_threshold = load_sparsity_threshold
         job_params.boundary_condition = (
             self.protobufs.BulkJobParameters.REPEAT_EDGE)
+        job_params.task_timeout = task_timeout
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:

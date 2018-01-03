@@ -883,3 +883,80 @@ def test_job_blacklist(blacklist_db):
                     pipeline_instances_per_node=1)
     table = tables[0]
     assert table.committed() == False
+
+
+@pytest.fixture()
+def timeout_db():
+    # Create new config
+    #with tempfile.NamedTemporaryFile(delete=False) as f:
+    with open('/tmp/config_test', 'w') as f:
+        cfg = Config.default_config()
+        cfg['storage']['db_path'] = tempfile.mkdtemp()
+        cfg['network']['master'] = 'localhost'
+        cfg['network']['master_port'] = '5155'
+        cfg['network']['worker_port'] = '5160'
+        f.write(toml.dumps(cfg))
+        cfg_path = f.name
+
+    # Setup and ingest video
+    master = 'localhost:5155'
+    workers = ['localhost:{:04d}'.format(5160 + d) for d in range(4)]
+    with Database(config_path=cfg_path, no_workers_timeout=120,
+                  master=master, workers=workers) as db:
+        # Download video from GCS
+        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            host = socket.gethostname()
+            # HACK: special proxy case for Ocean cluster
+            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
+                resp = requests.get(url, stream=True, proxies={
+                    'https': 'http://proxy.pdl.cmu.edu:3128/'
+                })
+            else:
+                resp = requests.get(url, stream=True)
+            assert resp.ok
+            for block in resp.iter_content(1024):
+                f.write(block)
+            vid1_path = f.name
+
+        # Make a second one shorter than the first
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+            vid2_path = f.name
+        run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
+             '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path])
+
+        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+
+        yield db
+
+        # Tear down
+        run(['rm', '-rf',
+            cfg['storage']['db_path'],
+            cfg_path,
+            vid1_path,
+            vid2_path])
+
+
+def test_job_timeout(timeout_db):
+    db = timeout_db
+
+    frame = db.ops.FrameInput()
+    range_frame = frame.sample()
+    sleep_frame = db.ops.SleepFrame(ignore=range_frame)
+    output_op = db.ops.Output(columns=[sleep_frame])
+
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        range_frame: db.sampler.range(0, 1),
+        output_op: 'test_timeout',
+    })
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    table = db.run(
+        bulk_job,
+        pipeline_instances_per_node=1,
+        task_timeout=0.1,
+        force=True,
+        show_progress=False)
+    table = table[0]
+
+    assert table.committed() == False

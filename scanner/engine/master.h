@@ -219,6 +219,8 @@ class MasterImpl final : public proto::Master::Service {
   // fails
   // Worker id -> (job_id, task_id)
   std::map<i64, std::set<std::tuple<i64, i64>>> active_job_tasks_;
+  // (Worker id, job_id, task_id) -> start_time
+  std::map<std::tuple<i64, i64, i64>, double> active_job_tasks_starts_;
   // Tracks number of times a task has been failed so that a job can be removed
   // if it is causing consistent failures
   // job_id -> task_id -> num_failures

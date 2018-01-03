@@ -680,8 +680,13 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     new_work->add_output_rows(r);
   }
 
+  auto task_start =
+      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count();
   // Track sample assigned to worker
   active_job_tasks_[node_info->node_id()].insert(job_task_id);
+  active_job_tasks_starts_[std::make_tuple(
+      (i64)node_info->node_id(), job_idx, task_idx)] = task_start;
   worker_histories_[node_info->node_id()].tasks_assigned += 1;
 
   return grpc::Status::OK;
@@ -709,6 +714,7 @@ grpc::Status MasterImpl::FinishedWork(
   std::tuple<i64, i64> job_tasks = std::make_tuple(job_id, task_id);
   assert(worker_tasks.count(job_tasks) > 0);
   worker_tasks.erase(job_tasks);
+  active_job_tasks_starts_.erase(std::make_tuple((i64)worker_id, job_id, task_id));
 
   worker_histories_[worker_id].tasks_retired += 1;
 
@@ -750,6 +756,10 @@ grpc::Status MasterImpl::FinishedJob(grpc::ServerContext* context,
   i32 worker_id = params->node_id();
 
   unfinished_workers_[worker_id] = false;
+
+  if (!worker_active_.at(worker_id)) {
+    return grpc::Status::OK;
+  }
 
   if (!params->result().success()) {
     LOG(WARNING) << "Worker " << worker_id << " sent FinishedJob with error: "
@@ -909,6 +919,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   num_tasks_ = -1;
   task_result_.set_success(true);
   active_job_tasks_.clear();
+  active_job_tasks_starts_.clear();
   worker_histories_.clear();
   unfinished_workers_.clear();
   local_ids_.clear();
@@ -1273,6 +1284,29 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     if (all_workers_finished && finished_) {
       break;
     }
+    // Check if any tasks have gone on longer than timeout
+    if (job_params_.task_timeout() > 0.0001) {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      auto current_time = std::chrono::duration_cast<std::chrono::seconds>(
+                              now().time_since_epoch())
+                              .count();
+      for (const auto& kv : active_job_tasks_starts_) {
+        if (current_time - kv.second > job_params_.task_timeout()) {
+          i64 worker_id;
+          i64 job_id;
+          i64 task_id;
+          std::tie(worker_id, job_id, task_id) = kv.first;
+          // Task has timed out, stop the worker
+          LOG(WARNING) << "Node " << worker_id << " ("
+                       << worker_addresses_.at(worker_id) << ") "
+                       << "failed to finish task (" << job_id << ", " << task_id
+                       << ") after " << job_params_.task_timeout()
+                       << " seconds. Removing that worker as an active worker.";
+          remove_worker(worker_id);
+          num_failed_workers_++;
+        }
+      }
+    }
     // Check if we have unstarted workers and start them if so
     {
       std::unique_lock<std::mutex> lk(work_mutex_);
@@ -1454,6 +1488,9 @@ void MasterImpl::stop_job_on_worker(i32 worker_id) {
     for (const std::tuple<i64, i64>& worker_job_task :
          active_job_tasks_.at(worker_id)) {
       unallocated_job_tasks_.push_back(worker_job_task);
+      active_job_tasks_starts_.erase(
+          std::make_tuple((i64)worker_id, std::get<0>(worker_job_task),
+                          std::get<1>(worker_job_task)));
 
       // The worker failure may be due to a bad task. We track number of times
       // a task has failed to detect a bad task and remove it from this bulk
