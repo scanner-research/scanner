@@ -14,11 +14,6 @@ def read_line(s):
 
 class Config(object):
     def __init__(self, config_path=None, db_path=None):
-        log.setLevel(logging.DEBUG)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s:%(lineno)03d] %(message)s')
-        handler.setFormatter(formatter)
-        log.addHandler(handler)
 
         self.config_path = config_path or self.default_config_path()
 
@@ -55,14 +50,18 @@ class Config(object):
             if 'network' in config:
                 network = config['network']
                 if 'master' in network:
-                    self.master_address = network['master'].encode('ascii','ignore')
+                    self.master_address = network['master'].encode(
+                        'ascii', 'ignore')
                 if 'master_port' in network:
-                    self.master_port = network['master_port'].encode('ascii', 'ignore')
+                    self.master_port = network['master_port'].encode(
+                        'ascii', 'ignore')
                 if 'worker_port' in network:
-                    self.worker_port = network['worker_port'].encode('ascii', 'ignore')
+                    self.worker_port = network['worker_port'].encode(
+                        'ascii', 'ignore')
 
         except KeyError as key:
-            raise ScannerException('Scanner config missing key: {}'.format(key))
+            raise ScannerException(
+                'Scanner config missing key: {}'.format(key))
         self.storage_config = storage_config
         self.storage = StorageBackend.make_from_config(storage_config)
 
