@@ -191,6 +191,8 @@ message BulkJobParameters {
     ERROR = 2;
   };
   BoundaryCondition boundary_condition = 15;
+
+  float task_timeout = 16;
 }
 
 message NewWork {
