@@ -1,4 +1,4 @@
-from scannerpy import Database, Job, DeviceType
+from scannerpy import Database, Job, DeviceType, BulkJob
 
 ################################################################################
 # This tutorial shows how to combine multiple operators into a computation     #
