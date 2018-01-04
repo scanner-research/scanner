@@ -855,15 +855,18 @@ void MasterImpl::recover_and_init_database() {
   VLOG(1) << "Reading database metadata";
   // TODO(apoms): handle uncommitted database tables
   meta_ = read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+
+  VLOG(1) << "Setting up table metadata cache";
   // Setup table metadata cache
   table_metas_.reset(new TableMetaCache(storage_, meta_));
-  std::vector<std::string> valid_table_names;
-  for (const auto& name : meta_.table_names()) {
-    i32 table_id = meta_.get_table_id(name);
-    if (!meta_.table_is_committed(table_id)) {
-      //
-    }
-  }
+
+  // std::vector<std::string> valid_table_names;
+  // for (const auto& name : meta_.table_names()) {
+  //   i32 table_id = meta_.get_table_id(name);
+  //   if (!meta_.table_is_committed(table_id)) {
+  //     //
+  //   }
+  // }
 
   // Prefetch table metadata for all tables
   if (db_params_.prefetch_table_metadata) {
