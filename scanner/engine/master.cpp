@@ -22,6 +22,7 @@
 #include "scanner/util/glog.h"
 #include "scanner/util/grpc.h"
 #include "scanner/engine/python_kernel.h"
+#include "scanner/util/thread_pool.h"
 
 #include <grpc/support/log.h>
 #include <set>
@@ -111,6 +112,43 @@ grpc::Status MasterImpl::GetTables(grpc::ServerContext* context,
   }
   table_metas_->prefetch(table_names);
 
+  std::vector<proto::VideoDescriptor*> video_descriptors;
+  for (const auto& table_name : params->tables()) {
+    video_descriptors.push_back(result->add_videos());
+  }
+
+  VLOG(1) << "Prefetching video metadata";
+  auto load_video_meta = [&](i32 i) {
+    const std::string& table_name = params->tables(i);
+    const TableMetadata& table_meta = table_metas_->at(table_name);
+    proto::VideoDescriptor* desc_dst = video_descriptors[i];
+    if (table_meta.columns().size() == 2 && table_meta.column_type(1) == ColumnType::Video) {
+      VideoMetadata video_meta = read_video_metadata(
+        storage_, VideoMetadata::descriptor_path(table_meta.id(), 1, 0));
+      proto::VideoDescriptor& desc = video_meta.get_descriptor();
+      desc.clear_sample_offsets();
+      desc.clear_sample_sizes();
+      desc.clear_keyframe_indices();
+      desc.clear_frames_per_video();
+      desc.clear_keyframes_per_video();
+      desc.clear_size_per_video();
+      desc_dst->CopyFrom(desc);
+    } else {
+      desc_dst->set_table_id(-1);
+    }
+  };
+
+  ThreadPool prefetch_pool(64);
+  std::vector<std::future<void>> futures;
+  for (i32 i = 0; i < params->tables().size(); ++i) {
+    futures.emplace_back(prefetch_pool.enqueue(load_video_meta, i));
+  }
+
+  for (auto& future : futures) {
+    future.wait();
+  }
+
+  VLOG(1) << "Creating output";
   for (const auto& table_name : params->tables()) {
     // Check if has table
     if (!meta_.has_table(table_name)) {

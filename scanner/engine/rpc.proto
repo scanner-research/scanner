@@ -82,7 +82,9 @@ message GetTablesParams {
 message GetTablesResult {
   Result result = 1;
   repeated TableDescriptor tables = 2;
+  repeated VideoDescriptor videos = 3;
 }
+
 
 message DeleteTablesParams {
   repeated string tables = 1;

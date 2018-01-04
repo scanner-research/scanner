@@ -277,6 +277,7 @@ class Database(object):
 
             if self._prefetch_table_metadata:
                 self._table_descriptor = {}
+                self._video_descriptor = {}
                 # Read all table descriptors from database
                 NUM_TABLES_TO_READ = 10000
                 table_names = self._table_name.keys()
@@ -290,8 +291,9 @@ class Database(object):
                         raise ScannerException(
                             'Internal error: GetTables returned error: {}'.format(
                                 get_tables_result.result.msg))
-                    for table in get_tables_result.tables:
+                    for table, video in zip(get_tables_result.tables, get_tables_result.videos):
                         self._table_descriptor[table.id] = table
+                        self._video_descriptor[table.id] = video
 
         return self._cached_db_metadata
 
@@ -767,6 +769,9 @@ class Database(object):
         table = Table(self, table_name, table_id)
         if self._prefetch_table_metadata:
             table._descriptor = self._table_descriptor[table_id]
+            video_descriptor = self._video_descriptor[table_id]
+            if video_descriptor.table_id != -1:
+                table._video_descriptors = [None, video_descriptor]
 
         return table
 
