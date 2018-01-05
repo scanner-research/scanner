@@ -59,6 +59,10 @@ class MasterImpl final : public proto::Master::Service {
                         const proto::NewTableParams* params,
                         proto::Empty* empty);
 
+  grpc::Status GetVideoMetadata(grpc::ServerContext* context,
+                                const proto::GetVideoMetadataParams* params,
+                                proto::GetVideoMetadataResult* result);
+
   // Worker methods
   grpc::Status RegisterWorker(grpc::ServerContext* context,
                               const proto::WorkerParams* worker_info,
