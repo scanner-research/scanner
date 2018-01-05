@@ -447,7 +447,6 @@ void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
   std::vector<i64> element_sizes;
   {
     std::unique_ptr<RandomReadFile> file;
-    StoreResult result;
     BACKOFF_FAIL(make_unique_random_read_file(
         storage_.get(), table_item_metadata_path(table_id, column_id, item_id),
         file));
@@ -473,7 +472,6 @@ void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
   }
 
   std::unique_ptr<RandomReadFile> file;
-  StoreResult result;
   BACKOFF_FAIL(make_unique_random_read_file(
       storage_.get(), table_item_output_path(table_id, column_id, item_id),
       file));

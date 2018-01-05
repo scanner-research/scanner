@@ -36,9 +36,13 @@ class TableMetaCache {
 
   bool exists(i32 table_id) const;
 
+  bool has(const std::string& table_name) const;
+
   void update(const TableMetadata& meta);
 
-  void prefetch(const std::vector<std::string> table_names);
+  void prefetch(const std::vector<std::string>& table_names);
+
+  void write_megafile();
 
  private:
   void memoized_read(const std::string& table_name) const;

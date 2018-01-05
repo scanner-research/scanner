@@ -110,7 +110,7 @@ grpc::Status MasterImpl::GetTables(grpc::ServerContext* context,
   for (const auto& table_name : params->tables()) {
     table_names.push_back(table_name);
   }
-  table_metas_->prefetch(table_names);
+  // table_metas_->prefetch(table_names);
 
   std::vector<proto::VideoDescriptor*> video_descriptors;
   for (const auto& table_name : params->tables()) {
@@ -907,8 +907,10 @@ void MasterImpl::recover_and_init_database() {
   // }
 
   // Prefetch table metadata for all tables
-  if (db_params_.prefetch_table_metadata) {
+  if (meta_.table_names().size() > 0 &&
+      !table_metas_->has(meta_.table_names()[0])) {
     table_metas_->prefetch(meta_.table_names());
+    table_metas_->write_megafile();
   }
 
   VLOG(1) << "Writing database metadata";
@@ -1219,28 +1221,29 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       job_uncommitted_tables_.push_back(table_id);
       table_metas_->update(TableMetadata(table_desc));
     }
-    // Write table metadata in parallel
-    auto write_meta = [&](std::vector<i32> table_ids) {
-      for (i32 table_id : table_ids) {
-        write_table_metadata(storage_, table_metas_->at(table_id));
-      }
-    };
-    std::vector<std::thread> threads;
-    i32 num_threads = std::thread::hardware_concurrency() * 4;
-    i32 job_idx = 0;
-    for (i64 tid = 0; tid < num_threads; ++tid) {
-      std::vector<i32> table_ids;
-      i32 jobs_to_compute =
-          (job_params->jobs_size() - job_idx) / (num_threads - tid);
-      for (i32 i = job_idx; i < job_idx + jobs_to_compute; ++i) {
-        table_ids.push_back(job_uncommitted_tables_[i]);
-      }
-      threads.emplace_back(write_meta, table_ids);
-      job_idx += jobs_to_compute;
-    }
-    for (i64 tid = 0; tid < num_threads; ++tid) {
-      threads[tid].join();
-    }
+    // Write table metadata
+    table_metas_->write_megafile();
+    // auto write_meta = [&](std::vector<i32> table_ids) {
+    //   for (i32 table_id : table_ids) {
+    //     write_table_metadata(storage_, table_metas_->at(table_id));
+    //   }
+    // };
+    // std::vector<std::thread> threads;
+    // i32 num_threads = std::thread::hardware_concurrency() * 4;
+    // i32 job_idx = 0;
+    // for (i64 tid = 0; tid < num_threads; ++tid) {
+    //   std::vector<i32> table_ids;
+    //   i32 jobs_to_compute =
+    //       (job_params->jobs_size() - job_idx) / (num_threads - tid);
+    //   for (i32 i = job_idx; i < job_idx + jobs_to_compute; ++i) {
+    //     table_ids.push_back(job_uncommitted_tables_[i]);
+    //   }
+    //   threads.emplace_back(write_meta, table_ids);
+    //   job_idx += jobs_to_compute;
+    // }
+    // for (i64 tid = 0; tid < num_threads; ++tid) {
+    //   threads[tid].join();
+    // }
   }
 
   // Setup initial task sampler
