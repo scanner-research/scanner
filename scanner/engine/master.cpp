@@ -913,8 +913,9 @@ void MasterImpl::recover_and_init_database() {
     table_metas_->write_megafile();
   }
 
-  VLOG(1) << "Writing database metadata";
-  write_database_metadata(storage_, meta_);
+  // VLOG(1) << "Writing database metadata";
+  // write_database_metadata(storage_, meta_);
+
   VLOG(1) << "Database initialized.";
 }
 
