@@ -30,9 +30,10 @@ do
 
     build base $base
 
+    build cpu $base-cpu
+    push $base-cpu
+
     build gpu $base-gpu
     push $base-gpu
 
-    build cpu $base-cpu
-    push $base-cpu
 done
