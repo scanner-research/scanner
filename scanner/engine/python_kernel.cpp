@@ -105,6 +105,16 @@ PythonKernel::~PythonKernel() {
   PyGILState_Release(gstate);
 }
 
+void PythonKernel::reset() {
+  try {
+    py::object main = py::import("__main__");
+    py::object kernel = main.attr("kernel");
+    kernel.attr("reset")();
+  } catch (py::error_already_set& e) {
+    LOG(FATAL) << handle_pyerror();
+  }
+}
+
 void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
                                           BatchedColumns& output_columns) {
   i32 input_count = (i32)num_rows(input_columns[0]);
@@ -205,7 +215,7 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
         }
       }
     }
-    
+
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }
@@ -315,7 +325,7 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
   } else {
     single_python_execute(input_columns, output_columns);
   }
-  
+
 }
 
 }

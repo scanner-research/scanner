@@ -599,10 +599,12 @@ class Database(object):
         self._try_rpc(lambda: self._master.LoadOp(op_path))
 
     def register_op(self, name, input_columns, output_columns,
-                    variadic_inputs=False, stencil=None, proto_path=None):
+                    variadic_inputs=False, stencil=None, proto_path=None,
+                    unbounded_state=False, bounded_state=None):
         op_registration = self.protobufs.OpRegistration()
         op_registration.name = name
         op_registration.variadic_inputs = variadic_inputs
+        op_registration.has_unbounded_state = unbounded_state
 
         def add_col(columns, col):
             if isinstance(col, basestring):
@@ -617,17 +619,26 @@ class Database(object):
                 raise ScannerException(
                     'Column ' + col + ' must be a string name or a tuple of '
                     '(name, column_type)')
+
         for in_col in input_columns:
             add_col(op_registration.input_columns, in_col)
         for out_col in output_columns:
             add_col(op_registration.output_columns, out_col)
+
         if stencil is None:
             op_registration.can_stencil = False
         else:
             op_registration.can_stencil = True
             op_registration.preferred_stencil.extend(stencil)
+
+        if bounded_state is not None:
+            assert isinstance(bounded_state, int)
+            op_registration.has_bounded_state = True
+            op_registration.warmup = bounded_state
+
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
+
         self._try_rpc(lambda: self._master.RegisterOp(op_registration))
 
     def register_python_kernel(self, op_name, device_type, kernel_path,

@@ -19,6 +19,8 @@ class PythonKernel : public BatchedKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override;
 
+  void reset() override;
+
  private:
   void batched_python_execute(const BatchedColumns& input_columns,
                               BatchedColumns& output_columns);
