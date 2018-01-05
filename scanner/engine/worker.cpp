@@ -447,6 +447,8 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
     worker_port_(worker_port) {
   init_glog("scanner_worker");
 
+  VLOG(1) << "Creating worker";
+
   set_database_path(db_params.db_path);
 
   avcodec_register_all();
@@ -470,6 +472,7 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
   // Processes jobs in the background
   start_job_processor();
+  VLOG(1) << "Worker created.";
 }
 
 WorkerImpl::~WorkerImpl() {
