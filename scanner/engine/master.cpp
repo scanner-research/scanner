@@ -112,6 +112,37 @@ grpc::Status MasterImpl::GetTables(grpc::ServerContext* context,
   }
   // table_metas_->prefetch(table_names);
 
+  VLOG(1) << "Creating output";
+  for (const auto& table_name : params->tables()) {
+    // Check if has table
+    if (!meta_.has_table(table_name)) {
+      RESULT_ERROR(result->mutable_result(),
+                   "Requested table %s is not in database.",
+                   table_name.c_str());
+      result->clear_tables();
+      break;
+    } else {
+      // Add table descriptor to result
+      const TableMetadata& table_meta = table_metas_->at(table_name);
+      proto::TableDescriptor& descriptor = table_meta.get_descriptor();
+      proto::TableDescriptor* desc = result->add_tables();
+      desc->CopyFrom(descriptor);
+    }
+  }
+
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::GetVideoMetadata(grpc::ServerContext* context,
+                                          const proto::GetVideoMetadataParams* params,
+                                          proto::GetVideoMetadataResult* result) {
+  std::unique_lock<std::mutex> lk(work_mutex_);
+
+  std::vector<std::string> table_names;
+  for (const auto& table_name : params->tables()) {
+    table_names.push_back(table_name);
+  }
+
   std::vector<proto::VideoDescriptor*> video_descriptors;
   for (const auto& table_name : params->tables()) {
     video_descriptors.push_back(result->add_videos());
@@ -146,24 +177,6 @@ grpc::Status MasterImpl::GetTables(grpc::ServerContext* context,
 
   for (auto& future : futures) {
     future.wait();
-  }
-
-  VLOG(1) << "Creating output";
-  for (const auto& table_name : params->tables()) {
-    // Check if has table
-    if (!meta_.has_table(table_name)) {
-      RESULT_ERROR(result->mutable_result(),
-                   "Requested table %s is not in database.",
-                   table_name.c_str());
-      result->clear_tables();
-      break;
-    } else {
-      // Add table descriptor to result
-      const TableMetadata& table_meta = table_metas_->at(table_name);
-      proto::TableDescriptor& descriptor = table_meta.get_descriptor();
-      proto::TableDescriptor* desc = result->add_tables();
-      desc->CopyFrom(descriptor);
-    }
   }
 
   return grpc::Status::OK;

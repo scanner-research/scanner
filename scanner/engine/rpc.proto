@@ -13,6 +13,7 @@ service Master {
   // Delete table in the database
   rpc DeleteTables (DeleteTablesParams) returns (Empty) {}
   rpc NewTable (NewTableParams) returns (Empty) {}
+  rpc GetVideoMetadata (GetVideoMetadataParams) returns (GetVideoMetadataResult) {}
 
   /// Worker registration methods
   // Called after a new worker spawns to register with the master
@@ -79,12 +80,18 @@ message GetTablesParams {
   repeated string tables = 1;
 }
 
+message GetVideoMetadataParams {
+  repeated string tables = 1;
+}
+
+message GetVideoMetadataResult {
+  repeated VideoDescriptor videos = 1;
+}
+
 message GetTablesResult {
   Result result = 1;
   repeated TableDescriptor tables = 2;
-  repeated VideoDescriptor videos = 3;
 }
-
 
 message DeleteTablesParams {
   repeated string tables = 1;
