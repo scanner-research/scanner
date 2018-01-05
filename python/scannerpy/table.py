@@ -28,9 +28,7 @@ class Table:
 
     def _need_descriptor(self):
         if self._descriptor is None:
-            self._descriptor = self._db._load_descriptor(
-                self._db.protobufs.TableDescriptor,
-                'tables/{}/descriptor.bin'.format(self._id))
+            self._descriptor = self._db._load_table_metadata([self._name])[0]
 
     def _load_column(self, name):
         if not self.committed():

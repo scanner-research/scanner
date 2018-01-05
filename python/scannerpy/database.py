@@ -260,6 +260,20 @@ class Database(object):
             ('{}/{}'.format(self._db_path, path)).encode('ascii'),
             descriptor.SerializeToString())
 
+    def _load_table_metadata(self, table_names):
+        NUM_TABLES_TO_READ = 10000
+        for i in range(0, len(table_names), NUM_TABLES_TO_READ):
+            get_tables_params = self.protobufs.GetTablesParams()
+            for table_name in table_names[i:i+NUM_TABLES_TO_READ]:
+                get_tables_params.tables.append(table_name)
+            get_tables_result = self._try_rpc(lambda: self._master.GetTables(
+                get_tables_params))
+            if not get_tables_result.result.success:
+                raise ScannerException(
+                    'Internal error: GetTables returned error: {}'.format(
+                        get_tables_result.result.msg))
+            return get_tables_result.tables
+
     def _load_db_metadata(self):
         if self._cached_db_metadata is None:
             desc = self._load_descriptor(
@@ -281,20 +295,10 @@ class Database(object):
             if self._prefetch_table_metadata:
                 self._table_descriptor = {}
                 # Read all table descriptors from database
-                NUM_TABLES_TO_READ = 10000
                 table_names = self._table_name.keys()
-                for i in range(0, len(table_names), NUM_TABLES_TO_READ):
-                    get_tables_params = self.protobufs.GetTablesParams()
-                    for table_name in table_names[i:i+NUM_TABLES_TO_READ]:
-                        get_tables_params.tables.append(table_name)
-                    get_tables_result = self._try_rpc(lambda: self._master.GetTables(
-                        get_tables_params))
-                    if not get_tables_result.result.success:
-                        raise ScannerException(
-                            'Internal error: GetTables returned error: {}'.format(
-                                get_tables_result.result.msg))
-                    for table in get_tables_result.tables:
-                        self._table_descriptor[table.id] = table
+                tables = self._load_table_metadata(table_names)
+                for table in tables:
+                    self._table_descriptor[table.id] = table
 
         return self._cached_db_metadata
 
