@@ -861,7 +861,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       required_tables.push_back(input.table_name());
     }
   }
-  table_meta.prefetch(required_tables);
+  // table_meta.prefetch(required_tables);
 
   DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);

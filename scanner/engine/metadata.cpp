@@ -459,5 +459,93 @@ void set_database_path(std::string path) {
   get_database_path_ref() = path + "/";
   std::atomic_thread_fence(std::memory_order_release);
 }
+
+void write_table_megafile(
+    storehouse::StorageBackend* storage,
+    const std::map<i32, TableMetadata>& table_metadata) {
+  std::unique_ptr<WriteFile> output_file;
+  BACKOFF_FAIL(make_unique_write_file(storage, table_megafile_path(),
+                                      output_file));
+  // Get all table descriptor sizes and write them
+  std::vector<i32> ids;
+  for (const auto& kv : table_metadata) {
+    ids.push_back(kv.first);
+  }
+  std::sort(ids.begin(), ids.end());
+  std::vector<size_t> sizes;
+  for (i32 id : ids) {
+    const auto& td = table_metadata.at(id).get_descriptor();
+    size_t size = td.ByteSizeLong();
+    sizes.push_back(size);
+  }
+  // Write out # table entries
+  s_write(output_file.get(), (size_t)ids.size());
+
+  // Write out ids and sizes
+  s_write(output_file.get(), (u8*)ids.data(), ids.size() * sizeof(i32));
+  s_write(output_file.get(), (u8*)sizes.data(), sizes.size() * sizeof(size_t));
+  // Write all table descriptors
+  size_t BATCH_SIZE = 10000;
+  for (size_t b = 0; b < ids.size(); b += BATCH_SIZE) {
+    size_t max_i = std::min(b + BATCH_SIZE, ids.size());
+
+    size_t total_size = 0;
+    for (size_t i = b; i < max_i; ++i) {
+      total_size += sizes[i];
+    }
+    std::vector<u8> data(total_size);
+    size_t offset = 0;
+    for (size_t i = b; i < max_i; ++i) {
+      i32 id = ids[i];
+      const auto& td = table_metadata.at(id).get_descriptor();
+      td.SerializeToArray(data.data() + offset, sizes[i]);
+      offset += sizes[i];
+    }
+    s_write(output_file.get(), data.data(), total_size);
+  }
+}
+
+void read_table_megafile(storehouse::StorageBackend* storage,
+                         std::map<i32, TableMetadata>& table_metadata) {
+  std::unique_ptr<RandomReadFile> file;
+  BACKOFF_FAIL(make_unique_random_read_file(storage,
+                                            table_megafile_path(), file));
+
+  u64 file_size = 0;
+  BACKOFF_FAIL(file->get_size(file_size));
+  u64 pos = 0;
+
+  // Read # entires
+  size_t num_entries = s_read<size_t>(file.get(), pos);
+  // Read ids
+  std::vector<i32> ids(num_entries);
+  s_read(file.get(), (u8*)ids.data(), num_entries * sizeof(i32), pos);
+  // Read sizes
+  std::vector<size_t> sizes(num_entries);
+  s_read(file.get(), (u8*)sizes.data(), num_entries * sizeof(size_t), pos);
+
+  // Read all table descriptors
+  size_t BATCH_SIZE = 10000;
+  for (size_t b = 0; b < ids.size(); b += BATCH_SIZE) {
+    size_t max_i = std::min(b + BATCH_SIZE, ids.size());
+
+    size_t total_size = 0;
+    for (size_t i = b; i < max_i; ++i) {
+      total_size += sizes[i];
+    }
+    std::vector<u8> data(total_size);
+    s_read(file.get(), data.data(), total_size, pos);
+
+    size_t offset = 0;
+    for (size_t i = b; i < max_i; ++i) {
+      i32 id = ids[i];
+      proto::TableDescriptor td;
+      td.ParseFromArray(data.data() + offset, sizes[i]);
+      table_metadata[id] = TableMetadata(td);
+      offset += sizes[i];
+    }
+  }
+}
+
 }
 }

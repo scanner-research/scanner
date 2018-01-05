@@ -358,7 +358,10 @@ class Database(object):
                 options=[('grpc.max_message_length', 24499183 * 2)])
             master = grpc_types.MasterStub(channel)
             while q.empty():
-                master.PokeWatchdog(rpc_types.Empty())
+                try:
+                    master.PokeWatchdog(rpc_types.Empty())
+                except grpc.RpcError as e:
+                    pass
                 time.sleep(1)
 
         self._heartbeat_queue = Queue()

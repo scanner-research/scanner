@@ -19,11 +19,21 @@
 namespace scanner {
 namespace internal {
 
-static const i32 NUM_PREFETCH_THREADS = 64;
+static const i32 NUM_PREFETCH_THREADS = 16;
 
 TableMetaCache::TableMetaCache(storehouse::StorageBackend* storage,
                                const DatabaseMetadata& meta)
-  : storage_(storage), meta_(meta) {}
+  : storage_(storage), meta_(meta) {
+  // Read table megafile
+
+  std::string megafile_path = table_megafile_path();
+  storehouse::FileInfo info;
+  storehouse::StoreResult result;
+  EXP_BACKOFF(storage_->get_file_info(megafile_path, info), result);
+  if (result == storehouse::StoreResult::Success) {
+    read_table_megafile(storage, cache_);
+  }
+}
 
 const TableMetadata& TableMetaCache::at(const std::string& table_name) const {
   i32 table_id = meta_.get_table_id(table_name);
@@ -46,16 +56,22 @@ bool TableMetaCache::exists(i32 table_id) const {
   return meta_.has_table(table_id);
 }
 
+bool TableMetaCache::has(const std::string& table_name) const {
+  i32 table_id = meta_.get_table_id(table_name);
+  return cache_.count(table_id) > 0;
+}
+
 void TableMetaCache::update(const TableMetadata& meta) {
   std::lock_guard<std::mutex> lock(lock_);
   i32 table_id = meta_.get_table_id(meta.name());
   cache_[table_id] = meta;
 }
 
-void TableMetaCache::prefetch(const std::vector<std::string> table_names) {
+void TableMetaCache::prefetch(const std::vector<std::string>& table_names) {
   VLOG(1) << "Prefetching table metadata";
   auto load_table_meta = [&](const std::string& table_name) {
-    std::string table_path = TableMetadata::descriptor_path(meta_.get_table_id(table_name));
+    std::string table_path =
+        TableMetadata::descriptor_path(meta_.get_table_id(table_name));
     update(read_table_metadata(storage_, table_path));
   };
 
@@ -72,6 +88,10 @@ void TableMetaCache::prefetch(const std::vector<std::string> table_names) {
   }
 
   VLOG(1) << "Prefetch complete.";
+}
+
+void TableMetaCache::write_megafile() {
+  write_table_megafile(storage_, cache_);
 }
 
 

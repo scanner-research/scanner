@@ -38,6 +38,10 @@ inline std::string database_metadata_path() {
   return get_database_path() + "db_metadata.bin";
 }
 
+inline std::string table_megafile_path() {
+  return get_database_path() + "table_megafile.bin";
+}
+
 inline std::string table_directory(i32 table_id) {
   return get_database_path() + "tables/" + std::to_string(table_id);
 }
@@ -305,6 +309,14 @@ constexpr WriteFn<DatabaseMetadata> write_database_metadata =
     write_db_proto<DatabaseMetadata>;
 constexpr ReadFn<DatabaseMetadata> read_database_metadata =
     read_db_proto<DatabaseMetadata>;
+
+void write_table_megafile(
+    storehouse::StorageBackend* storage,
+    const std::map<i32, TableMetadata>& table_metadata);
+
+void read_table_megafile(
+    storehouse::StorageBackend* storage,
+    std::map<i32, TableMetadata>& table_metadata);
 
 constexpr WriteFn<BulkJobMetadata> write_bulk_job_metadata =
     write_db_proto<BulkJobMetadata>;
