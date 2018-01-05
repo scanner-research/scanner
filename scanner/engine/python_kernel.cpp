@@ -106,6 +106,7 @@ PythonKernel::~PythonKernel() {
 }
 
 void PythonKernel::reset() {
+  PyGILState_STATE gstate = PyGILState_Ensure();
   try {
     py::object main = py::import("__main__");
     py::object kernel = main.attr("kernel");
@@ -113,6 +114,7 @@ void PythonKernel::reset() {
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }
+  PyGILState_Release(gstate);
 }
 
 void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
