@@ -361,7 +361,7 @@ grpc::Status MasterImpl::IngestVideos(grpc::ServerContext* context,
 grpc::Status MasterImpl::GetJobStatus(grpc::ServerContext* context,
                                       const proto::Empty* empty,
                                       proto::JobStatus* job_status) {
-  VLOG(2) << "Master received GetJobStatus command";
+  VLOG(3) << "Master received GetJobStatus command";
   std::unique_lock<std::mutex> lock(active_mutex_);
   if (!active_bulk_job_) {
     job_status->set_finished(true);
