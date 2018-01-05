@@ -247,9 +247,12 @@ class Database(object):
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
-        d.ParseFromString(
-            self._storage.read(
-                ('{}/{}'.format(self._db_path, path)).encode('ascii')))
+        path = '{}/{}'.format(self._db_path, path)
+        try:
+            d.ParseFromString(
+                self._storage.read(path.encode('ascii')))
+        except UserWarning:
+            raise ScannerException('Internal error. Missing file {}'.format(path))
         return d
 
     def _save_descriptor(self, descriptor, path):
