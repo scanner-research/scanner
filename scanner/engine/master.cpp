@@ -138,7 +138,7 @@ grpc::Status MasterImpl::GetTables(grpc::ServerContext* context,
     }
   };
 
-  ThreadPool prefetch_pool(64);
+  ThreadPool prefetch_pool(16);
   std::vector<std::future<void>> futures;
   for (i32 i = 0; i < params->tables().size(); ++i) {
     futures.emplace_back(prefetch_pool.enqueue(load_video_meta, i));
