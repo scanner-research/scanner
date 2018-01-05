@@ -18,5 +18,8 @@ class Kernel(object):
     def close(self):
         pass
 
+    def reset(self):
+        pass
+
     def execute(self, input_columns):
         pass
