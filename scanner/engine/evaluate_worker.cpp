@@ -733,6 +733,18 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       i64 row_start = kernel_element_cache_input_idx;
       i64 row_end = row_start + producible_elements;
 
+      // First build mapping from row number to element in the cache
+      auto& cache_row_deque = kernel_cache_row_ids[0];
+      std::vector<std::unordered_map<i32, Element>> cache_row_maps;
+      for (size_t i = 0; i < input_column_idx.size(); ++i) {
+        cache_row_maps.emplace_back();
+        auto& row_map = cache_row_maps[i];
+        auto& cache_deque = kernel_cache[i];
+        for (size_t j = 0; j < cache_row_deque.size(); ++j) {
+          row_map[cache_row_deque[j]] = cache_deque[j];
+        }
+      }
+
       for (i32 start = row_start; start < row_end; start += kernel_batch_size) {
         i32 batch = std::min((i64)kernel_batch_size, row_end - start);
         i32 end = start + batch;
@@ -743,9 +755,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         // input row ids for each column should be the same since all inputs
         // must have the same domain
         auto stencil_create_start = now();
-        auto& cache_row_deque = kernel_cache_row_ids[0];
         for (size_t i = 0; i < input_column_idx.size(); ++i) {
-          auto& cache_deque = kernel_cache[i];
+          auto& cache_row_map = cache_row_maps[i];
           auto& col = input_columns[i];
           col.resize(batch);
           // For each batch element
@@ -756,18 +767,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
             i64 curr_row = kernel_compute_rows[r];
             for (i64 s : kernel_stencil) {
               i64 desired_row = curr_row + s;
-              // Search for desired stencil element
-              bool found = false;
-              for (; last_cache_element < cache_row_deque.size();
-                   ++last_cache_element) {
-                i64 cache_row_id = cache_row_deque[last_cache_element];
-                if (desired_row == cache_row_id) {
-                  input_stencil.push_back(cache_deque[last_cache_element]);
-                  found = true;
-                  break;
-                }
-              }
-              assert(found);
+              input_stencil.push_back(cache_row_map[desired_row]);
             }
             assert(input_stencil.size() == kernel_stencil.size());
           }

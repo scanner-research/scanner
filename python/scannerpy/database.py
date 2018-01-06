@@ -262,6 +262,7 @@ class Database(object):
 
     def _load_table_metadata(self, table_names):
         NUM_TABLES_TO_READ = 10000
+        tables = []
         for i in range(0, len(table_names), NUM_TABLES_TO_READ):
             get_tables_params = self.protobufs.GetTablesParams()
             for table_name in table_names[i:i+NUM_TABLES_TO_READ]:
@@ -272,7 +273,8 @@ class Database(object):
                 raise ScannerException(
                     'Internal error: GetTables returned error: {}'.format(
                         get_tables_result.result.msg))
-            return get_tables_result.tables
+            tables.extend(get_tables_result.tables)
+        return tables
 
     def _load_db_metadata(self):
         if self._cached_db_metadata is None:
