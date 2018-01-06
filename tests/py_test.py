@@ -64,42 +64,57 @@ def test_examples():
         run_py(e)
 
 
-@pytest.fixture(scope="module")
-def db():
-    # Create new config
+def make_config(master_port=None, worker_port=None):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         cfg = Config.default_config()
         cfg['network']['master'] = 'localhost'
         cfg['storage']['db_path'] = tempfile.mkdtemp()
+        if master_port is not None:
+            cfg['network']['master_port'] = master_port
+        if worker_port is not None:
+            cfg['network']['worker_port'] = worker_port
         f.write(toml.dumps(cfg))
         cfg_path = f.name
+    return cfg_path
+
+
+def download_videos():
+    # Download video from GCS
+    url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+        host = socket.gethostname()
+        # HACK: special proxy case for Ocean cluster
+        if host in ['ocean', 'crissy', 'pismo', 'stinson']:
+            resp = requests.get(
+                url,
+                stream=True,
+                proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
+        else:
+            resp = requests.get(url, stream=True)
+        assert resp.ok
+        for block in resp.iter_content(1024):
+            f.write(block)
+        vid1_path = f.name
+
+    # Make a second one shorter than the first
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
+        vid2_path = f.name
+    run([
+        'ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t', '00:00:10',
+        '-c:v', 'libx264', '-strict', '-2', vid2_path
+    ])
+
+    return (vid1_path, vid2_path)
+
+
+@pytest.fixture(scope="module")
+def db():
+    # Create new config
+    cfg_path = make_config()
 
     # Setup and ingest video
     with Database(config_path=cfg_path, debug=True) as db:
-        # Download video from GCS
-        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            host = socket.gethostname()
-            # HACK: special proxy case for Ocean cluster
-            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
-                resp = requests.get(
-                    url,
-                    stream=True,
-                    proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
-            else:
-                resp = requests.get(url, stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            vid1_path = f.name
-
-        # Make a second one shorter than the first
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            vid2_path = f.name
-        run([
-            'ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
-            '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path
-        ])
+        (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
@@ -500,42 +515,11 @@ def test_save_mp4(db):
 @pytest.fixture()
 def no_workers_db():
     # Create new config
-    #with tempfile.NamedTemporaryFile(delete=False) as f:
-    with open('/tmp/config_test', 'w') as f:
-        cfg = Config.default_config()
-        cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master'] = 'localhost'
-        cfg['network']['master_port'] = '5020'
-        cfg['network']['worker_port'] = '5021'
-        f.write(toml.dumps(cfg))
-        cfg_path = f.name
+    cfg_path = make_config(master_port='5020', worker_port='5021')
 
     # Setup and ingest video
     with Database(debug=True, workers=[], config_path=cfg_path) as db:
-        # Download video from GCS
-        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            host = socket.gethostname()
-            # HACK: special proxy case for Ocean cluster
-            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
-                resp = requests.get(
-                    url,
-                    stream=True,
-                    proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
-            else:
-                resp = requests.get(url, stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            vid1_path = f.name
-
-        # Make a second one shorter than the first
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            vid2_path = f.name
-        run([
-            'ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
-            '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path
-        ])
+        (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
@@ -573,44 +557,14 @@ def test_no_workers(no_workers_db):
 @pytest.fixture()
 def fault_db():
     # Create new config
-    #with tempfile.NamedTemporaryFile(delete=False) as f:
-    with open('/tmp/config_test', 'w') as f:
-        cfg = Config.default_config()
-        cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master'] = 'localhost'
-        cfg['network']['master_port'] = '5010'
-        cfg['network']['worker_port'] = '5011'
-        f.write(toml.dumps(cfg))
-        cfg_path = f.name
+    cfg_path = make_config(master_port='5010', worker_port='5011')
 
     # Setup and ingest video
-    with Database(master='localhost:5010',
-                  workers=[],
-                  config_path=cfg_path, no_workers_timeout=120) as db:
-        # Download video from GCS
-        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            host = socket.gethostname()
-            # HACK: special proxy case for Ocean cluster
-            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
-                resp = requests.get(
-                    url,
-                    stream=True,
-                    proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
-            else:
-                resp = requests.get(url, stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            vid1_path = f.name
-
-        # Make a second one shorter than the first
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            vid2_path = f.name
-        run([
-            'ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
-            '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path
-        ])
+    with Database(
+            master='localhost:5010',
+            workers=[],
+            config_path=cfg_path,
+            no_workers_timeout=120) as db:
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
@@ -764,8 +718,7 @@ def test_fault_tolerance(fault_db):
 
     master_addr = fault_db._master_address
     killer_process = Process(
-        target=worker_killer_task,
-        args=(fault_db.config, master_addr))
+        target=worker_killer_task, args=(fault_db.config, master_addr))
     killer_process.daemon = True
     killer_process.start()
 
@@ -807,62 +760,36 @@ def test_fault_tolerance(fault_db):
                                    .format(status))
     killer_process.join()
 
+
 @pytest.fixture()
 def blacklist_db():
     # Create new config
-    #with tempfile.NamedTemporaryFile(delete=False) as f:
-    with open('/tmp/config_test', 'w') as f:
-        cfg = Config.default_config()
-        cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master'] = 'localhost'
-        cfg['network']['master_port'] = '5055'
-        cfg['network']['worker_port'] = '5060'
-        f.write(toml.dumps(cfg))
-        cfg_path = f.name
+    cfg_path = make_config(master_port='5055', worker_port='5060')
 
     # Setup and ingest video
     master = 'localhost:5055'
     workers = ['localhost:{:04d}'.format(5060 + d) for d in range(4)]
-    with Database(config_path=cfg_path, no_workers_timeout=120,
-                  master=master, workers=workers) as db:
-        # Download video from GCS
-        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            host = socket.gethostname()
-            # HACK: special proxy case for Ocean cluster
-            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
-                resp = requests.get(url, stream=True, proxies={
-                    'https': 'http://proxy.pdl.cmu.edu:3128/'
-                })
-            else:
-                resp = requests.get(url, stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            vid1_path = f.name
-
-        # Make a second one shorter than the first
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            vid2_path = f.name
-        run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
-             '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path])
+    with Database(
+            config_path=cfg_path,
+            no_workers_timeout=120,
+            master=master,
+            workers=workers) as db:
+        (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield db
 
         # Tear down
-        run(['rm', '-rf',
-            cfg['storage']['db_path'],
-            cfg_path,
-            vid1_path,
-            vid2_path])
+        run([
+            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
+            vid2_path
+        ])
+
 
 def test_job_blacklist(blacklist_db):
     db = blacklist_db
-    db.register_op('TestPyFail',
-                   [('frame', ColumnType.Video)],
-                   ['dummy'])
+    db.register_op('TestPyFail', [('frame', ColumnType.Video)], ['dummy'])
     db.register_python_kernel('TestPyFail', DeviceType.CPU,
                               cwd + '/test_py_fail_kernel.py')
 
@@ -871,16 +798,17 @@ def test_job_blacklist(blacklist_db):
     failed_output = db.ops.TestPyFail(frame=range_frame)
     output_op = db.ops.Output(columns=[failed_output])
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 1),
-            output_op: 'test_py_fail'
-        }
-    )
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        range_frame: db.sampler.range(0, 1),
+        output_op: 'test_py_fail'
+    })
     bulk_job = BulkJob(output=output_op, jobs=[job])
-    tables = db.run(bulk_job, force=True, show_progress=False,
-                    pipeline_instances_per_node=1)
+    tables = db.run(
+        bulk_job,
+        force=True,
+        show_progress=False,
+        pipeline_instances_per_node=1)
     table = tables[0]
     assert table.committed() == False
 
@@ -888,53 +816,27 @@ def test_job_blacklist(blacklist_db):
 @pytest.fixture()
 def timeout_db():
     # Create new config
-    #with tempfile.NamedTemporaryFile(delete=False) as f:
-    with open('/tmp/config_test', 'w') as f:
-        cfg = Config.default_config()
-        cfg['storage']['db_path'] = tempfile.mkdtemp()
-        cfg['network']['master'] = 'localhost'
-        cfg['network']['master_port'] = '5155'
-        cfg['network']['worker_port'] = '5160'
-        f.write(toml.dumps(cfg))
-        cfg_path = f.name
+    cfg_path = make_config(master_port='5155', worker_port='5160')
 
     # Setup and ingest video
     master = 'localhost:5155'
     workers = ['localhost:{:04d}'.format(5160 + d) for d in range(4)]
-    with Database(config_path=cfg_path, no_workers_timeout=120,
-                  master=master, workers=workers) as db:
-        # Download video from GCS
-        url = "https://storage.googleapis.com/scanner-data/test/short_video.mp4"
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            host = socket.gethostname()
-            # HACK: special proxy case for Ocean cluster
-            if host in ['ocean', 'crissy', 'pismo', 'stinson']:
-                resp = requests.get(url, stream=True, proxies={
-                    'https': 'http://proxy.pdl.cmu.edu:3128/'
-                })
-            else:
-                resp = requests.get(url, stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            vid1_path = f.name
-
-        # Make a second one shorter than the first
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
-            vid2_path = f.name
-        run(['ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t',
-             '00:00:10', '-c:v', 'libx264', '-strict', '-2', vid2_path])
+    with Database(
+            config_path=cfg_path,
+            no_workers_timeout=120,
+            master=master,
+            workers=workers) as db:
+        (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield db
 
         # Tear down
-        run(['rm', '-rf',
-            cfg['storage']['db_path'],
-            cfg_path,
-            vid1_path,
-            vid2_path])
+        run([
+            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
+            vid2_path
+        ])
 
 
 def test_job_timeout(timeout_db):
