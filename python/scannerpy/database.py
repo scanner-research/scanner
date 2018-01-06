@@ -116,7 +116,7 @@ def start_worker(master_address,
                  block=False,
                  watchdog=True,
                  prefetch_table_metadata=True,
-                 process_per_core=False):
+                 num_workers=None):
     """
     Start a worker instance on this node.
 
@@ -137,14 +137,13 @@ def start_worker(master_address,
         A cpp database instance.
     """
 
-    if process_per_core:
-        cores = cpu_count()
-        with ProcessPoolExecutor(max_workers=cores) as executor:
+    if num_workers is not None:
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
             results = list(
                 executor.map(worker_process, (
                     [(master_address, machine_params, int(port) + i, config,
                       config_path, block, watchdog, prefetch_table_metadata)
-                     for i in range(cores)])))
+                     for i in range(num_workers)])))
 
         for result in results:
             if not result.success: return result
@@ -174,7 +173,6 @@ class Database(object):
                  debug=None,
                  start_cluster=True,
                  prefetch_table_metadata=True,
-                 process_per_core=False,
                  no_workers_timeout=30):
         """
         Initializes a Scanner database.
@@ -198,7 +196,6 @@ class Database(object):
 
         self._start_cluster = start_cluster
         self._prefetch_table_metadata = prefetch_table_metadata
-        self._process_per_core = process_per_core
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
         if debug is None:
@@ -516,7 +513,7 @@ class Database(object):
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
                     'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n'
                     + '             block=True,\n' +
-                    '             config=config, process_per_core={process_per_core})\" ' + '')
+                    '             config=config)\" ' + '')
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
 
@@ -547,8 +544,7 @@ class Database(object):
                                 worker_cmd.format(
                                     master=self._master_address,
                                     config=pickled_config,
-                                    worker_port=w.partition(':')[2],
-                                    process_per_core=self._process_per_core),
+                                    worker_port=w.partition(':')[2]),
                                 nohup=True))
                     except:
                         print('WARNING: Failed to ssh into {:s}, ignoring'.
@@ -560,7 +556,7 @@ class Database(object):
                 while slept_so_far < sleep_time:
                     active_workers = self._master.ActiveWorkers(
                         self.protobufs.Empty())
-                    if (len(active_workers.workers) > len(self._worker_conns)) and not self._process_per_core:
+                    if (len(active_workers.workers) > len(self._worker_conns)):
                         raise ScannerException(
                             ('Master has more workers than requested ' +
                              '({:d} vs {:d})').format(
