@@ -208,12 +208,20 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
           insert_frame(output_columns[j], frame);
         }
       } else {
+        std::vector<std::string> outputs;
+        size_t total_size = 0;
         for (i32 i = 0; i < input_count; ++i) {
           std::string field = py::extract<std::string>(batched_out_cols[j][i]);
-          size_t size = field.size();
-          u8* buf = new_buffer(CPU_DEVICE, size);
-          memcpy_buffer(buf, CPU_DEVICE, (u8*)field.data(), CPU_DEVICE, size);
-          insert_element(output_columns[j], buf, size);
+          outputs.push_back(field);
+          total_size += field.size();
+        }
+
+        u8* output_block = new_block_buffer(CPU_DEVICE, total_size, input_count);
+        for (i32 i = 0; i < input_count; ++i) {
+          u8* buf = output_block;
+          memcpy_buffer(buf, CPU_DEVICE, (u8*)outputs[i].data(), CPU_DEVICE, outputs[i].size());
+          insert_element(output_columns[j], buf, outputs[i].size());
+          output_block += outputs[i].size();
         }
       }
     }
