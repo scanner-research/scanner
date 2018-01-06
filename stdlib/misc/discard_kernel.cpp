@@ -13,8 +13,9 @@ class DiscardKernel : public BatchedKernel {
   void execute(const BatchedColumns& input_columns,
                BatchedColumns& output_columns) override {
     i32 input_count = (i32)num_rows(input_columns[0]);
+    u8* output_block = new_block_buffer(device_, input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {
-      insert_element(output_columns[0], new_buffer(device_, 1), 1);
+      insert_element(output_columns[0], output_block + i, 1);
     }
   }
 
@@ -26,9 +27,9 @@ REGISTER_OP(Discard).input("ignore").output("dummy");
 
 REGISTER_OP(DiscardFrame).frame_input("ignore").output("dummy");
 
-REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::CPU).num_devices(1);
+REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::CPU).batch().num_devices(1);
 
-REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::GPU).num_devices(1);
+REGISTER_KERNEL(Discard, DiscardKernel).device(DeviceType::GPU).batch().num_devices(1);
 
 REGISTER_KERNEL(DiscardFrame, DiscardKernel)
     .device(DeviceType::CPU)

@@ -492,19 +492,27 @@ void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
     end_offset += element_sizes[i];
   }
 
+  size_t total_size = 0;
+  for (i32 row : rows) {
+    total_size += static_cast<size_t>(element_sizes[row]);
+  }
+  u8* block_buffer = new_block_buffer(CPU_DEVICE, total_size, rows.size());
+
   // If the requested elements are sufficiently sparse by some threshold, we
   // read each element individually. Otherwise, we read the entire block and
   // copy out only the necessary elements.
   if ((item_end - item_start) / rows.size() >= load_sparsity_threshold_) {
+
     for (i32 row : rows) {
       size_t buffer_size = static_cast<size_t>(element_sizes[row]);
-      u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+      u8* buffer = block_buffer;
       u64 row_offset = pos + start_offset;
       for (i32 i = item_start; i < row; ++i) {
         row_offset += element_sizes[i];
       }
       s_read(file.get(), buffer, buffer_size, row_offset);
       insert_element(element_list, buffer, buffer_size);
+      block_buffer += buffer_size;
     }
   } else {
     pos += start_offset;
@@ -521,10 +529,11 @@ void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
     for (i32 i = item_start; i < item_end; ++i) {
       size_t buffer_size = static_cast<size_t>(element_sizes[i]);
       if (i == valid_offsets[valid_idx]) {
-        u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+        u8* buffer = block_buffer;
         memcpy(buffer, element_data.data() + offset, buffer_size);
         insert_element(element_list, buffer, buffer_size);
         valid_idx++;
+        block_buffer += buffer_size;
       }
       offset += buffer_size;
     }

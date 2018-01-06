@@ -463,6 +463,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   // For each kernel, produce as much output as can be produced given current
   // input rows and stencil cache.
   for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
+    auto op_start = now();
     const std::string& op_name = arg_group_.op_names.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
     const std::vector<DeviceHandle>& current_input_handles =
@@ -508,6 +509,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       auto& row_ids = side_row_ids[in_col_idx];
       ElementList valid_inputs;
       i64& current_input_idx = kernel_current_input_idx[i];
+      auto input_create_start = now();
       for (size_t r = 0; r < row_ids.size(); ++r) {
         assert(current_input_idx >= kernel_valid_input_rows.size() ||
                row_ids[r] <= kernel_valid_input_rows[current_input_idx]);
@@ -523,6 +525,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
           current_input_idx++;
         }
       }
+      profiler_.add_interval("input_create", input_create_start, now());
       if (valid_inputs.size() > 0) {
         auto copy_start = now();
         ElementList list =
@@ -578,6 +581,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     i64 producible_elements = 0;
     i32 num_output_columns = 0;
     std::vector<i32> kernel_stencil;
+
     if (is_builtin_op(op_name)) {
       producible_elements = compute_producible_elements(0, 1);
       num_output_columns = 1;
@@ -636,6 +640,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       }
     }
 
+    auto full_eval_start = now();
     if (op_name == INPUT_OP_NAME) {
       // Should ignore it since we remapped inputs
     } else if (op_name == SAMPLE_OP_NAME) {
@@ -737,6 +742,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         // NOTE(apoms): choosing the first columns row ids is fine because all
         // input row ids for each column should be the same since all inputs
         // must have the same domain
+        auto stencil_create_start = now();
         auto& cache_row_deque = kernel_cache_row_ids[0];
         for (size_t i = 0; i < input_column_idx.size(); ++i) {
           auto& cache_deque = kernel_cache[i];
@@ -766,6 +772,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
             assert(input_stencil.size() == kernel_stencil.size());
           }
         }
+        profiler_.add_interval("stencil_create:" + op_name, stencil_create_start, now());
 
         // Setup output buffers to receive op output
         BatchedColumns output_columns;
@@ -777,6 +784,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         kernel->execute_kernel(input_columns, output_columns);
         profiler_.add_interval("evaluate:" + op_name, eval_start, now());
 
+        auto cleanup_start = now();
         // Delete unused output columns
         auto& unused_outputs = arg_group_.unused_outputs[k];
         for (size_t y = 0; y < unused_outputs.size(); ++y) {
@@ -809,9 +817,12 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
               producible_row_ids.begin() + start - row_start,
               producible_row_ids.begin() + start - row_start + batch);
         }
+        profiler_.add_interval("cleanup:" + op_name, cleanup_start, now());
       }
     }
+    profiler_.add_interval("full_eval:" + op_name, full_eval_start, now());
 
+    auto full_cleanup_start = now();
     i64 row_start = kernel_element_cache_input_idx;
     i64 row_end = row_start + producible_elements;
     // Filter outputs to only the ones that will be used downstream
@@ -901,6 +912,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       side_row_ids.erase(side_row_ids.begin() + dead_col_idx);
     }
     // Delete elements from stencil cache that will no longer be used
+    profiler_.add_interval("full_cleanup:" + op_name, full_cleanup_start, now());
+    profiler_.add_interval("op:" + op_name, op_start, now());
   }
 
   final_output_handles_ = side_output_handles;
