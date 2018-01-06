@@ -783,18 +783,25 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
                                        dest_device, dest_buffers[i]);
   }
 #else
-  size_t total_size = 0;
-  for (auto size : sizes) {
-    total_size += size;
-  }
-
   BlockAllocator* dest_allocator = block_allocator_for_device(dest_device);
-  u8* dest_buff = dest_allocator->allocate(total_size, sizes.size());
-  for (size_t size : sizes) {
-    dest_buffers.push_back(dest_buff);
-    dest_buff += size;
+  if (dest_device.is_same_address_space(src_device)) {
+    for (auto& buf : src_buffers) {
+      dest_buffers.push_back(buf);
+      dest_allocator->add_refs(buf, 1);
+    }
+  } else {
+    size_t total_size = 0;
+    for (auto size : sizes) {
+      total_size += size;
+    }
+
+    u8* dest_buff = dest_allocator->allocate(total_size, sizes.size());
+    for (size_t size : sizes) {
+      dest_buffers.push_back(dest_buff);
+      dest_buff += size;
+    }
+    memcpy_vec(dest_buffers, dest_device, src_buffers, src_device, sizes);
   }
-  memcpy_vec(dest_buffers, dest_device, src_buffers, src_device, sizes);
 #endif
 }
 
