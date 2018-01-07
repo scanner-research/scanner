@@ -44,10 +44,10 @@ SaveWorker::SaveWorker(const SaveWorkerArgs& args)
 
 SaveWorker::~SaveWorker() {
   for (auto& file : output_) {
-    file->save();
+    BACKOFF_FAIL(file->save());
   }
   for (auto& file : output_metadata_) {
-    file->save();
+    BACKOFF_FAIL(file->save());
   }
   for (auto& meta : video_metadata_) {
     write_video_metadata(storage_.get(), meta);
@@ -210,10 +210,10 @@ void SaveWorker::new_task(i32 table_id, i32 task_id,
                           std::vector<ColumnType> column_types) {
   auto io_start = now();
   for (auto& file : output_) {
-    file->save();
+    BACKOFF_FAIL(file->save());
   }
   for (auto& file : output_metadata_) {
-    file->save();
+    BACKOFF_FAIL(file->save());
   }
   for (auto& meta : video_metadata_) {
     write_video_metadata(storage_.get(), meta);
