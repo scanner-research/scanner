@@ -455,7 +455,7 @@ const std::string& get_database_path() {
 }
 
 void set_database_path(std::string path) {
-  VLOG(1) << "Setting DB path to " << path;
+  VLOG(2) << "Setting DB path to " << path;
   get_database_path_ref() = path + "/";
   std::atomic_thread_fence(std::memory_order_release);
 }

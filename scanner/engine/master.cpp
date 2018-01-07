@@ -944,6 +944,7 @@ void MasterImpl::start_job_processor() {
         });
       }
       if (trigger_shutdown_.raised()) break;
+      VLOG(1) << "Job processor signaled, starting process";
       // Start processing job
       bool result = process_job(&job_params_, &job_result_);
     }
@@ -1021,6 +1022,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   i32 total_rows = 0;
 
+  VLOG(1) << "Validating jobs";
   DAGAnalysisInfo dag_info;
   *job_result =
       validate_jobs_and_ops(meta_, *table_metas_.get(), jobs, ops, dag_info);
@@ -1033,6 +1035,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Map all input Ops into a single input collection
   const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.input_ops;
 
+  VLOG(1) << "Finding output columns";
   // Get output columns from last output op to set as output table columns
   OpRegistry* op_registry = get_op_registry();
   auto& last_op = ops.at(ops.size() - 1);
@@ -1120,6 +1123,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     job_descriptor.mutable_jobs()->CopyFrom(jobs);
   }
 
+  VLOG(1) << "Determining input rows to slices";
   // Add job name into database metadata so we can look up what jobs have
   // been run
   i32 bulk_job_id = meta_.add_bulk_job(job_params->job_name());
@@ -1142,6 +1146,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   //  a) align with the natural boundaries defined by the slice partitioner
   //  b) use a user-specified size to chunk up the output sequence
 
+  VLOG(1) << "Building tasks";
   // Job -> task -> rows
   i32 total_tasks_temp = 0;
   for (size_t i = 0; i < jobs.size(); ++i) {
@@ -1201,6 +1206,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Write out database metadata so that workers can read it
   write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
+  VLOG(1) << "Updating db metadata";
   job_uncommitted_tables_.clear();
   {
     for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
