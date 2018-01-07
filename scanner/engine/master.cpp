@@ -460,8 +460,8 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
     if (kv.second) {
       auto& worker = workers_[kv.first];
       proto::Empty empty;
-      grpc::Status status;
-      GRPC_BACKOFF(worker->LoadOp(&ctx, *op_path, &empty), status);
+      grpc::ClientContext ctx;
+      grpc::Status status = worker->LoadOp(&ctx, *op_path, &empty);
       const std::string& worker_address = worker_addresses_[kv.first];
       LOG_IF(WARNING, !status.ok())
           << "Master could not load op for worker at " << worker_address << " ("
@@ -525,6 +525,7 @@ grpc::Status MasterImpl::RegisterOp(
     if (kv.second) {
       auto& worker = workers_[kv.first];
       proto::Result w_result;
+      grpc::ClientContext ctx;
       grpc::Status status = worker->RegisterOp(&ctx, *op_registration, &w_result);
       const std::string& worker_address = worker_addresses_[kv.first];
       LOG_IF(WARNING, !status.ok())
@@ -587,9 +588,8 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     if (kv.second) {
       auto& worker = workers_[kv.first];
       proto::Result w_result;
-      grpc::Status status;
-      GRPC_BACKOFF(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
-                   status);
+      grpc::ClientContext ctx;
+      grpc::Status status = worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
       const std::string& worker_address = worker_addresses_[kv.first];
       LOG_IF(WARNING, !status.ok())
           << "Master could not register python kernel for worker at "
