@@ -64,17 +64,21 @@ def test_examples():
         run_py(e)
 
 
-def make_config(master_port=None, worker_port=None):
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        cfg = Config.default_config()
-        cfg['network']['master'] = 'localhost'
-        cfg['storage']['db_path'] = tempfile.mkdtemp()
-        if master_port is not None:
-            cfg['network']['master_port'] = master_port
-        if worker_port is not None:
-            cfg['network']['worker_port'] = worker_port
-        f.write(toml.dumps(cfg))
-        cfg_path = f.name
+def make_config(master_port=None, worker_port=None, path=None):
+    cfg = Config.default_config()
+    cfg['network']['master'] = 'localhost'
+    cfg['storage']['db_path'] = tempfile.mkdtemp()
+    if master_port is not None:
+        cfg['network']['master_port'] = master_port
+    if worker_port is not None:
+        cfg['network']['worker_port'] = worker_port
+
+    if path is not None:
+        cfg_path = path
+    else:
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            cfg_path = f.name
+            f.write(toml.dumps(cfg))
     return (cfg_path, cfg)
 
 
@@ -557,7 +561,7 @@ def test_no_workers(no_workers_db):
 @pytest.fixture()
 def fault_db():
     # Create new config
-    (cfg_path, cfg) = make_config(master_port='5010', worker_port='5011')
+    (cfg_path, cfg) = make_config(master_port='5010', worker_port='5011', path='/tmp/config_test')
 
     # Setup and ingest video
     with Database(
