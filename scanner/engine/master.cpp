@@ -525,9 +525,7 @@ grpc::Status MasterImpl::RegisterOp(
     if (kv.second) {
       auto& worker = workers_[kv.first];
       proto::Result w_result;
-      grpc::Status status;
-      GRPC_BACKOFF(worker->RegisterOp(&ctx, *op_registration, &w_result),
-                   status);
+      grpc::Status status = worker->RegisterOp(&ctx, *op_registration, &w_result);
       const std::string& worker_address = worker_addresses_[kv.first];
       LOG_IF(WARNING, !status.ok())
           << "Master could not load op for worker at " << worker_address << " ("
