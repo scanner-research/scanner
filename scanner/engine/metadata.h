@@ -134,6 +134,7 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
   i32 next_table_id_;
   i32 next_bulk_job_id_;
   std::map<i32, std::string> table_id_names_;
+  std::map<std::string, i32> table_name_ids_;
   std::map<i32, bool> table_committed_;
 
   std::map<i32, std::string> bulk_job_id_names_;

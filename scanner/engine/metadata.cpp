@@ -72,6 +72,7 @@ DatabaseMetadata::DatabaseMetadata(const DatabaseDescriptor& d)
   for (int i = 0; i < descriptor_.tables_size(); ++i) {
     const DatabaseDescriptor::Table& table = descriptor_.tables(i);
     table_id_names_.insert({table.id(), table.name()});
+    table_name_ids_.insert({table.name(), table.id()});
     table_committed_.insert({table.id(), table.committed()});
   }
   for (int i = 0; i < descriptor_.bulk_jobs_size(); ++i) {
@@ -117,12 +118,7 @@ std::vector<std::string> DatabaseMetadata::table_names() const {
 }
 
 bool DatabaseMetadata::has_table(const std::string& table) const {
-  for (const auto& kv : table_id_names_) {
-    if (kv.second == table) {
-      return true;
-    }
-  }
-  return false;
+  return table_name_ids_.count(table) > 0;
 }
 
 bool DatabaseMetadata::has_table(i32 table_id) const {
@@ -130,15 +126,11 @@ bool DatabaseMetadata::has_table(i32 table_id) const {
 }
 
 i32 DatabaseMetadata::get_table_id(const std::string& table) const {
-  i32 id = -1;
-  for (const auto& kv : table_id_names_) {
-    if (kv.second == table) {
-      id = kv.first;
-      break;
-    }
+  if (!has_table(table)) {
+    LOG(WARNING) << "Table " << table << " does not exist.";
+    return -1;
   }
-  LOG_IF(WARNING, id == -1) << "Table " << table << " does not exist.";
-  return id;
+  return table_name_ids_.at(table);
 }
 
 const std::string& DatabaseMetadata::get_table_name(i32 table_id) const {
@@ -150,6 +142,7 @@ i32 DatabaseMetadata::add_table(const std::string& table) {
   if (!has_table(table)) {
     table_id = next_table_id_++;
     table_id_names_[table_id] = table;
+    table_name_ids_[table] = table_id;
     table_committed_[table_id] = false;
   }
   return table_id;
@@ -167,6 +160,7 @@ bool DatabaseMetadata::table_is_committed(i32 table_id) const {
 
 void DatabaseMetadata::remove_table(i32 table_id) {
   assert(table_id_names_.count(table_id) > 0);
+  table_name_ids_.erase(table_id_names_[table_id]);
   table_id_names_.erase(table_id);
 }
 
