@@ -73,8 +73,11 @@ def make_config(master_port=None, worker_port=None, path=None):
     if worker_port is not None:
         cfg['network']['worker_port'] = worker_port
 
+
     if path is not None:
-        cfg_path = path
+        with open(path, 'w') as f:
+            cfg_path = path
+            f.write(toml.dumps(cfg))
     else:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             cfg_path = f.name
