@@ -565,6 +565,7 @@ def fault_db():
             workers=[],
             config_path=cfg_path,
             no_workers_timeout=120) as db:
+        (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
