@@ -75,7 +75,7 @@ def make_config(master_port=None, worker_port=None):
             cfg['network']['worker_port'] = worker_port
         f.write(toml.dumps(cfg))
         cfg_path = f.name
-    return cfg_path
+    return (cfg_path, cfg)
 
 
 def download_videos():
@@ -110,7 +110,7 @@ def download_videos():
 @pytest.fixture(scope="module")
 def db():
     # Create new config
-    cfg_path = make_config()
+    (cfg_path, cfg) = make_config()
 
     # Setup and ingest video
     with Database(config_path=cfg_path, debug=True) as db:
@@ -515,7 +515,7 @@ def test_save_mp4(db):
 @pytest.fixture()
 def no_workers_db():
     # Create new config
-    cfg_path = make_config(master_port='5020', worker_port='5021')
+    (cfg_path, cfg) = make_config(master_port='5020', worker_port='5021')
 
     # Setup and ingest video
     with Database(debug=True, workers=[], config_path=cfg_path) as db:
@@ -557,7 +557,7 @@ def test_no_workers(no_workers_db):
 @pytest.fixture()
 def fault_db():
     # Create new config
-    cfg_path = make_config(master_port='5010', worker_port='5011')
+    (cfg_path, cfg) = make_config(master_port='5010', worker_port='5011')
 
     # Setup and ingest video
     with Database(
@@ -764,7 +764,7 @@ def test_fault_tolerance(fault_db):
 @pytest.fixture()
 def blacklist_db():
     # Create new config
-    cfg_path = make_config(master_port='5055', worker_port='5060')
+    (cfg_path, cfg) = make_config(master_port='5055', worker_port='5060')
 
     # Setup and ingest video
     master = 'localhost:5055'
@@ -816,7 +816,7 @@ def test_job_blacklist(blacklist_db):
 @pytest.fixture()
 def timeout_db():
     # Create new config
-    cfg_path = make_config(master_port='5155', worker_port='5160')
+    (cfg_path, cfg) = make_config(master_port='5155', worker_port='5160')
 
     # Setup and ingest video
     master = 'localhost:5155'
