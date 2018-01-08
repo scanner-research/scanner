@@ -807,11 +807,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   job_result->set_success(true);
   auto finished_fn = [&]() {
     {
-      proto::FinishedJobParams node_info;
-      node_info.set_node_id(node_id_);
+      proto::FinishedJobParams params;
+      params.set_node_id(node_id_);
+      params.mutable_result()->CopyFrom(job_result_);
       proto::Empty empty;
       grpc::Status status;
-      GRPC_BACKOFF(master_->FinishedJob(&ctx, node_info, &empty), status);
+      GRPC_BACKOFF(master_->FinishedJob(&ctx, params, &empty), status);
       LOG_IF(FATAL, !status.ok())
           << "Worker could not send FinishedJob to master ("
           << status.error_code() << "): " << status.error_message() << ". "
