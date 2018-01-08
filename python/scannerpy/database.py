@@ -330,7 +330,7 @@ class Database(object):
                 if table.name in self._table_name:
                     raise ScannerException(
                         'Internal error: multiple tables with same name: {}'.
-                        format(name))
+                        format(table.name))
                 self._table_id[table.id] = i
                 self._table_name[table.name] = i
                 self._table_committed[table.id] = table.committed
