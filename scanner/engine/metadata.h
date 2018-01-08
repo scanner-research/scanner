@@ -133,12 +133,12 @@ class DatabaseMetadata : public Metadata<proto::DatabaseDescriptor> {
  private:
   i32 next_table_id_;
   i32 next_bulk_job_id_;
-  std::map<i32, std::string> table_id_names_;
-  std::map<std::string, i32> table_name_ids_;
-  std::map<i32, bool> table_committed_;
+  std::unordered_map<i32, std::string> table_id_names_;
+  std::unordered_map<std::string, i32> table_name_ids_;
+  std::unordered_map<i32, bool> table_committed_;
 
-  std::map<i32, std::string> bulk_job_id_names_;
-  std::map<i32, bool> bulk_job_committed_;
+  std::unordered_map<i32, std::string> bulk_job_id_names_;
+  std::unordered_map<i32, bool> bulk_job_committed_;
 };
 
 class VideoMetadata : public Metadata<proto::VideoDescriptor> {
@@ -215,9 +215,9 @@ class BulkJobMetadata : public Metadata<proto::BulkJobDescriptor> {
 
  private:
   std::vector<Column> columns_;
-  std::map<std::string, i32> column_ids_;
+  std::unordered_map<std::string, i32> column_ids_;
   std::vector<std::string> table_names_;
-  mutable std::map<std::string, i64> rows_in_table_;
+  mutable std::unordered_map<std::string, i64> rows_in_table_;
 };
 
 class TableMetadata : public Metadata<proto::TableDescriptor> {
@@ -313,11 +313,11 @@ constexpr ReadFn<DatabaseMetadata> read_database_metadata =
 
 void write_table_megafile(
     storehouse::StorageBackend* storage,
-    const std::map<i32, TableMetadata>& table_metadata);
+    const std::unordered_map<i32, TableMetadata>& table_metadata);
 
 void read_table_megafile(
     storehouse::StorageBackend* storage,
-    std::map<i32, TableMetadata>& table_metadata);
+    std::unordered_map<i32, TableMetadata>& table_metadata);
 
 constexpr WriteFn<BulkJobMetadata> write_bulk_job_metadata =
     write_db_proto<BulkJobMetadata>;

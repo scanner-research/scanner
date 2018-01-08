@@ -456,7 +456,7 @@ void set_database_path(std::string path) {
 
 void write_table_megafile(
     storehouse::StorageBackend* storage,
-    const std::map<i32, TableMetadata>& table_metadata) {
+    const std::unordered_map<i32, TableMetadata>& table_metadata) {
   std::unique_ptr<WriteFile> output_file;
   BACKOFF_FAIL(make_unique_write_file(storage, table_megafile_path(),
                                       output_file));
@@ -500,7 +500,7 @@ void write_table_megafile(
 }
 
 void read_table_megafile(storehouse::StorageBackend* storage,
-                         std::map<i32, TableMetadata>& table_metadata) {
+                         std::unordered_map<i32, TableMetadata>& table_metadata) {
   std::unique_ptr<RandomReadFile> file;
   BACKOFF_FAIL(make_unique_random_read_file(storage,
                                             table_megafile_path(), file));
