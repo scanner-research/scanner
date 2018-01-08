@@ -13,6 +13,7 @@ class KernelConfig(object):
 
 class Kernel(object):
     def __init__(self, config, protobufs):
+        self.config = config
         self.protobufs = protobufs
 
     def close(self):
@@ -22,4 +23,4 @@ class Kernel(object):
         pass
 
     def execute(self, input_columns):
-        pass
+        raise NotImplementedError
