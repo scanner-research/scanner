@@ -345,9 +345,15 @@ class Database(object):
 
         return self._cached_db_metadata
 
+    def _make_grpc_channel(self, address):
+        max_message_length = 1024 * 1024 * 1024
+        return grpc.insecure_channel(
+            address, options=[
+                ('grpc.max_send_message_length', max_message_length),
+                ('grpc.max_receive_message_length', max_message_length)])
+
     def _connect_to_worker(self, address):
-        channel = grpc.insecure_channel(
-            address, options=[('grpc.max_message_length', 1024*1024*1024)])
+        channel = self._make_grpc_channel(address)
         worker = self.protobufs.WorkerStub(channel)
         try:
             self._master.Ping(self.protobufs.Empty())
@@ -362,9 +368,7 @@ class Database(object):
         return None
 
     def _connect_to_master(self):
-        channel = grpc.insecure_channel(
-            self._master_address,
-            options=[('grpc.max_message_length', 1024*1024*1024)])
+        channel = self._make_grpc_channel(self._master_address)
         self._master = self.protobufs.MasterStub(channel)
         result = False
         try:
@@ -398,9 +402,7 @@ class Database(object):
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
         def heartbeat_task(q, master_address):
-            channel = grpc.insecure_channel(
-                master_address,
-                options=[('grpc.max_message_length', 1024*1024*1024)])
+            channel = self._make_grpc_channel(master_address)
             master = grpc_types.MasterStub(channel)
             while q.empty():
                 try:
