@@ -31,6 +31,8 @@
 namespace scanner {
 namespace internal {
 
+static const GRPC_THREADS = 64;
+
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params) {
   VLOG(1) << "Creating master...";
@@ -292,7 +294,8 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
     proto::Empty empty;
     op_path.set_path(so_path);
     grpc::Status status;
-    GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status, 4);
+    //GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status, 4);
+    status = workers_[node_id]->LoadOp(&ctx, op_path, &empty);
     LOG_IF(WARNING, !status.ok())
         << "Master could not load op for worker at " << worker_address << " ("
         << status.error_code() << "): " << status.error_message();
@@ -457,13 +460,14 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   }
   so_paths_.push_back(so_path);
 
-  ThreadPool pool(32);
+  ThreadPool pool(GRPC_THREADS);
   auto send_message = [&](auto& k) {
     auto& worker = workers_[k];
     proto::Empty empty;
     grpc::Status status;
     const std::string& worker_address = worker_addresses_[k];
-    GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
+    //GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
+    status = worker->LoadOp(&ctx, *op_path, &empty);
     LOG_IF(WARNING, !status.ok())
       << "Master could not load op for worker at " << worker_address << " ("
       << status.error_code() << "): " << status.error_message();
@@ -534,13 +538,14 @@ grpc::Status MasterImpl::RegisterOp(
   }
 
 
-  ThreadPool pool(32);
+  ThreadPool pool(GRPC_THREADS);
   auto send_message = [&](auto& k) {
     auto& worker = workers_[k];
     proto::Result w_result;
     grpc::Status status;
-    GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
-                         status, 4);
+    // GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
+    //                      status, 4);
+    status = worker->RegisterOp(&ctx, *op_registration, &w_result);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
       << "Master could not load op for worker at " << worker_address << " ("
@@ -604,13 +609,14 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     registry->add_kernel(op_name, factory);
   }
 
-  ThreadPool pool(32);
+  ThreadPool pool(GRPC_THREADS);
   auto send_message = [&](auto& k) {
     auto& worker = workers_[k];
     proto::Result w_result;
     grpc::Status status;
-    GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
-                         status, 4);
+    // GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
+    //                      status, 4);
+    status = worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
       << "Master could not register python kernel for worker at "
