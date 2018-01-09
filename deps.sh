@@ -405,7 +405,7 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
              --with-protobuf $INSTALL_PREFIX \
              --cores ${cores} && \
         mkdir -p build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=ON && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=$USE_GPU && \
         make -j${cores} && make install -j${cores} && cd .. && \
         cd python && python setup.py bdist_wheel && \
         pip install dist/hwang-0.1.0-py2-none-any.whl && \
@@ -426,7 +426,7 @@ if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
     echo "Done installing tinytoml"
 fi
 
-if [[ $INSTALL_GOOGLETEST == true ]] && ! -f $BUILD_DIR/googletest.done ]]; then
+if [[ $INSTALL_GOOGLETEST == true ]] && [[ ! -f $BUILD_DIR/googletest.done ]]; then
     echo "Installing googletest..."
     cd $BUILD_DIR
     rm -fr googletest
@@ -500,7 +500,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]] && \
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
+if [[ $INSTALL_OPENPOSE == true ]] && [[ $USE_GPU == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
     cd $BUILD_DIR
     rm -rf openpose
     git clone -b v1.2.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose && \

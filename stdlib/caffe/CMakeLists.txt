@@ -19,9 +19,10 @@ endif()
 if (BUILD_OPENPOSE_OPS)
   if (NOT BUILD_CUDA)
     # TODO(apoms): add warning
+  else()
+    list(APPEND SOURCE_FILES
+      openpose_kernel.cpp)
   endif()
-  list(APPEND SOURCE_FILES
-    openpose_kernel.cpp)
 endif()
 
 add_halide_target(caffe_input_transformer_cpu.cpp host)

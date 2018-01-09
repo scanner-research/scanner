@@ -114,7 +114,6 @@ REQUIRED_PACKAGES = [
     'enum34 >= 1.1.6',
     'numpy >= 1.12.0',
     'scipy >= 0.18.1',
-    'storehouse >= 0.1.0',
     'tqdm >= 4.19.5'
 ]
 
