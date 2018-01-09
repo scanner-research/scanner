@@ -302,7 +302,7 @@ class Database(object):
                             descriptor.SerializeToString())
 
     def _load_table_metadata(self, table_names):
-        NUM_TABLES_TO_READ = 10000
+        NUM_TABLES_TO_READ = 100000
         tables = []
         for i in range(0, len(table_names), NUM_TABLES_TO_READ):
             get_tables_params = self.protobufs.GetTablesParams()
@@ -400,7 +400,7 @@ class Database(object):
         def heartbeat_task(q, master_address):
             channel = grpc.insecure_channel(
                 master_address,
-                options=[('grpc.max_message_length', 24499183 * 2)])
+                options=[('grpc.max_message_length', 1024*1024*1024)])
             master = grpc_types.MasterStub(channel)
             while q.empty():
                 try:
