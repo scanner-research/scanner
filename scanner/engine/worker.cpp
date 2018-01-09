@@ -854,8 +854,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
 
   // Setup table metadata cache for use in other operations
-  DatabaseMetadata meta =
-      read_database_metadata(storage_, DatabaseMetadata::descriptor_path());
+  DatabaseMetadata meta(job_params->db_meta());
   TableMetaCache table_meta(storage_, meta);
 
   // Initialize worker table metadata

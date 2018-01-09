@@ -780,8 +780,12 @@ grpc::Status MasterImpl::FinishedWork(
     if (tasks_used_per_job_[job_id] == job_tasks_[job_id].size()) {
       i32 tid = job_uncommitted_tables_[job_id];
       meta_.commit_table(tid);
-      write_database_metadata(storage_, meta_);
 
+      // Commit database metadata every so often
+      if (active_job % 100 == 0) {
+        VLOG(1) << "Saving database metadata checkpoint";
+        write_database_metadata(storage_, meta_);
+      }
     }
   }
 
@@ -1274,6 +1278,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   num_jobs_ = jobs.size();
 
   write_database_metadata(storage_, meta_);
+  job_params_.mutable_db_meta()->CopyFrom(meta_.get_descriptor());
 
   VLOG(1) << "Total jobs: " << num_jobs_;
 
