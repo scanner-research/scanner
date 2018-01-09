@@ -42,6 +42,8 @@ std::unique_ptr<grpc::Server> start(T& service, const std::string& port) {
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
+  builder.SetMaxSendMessageSize(1024*1024*1024);
+  builder.SetMaxReceiveMessageSize(1024*1024*1024);
   std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
   LOG_IF(FATAL, server.get() == nullptr) << "Failed to start server";
   return std::move(server);

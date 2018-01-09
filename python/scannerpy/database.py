@@ -347,7 +347,7 @@ class Database(object):
 
     def _connect_to_worker(self, address):
         channel = grpc.insecure_channel(
-            address, options=[('grpc.max_message_length', 24499183 * 2)])
+            address, options=[('grpc.max_message_length', 1024*1024*1024)])
         worker = self.protobufs.WorkerStub(channel)
         try:
             self._master.Ping(self.protobufs.Empty())
@@ -364,7 +364,7 @@ class Database(object):
     def _connect_to_master(self):
         channel = grpc.insecure_channel(
             self._master_address,
-            options=[('grpc.max_message_length', 24499183 * 2)])
+            options=[('grpc.max_message_length', 1024*1024*1024)])
         self._master = self.protobufs.MasterStub(channel)
         result = False
         try:
