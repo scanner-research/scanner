@@ -432,6 +432,7 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path, Result* result) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   const std::string& so_path = op_path->path();
+  VLOG(1) << "Master loading Op: " << so_path;
 
   for (auto& loaded_path : so_paths_) {
     if (loaded_path == so_path) {
@@ -456,17 +457,29 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   }
   so_paths_.push_back(so_path);
 
+  ThreadPool pool(32);
+  auto send_message = [&](auto& k) {
+    LOG(WARNING) << "aight";
+    auto& worker = workers_[k];
+    proto::Empty empty;
+    grpc::Status status;
+    GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 8);
+    const std::string& worker_address = worker_addresses_[k];
+    LOG_IF(WARNING, !status.ok())
+      << "Master could not load op for worker at " << worker_address << " ("
+      << status.error_code() << "): " << status.error_message();
+  };
+
+  // Load ops into worker
+  std::vector<std::future<void>> futures;
   for (auto& kv : worker_active_) {
     if (kv.second) {
-      auto& worker = workers_[kv.first];
-      proto::Empty empty;
-      grpc::Status status;
-      GRPC_BACKOFF(worker->LoadOp(&ctx, *op_path, &empty), status);
-      const std::string& worker_address = worker_addresses_[kv.first];
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not load op for worker at " << worker_address << " ("
-          << status.error_code() << "): " << status.error_message();
+      futures.emplace_back(pool.enqueue(send_message, kv.first));
     }
+  }
+
+  for (auto& future : futures) {
+    future.wait();
   }
 
   result->set_success(true);
@@ -521,17 +534,24 @@ grpc::Status MasterImpl::RegisterOp(
     return grpc::Status::OK;
   }
 
+
+  ThreadPool pool(32);
+  auto send_message = [&](auto& k) {
+    auto& worker = workers_[k];
+    proto::Result w_result;
+    grpc::Status status;
+    GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
+                         status, 8);
+    const std::string& worker_address = worker_addresses_[k];
+    LOG_IF(WARNING, !status.ok())
+      << "Master could not load op for worker at " << worker_address << " ("
+      << status.error_code() << "): " << status.error_message();
+  };
+
+  std::vector<std::future<void>> futures;
   for (auto& kv : worker_active_) {
     if (kv.second) {
-      auto& worker = workers_[kv.first];
-      proto::Result w_result;
-      grpc::Status status;
-      GRPC_BACKOFF(worker->RegisterOp(&ctx, *op_registration, &w_result),
-                   status);
-      const std::string& worker_address = worker_addresses_[kv.first];
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not load op for worker at " << worker_address << " ("
-          << status.error_code() << "): " << status.error_message();
+      futures.emplace_back(pool.enqueue(send_message, kv.first));
     }
   }
 
@@ -585,18 +605,24 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     registry->add_kernel(op_name, factory);
   }
 
+  ThreadPool pool(32);
+  auto send_message = [&](auto& k) {
+    auto& worker = workers_[k];
+    proto::Result w_result;
+    grpc::Status status;
+    GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
+                         status, 8);
+    const std::string& worker_address = worker_addresses_[k];
+    LOG_IF(WARNING, !status.ok())
+      << "Master could not register python kernel for worker at "
+      << worker_address << " (" << status.error_code()
+      << "): " << status.error_message();
+  };
+
+  std::vector<std::future<void>> futures;
   for (auto& kv : worker_active_) {
     if (kv.second) {
-      auto& worker = workers_[kv.first];
-      proto::Result w_result;
-      grpc::Status status;
-      GRPC_BACKOFF(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
-                   status);
-      const std::string& worker_address = worker_addresses_[kv.first];
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not register python kernel for worker at "
-          << worker_address << " (" << status.error_code()
-          << "): " << status.error_message();
+      futures.emplace_back(pool.enqueue(send_message, kv.first));
     }
   }
 
