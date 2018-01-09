@@ -31,7 +31,7 @@
 namespace scanner {
 namespace internal {
 
-static const GRPC_THREADS = 64;
+static const i32 GRPC_THREADS = 64;
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params) {
@@ -295,6 +295,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
     op_path.set_path(so_path);
     grpc::Status status;
     //GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status, 4);
+    grpc::ClientContext ctx;
     status = workers_[node_id]->LoadOp(&ctx, op_path, &empty);
     LOG_IF(WARNING, !status.ok())
         << "Master could not load op for worker at " << worker_address << " ("
@@ -467,6 +468,7 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
     grpc::Status status;
     const std::string& worker_address = worker_addresses_[k];
     //GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
+    grpc::ClientContext ctx;
     status = worker->LoadOp(&ctx, *op_path, &empty);
     LOG_IF(WARNING, !status.ok())
       << "Master could not load op for worker at " << worker_address << " ("
@@ -545,6 +547,7 @@ grpc::Status MasterImpl::RegisterOp(
     grpc::Status status;
     // GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
     //                      status, 4);
+    grpc::ClientContext ctx;
     status = worker->RegisterOp(&ctx, *op_registration, &w_result);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
@@ -616,6 +619,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     grpc::Status status;
     // GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
     //                      status, 4);
+    grpc::ClientContext ctx;
     status = worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
