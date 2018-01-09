@@ -292,7 +292,7 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
     proto::Empty empty;
     op_path.set_path(so_path);
     grpc::Status status;
-    GRPC_BACKOFF(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status);
+    GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status, 4);
     LOG_IF(WARNING, !status.ok())
         << "Master could not load op for worker at " << worker_address << " ("
         << status.error_code() << "): " << status.error_message();
@@ -459,12 +459,11 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
 
   ThreadPool pool(32);
   auto send_message = [&](auto& k) {
-    LOG(WARNING) << "aight";
     auto& worker = workers_[k];
     proto::Empty empty;
     grpc::Status status;
-    GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 8);
     const std::string& worker_address = worker_addresses_[k];
+    GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
     LOG_IF(WARNING, !status.ok())
       << "Master could not load op for worker at " << worker_address << " ("
       << status.error_code() << "): " << status.error_message();
@@ -541,7 +540,7 @@ grpc::Status MasterImpl::RegisterOp(
     proto::Result w_result;
     grpc::Status status;
     GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
-                         status, 8);
+                         status, 4);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
       << "Master could not load op for worker at " << worker_address << " ("
@@ -611,7 +610,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     proto::Result w_result;
     grpc::Status status;
     GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
-                         status, 8);
+                         status, 4);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
       << "Master could not register python kernel for worker at "
