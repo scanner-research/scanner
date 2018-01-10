@@ -1491,6 +1491,7 @@ void MasterImpl::start_worker_pinger() {
         }
       }
 
+      VLOG(2) << "Master sending Ping.";
       for (auto& kv : ws) {
         i32 worker_id = kv.first;
         auto& worker = kv.second;
@@ -1500,6 +1501,7 @@ void MasterImpl::start_worker_pinger() {
         proto::Empty empty2;
         grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
         if (!status.ok()) {
+          VLOG(3) << "Master failed to Ping worker " << worker_id;
           // Worker not responding, increment ping count
           i64 num_failed_pings = ++pinger_number_of_failed_pings_[worker_id];
           const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
@@ -1512,6 +1514,7 @@ void MasterImpl::start_worker_pinger() {
             num_failed_workers_++;
           }
         } else {
+          VLOG(3) << "Master successfully Pinged worker " << worker_id;
           pinger_number_of_failed_pings_[worker_id] = 0;
         }
       }
