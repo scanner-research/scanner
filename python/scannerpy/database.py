@@ -71,15 +71,13 @@ def start_master(port=None,
 
     # Load all protobuf types
     db = bindings.Database(
-        config.storage_config,
-        config.db_path.encode('ascii'),
+        config.storage_config, config.db_path.encode('ascii'),
         (config.master_address + ':' + port).encode('ascii'))
-    result = bindings.start_master(db,
-                                   port.encode('ascii'), watchdog,
+    result = bindings.start_master(db, port.encode('ascii'), watchdog,
                                    prefetch_table_metadata, no_workers_timeout)
     if not result.success():
-        raise ScannerException(
-            'Failed to start master: {}'.format(result.msg()))
+        raise ScannerException('Failed to start master: {}'.format(
+            result.msg()))
     if block:
         bindings.wait_for_server_shutdown(db)
     return db
@@ -101,8 +99,8 @@ def worker_process((master_address, machine_params, port, config, config_path,
                                    str(port).encode('ascii'), watchdog,
                                    prefetch_table_metadata)
     if not result.success():
-        raise ScannerException(
-            'Failed to start worker: {}'.format(result.msg()))
+        raise ScannerException('Failed to start worker: {}'.format(
+            result.msg()))
     if block:
         bindings.wait_for_server_shutdown(db)
     return result
@@ -140,19 +138,20 @@ def start_worker(master_address,
     if num_workers is not None:
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             results = list(
-                executor.map(worker_process, (
-                    [(master_address, machine_params, int(port) + i, config,
-                      config_path, block, watchdog, prefetch_table_metadata)
-                     for i in range(num_workers)])))
+                executor.map(
+                    worker_process,
+                    ([(master_address, machine_params, int(port) + i, config,
+                       config_path, block, watchdog, prefetch_table_metadata)
+                      for i in range(num_workers)])))
 
         for result in results:
             if not result.success: return result
         return results[0]
 
     else:
-        return worker_process((master_address, machine_params, port, config,
-                               config_path, block, watchdog,
-                               prefetch_table_metadata))
+        return worker_process(
+            (master_address, machine_params, port, config, config_path, block,
+             watchdog, prefetch_table_metadata))
 
 
 class Database(object):
@@ -348,9 +347,9 @@ class Database(object):
     def _make_grpc_channel(self, address):
         max_message_length = 1024 * 1024 * 1024
         return grpc.insecure_channel(
-            address, options=[
-                ('grpc.max_send_message_length', max_message_length),
-                ('grpc.max_receive_message_length', max_message_length)])
+            address,
+            options=[('grpc.max_send_message_length', max_message_length),
+                     ('grpc.max_receive_message_length', max_message_length)])
 
     def _connect_to_worker(self, address):
         channel = self._make_grpc_channel(address)
@@ -393,8 +392,8 @@ class Database(object):
         else:
             cmd = cmd.replace('"', '\\"')
             return Popen(
-                "ssh {} \"cd {} && {} {} {}\"".format(host_name,
-                                                      os.getcwd(), ''
+                "ssh {} \"cd {} && {} {} {}\"".format(host_name, os.getcwd(),
+                                                      ''
                                                       if nohup else '', cmd, ''
                                                       if nohup else ''),
                 shell=True)
@@ -468,8 +467,7 @@ class Database(object):
                 self._worker_conns = None
                 machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
-                    self._db,
-                    self.config.master_port.encode('ascii'), True,
+                    self._db, self.config.master_port.encode('ascii'), True,
                     self._prefetch_table_metadata,
                     self._no_workers_timeout).success
                 assert res
@@ -676,9 +674,9 @@ class Database(object):
                 c.name = col[0]
                 c.type = ColumnType.to_proto(self.protobufs, col[1])
             else:
-                raise ScannerException('Column ' + col +
-                                       ' must be a string name or a tuple of '
-                                       '(name, column_type)')
+                raise ScannerException(
+                    'Column ' + col + ' must be a string name or a tuple of '
+                    '(name, column_type)')
 
         for in_col in input_columns:
             add_col(op_registration.input_columns, in_col)
@@ -1026,7 +1024,8 @@ class Database(object):
             profiling=False,
             load_sparsity_threshold=8,
             tasks_in_queue_per_pu=4,
-            task_timeout=0):
+            task_timeout=0,
+            checkpoint_frequency=1000):
         assert isinstance(bulk_job, BulkJob)
         assert isinstance(bulk_job.output(), Op)
 
@@ -1119,6 +1118,7 @@ class Database(object):
         job_params.boundary_condition = (
             self.protobufs.BulkJobParameters.REPEAT_EDGE)
         job_params.task_timeout = task_timeout
+        job_params.checkpoint_frequency = checkpoint_frequency
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:

@@ -200,10 +200,11 @@ message BulkJobParameters {
     ERROR = 2;
   };
   BoundaryCondition boundary_condition = 15;
-
   float task_timeout = 16;
+  int32 checkpoint_frequency = 17;
 
-  DatabaseDescriptor db_meta = 17;
+  // For master's use only
+  DatabaseDescriptor db_meta = 18;
 }
 
 message NewWork {
