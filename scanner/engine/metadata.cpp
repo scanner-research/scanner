@@ -479,7 +479,7 @@ void write_table_megafile(
   s_write(output_file.get(), (u8*)ids.data(), ids.size() * sizeof(i32));
   s_write(output_file.get(), (u8*)sizes.data(), sizes.size() * sizeof(size_t));
   // Write all table descriptors
-  size_t BATCH_SIZE = 10000;
+  size_t BATCH_SIZE = 100000;
   for (size_t b = 0; b < ids.size(); b += BATCH_SIZE) {
     size_t max_i = std::min(b + BATCH_SIZE, ids.size());
 
@@ -519,7 +519,7 @@ void read_table_megafile(storehouse::StorageBackend* storage,
   s_read(file.get(), (u8*)sizes.data(), num_entries * sizeof(size_t), pos);
 
   // Read all table descriptors
-  size_t BATCH_SIZE = 10000;
+  size_t BATCH_SIZE = 100000;
   for (size_t b = 0; b < ids.size(); b += BATCH_SIZE) {
     size_t max_i = std::min(b + BATCH_SIZE, ids.size());
 
