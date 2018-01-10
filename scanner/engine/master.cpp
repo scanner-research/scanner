@@ -817,7 +817,7 @@ grpc::Status MasterImpl::FinishedWork(
       meta_.commit_table(tid);
 
       // Commit database metadata every so often
-      if (job_id % 100 == 0) {
+      if (job_id % job_params_.checkpoint_frequency() == 0) {
         VLOG(1) << "Saving database metadata checkpoint";
         write_database_metadata(storage_, meta_);
       }
