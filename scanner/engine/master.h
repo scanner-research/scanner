@@ -176,7 +176,7 @@ class MasterImpl final : public proto::Master::Service {
   std::map<i32, std::unique_ptr<proto::Worker::Stub>> workers_;
   std::map<i32, std::string> worker_addresses_;
 
-  i64 total_tasks_used_;
+  std::atomic<i64> total_tasks_used_;
   i64 total_tasks_;
   std::vector<i64> tasks_used_per_job_;
 
