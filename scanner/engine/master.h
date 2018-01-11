@@ -243,8 +243,6 @@ class MasterImpl final : public proto::Master::Service {
   std::atomic<i64> num_failed_workers_{0};
   std::vector<i32> job_uncommitted_tables_;
 
-  std::map<i64, std::map<i64, i64>> job_task_num_rows_;
-
   // Worker connections
   std::map<std::string, i32> local_ids_;
   std::map<std::string, i32> local_totals_;

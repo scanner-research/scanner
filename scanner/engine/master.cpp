@@ -1059,6 +1059,8 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   task_result_.set_success(true);
   active_job_tasks_.clear();
   active_job_tasks_starts_.clear();
+  job_tasks_num_failures_.clear();
+  blacklisted_jobs_.clear();
   worker_histories_.clear();
   unfinished_workers_.clear();
   local_ids_.clear();
