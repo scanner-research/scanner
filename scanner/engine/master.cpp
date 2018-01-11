@@ -477,6 +477,12 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
     const std::string& worker_address = worker_addresses_[k];
     //GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
     grpc::ClientContext ctx;
+    // Set timeout
+    u32 timeout = 5;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    ctx.set_deadline(deadline);
+
     status = worker->LoadOp(&ctx, *op_path, &empty);
     LOG_IF(WARNING, !status.ok())
       << "Master could not load op for worker at " << worker_address << " ("
@@ -556,6 +562,12 @@ grpc::Status MasterImpl::RegisterOp(
     // GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
     //                      status, 4);
     grpc::ClientContext ctx;
+    // Set timeout
+    u32 timeout = 5;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    ctx.set_deadline(deadline);
+
     status = worker->RegisterOp(&ctx, *op_registration, &w_result);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
@@ -628,6 +640,12 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     // GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
     //                      status, 4);
     grpc::ClientContext ctx;
+    // Set timeout
+    u32 timeout = 5;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    ctx.set_deadline(deadline);
+
     status = worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
     const std::string& worker_address = worker_addresses_[k];
     LOG_IF(WARNING, !status.ok())
