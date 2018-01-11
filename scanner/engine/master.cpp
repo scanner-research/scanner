@@ -677,6 +677,13 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
     i64 id = kv.first;
     auto& worker = kv.second;
     proto::Empty em;
+
+    // Set timeout for PokeWatchdog call
+    u32 timeout = 5;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    contexts[i].set_deadline(deadline);
+
     rpcs[i] = worker->AsyncPokeWatchdog(&contexts[i], em, &cq);
     rpcs[i]->Finish(&results[i], &statuses[i], (void*)id);
     i++;
@@ -1500,6 +1507,12 @@ void MasterImpl::start_worker_pinger() {
         auto& worker = kv.second;
 
         grpc::ClientContext ctx;
+        // Set timeout for Ping call
+        u32 timeout = 5;
+        std::chrono::system_clock::time_point deadline =
+            std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+        ctx.set_deadline(timeout);
+
         proto::Empty empty1;
         proto::Empty empty2;
         grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
