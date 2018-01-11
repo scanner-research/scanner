@@ -290,12 +290,20 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
 
   // Load ops into worker
   for (const std::string& so_path : so_paths_) {
+    grpc::ClientContext ctx;
+    // Set timeout
+    u32 timeout = 5;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    ctx.set_deadline(deadline);
+
+
     proto::OpPath op_path;
-    proto::Empty empty;
     op_path.set_path(so_path);
+    proto::Empty empty;
+
     grpc::Status status;
     //GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status, 4);
-    grpc::ClientContext ctx;
     status = workers_[node_id]->LoadOp(&ctx, op_path, &empty);
     LOG_IF(WARNING, !status.ok())
         << "Master could not load op for worker at " << worker_address << " ("

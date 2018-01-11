@@ -976,7 +976,8 @@ class Database(object):
                 break
             if pbar is not None:
                 tasks_completed = job_status.tasks_done
-                pbar.update(tasks_completed - last_task_count)
+                if tasks_completed - last_task_count > 0:
+                    pbar.update(tasks_completed - last_task_count)
                 last_task_count = tasks_completed
                 pbar.set_postfix({
                     'jobs':
