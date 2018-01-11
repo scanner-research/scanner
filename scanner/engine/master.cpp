@@ -1511,7 +1511,7 @@ void MasterImpl::start_worker_pinger() {
         u32 timeout = 5;
         std::chrono::system_clock::time_point deadline =
             std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-        ctx.set_deadline(timeout);
+        ctx.set_deadline(deadline);
 
         proto::Empty empty1;
         proto::Empty empty2;
