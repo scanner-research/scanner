@@ -809,7 +809,7 @@ grpc::Status MasterImpl::FinishedWork(
 
   if (!worker_active_[worker_id]) {
     // Technically the task was finished, but we don't count it for now
-    // because it would have been reinstered into the work queue
+    // because it would have been reinserted into the work queue
     return grpc::Status::OK;
   }
 
@@ -1534,6 +1534,7 @@ void MasterImpl::start_worker_pinger() {
             LOG(WARNING) << "Worker " << worker_id
                          << " did not respond to Ping. "
                          << "Removing worker from active list.";
+            std::unique_lock<std::mutex> lk(work_mutex_);
             remove_worker(worker_id);
             num_failed_workers_++;
           }
