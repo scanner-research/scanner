@@ -33,6 +33,13 @@ namespace internal {
 
 static const i32 GRPC_THREADS = 64;
 
+// Timeouts for GRPC requests
+static const u32 LOAD_OP_WORKER_TIMEOUT = 15;
+static const u32 REGISTER_OP_WORKER_TIMEOUT = 15;
+static const u32 REGISTER_PYTHON_KERNEL_WORKER_TIMEOUT = 15;
+static const u32 POKE_WATCHDOG_WORKER_TIMEOUT = 5;
+static const u32 PING_WORKER_TIMEOUT = 5;
+
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params) {
   VLOG(1) << "Creating master...";
@@ -292,11 +299,10 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
   for (const std::string& so_path : so_paths_) {
     grpc::ClientContext ctx;
     // Set timeout
-    u32 timeout = 5;
+    u32 timeout = LOAD_OP_WORKER_TIMEOUT;
     std::chrono::system_clock::time_point deadline =
         std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     ctx.set_deadline(deadline);
-
 
     proto::OpPath op_path;
     op_path.set_path(so_path);
@@ -478,7 +484,7 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
     //GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
     grpc::ClientContext ctx;
     // Set timeout
-    u32 timeout = 5;
+    u32 timeout = LOAD_OP_WORKER_TIMEOUT;
     std::chrono::system_clock::time_point deadline =
         std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     ctx.set_deadline(deadline);
@@ -563,7 +569,7 @@ grpc::Status MasterImpl::RegisterOp(
     //                      status, 4);
     grpc::ClientContext ctx;
     // Set timeout
-    u32 timeout = 5;
+    u32 timeout = REGISTER_OP_WORKER_TIMEOUT;
     std::chrono::system_clock::time_point deadline =
         std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     ctx.set_deadline(deadline);
@@ -641,7 +647,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     //                      status, 4);
     grpc::ClientContext ctx;
     // Set timeout
-    u32 timeout = 5;
+    u32 timeout = REGISTER_PYTHON_KERNEL_WORKER_TIMEOUT;
     std::chrono::system_clock::time_point deadline =
         std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     ctx.set_deadline(deadline);
@@ -705,7 +711,7 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
     proto::Empty em;
 
     // Set timeout for PokeWatchdog call
-    u32 timeout = 5;
+    u32 timeout = POKE_WATCHDOG_WORKER_TIMEOUT;
     std::chrono::system_clock::time_point deadline =
         std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     contexts[i].set_deadline(deadline);
@@ -1534,7 +1540,7 @@ void MasterImpl::start_worker_pinger() {
 
         grpc::ClientContext ctx;
         // Set timeout for Ping call
-        u32 timeout = 5;
+        u32 timeout = PING_WORKER_TIMEOUT;
         std::chrono::system_clock::time_point deadline =
             std::chrono::system_clock::now() + std::chrono::seconds(timeout);
         ctx.set_deadline(deadline);
