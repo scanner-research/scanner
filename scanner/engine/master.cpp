@@ -651,6 +651,7 @@ grpc::Status MasterImpl::Shutdown(grpc::ServerContext* context,
 grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
                                       const proto::Empty* empty,
                                       proto::Empty* result) {
+  VLOG(2) << "Master received PokeWatchdog.";
   watchdog_awake_ = true;
 
   std::map<i32, proto::Worker::Stub*> ws;
@@ -679,6 +680,7 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
     rpcs[i] = worker->AsyncPokeWatchdog(&contexts[i], em, &cq);
     rpcs[i]->Finish(&results[i], &statuses[i], (void*)id);
     i++;
+    VLOG(3) << "Master sending PokeWatchdog to worker " << id;
   }
   for (int i = 0; i < ws.size(); ++i) {
     void* got_tag;
@@ -689,6 +691,7 @@ grpc::Status MasterImpl::PokeWatchdog(grpc::ServerContext* context,
     if (!ok) {
       LOG(WARNING) << "Could not poke worker " << worker_id << "!";
     }
+    VLOG(3) << "Master successfully sent PokeWatchdog to worker " << worker_id;
   }
   cq.Shutdown();
   return grpc::Status::OK;
