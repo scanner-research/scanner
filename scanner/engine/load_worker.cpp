@@ -137,7 +137,7 @@ VideoIntervals slice_into_video_intervals(
 
       assert(end_keyframe_index < keyframe_positions.size() - 1);
       next_keyframe = keyframe_positions[++end_keyframe_index];
-      if (row >= next_keyframe) {
+      if (row >= next_keyframe || !is_adjacent) {
         // Skipped a keyframe, so make a new interval
         if (!valid_frames.empty()) {
           info.keyframe_index_intervals.push_back(
