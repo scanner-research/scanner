@@ -1074,6 +1074,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   job_result->set_success(true);
 
   auto finished_fn = [this]() {
+    total_tasks_used_ = 0;
     {
       std::unique_lock<std::mutex> lock(finished_mutex_);
       finished_ = true;
