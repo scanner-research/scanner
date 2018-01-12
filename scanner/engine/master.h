@@ -195,6 +195,7 @@ class MasterImpl final : public proto::Master::Service {
   std::thread job_processor_thread_;
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
+
   // Mapping from jobs to table ids
   std::map<i64, i64> job_to_table_id_;
   // Slice input rows for each job at each slice op

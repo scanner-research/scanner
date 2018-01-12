@@ -39,6 +39,7 @@ static const u32 REGISTER_OP_WORKER_TIMEOUT = 15;
 static const u32 REGISTER_PYTHON_KERNEL_WORKER_TIMEOUT = 15;
 static const u32 POKE_WATCHDOG_WORKER_TIMEOUT = 5;
 static const u32 PING_WORKER_TIMEOUT = 5;
+static const u32 NEW_JOB_WORKER_TIMEOUT = 30;
 
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params) {
@@ -1603,8 +1604,14 @@ void MasterImpl::start_job_on_workers(const std::vector<i32>& worker_ids) {
     w_job_params.set_local_id(local_ids_[sans_port]);
     w_job_params.set_local_total(local_totals_[sans_port]);
     local_ids_[sans_port] += 1;
+
     client_contexts[worker_id] =
         std::unique_ptr<grpc::ClientContext>(new grpc::ClientContext);
+    u32 timeout = NEW_JOB_WORKER_TIMEOUT;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    client_contexts[worker_id]->set_deadline(deadline);
+
     statuses[worker_id] = std::unique_ptr<grpc::Status>(new grpc::Status);
     replies[worker_id] = std::unique_ptr<proto::Result>(new proto::Result);
     rpcs[worker_id] = worker->AsyncNewJob(client_contexts[worker_id].get(),
@@ -1621,17 +1628,25 @@ void MasterImpl::start_job_on_workers(const std::vector<i32>& worker_ids) {
   for (i64 i = 0; i < worker_ids.size(); ++i) {
     void* got_tag;
     bool ok = false;
-    auto status = (cq.Next(&got_tag, &ok));
-    assert(status != grpc::CompletionQueue::NextStatus::SHUTDOWN);
+    auto stat = (cq.Next(&got_tag, &ok));
+    assert(stat != grpc::CompletionQueue::NextStatus::SHUTDOWN);
     assert(ok);
 
     i64 worker_id = (i64)got_tag;
-    VLOG(2) << "Worker " << worker_id << " NewJob returned.";
+    auto status = *statuses[worker_id].get();
+    if (status.ok()) {
+      VLOG(2) << "Worker " << worker_id << " NewJob returned.";
 
-    if (worker_active_[worker_id] && !replies[worker_id]->success()) {
-      LOG(WARNING) << "Worker " << worker_id << " ("
-                   << worker_addresses_.at(worker_id) << ") "
-                   << "returned error: " << replies[worker_id]->msg();
+      if (worker_active_[worker_id] && !replies[worker_id]->success()) {
+        LOG(WARNING) << "Worker " << worker_id << " ("
+                     << worker_addresses_.at(worker_id) << ") "
+                     << "returned error: " << replies[worker_id]->msg();
+        worker_active_[worker_id] = false;
+      }
+    } else {
+      LOG(WARNING) << "Worker " << worker_id << " did not return NewJob: ("
+                   << status.error_code() << "): " << status.error_message();
+      worker_active_[worker_id] = false;
     }
   }
   cq.Shutdown();
