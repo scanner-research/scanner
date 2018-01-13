@@ -1173,6 +1173,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < num_load_workers; ++i) {
     LoadWorkerArgs args{// Uniform arguments
                         node_id_,
+                        table_meta,
                         // Per worker arguments
                         i, db_params_.storage_config, load_thread_profilers[i],
                         job_params->load_sparsity_threshold(), io_packet_size,

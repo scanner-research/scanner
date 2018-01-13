@@ -187,7 +187,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
   entry.task_index = work_entry.task_index;
   entry.needs_configure = first_item ? needs_configure_ : false;
   entry.needs_reset = first_item_ ? needs_reset_ : false;
-  entry.last_in_io_packet = (end_row >= total_rows_) ? true : false;
+  entry.last_in_io_packet = (end_row >= total_rows_);
   entry.columns.resize(work_entry.columns.size());
   entry.last_in_task = work_entry.last_in_task;
   entry.row_ids.resize(work_entry.row_ids.size());
