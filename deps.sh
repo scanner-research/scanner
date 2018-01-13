@@ -398,7 +398,7 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     rm -fr hwang
     git clone https://github.com/scanner-research/hwang && \
         cd hwang && \
-        git checkout e547a0c8d733b98f48187068e42c4a7e114cfc96 && \
+        git checkout c159f0a860f3cfa47f6b87b6c7e20e32fb4e583e && \
         bash ./deps.sh -a \
              --with-boost $INSTALL_PREFIX \
              --with-ffmpeg $INSTALL_PREFIX \
