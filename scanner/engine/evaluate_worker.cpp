@@ -1049,115 +1049,110 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
 
   // HACK(apoms): this will fail horrible and leak memory if
   // we receive outputs at different rates.
-  if (entry.columns.empty() || entry.columns[0].empty()) {
-    return;
-  }
-
-  // Setup row buffer if it was emptied
-  if (buffered_entry_.columns.size() == 0) {
-    buffered_entry_.table_id = work_entry.table_id;
-    buffered_entry_.job_index = work_entry.job_index;
-    buffered_entry_.task_index = work_entry.task_index;
-    buffered_entry_.last_in_task = work_entry.last_in_task;
-    buffered_entry_.columns.resize(column_mapping_.size());
-    buffered_entry_.row_ids.resize(column_mapping_.size());
-    assert(work_entry.column_handles.size() == columns_.size());
-    buffered_entry_.column_types.clear();
-    buffered_entry_.column_handles.clear();
-    buffered_entry_.frame_sizes.clear();
-    buffered_entry_.compressed.clear();
-    for (size_t i = 0; i < columns_.size(); ++i) {
-      i32 col_idx = column_mapping_[i];
-      buffered_entry_.column_types.push_back(columns_[i].type());
-      buffered_entry_.column_handles.push_back(CPU_DEVICE);
-      if (columns_[i].type() == ColumnType::Video) {
-        assert(work_entry.columns[col_idx].size() > 0);
-        Frame* frame = work_entry.columns[col_idx][0].as_frame();
-        buffered_entry_.frame_sizes.push_back(frame->as_frame_info());
-      }
-      buffered_entry_.compressed.push_back(compression_enabled_[i]);
-    }
-    if (work_entry.needs_configure) {
-      for (size_t i = 0; i < encoder_configured_.size(); ++i) {
-        encoder_configured_[i] = false;
-      }
-    }
-  }
-
-  i64 num_rows = work_entry.columns[0].size();
-  current_offset_ += num_rows;
-
-  i32 encoder_idx = 0;
-  // Swizzle columns correctly
-  for (size_t i = 0; i < column_mapping_.size(); ++i) {
-    i32 col_idx = column_mapping_[i];
-    ColumnType column_type = columns_[i].type();
-    // Encode video frames
-    if (compression_enabled_[i] && column_type == ColumnType::Video &&
-        buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
-      auto& encoder = encoders_[encoder_idx];
-      if (!encoder_configured_[encoder_idx]) {
-        // Configure encoder
-        encoder_configured_[encoder_idx] = true;
-        Frame* frame = work_entry.columns[col_idx][0].as_frame();
-        encoder->configure(frame->as_frame_info(),
-
-                           encode_options_[encoder_idx]);
-      }
-
-      // Move frames to device for the encoder
-      move_if_different_address_space(
-          profiler_, work_entry.column_handles[col_idx], encoder_handle_,
-          work_entry.columns[col_idx]);
-
-      // Pass frames into encoder
-      auto encode_start = now();
-      for (auto& row : work_entry.columns[col_idx]) {
-        Frame* frame = row.as_frame();
-        bool new_packet = encoder->feed(frame->data, frame->size());
-        while (new_packet) {
-          size_t buffer_size = 4 * 1024 * 1024;
-          u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-          size_t actual_size;
-          new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
-          LOG_IF(FATAL, new_packet && actual_size > buffer_size)
-              << "Packet buffer not large enough (" << buffer_size << " vs "
-              << actual_size << ")";
-          insert_element(buffered_entry_.columns[i], buffer, actual_size);
+  if (!(entry.columns.empty() || entry.columns[0].empty())) {
+    // Setup row buffer if it was emptied
+    if (buffered_entry_.columns.size() == 0) {
+      buffered_entry_.table_id = work_entry.table_id;
+      buffered_entry_.job_index = work_entry.job_index;
+      buffered_entry_.task_index = work_entry.task_index;
+      buffered_entry_.last_in_task = work_entry.last_in_task;
+      buffered_entry_.columns.resize(column_mapping_.size());
+      buffered_entry_.row_ids.resize(column_mapping_.size());
+      assert(work_entry.column_handles.size() == columns_.size());
+      buffered_entry_.column_types.clear();
+      buffered_entry_.column_handles.clear();
+      buffered_entry_.frame_sizes.clear();
+      buffered_entry_.compressed.clear();
+      for (size_t i = 0; i < columns_.size(); ++i) {
+        i32 col_idx = column_mapping_[i];
+        buffered_entry_.column_types.push_back(columns_[i].type());
+        buffered_entry_.column_handles.push_back(CPU_DEVICE);
+        if (columns_[i].type() == ColumnType::Video) {
+          assert(work_entry.columns[col_idx].size() > 0);
+          Frame* frame = work_entry.columns[col_idx][0].as_frame();
+          buffered_entry_.frame_sizes.push_back(frame->as_frame_info());
         }
-        delete_element(encoder_handle_, row);
+        buffered_entry_.compressed.push_back(compression_enabled_[i]);
       }
-      profiler_.add_interval("encode", encode_start, now());
-      encoder_idx++;
-    } else {
-      // Move data to CPU to avoid overflow on GPU
-      move_if_different_address_space(
-          profiler_, work_entry.column_handles[col_idx], CPU_DEVICE,
-          work_entry.columns[col_idx]);
-      buffered_entry_.columns[i].insert(
-          buffered_entry_.columns[i].end(),
-          work_entry.columns[col_idx].begin(),
-          work_entry.columns[col_idx].end());
-      buffered_entry_.row_ids[i].insert(
-          buffered_entry_.row_ids[i].end(),
-          work_entry.row_ids[col_idx].begin(),
-          work_entry.row_ids[col_idx].end());
+      if (work_entry.needs_configure) {
+        for (size_t i = 0; i < encoder_configured_.size(); ++i) {
+          encoder_configured_[i] = false;
+        }
+      }
     }
-  }
-  // Delete unused columns
-  for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-    if (column_set_.count(i) > 0) {
-      continue;
-    }
-    for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
-      delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
-    }
-  }
 
-  encoder_idx = 0;
+    i64 num_rows = work_entry.columns[0].size();
+    current_offset_ += num_rows;
+
+    i32 encoder_idx = 0;
+    // Swizzle columns correctly
+    for (size_t i = 0; i < column_mapping_.size(); ++i) {
+      i32 col_idx = column_mapping_[i];
+      ColumnType column_type = columns_[i].type();
+      // Encode video frames
+      if (compression_enabled_[i] && column_type == ColumnType::Video &&
+          buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
+        auto& encoder = encoders_[encoder_idx];
+        if (!encoder_configured_[encoder_idx]) {
+          // Configure encoder
+          encoder_configured_[encoder_idx] = true;
+          Frame* frame = work_entry.columns[col_idx][0].as_frame();
+          encoder->configure(frame->as_frame_info(),
+
+                             encode_options_[encoder_idx]);
+        }
+
+        // Move frames to device for the encoder
+        move_if_different_address_space(
+            profiler_, work_entry.column_handles[col_idx], encoder_handle_,
+            work_entry.columns[col_idx]);
+
+        // Pass frames into encoder
+        auto encode_start = now();
+        for (auto& row : work_entry.columns[col_idx]) {
+          Frame* frame = row.as_frame();
+          bool new_packet = encoder->feed(frame->data, frame->size());
+          while (new_packet) {
+            size_t buffer_size = 4 * 1024 * 1024;
+            u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+            size_t actual_size;
+            new_packet = encoder->get_packet(buffer, buffer_size, actual_size);
+            LOG_IF(FATAL, new_packet && actual_size > buffer_size)
+                << "Packet buffer not large enough (" << buffer_size << " vs "
+                << actual_size << ")";
+            insert_element(buffered_entry_.columns[i], buffer, actual_size);
+          }
+          delete_element(encoder_handle_, row);
+        }
+        profiler_.add_interval("encode", encode_start, now());
+        encoder_idx++;
+      } else {
+        // Move data to CPU to avoid overflow on GPU
+        move_if_different_address_space(
+            profiler_, work_entry.column_handles[col_idx], CPU_DEVICE,
+            work_entry.columns[col_idx]);
+        buffered_entry_.columns[i].insert(buffered_entry_.columns[i].end(),
+                                          work_entry.columns[col_idx].begin(),
+                                          work_entry.columns[col_idx].end());
+        buffered_entry_.row_ids[i].insert(buffered_entry_.row_ids[i].end(),
+                                          work_entry.row_ids[col_idx].begin(),
+                                          work_entry.row_ids[col_idx].end());
+      }
+    }
+    // Delete unused columns
+    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+      if (column_set_.count(i) > 0) {
+        continue;
+      }
+      for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
+        delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
+      }
+    }
+  }
 
   // Flush row buffer
   if (work_entry.last_in_io_packet) {
+    i32 encoder_idx = 0;
     // Flush video encoder and get rest of packets
     for (size_t i = 0; i < column_mapping_.size(); ++i) {
       ColumnType column_type = columns_[i].type();
