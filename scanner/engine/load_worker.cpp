@@ -190,6 +190,7 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
   : node_id_(args.node_id),
     worker_id_(args.worker_id),
     profiler_(args.profiler),
+    table_metadata_(args.table_metadata),
     load_sparsity_threshold_(args.load_sparsity_threshold),
     io_packet_size_(args.io_packet_size),
     work_packet_size_(args.work_packet_size) {
@@ -197,7 +198,6 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
       storehouse::StorageBackend::make_from_config(args.storage_config));
   meta_ = read_database_metadata(storage_.get(),
                                  DatabaseMetadata::descriptor_path());
-  table_metadata_.reset(new TableMetaCache(storage_.get(), meta_));
 }
 
 void LoadWorker::feed(LoadWorkEntry& input_entry) {
@@ -245,7 +245,7 @@ bool LoadWorker::yield(i32 item_size,
   i32 out_col_idx = 0;
   for (const proto::LoadSample& sample : samples) {
     i32 table_id = sample.table_id();
-    const TableMetadata& table_meta = table_metadata_->at(table_id);
+    const TableMetadata& table_meta = table_metadata_.at(table_id);
 
     i64 total_rows = sample.input_row_ids_size();
     i64 row_start = current_row_;

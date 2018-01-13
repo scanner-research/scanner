@@ -27,6 +27,7 @@ namespace internal {
 struct LoadWorkerArgs {
   // Uniform arguments
   i32 node_id;
+  TableMetaCache& table_metadata;
   // Per worker arguments
   int worker_id;
   storehouse::StorageConfig* storage_config;
@@ -58,7 +59,7 @@ class LoadWorker {
   std::unique_ptr<storehouse::StorageBackend> storage_;
   // Caching table metadata
   DatabaseMetadata meta_;
-  std::unique_ptr<TableMetaCache> table_metadata_;
+  TableMetaCache& table_metadata_;
   // To ammortize opening files
   i32 last_table_id_ = -1;
   std::map<std::tuple<i32, i32, i32>, VideoIndexEntry> index_;
