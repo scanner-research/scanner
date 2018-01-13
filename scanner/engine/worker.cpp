@@ -327,6 +327,10 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     profiler.add_interval("task", work_start, now());
 
     if (result) {
+      VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
+              << "): pushing task " << work_entry.job_index << ", "
+              << work_entry.task_index;
+
       output_entry.last_in_task = work_entry.last_in_task;
       output_work.push(std::make_tuple(args.id, output_entry));
     }
@@ -362,6 +366,10 @@ void save_coordinator(OutputEvalQueue& eval_work,
       break;
     }
 
+    VLOG(1) << "Save Coordinator: "
+            << "processing job task (" << work_entry.job_index << ", "
+            << work_entry.task_index << ")";
+
     auto job_task_id =
         std::make_tuple(work_entry.job_index, work_entry.task_index);
     if (task_to_worker_mapping.count(job_task_id) == 0) {
@@ -376,6 +384,11 @@ void save_coordinator(OutputEvalQueue& eval_work,
     if (work_entry.last_in_task) {
       task_to_worker_mapping.erase(job_task_id);
     }
+
+    VLOG(1) << "Save Coordinator: "
+            << "finished job task (" << work_entry.job_index << ", "
+            << work_entry.task_index << ")";
+
   }
 }
 
