@@ -519,7 +519,7 @@ void read_table_megafile(storehouse::StorageBackend* storage,
   s_read(file.get(), (u8*)sizes.data(), num_entries * sizeof(size_t), pos);
 
   // Read all table descriptors
-  size_t BATCH_SIZE = 100000;
+  size_t BATCH_SIZE = 1000000;
   for (size_t b = 0; b < ids.size(); b += BATCH_SIZE) {
     size_t max_i = std::min(b + BATCH_SIZE, ids.size());
 
