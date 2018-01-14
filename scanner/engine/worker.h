@@ -95,7 +95,6 @@ class WorkerImpl final : public proto::Worker::Service {
   std::string worker_port_;
   i32 node_id_;
   storehouse::StorageBackend* storage_;
-  std::map<std::string, TableMetadata*> table_metas_;
   bool memory_pool_initialized_ = false;
   MemoryPoolConfig cached_memory_pool_config_;
 
