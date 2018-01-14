@@ -127,6 +127,11 @@ VideoIntervals slice_into_video_intervals(
   size_t end_keyframe_index = 1;
   i64 next_keyframe = keyframe_positions[end_keyframe_index];
   std::vector<i64> valid_frames;
+
+  i64 prev_row = 0;
+  if (rows.size() > 0) {
+    prev_row = rows[0];
+  }
   for (i64 row : rows) {
     if (row >= next_keyframe) {
       // Check if this keyframe is adjacent
@@ -136,8 +141,19 @@ VideoIntervals slice_into_video_intervals(
           (last_endpoint == sample_offsets.at(next_keyframe));
 
       assert(end_keyframe_index < keyframe_positions.size() - 1);
+      i64 prev_prev_keyframe = keyframe_positions[end_keyframe_index - 1];
+      i64 prev_keyframe = next_keyframe;
       next_keyframe = keyframe_positions[++end_keyframe_index];
-      if (row >= next_keyframe || !is_adjacent) {
+      uint64_t keyframe_interval = next_keyframe - prev_keyframe;
+      // If the interval between the previous row and the current row is larger
+      // than half the keyframe interval or if they are exactly equal to the
+      // keyframes, then we should make a new interval so that we can avoid
+      // decoding everything in between
+      bool large_distance = (row - prev_row) > (keyframe_interval / 2);
+      bool exactly_keyframes =
+          (row == prev_keyframe) && (prev_row == prev_prev_keyframe);
+      if (exactly_keyframes || large_distance || row >= next_keyframe ||
+          !is_adjacent) {
         // Skipped a keyframe, so make a new interval
         if (!valid_frames.empty()) {
           info.keyframe_index_intervals.push_back(
@@ -155,6 +171,7 @@ VideoIntervals slice_into_video_intervals(
       }
     }
     valid_frames.push_back(row);
+    prev_row = row;
   }
   info.keyframe_index_intervals.push_back(
       std::make_tuple(start_keyframe_index, end_keyframe_index));
