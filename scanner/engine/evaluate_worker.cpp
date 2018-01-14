@@ -1018,9 +1018,11 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
     auto& col = args.columns[i];
     auto& compression_opts = args.column_compression[i];
     ColumnType type = col.type();
-    if (type != ColumnType::Video || compression_opts.codec == "raw") continue;
+    if (type != ColumnType::Video) continue;
 
     frame_size_initialized_.push_back(false);
+
+    if (compression_opts.codec == "raw") continue;
     encoders_.emplace_back(
         VideoEncoder::make_from_config(encoder_handle_, 1, encoder_type_));
     encoder_configured_.push_back(false);
