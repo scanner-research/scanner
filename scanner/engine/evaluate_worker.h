@@ -230,6 +230,7 @@ class PostEvaluateWorker {
   DeviceHandle encoder_handle_;
   VideoEncoderType encoder_type_;
   std::vector<std::unique_ptr<VideoEncoder>> encoders_;
+  std::vector<bool> frame_size_initialized_;
   std::vector<bool> encoder_configured_;
   std::vector<EncodeOptions> encode_options_;
   std::vector<bool> compression_enabled_;

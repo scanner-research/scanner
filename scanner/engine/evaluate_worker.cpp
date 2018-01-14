@@ -1019,6 +1019,8 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
     auto& compression_opts = args.column_compression[i];
     ColumnType type = col.type();
     if (type != ColumnType::Video || compression_opts.codec == "raw") continue;
+
+    frame_size_initialized_.push_back(false);
     encoders_.emplace_back(
         VideoEncoder::make_from_config(encoder_handle_, 1, encoder_type_));
     encoder_configured_.push_back(false);
@@ -1040,17 +1042,14 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
     }
     compression_enabled_.push_back(enabled);
   }
-
-  current_offset_ = 0;
 }
 
 void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   EvalWorkEntry& work_entry = entry;
 
-  // HACK(apoms): this will fail horrible and leak memory if
-  // we receive outputs at different rates.
-  if (!(entry.columns.empty() || entry.columns[0].empty())) {
-    // Setup row buffer if it was emptied
+  // Setup row buffer if it was emptied
+  {
+    i32 encoder_idx = 0;
     if (buffered_entry_.columns.size() == 0) {
       buffered_entry_.table_id = work_entry.table_id;
       buffered_entry_.job_index = work_entry.job_index;
@@ -1067,12 +1066,12 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         i32 col_idx = column_mapping_[i];
         buffered_entry_.column_types.push_back(columns_[i].type());
         buffered_entry_.column_handles.push_back(CPU_DEVICE);
-        if (columns_[i].type() == ColumnType::Video) {
-          assert(work_entry.columns[col_idx].size() > 0);
-          Frame* frame = work_entry.columns[col_idx][0].as_frame();
-          buffered_entry_.frame_sizes.push_back(frame->as_frame_info());
-        }
         buffered_entry_.compressed.push_back(compression_enabled_[i]);
+        if (columns_[i].type() == ColumnType::Video) {
+          buffered_entry_.frame_sizes.emplace_back();
+          frame_size_initialized_[encoder_idx] = false;
+          encoder_idx++;
+        }
       }
       if (work_entry.needs_configure) {
         for (size_t i = 0; i < encoder_configured_.size(); ++i) {
@@ -1080,15 +1079,32 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         }
       }
     }
+  }
 
-    i64 num_rows = work_entry.columns[0].size();
-    current_offset_ += num_rows;
-
+  // Swizzle columns correctly
+  {
     i32 encoder_idx = 0;
-    // Swizzle columns correctly
     for (size_t i = 0; i < column_mapping_.size(); ++i) {
       i32 col_idx = column_mapping_[i];
       ColumnType column_type = columns_[i].type();
+
+      if (work_entry.columns[col_idx].empty()) {
+        // No frames yet, so skip this column
+        if (column_type == ColumnType::Video) {
+          encoder_idx++;
+        }
+        continue;
+      }
+
+      // Initialize frame size if not done so yet
+      if (column_type == ColumnType::Video &&
+          !frame_size_initialized_[encoder_idx]) {
+        assert(work_entry.columns[col_idx].size() > 0);
+        Frame* frame = work_entry.columns[col_idx][0].as_frame();
+        buffered_entry_.frame_sizes[encoder_idx] = frame->as_frame_info();
+        frame_size_initialized_[encoder_idx] = true;
+      }
+
       // Encode video frames
       if (compression_enabled_[i] && column_type == ColumnType::Video &&
           buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
@@ -1139,6 +1155,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
                                           work_entry.row_ids[col_idx].end());
       }
     }
+
     // Delete unused columns
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       if (column_set_.count(i) > 0) {
