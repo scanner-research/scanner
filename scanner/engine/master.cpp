@@ -1400,7 +1400,25 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Wait until all workers are done and work has been completed
   auto all_workers_finished_start = now();
+  auto finished_start = now();
   while (true) {
+    if (!finished_) {
+      finished_start = now();
+    }
+    if (finished_) {
+      // If we have finished but workers have not responded after 60 seconds,
+      // end the job
+      double seconds_since = std::chrono::duration_cast<std::chrono::seconds>(
+                                 now() - finished_start)
+                                 .count();
+      if (seconds_since > 60) {
+        LOG(WARNING) << "Job has been finished for 60 seconds but not all "
+                        "workers confirmed a finished job. This does not "
+                        "affect the job results but some profiling information "
+                        "may not have been written. Finishing job now.";
+        break;
+      }
+    }
     // Check if we have unfinished workers
     bool all_workers_finished = true;
     {
@@ -1524,7 +1542,7 @@ void MasterImpl::start_worker_pinger() {
   VLOG(1) << "Starting worker pinger";
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
-    while (!finished_ && pinger_active_) {
+    while (pinger_active_) {
       std::map<i32, proto::Worker::Stub*> ws;
       {
         std::unique_lock<std::mutex> lk(work_mutex_);
