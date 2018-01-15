@@ -275,7 +275,7 @@ void DecoderAutomata::feeder() {
             feeder_current_frame_ - start_keyframe);
         encoded_packet = encoded_buffer + feeder_buffer_offset_;
         assert(0 <= encoded_packet_size &&
-               encoded_packet_size < encoded_buffer_size);
+               encoded_packet_size <= encoded_buffer_size);
         feeder_buffer_offset_ += encoded_packet_size;
         // printf("encoded packet size %d, ptr %p\n", encoded_packet_size,
         //        encoded_packet);
