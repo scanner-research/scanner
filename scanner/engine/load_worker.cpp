@@ -149,11 +149,12 @@ VideoIntervals slice_into_video_intervals(
       // than half the keyframe interval or if they are exactly equal to the
       // keyframes, then we should make a new interval so that we can avoid
       // decoding everything in between
-      bool large_distance = (row - prev_row) > (keyframe_interval / 2);
-      bool exactly_keyframes =
-          (row == prev_keyframe) && (prev_row == prev_prev_keyframe);
-      if (exactly_keyframes || large_distance || row >= next_keyframe ||
-          !is_adjacent) {
+      // bool large_distance = (row - prev_row) > (keyframe_interval / 2);
+      // bool exactly_keyframes =
+      //     (row == prev_keyframe) && (prev_row == prev_prev_keyframe);
+      // if (exactly_keyframes || large_distance || row >= next_keyframe ||
+      //     !is_adjacent) {
+      if (row >= next_keyframe || !is_adjacent) {
         // Skipped a keyframe, so make a new interval
         if (!valid_frames.empty()) {
           info.keyframe_index_intervals.push_back(

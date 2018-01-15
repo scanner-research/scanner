@@ -157,7 +157,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
             if (retriever_data_idx_ < encoded_data_.size()) {
               {
                 // Wait until feeder is waiting
-                //skip_frames_ = true;
+                skip_frames_ = true;
                 std::unique_lock<std::mutex> lk(feeder_mutex_);
                 wake_feeder_.wait(lk, [this, &total_frames_decoded] {
                   while (decoder_->discard_frame()) {
@@ -165,7 +165,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
                   }
                   return feeder_waiting_.load();
                 });
-                //skip_frames_ = false;
+                skip_frames_ = false;
               }
 
               if (seeking_) {
