@@ -76,11 +76,40 @@ class Column(object):
             self._db_path, self._table._descriptor.id,
             self._descriptor.id, item_id)
         try:
-            metadata_contents = self._storage.read(
-                metadata_path.encode('ascii'))
+            metadata_file = RandomReadFile(self._storage, metadata_path.encode('ascii'))
         except UserWarning:
             raise ScannerException('Path {} does not exist'.format(
                 metadata_path))
+
+        data_path = '{}/tables/{}/{}_{}.bin'.format(
+            self._db_path, self._table._descriptor.id,
+            self._descriptor.id, item_id)
+        try:
+            data_file = RandomReadFile(self._storage, data_path.encode('ascii'))
+        except UserWarning:
+            raise ScannerException('Path {} does not exist'.format(path))
+
+        # HACK: this should get eliminated once metadata format saves offsets instead of lengths
+        last_row_edge_case = rows == [self._table._descriptor.end_rows[-1] - 1]
+        if last_row_edge_case:
+            size = metadata_file.size()
+            metadata_file.seek(size-8)
+            (buf_len,) = struct.unpack('=Q', metadata_file.read(8))
+            data_file.seek(data_file.size() - buf_len)
+            buf = data_file.read(buf_len)
+            if len(buf) == 0:
+                yield None
+            elif fn is not None:
+                yield fn(buf, self._db.protobufs)
+            else:
+                yield buf
+            return
+
+        sparse_load = len(rows) < LOAD_SPARSITY_THRESHOLD
+
+        metadata_contents = metadata_file.read()
+        if not sparse_load:
+            data_contents = data_file.read()
 
         lens = []
         total_rows = 0
@@ -93,18 +122,6 @@ class Column(object):
                 (buf_len,) = struct.unpack("=Q", metadata_contents[i:i+8])
                 lens.append(buf_len)
                 i += 8
-
-        data_path = '{}/tables/{}/{}_{}.bin'.format(
-            self._db_path, self._table._descriptor.id,
-            self._descriptor.id, item_id)
-        sparse_load = len(rows) < LOAD_SPARSITY_THRESHOLD
-        try:
-            if not sparse_load:
-                contents = self._storage.read(data_path.encode('ascii'))
-            else:
-                fil = RandomReadFile(self._storage, data_path.encode('ascii'))
-        except UserWarning:
-            raise ScannerException('Path {} does not exist'.format(path))
 
         start_pos = None
         pos = 0
@@ -120,10 +137,10 @@ class Column(object):
         for j, buf_len in enumerate(lens):
             if rows_idx < len(rows) and j == rows[rows_idx]:
                 if sparse_load:
-                    fil.seek(i)
-                    buf = fil.read(buf_len)
+                    data_file.seek(i)
+                    buf = data_file.read(buf_len)
                 else:
-                    buf = contents[i:i+buf_len]
+                    buf = data_contents[i:i+buf_len]
 
                 # len(buf) == 0 when element is null
                 if len(buf) == 0:
