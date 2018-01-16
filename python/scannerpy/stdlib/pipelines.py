@@ -94,11 +94,12 @@ def detect_faces(db,
         jobs = []
         for output_name, frame_column, output_sampling in zip(
                 output_names, input_frame_columns, output_samplings):
-            job = Job(op_args={
-                frame: frame_column,
-                sampled_output: output_sampling,
-                output: '{}_{}'.format(output_name, scale)
-            })
+            job = Job(
+                op_args={
+                    frame: frame_column,
+                    sampled_output: output_sampling,
+                    output: '{}_{}'.format(output_name, scale)
+                })
             jobs.append(job)
 
         bulk_job = BulkJob(output=output, jobs=jobs)
@@ -106,7 +107,7 @@ def detect_faces(db,
             bulk_job,
             force=True,
             work_packet_size=batch * 4,
-            io_packet_size=10000,
+            io_packet_size=batch * 20,
             pipeline_instances_per_node=pipeline_instances)
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
@@ -203,11 +204,12 @@ def detect_poses(db,
 
     jobs = []
     for i, input_frame_column in enumerate(input_frame_columns):
-        job = Job(op_args={
-            frame: input_frame_column,
-            sampled_poses: sampling,
-            output: '{}_{}_poses'.format(output_name, i)
-        })
+        job = Job(
+            op_args={
+                frame: input_frame_column,
+                sampled_poses: sampling,
+                output: '{}_{}_poses'.format(output_name, i)
+            })
         jobs.append(job)
     bulk_job = BulkJob(output=output, jobs=jobs)
     output = db.run(
