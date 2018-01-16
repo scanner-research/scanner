@@ -5,10 +5,13 @@ from subprocess import Popen, PIPE
 import tempfile
 import os
 
+from storehouse import RandomReadFile
 from scannerpy.stdlib import parsers
 from scannerpy.common import *
 from scannerpy.job import Job
 from scannerpy.bulk_job import BulkJob
+
+LOAD_SPARSITY_THRESHOLD = 10
 
 class Column(object):
     """
@@ -79,14 +82,6 @@ class Column(object):
             raise ScannerException('Path {} does not exist'.format(
                 metadata_path))
 
-        path = '{}/tables/{}/{}_{}.bin'.format(
-            self._db_path, self._table._descriptor.id,
-            self._descriptor.id, item_id)
-        try:
-            contents = self._storage.read(path.encode('ascii'))
-        except UserWarning:
-            raise ScannerException('Path {} does not exist'.format(path))
-
         lens = []
         total_rows = 0
         i = 0
@@ -98,6 +93,18 @@ class Column(object):
                 (buf_len,) = struct.unpack("=Q", metadata_contents[i:i+8])
                 lens.append(buf_len)
                 i += 8
+
+        data_path = '{}/tables/{}/{}_{}.bin'.format(
+            self._db_path, self._table._descriptor.id,
+            self._descriptor.id, item_id)
+        sparse_load = len(rows) < LOAD_SPARSITY_THRESHOLD
+        try:
+            if not sparse_load:
+                contents = self._storage.read(data_path.encode('ascii'))
+            else:
+                fil = RandomReadFile(self._storage, data_path.encode('ascii'))
+        except UserWarning:
+            raise ScannerException('Path {} does not exist'.format(path))
 
         start_pos = None
         pos = 0
@@ -112,7 +119,12 @@ class Column(object):
         i = start_pos
         for j, buf_len in enumerate(lens):
             if rows_idx < len(rows) and j == rows[rows_idx]:
-                buf = contents[i:i+buf_len]
+                if sparse_load:
+                    fil.seek(i)
+                    buf = fil.read(buf_len)
+                else:
+                    buf = contents[i:i+buf_len]
+
                 # len(buf) == 0 when element is null
                 if len(buf) == 0:
                     yield None
