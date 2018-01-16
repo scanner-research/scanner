@@ -568,11 +568,7 @@ class Database(object):
                     time.sleep(0.3)
                     slept_so_far += 0.3
                 if slept_so_far >= sleep_time:
-                    self._master_conn.kill()
-                    for wc in self._worker_conns:
-                        wc.kill()
-                    self._master_conn = None
-                    self._worker_conns = None
+                    self.stop_cluster()
                     raise ScannerException(
                         'Timed out waiting for workers to connect to master')
                 if ignored_nodes > 0:
