@@ -97,9 +97,8 @@ class CaffeInputTransformer : public Halide::Generator<CaffeInputTransformer> {
     resized_x.compute_root().reorder(c, x, y).unroll(c).gpu_tile(x, y, 8, 8);
     rescaled.reorder(c, x, y).unroll(c).gpu_tile(x, y, 8, 8);
 #else
-    rescaled.reorder(x, c, y).parallel(y).vectorize(x, 8);
-    resized_x.compute_at(rescaled, y).vectorize(x, 8);
-    resized_y.compute_at(rescaled, y).vectorize(x, 8);
+    // Pipeline p(rescaled);
+    // p.auto_schedule(target);
 #endif
 
     return rescaled;
