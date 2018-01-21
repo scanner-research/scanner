@@ -112,22 +112,35 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
     wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
   }
 
-  if (encoded_data_.size() > feeder_data_idx_) {
-    // Make sure to not feed seek packet if we reached end of stream
-    if (seeking_) {
-      decoder_->feed(nullptr, 0, true);
-      seeking_ = false;
+  frames_retrieved_ = 0;
+  frames_to_get_ = num_frames;
+  // We don't want to send discontinuity packet and flush until we know
+  // we have exhausted this decode args group
+  if (encoded_data_.size() > retriever_data_idx_) {
+    const auto& valid_frames =
+        encoded_data_[retriever_data_idx_].valid_frames();
+    // If we are at the end of a segment or if the retriever and the feeder
+    // are working on the same segment
+    if (retriever_valid_idx_ == valid_frames.size() ||
+        retriever_data_idx_ == feeder_data_idx_) {
+      // Make sure to not feed seek packet if we reached end of stream
+      if (encoded_data_.size() > feeder_data_idx_) {
+        if (seeking_) {
+          decoder_->feed(nullptr, 0, true);
+          seeking_ = false;
+        }
+      }
+
+      // Start up feeder thread
+      {
+        std::unique_lock<std::mutex> lk(feeder_mutex_);
+        feeder_waiting_ = false;
+        LOG(INFO) << "waking feeder!";
+      }
+      wake_feeder_.notify_one();
     }
   }
 
-  // Start up feeder thread
-  {
-    std::unique_lock<std::mutex> lk(feeder_mutex_);
-    frames_retrieved_ = 0;
-    frames_to_get_ = num_frames;
-    feeder_waiting_ = false;
-  }
-  wake_feeder_.notify_one();
 
   if (profiler_) {
     profiler_->add_interval("get_frames_wait", start, now());
@@ -157,7 +170,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
             if (retriever_data_idx_ < encoded_data_.size()) {
               {
                 // Wait until feeder is waiting
-                skip_frames_ = true;
+                //skip_frames_ = true;
                 std::unique_lock<std::mutex> lk(feeder_mutex_);
                 wake_feeder_.wait(lk, [this, &total_frames_decoded] {
                   while (decoder_->discard_frame()) {
@@ -165,7 +178,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
                   }
                   return feeder_waiting_.load();
                 });
-                skip_frames_ = false;
+                //skip_frames_ = false;
               }
 
               if (seeking_) {
