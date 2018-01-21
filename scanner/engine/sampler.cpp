@@ -236,7 +236,7 @@ class StridedRangesDomainSampler : public DomainSampler {
       while (range_idx < args_.ends_size() &&
              !(r >= args_.starts(range_idx) && r < args_.ends(range_idx))) {
         // Add number of valid rows in this range sequence to offset
-        offset += (args_.starts(range_idx) - args_.ends(range_idx) +
+        offset += (args_.ends(range_idx) - args_.starts(range_idx) +
                    args_.stride() - 1) /
                   args_.stride();
         range_idx++;
