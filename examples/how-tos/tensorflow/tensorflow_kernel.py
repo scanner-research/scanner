@@ -6,8 +6,6 @@ import cv2
 import os
 from scannerpy.stdlib import pykernel
 from utils import visualization_utils as vis_util
-from utils import label_map_util
-import six.moves.urllib as urllib
 
 PATH_TO_REPO = '/home/wcrichto/.deps/models'
 
