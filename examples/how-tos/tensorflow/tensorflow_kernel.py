@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import os
-from scannerpy.stdlib import pykernel
+from scannerpy.stdlib import kernel
 from utils import visualization_utils as vis_util
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +29,7 @@ PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', '
 categories = vis_util.parse_labelmap(PATH_TO_LABELS)
 category_index = vis_util.create_category_index(categories)
 
-class Kernel(pykernel.TensorFlowKernel):
+class Kernel(kernel.TensorFlowKernel):
     def build_graph(self):
         dnn = tf.Graph()
         with dnn.as_default():
