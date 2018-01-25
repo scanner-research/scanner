@@ -26,11 +26,8 @@ PATH_TO_LABELS = os.path.join(PATH_TO_REPO, 'data', 'mscoco_label_map.pbtxt')
 
 PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', 'frozen_inference_graph.pb')
 
-NUM_CLASSES = 90
-
-label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
-category_index = label_map_util.create_category_index(categories)
+categories = vis_util.parse_labelmap(PATH_TO_LABELS)
+category_index = vis_util.create_category_index(categories)
 
 class Kernel(pykernel.TensorFlowKernel):
     def build_graph(self):
