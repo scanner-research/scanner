@@ -7,7 +7,8 @@ import os
 from scannerpy.stdlib import pykernel
 from utils import visualization_utils as vis_util
 
-PATH_TO_REPO = '/home/wcrichto/.deps/models'
+script_dir = os.path.dirname(os.path.abspath(__file__))
+PATH_TO_REPO = script_dir
 
 # What model to download.
 MODEL_NAME = 'ssd_mobilenet_v1_coco_11_06_2017'
