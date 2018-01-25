@@ -17,6 +17,7 @@ import skvideo.io
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 PATH_TO_REPO = script_dir
+PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', 'frozen_inference_graph.pb')
 
 # What model to download.
 MODEL_NAME = 'ssd_mobilenet_v1_coco_2017_11_17'
@@ -179,6 +180,9 @@ def draw_boxes(frame, bundled_np, min_score_thresh=0.5):
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print('Usage: {:s} path/to/your/video/file.mp4'.format(sys.argv[0]))
+        sys.exit(1)
+    if not os.path.isfile(PATH_TO_GRAPH):
+        print("Please make sure that 'frozen_inference_graph.pb' exists!")
         sys.exit(1)
 
     movie_path = sys.argv[1]
