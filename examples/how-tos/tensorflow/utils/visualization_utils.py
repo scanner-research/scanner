@@ -77,11 +77,11 @@ def parse_labelmap(path):
       'name': string representing category name
         e.g., 'cat', 'dog', 'pizza'.
   """
-    with open(path, 'r') as f:
-      file_content = f.read()
-      regex = re.compile(r"id:\s+(?P<id>[0-9]+)\n\s+display_name:\s+\"(?P<name>[A-Za-z]+)\"")
-      result = [item.groupdict() for item in regex.finditer(file_content)]
-      return result
+  with open(path, 'r') as f:
+    file_content = f.read()
+    regex = re.compile(r"id:\s+(?P<id>[0-9]+)\n\s+display_name:\s+\"(?P<name>[A-Za-z]+)\"")
+    result = [item.groupdict() for item in regex.finditer(file_content)]
+    return result
 
 
 def create_category_index(categories):
