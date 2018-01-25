@@ -29,7 +29,7 @@ PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', '
 categories = vis_util.parse_labelmap(PATH_TO_LABELS)
 category_index = vis_util.create_category_index(categories)
 
-class Kernel(kernel.TensorFlowKernel):
+class ObjDetectKernel(kernel.TensorFlowKernel):
     def build_graph(self):
         dnn = tf.Graph()
         with dnn.as_default():
@@ -59,3 +59,5 @@ class Kernel(kernel.TensorFlowKernel):
             use_normalized_coordinates=True,
             line_thickness=8)
         return [image.tobytes()]
+
+KERNEL = ObjDetectKernel
