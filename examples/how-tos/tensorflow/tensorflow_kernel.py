@@ -1,4 +1,4 @@
-# Mostly taken from: https://github.com/tensorflow/models/blob/master/object_detection/object_detection_tutorial.ipynb
+# Mostly taken from: https://github.com/tensorflow/models/blob/1f34fc/research/object_detection/object_detection_tutorial.ipynb
 
 import numpy as np
 import tensorflow as tf
@@ -10,15 +10,21 @@ from utils import visualization_utils as vis_util
 script_dir = os.path.dirname(os.path.abspath(__file__))
 PATH_TO_REPO = script_dir
 
+##################################################################################################
+# Assume that DNN model is located in PATH_TO_GRAPH with filename 'frozen_inference_graph.pb'    #
+# Example model can be downloaded from:                                                          #
+# http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coco_2017_11_17.tar.gz #
+##################################################################################################
+
 # What model to download.
 MODEL_NAME = 'ssd_mobilenet_v1_coco_11_06_2017'
 MODEL_FILE = MODEL_NAME + '.tar.gz'
 DOWNLOAD_BASE = 'http://download.tensorflow.org/models/object_detection/'
 
 # List of the strings that is used to add correct label for each box.
-PATH_TO_LABELS = os.path.join(PATH_TO_REPO, 'object_detection', 'data', 'mscoco_label_map.pbtxt')
+PATH_TO_LABELS = os.path.join(PATH_TO_REPO, 'data', 'mscoco_label_map.pbtxt')
 
-PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'object_detection', 'ssd_mobilenet_v1_coco_11_06_2017', 'frozen_inference_graph.pb')
+PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', 'frozen_inference_graph.pb')
 
 NUM_CLASSES = 90
 
