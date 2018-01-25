@@ -41,15 +41,15 @@ class ObjDetectKernel(kernel.TensorFlowKernel):
         return dnn
 
     def execute(self, cols):
-        print 'Execute'
         image = cols[0]
         image_tensor = self.graph.get_tensor_by_name('image_tensor:0')
         boxes = self.graph.get_tensor_by_name('detection_boxes:0')
         scores = self.graph.get_tensor_by_name('detection_scores:0')
         classes = self.graph.get_tensor_by_name('detection_classes:0')
-        (boxes, scores, classes) = self.sess.run(
-            [boxes, scores, classes],
-            feed_dict={image_tensor: np.expand_dims(image, axis=0)})
+        with self.graph.as_default():
+            (boxes, scores, classes) = self.sess.run(
+                [boxes, scores, classes],
+                feed_dict={image_tensor: np.expand_dims(image, axis=0)})
         vis_util.visualize_boxes_and_labels_on_image_array(
             image,
             np.squeeze(boxes),
@@ -58,6 +58,6 @@ class ObjDetectKernel(kernel.TensorFlowKernel):
             category_index,
             use_normalized_coordinates=True,
             line_thickness=8)
-        return [image.tobytes()]
+        return image
 
 KERNEL = ObjDetectKernel
