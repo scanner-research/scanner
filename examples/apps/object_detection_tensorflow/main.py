@@ -3,6 +3,8 @@ import os
 import sys
 import math
 from tqdm import tqdm
+import six.moves.urllib as urllib
+import tarfile
 
 import visualization_utils as vis_util
 
@@ -181,9 +183,18 @@ if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print('Usage: {:s} path/to/your/video/file.mp4'.format(sys.argv[0]))
         sys.exit(1)
+
+    # Download the DNN model if not found in PATH_TO_GRAPH
     if not os.path.isfile(PATH_TO_GRAPH):
-        print("Please make sure that 'frozen_inference_graph.pb' exists!")
-        sys.exit(1)
+        print("DNN Model not found, now downloading...")
+        opener = urllib.request.URLopener()
+        opener.retrieve(DOWNLOAD_BASE + MODEL_FILE, MODEL_FILE)
+        tar_file = tarfile.open(MODEL_FILE)
+        for file in tar_file.getmembers():
+            file_name = os.path.basename(file.name)
+            if 'frozen_inference_graph.pb' in file_name:
+                tar_file.extract(file, os.getcwd())
+        print("Successfully downloaded DNN Model.")
 
     movie_path = sys.argv[1]
     print('Detecting objects in movie {}'.format(movie_path))
