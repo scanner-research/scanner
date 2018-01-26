@@ -8,9 +8,9 @@ class TensorFlowKernel(Kernel):
         # TODO: wrap this in "with device"
         self.config = config
         self.tf_config = tf.ConfigProto(allow_soft_placement = True)
-        self.sess = tf.Session(config=self.tf_config)
+        self.graph = self.build_graph()
+        self.sess = tf.Session(graph=self.graph, config=self.tf_config)
         self.sess.as_default()
-        self.graph = self.build_graph(self.sess)
         self.protobufs = protobufs
 
     def close(self):
