@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['userfunctionregistry',['UserFunctionRegistry',['../classscanner_1_1UserFunctionRegistry.html',1,'scanner']]]
+  ['videokernel',['VideoKernel',['../classscanner_1_1VideoKernel.html',1,'scanner']]]
 ];
