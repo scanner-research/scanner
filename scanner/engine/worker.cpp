@@ -1239,6 +1239,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       if (factory != nullptr) {
         device_type = factory->get_device_type();
         max_devices = factory->get_max_devices();
+        if (max_devices == Kernel::UnlimitedDevices) {
+          max_devices = 1;
+        }
       }
       if (device_type == DeviceType::CPU) {
         for (i32 i = 0; i < max_devices; ++i) {
