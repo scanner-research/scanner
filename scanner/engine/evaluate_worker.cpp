@@ -24,6 +24,10 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 
   entry_ = work_entry;
 
+  if (work_entry.column_types[0] == ColumnType::Stream) {
+    return;
+  }
+
   needs_configure_ = !(work_entry.job_index == last_job_idx_);
   needs_reset_ = true;
 
@@ -170,6 +174,11 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 
 bool PreEvaluateWorker::yield(i32 item_size,
                               EvalWorkEntry& output_entry) {
+  if (entry_.column_types[0] == ColumnType::Stream) {
+    output_entry = entry_;
+    return true;
+  }
+
   if (current_row_ >= total_rows_) return false;
 
   auto yield_start = now();
@@ -446,6 +455,10 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
 
 void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   entry_ = work_entry;
+
+  if (entry_.column_types[0] == ColumnType::Stream) {
+    return true;
+  }
 
   auto feed_start = now();
 
@@ -937,6 +950,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
 bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   EvalWorkEntry& work_entry = entry_;
+
+  if (entry_.column_types[0] == ColumnType::Stream) {
+    output_entry = entry_;
+    return true;
+  }
 
   auto yield_start = now();
 

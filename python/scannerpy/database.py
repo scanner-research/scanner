@@ -15,7 +15,7 @@ import collections
 import subprocess
 from tqdm import tqdm
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from multiprocessing import Process, Queue, cpu_count
 from subprocess import Popen, PIPE
 from random import choice
@@ -50,7 +50,8 @@ def start_master(port=None,
                  block=False,
                  watchdog=True,
                  prefetch_table_metadata=True,
-                 no_workers_timeout=30):
+                 no_workers_timeout=30,
+                 stream_mode=False):
     """
     Start a master server instance on this node.
 
@@ -69,12 +70,18 @@ def start_master(port=None,
     config = config or Config(config_path)
     port = port or config.master_port
 
+    server = grpc.server(ThreadPoolExecutor(max_workers=10))
+    rpc_pb2_grpc.add_MasterServicer_to_server(MasterServicer(), server)
+    server.add_insecure_port('localhost:5000')
+    server.start()
+    print("Python master started.")
+
     # Load all protobuf types
     db = bindings.Database(
         config.storage_config, config.db_path.encode('ascii'),
         (config.master_address + ':' + port).encode('ascii'))
     result = bindings.start_master(db, port.encode('ascii'), watchdog,
-                                   prefetch_table_metadata, no_workers_timeout)
+                                   prefetch_table_metadata, no_workers_timeout, stream_mode)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
@@ -84,7 +91,7 @@ def start_master(port=None,
 
 
 def worker_process((master_address, machine_params, port, config, config_path,
-                    block, watchdog, prefetch_table_metadata)):
+                    block, watchdog, prefetch_table_metadata, stream_mode)):
     config = config or Config(config_path)
     port = port or config.worker_port
 
@@ -97,7 +104,7 @@ def worker_process((master_address, machine_params, port, config, config_path,
     machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params,
                                    str(port).encode('ascii'), watchdog,
-                                   prefetch_table_metadata)
+                                   prefetch_table_metadata, stream_mode)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(
             result.msg()))
@@ -114,7 +121,8 @@ def start_worker(master_address,
                  block=False,
                  watchdog=True,
                  prefetch_table_metadata=True,
-                 num_workers=None):
+                 num_workers=None,
+                 stream_mode=False):
     """
     Start a worker instance on this node.
 
@@ -141,7 +149,7 @@ def start_worker(master_address,
                 executor.map(
                     worker_process,
                     ([(master_address, machine_params, int(port) + i, config,
-                       config_path, block, watchdog, prefetch_table_metadata)
+                       config_path, block, watchdog, prefetch_table_metadata, stream_mode)
                       for i in range(num_workers)])))
 
         for result in results:
@@ -151,7 +159,7 @@ def start_worker(master_address,
     else:
         return worker_process(
             (master_address, machine_params, port, config, config_path, block,
-             watchdog, prefetch_table_metadata))
+             watchdog, prefetch_table_metadata, stream_mode))
 
 
 class Database(object):
@@ -172,7 +180,8 @@ class Database(object):
                  debug=None,
                  start_cluster=True,
                  prefetch_table_metadata=True,
-                 no_workers_timeout=30):
+                 no_workers_timeout=30,
+                 stream_mode=False):
         """
         Initializes a Scanner database.
 
@@ -201,6 +210,7 @@ class Database(object):
             self._debug = (master is None and workers is None)
 
         self._master = None
+        self._stream_mode = stream_mode
 
         self._bindings = bindings
 
@@ -469,7 +479,7 @@ class Database(object):
                 res = self._bindings.start_master(
                     self._db, self.config.master_port.encode('ascii'), True,
                     self._prefetch_table_metadata,
-                    self._no_workers_timeout).success
+                    self._no_workers_timeout, self._stream_mode).success
                 assert res
                 res = self._connect_to_master()
                 if not res:
@@ -484,7 +494,7 @@ class Database(object):
                     res = self._bindings.start_worker(
                         self._db, machine_params,
                         str(int(self.config.worker_port) + i).encode('ascii'),
-                        True, self._prefetch_table_metadata).success
+                        True, self._prefetch_table_metadata, self._stream_mode).success
                     if not res:
                         raise ScannerException(
                             'Failed to start local worker on port {:d} and '
@@ -501,19 +511,20 @@ class Database(object):
                     'start_master(port=\'{master_port:s}\', block=True,\n' +
                     '             config=config,\n' +
                     '             prefetch_table_metadata={prefetch},\n' +
-                    '             no_workers_timeout={no_workers})\" ' +
+                    '             no_workers_timeout={no_workers}, stream_mode={stream})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
                         prefetch=self._prefetch_table_metadata,
-                        no_workers=self._no_workers_timeout)
+                        no_workers=self._no_workers_timeout,
+                        stream=self._stream_mode)
                 worker_cmd = (
                     'python -c ' + '\"from scannerpy import start_worker\n' +
                     'import pickle\n' +
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
                     'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n'
                     + '             block=True,\n' +
-                    '             config=config)\" ' + '')
+                    '             config=config, stream_mode={stream})\" ' + '')
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
 
@@ -544,7 +555,8 @@ class Database(object):
                                 worker_cmd.format(
                                     master=self._master_address,
                                     config=pickled_config,
-                                    worker_port=w.partition(':')[2]),
+                                    worker_port=w.partition(':')[2],
+                                    stream=self._stream_mode),
                                 nohup=True))
                     except:
                         print('WARNING: Failed to ssh into {:s}, ignoring'.
@@ -1132,7 +1144,7 @@ class Database(object):
             job_params.memory_pool_config.gpu.free_space = size
 
         # Run the job
-        self._try_rpc(lambda: self._master.NewJob(job_params))
+        self._try_rpc(lambda: self._worker.NewJob(job_params))
 
         job_status = self.wait_on_current_job(show_progress)
 

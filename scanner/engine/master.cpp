@@ -49,6 +49,7 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
   set_database_path(params.db_path);
+  stream_mode_ = params.stream_mode;
 
   // Perform database consistency checks on startup
   recover_and_init_database();

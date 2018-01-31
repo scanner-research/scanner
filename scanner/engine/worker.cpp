@@ -299,6 +299,16 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 
 void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
                           PostEvaluateWorkerArgs args) {
+  if (stream_mode_) {
+    // should loop over all possible entries. here we only do once for now.
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
+    input_work.pop(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
+
+    output_work.push(std::make_tuple(0, work_entry));
+    return;
+  }
+
   Profiler& profiler = args.profiler;
   PostEvaluateWorker worker(args);
   while (true) {
@@ -350,6 +360,13 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 
 void save_coordinator(OutputEvalQueue& eval_work,
                       std::vector<SaveInputQueue>& save_work) {
+  if (stream_mode_) {
+    std::tuple<i32, EvalWorkEntry> entry;
+    eval_work.pop(entry);
+    save_work[0].push(entry);
+    return;
+  }
+
   i32 num_save_workers = save_work.size();
   std::map<std::tuple<i32, i32>, i32> task_to_worker_mapping;
   i32 last_worker_assigned = 0;
@@ -395,6 +412,31 @@ void save_coordinator(OutputEvalQueue& eval_work,
 void save_driver(SaveInputQueue& save_work,
                  SaveOutputQueue& output_work,
                  SaveWorkerArgs args) {
+
+  if (stream_mode_) {
+    std::tuple<i32, EvalWorkEntry> entry;
+    save_work.pop(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
+
+    ElementList& element_list = work_entry.columns[0];
+    proto::FinishedWorkParameters params;
+
+    for (int i = 0; i < element_list.size(); ++i) {
+      u8* buffer = element_list[i].buffer;
+      proto::ElementDescriptor* element_descriptor = params.add_rows();
+      element_descriptor->set_buffer((char *)buffer);
+      delete_element(CPU_DEVICE, element_list[i]);
+    }
+
+    proto::Empty empty;
+    grpc::Status status;
+
+    GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
+
+    return;
+  }
+
+
   Profiler& profiler = args.profiler;
   std::map<std::tuple<i32, i32>, std::unique_ptr<SaveWorker>> workers;
   while (true) {
@@ -463,6 +505,7 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   VLOG(1) << "Creating worker";
 
   set_database_path(db_params.db_path);
+  stream_mode_ = db_params.stream_mode;
 
   avcodec_register_all();
 #ifdef DEBUG
@@ -727,10 +770,16 @@ void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
   });
 }
 
-Result WorkerImpl::register_with_master() {
+Result WorkerImpl::register_with_master(std::string master_address) {
   assert(state_.get() == State::INITIALIZING);
 
   VLOG(1) << "Worker try to register with master";
+
+  master_address_ = master_address;
+  VLOG(1) << "Create master stub";
+  master_ = proto::Master::NewStub(
+      grpc::CreateChannel(master_address, grpc::InsecureChannelCredentials()));
+  VLOG(1) << "Finish master stub";
 
   proto::WorkerParams worker_info;
   worker_info.set_port(worker_port_);
@@ -1476,13 +1525,21 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-        derive_stencil_requirements(
-            meta, table_meta, jobs.at(new_work.job_index()), ops,
-            analysis_results, job_params->boundary_condition(),
-            new_work.table_id(), new_work.job_index(), new_work.task_index(),
-            std::vector<i64>(new_work.output_rows().begin(),
-                             new_work.output_rows().end()),
-            stenciled_entry, task_stream);
+        // Don't need that for now in streaming mode
+//        derive_stencil_requirements(
+//            meta, table_meta, jobs.at(new_work.job_index()), ops,
+//            analysis_results, job_params->boundary_condition(),
+//            new_work.table_id(), new_work.job_index(), new_work.task_index(),
+//            std::vector<i64>(new_work.output_rows().begin(),
+//                             new_work.output_rows().end()),
+//            stenciled_entry, task_stream);
+
+        stenciled_entry.set_streaming(true);
+        for (int i = 0; i < new_work.rows_size(); ++i) {
+          proto::ElementDescriptor* row = stenciled_entry.add_rows();
+          row->set_row_id = new_work.rows(i).row_id();
+          row->set_buffer = new_work.rows(i).buffer();
+        }
 
         // Determine which worker to allocate to
         i32 target_work_queue = -1;

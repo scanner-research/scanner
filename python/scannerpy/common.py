@@ -33,6 +33,7 @@ class ColumnType(enum.Enum):
     """ Enum for specifying what the type of a column is. """
     Blob = 0
     Video = 1
+    Stream = 2
 
     @staticmethod
     def to_proto(protobufs, ty):
@@ -40,5 +41,7 @@ class ColumnType(enum.Enum):
             return protobufs.Other
         elif ty == ColumnType.Video:
             return protobufs.Video
+        elif ty == ColumnType.Stream:
+            return protobufs.Stream
         else:
             raise ScannerException('Invalid column type')

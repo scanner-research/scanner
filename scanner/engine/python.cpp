@@ -63,16 +63,16 @@ std::string default_machine_params_wrapper() {
 
 proto::Result start_master_wrapper(Database& db, const std::string& port,
                                    bool watchdog, bool prefetch_table_metadata,
-                                   i64 no_workers_timeout) {
+                                   i64 no_workers_timeout, bool stream_mode) {
   GILRelease r;
   return db.start_master(default_machine_params(), port, watchdog,
                          prefetch_table_metadata,
-                         no_workers_timeout);
+                         no_workers_timeout, stream_mode);
 }
 
 proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
                                    const std::string& port, bool watchdog,
-                                   bool prefetch_table_metadata) {
+                                   bool prefetch_table_metadata, bool stream_mode) {
   GILRelease r;
   proto::MachineParameters params_proto;
   params_proto.ParseFromString(params_s);
@@ -84,7 +84,7 @@ proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
     params.gpu_ids.push_back(gpu_id);
   }
 
-  return db.start_worker(params, port, watchdog, prefetch_table_metadata);
+  return db.start_worker(params, port, watchdog, prefetch_table_metadata, stream_mode);
 }
 
 py::list ingest_videos_wrapper(Database& db, const py::list table_names,

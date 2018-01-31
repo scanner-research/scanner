@@ -89,13 +89,15 @@ struct DatabaseParameters {
   i32 num_save_workers;
   std::vector<i32> gpu_ids;
   bool prefetch_table_metadata;
+  bool stream_mode;
   i64 no_workers_timeout; // in seconds
 };
 
 class MasterImpl;
 class WorkerImpl;
 
-MasterImpl* get_master_service(DatabaseParameters& param);
+// Commented out because we use python master for streaming
+//MasterImpl* get_master_service(DatabaseParameters& param);
 
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                const std::string& master_address,

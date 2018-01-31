@@ -154,6 +154,7 @@ class MasterImpl final : public proto::Master::Service {
   void blacklist_job(i64 job_id);
 
   DatabaseParameters db_params_;
+  bool stream_mode_;
 
   std::thread pinger_thread_;
   std::atomic<bool> pinger_active_;
