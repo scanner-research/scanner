@@ -13,6 +13,11 @@ endforeach()
 
 list(APPEND CMAKE_PREFIX_PATH ${PROTOBUF_DIR})
 
+# Disable cuda if nvidia-smi was not detected
+if (${HAVE_GPU} STREQUAL "false")
+  set(BUILD_CUDA OFF)
+endif()
+
 ###### Optional Dependencies #######
 if (BUILD_CUDA)
   find_package(CUDA REQUIRED)

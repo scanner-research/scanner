@@ -13,6 +13,11 @@ set(STDLIB_LIBRARIES)
 set(OPENCV_MAJOR_VERSION 3)
 set(OPENCV_COMPONENTS)
 
+# Can't build OpenPose if we don't have GPUs
+if (NOT ${BUILD_CUDA})
+  set(BUILD_OPENPOSE_OPS OFF)
+endif()
+
 set(HALIDE_TARGETS)
 macro(add_halide_target SRC TARGET)
   if (NOT HALIDE_FOUND)
