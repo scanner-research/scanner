@@ -76,6 +76,13 @@ echo "(customized by specifying (--prefix <dir>)"
 
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
+# Check if we have GPUs by looking for nvidia-smi
+if command -v nvidia-smi; then
+    HAVE_GPU=true
+else
+    HAVE_GPU=false
+fi
+
 # Directories for installed dependencies
 BOOST_DIR=$INSTALL_PREFIX
 FFMPEG_DIR=$INSTALL_PREFIX
@@ -228,24 +235,26 @@ elif [[ $INSTALL_ALL == false ]]; then
         fi
     done
 
-    while true; do
-        echo -n "Do you have OpenPose (v1.2.0) installed? [y/N]: "
-        read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
-            INSTALL_OPENPOSE=false
-            echo -n "Where is your OpenPose install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                OPENPOSE_DIR=/usr/local
+    if [[ $HAVE_GPU == true ]]; then
+        while true; do
+            echo -n "Do you have OpenPose (v1.2.0) installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_OPENPOSE=false
+                echo -n "Where is your OpenPose install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    OPENPOSE_DIR=/usr/local
+                else
+                    OPENPOSE_DIR=$install_location
+                fi
+                break
             else
-                OPENPOSE_DIR=$install_location
+                INSTALL_OPENPOSE=true
+                break
             fi
-            break
-        else
-            INSTALL_OPENPOSE=true
-            break
-        fi
-    done
+        done
+    fi
 
     while true; do
         echo -n "Do you have caffe>=rc5 or intel-caffe>=1.0.6 installed? [y/N]: "
@@ -262,11 +271,16 @@ elif [[ $INSTALL_ALL == false ]]; then
             break
         else
             INSTALL_CAFFE=true
-            echo -n "Do you plan to use GPUs for CNN evaluation? [y/N]: "
-            read yn
-            if [[ $yn == y ]] || [[ $yn == Y ]]; then
-                USE_GPU=true
-                break
+            if [[ $HAVE_GPU == true ]]; then
+                echo -n "Do you plan to use GPUs for CNN evaluation? [y/N]: "
+                read yn
+                if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                    USE_GPU=true
+                    break
+                else
+                    USE_GPU=false
+                    break
+                fi
             else
                 USE_GPU=false
                 break
@@ -500,7 +514,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]] && \
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_OPENPOSE == true ]] && [[ $USE_GPU == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
+if [[ $INSTALL_OPENPOSE == true ]] && [[ $HAVE_GPU == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
     cd $BUILD_DIR
     rm -rf openpose
     git clone -b v1.2.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose && \
@@ -527,12 +541,14 @@ fi
 
 DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE
+echo "HAVE_GPU=$HAVE_GPU" >> $DEP_FILE
+echo "CAFFE_GPU=$USE_GPU" >> $DEP_FILE
 echo "BOOST_DIR=$BOOST_DIR" >> $DEP_FILE
 echo "FFMPEG_DIR=$FFMPEG_DIR" >> $DEP_FILE
 echo "OpenCV_DIR=$OPENCV_DIR" >> $DEP_FILE
 echo "PROTOBUF_DIR=$PROTOBUF_DIR" >> $DEP_FILE
 echo "GRPC_DIR=$GRPC_DIR" >> $DEP_FILE
-echo "CAFFE_DIR=$CAFFE_DIR" >> $DEP_FILE
+echo "Caffe_DIR=$CAFFE_DIR" >> $DEP_FILE
 echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
 echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
 echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
