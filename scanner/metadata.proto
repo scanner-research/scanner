@@ -220,7 +220,7 @@ message LoadWorkEntry {
   int32 job_index = 2;
   int32 task_index = 3;
   repeated LoadSample samples = 4;
-  repeated ElementDescriptor rows = 5 [packed=true];
+  repeated ElementDescriptor rows = 5;
   bool streaming = 6;
 }
 

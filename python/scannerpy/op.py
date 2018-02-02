@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import grpc
-import rpc_pb2
-import rpc_pb2_grpc
+from scanner.engine import rpc_pb2, rpc_pb2_grpc
 import copy
 
 from scannerpy.common import *

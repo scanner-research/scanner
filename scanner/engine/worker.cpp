@@ -298,8 +298,8 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 }
 
 void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
-                          PostEvaluateWorkerArgs args) {
-  if (stream_mode_) {
+                          PostEvaluateWorkerArgs args, bool stream = false) {
+  if (stream) {
     // should loop over all possible entries. here we only do once for now.
     std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     input_work.pop(entry);
@@ -359,8 +359,8 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 }
 
 void save_coordinator(OutputEvalQueue& eval_work,
-                      std::vector<SaveInputQueue>& save_work) {
-  if (stream_mode_) {
+                      std::vector<SaveInputQueue>& save_work, bool stream = false) {
+  if (stream) {
     std::tuple<i32, EvalWorkEntry> entry;
     eval_work.pop(entry);
     save_work[0].push(entry);
@@ -412,31 +412,6 @@ void save_coordinator(OutputEvalQueue& eval_work,
 void save_driver(SaveInputQueue& save_work,
                  SaveOutputQueue& output_work,
                  SaveWorkerArgs args) {
-
-  if (stream_mode_) {
-    std::tuple<i32, EvalWorkEntry> entry;
-    save_work.pop(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
-
-    ElementList& element_list = work_entry.columns[0];
-    proto::FinishedWorkParameters params;
-
-    for (int i = 0; i < element_list.size(); ++i) {
-      u8* buffer = element_list[i].buffer;
-      proto::ElementDescriptor* element_descriptor = params.add_rows();
-      element_descriptor->set_buffer((char *)buffer);
-      delete_element(CPU_DEVICE, element_list[i]);
-    }
-
-    proto::Empty empty;
-    grpc::Status status;
-
-    GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
-
-    return;
-  }
-
-
   Profiler& profiler = args.profiler;
   std::map<std::tuple<i32, i32>, std::unique_ptr<SaveWorker>> workers;
   while (true) {
@@ -1397,15 +1372,37 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     // Post threads
     post_eval_threads.emplace_back(
         post_evaluate_driver, std::ref(*std::get<0>(post_eval_queues[pu])),
-        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
+        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu], stream_mode_);
   }
 
   // Setup save coordinator
   std::thread save_coordinator_thread(
-      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
+      save_coordinator, std::ref(output_eval_work), std::ref(save_work), stream_mode_);
+
+  if (stream_mode_) {
+    std::tuple<i32, EvalWorkEntry> entry;
+    save_work[0].pop(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
+
+    ElementList& element_list = work_entry.columns[0];
+    proto::FinishedWorkParameters params;
+
+    for (int i = 0; i < element_list.size(); ++i) {
+      u8* buffer = element_list[i].buffer;
+      proto::ElementDescriptor* element_descriptor = params.add_rows();
+      element_descriptor->set_buffer((char *)buffer);
+      delete_element(CPU_DEVICE, element_list[i]);
+    }
+
+    proto::Empty empty;
+    grpc::Status status;
+
+    GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
+  }
 
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
+  if (stream_mode_) num_save_workers = 0;
   std::vector<Profiler> save_thread_profilers;
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_thread_profilers.emplace_back(Profiler(base_time));
@@ -1537,8 +1534,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         stenciled_entry.set_streaming(true);
         for (int i = 0; i < new_work.rows_size(); ++i) {
           proto::ElementDescriptor* row = stenciled_entry.add_rows();
-          row->set_row_id = new_work.rows(i).row_id();
-          row->set_buffer = new_work.rows(i).buffer();
+          row->set_row_id(new_work.rows(i).row_id());
+          row->set_buffer(new_work.rows(i).buffer());
         }
 
         // Determine which worker to allocate to

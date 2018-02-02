@@ -20,11 +20,9 @@
 namespace scanner {
 namespace internal {
 
-// Commented out because we use python master for streaming
-
-//MasterImpl* get_master_service(DatabaseParameters& param) {
-//  return new MasterImpl(param);
-//}
+MasterImpl* get_master_service(DatabaseParameters& param) {
+  return new MasterImpl(param);
+}
 
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                const std::string& master_address,

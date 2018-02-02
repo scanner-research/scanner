@@ -46,15 +46,16 @@ MasterImpl::MasterImpl(DatabaseParameters& params)
   VLOG(1) << "Creating master...";
 
   init_glog("scanner_master");
-  storage_ =
-      storehouse::StorageBackend::make_from_config(db_params_.storage_config);
-  set_database_path(params.db_path);
   stream_mode_ = params.stream_mode;
 
   // Perform database consistency checks on startup
-  recover_and_init_database();
-
-  start_job_processor();
+  if (!stream_mode_) {
+    storage_ =
+        storehouse::StorageBackend::make_from_config(db_params_.storage_config);
+    set_database_path(params.db_path);
+    recover_and_init_database();
+    start_job_processor();
+  }
   VLOG(1) << "Master created.";
 }
 

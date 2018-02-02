@@ -159,8 +159,8 @@ Result Database::start_worker(const MachineParameters& machine_params,
 
   worker_service->try_unregister();
 
-  Result register_result = worker_service->register_with_master('localhost:5000');  // python master
-  if (!register_result.success()) {
+  Result python_master_reg_result = worker_service->register_with_master("localhost:5000");  // python master
+  if (!register_result.success() || !python_master_reg_result.success()) {
     return register_result;
   }
 

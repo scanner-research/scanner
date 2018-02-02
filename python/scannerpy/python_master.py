@@ -1,6 +1,7 @@
 import grpc
-import rpc_pb2
-import rpc_pb2_grpc
+from scanner.engine import rpc_pb2, rpc_pb2_grpc
+from concurrent import futures
+import time
 import threading
 from Queue import Queue
 
@@ -16,7 +17,6 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     self._input_queue = Queue()
     self._output_queue = Queue()
     self._finished = False
-    print("Python master created.")
 
   # rpc PushRow (ElementDescriptor) returns (Empty) {}
   def PushRow(self, request, context):
@@ -42,7 +42,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
     # Skip LoadOp because we have already done this in C++ master
     self._lock.release()
-    print("Worker registered in python master.")
+    print("{} Worker registered in python master.".format(time.asctime( time.localtime(time.time()) )))
     return registration
 
   # Called when a worker is removed
@@ -108,3 +108,15 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     print("Finished job with result: {}".format(result))
     empty = rpc_pb2.Empty()
     return empty
+
+if __name__ == "__main__":
+  server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+  rpc_pb2_grpc.add_MasterServicer_to_server(MasterServicer(), server)
+  server.add_insecure_port('localhost:5000')
+  server.start()
+  print("{} Python master started.".format(time.asctime( time.localtime(time.time()) )))
+  try:
+    while True:
+      time.sleep(60 * 60 * 24)
+  except KeyboardInterrupt:
+    server.stop(0)

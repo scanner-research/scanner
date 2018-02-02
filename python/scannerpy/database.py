@@ -70,12 +70,6 @@ def start_master(port=None,
     config = config or Config(config_path)
     port = port or config.master_port
 
-    server = grpc.server(ThreadPoolExecutor(max_workers=10))
-    rpc_pb2_grpc.add_MasterServicer_to_server(MasterServicer(), server)
-    server.add_insecure_port('localhost:5000')
-    server.start()
-    print("Python master started.")
-
     # Load all protobuf types
     db = bindings.Database(
         config.storage_config, config.db_path.encode('ascii'),
@@ -226,7 +220,7 @@ class Database(object):
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
 
-        self._workers = {}
+        self._workers = []
         self._worker_conns = None
         self.start_cluster(master, workers)
 
@@ -501,6 +495,7 @@ class Database(object):
                             'connect to master. (Is there another process that '
                             'is bound to that port already?)'.format(
                                 self.config.worker_port))
+                    self._workers.append(str(int(self.config.worker_port) + i).encode('ascii'))
             else:
                 master_port = self._master_address.partition(':')[2]
                 pickled_config = pickle.dumps(self.config)
@@ -527,7 +522,6 @@ class Database(object):
                     '             config=config, stream_mode={stream})\" ' + '')
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
-
                 # Wait for master to start
                 slept_so_far = 0
                 sleep_time = 60
@@ -1099,11 +1093,12 @@ class Database(object):
                         'an input, sampling, spacing, slicing, or output Op.'
                         .format(
                             op.name()))  # FIXME(apoms): op.name() is unbound
-            if output_table_name is None:
-                raise ScannerException(
-                    'Did not specify the output table name by binding a '
-                    'string to the output Op.')
-            j.output_table_name = output_table_name
+            if self._stream_mode == False:
+                if output_table_name is None:
+                    raise ScannerException(
+                        'Did not specify the output table name by binding a '
+                        'string to the output Op.')
+                j.output_table_name = output_table_name
 
         # Delete tables if they exist and force was specified
         to_delete = []
@@ -1144,7 +1139,10 @@ class Database(object):
             job_params.memory_pool_config.gpu.free_space = size
 
         # Run the job
-        self._try_rpc(lambda: self._worker.NewJob(job_params))
+        for worker_port in self._workers:
+            channel = self._make_grpc_channel('localhost:'+worker_port)
+            worker = self.protobufs.WorkerStub(channel)
+            self._try_rpc(lambda: worker.NewJob(job_params))
 
         job_status = self.wait_on_current_job(show_progress)
 

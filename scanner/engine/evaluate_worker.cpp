@@ -457,7 +457,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   entry_ = work_entry;
 
   if (entry_.column_types[0] == ColumnType::Stream) {
-    return true;
+    return;
   }
 
   auto feed_start = now();
