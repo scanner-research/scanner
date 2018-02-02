@@ -64,8 +64,8 @@ with Database() as db:
             out = np.frombuffer(buf, dtype=np.dtype(np.int32))
             return out.reshape((-1, 4096))
 
-    video_bboxes = [box for (_, box) in output.columns('bboxes').load(parsers.bboxes)]
-    video_features = [feature for (_, feature) in output.columns('features').load(parse_features)]
+    video_bboxes = [box for (_, box) in output.column('bboxes').load(parsers.bboxes)]
+    video_features = [feature for (_, feature) in output.column('features').load(parse_features)]
     video_frames = [f[0] for _, f in db.table('example').load(['frame'], rows=range(800,1600))]
 
     print('Writing output video...')
