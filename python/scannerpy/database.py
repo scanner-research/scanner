@@ -224,6 +224,8 @@ class Database(object):
         self._worker_conns = None
         self.start_cluster(master, workers)
 
+        self._bindings.ingest_dummy_table(self, ['dummy'])
+
     def __del__(self):
         self.stop_cluster()
 

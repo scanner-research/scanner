@@ -33,6 +33,10 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
                      bool inplace,
                      std::vector<FailedVideo>& failed_videos);
 
+Result ingest_dummy_table(storehouse::StorageConfig* storage_config,
+                          const std::string& db_path,
+                          const std::vector<std::string>& table_names);
+
 // void ingest_images(storehouse::StorageConfig *storage_config,
 //                    const std::string &db_path, const std::string &table_name,
 //                    const std::vector<std::string> &paths);

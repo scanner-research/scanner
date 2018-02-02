@@ -890,6 +890,91 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 // }
 }  // end anonymous namespace
 
+Result ingest_dummy_table(storehouse::StorageConfig* storage_config,
+                          const std::string& db_path,
+                          const std::vector<std::string>& table_names) {
+  Result result;
+  result.set_success(true);
+
+  internal::set_database_path(db_path);
+  std::unique_ptr<storehouse::StorageBackend> storage{
+      storehouse::StorageBackend::make_from_config(storage_config)};
+
+  internal::DatabaseMetadata meta = internal::read_database_metadata(
+      storage.get(), internal::DatabaseMetadata::descriptor_path());
+
+  std::vector<i32> table_ids;
+  std::set<std::string> inserted_table_names;
+  for (size_t i = 0; i < table_names.size(); ++i) {
+    if (inserted_table_names.count(table_names[i]) > 0) {
+      RESULT_ERROR(&result, "Duplicate table name %s in ingest video set.",
+                   table_names[i].c_str());
+      break;
+    }
+    i32 table_id = meta.add_table(table_names[i]);
+    if (table_id == -1) {
+      RESULT_ERROR(&result, "Table name %s already exists in databse.",
+                   table_names[i].c_str());
+      break;
+    }
+    table_ids.push_back(table_id);
+    inserted_table_names.insert(table_names[i]);
+  }
+  if (!result.success()) {
+    return result;
+  }
+  meta.commit_table(table_ids[i]);
+  if (result.success()) {
+    // Save the db metadata
+    internal::write_database_metadata(storage.get(), meta);
+  }
+
+  proto::TableDescriptor table_desc;
+  table_desc.set_id(table_id);
+  table_desc.set_name(table_name);
+  table_desc.set_job_id(-1);
+  table_desc.set_timestamp(
+      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count());
+
+  {
+    Column* index_col = table_desc.add_columns();
+    index_col->set_name(index_column_name());
+    index_col->set_id(0);
+    index_col->set_type(ColumnType::Other);
+  }
+
+  // Create index column
+  std::string index_path = table_item_output_path(table_id, 0, 0);
+  std::unique_ptr<WriteFile> index_file{};
+  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
+
+  std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
+  std::unique_ptr<WriteFile> index_metadata_file{};
+  BACKOFF_FAIL(make_unique_write_file(storage, index_metadata_path,
+                                      index_metadata_file));
+
+  int frame = 1;
+  s_write<i64>(index_metadata_file.get(), frame);
+  for (i64 i = 0; i < frame; ++i) {
+    s_write(index_metadata_file.get(), sizeof(i64));
+  }
+  BACKOFF_FAIL(index_metadata_file->save());
+  for (i64 i = 0; i < frame; ++i) {
+    s_write(index_file.get(), i);
+  }
+  BACKOFF_FAIL(index_file->save());
+
+  table_desc.add_end_rows(frame);
+
+  // Save the table descriptor
+  write_table_metadata(storage, TableMetadata(table_desc));
+
+  std::fflush(NULL);
+  sync();
+  return result;
+}
+
 Result ingest_videos(storehouse::StorageConfig* storage_config,
                      const std::string& db_path,
                      const std::vector<std::string>& table_names,

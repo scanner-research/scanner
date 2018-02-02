@@ -169,6 +169,13 @@ Result Database::start_worker(const MachineParameters& machine_params,
   return result;
 }
 
+Result Database::ingest_dummy_table(const std::vector<std::string>& table_names) {
+  internal::ingest_dummy_table(storage_config_, db_path_, table_names);
+  Result result;
+  result.set_success(true);
+  return result;
+}
+
 Result Database::ingest_videos(const std::vector<std::string>& table_names,
                                const std::vector<std::string>& paths,
                                bool inplace,
