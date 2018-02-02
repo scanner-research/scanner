@@ -61,8 +61,7 @@ class Database {
                       bool prefetch_table_metadata = true,
                       bool stream_mode = false);
 
-  Result Database::ingest_dummy_table(const std::vector<std::string>& table_names,
-                                      const std::vector<std::string>& paths);
+  Result ingest_dummy_table(const std::vector<std::string>& table_names);
 
   Result ingest_videos(const std::vector<std::string>& table_names,
                        const std::vector<std::string>& paths,

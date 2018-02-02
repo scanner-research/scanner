@@ -905,33 +905,26 @@ Result ingest_dummy_table(storehouse::StorageConfig* storage_config,
 
   std::vector<i32> table_ids;
   std::set<std::string> inserted_table_names;
-  for (size_t i = 0; i < table_names.size(); ++i) {
-    if (inserted_table_names.count(table_names[i]) > 0) {
-      RESULT_ERROR(&result, "Duplicate table name %s in ingest video set.",
-                   table_names[i].c_str());
-      break;
-    }
-    i32 table_id = meta.add_table(table_names[i]);
-    if (table_id == -1) {
-      RESULT_ERROR(&result, "Table name %s already exists in databse.",
-                   table_names[i].c_str());
-      break;
-    }
-    table_ids.push_back(table_id);
-    inserted_table_names.insert(table_names[i]);
+
+  // Assume only 1 dummy table to be inserted
+  i32 table_id = meta.add_table(table_names[0]);
+  if (table_id == -1) {
+    RESULT_ERROR(&result, "Table name %s already exists in database.",
+                 table_names[0].c_str());
   }
+  table_ids.push_back(table_id);
+  inserted_table_names.insert(table_names[0]);
+  meta.commit_table(table_ids[0]);
   if (!result.success()) {
     return result;
   }
-  meta.commit_table(table_ids[i]);
-  if (result.success()) {
-    // Save the db metadata
-    internal::write_database_metadata(storage.get(), meta);
-  }
+
+  // Save the db metadata
+  internal::write_database_metadata(storage.get(), meta);
 
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
-  table_desc.set_name(table_name);
+  table_desc.set_name(table_names[0]);
   table_desc.set_job_id(-1);
   table_desc.set_timestamp(
       std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
@@ -939,19 +932,19 @@ Result ingest_dummy_table(storehouse::StorageConfig* storage_config,
 
   {
     Column* index_col = table_desc.add_columns();
-    index_col->set_name(index_column_name());
+    index_col->set_name("dummy_column");
     index_col->set_id(0);
     index_col->set_type(ColumnType::Other);
   }
 
-  // Create index column
+  // Create dummy column
   std::string index_path = table_item_output_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
+  BACKOFF_FAIL(make_unique_write_file(storage.get(), index_path, index_file));
 
   std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_metadata_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_metadata_path,
+  BACKOFF_FAIL(make_unique_write_file(storage.get(), index_metadata_path,
                                       index_metadata_file));
 
   int frame = 1;
@@ -968,7 +961,7 @@ Result ingest_dummy_table(storehouse::StorageConfig* storage_config,
   table_desc.add_end_rows(frame);
 
   // Save the table descriptor
-  write_table_metadata(storage, TableMetadata(table_desc));
+  write_table_metadata(storage.get(), TableMetadata(table_desc));
 
   std::fflush(NULL);
   sync();
