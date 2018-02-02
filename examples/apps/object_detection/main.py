@@ -30,7 +30,7 @@ with Database() as db:
     caffe_frame = db.ops.CaffeInput(
         frame = frame,
         args = caffe_args,
-        device = DeviceType.GPU)
+        device = DeviceType.CPU)
     cls_prob, rois, fc7 = db.ops.FasterRCNN(
         caffe_input = caffe_frame,
         args = caffe_args,
@@ -66,7 +66,7 @@ with Database() as db:
 
     video_bboxes = [box for (_, box) in output.column('bboxes').load(parsers.bboxes)]
     video_features = [feature for (_, feature) in output.column('features').load(parse_features)]
-    video_frames = [f[0] for _, f in db.table('example').load(['frame'], rows=range(800,1600))]
+    video_frames = [f[0] for _, f in db.table('example').load(['frame'])]
 
     print('Writing output video...')
     frame_shape = video_frames[0].shape
@@ -85,5 +85,5 @@ with Database() as db:
                 (int(bbox.x1), int(bbox.y1)),
                 (int(bbox.x2), int(bbox.y2)),
                 (255, 0, 0), 3)
-        output.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        output.write(frame)
     output.release()
