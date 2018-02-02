@@ -224,9 +224,8 @@ class Database(object):
         self._worker_conns = None
         self.start_cluster(master, workers)
 
-        if self.has_table('dummy'):
-            self.delete_tables(['dummy'])
-        self._bindings.ingest_dummy_table(self, ['dummy'])
+        if self._stream_mode:
+            self.new_table(b'dummy', [b'col1', b'col2'], [[b'r00', b'r01'], [b'r10', b'r11']], force=True)
 
     def __del__(self):
         self.stop_cluster()

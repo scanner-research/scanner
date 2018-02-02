@@ -76,7 +76,6 @@ class MasterImpl final : public proto::Master::Service {
                              const proto::Empty* empty,
                              proto::RegisteredWorkers* registered_workers);
 
-
   grpc::Status IngestVideos(grpc::ServerContext* context,
                             const proto::IngestParameters* params,
                             proto::IngestResult* result);

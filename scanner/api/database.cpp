@@ -155,22 +155,12 @@ Result Database::start_worker(const MachineParameters& machine_params,
   }
 
   // Setup watchdog
-//  worker_service->start_watchdog(state.server.get(), watchdog);
+  worker_service->start_watchdog(state.server.get(), watchdog);
 
-  worker_service->try_unregister();
-
-  Result python_master_reg_result = worker_service->register_with_master("localhost:5000");  // python master
-  if (!register_result.success() || !python_master_reg_result.success()) {
+  if (!register_result.success()) {
     return register_result;
   }
 
-  Result result;
-  result.set_success(true);
-  return result;
-}
-
-Result Database::ingest_dummy_table(const std::vector<std::string>& table_names) {
-  internal::ingest_dummy_table(storage_config_, db_path_, table_names);
   Result result;
   result.set_success(true);
   return result;

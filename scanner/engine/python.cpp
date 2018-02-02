@@ -87,11 +87,6 @@ proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
   return db.start_worker(params, port, watchdog, prefetch_table_metadata, stream_mode);
 }
 
-proto::Result ingest_dummy_table_wrapper(Database& db, const py::list table_names) {
-  GILRelease r;
-  return db.ingest_dummy_table(to_std_vector<std::string>(table_names));
-}
-
 py::list ingest_videos_wrapper(Database& db, const py::list table_names,
                                const py::list paths,
                                bool inplace) {
@@ -131,7 +126,6 @@ BOOST_PYTHON_MODULE(libscanner) {
       .def("msg", &proto::Result::msg, return_value_policy<return_by_value>());
   def("start_master", start_master_wrapper);
   def("start_worker", start_worker_wrapper);
-  def("ingest_dummy_table", ingest_dummy_table_wrapper);
   def("ingest_videos", ingest_videos_wrapper);
   def("wait_for_server_shutdown", wait_for_server_shutdown_wrapper);
   def("default_machine_params", default_machine_params_wrapper);
