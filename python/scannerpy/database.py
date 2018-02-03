@@ -224,6 +224,7 @@ class Database(object):
         self._worker_conns = None
         self.start_cluster(master, workers)
 
+        # Create a dummy table if in streaming mode
         if self._stream_mode:
             self.new_table(b'dummy', [b'col1', b'col2'], [[b'r00', b'r01'], [b'r10', b'r11']], force=True)
 
@@ -1096,12 +1097,11 @@ class Database(object):
                         'an input, sampling, spacing, slicing, or output Op.'
                         .format(
                             op.name()))  # FIXME(apoms): op.name() is unbound
-            if self._stream_mode == False:
-                if output_table_name is None:
-                    raise ScannerException(
-                        'Did not specify the output table name by binding a '
-                        'string to the output Op.')
-                j.output_table_name = output_table_name
+            if output_table_name is None:
+                raise ScannerException(
+                    'Did not specify the output table name by binding a '
+                    'string to the output Op.')
+            j.output_table_name = output_table_name
 
         # Delete tables if they exist and force was specified
         to_delete = []
@@ -1142,26 +1142,36 @@ class Database(object):
             job_params.memory_pool_config.gpu.free_space = size
 
         # Run the job
-        for worker_port in self._workers:
-            channel = self._make_grpc_channel('localhost:'+worker_port)
-            worker = self.protobufs.WorkerStub(channel)
-            self._try_rpc(lambda: worker.NewJob(job_params))
+        if self._stream_mode:
+            for worker_port in self._workers:
+                channel = self._make_grpc_channel('localhost:'+worker_port)
+                worker = self.protobufs.WorkerStub(channel)
+                self._try_rpc(lambda: worker.TryUnregister(self.protobufs.Empty()))
+                python_master_address = self.protobufs.MasterAddress()
+                python_master_address.address = 'localhost:5000'
+                self._try_rpc(lambda: worker.RegisterWithMaster(python_master_address))
 
-        job_status = self.wait_on_current_job(show_progress)
+            self._try_rpc(lambda: self._master.Shutdown(self.protobufs.Empty()))
+            channel = self._make_grpc_channel('localhost:5000')
+            self._master = self.protobufs.MasterStub(channel)
 
-        if not job_status.result.success:
-            raise ScannerException(job_status.result.msg)
+            self._try_rpc(lambda: self._master.NewJob(job_params))
 
-        # Invalidate db metadata because of job run
-        self._cached_db_metadata = None
+        else:
+            job_status = self.wait_on_current_job(show_progress)
+            if not job_status.result.success:
+                raise ScannerException(job_status.result.msg)
 
-        db_meta = self._load_db_metadata()
-        job_id = None
-        for job in db_meta.bulk_jobs:
-            if job.name == job_name:
-                job_id = job.id
-        if job_id is None:
-            raise ScannerException(
-                'Internal error: job id not found after run')
+            # Invalidate db metadata because of job run
+            self._cached_db_metadata = None
 
-        return [self.table(t) for t in job_output_table_names]
+            db_meta = self._load_db_metadata()
+            job_id = None
+            for job in db_meta.bulk_jobs:
+                if job.name == job_name:
+                    job_id = job.id
+            if job_id is None:
+                raise ScannerException(
+                    'Internal error: job id not found after run')
+
+            return [self.table(t) for t in job_output_table_names]

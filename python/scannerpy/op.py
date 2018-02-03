@@ -232,7 +232,7 @@ class Op:
 
         channel = grpc.insecure_channel('localhost:5000')
         stub = rpc_pb2_grpc.MasterStub(channel)
-        element_descriptor = stub.PullRow()
+        element_descriptor = stub.PullRow(rpc_pb2.Empty())
 
         element = element_descriptor.buffer
 

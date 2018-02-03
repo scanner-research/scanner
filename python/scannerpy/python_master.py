@@ -109,6 +109,20 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     empty = rpc_pb2.Empty()
     return empty
 
+  # rpc NewJob (BulkJobParameters) returns (Result) {}
+  def NewJob(self, request, context):
+    self._lock.acquire()
+
+    result = rpc_pb2.Result(success=True)
+    job_params = request
+    op_list = job_params.ops
+    job_list = job_params.jobs
+
+
+    self._lock.release()
+
+    return result
+
 if __name__ == "__main__":
   server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
   rpc_pb2_grpc.add_MasterServicer_to_server(MasterServicer(), server)

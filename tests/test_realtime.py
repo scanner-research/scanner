@@ -23,11 +23,14 @@ if __name__ == '__main__':
     # hist = db.ops.Histogram(frame=frame)
     output = db.ops.MemoryOutput(columns=[input])
     job = Job(
-        op_args={}
+      op_args={
+        input: db.table('dummy').column(''),
+        output: "dummy_output"
+      }
     )
     bulk_job = BulkJob(output=output, jobs=[job])
     db.run(bulk_job, force=True)
-    
+
     outframe = output.pull()
 
   with open('output.pkl', 'wb') as output_pkl:

@@ -808,6 +808,20 @@ void WorkerImpl::try_unregister() {
   }
 }
 
+grpc::Status WorkerImpl::RegisterWithMaster(grpc::ServerContext* context,
+                                            const proto::MasterAddress* master_address, Result* result) {
+  const std::string& address = master_address->address();
+  *result = this->register_with_master(address);
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::TryUnregister(grpc::ServerContext* context,
+                                       const proto::Empty* empty, Result* result) {
+  this->try_unregister();
+  result->set_success(true);
+  return grpc::Status::OK;
+}
+
 void WorkerImpl::start_job_processor() {
   job_processor_thread_ = std::thread([this]() {
     while (!trigger_shutdown_.raised()) {

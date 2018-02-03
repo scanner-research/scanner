@@ -65,9 +65,15 @@ class WorkerImpl final : public proto::Worker::Service {
 
   Result register_with_master(std::string master_address);
 
-  void try_unregister();
+  grpc::Status TryUnregister(grpc::ServerContext* context,
+                             const proto::Empty* empty, Result* result);
+
+  grpc::Status RegisterWithMaster(grpc::ServerContext* context,
+                                  const proto::MasterAddress* master_address, Result* result);
 
  private:
+
+  void try_unregister();
 
   void start_job_processor();
 

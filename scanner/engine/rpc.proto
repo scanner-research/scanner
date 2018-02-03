@@ -51,6 +51,8 @@ service Worker {
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
   rpc Ping (Empty) returns (Empty) {}
+  rpc TryUnregister (Empty) returns (Result) {}
+  rpc RegisterWithMaster (MasterAddress) returns (Result) {}
 }
 
 message Empty {}
@@ -126,6 +128,10 @@ message WorkerInfo {
 
 message RegisteredWorkers {
   repeated WorkerInfo workers = 1;
+}
+
+message MasterAddress {
+  string address = 1;
 }
 
 message OpPath {
