@@ -26,6 +26,7 @@ if (BUILD_CUDA)
   if(COMPILER_SUPPORTS_CXX1Y)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
   endif()
+  find_package(NVCUVID REQUIRED)
 endif()
 
 if (BUILD_CUDA)
@@ -117,8 +118,8 @@ endif()
 if (BUILD_CUDA)
   list(APPEND SCANNER_LIBRARIES
     util_cuda
-    "${CUDA_LIBRARIES}"
-    "-lnvcuvid"
+    ${CUDA_LIBRARIES}
+    ${NVCUVID_LIBRARIES}
     "-lcuda")
 endif()
 
