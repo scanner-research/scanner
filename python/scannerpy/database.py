@@ -1141,8 +1141,16 @@ class Database(object):
             size = self._parse_size_string(gpu_pool)
             job_params.memory_pool_config.gpu.free_space = size
 
+        job_params.db_meta.CopyFrom(self._load_db_metadata())
+
         # Run the job
         if self._stream_mode:
+            job_params.work_packet_size = 1
+            job_params.io_packet_size = 1
+            job_params.local_id = 0
+            job_params.local_total = 1
+            # In streaming mode, we unregister the worker with C++ master and then
+            # register it with our python master designed specifically for streaming.
             for worker_port in self._workers:
                 channel = self._make_grpc_channel('localhost:'+worker_port)
                 worker = self.protobufs.WorkerStub(channel)
@@ -1158,6 +1166,7 @@ class Database(object):
             self._try_rpc(lambda: self._master.NewJob(job_params))
 
         else:
+            self._try_rpc(lambda: self._master.NewJob(job_params))
             job_status = self.wait_on_current_job(show_progress)
             if not job_status.result.success:
                 raise ScannerException(job_status.result.msg)

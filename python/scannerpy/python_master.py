@@ -115,9 +115,37 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
     result = rpc_pb2.Result(success=True)
     job_params = request
-    op_list = job_params.ops
-    job_list = job_params.jobs
 
+    # Ignore validating jobs and ops for now
+
+    # TODO: Add job name into database metadata so we can look up what jobs have been run
+
+    # Assume that we're dealing with SINGLE job only for now
+
+    # partition_boundaries = [0, 1, 2, 3, ...]
+
+    """Useless functions in dag_analysis:
+    derive_slice_final_output_rows()
+    determine_input_rows_to_slices()
+    validate_jobs_and_ops()
+    """
+
+    # task_rows = [i]
+    # tasks = [[0], [1], [2], [3], ...]
+    # job_tasks_ = [tasks]
+
+    # write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
+
+    # fill local_id, local_total, db_meta
+    # set work_packet_size = 1 and io_packet_size = 1
+
+    # start_job_on_workers(worker_ids);
+    #   proto::BulkJobParameters w_job_params;
+    #   w_job_params.MergeFrom(job_params_);
+    #   worker->AsyncNewJob
+    self._worker.NewJob(job_params)
+
+    # give worker an element as initial_eval_work
 
     self._lock.release()
 

@@ -454,11 +454,20 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
 }
 
 void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
-  entry_ = work_entry;
-
-  if (entry_.column_types[0] == ColumnType::Stream) {
+  if (work_entry.column_types[0] == ColumnType::Stream) {
+    StenciledBatchedColumns input_columns;
+    input_columns.push_back(work_entry.columns);
+    BatchedColumns output_columns;
+    for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
+      std::unique_ptr<BaseKernel>& kernel = kernels_[k];
+      kernel->execute_kernel(input_columns, output_columns);
+    }
+    work_entry.columns = output_columns;
+    entry_ = work_entry;
     return;
   }
+
+  entry_ = work_entry;
 
   auto feed_start = now();
 

@@ -5,6 +5,8 @@ import cv2
 import os
 import pickle
 
+cwd = os.path.dirname(os.path.abspath(__file__))
+
 if __name__ == '__main__':
   # cap = cv2.VideoCapture(0)
 
@@ -16,16 +18,19 @@ if __name__ == '__main__':
   # ret, frame = cap.read()
 
   with Database(stream_mode=True) as db:
+    db.register_op('TestPy', [('frame', ColumnType.Stream)], ['dummy'])
+    db.register_python_kernel('TestPy', DeviceType.CPU,
+                              cwd + '/test_py_kernel.py')
+
     input = db.ops.MemoryInput()
     for frame in frameList:
       input.push(frame.tobytes())
-
-    # hist = db.ops.Histogram(frame=frame)
-    output = db.ops.MemoryOutput(columns=[input])
+    test_out = db.ops.TestPy(frame=input)
+    output = db.ops.MemoryOutput(columns=[test_out])
     job = Job(
       op_args={
-        input: db.table('dummy').column(''),
-        output: "dummy_output"
+        input: db.table('dummy').column('col1'),
+        output: "dummy1"
       }
     )
     bulk_job = BulkJob(output=output, jobs=[job])
