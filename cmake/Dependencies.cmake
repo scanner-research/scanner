@@ -118,7 +118,7 @@ if (BUILD_CUDA)
   list(APPEND SCANNER_LIBRARIES
     util_cuda
     "${CUDA_LIBRARIES}"
-    "/usr/lib/x86_64-linux-gnu/libnvcuvid.so"
+    "-lnvcuvid"
     "-lcuda")
 endif()
 
