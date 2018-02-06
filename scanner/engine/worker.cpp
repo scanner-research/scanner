@@ -1301,7 +1301,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         : first_kernel_type;
       pre_eval_args.emplace_back(PreEvaluateWorkerArgs{
           // Uniform arguments
-          node_id_, num_cpus, job_params->work_packet_size(),
+          node_id_, num_cpus,
+          std::max(1, num_cpus / pipeline_instances_per_node),
+          job_params->work_packet_size(),
 
           // Per worker arguments
           ki, decoder_type, eval_thread_profilers.front(),

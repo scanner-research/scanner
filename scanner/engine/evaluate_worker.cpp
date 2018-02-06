@@ -16,6 +16,7 @@ PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
     worker_id_(args.worker_id),
     device_handle_(args.device_handle),
     num_cpus_(args.num_cpus),
+    decoder_cpus_(args.decoder_cpus),
     profiler_(args.profiler) {
 }
 
@@ -59,7 +60,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
     } else {
       decoder_output_handle_ = CPU_DEVICE;
       decoder_type = VideoDecoderType::SOFTWARE;
-      num_devices = num_cpus_;
+      num_devices = decoder_cpus_;
     }
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video &&
@@ -188,6 +189,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
   entry.needs_configure = first_item ? needs_configure_ : false;
   entry.needs_reset = first_item_ ? needs_reset_ : false;
   entry.last_in_io_packet = (end_row >= total_rows_);
+  LOG(INFO) << "end row " << end_row << ", total rows " << total_rows_;
   entry.columns.resize(work_entry.columns.size());
   entry.last_in_task = work_entry.last_in_task;
   entry.row_ids.resize(work_entry.row_ids.size());
@@ -1198,6 +1200,8 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       }
     }
 
+    assert(buffered_entry_.columns.size() > 0 &&
+           buffered_entry_.columns[0].size() > 0);
     // Only push an entry if it is non empty
     if (buffered_entry_.columns.size() > 0 &&
         buffered_entry_.columns[0].size() > 0) {
