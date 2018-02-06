@@ -190,10 +190,11 @@ if __name__ == '__main__':
         opener = urllib.request.URLopener()
         opener.retrieve(DOWNLOAD_BASE + MODEL_FILE, MODEL_FILE)
         tar_file = tarfile.open(MODEL_FILE)
-        for file in tar_file.getmembers():
-            file_name = os.path.basename(file.name)
+        for f in tar_file.getmembers():
+            file_name = os.path.basename(f.name)
             if 'frozen_inference_graph.pb' in file_name:
-                tar_file.extract(file, os.getcwd())
+                tar_file.extract(f, PATH_TO_REPO)
+                break
         print("Successfully downloaded DNN Model.")
 
     movie_path = sys.argv[1]
@@ -204,9 +205,11 @@ if __name__ == '__main__':
     sample_stride = 1
 
     with Database() as db:
-        [input_table], failed = db.ingest_videos([('example', movie_path)], force=True)
-        print(db.summarize())
-        db.register_op('ObjDetect', [('frame', ColumnType.Video)], ['bundled_data'])
+        [input_table], failed = db.ingest_videos([('example', movie_path)],
+                                                 force=True)
+        db.register_op('ObjDetect',
+                       [('frame', ColumnType.Video)],
+                       ['bundled_data'])
         kernel_path = script_dir + '/obj_detect_kernel.py'
         db.register_python_kernel('ObjDetect', DeviceType.CPU, kernel_path)
         frame = db.ops.FrameInput()
@@ -224,14 +227,15 @@ if __name__ == '__main__':
             }
         )
         bulk_job = BulkJob(output=output_op, jobs=[job])
-        [out_table] = db.run(bulk_job, force=True)
+        [out_table] = db.run(bulk_job, force=True, pipeline_instances_per_node=1)
 
         print('Extracting data from Scanner output...')
 
         # bundled_data_list is a list of bundled_data
         # bundled data format: [box position(x1 y1 x2 y2), box class, box score]
-        bundled_data_list = [np.fromstring(box, dtype=np.float32) for (_, box) in tqdm(out_table.column('bundled_data').load())]
-        
+        bundled_data_list = [np.fromstring(box, dtype=np.float32)
+                             for (_, box) in tqdm(
+                                     out_table.column('bundled_data').load())]
         print('Successfully extracted data from Scanner output!')
 
     videogen = skvideo.io.vreader(movie_path)
@@ -246,7 +250,8 @@ if __name__ == '__main__':
 
     writer = skvideo.io.FFmpegWriter(movie_name + '_obj_detect.mp4')
     for i, frame in enumerate(tqdm(videogen)):
-        frame = draw_boxes(frame, bundled_np_list[i//sample_stride], min_score_thresh=0.5)
+        frame = draw_boxes(frame, bundled_np_list[i//sample_stride],
+                           min_score_thresh=0.5)
         frame = frame.astype(np.uint8)
         writer.writeFrame(frame)
     writer.close()
