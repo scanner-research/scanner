@@ -39,6 +39,7 @@ struct PreEvaluateWorkerArgs {
   // Uniform arguments
   i32 node_id;
   i32 num_cpus;
+  i32 decoder_cpus;
   i32 work_packet_size;
 
   // Per worker arguments
@@ -60,6 +61,7 @@ class PreEvaluateWorker {
   const i32 worker_id_;
   const DeviceHandle device_handle_;
   const i32 num_cpus_;
+  const i32 decoder_cpus_;
 
   Profiler& profiler_;
 

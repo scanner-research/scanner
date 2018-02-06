@@ -62,8 +62,7 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
     exit(EXIT_FAILURE);
   }
 
-  // cc_->thread_count = thread_count;
-  cc_->thread_count = 4;
+  cc_->thread_count = thread_count;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
     fprintf(stderr, "could not open codec\n");
