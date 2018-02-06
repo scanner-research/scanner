@@ -16,7 +16,7 @@ class OpColumn:
 
         """ default value of self._memory is 0 (ingest a video file rather than streaming)
         self._memory == 1 means streaming mode, but no elements have been pushed yet
-        self._memory == 2 also means streaming mode, when some elements have already been pushed
+        self._memory >  1 also means streaming mode, when some elements have already been pushed
         """
         self._memory = memory
 
@@ -33,15 +33,8 @@ class OpColumn:
         assert isinstance(element, bytes)
         element_descriptor = self.protobufs.ElementDescriptor()
         element_descriptor.buffer = element
-        if self._memory == 1:
-            element_descriptor.row_id = 0
-            self._memory = 2
-        elif self._memory == 2:
-            element_descriptor.row_id += 1
-        else:
-            raise ScannerException('self._memory is {}, which is not supported.'
-                                   .format(self._memory))
-
+        element_descriptor.row_id = self._memory - 1
+        self._memory += 1
         channel = grpc.insecure_channel('localhost:5000')
         stub = rpc_pb2_grpc.MasterStub(channel)
         stub.PushRow(element_descriptor)

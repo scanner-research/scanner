@@ -120,17 +120,7 @@ std::map<int, std::condition_variable> no_pipelining_cvars;
 std::map<int, bool> no_pipelining_conditions;
 
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
-                         PreEvaluateWorkerArgs args, bool stream = false) {
-  if (stream) {
-    // should loop over all possible entries. here we only do once for now.
-    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
-    input_work.pop(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
-
-    output_work.push(std::make_tuple(std::deque<TaskStream>(), work_entry));
-    return;
-  }
-
+                         PreEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
   // We sort inputs into task work queues to ensure we process them
@@ -248,29 +238,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 }
 
 void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
-                     EvaluateWorkerArgs args, bool stream = false) {
-  if (stream) {
-    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
-    input_work.pop(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
-
-    EvaluateWorker worker(args);
-    auto input_entry = work_entry;
-    worker.feed(input_entry);
-
-    EvalWorkEntry output_entry;
-    i32 work_packet_size = 0;
-    for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-      work_packet_size =
-          std::max(work_packet_size, (i32)work_entry.columns[i].size());
-    }
-    bool result = worker.yield(work_packet_size, output_entry);
-    (void)result;
-    assert(result);
-
-    output_work.push(std::make_tuple(std::deque<TaskStream>(), output_entry));
-  }
-
+                     EvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   EvaluateWorker worker(args);
   while (true) {
@@ -330,17 +298,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
 }
 
 void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
-                          PostEvaluateWorkerArgs args, bool stream = false) {
-  if (stream) {
-    // should loop over all possible entries. here we only do once for now.
-    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
-    input_work.pop(entry);
-    EvalWorkEntry& work_entry = std::get<1>(entry);
-
-    output_work.push(std::make_tuple(0, work_entry));
-    return;
-  }
-
+                          PostEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   PostEvaluateWorker worker(args);
   while (true) {
@@ -363,8 +321,10 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     auto work_start = now();
 
     auto input_entry = work_entry;
+    VLOG(1)<<"Checkpoint: post evaluate feed";
     worker.feed(input_entry);
     EvalWorkEntry output_entry;
+    VLOG(1)<<"Checkpoint: post evaluate yield";
     bool result = worker.yield(output_entry);
     profiler.add_interval("task", work_start, now());
 
@@ -391,11 +351,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
 }
 
 void save_coordinator(OutputEvalQueue& eval_work,
-                      std::vector<SaveInputQueue>& save_work, bool stream = false) {
-  if (stream) {
-    return;
-  }
-
+                      std::vector<SaveInputQueue>& save_work) {
   i32 num_save_workers = save_work.size();
   std::map<std::tuple<i32, i32>, i32> task_to_worker_mapping;
   i32 last_worker_assigned = 0;
@@ -440,7 +396,7 @@ void save_coordinator(OutputEvalQueue& eval_work,
 
 void save_driver(SaveInputQueue& save_work,
                  SaveOutputQueue& output_work,
-                 SaveWorkerArgs args) {
+                 SaveWorkerArgs args, bool stream = false) {
   Profiler& profiler = args.profiler;
   std::map<std::tuple<i32, i32>, std::unique_ptr<SaveWorker>> workers;
   while (true) {
@@ -477,7 +433,8 @@ void save_driver(SaveInputQueue& save_work,
     auto& worker = workers.at(job_task_id);
 
     auto input_entry = work_entry;
-//    worker->feed(input_entry);
+    if (!stream)
+      worker->feed(input_entry);
 
     VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
             << "): finished task (" << work_entry.job_index << ", "
@@ -488,9 +445,11 @@ void save_driver(SaveInputQueue& save_work,
     if (work_entry.last_in_task) {
       output_work.push(std::make_tuple(pipeline_instance, work_entry.job_index,
                                        work_entry.task_index));
-// push
       workers.erase(job_task_id);
     }
+
+    if (stream)
+      break;
   }
 
   VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
@@ -776,7 +735,7 @@ void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
 }
 
 Result WorkerImpl::register_with_master(std::string master_address) {
-  assert(state_.get() == State::INITIALIZING);
+//  assert(state_.get() == State::INITIALIZING);
 
   VLOG(1) << "Worker try to register with master";
 
@@ -973,24 +932,20 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Read final output columns for use in post-evaluate worker
   // (needed for determining column types)
   std::vector<Column> final_output_columns;
-  if (!stream_mode_) {
-    std::string output_name = jobs.at(0).output_table_name();
-    const TableMetadata& table = table_meta.at(output_name);
-    final_output_columns = table.columns();
-  }
+  std::string output_name = jobs.at(0).output_table_name();
+  const TableMetadata& table = table_meta.at(output_name);
+  final_output_columns = table.columns();
   std::vector<ColumnCompressionOptions> final_compression_options;
   // This is not needed at all in streaming mode
-  if (!stream_mode_) {
-    for (auto &opts : job_params->compression()) {
-      ColumnCompressionOptions o;
-      o.codec = opts.codec();
-      for (auto &kv : opts.options()) {
-        o.options[kv.first] = kv.second;
-      }
-      final_compression_options.push_back(o);
+  for (auto &opts : job_params->compression()) {
+    ColumnCompressionOptions o;
+    o.codec = opts.codec();
+    for (auto &kv : opts.options()) {
+      o.options[kv.first] = kv.second;
     }
-    assert(final_output_columns.size() == final_compression_options.size());
+    final_compression_options.push_back(o);
   }
+  assert(final_output_columns.size() == final_compression_options.size());
   // Setup kernel factories and the kernel configs that will be used
   // to instantiate instances of the op pipeline
   KernelRegistry* kernel_registry = get_kernel_registry();
@@ -1412,25 +1367,25 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     // Pre thread
     pre_eval_threads.emplace_back(
         pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
-        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu], stream_mode_);
+        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
     // Op threads
     eval_threads.emplace_back();
     std::vector<std::thread>& threads = eval_threads.back();
     for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
       threads.emplace_back(
           evaluate_driver, std::ref(*std::get<0>(eval_queues[pu][kg])),
-          std::ref(*std::get<1>(eval_queues[pu][kg])), eval_args[pu][kg], stream_mode_);
+          std::ref(*std::get<1>(eval_queues[pu][kg])), eval_args[pu][kg]);
     }
     // Post threads
     post_eval_threads.emplace_back(
         post_evaluate_driver, std::ref(*std::get<0>(post_eval_queues[pu])),
-        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu], stream_mode_);
+        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
   }
 
   VLOG(1)<<"Checkpoint: Setup save coordinator";
   // Setup save coordinator
   std::thread save_coordinator_thread(
-      save_coordinator, std::ref(output_eval_work), std::ref(save_work), stream_mode_);
+      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
 
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
@@ -1440,18 +1395,18 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   }
   std::vector<std::thread> save_threads;
 
-  if (!stream_mode_) {
-    for (i32 i = 0; i < num_save_workers; ++i) {
-      SaveWorkerArgs args{// Uniform arguments
-                          node_id_,
 
-                          // Per worker arguments
-                          i, db_params_.storage_config, save_thread_profilers[i]};
+  for (i32 i = 0; i < num_save_workers; ++i) {
+    SaveWorkerArgs args{// Uniform arguments
+                        node_id_,
 
-      save_threads.emplace_back(save_driver, std::ref(save_work[i]),
-                                std::ref(retired_tasks), args);
-    }
+                        // Per worker arguments
+                        i, db_params_.storage_config, save_thread_profilers[i]};
+
+    save_threads.emplace_back(save_driver, std::ref(save_work[i]),
+                              std::ref(retired_tasks), args, stream_mode_);
   }
+
   if (job_params->profiling()) {
     // Wait until all evaluate workers have started up
     std::unique_lock<std::mutex> lk(startup_lock);
@@ -1459,6 +1414,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       return eval_total == startup_count;
     });
   }
+
   timepoint_t start_time = now();
 
   VLOG(1)<<"Checkpoint: Monitor amount of work left and request more when running low";
@@ -1492,30 +1448,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       std::fflush(NULL);
       sync();
     }
-    VLOG(1)<<"Checkpoint: Setup finishedwork";
-    if (stream_mode_) {
-      std::tuple<i32, EvalWorkEntry> entry;
-      VLOG(1)<<"Checkpoint: output_eval_work.pop(entry)";
-      output_eval_work.pop(entry);
-      VLOG(1)<<"Checkpoint: work_entry = std::get<1>(entry)";
-      EvalWorkEntry& work_entry = std::get<1>(entry);
-      VLOG(1)<<"Checkpoint: init element_list";
-      ElementList& element_list = work_entry.columns[0];
-      proto::FinishedWorkParameters params;
 
-      VLOG(1)<<"Checkpoint: Set buffer and delete element";
-      for (int i = 0; i < element_list.size(); ++i) {
-        u8* buffer = element_list[i].buffer;
-        proto::ElementDescriptor* element_descriptor = params.add_rows();
-        element_descriptor->set_buffer((char *)buffer);
-        delete_element(CPU_DEVICE, element_list[i]);
-      }
-
-      proto::Empty empty;
-      grpc::Status status;
-
-      GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
-    }
     VLOG(1)<<"Checkpoint: Inform master that this task was finished: out";
     for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
       // Inform master that this task was finished
@@ -1525,6 +1458,20 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       params.set_node_id(node_id_);
       params.set_job_id(std::get<1>(task_retired));
       params.set_task_id(std::get<2>(task_retired));
+
+      if (stream_mode_) {
+        std::tuple<i32, EvalWorkEntry> entry;
+        output_eval_work.pop(entry);
+        EvalWorkEntry& work_entry = std::get<1>(entry);
+        ElementList& element_list = work_entry.columns[0];
+
+        for (int i = 0; i < element_list.size(); ++i) {
+          u8* buffer = element_list[i].buffer;
+          proto::ElementDescriptor* element_descriptor = params.add_rows();
+          element_descriptor->set_buffer((char *)buffer);
+          delete_element(CPU_DEVICE, element_list[i]);
+        }
+      }
 
       proto::Empty empty;
       grpc::Status status;
@@ -1579,20 +1526,19 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         finished = true;
       } else {
+        VLOG(1)<<"Checkpoint: got next work from master";
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-        // Don't need that for now in streaming mode
-        if (!stream_mode_)
-          derive_stencil_requirements(
-            meta, table_meta, jobs.at(new_work.job_index()), ops,
-            analysis_results, job_params->boundary_condition(),
-            new_work.table_id(), new_work.job_index(), new_work.task_index(),
-            std::vector<i64>(new_work.output_rows().begin(),
-                             new_work.output_rows().end()),
-            stenciled_entry, task_stream);
-        else {
+        derive_stencil_requirements(
+          meta, table_meta, jobs.at(new_work.job_index()), ops,
+          analysis_results, job_params->boundary_condition(),
+          new_work.table_id(), new_work.job_index(), new_work.task_index(),
+          std::vector<i64>(new_work.output_rows().begin(),
+                           new_work.output_rows().end()),
+          stenciled_entry, task_stream);
+        if (stream_mode_) {
           VLOG(1)<<"Checkpoint: Set row buffer in new work";
           stenciled_entry.set_streaming(true);
           for (int i = 0; i < new_work.rows_size(); ++i) {

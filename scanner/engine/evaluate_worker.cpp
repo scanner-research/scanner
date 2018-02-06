@@ -24,10 +24,6 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 
   entry_ = work_entry;
 
-  if (work_entry.column_types[0] == ColumnType::Stream) {
-    return;
-  }
-
   needs_configure_ = !(work_entry.job_index == last_job_idx_);
   needs_reset_ = true;
 
@@ -174,11 +170,6 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 
 bool PreEvaluateWorker::yield(i32 item_size,
                               EvalWorkEntry& output_entry) {
-  if (entry_.column_types[0] == ColumnType::Stream) {
-    output_entry = entry_;
-    return true;
-  }
-
   if (current_row_ >= total_rows_) return false;
 
   auto yield_start = now();
@@ -454,19 +445,6 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
 }
 
 void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
-  if (work_entry.column_types[0] == ColumnType::Stream) {
-    StenciledBatchedColumns input_columns;
-    input_columns.push_back(work_entry.columns);
-    BatchedColumns output_columns;
-    for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
-      std::unique_ptr<BaseKernel>& kernel = kernels_[k];
-      kernel->execute_kernel(input_columns, output_columns);
-    }
-    work_entry.columns = output_columns;
-    entry_ = work_entry;
-    return;
-  }
-
   entry_ = work_entry;
 
   auto feed_start = now();
@@ -960,11 +938,6 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   EvalWorkEntry& work_entry = entry_;
 
-  if (entry_.column_types[0] == ColumnType::Stream) {
-    output_entry = entry_;
-    return true;
-  }
-
   auto yield_start = now();
 
   EvalWorkEntry output_work_entry;
@@ -1075,7 +1048,7 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
 
 void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   EvalWorkEntry& work_entry = entry;
-
+  VLOG(1)<<"Checkpoint: 1";
   // Setup row buffer if it was emptied
   {
     i32 encoder_idx = 0;
@@ -1109,7 +1082,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       }
     }
   }
-
+  VLOG(1)<<"Checkpoint: 2";
   // Swizzle columns correctly
   {
     i32 encoder_idx = 0;
@@ -1124,7 +1097,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         }
         continue;
       }
-
+      VLOG(1)<<"Checkpoint: 3";
       // Initialize frame size if not done so yet
       if (column_type == ColumnType::Video &&
           !frame_size_initialized_[encoder_idx]) {
@@ -1133,7 +1106,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         buffered_entry_.frame_sizes[encoder_idx] = frame->as_frame_info();
         frame_size_initialized_[encoder_idx] = true;
       }
-
+      VLOG(1)<<"Checkpoint: 4";
       // Encode video frames
       if (compression_enabled_[i] && column_type == ColumnType::Video &&
           buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
@@ -1184,7 +1157,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
                                           work_entry.row_ids[col_idx].end());
       }
     }
-
+    VLOG(1)<<"Checkpoint: 5";
     // Delete unused columns
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       if (column_set_.count(i) > 0) {
@@ -1195,7 +1168,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       }
     }
   }
-
+  VLOG(1)<<"Checkpoint: 6";
   // Flush row buffer
   if (work_entry.last_in_io_packet) {
     i32 encoder_idx = 0;
@@ -1224,7 +1197,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         encoder_idx++;
       }
     }
-
+    VLOG(1)<<"Checkpoint: 7";
     // Only push an entry if it is non empty
     if (buffered_entry_.columns.size() > 0 &&
         buffered_entry_.columns[0].size() > 0) {

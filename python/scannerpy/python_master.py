@@ -17,6 +17,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     self._input_queue = Queue()
     self._output_queue = Queue()
     self._finished = False
+    self._count = 0
 
   # rpc PushRow (ElementDescriptor) returns (Empty) {}
   def PushRow(self, request, context):
@@ -64,6 +65,12 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     self._lock.acquire()
 
     new_work = rpc_pb2.NewWork()
+    new_work.table_id = 0
+    new_work.job_index = 0
+    new_work.task_index = self._count
+    self._count += 1
+    print("Asking for next work, job_index={}, task_index={}.".format(new_work.job_index, new_work.task_index))
+    new_work.output_rows.append(0)
     if not self._worker_active:
       print("Asking for next work, but worker is inactive.")
       new_work.no_more_work = True
@@ -80,7 +87,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
       else:
         element_descriptor = self._input_queue.get()  # type of rpc_pb2.ElementDescriptor()
-        new_work.rows.append(element_descriptor)
+        new_work.rows.extend([element_descriptor])
         print("Asking for next work, pulled row_id={} from input queue.".format(element_descriptor.row_id))
 
     self._lock.release()
@@ -95,6 +102,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
     self._lock.release()
     print("Pushed row_id={} back to output queue.".format(element_descriptor.row_id))
+    print("The row buffer is: ".format(element_descriptor.buffer))
     empty = rpc_pb2.Empty()
     return empty
 
@@ -116,33 +124,6 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     result = rpc_pb2.Result(success=True)
     job_params = request
 
-    # Ignore validating jobs and ops for now
-
-    # TODO: Add job name into database metadata so we can look up what jobs have been run
-
-    # Assume that we're dealing with SINGLE job only for now
-
-    # partition_boundaries = [0, 1, 2, 3, ...]
-
-    """Useless functions in dag_analysis:
-    derive_slice_final_output_rows()
-    determine_input_rows_to_slices()
-    validate_jobs_and_ops()
-    """
-
-    # task_rows = [i]
-    # tasks = [[0], [1], [2], [3], ...]
-    # job_tasks_ = [tasks]
-
-    # write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
-
-    # fill local_id, local_total, db_meta
-    # set work_packet_size = 1 and io_packet_size = 1
-
-    # start_job_on_workers(worker_ids);
-    #   proto::BulkJobParameters w_job_params;
-    #   w_job_params.MergeFrom(job_params_);
-    #   worker->AsyncNewJob
     self._worker.NewJob(job_params)
 
     # give worker an element as initial_eval_work

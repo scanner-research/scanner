@@ -226,7 +226,7 @@ class Database(object):
 
         # Create a dummy table if in streaming mode
         if self._stream_mode:
-            self.new_table(b'dummy', [b'col1', b'col2'], [[b'r00', b'r01'], [b'r10', b'r11']], force=True)
+            self.new_table(b'dummy_input', [b'col1', b'col2'], [[b'r00', b'r01'], [b'r10', b'r11']], force=True)
 
     def __del__(self):
         self.stop_cluster()
@@ -815,11 +815,11 @@ class Database(object):
 
         params = self.protobufs.NewTableParams()
         params.table_name = name
-        params.columns[:] = ["index"] + columns
+        params.columns[:] = columns
 
         for i, row in enumerate(rows):
             row_proto = params.rows.add()
-            row_proto.columns[:] = [struct.pack('=Q', i)] + row
+            row_proto.columns[:] = row
 
         self._try_rpc(lambda: self._master.NewTable(params))
 
@@ -1141,7 +1141,7 @@ class Database(object):
             size = self._parse_size_string(gpu_pool)
             job_params.memory_pool_config.gpu.free_space = size
 
-        job_params.db_meta.CopyFrom(self._load_db_metadata())
+
 
         # Run the job
         if self._stream_mode:
@@ -1149,6 +1149,14 @@ class Database(object):
             job_params.io_packet_size = 1
             job_params.local_id = 0
             job_params.local_total = 1
+
+            # NOTE: There should be only one output (dummy) table in streaming mode
+            result = self.new_table('dummy_output'.encode('ascii'), ['col1'.encode('ascii')], [['r00'.encode('ascii')]], force=True)
+            print(result)
+            job_params.db_meta.CopyFrom(self._load_db_metadata())
+            self._cached_db_metadata = None
+            print(self.summarize())
+
             # In streaming mode, we unregister the worker with C++ master and then
             # register it with our python master designed specifically for streaming.
             for worker_port in self._workers:

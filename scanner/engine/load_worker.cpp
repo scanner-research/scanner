@@ -219,11 +219,6 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
 }
 
 void LoadWorker::feed(LoadWorkEntry& input_entry) {
-  if (input_entry.streaming()) {
-    entry_ = input_entry;
-    return;
-  }
-
   LoadWorkEntry& load_work_entry = input_entry;
 
   if (load_work_entry.table_id() != last_table_id_) {
@@ -243,26 +238,6 @@ void LoadWorker::feed(LoadWorkEntry& input_entry) {
 bool LoadWorker::yield(i32 item_size,
                        EvalWorkEntry& output_entry) {
   LoadWorkEntry& load_work_entry = entry_;
-
-  if (entry_.streaming()) {
-    // Ignore item size for now
-    // Assume we only have one single table & single column for now
-
-    EvalWorkEntry eval_work_entry;
-
-    ColumnType column_type = ColumnType::Stream;
-    eval_work_entry.column_types.push_back(column_type);
-    eval_work_entry.column_handles.push_back(CPU_DEVICE);
-//    eval_work_entry.inplace_video.push_back(false);
-
-//    std::vector <i64> valid_offsets;
-//    valid_offsets.push_back(0);
-
-    read_stream_column(load_work_entry, eval_work_entry.columns[0]);
-
-    output_entry = eval_work_entry;
-    return true;
-  }
 
   // Ignoring item size for now and just yielding one IO item at a time
   if (current_row_ >= total_rows_) {
@@ -354,6 +329,9 @@ bool LoadWorker::yield(i32 item_size,
         eval_work_entry.inplace_video.push_back(inplace);
       }
       media_col_idx++;
+    } else if (table_meta.column_type(col_id) == ColumnType::Stream) {
+      read_stream_column(load_work_entry, eval_work_entry.columns[0]);
+      eval_work_entry.inplace_video.push_back(false);
     } else {
       // regular column
       for (size_t i = 0; i < num_items; ++i) {

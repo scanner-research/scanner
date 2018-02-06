@@ -240,8 +240,11 @@ grpc::Status MasterImpl::NewTable(grpc::ServerContext* context,
   table_desc.set_job_id(-1);
   meta_.commit_table(table_id);
 
-  write_table_metadata(storage_, TableMetadata(table_desc));
+  table_metas_->update(TableMetadata(table_desc));
+  table_metas_->write_megafile();
+
   write_database_metadata(storage_, meta_);
+
 
   LOG_IF(FATAL, rows[0].columns().size() != columns.size()) << "Row 0 doesn't have # entries == # columns";
   for (size_t j = 0; j < columns.size(); ++j) {

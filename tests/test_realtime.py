@@ -29,8 +29,8 @@ if __name__ == '__main__':
     output = db.ops.MemoryOutput(columns=[test_out])
     job = Job(
       op_args={
-        input: db.table('dummy').column('col1'),
-        output: "dummy1"
+        input: db.table('dummy_input').column('col1'),
+        output: "dummy_output"
       }
     )
     bulk_job = BulkJob(output=output, jobs=[job])
