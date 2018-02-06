@@ -1,4 +1,4 @@
-from scannerpy import Database, Job, DeviceType
+from scannerpy import Database, Job, DeviceType, BulkJob
 
 ################################################################################
 # This tutorial discusses how Scanner compresses output columns, how to        #
