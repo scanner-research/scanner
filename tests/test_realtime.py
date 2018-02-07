@@ -1,9 +1,8 @@
 from scannerpy import (Database, Config, DeviceType, ColumnType, BulkJob, Job,
                        ProtobufGenerator, ScannerException)
-import numpy as np
-import cv2
 import os
 import pickle
+import time
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,8 +22,7 @@ if __name__ == '__main__':
                               cwd + '/test_realtime_kernel.py')
 
     input = db.ops.MemoryInput()
-    for frame in frameList:
-      input.push(frame.tobytes())
+
     test_out = db.ops.TestRealtime(frame=input)
     output = db.ops.MemoryOutput(columns=[test_out])
     job = Job(
@@ -34,10 +32,22 @@ if __name__ == '__main__':
       }
     )
     bulk_job = BulkJob(output=output, jobs=[job])
-    db.run(bulk_job, force=True)
 
-    outframe = output.pull()
+    job_result = db.run(bulk_job, force=True)
+    for frame in frameList:
+      input.push(frame.tobytes())
+    print("Now pull frame from scanner!")
+    for i in range(5):
+      print('pull {:d}'.format(i))
+      outframe = output.pull()
+    input.close()
+    print('sleep for 10')
+    time.sleep(10)
+    print('done sleeping')
+    #ob_result.wait_until_done()
 
+
+  print("Now save pulled frame to file!")
   with open('output.pkl', 'wb') as output_pkl:
     pickle.dump(outframe, output_pkl)
 

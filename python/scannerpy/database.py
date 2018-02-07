@@ -113,7 +113,7 @@ def start_worker(master_address,
                  config=None,
                  config_path=None,
                  block=False,
-                 watchdog=True,
+                 watchdog=False,
                  prefetch_table_metadata=True,
                  num_workers=None,
                  stream_mode=False):
@@ -431,6 +431,7 @@ class Database(object):
     def _handle_signal(self, signum, frame):
         if (signum == signal.SIGINT or signum == signal.SIGTERM
                 or signum == signal.SIGKILL):
+            print('signal!')
             # Stop cluster
             self._stop_heartbeat()
             self.stop_cluster()
@@ -605,6 +606,7 @@ class Database(object):
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def stop_cluster(self):
+        print('stop cluster!')
         if self._start_cluster:
             if self._master:
                 # Stop heartbeat
@@ -1173,12 +1175,6 @@ class Database(object):
             self._master = self.protobufs.MasterStub(channel)
 
             self._try_rpc(lambda: self._master.NewJob(job_params))
-
-            try:
-                while True:
-                    time.sleep(60 * 60 * 24)
-            except KeyboardInterrupt:
-                return
 
         else:
             self._try_rpc(lambda: self._master.NewJob(job_params))

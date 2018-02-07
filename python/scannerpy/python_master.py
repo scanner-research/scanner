@@ -19,15 +19,27 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     self._finished = False
     self._count = 0
 
+  def Shutdown(self, request, context):
+    result = rpc_pb2.Result(success=True)
+    empty = rpc_pb2.Empty()
+    self._worker.Shutdown(empty)
+    return result
+
   # rpc PushRow (ElementDescriptor) returns (Empty) {}
   def PushRow(self, request, context):
-    self._input_queue.put(request)
+    if request.row_id == -1:
+      self._finished = True
+    else:
+      self._input_queue.put(request)
     print("Pushed a row into input queue.")
     empty = rpc_pb2.Empty()
     return empty
 
   # rpc PullRow (Empty) returns (ElementDescriptor) {}
   def PullRow(self, request, context):
+    print("Pulled a row from input queue.")
+    while self._output_queue.empty():
+      time.sleep(1)
     element_descriptor = self._output_queue.get()
     return element_descriptor
 
@@ -142,4 +154,5 @@ if __name__ == "__main__":
     while True:
       time.sleep(60 * 60 * 24)
   except KeyboardInterrupt:
+    print('error!!!!!')
     server.stop(0)

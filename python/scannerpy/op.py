@@ -24,6 +24,19 @@ class OpColumn:
         if self._type == self._db.protobufs.Video:
             self._encode_options = {'codec': 'default'}
 
+    def close(self):
+        # assert that we are in stream mode
+        if not self._memory > 0:
+            raise ScannerException('You can only push from memory in streaming mode.')
+
+        # assert that the element is serialized to string
+        element_descriptor = self.protobufs.ElementDescriptor()
+        element_descriptor.buffer = ''.encode('ascii')
+        element_descriptor.row_id = -1
+        channel = grpc.insecure_channel('localhost:5000')
+        stub = rpc_pb2_grpc.MasterStub(channel)
+        stub.PushRow(element_descriptor)
+
     def push(self, element):
         # assert that we are in stream mode
         if not self._memory > 0:
