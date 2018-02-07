@@ -56,24 +56,22 @@ struct Element {
   i64 index;
 };
 
-using ElementList = std::vector<Element>;
+using Elements = std::vector<Element>;
 
-using BatchedColumns = std::vector<ElementList>;
+using BatchedElements = std::vector<Elements>;
 
-using StenciledColumns = std::vector<ElementList>;
+using StenciledElements = std::vector<Elements>;
 
 //! Column -> Batch -> Stencil
-using StenciledBatchedColumns = std::vector<std::vector<ElementList>>;
+using StenciledBatchedElements = std::vector<std::vector<Elements>>;
 
-using Columns = std::vector<Element>;
+inline size_t num_rows(const Elements& column) { return column.size(); }
 
-inline size_t num_rows(const ElementList& column) { return column.size(); }
-
-inline void insert_element(ElementList& column, u8* buffer, size_t size) {
+inline void insert_element(Elements& column, u8* buffer, size_t size) {
   column.push_back(::scanner::Element{buffer, size});
 }
 
-inline void insert_frame(ElementList& column, Frame* frame) {
+inline void insert_frame(Elements& column, Frame* frame) {
   column.push_back(::scanner::Element{frame});
 }
 
@@ -165,8 +163,8 @@ class BaseKernel {
   /**
    * @brief For internal use
    **/
-  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
-                              BatchedColumns& output_columns) = 0;
+  virtual void execute_kernel(const StenciledBatchedElements& input_columns,
+                              BatchedElements& output_columns) = 0;
 
   /**
    * @brief For internal use
@@ -219,8 +217,8 @@ class StenciledBatchedKernel : public BaseKernel {
   /**
    * @brief For internal use
    **/
-  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
-                              BatchedColumns& output_columns) override;
+  virtual void execute_kernel(const StenciledBatchedElements& input_columns,
+                              BatchedElements& output_columns) override;
 
   //! Do not call this function.
   virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
@@ -245,8 +243,8 @@ class StenciledBatchedKernel : public BaseKernel {
    *
    * Number of output columns must be non-zero.
    */
-  virtual void execute(const StenciledBatchedColumns& input_columns,
-                       BatchedColumns& output_columns) = 0;
+  virtual void execute(const StenciledBatchedElements& input_columns,
+                       BatchedElements& output_columns) = 0;
 
   /**
    * The profiler allows an op to save profiling data for later
@@ -274,8 +272,8 @@ class BatchedKernel : public BaseKernel {
   /**
    * @brief For internal use
    **/
-  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
-                              BatchedColumns& output_columns);
+  virtual void execute_kernel(const StenciledBatchedElements& input_columns,
+                              BatchedElements& output_columns);
  protected:
   /**
    * @brief Runs the op on input elements and produces equal number of
@@ -296,8 +294,8 @@ class BatchedKernel : public BaseKernel {
    *
    * Number of output columns must be non-zero.
    */
-  virtual void execute(const BatchedColumns& input_columns,
-                       BatchedColumns& output_columns) = 0;
+  virtual void execute(const BatchedElements& input_columns,
+                       BatchedElements& output_columns) = 0;
 };
 
 class StenciledKernel : public BaseKernel {
@@ -309,8 +307,8 @@ class StenciledKernel : public BaseKernel {
   /**
    * @brief For internal use
    **/
-  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
-                              BatchedColumns& output_columns);
+  virtual void execute_kernel(const StenciledBatchedElements& input_columns,
+                              BatchedElements& output_columns);
  protected:
   /**
    * @brief Runs the op on input elements and produces equal number of
@@ -331,7 +329,7 @@ class StenciledKernel : public BaseKernel {
    *
    * Number of output columns must be non-zero.
    */
-  virtual void execute(const StenciledColumns& input_columns,
+  virtual void execute(const StenciledElements& input_columns,
                        Columns& output_columns) = 0;
 };
 
@@ -344,8 +342,8 @@ class Kernel : public BaseKernel {
   /**
    * @brief For internal use
    **/
-  virtual void execute_kernel(const StenciledBatchedColumns& input_columns,
-                              BatchedColumns& output_columns);
+  virtual void execute_kernel(const StenciledBatchedElements& input_columns,
+                              BatchedElements& output_columns);
  protected:
   /**
    * @brief Runs the op on input elements and produces equal number of

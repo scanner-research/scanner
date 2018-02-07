@@ -33,7 +33,7 @@ WorkerImpl* get_worker_service(DatabaseParameters& params,
 void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     ElementList& column) {
+                                     Elements& column) {
   if (!current_handle.is_same_address_space(target_handle) &&
       column.size() > 0) {
     bool is_frame = column[0].is_frame;
@@ -89,16 +89,16 @@ void move_if_different_address_space(Profiler& profiler,
 void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     BatchedColumns& columns) {
+                                     BatchedElements& columns) {
   for (i32 i = 0; i < (i32)columns.size(); ++i) {
-    ElementList& column = columns[i];
+    Elements& column = columns[i];
     move_if_different_address_space(profiler, current_handle, target_handle,
                                     column);
   }
 }
 
-ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
-                          DeviceHandle target_handle, ElementList& column) {
+Elements copy_elements(Profiler& profiler, DeviceHandle current_handle,
+                          DeviceHandle target_handle, Elements& column) {
   bool is_frame = column[0].is_frame;
 
   std::vector<u8*> src_buffers;
@@ -133,7 +133,7 @@ ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
   memcpy_vec(dest_buffers, target_handle, src_buffers, current_handle, sizes);
   profiler.add_interval("memcpy", memcpy_start, now());
 
-  ElementList output_list;
+  Elements output_list;
   if (is_frame) {
     for (i32 b = 0; b < (i32)column.size(); ++b) {
       Frame* frame =
@@ -148,10 +148,10 @@ ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
   return output_list;
 }
 
-ElementList copy_or_ref_elements(Profiler& profiler,
+Elements copy_or_ref_elements(Profiler& profiler,
                                  DeviceHandle current_handle,
                                  DeviceHandle target_handle,
-                                 ElementList& column) {
+                                 Elements& column) {
   bool is_frame = column[0].is_frame;
 
   std::vector<u8*> src_buffers;
@@ -180,7 +180,7 @@ ElementList copy_or_ref_elements(Profiler& profiler,
                       sizes);
   profiler.add_interval("memcpy", memcpy_start, now());
 
-  ElementList output_list;
+  Elements output_list;
   if (is_frame) {
     for (i32 b = 0; b < (i32)column.size(); ++b) {
       Frame* frame =

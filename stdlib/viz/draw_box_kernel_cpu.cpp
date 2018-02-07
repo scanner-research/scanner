@@ -11,8 +11,8 @@ class DrawBoxKernelCPU : public BatchedKernel {
   DrawBoxKernelCPU(const KernelConfig& config)
     : BatchedKernel(config), device_(config.devices[0]) {}
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& bbox_col = input_columns[1];
 

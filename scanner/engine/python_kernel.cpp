@@ -117,8 +117,8 @@ void PythonKernel::reset() {
   PyGILState_Release(gstate);
 }
 
-void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
-                                          BatchedColumns& output_columns) {
+void PythonKernel::batched_python_execute(const BatchedElements& input_columns,
+                                          BatchedElements& output_columns) {
   i32 input_count = (i32)num_rows(input_columns[0]);
   PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -233,8 +233,8 @@ void PythonKernel::batched_python_execute(const BatchedColumns& input_columns,
   PyGILState_Release(gstate);
 }
 
-void PythonKernel::single_python_execute(const BatchedColumns& input_columns,
-                                         BatchedColumns& output_columns) {
+void PythonKernel::single_python_execute(const BatchedElements& input_columns,
+                                         BatchedElements& output_columns) {
   i32 input_count = (i32)num_rows(input_columns[0]);
 
   PyGILState_STATE gstate = PyGILState_Ensure();
@@ -328,8 +328,8 @@ void PythonKernel::single_python_execute(const BatchedColumns& input_columns,
   PyGILState_Release(gstate);
 }
 
-void PythonKernel::execute(const BatchedColumns& input_columns,
-                           BatchedColumns& output_columns) {
+void PythonKernel::execute(const BatchedElements& input_columns,
+                           BatchedElements& output_columns) {
   if (can_batch_) {
     batched_python_execute(input_columns, output_columns);
   } else {

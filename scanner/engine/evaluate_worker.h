@@ -31,7 +31,7 @@ namespace internal {
 void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     BatchedColumns& columns);
+                                     BatchedElements& columns);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Worker thread arguments

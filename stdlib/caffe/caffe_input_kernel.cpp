@@ -156,8 +156,8 @@ void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
   transformer.Transform(input_mats, &output_blob);
 }
 
-void CaffeInputKernel::execute(const BatchedColumns& input_columns,
-                               BatchedColumns& output_columns) {
+void CaffeInputKernel::execute(const BatchedElements& input_columns,
+                               BatchedElements& output_columns) {
   auto& frame_col = input_columns[0];
   check_frame(device_, frame_col[0]);
 

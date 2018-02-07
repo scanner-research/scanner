@@ -140,8 +140,8 @@ class CPM2OutputKernel : public BatchedKernel, public VideoKernel {
     feature_channels_ = 57;
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     assert(input_columns.size() == 3);
     i32 heatmap_idx = 0;
     i32 joints_idx = 1;

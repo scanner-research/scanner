@@ -10,8 +10,8 @@ class UnsliceKernel : public BatchedKernel {
   UnsliceKernel(const KernelConfig& config)
     : BatchedKernel(config) {}
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     // No implementation
   }
 };

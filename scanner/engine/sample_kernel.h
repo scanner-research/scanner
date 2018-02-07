@@ -15,8 +15,8 @@ class SampleKernel : public Kernel {
 
   ~SamplehonKernel();
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override;
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override;
 
  private:
   KernelConfig config_;

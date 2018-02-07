@@ -55,8 +55,8 @@ void TrackerEvaluator::reset() {
   tracks_.clear();
 }
 
-void TrackerEvaluator::evaluate(const BatchedColumns& input_columns,
-                                BatchedColumns& output_columns) {
+void TrackerEvaluator::evaluate(const BatchedElements& input_columns,
+                                BatchedElements& output_columns) {
   assert(input_columns.size() >= 2);
 
   i32 input_count = input_columns[0].rows.size();

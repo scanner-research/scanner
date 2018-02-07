@@ -36,8 +36,8 @@ class TrackerEvaluator : public Evaluator {
 
   void reset() override;
 
-  void evaluate(const BatchedColumns& input_columns,
-                BatchedColumns& output_columns) override;
+  void evaluate(const BatchedElements& input_columns,
+                BatchedElements& output_columns) override;
 
  protected:
   float iou(const BoundingBox& bl, const BoundingBox& br);
