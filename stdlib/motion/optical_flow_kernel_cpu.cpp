@@ -24,7 +24,7 @@ class OpticalFlowKernelCPU : public StenciledKernel, public VideoKernel {
     }
   }
 
-  void execute(const StenciledColumns& input_columns,
+  void execute(const StenciledElements& input_columns,
                Columns& output_columns) override {
     auto& frame_col = input_columns[0];
     check_frame(device_, frame_col[0]);

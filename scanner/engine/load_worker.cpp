@@ -359,7 +359,7 @@ bool LoadWorker::done() { return current_row_ >= total_rows_; }
 
 void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
                        const std::vector<i64>& rows, i64 start_frame,
-                       ElementList& element_list) {
+                       Elements& element_list) {
   std::unique_ptr<RandomReadFile> video_file = index_entry.open_file();
   u64 file_size = index_entry.file_size;
   const std::vector<u64>& keyframe_indices = index_entry.keyframe_indices;
@@ -457,7 +457,7 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
 void LoadWorker::read_other_column(i32 table_id, i32 column_id, i32 item_id,
                                    i32 item_start, i32 item_end,
                                    const std::vector<i64>& rows,
-                                   ElementList& element_list) {
+                                   Elements& element_list) {
   const std::vector<i64>& valid_offsets = rows;
 
   // Read metadata file to determine num rows and sizes

@@ -16,16 +16,16 @@ class PythonKernel : public BatchedKernel {
 
   ~PythonKernel();
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override;
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override;
 
   void reset() override;
 
  private:
-  void batched_python_execute(const BatchedColumns& input_columns,
-                              BatchedColumns& output_columns);
-  void single_python_execute(const BatchedColumns& input_columns,
-                             BatchedColumns& output_columns);
+  void batched_python_execute(const BatchedElements& input_columns,
+                              BatchedElements& output_columns);
+  void single_python_execute(const BatchedElements& input_columns,
+                             BatchedElements& output_columns);
   KernelConfig config_;
   DeviceHandle device_;
   bool can_batch_;

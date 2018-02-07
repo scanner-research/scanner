@@ -10,8 +10,8 @@ class ImageDecoderKernelCPU : public BatchedKernel {
  public:
   ImageDecoderKernelCPU(const KernelConfig& config) : BatchedKernel(config) {}
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     i32 input_count = num_rows(input_columns[0]);
 
     for (i32 i = 0; i < input_count; ++i) {

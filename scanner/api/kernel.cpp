@@ -32,8 +32,8 @@ StenciledBatchedKernel::StenciledBatchedKernel(const KernelConfig& config)
     : BaseKernel(config) {}
 
 void StenciledBatchedKernel::execute_kernel(
-    const StenciledBatchedColumns& input_columns,
-    BatchedColumns& output_columns) {
+    const StenciledBatchedElements& input_columns,
+    BatchedElements& output_columns) {
   execute(input_columns, output_columns);
 }
 
@@ -41,9 +41,9 @@ StenciledKernel::StenciledKernel(const KernelConfig& config)
   : BaseKernel(config) {}
 
 void StenciledKernel::execute_kernel(
-    const StenciledBatchedColumns& input_columns,
-    BatchedColumns& output_columns) {
-  StenciledColumns in;
+    const StenciledBatchedElements& input_columns,
+    BatchedElements& output_columns) {
+  StenciledElements in;
   for (auto& col : input_columns) {
     in.emplace_back();
     std::vector<Element>& b = in.back();
@@ -61,9 +61,9 @@ BatchedKernel::BatchedKernel(const KernelConfig& config)
     : BaseKernel(config) {}
 
 void BatchedKernel::execute_kernel(
-    const StenciledBatchedColumns& input_columns,
-    BatchedColumns& output_columns) {
-  BatchedColumns in;
+    const StenciledBatchedElements& input_columns,
+    BatchedElements& output_columns) {
+  BatchedElements in;
   for (auto& col : input_columns) {
     in.emplace_back();
     std::vector<Element>& b = in.back();
@@ -79,8 +79,8 @@ Kernel::Kernel(const KernelConfig& config)
     : BaseKernel(config) {}
 
 void Kernel::execute_kernel(
-    const StenciledBatchedColumns& input_columns,
-    BatchedColumns& output_columns) {
+    const StenciledBatchedElements& input_columns,
+    BatchedElements& output_columns) {
 
   Columns in_cols;
   for (auto& col : input_columns) {

@@ -51,7 +51,7 @@ class LoadWorker {
   void read_other_column(i32 table_id, i32 column_id, i32 item_id,
                          i32 item_start, i32 item_end,
                          const std::vector<i64>& rows,
-                         ElementList& element_list);
+                         Elements& element_list);
   const i32 node_id_;
   const i32 worker_id_;
   Profiler& profiler_;
@@ -79,6 +79,6 @@ class LoadWorker {
 void read_video_column(Profiler& profiler,
                        const VideoIndexEntry& index_entry,
                        const std::vector<i64>& rows, i64 start_offset,
-                       ElementList& element_list);
+                       Elements& element_list);
 }
 }

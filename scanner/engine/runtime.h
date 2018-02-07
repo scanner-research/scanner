@@ -46,7 +46,7 @@ struct EvalWorkEntry {
   i64 job_index;
   i64 task_index;
   std::vector<std::vector<i64>> row_ids;
-  BatchedColumns columns;
+  BatchedElements columns;
   std::vector<DeviceHandle> column_handles;
   // Below only for pre/evaluate/post workers
   std::vector<bool> inplace_video;
@@ -105,19 +105,19 @@ WorkerImpl* get_worker_service(DatabaseParameters& params,
 void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     ElementList& column);
+                                     Elements& column);
 
 void move_if_different_address_space(Profiler& profiler,
                                      DeviceHandle current_handle,
                                      DeviceHandle target_handle,
-                                     BatchedColumns& columns);
+                                     BatchedElements& columns);
 
-ElementList copy_elements(Profiler& profiler, DeviceHandle current_handle,
-                          DeviceHandle target_handle, ElementList& column);
+Elements copy_elements(Profiler& profiler, DeviceHandle current_handle,
+                          DeviceHandle target_handle, Elements& column);
 
-ElementList copy_or_ref_elements(Profiler& profiler,
+Elements copy_or_ref_elements(Profiler& profiler,
                                  DeviceHandle current_handle,
                                  DeviceHandle target_handle,
-                                 ElementList& column);
+                                 Elements& column);
 }
 }

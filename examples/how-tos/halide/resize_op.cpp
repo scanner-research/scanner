@@ -15,8 +15,8 @@ class ResizeKernel : public scanner::VideoKernel {
     height_ = args.height();
   }
 
-  void execute(const scanner::BatchedColumns& input_columns,
-               scanner::BatchedColumns& output_columns) override {
+  void execute(const scanner::BatchedElements& input_columns,
+               scanner::BatchedElements& output_columns) override {
     int input_count = input_columns[0].rows.size();
 
     // This must be called at the top of the execute method in any VideoKernel.

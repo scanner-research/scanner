@@ -42,8 +42,8 @@ class OpticalFlowKernelGPU : public StenciledBatchedKernel, public VideoKernel {
     initial_frame_ = cvc::GpuMat();
   }
 
-  void execute(const StenciledBatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const StenciledBatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     set_device();
 
     auto& frame_col = input_columns[0];
