@@ -11,7 +11,7 @@ namespace codec = cv::cudacodec;
 
 class ImageSource : public codec::RawVideoSource {
 public:
-  ImageSource(const BatchedColumns& input_columns, const cv::Mat& img)
+  ImageSource(const BatchedElements& input_columns, const cv::Mat& img)
     : input_columns_(input_columns), img_(img) {}
 
   bool getNextPacket(unsigned char** data, int* size, bool* endOfFile) override {
@@ -39,7 +39,7 @@ public:
 private:
   int i_ = 0;
   const cv::Mat& img_;
-  const BatchedColumns& input_columns_;
+  const BatchedElements& input_columns_;
 };
 
 class ImageDecoderKernelGPU : public Kernel {
@@ -51,8 +51,8 @@ class ImageDecoderKernelGPU : public Kernel {
     }
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     i32 input_count = num_rows(input_columns[0]);
 
     set_device();

@@ -23,8 +23,8 @@ class CaffeKernel : public BatchedKernel, public VideoKernel {
   CaffeKernel(const KernelConfig& config);
   void validate(proto::Result* result) override;
   void new_frame_info() override;
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override;
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override;
   void set_device();
 
   virtual void net_config() {}

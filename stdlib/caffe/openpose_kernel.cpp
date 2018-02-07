@@ -66,8 +66,8 @@ class OpenPoseKernel : public scanner::BatchedKernel,
     opWrapper_.start();
   }
 
-  void execute(const scanner::BatchedColumns& input_columns,
-               scanner::BatchedColumns& output_columns) override {
+  void execute(const scanner::BatchedElements& input_columns,
+               scanner::BatchedElements& output_columns) override {
     auto& frame_col = input_columns[0];
 
     auto datumsPtr = std::make_shared<std::vector<op::Datum>>();

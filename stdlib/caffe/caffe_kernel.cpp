@@ -333,8 +333,8 @@ void CaffeKernel::new_frame_info() {
   net_config();
 }
 
-void CaffeKernel::execute(const BatchedColumns& input_columns,
-                          BatchedColumns& output_columns) {
+void CaffeKernel::execute(const BatchedElements& input_columns,
+                          BatchedElements& output_columns) {
   check_frame(device_, input_columns[0][0]);
   set_device();
 

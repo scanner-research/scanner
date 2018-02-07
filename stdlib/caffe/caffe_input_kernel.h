@@ -20,13 +20,13 @@ class CaffeInputKernel : public BatchedKernel, public VideoKernel {
 
   void new_frame_info() override;
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override;
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override;
 
   void set_device();
 
-  virtual void extra_inputs(const BatchedColumns& input_columns,
-                            BatchedColumns& output_columns) {}
+  virtual void extra_inputs(const BatchedElements& input_columns,
+                            BatchedElements& output_columns) {}
 
  protected:
   void set_halide_buf(buffer_t& halide_buf, u8* buf, size_t size);

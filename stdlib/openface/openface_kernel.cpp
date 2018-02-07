@@ -26,8 +26,8 @@ class OpenFaceKernel : public BatchedKernel, public VideoKernel {
                                    au_loc_path.string(), tri_loc_path.string());
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     auto& frame_col = input_columns[0];
     auto& bbox_col = input_columns[1];
     check_frame(CPU_DEVICE, frame_col[0]);

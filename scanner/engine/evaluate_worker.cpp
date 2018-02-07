@@ -459,7 +459,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   }
 
   std::vector<DeviceHandle> side_output_handles = work_entry.column_handles;
-  BatchedColumns side_output_columns = work_entry.columns;
+  BatchedElements side_output_columns = work_entry.columns;
   std::vector<std::vector<i64>> side_row_ids = work_entry.row_ids;
 
   // For each kernel, produce as much output as can be produced given current
@@ -509,7 +509,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       assert(in_col_idx < side_output_columns.size());
       // Select elements which this kernel requires as inputs
       auto& row_ids = side_row_ids[in_col_idx];
-      ElementList valid_inputs;
+      Elements valid_inputs;
       i64& current_input_idx = kernel_current_input_idx[i];
       auto input_create_start = now();
       for (size_t r = 0; r < row_ids.size(); ++r) {
@@ -530,7 +530,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       profiler_.add_interval("input_create", input_create_start, now());
       if (valid_inputs.size() > 0) {
         auto copy_start = now();
-        ElementList list =
+        Elements list =
             copy_or_ref_elements(profiler_, side_output_handles[in_col_idx],
                                  current_input_handles[i], valid_inputs);
         profiler_.add_interval("op_marshal", copy_start, now());
@@ -751,7 +751,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         i32 batch = std::min((i64)kernel_batch_size, row_end - start);
         i32 end = start + batch;
         // Stage inputs to the kernel using the stencil cache
-        StenciledBatchedColumns input_columns(input_column_idx.size());
+        StenciledBatchedElements input_columns(input_column_idx.size());
         // For each column
         // NOTE(apoms): choosing the first columns row ids is fine because all
         // input row ids for each column should be the same since all inputs
@@ -777,7 +777,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         profiler_.add_interval("stencil_create:" + op_name, stencil_create_start, now());
 
         // Setup output buffers to receive op output
-        BatchedColumns output_columns;
+        BatchedElements output_columns;
         output_columns.resize(num_output_columns);
 
         // Map from previous output columns to the set of input columns needed
@@ -792,7 +792,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         for (size_t y = 0; y < unused_outputs.size(); ++y) {
           i32 unused_col_idx =
               unused_outputs[unused_outputs.size() - 1 - y];
-          ElementList& column = output_columns[unused_col_idx];
+          Elements& column = output_columns[unused_col_idx];
           for (Element& element : column) {
             delete_element(current_output_handles[unused_col_idx], element);
           }
@@ -809,7 +809,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
         // Add new output columns
         for (size_t cidx = 0; cidx < output_columns.size(); ++cidx) {
-          const ElementList& column = output_columns[cidx];
+          const Elements& column = output_columns[cidx];
           i32 col_idx = side_output_columns.size() - num_output_columns + cidx;
           side_output_columns[col_idx].insert(
               side_output_columns[col_idx].end(), column.begin(), column.end());
@@ -830,7 +830,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Filter outputs to only the ones that will be used downstream
     // For each output row, check if it is in the valid output rows
     if (num_output_columns > 0) {
-      BatchedColumns temp_output_columns(num_output_columns);
+      BatchedElements temp_output_columns(num_output_columns);
       std::vector<std::vector<i64>> temp_row_ids(num_output_columns);
 
       // For each column, transfer all valid rows to temp output, deleting all
@@ -905,7 +905,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     auto& dead_columns = arg_group_.dead_columns[k];
     for (size_t y = 0; y < dead_columns.size(); ++y) {
       i32 dead_col_idx = dead_columns[dead_columns.size() - 1 - y];
-      ElementList& column = side_output_columns[dead_col_idx];
+      Elements& column = side_output_columns[dead_col_idx];
       for (Element& element : column) {
         delete_element(side_output_handles[dead_col_idx], element);
       }
@@ -951,7 +951,7 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   output_work_entry.last_in_io_packet = work_entry.last_in_io_packet;
   output_work_entry.last_in_task = work_entry.last_in_task;
 
-  BatchedColumns& work_item_output_columns = output_work_entry.columns;
+  BatchedElements& work_item_output_columns = output_work_entry.columns;
   std::vector<DeviceHandle>& work_item_output_handles =
       output_work_entry.column_handles;
   std::vector<std::vector<i64>>& work_item_row_ids =

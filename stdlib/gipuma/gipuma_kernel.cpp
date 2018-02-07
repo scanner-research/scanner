@@ -57,7 +57,7 @@ class GipumaKernel : public VideoKernel {
     was_reset_ = true;
   }
 
-  void setup_gipuma(const BatchedColumns& input_columns) {
+  void setup_gipuma(const BatchedElements& input_columns) {
     i32 frame_width = frame_info_.width();
     i32 frame_height = frame_info_.height();
 
@@ -125,8 +125,8 @@ class GipumaKernel : public VideoKernel {
     state_->lines->l = frame_width;
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     set_device();
 
     auto& frame_info = input_columns[1];

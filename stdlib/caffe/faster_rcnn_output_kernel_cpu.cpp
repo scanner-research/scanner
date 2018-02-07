@@ -17,15 +17,15 @@ class FasterRCNNOutputKernel : public BatchedKernel {
  public:
   FasterRCNNOutputKernel(const KernelConfig& config) : BatchedKernel(config) {}
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     assert(input_columns.size() == 3);
 
     i32 input_count = num_rows(input_columns[0]);
     i32 cls_prob_idx = 0;
     i32 rois_idx = 1;
     i32 fc7_idx = 2;
-    const ElementList &cls_prob = input_columns[cls_prob_idx],
+    const Elements &cls_prob = input_columns[cls_prob_idx],
                       &rois = input_columns[rois_idx],
                       &fc7 = input_columns[fc7_idx];
 

@@ -66,8 +66,8 @@ class FacenetInputKernelCPU : public BatchedKernel, public VideoKernel {
     }
   }
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     auto& frame_col = input_columns[0];
     check_frame(device_, frame_col[0]);
 

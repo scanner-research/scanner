@@ -10,8 +10,8 @@ class DiscardKernel : public BatchedKernel {
     : BatchedKernel(config),
       device_(config.devices[0]) {}
 
-  void execute(const BatchedColumns& input_columns,
-               BatchedColumns& output_columns) override {
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
     i32 input_count = (i32)num_rows(input_columns[0]);
     u8* output_block = new_block_buffer(device_, input_count, input_count);
     for (i32 i = 0; i < input_count; ++i) {

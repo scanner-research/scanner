@@ -37,7 +37,7 @@ class FrameDifferenceKernel : public StenciledKernel {
     frame_height_ = frame_info_.height();
   }
 
-  void execute(const StenciledColumns& input_columns,
+  void execute(const StenciledElements& input_columns,
                Columns& output_columns) override {
     auto& frame_col = input_columns[0];
     check_frame(CPU_DEVICE, frame_col);
