@@ -70,7 +70,7 @@ struct DAGAnalysisInfo {
   // Filled in by remap_input_op_edges
   std::map<i64, i64> input_ops_to_first_op_columns;
 
-  // Op -> Columns
+  // Op -> Elements
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   std::vector<std::vector<i32>> dead_columns;
   std::vector<std::vector<i32>> unused_outputs;

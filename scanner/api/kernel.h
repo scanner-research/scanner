@@ -330,7 +330,7 @@ class StenciledKernel : public BaseKernel {
    * Number of output columns must be non-zero.
    */
   virtual void execute(const StenciledElements& input_columns,
-                       Columns& output_columns) = 0;
+                       Elements& output_columns) = 0;
 };
 
 class Kernel : public BaseKernel {
@@ -362,8 +362,8 @@ class Kernel : public BaseKernel {
    *
    * Number of output columns must be non-zero.
    */
-  virtual void execute(const Columns& input_columns,
-                       Columns& output_columns) = 0;
+  virtual void execute(const Elements& input_columns,
+                       Elements& output_columns) = 0;
 };
 
 //! Kernel with support for frame and frame_info columns.

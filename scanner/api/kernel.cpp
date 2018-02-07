@@ -50,7 +50,7 @@ void StenciledKernel::execute_kernel(
     b = col[0];
   }
 
-  Columns out_cols(output_columns.size());
+  Elements out_cols(output_columns.size());
   execute(in, out_cols);
   for (size_t i = 0; i < out_cols.size(); ++i) {
     output_columns[i].push_back(out_cols[i]);
@@ -82,12 +82,12 @@ void Kernel::execute_kernel(
     const StenciledBatchedElements& input_columns,
     BatchedElements& output_columns) {
 
-  Columns in_cols;
+  Elements in_cols;
   for (auto& col : input_columns) {
     in_cols.push_back(col[0][0]);
   }
 
-  Columns out_cols(output_columns.size());
+  Elements out_cols(output_columns.size());
   execute(in_cols, out_cols);
   for (size_t i = 0; i < out_cols.size(); ++i) {
     output_columns[i].push_back(out_cols[i]);
