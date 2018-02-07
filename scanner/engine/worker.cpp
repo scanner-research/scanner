@@ -123,7 +123,7 @@ std::map<int, std::condition_variable> no_pipelining_cvars;
 std::map<int, bool> no_pipelining_conditions;
 
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
-                         PreEvaluateWorkerArgs args, bool stream = false) {
+                         PreEvaluateWorkerArgs args) {
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
   // We sort inputs into task work queues to ensure we process them
@@ -203,7 +203,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     i32 rows_used = 0;
     while (rows_used < total_rows) {
       EvalWorkEntry output_entry;
-      if (!worker.yield(work_packet_size, output_entry, stream)) {
+      if (!worker.yield(work_packet_size, output_entry)) {
         break;
       }
 
@@ -1374,7 +1374,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     // Pre thread
     pre_eval_threads.emplace_back(
         pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
-        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu], stream_mode_);
+        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
     // Op threads
     eval_threads.emplace_back();
     std::vector<std::thread>& threads = eval_threads.back();

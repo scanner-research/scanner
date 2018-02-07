@@ -53,7 +53,7 @@ class PreEvaluateWorker {
 
   void feed(EvalWorkEntry& entry, bool is_first_in_task);
 
-  bool yield(i32 item_size, EvalWorkEntry& output, bool stream);
+  bool yield(i32 item_size, EvalWorkEntry& output);
 
  private:
   const i32 node_id_;
