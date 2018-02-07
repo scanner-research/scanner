@@ -58,7 +58,7 @@ class FeatureMatcherKernel : public StenciledKernel, public VideoKernel {
 
 protected:
   void execute(const StenciledElements& input_columns,
-               Columns& output_columns) override {
+               Elements& output_columns) override {
     set_device();
 
     auto& features_col = input_columns[0];

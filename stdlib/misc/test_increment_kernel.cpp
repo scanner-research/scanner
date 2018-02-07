@@ -14,8 +14,8 @@ class TestIncrementKernel : public Kernel {
     next_int_ = 0;
   }
 
-  void execute(const Columns& input_columns,
-               Columns& output_columns) override {
+  void execute(const Elements& input_columns,
+               Elements& output_columns) override {
     if (last_row_ + 1 != input_columns[0].index) {
       last_row_ = input_columns[0].index - 1;
       reset();
