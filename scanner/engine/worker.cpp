@@ -62,7 +62,7 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
 
 void load_driver(LoadInputQueue& load_work,
                  std::vector<EvalQueue>& initial_eval_work,
-                 LoadWorkerArgs args) {
+                 LoadWorkerArgs args, bool stream = false) {
   Profiler& profiler = args.profiler;
   LoadWorker worker(args);
   while (true) {
@@ -95,7 +95,10 @@ void load_driver(LoadInputQueue& load_work,
       if (worker.yield(io_packet_size, output_entry)) {
         auto& work_entry = output_entry;
         work_entry.first = !task_streams.empty();
-        work_entry.last_in_task = worker.done();
+        if (stream)
+          work_entry.last_in_task = true;
+        else
+          work_entry.last_in_task = worker.done();
         initial_eval_work[output_queue_idx].push(
             std::make_tuple(task_streams, work_entry));
         // We use the task streams being empty to indicate that this is
@@ -120,7 +123,7 @@ std::map<int, std::condition_variable> no_pipelining_cvars;
 std::map<int, bool> no_pipelining_conditions;
 
 void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
-                         PreEvaluateWorkerArgs args) {
+                         PreEvaluateWorkerArgs args, bool stream = false) {
   Profiler& profiler = args.profiler;
   PreEvaluateWorker worker(args);
   // We sort inputs into task work queues to ensure we process them
@@ -200,7 +203,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     i32 rows_used = 0;
     while (rows_used < total_rows) {
       EvalWorkEntry output_entry;
-      if (!worker.yield(work_packet_size, output_entry)) {
+      if (!worker.yield(work_packet_size, output_entry, stream)) {
         break;
       }
 
@@ -396,7 +399,8 @@ void save_coordinator(OutputEvalQueue& eval_work,
 
 void save_driver(SaveInputQueue& save_work,
                  SaveOutputQueue& output_work,
-                 SaveWorkerArgs args, bool stream = false) {
+                 SaveWorkerArgs args,
+                 StreamOutputQueue& stream_work, bool stream = false) {
   Profiler& profiler = args.profiler;
   std::map<std::tuple<i32, i32>, std::unique_ptr<SaveWorker>> workers;
   while (true) {
@@ -404,6 +408,10 @@ void save_driver(SaveInputQueue& save_work,
 
     std::tuple<i32, EvalWorkEntry> entry;
     save_work.pop(entry);
+
+    // In stream mode, we need a place to store row buffer for later use
+    if (stream)
+      stream_work.push(entry);
 
     i32 pipeline_instance = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
@@ -447,9 +455,6 @@ void save_driver(SaveInputQueue& save_work,
                                        work_entry.task_index));
       workers.erase(job_task_id);
     }
-
-    if (stream)
-      break;
   }
 
   VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
@@ -1189,6 +1194,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
   OutputEvalQueue output_eval_work(pipeline_instances_per_node);
   std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
+  StreamOutputQueue stream_work(pipeline_instances_per_node);
   SaveOutputQueue retired_tasks;
 
   VLOG(1)<<"Checkpoint: Setup load workers";
@@ -1209,7 +1215,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                         work_packet_size};
 
     load_threads.emplace_back(load_driver, std::ref(load_work),
-                              std::ref(initial_eval_work), args);
+                              std::ref(initial_eval_work), args, stream_mode_);
   }
 
   // Setup evaluate workers
@@ -1363,11 +1369,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::thread> pre_eval_threads;
   std::vector<std::vector<std::thread>> eval_threads;
   std::vector<std::thread> post_eval_threads;
+  VLOG(1)<<"Checkpoint: pipeline_instances_per_node: "<<pipeline_instances_per_node;
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     // Pre thread
     pre_eval_threads.emplace_back(
         pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
-        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
+        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu], stream_mode_);
     // Op threads
     eval_threads.emplace_back();
     std::vector<std::thread>& threads = eval_threads.back();
@@ -1404,7 +1411,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                         i, db_params_.storage_config, save_thread_profilers[i]};
 
     save_threads.emplace_back(save_driver, std::ref(save_work[i]),
-                              std::ref(retired_tasks), args, stream_mode_);
+                              std::ref(retired_tasks), args, std::ref(stream_work), stream_mode_);
   }
 
   if (job_params->profiling()) {
@@ -1437,6 +1444,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     // We batch up retired tasks to avoid sync overhead
     std::vector<std::tuple<i32, i64, i64>> batched_retired_tasks;
+    VLOG(1)<<"Checkpoint: Num of retired tasks: "<<retired_tasks.size();
     while (retired_tasks.size() > 0) {
       // Pull retired tasks
       std::tuple<i32, i64, i64> task_retired;
@@ -1449,7 +1457,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       sync();
     }
 
-    VLOG(1)<<"Checkpoint: Inform master that this task was finished: out";
+    VLOG(1)<<"Checkpoint: Inform master that this task was finished: out "<<batched_retired_tasks.size();
     for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
       // Inform master that this task was finished
       VLOG(1)<<"Checkpoint: Inform master that this task was finished: in";
@@ -1460,21 +1468,25 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       params.set_task_id(std::get<2>(task_retired));
 
       if (stream_mode_) {
+        VLOG(1)<<"Checkpoint: In streaming mode. Init some variables before filling buffer";
         std::tuple<i32, EvalWorkEntry> entry;
-        output_eval_work.pop(entry);
+        stream_work.pop(entry);
         EvalWorkEntry& work_entry = std::get<1>(entry);
         ElementList& element_list = work_entry.columns[0];
 
-        for (int i = 0; i < element_list.size(); ++i) {
-          u8* buffer = element_list[i].buffer;
-          proto::ElementDescriptor* element_descriptor = params.add_rows();
-          element_descriptor->set_buffer((char *)buffer);
-          delete_element(CPU_DEVICE, element_list[i]);
-        }
+        VLOG(1)<<"Checkpoint: In streaming mode. Filling in row buffer";
+        i64 row_id = std::get<2>(task_retired);
+        VLOG(1)<<"Checkpoint: We have row_id of "<<row_id;
+        u8* buffer = element_list[0].buffer;
+        proto::ElementDescriptor* element_descriptor = params.add_rows();
+        element_descriptor->set_buffer((char *)buffer);
+        element_descriptor->set_row_id(row_id);
+//        delete_element(CPU_DEVICE, element_list[0]);
       }
 
       proto::Empty empty;
       grpc::Status status;
+      VLOG(1)<<"Checkpoint: Before FinishedWork";
       GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
 
       // Update how much is in each pipeline instances work queue
@@ -1541,11 +1553,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         if (stream_mode_) {
           VLOG(1)<<"Checkpoint: Set row buffer in new work";
           stenciled_entry.set_streaming(true);
-          for (int i = 0; i < new_work.rows_size(); ++i) {
-            proto::ElementDescriptor *row = stenciled_entry.add_rows();
-            row->set_row_id(new_work.rows(i).row_id());
-            row->set_buffer(new_work.rows(i).buffer());
-          }
+          proto::ElementDescriptor *row = stenciled_entry.add_rows();
+          row->set_row_id(new_work.rows(0).row_id());
+          row->set_buffer(new_work.rows(0).buffer());
         }
         // Determine which worker to allocate to
         i32 target_work_queue = -1;

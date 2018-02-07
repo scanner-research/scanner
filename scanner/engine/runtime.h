@@ -78,6 +78,8 @@ using OutputEvalQueue =
     Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveInputQueue =
     Queue<std::tuple<i32, EvalWorkEntry>>;
+using StreamOutputQueue =
+    Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveOutputQueue =
     Queue<std::tuple<i32, i64, i64>>;
 

@@ -22,6 +22,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
   # rpc PushRow (ElementDescriptor) returns (Empty) {}
   def PushRow(self, request, context):
     self._input_queue.put(request)
+    print("Pushed a row into input queue.")
     empty = rpc_pb2.Empty()
     return empty
 
@@ -89,6 +90,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
         element_descriptor = self._input_queue.get()  # type of rpc_pb2.ElementDescriptor()
         new_work.rows.extend([element_descriptor])
         print("Asking for next work, pulled row_id={} from input queue.".format(element_descriptor.row_id))
+        print("The length of buffer of pulled row is: {}".format(len(element_descriptor.buffer)))
 
     self._lock.release()
     return new_work
@@ -97,12 +99,12 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
   def FinishedWork(self, request, context):
     self._lock.acquire()
 
-    element_descriptor = request.rows
+    element_descriptor = request.rows[0]
     self._output_queue.put(element_descriptor)
 
     self._lock.release()
     print("Pushed row_id={} back to output queue.".format(element_descriptor.row_id))
-    print("The row buffer is: ".format(element_descriptor.buffer))
+    print("The length of row buffer is: {}".format(len(element_descriptor.buffer)))
     empty = rpc_pb2.Empty()
     return empty
 
@@ -125,8 +127,6 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     job_params = request
 
     self._worker.NewJob(job_params)
-
-    # give worker an element as initial_eval_work
 
     self._lock.release()
 

@@ -226,7 +226,7 @@ class Database(object):
 
         # Create a dummy table if in streaming mode
         if self._stream_mode:
-            self.new_table(b'dummy_input', [b'col1', b'col2'], [[b'r00', b'r01'], [b'r10', b'r11']], force=True)
+            self.new_table('dummy_input'.encode('ascii'), ['col1'.encode('ascii')], [['r00'.encode('ascii')]], force=True)
 
     def __del__(self):
         self.stop_cluster()
@@ -1149,6 +1149,7 @@ class Database(object):
             job_params.io_packet_size = 1
             job_params.local_id = 0
             job_params.local_total = 1
+            job_params.pipeline_instances_per_node = 1
 
             # NOTE: There should be only one output (dummy) table in streaming mode
             result = self.new_table('dummy_output'.encode('ascii'), ['col1'.encode('ascii')], [['r00'.encode('ascii')]], force=True)
@@ -1172,6 +1173,12 @@ class Database(object):
             self._master = self.protobufs.MasterStub(channel)
 
             self._try_rpc(lambda: self._master.NewJob(job_params))
+
+            try:
+                while True:
+                    time.sleep(60 * 60 * 24)
+            except KeyboardInterrupt:
+                return
 
         else:
             self._try_rpc(lambda: self._master.NewJob(job_params))
