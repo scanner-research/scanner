@@ -18,14 +18,14 @@ if __name__ == '__main__':
   # ret, frame = cap.read()
 
   with Database(stream_mode=True) as db:
-    db.register_op('TestPy', [('frame', ColumnType.Stream)], ['dummy'])
-    db.register_python_kernel('TestPy', DeviceType.CPU,
-                              cwd + '/test_py_kernel.py')
+    db.register_op('TestRealtime', [('frame', ColumnType.Stream)], ['dummy'])
+    db.register_python_kernel('TestRealtime', DeviceType.CPU,
+                              cwd + '/test_realtime_kernel.py')
 
     input = db.ops.MemoryInput()
     for frame in frameList:
       input.push(frame.tobytes())
-    test_out = db.ops.TestPy(frame=input)
+    test_out = db.ops.TestRealtime(frame=input)
     output = db.ops.MemoryOutput(columns=[test_out])
     job = Job(
       op_args={
