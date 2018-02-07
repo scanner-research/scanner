@@ -62,7 +62,7 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
 
 void load_driver(LoadInputQueue& load_work,
                  std::vector<EvalQueue>& initial_eval_work,
-                 LoadWorkerArgs args, bool stream = false) {
+                 LoadWorkerArgs args) {
   Profiler& profiler = args.profiler;
   LoadWorker worker(args);
   while (true) {
@@ -95,10 +95,7 @@ void load_driver(LoadInputQueue& load_work,
       if (worker.yield(io_packet_size, output_entry)) {
         auto& work_entry = output_entry;
         work_entry.first = !task_streams.empty();
-        if (stream)
-          work_entry.last_in_task = true;
-        else
-          work_entry.last_in_task = worker.done();
+        work_entry.last_in_task = worker.done();
         initial_eval_work[output_queue_idx].push(
             std::make_tuple(task_streams, work_entry));
         // We use the task streams being empty to indicate that this is
@@ -1215,7 +1212,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                         work_packet_size};
 
     load_threads.emplace_back(load_driver, std::ref(load_work),
-                              std::ref(initial_eval_work), args, stream_mode_);
+                              std::ref(initial_eval_work), args);
   }
 
   // Setup evaluate workers
