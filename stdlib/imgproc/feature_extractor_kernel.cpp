@@ -37,7 +37,7 @@ class FeatureExtractorKernel : public Kernel, public VideoKernel {
     }
   }
 
-  void execute(const Columns& input_columns, Columns& output_columns) override {
+  void execute(const Elements& input_columns, Elements& output_columns) override {
     set_device();
 
     auto& frame_col = input_columns[0];

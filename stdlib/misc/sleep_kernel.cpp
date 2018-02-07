@@ -10,7 +10,7 @@ class SleepKernel : public Kernel {
     : Kernel(config),
       device_(config.devices[0]) {}
 
-  void execute(const Columns& input_columns, Columns& output_columns) override {
+  void execute(const Elements& input_columns, Elements& output_columns) override {
     sleep(2);
     insert_element(output_columns[0], new_buffer(device_, 1), 1);
   }
