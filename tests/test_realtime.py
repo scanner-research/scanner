@@ -1,20 +1,16 @@
 from scannerpy import (Database, Config, DeviceType, ColumnType, BulkJob, Job,
                        ProtobufGenerator, ScannerException)
 import os
-import pickle
 import time
+import numpy as np
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
 if __name__ == '__main__':
-  # cap = cv2.VideoCapture(0)
 
-  with open('data.pkl', 'rb') as pkl_file:
-    frameList = pickle.load(pkl_file)
-    frameList = frameList[:5]
-
-  # Capture frame-by-frame
-  # ret, frame = cap.read()
+  frameList = []
+  for i in range(5):
+    frameList.append(np.random.random((3, 3)))
 
   with Database(stream_mode=True) as db:
     db.register_op('TestRealtime', ['frame'], ['dummy'])
@@ -46,21 +42,4 @@ if __name__ == '__main__':
     print('sleep for 10')
     time.sleep(10)
     print('done sleeping')
-    #ob_result.wait_until_done()
-
-
-  print("Now save pulled frame to file!")
-  with open('output.pkl', 'wb') as output_pkl:
-    pickle.dump(outframe, output_pkl)
-
-  # Our operations on the frame come here
-  # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-  # Display the resulting frame
-  # cv2.imshow('frame',outframe)
-  # if cv2.waitKey(1) & 0xFF == ord('q'):
-  #   break
-
-  # When everything done, release the capture
-  # cap.release()
-  # cv2.destroyAllWindows()
+    # db_result.wait_until_done()
