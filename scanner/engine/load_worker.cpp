@@ -465,11 +465,8 @@ void LoadWorker::read_stream_column(LoadWorkEntry& load_work_entry,
     std::string buffer_string = element.buffer();
     size_t buffer_size = buffer_string.size();
     u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
-    unsigned char buffer_temp[buffer_size];
-    strncpy((char*)buffer_temp, buffer_string.c_str(), buffer_size);
-    memcpy_buffer(buffer, CPU_DEVICE, buffer_temp,
+    memcpy_buffer(buffer, CPU_DEVICE, reinterpret_cast<const u8*>(buffer_string.c_str()),
                   CPU_DEVICE, buffer_size);
-
     insert_element(element_list, buffer, buffer_string.size());
   }
 }

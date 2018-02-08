@@ -40,6 +40,8 @@ if __name__ == '__main__':
     for i in range(5):
       print('pull {:d}'.format(i))
       outframe = output.pull()
+      result = (frameList[i].tobytes() == outframe)
+      print("Row id " + str(i) + " passed test? " + str(result))
     input.close()
     print('sleep for 10')
     time.sleep(10)

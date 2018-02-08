@@ -1152,7 +1152,6 @@ class Database(object):
 
             # NOTE: There should be only one output (dummy) table in streaming mode
             result = self.new_table('dummy_output'.encode('ascii'), ['col1'.encode('ascii')], [['r00'.encode('ascii')]], force=True)
-            print(result)
             job_params.db_meta.CopyFrom(self._load_db_metadata())
             self._cached_db_metadata = None
             print(self.summarize())

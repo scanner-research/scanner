@@ -1460,8 +1460,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
           i64 row_id = std::get<2>(task_retired);
           u8* buffer = element_list[0].buffer;
+          size_t buffer_size = element_list[0].size;
           proto::ElementDescriptor* element_descriptor = params.add_rows();
-          element_descriptor->set_buffer((char *)buffer);
+          element_descriptor->set_buffer(reinterpret_cast<char *>(buffer), buffer_size);
           element_descriptor->set_row_id(row_id);
           delete_element(CPU_DEVICE, element_list[0]);
         }

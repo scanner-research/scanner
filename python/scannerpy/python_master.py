@@ -22,6 +22,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
   # rpc Shutdown (Empty) returns (Result) {}
   # Essentially do nothing but we need it to make worker happy
   def Shutdown(self, request, context):
+    print("Received shutdown signal!")
     result = rpc_pb2.Result(success=True)
     empty = rpc_pb2.Empty()
     self._worker.Shutdown(empty)
@@ -111,12 +112,8 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
   # rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
   def FinishedWork(self, request, context):
-    self._lock.acquire()
-
     element_descriptor = request.rows[0]
     self._output_queue.put(element_descriptor)
-
-    self._lock.release()
     print("Pushed row_id={} back to output queue.".format(element_descriptor.row_id))
     print("The length of row buffer is: {}".format(len(element_descriptor.buffer)))
     empty = rpc_pb2.Empty()
@@ -124,25 +121,16 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
   # rpc FinishedJob (FinishedJobParams) returns (Empty) {}
   def FinishedJob(self, request, context):
-    self._lock.acquire()
-
     result = request.result
-
-    self._lock.release()
     print("Finished job with result: {}".format(result))
     empty = rpc_pb2.Empty()
     return empty
 
   # rpc NewJob (BulkJobParameters) returns (Result) {}
   def NewJob(self, request, context):
-    self._lock.acquire()
-
     result = rpc_pb2.Result(success=True)
     job_params = request
     self._worker.NewJob(job_params)
-
-    self._lock.release()
-
     return result
 
 if __name__ == "__main__":
