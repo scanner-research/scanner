@@ -1452,16 +1452,19 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       if (stream_mode_) {
         std::tuple<i32, EvalWorkEntry> entry;
-        stream_work.pop(entry);
-        EvalWorkEntry& work_entry = std::get<1>(entry);
-        ElementList& element_list = work_entry.columns[0];
+        bool pop_result = stream_work.try_pop(entry);
+        // only fill in output data when the queue is not empty
+        if (pop_result) {
+          EvalWorkEntry& work_entry = std::get<1>(entry);
+          ElementList& element_list = work_entry.columns[0];
 
-        i64 row_id = std::get<2>(task_retired);
-        u8* buffer = element_list[0].buffer;
-        proto::ElementDescriptor* element_descriptor = params.add_rows();
-        element_descriptor->set_buffer((char *)buffer);
-        element_descriptor->set_row_id(row_id);
-        delete_element(CPU_DEVICE, element_list[0]);
+          i64 row_id = std::get<2>(task_retired);
+          u8* buffer = element_list[0].buffer;
+          proto::ElementDescriptor* element_descriptor = params.add_rows();
+          element_descriptor->set_buffer((char *)buffer);
+          element_descriptor->set_row_id(row_id);
+          delete_element(CPU_DEVICE, element_list[0]);
+        }
       }
 
       proto::Empty empty;
