@@ -76,6 +76,7 @@ class MasterImpl final : public proto::Master::Service {
                              const proto::Empty* empty,
                              proto::RegisteredWorkers* registered_workers);
 
+
   grpc::Status IngestVideos(grpc::ServerContext* context,
                             const proto::IngestParameters* params,
                             proto::IngestResult* result);
@@ -153,7 +154,6 @@ class MasterImpl final : public proto::Master::Service {
   void blacklist_job(i64 job_id);
 
   DatabaseParameters db_params_;
-  bool stream_mode_;
 
   std::thread pinger_thread_;
   std::atomic<bool> pinger_active_;

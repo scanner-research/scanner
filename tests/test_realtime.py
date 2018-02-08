@@ -17,7 +17,7 @@ if __name__ == '__main__':
   # ret, frame = cap.read()
 
   with Database(stream_mode=True) as db:
-    db.register_op('TestRealtime', [('frame', ColumnType.Stream)], ['dummy'])
+    db.register_op('TestRealtime', ['frame'], ['dummy'])
     db.register_python_kernel('TestRealtime', DeviceType.CPU,
                               cwd + '/test_realtime_kernel.py')
 

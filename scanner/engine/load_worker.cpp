@@ -333,9 +333,6 @@ bool LoadWorker::yield(i32 item_size,
         eval_work_entry.inplace_video.push_back(inplace);
       }
       media_col_idx++;
-    } else if (table_meta.column_type(col_id) == ColumnType::Stream) {
-      read_stream_column(load_work_entry, eval_work_entry.columns[0]);
-      eval_work_entry.inplace_video.push_back(false);
     } else {
       // regular column
       for (size_t i = 0; i < num_items; ++i) {

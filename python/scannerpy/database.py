@@ -15,7 +15,7 @@ import collections
 import subprocess
 from tqdm import tqdm
 
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Process, Queue, cpu_count
 from subprocess import Popen, PIPE
 from random import choice
@@ -50,8 +50,7 @@ def start_master(port=None,
                  block=False,
                  watchdog=True,
                  prefetch_table_metadata=True,
-                 no_workers_timeout=30,
-                 stream_mode=False):
+                 no_workers_timeout=30):
     """
     Start a master server instance on this node.
 
@@ -75,7 +74,7 @@ def start_master(port=None,
         config.storage_config, config.db_path.encode('ascii'),
         (config.master_address + ':' + port).encode('ascii'))
     result = bindings.start_master(db, port.encode('ascii'), watchdog,
-                                   prefetch_table_metadata, no_workers_timeout, stream_mode)
+                                   prefetch_table_metadata, no_workers_timeout)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
@@ -431,7 +430,6 @@ class Database(object):
     def _handle_signal(self, signum, frame):
         if (signum == signal.SIGINT or signum == signal.SIGTERM
                 or signum == signal.SIGKILL):
-            print('signal!')
             # Stop cluster
             self._stop_heartbeat()
             self.stop_cluster()
@@ -478,7 +476,7 @@ class Database(object):
                 res = self._bindings.start_master(
                     self._db, self.config.master_port.encode('ascii'), True,
                     self._prefetch_table_metadata,
-                    self._no_workers_timeout, self._stream_mode).success
+                    self._no_workers_timeout).success
                 assert res
                 res = self._connect_to_master()
                 if not res:
@@ -511,13 +509,12 @@ class Database(object):
                     'start_master(port=\'{master_port:s}\', block=True,\n' +
                     '             config=config,\n' +
                     '             prefetch_table_metadata={prefetch},\n' +
-                    '             no_workers_timeout={no_workers}, stream_mode={stream})\" ' +
+                    '             no_workers_timeout={no_workers})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
                         prefetch=self._prefetch_table_metadata,
-                        no_workers=self._no_workers_timeout,
-                        stream=self._stream_mode)
+                        no_workers=self._no_workers_timeout)
                 worker_cmd = (
                     'python -c ' + '\"from scannerpy import start_worker\n' +
                     'import pickle\n' +

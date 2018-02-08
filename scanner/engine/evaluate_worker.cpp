@@ -1048,6 +1048,7 @@ PostEvaluateWorker::PostEvaluateWorker(const PostEvaluateWorkerArgs& args)
 
 void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   EvalWorkEntry& work_entry = entry;
+
   // Setup row buffer if it was emptied
   {
     i32 encoder_idx = 0;
@@ -1081,6 +1082,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       }
     }
   }
+
   // Swizzle columns correctly
   {
     i32 encoder_idx = 0;
@@ -1095,6 +1097,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         }
         continue;
       }
+
       // Initialize frame size if not done so yet
       if (column_type == ColumnType::Video &&
           !frame_size_initialized_[encoder_idx]) {
@@ -1103,6 +1106,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         buffered_entry_.frame_sizes[encoder_idx] = frame->as_frame_info();
         frame_size_initialized_[encoder_idx] = true;
       }
+
       // Encode video frames
       if (compression_enabled_[i] && column_type == ColumnType::Video &&
           buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
@@ -1153,6 +1157,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
                                           work_entry.row_ids[col_idx].end());
       }
     }
+
     // Delete unused columns
     for (size_t i = 0; i < work_entry.columns.size(); ++i) {
       if (column_set_.count(i) > 0) {
@@ -1163,6 +1168,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       }
     }
   }
+
   // Flush row buffer
   if (work_entry.last_in_io_packet) {
     i32 encoder_idx = 0;
@@ -1191,10 +1197,10 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         encoder_idx++;
       }
     }
+
     // Only push an entry if it is non empty
     if (buffered_entry_.columns.size() > 0 &&
         buffered_entry_.columns[0].size() > 0) {
-      VLOG(1)<<"Checkpoint: clear entry!";
       buffered_entries_.push_back(buffered_entry_);
       buffered_entry_.columns.clear();
       buffered_entry_.row_ids.clear();

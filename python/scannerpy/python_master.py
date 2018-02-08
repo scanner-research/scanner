@@ -19,6 +19,8 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
     self._finished = False
     self._count = 0
 
+  # rpc Shutdown (Empty) returns (Result) {}
+  # Essentially do nothing but we need it to make worker happy
   def Shutdown(self, request, context):
     result = rpc_pb2.Result(success=True)
     empty = rpc_pb2.Empty()
@@ -31,7 +33,7 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
       self._finished = True
     else:
       self._input_queue.put(request)
-    print("Pushed a row into input queue.")
+      print("Pushed a row into input queue.")
     empty = rpc_pb2.Empty()
     return empty
 
@@ -137,7 +139,6 @@ class MasterServicer(rpc_pb2_grpc.MasterServicer):
 
     result = rpc_pb2.Result(success=True)
     job_params = request
-
     self._worker.NewJob(job_params)
 
     self._lock.release()

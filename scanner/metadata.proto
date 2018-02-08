@@ -44,7 +44,6 @@ enum ColumnType {
   Other = 0;
   Video = 1;
   Image = 2;
-  Stream = 3;
 }
 
 enum FrameType {
