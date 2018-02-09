@@ -1,18 +1,60 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import grpc
+from scanner.engine import rpc_pb2, rpc_pb2_grpc
 import copy
 
 from scannerpy.common import *
+from scannerpy.protobuf_generator import ProtobufGenerator
 
 class OpColumn:
-    def __init__(self, db, op, col, typ):
+    def __init__(self, db, op, col, typ, stream_row_id=0):
         self._db = db
         self._op = op
         self._col = col
         self._type = typ
         self._encode_options = None
+
+        """ default value of self._stream_row_id is 0 (ingest a video file rather than streaming)
+        self._stream_row_id == 0 means normal mode.
+        self._stream_row_id == 1 means streaming mode, but no elements have been pushed yet
+        self._stream_row_id >  1 also means streaming mode; the value is essentially the row_id of element
+        """
+        self._stream_row_id = stream_row_id
+
+        self.protobufs = ProtobufGenerator(None)
         if self._type == self._db.protobufs.Video:
             self._encode_options = {'codec': 'default'}
+
+    # only invoked when in streaming mode and input.close() gets called
+    def close(self):
+        # assert that we are in stream mode
+        if not self._stream_row_id > 0:
+            raise ScannerException('You can only push from memory in streaming mode.')
+
+        # assert that the element is serialized to string
+        element_descriptor = self.protobufs.ElementDescriptor()
+        element_descriptor.buffer = ''.encode('ascii')
+        element_descriptor.row_id = -1
+        channel = grpc.insecure_channel('localhost:5000')
+        stub = rpc_pb2_grpc.MasterStub(channel)
+        stub.PushRow(element_descriptor)
+
+    # only invoked when in streaming mode and input.push(element) gets called
+    def push(self, element):
+        # assert that we are in stream mode
+        if not self._stream_row_id > 0:
+            raise ScannerException('You can only push from memory in streaming mode.')
+
+        # assert that the element is serialized to string
+        assert isinstance(element, bytes)
+        element_descriptor = self.protobufs.ElementDescriptor()
+        element_descriptor.buffer = element
+        # row_id starts from 0 but _stream_row_id starts from 1
+        element_descriptor.row_id = self._stream_row_id - 1
+        self._stream_row_id += 1
+        channel = grpc.insecure_channel('localhost:5000')
+        stub = rpc_pb2_grpc.MasterStub(channel)
+        stub.PushRow(element_descriptor)
 
     def sample(self):
         return self._db.ops.Sample(col=self)
@@ -83,6 +125,7 @@ class OpGenerator:
 
     def __init__(self, db):
         self._db = db
+        self._stream_row_id = 0  # By default, load from disk instead of memory
 
     def __getattr__(self, name):
         if name == 'Input':
@@ -92,6 +135,14 @@ class OpGenerator:
         elif name == 'Output':
             def make_op(columns):
                 op = Op.output(self._db, columns)
+                return op
+            return make_op
+        elif name == 'MemoryInput':
+            self._stream_row_id = 1
+            return lambda: Op.memory_input(self._db).outputs()
+        elif name == 'MemoryOutput':
+            def make_op(columns):
+                op = Op.memory_output(self._db, columns)
                 return op
             return make_op
 
@@ -123,7 +174,7 @@ class OpGenerator:
 
 class Op:
     def __init__(self, db, name, inputs, device, batch=-1, warmup=0,
-                 stencil=[0], args={}):
+                 stencil=[0], args={}, stream_row_id=0):
         self._db = db
         self._name = name
         self._inputs = inputs
@@ -132,6 +183,7 @@ class Op:
         self._warmup = warmup
         self._stencil = stencil
         self._args = args
+        self._stream_row_id = stream_row_id
 
         if (name == 'Input' or
             name == 'Space' or
@@ -140,7 +192,7 @@ class Op:
             name == 'Unslice'):
             outputs = []
             for c in inputs:
-                outputs.append(OpColumn(db, self, c._col, c._type))
+                outputs.append(OpColumn(db, self, c._col, c._type, stream_row_id=self._stream_row_id))
         elif name == "OutputTable":
             outputs = []
         else:
@@ -161,8 +213,18 @@ class Op:
         return c
 
     @classmethod
+    def memory_input(cls, db):
+        c = cls(db, "Input", [OpColumn(db, None, 'col', db.protobufs.Other, stream_row_id=1)],
+                DeviceType.CPU, stream_row_id=1)
+        return c
+
+    @classmethod
     def output(cls, db, inputs):
         return cls(db, "OutputTable", inputs, DeviceType.CPU)
+
+    @classmethod
+    def memory_output(cls, db, inputs):
+        return cls(db, "OutputTable", inputs, DeviceType.CPU, stream_row_id=1)
 
     def inputs(self):
         return self._inputs
@@ -172,6 +234,21 @@ class Op:
             return self._outputs[0]
         else:
             return tuple(self._outputs)
+
+    def pull(self):
+        # assert that we are in stream mode
+        if not self._stream_row_id > 0:
+            raise ScannerException('You can only pull to memory in streaming mode.')
+
+        channel = grpc.insecure_channel('localhost:5000')
+        stub = rpc_pb2_grpc.MasterStub(channel)
+        element_descriptor = stub.PullRow(rpc_pb2.Empty())
+
+        element = element_descriptor.buffer
+
+        # assert that the element is serialized to string
+        assert isinstance(element, bytes)
+        return element
 
     def to_proto(self, indices):
         e = self._db.protobufs.Op()

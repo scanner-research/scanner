@@ -63,9 +63,16 @@ class WorkerImpl final : public proto::Worker::Service {
   void start_watchdog(grpc::Server* server, bool enable_timeout,
                       i32 timeout_ms = 50000);
 
-  Result register_with_master();
+  Result register_with_master(std::string master_address);
+
+  grpc::Status TryUnregister(grpc::ServerContext* context,
+                             const proto::Empty* empty, Result* result);
+
+  grpc::Status RegisterWithMaster(grpc::ServerContext* context,
+                                  const proto::MasterAddress* master_address, Result* result);
 
  private:
+
   void try_unregister();
 
   void start_job_processor();
@@ -90,6 +97,7 @@ class WorkerImpl final : public proto::Worker::Service {
   std::unique_ptr<proto::Master::Stub> master_;
   storehouse::StorageConfig* storage_config_;
   DatabaseParameters db_params_;
+  bool stream_mode_;
   Flag trigger_shutdown_;
   std::string master_address_;
   std::string worker_port_;

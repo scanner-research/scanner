@@ -84,7 +84,7 @@ def start_master(port=None,
 
 
 def worker_process((master_address, machine_params, port, config, config_path,
-                    block, watchdog, prefetch_table_metadata)):
+                    block, watchdog, prefetch_table_metadata, stream_mode)):
     config = config or Config(config_path)
     port = port or config.worker_port
 
@@ -97,7 +97,7 @@ def worker_process((master_address, machine_params, port, config, config_path,
     machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params,
                                    str(port).encode('ascii'), watchdog,
-                                   prefetch_table_metadata)
+                                   prefetch_table_metadata, stream_mode)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(
             result.msg()))
@@ -112,9 +112,10 @@ def start_worker(master_address,
                  config=None,
                  config_path=None,
                  block=False,
-                 watchdog=True,
+                 watchdog=False,
                  prefetch_table_metadata=True,
-                 num_workers=None):
+                 num_workers=None,
+                 stream_mode=False):
     """
     Start a worker instance on this node.
 
@@ -141,7 +142,7 @@ def start_worker(master_address,
                 executor.map(
                     worker_process,
                     ([(master_address, machine_params, int(port) + i, config,
-                       config_path, block, watchdog, prefetch_table_metadata)
+                       config_path, block, watchdog, prefetch_table_metadata, stream_mode)
                       for i in range(num_workers)])))
 
         for result in results:
@@ -151,7 +152,7 @@ def start_worker(master_address,
     else:
         return worker_process(
             (master_address, machine_params, port, config, config_path, block,
-             watchdog, prefetch_table_metadata))
+             watchdog, prefetch_table_metadata, stream_mode))
 
 
 class Database(object):
@@ -172,7 +173,8 @@ class Database(object):
                  debug=None,
                  start_cluster=True,
                  prefetch_table_metadata=True,
-                 no_workers_timeout=30):
+                 no_workers_timeout=30,
+                 stream_mode=False):
         """
         Initializes a Scanner database.
 
@@ -201,6 +203,7 @@ class Database(object):
             self._debug = (master is None and workers is None)
 
         self._master = None
+        self._stream_mode = stream_mode
 
         self._bindings = bindings
 
@@ -216,9 +219,13 @@ class Database(object):
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
 
-        self._workers = {}
+        self._workers = []
         self._worker_conns = None
         self.start_cluster(master, workers)
+
+        # Create a dummy table if in streaming mode
+        if self._stream_mode:
+            self.new_table('dummy_input'.encode('ascii'), ['col1'.encode('ascii')], [['r00'.encode('ascii')]], force=True)
 
     def __del__(self):
         self.stop_cluster()
@@ -484,13 +491,14 @@ class Database(object):
                     res = self._bindings.start_worker(
                         self._db, machine_params,
                         str(int(self.config.worker_port) + i).encode('ascii'),
-                        True, self._prefetch_table_metadata).success
+                        True, self._prefetch_table_metadata, self._stream_mode).success
                     if not res:
                         raise ScannerException(
                             'Failed to start local worker on port {:d} and '
                             'connect to master. (Is there another process that '
                             'is bound to that port already?)'.format(
                                 self.config.worker_port))
+                    self._workers.append(str(int(self.config.worker_port) + i).encode('ascii'))
             else:
                 master_port = self._master_address.partition(':')[2]
                 pickled_config = pickle.dumps(self.config)
@@ -513,10 +521,9 @@ class Database(object):
                     'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
                     'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n'
                     + '             block=True,\n' +
-                    '             config=config)\" ' + '')
+                    '             config=config, stream_mode={stream})\" ' + '')
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
-
                 # Wait for master to start
                 slept_so_far = 0
                 sleep_time = 60
@@ -544,7 +551,8 @@ class Database(object):
                                 worker_cmd.format(
                                     master=self._master_address,
                                     config=pickled_config,
-                                    worker_port=w.partition(':')[2]),
+                                    worker_port=w.partition(':')[2],
+                                    stream=self._stream_mode),
                                 nohup=True))
                     except:
                         print('WARNING: Failed to ssh into {:s}, ignoring'.
@@ -595,6 +603,7 @@ class Database(object):
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def stop_cluster(self):
+        print('stop cluster!')
         if self._start_cluster:
             if self._master:
                 # Stop heartbeat
@@ -805,11 +814,11 @@ class Database(object):
 
         params = self.protobufs.NewTableParams()
         params.table_name = name
-        params.columns[:] = ["index"] + columns
+        params.columns[:] = columns
 
         for i, row in enumerate(rows):
             row_proto = params.rows.add()
-            row_proto.columns[:] = [struct.pack('=Q', i)] + row
+            row_proto.columns[:] = row
 
         self._try_rpc(lambda: self._master.NewTable(params))
 
@@ -1131,24 +1140,54 @@ class Database(object):
             size = self._parse_size_string(gpu_pool)
             job_params.memory_pool_config.gpu.free_space = size
 
+
+
         # Run the job
-        self._try_rpc(lambda: self._master.NewJob(job_params))
+        if self._stream_mode:
+            job_params.work_packet_size = 1
+            job_params.io_packet_size = 1
+            job_params.local_id = 0
+            job_params.local_total = 1
+            job_params.pipeline_instances_per_node = 1
 
-        job_status = self.wait_on_current_job(show_progress)
+            # NOTE: There should be only one output (dummy) table in streaming mode
+            result = self.new_table('dummy_output'.encode('ascii'), ['col1'.encode('ascii')], [['r00'.encode('ascii')]], force=True)
+            job_params.db_meta.CopyFrom(self._load_db_metadata())
+            self._cached_db_metadata = None
+            print(self.summarize())
 
-        if not job_status.result.success:
-            raise ScannerException(job_status.result.msg)
+            # In streaming mode, we unregister the worker with C++ master and then
+            # register it with our python master designed specifically for streaming.
+            for worker_port in self._workers:
+                channel = self._make_grpc_channel('localhost:'+worker_port)
+                worker = self.protobufs.WorkerStub(channel)
+                self._try_rpc(lambda: worker.TryUnregister(self.protobufs.Empty()))
+                python_master_address = self.protobufs.MasterAddress()
+                python_master_address.address = 'localhost:5000'
+                self._try_rpc(lambda: worker.RegisterWithMaster(python_master_address))
 
-        # Invalidate db metadata because of job run
-        self._cached_db_metadata = None
+            self._try_rpc(lambda: self._master.Shutdown(self.protobufs.Empty()))
+            channel = self._make_grpc_channel('localhost:5000')
+            self._master = self.protobufs.MasterStub(channel)
 
-        db_meta = self._load_db_metadata()
-        job_id = None
-        for job in db_meta.bulk_jobs:
-            if job.name == job_name:
-                job_id = job.id
-        if job_id is None:
-            raise ScannerException(
-                'Internal error: job id not found after run')
+            self._try_rpc(lambda: self._master.NewJob(job_params))
 
-        return [self.table(t) for t in job_output_table_names]
+        else:
+            self._try_rpc(lambda: self._master.NewJob(job_params))
+            job_status = self.wait_on_current_job(show_progress)
+            if not job_status.result.success:
+                raise ScannerException(job_status.result.msg)
+
+            # Invalidate db metadata because of job run
+            self._cached_db_metadata = None
+
+            db_meta = self._load_db_metadata()
+            job_id = None
+            for job in db_meta.bulk_jobs:
+                if job.name == job_name:
+                    job_id = job.id
+            if job_id is None:
+                raise ScannerException(
+                    'Internal error: job id not found after run')
+
+            return [self.table(t) for t in job_output_table_names]

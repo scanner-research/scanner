@@ -52,6 +52,8 @@ class LoadWorker {
                          i32 item_start, i32 item_end,
                          const std::vector<i64>& rows,
                          ElementList& element_list);
+  void read_stream_column(LoadWorkEntry& load_work_entry,
+                          ElementList& element_list);
   const i32 node_id_;
   const i32 worker_id_;
   Profiler& profiler_;

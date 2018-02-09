@@ -78,6 +78,8 @@ using OutputEvalQueue =
     Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveInputQueue =
     Queue<std::tuple<i32, EvalWorkEntry>>;
+using StreamOutputQueue =
+    Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveOutputQueue =
     Queue<std::tuple<i32, i64, i64>>;
 
@@ -89,6 +91,7 @@ struct DatabaseParameters {
   i32 num_save_workers;
   std::vector<i32> gpu_ids;
   bool prefetch_table_metadata;
+  bool stream_mode;
   i64 no_workers_timeout; // in seconds
 };
 

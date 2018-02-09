@@ -256,6 +256,10 @@ bool LoadWorker::yield(i32 item_size,
   i32 num_columns = samples.size();
   eval_work_entry.columns.resize(num_columns);
 
+  if (load_work_entry.streaming()) {
+    read_stream_column(load_work_entry, eval_work_entry.columns[0]);
+  }
+
   // For each sample, insert the row ids and read the rows from disk
   // NOTE(apoms): if the requested rows are different for each column,
   // some of the output work entries will have an uneven number of rows
@@ -451,6 +455,19 @@ void read_video_column(Profiler& profiler, const VideoIndexEntry& index_entry,
     bool result = decode_args.SerializeToArray(decode_args_buffer, size);
     assert(result);
     insert_element(element_list, decode_args_buffer, size);
+  }
+}
+
+void LoadWorker::read_stream_column(LoadWorkEntry& load_work_entry,
+                                    ElementList& element_list) {
+  for (int i = 0; i < load_work_entry.rows_size(); ++i) {
+    proto::ElementDescriptor element = load_work_entry.rows(i);
+    std::string buffer_string = element.buffer();
+    size_t buffer_size = buffer_string.size();
+    u8* buffer = new_buffer(CPU_DEVICE, buffer_size);
+    memcpy_buffer(buffer, CPU_DEVICE, reinterpret_cast<const u8*>(buffer_string.c_str()),
+                  CPU_DEVICE, buffer_size);
+    insert_element(element_list, buffer, buffer_string.size());
   }
 }
 

@@ -394,7 +394,8 @@ void save_coordinator(OutputEvalQueue& eval_work,
 
 void save_driver(SaveInputQueue& save_work,
                  SaveOutputQueue& output_work,
-                 SaveWorkerArgs args) {
+                 SaveWorkerArgs args,
+                 StreamOutputQueue& stream_work, bool stream = false) {
   Profiler& profiler = args.profiler;
   std::map<std::tuple<i32, i32>, std::unique_ptr<SaveWorker>> workers;
   while (true) {
@@ -402,6 +403,10 @@ void save_driver(SaveInputQueue& save_work,
 
     std::tuple<i32, EvalWorkEntry> entry;
     save_work.pop(entry);
+
+    // In stream mode, we need a place to store row buffer for later use
+    if (stream)
+      stream_work.push(entry);
 
     i32 pipeline_instance = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
@@ -431,7 +436,8 @@ void save_driver(SaveInputQueue& save_work,
     auto& worker = workers.at(job_task_id);
 
     auto input_entry = work_entry;
-    worker->feed(input_entry);
+    if (!stream)
+      worker->feed(input_entry);
 
     VLOG(1) << "Save (N/KI: " << args.node_id << "/" << args.worker_id
             << "): finished task (" << work_entry.job_index << ", "
@@ -463,6 +469,7 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   VLOG(1) << "Creating worker";
 
   set_database_path(db_params.db_path);
+  stream_mode_ = db_params.stream_mode;
 
   avcodec_register_all();
 #ifdef DEBUG
@@ -727,10 +734,16 @@ void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
   });
 }
 
-Result WorkerImpl::register_with_master() {
-  assert(state_.get() == State::INITIALIZING);
+Result WorkerImpl::register_with_master(std::string master_address) {
+//  assert(state_.get() == State::INITIALIZING);
 
   VLOG(1) << "Worker try to register with master";
+
+  master_address_ = master_address;
+  VLOG(1) << "Create master stub";
+  master_ = proto::Master::NewStub(
+      grpc::CreateChannel(master_address, grpc::InsecureChannelCredentials()));
+  VLOG(1) << "Finish master stub";
 
   proto::WorkerParams worker_info;
   worker_info.set_port(worker_port_);
@@ -782,6 +795,20 @@ void WorkerImpl::try_unregister() {
     }
     VLOG(1) << "Worker unregistered from master server.";
   }
+}
+
+grpc::Status WorkerImpl::RegisterWithMaster(grpc::ServerContext* context,
+                                            const proto::MasterAddress* master_address, Result* result) {
+  const std::string& address = master_address->address();
+  *result = this->register_with_master(address);
+  return grpc::Status::OK;
+}
+
+grpc::Status WorkerImpl::TryUnregister(grpc::ServerContext* context,
+                                       const proto::Empty* empty, Result* result) {
+  this->try_unregister();
+  result->set_success(true);
+  return grpc::Status::OK;
 }
 
 void WorkerImpl::start_job_processor() {
@@ -1161,6 +1188,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::vector<EvalQueue>> eval_work(pipeline_instances_per_node);
   OutputEvalQueue output_eval_work(pipeline_instances_per_node);
   std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
+  StreamOutputQueue stream_work(pipeline_instances_per_node);
   SaveOutputQueue retired_tasks;
 
   // Setup load workers
@@ -1283,6 +1311,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           ki, kg, groups[kg], eval_thread_profilers[kg + 1], results[kg]});
       eval_total += 1;
     }
+
     // Pre evaluate worker
     {
       EvalQueue* input_work_queue;
@@ -1375,7 +1404,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                         i, db_params_.storage_config, save_thread_profilers[i]};
 
     save_threads.emplace_back(save_driver, std::ref(save_work[i]),
-                              std::ref(retired_tasks), args);
+                              std::ref(retired_tasks), args, std::ref(stream_work), stream_mode_);
   }
 
   if (job_params->profiling()) {
@@ -1425,6 +1454,24 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       params.set_node_id(node_id_);
       params.set_job_id(std::get<1>(task_retired));
       params.set_task_id(std::get<2>(task_retired));
+
+      if (stream_mode_) {
+        std::tuple<i32, EvalWorkEntry> entry;
+        bool pop_result = stream_work.try_pop(entry);
+        // only fill in output data when the queue is not empty
+        if (pop_result) {
+          EvalWorkEntry& work_entry = std::get<1>(entry);
+          ElementList& element_list = work_entry.columns[0];
+
+          i64 row_id = std::get<2>(task_retired);
+          u8* buffer = element_list[0].buffer;
+          size_t buffer_size = element_list[0].size;
+          proto::ElementDescriptor* element_descriptor = params.add_rows();
+          element_descriptor->set_buffer(reinterpret_cast<char *>(buffer), buffer_size);
+          element_descriptor->set_row_id(row_id);
+          delete_element(CPU_DEVICE, element_list[0]);
+        }
+      }
 
       proto::Empty empty;
       grpc::Status status;
@@ -1488,6 +1535,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
             stenciled_entry, task_stream);
+        if (stream_mode_) {
+          stenciled_entry.set_streaming(true);
+          proto::ElementDescriptor *row = stenciled_entry.add_rows();
+          row->set_row_id(new_work.rows(0).row_id());
+          row->set_buffer(new_work.rows(0).buffer());
+        }
 
         // Determine which worker to allocate to
         i32 target_work_queue = -1;

@@ -61,6 +61,7 @@ internal::DatabaseParameters machine_params_to_db_params(
   db.gpu_ids = params.gpu_ids;
   db.prefetch_table_metadata = true;
   db.no_workers_timeout = 30;
+  db.stream_mode = false;
   return db;
 }
 }
@@ -100,7 +101,8 @@ Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& port,
                               bool watchdog,
                               bool prefetch_table_metadata,
-                              i64 no_workers_timeout) {
+                              i64 no_workers_timeout,
+                              bool stream_mode) {
   if (master_state_ != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
@@ -112,6 +114,7 @@ Result Database::start_master(const MachineParameters& machine_params,
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.prefetch_table_metadata = prefetch_table_metadata;
   params.no_workers_timeout = no_workers_timeout;
+  params.stream_mode = stream_mode;
 
   auto master_service = scanner::internal::get_master_service(params);
   master_state_->service.reset(master_service);
@@ -130,10 +133,12 @@ Result Database::start_master(const MachineParameters& machine_params,
 Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port,
                               bool watchdog,
-                              bool prefetch_table_metadata) {
+                              bool prefetch_table_metadata,
+                              bool stream_mode) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.prefetch_table_metadata = prefetch_table_metadata;
+  params.stream_mode = stream_mode;
   ServerState* s = new ServerState;
   ServerState& state = *s;
   auto worker_service =
@@ -144,13 +149,17 @@ Result Database::start_worker(const MachineParameters& machine_params,
 
   // Register shutdown signal handler
 
-  Result register_result = worker_service->register_with_master();
+  Result register_result = worker_service->register_with_master(master_address_);  // C++ master
   if (!register_result.success()) {
     return register_result;
   }
 
   // Setup watchdog
   worker_service->start_watchdog(state.server.get(), watchdog);
+
+  if (!register_result.success()) {
+    return register_result;
+  }
 
   Result result;
   result.set_success(true);

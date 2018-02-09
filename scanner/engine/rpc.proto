@@ -33,6 +33,9 @@ service Master {
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
 
+  rpc PushRow (ElementDescriptor) returns (Empty) {}
+  rpc PullRow (Empty) returns (ElementDescriptor) {}
+
   // Internal
   rpc NextWork (NodeInfo) returns (NewWork) {}
   rpc FinishedWork (FinishedWorkParameters) returns (Empty) {}
@@ -48,6 +51,8 @@ service Worker {
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
   rpc Ping (Empty) returns (Empty) {}
+  rpc TryUnregister (Empty) returns (Result) {}
+  rpc RegisterWithMaster (MasterAddress) returns (Result) {}
 }
 
 message Empty {}
@@ -125,6 +130,10 @@ message RegisteredWorkers {
   repeated WorkerInfo workers = 1;
 }
 
+message MasterAddress {
+  string address = 1;
+}
+
 message OpPath {
   string path = 1;
 }
@@ -170,6 +179,7 @@ message FinishedWorkParameters {
   int64 job_id = 2;
   int64 task_id = 3;
   int64 num_rows = 4;
+  repeated ElementDescriptor rows = 5;
 }
 
 message FinishedJobParams {
@@ -212,8 +222,9 @@ message NewWork {
   int32 job_index = 2;
   int32 task_index = 3;
   repeated int64 output_rows = 4 [packed=true];
-  bool wait_for_work = 5;
-  bool no_more_work = 6;
+  repeated ElementDescriptor rows = 5;
+  bool wait_for_work = 6;
+  bool no_more_work = 7;
 }
 
 message OpInfoArgs {
