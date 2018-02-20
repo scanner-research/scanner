@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package scanner.proto;
+
+// Sampler args
+message StridedSamplerArgs {
+  int64 stride = 1;
+}
+
+message StridedRangeSamplerArgs {
+  int64 stride = 1;
+  repeated int64 starts = 2;
+  repeated int64 ends = 3;
+}
+
+message GatherSamplerArgs {
+  repeated int64 rows = 1 [packed=true];
+}
+
+
+message SpaceNullSamplerArgs {
+  int64 spacing = 1;
+}
+
+message SpaceRepeatSamplerArgs {
+  int64 spacing = 1;
+}
+
+message StridedPartitionerArgs {
+  int64 stride = 1;
+  int64 group_size = 2;
+}
+
+message StridedRangePartitionerArgs {
+  int64 stride = 1;
+  repeated int64 starts = 2;
+  repeated int64 ends = 3;
+}
+
+message GatherPartitionerArgs {
+  message GatherList {
+    repeated int64 rows = 1 [packed=true];
+  }
+
+  repeated GatherList groups = 1;
+}

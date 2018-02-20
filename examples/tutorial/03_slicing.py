@@ -8,7 +8,7 @@ import math
 ################################################################################
 
 with Database(debug=True) as db:
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
 
     # 
     # table) you want to sample. Here, we indicate that we want to sample
@@ -19,7 +19,7 @@ with Database(debug=True) as db:
     hist = db.ops.Histogram(frame=sliced_frame)
     unsliced_hist = hist.unslice()
 
-    output_op = db.ops.Output(columns=[unsliced_hist])
+    output_op = db.ops.Output(columns={'hist': unsliced_hist})
 
     # For each job, you can specify how sampling should be performed for
     # a specific column. In the same way we used the op_args argument to bind
@@ -38,7 +38,7 @@ with Database(debug=True) as db:
 
     # Loop over the column's rows. Each row is a tuple of the frame number and
     # value for that row.
-    video_hists = output_tables[0].load(['histogram'], parsers.histograms)
+    video_hists = output_tables[0].load(['hist'], parsers.histograms)
     num_rows = 0
     for (frame_index, frame_hists) in video_hists:
         assert len(frame_hists) == 3
@@ -48,8 +48,7 @@ with Database(debug=True) as db:
     assert num_rows == db.table('example').num_rows()
 
     # 
-
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     sliced_frame = frame.slice()
     hist = db.ops.Histogram(frame=sliced_frame)
 

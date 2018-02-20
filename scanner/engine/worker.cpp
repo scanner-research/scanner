@@ -16,6 +16,7 @@
 #include "scanner/engine/worker.h"
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/kernel_registry.h"
+#include "scanner/engine/source_registry.h"
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
@@ -870,15 +871,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   DatabaseMetadata meta(job_params->db_meta());
   TableMetaCache table_meta(storage_, meta);
 
-  // Initialize worker table metadata
-  std::vector<std::string> required_tables;
-  for (auto& job : jobs) {
-    for (auto& input : job.inputs()) {
-      required_tables.push_back(input.table_name());
-    }
-  }
-  // table_meta.prefetch(required_tables);
-
   DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);
   // Need slice input rows to know which slice we are in
@@ -944,7 +936,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (size_t i = 0; i < ops.size(); ++i) {
     auto& op = ops.at(i);
     const std::string& name = op.name();
-    if (is_builtin_op(name)) {
+    if (op.is_source() || is_builtin_op(name)) {
       kernel_factories.push_back(nullptr);
       kernel_configs.emplace_back();
       continue;
@@ -1152,6 +1144,39 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     memory_pool_initialized_ = true;
   }
 
+  // Setup source factories and source configs that will be used
+  // to instantiate load worker instances
+  std::vector<SourceFactory*> source_factories;
+  std::vector<SourceConfig> source_configs;
+  {
+    auto registry = get_source_registry();
+    auto input_remap = analysis_results.input_ops_to_first_op_columns;
+    size_t source_ops_size = input_remap.size();
+    source_factories.resize(source_ops_size);
+    source_configs.resize(source_ops_size);
+    for (auto kv : input_remap) {
+      i32 op_idx;
+      i32 col_idx;
+      std::tie(op_idx, col_idx) = kv;
+
+      auto& op = ops.at(op_idx);
+      auto source_factory = registry->get_source(op.name());
+      source_factories[col_idx] = source_factory;
+
+      auto& out_cols = source_factory->output_columns();
+      SourceConfig config;
+      for (auto& col : out_cols) {
+        config.output_columns.push_back(col.name());
+        config.output_column_types.push_back(col.type());
+      }
+      config.args =
+          std::vector<u8>(op.kernel_args().begin(), op.kernel_args().end());
+      config.node_id = node_id_;
+
+      source_configs[col_idx] = config;
+    }
+  }
+
   omp_set_num_threads(std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
@@ -1166,18 +1191,19 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
   std::vector<Profiler> load_thread_profilers;
+  std::vector<proto::Result> load_results(num_load_workers);
   for (i32 i = 0; i < num_load_workers; ++i) {
     load_thread_profilers.emplace_back(Profiler(base_time));
   }
   std::vector<std::thread> load_threads;
   for (i32 i = 0; i < num_load_workers; ++i) {
-    LoadWorkerArgs args{// Uniform arguments
-                        node_id_,
-                        table_meta,
-                        // Per worker arguments
-                        i, db_params_.storage_config, load_thread_profilers[i],
-                        job_params->load_sparsity_threshold(), io_packet_size,
-                        work_packet_size};
+    LoadWorkerArgs args{
+        // Uniform arguments
+        node_id_, table_meta,
+        // Per worker arguments
+        i, db_params_.storage_config, std::ref(load_thread_profilers[i]),
+        std::ref(load_results[i]), io_packet_size, work_packet_size,
+        source_factories, source_configs};
 
     load_threads.emplace_back(load_driver, std::ref(load_work),
                               std::ref(initial_eval_work), args);
@@ -1265,7 +1291,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       // Get the device handle for the first kernel in the pipeline
       if (kg == 0) {
-        first_kernel_type = std::get<1>(group[0]).devices[0];
+        if (group.size() == 0) {
+          first_kernel_type = CPU_DEVICE;
+        } else {
+          first_kernel_type = std::get<1>(group[0]).devices[0];
+        }
       }
 
       // Input work queue

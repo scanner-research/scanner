@@ -69,6 +69,8 @@ include(cmake/Dependencies.cmake)
 ###### Project code #######
 set(PROTO_FILES
   scanner/metadata.proto
+  scanner/source_args.proto
+  scanner/sampler_args.proto
   scanner/types.proto)
 
 set(GRPC_PROTO_FILES

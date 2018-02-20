@@ -15,6 +15,9 @@
 
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/engine/sampler.h"
+#include "scanner/engine/source_registry.h"
+#include "scanner/engine/enumerator_registry.h"
+#include "scanner/engine/column_enumerator.h"
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 
@@ -36,7 +39,7 @@ Result validate_jobs_and_ops(
     const std::vector<proto::Op>& ops,
     DAGAnalysisInfo& info) {
   std::vector<i32>& op_slice_level = info.op_slice_level;
-  std::map<i64, i64>& input_ops = info.input_ops;
+  std::map<i64, i64>& input_ops = info.source_ops;
   std::map<i64, i64>& slice_ops = info.slice_ops;
   std::map<i64, i64>& unslice_ops = info.unslice_ops;
   std::map<i64, i64>& sampling_ops = info.sampling_ops;
@@ -48,6 +51,8 @@ Result validate_jobs_and_ops(
     // Validate ops
     OpRegistry* op_registry = get_op_registry();
     KernelRegistry* kernel_registry = get_kernel_registry();
+    SourceRegistry* source_registry = get_source_registry();
+    EnumeratorRegistry* enumerator_registry = get_enumerator_registry();
 
     i32 op_idx = 0;
     // Keep track of op names and outputs for verifying that requested
@@ -59,8 +64,7 @@ Result validate_jobs_and_ops(
     for (auto& op : ops) {
       op_names.push_back(op.name());
 
-      // Input Op's output is defined by the input table column they sample
-      if (op.name() == INPUT_OP_NAME) {
+      if (op.is_source()) {
         if (op.inputs().size() == 0) {
           RESULT_ERROR(&result, "Input op at %d did not specify any inputs.",
                        op_idx);
@@ -72,7 +76,10 @@ Result validate_jobs_and_ops(
           return result;
         }
         op_outputs.emplace_back();
-        op_outputs.back().push_back(op.inputs(0).column());
+        for (auto& col :
+             source_registry->get_source(op.name())->output_columns()) {
+          op_outputs.back().push_back(col.name());
+        }
         size_t input_ops_size = input_ops.size();
         input_ops[op_idx] = input_ops_size;
         op_slice_level.push_back(0);
@@ -113,7 +120,7 @@ Result validate_jobs_and_ops(
           RESULT_ERROR(&result,
                        "Op %s at index %d requested column %s from input "
                        "Op %s at index %d but that Op does not have the "
-                       "requsted column.",
+                       "requested column.",
                        op.name().c_str(), op_idx,
                        requested_input_column.c_str(), input_op_name.c_str(),
                        input.op_index());
@@ -199,6 +206,29 @@ Result validate_jobs_and_ops(
           return result;
         }
       }
+      // Verify source exists and record outputs
+      else if (op.is_source()) {
+        op_outputs.emplace_back();
+        if (!source_registry->has_source(op.name())) {
+          RESULT_ERROR(&result, "Source %s is not registered.",
+                       op.name().c_str());
+          return result;
+        } else {
+          // Keep track of source outputs for verifying dependent ops
+          for (auto& col :
+               source_registry->get_source(op.name())->output_columns()) {
+            op_outputs.back().push_back(col.name());
+          }
+        }
+        if (!enumerator_registry->has_enumerator(op.name())) {
+          RESULT_ERROR(&result,
+                       "Source %s at index %d does not have a corresponding "
+                       "enumerator with name %s.",
+                       op.name().c_str(), op_idx,
+                       op.name().c_str());
+          return result;
+        }
+      }
       // Verify op exists and record outputs
       else {
         op_outputs.emplace_back();
@@ -223,7 +253,7 @@ Result validate_jobs_and_ops(
       }
       op_slice_level.push_back(output_slice_level);
       // Perform Op parameter verification (stenciling, batching, # inputs)
-      if (!is_builtin_op(op.name())) {
+      if (!op.is_source() && !is_builtin_op(op.name())) {
         OpInfo* info = op_registry->get_op_info(op.name());
         KernelFactory* factory =
             kernel_registry->get_kernel(op.name(), op.device_type());
@@ -323,7 +353,7 @@ Result validate_jobs_and_ops(
         // Verify input is specified on an Input Op
         if (used_input_ops.count(column_input.op_index()) > 0) {
           RESULT_ERROR(&result,
-                       "Job %s tried to set input column for Input Op "
+                       "Job %s tried to set input args for Source Op "
                        "at %d twice.",
                        job.output_table_name().c_str(),
                        column_input.op_index());
@@ -331,33 +361,13 @@ Result validate_jobs_and_ops(
         }
         if (input_ops.count(column_input.op_index()) == 0) {
           RESULT_ERROR(&result,
-                       "Job %s tried to set input column for Input Op "
-                       "at %d, but this Op is not an Input Op.",
+                       "Job %s tried to set input args for Source Op "
+                       "at %d, but this Op is not a Source Op.",
                        job.output_table_name().c_str(),
                        column_input.op_index());
           return result;
         }
         used_input_ops.insert(column_input.op_index());
-        // Verify column input table exists
-        if (!meta.has_table(column_input.table_name())) {
-          RESULT_ERROR(&result,
-                       "Job %s tried to sample from non-existent table "
-                       "%s.",
-                       job.output_table_name().c_str(),
-                       column_input.table_name().c_str());
-          return result;
-        }
-        // Verify column input column exists in the requested table
-        if (!table_metas.at(column_input.table_name())
-                 .has_column(column_input.column_name())) {
-          RESULT_ERROR(&result,
-                       "Job %s tried to sample column %s from table %s, "
-                       "but that column is not in that table.",
-                       job.output_table_name().c_str(),
-                       column_input.column_name().c_str(),
-                       column_input.table_name().c_str());
-          return result;
-        }
       }
     }
 
@@ -416,7 +426,7 @@ Result determine_input_rows_to_slices(
   Result result;
   result.set_success(true);
   const std::vector<i32>& op_slice_level = info.op_slice_level;
-  const std::map<i64, i64>& input_ops = info.input_ops;
+  const std::map<i64, i64>& input_ops = info.source_ops;
   const std::map<i64, i64>& slice_ops = info.slice_ops;
   const std::map<i64, i64>& unslice_ops = info.unslice_ops;
   const std::map<i64, i64>& sampling_ops = info.sampling_ops;
@@ -469,6 +479,30 @@ Result determine_input_rows_to_slices(
         }
       }
     }
+    // Create enumerators using enumerator args
+    std::map<i64, i64> source_input_rows;
+    {
+      // Instantiate enumerators to determine number of rows produced from each
+      // Source op
+      auto registry = get_enumerator_registry();
+      for (auto& source_input : job.inputs()) {
+        const std::string& source_name = ops.at(source_input.op_index()).name();
+        EnumeratorFactory* factory = registry->get_enumerator(source_name);
+        EnumeratorConfig config;
+        size_t size = source_input.enumerator_args().size();
+        config.args =
+            std::vector<u8>(source_input.enumerator_args().begin(),
+                            source_input.enumerator_args().end());
+        std::unique_ptr<Enumerator> e(factory->new_instance(config));
+        // If this is a source enumerator, we must provide table meta
+        if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e.get())) {
+          column_enumerator->set_table_meta(&table_metas);
+        }
+        // Get actual num row count
+        source_input_rows[source_input.op_index()] = e->total_elements();
+      }
+    }
+
     // Each Op can have a vector of outputs because of one level slicing
     // Op idx -> input columns -> slice groups
     std::vector<std::vector<std::vector<i64>>> op_num_inputs(ops.size());
@@ -477,9 +511,9 @@ Result determine_input_rows_to_slices(
     // as tasks
     i64 number_of_slice_groups = -1;
     // First populate num rows from table inputs
-    for (const proto::ColumnInput& ci : job.inputs()) {
+    for (const proto::SourceInput& ci : job.inputs()) {
       // Determine number of rows for the requested table
-      i64 num_rows = table_metas.at(ci.table_name()).num_rows();
+      i64 num_rows = source_input_rows.at(ci.op_index());
       // Assign number of rows to correct op
       op_num_inputs[ci.op_index()] = {{num_rows}};
     }
@@ -757,7 +791,7 @@ Result derive_slice_final_output_rows(
 void populate_analysis_info(const std::vector<proto::Op>& ops,
                             DAGAnalysisInfo& info) {
   std::vector<i32>& op_slice_level = info.op_slice_level;
-  std::map<i64, i64>& input_ops = info.input_ops;
+  std::map<i64, i64>& input_ops = info.source_ops;
   std::map<i64, i64>& slice_ops = info.slice_ops;
   std::map<i64, i64>& unslice_ops = info.unslice_ops;
   std::map<i64, i64>& sampling_ops = info.sampling_ops;
@@ -783,8 +817,8 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
   for (auto& op : ops) {
     op_names.push_back(op.name());
 
-    // Input Op's output is defined by the input table column they sample
-    if (op.name() == INPUT_OP_NAME) {
+    // Input Op's output is defined by the input columns they sample
+    if (op.is_source()) {
       op_outputs.emplace_back();
       op_outputs.back().push_back(op.inputs(0).column());
       size_t input_ops_size = input_ops.size();
@@ -892,21 +926,28 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
   auto rename_col = [](i32 op_idx, const std::string& n) {
     return std::to_string(op_idx) + "_" + n;
   };
+  SourceRegistry* source_registry = get_source_registry();
+  auto get_source_output = [&](i32 op_idx) {
+    return source_registry->get_source(ops.at(op_idx).name())
+        ->output_columns()[0]
+        .name();
+  };
   auto& remap_map = info.input_ops_to_first_op_columns;
   {
     auto first_op_input = ops.at(0).mutable_inputs(0);
-    first_op_input->set_column(rename_col(0, first_op_input->column()));
+    auto first_op_output = get_source_output(0);
+    first_op_input->set_column(rename_col(0, first_op_output));
     remap_map[0] = 0;
   }
   for (size_t op_idx = 1; op_idx < ops.size(); ++op_idx) {
     auto& op = ops.at(op_idx);
     // If input Op, add column to original input Op and get rid of existing
     // column
-    if (op.name() == INPUT_OP_NAME) {
+    if (op.is_source()) {
       remap_map[op_idx] = ops.at(0).inputs_size();
 
       std::string new_column_name =
-          rename_col(op_idx, op.inputs(0).column());
+          rename_col(op_idx, get_source_output(op_idx));
       proto::OpInput* new_input = ops.at(0).add_inputs();
       new_input->set_op_index(-1);
       new_input->set_column(new_column_name);
@@ -984,7 +1025,7 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
         // the downstream column. A better solution would be to
         // explicitly enumerate the output column names during the initial
         // dag analysis and keep it around.
-        if (ops.at(input.op_index()).name() == INPUT_OP_NAME) {
+        if (ops.at(input.op_index()).is_source()) {
           col = col.substr(col.find("_") + 1);
         }
         intermediates[i].push_back(std::make_tuple(col, i));
@@ -1098,7 +1139,7 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
 }
 
 Result derive_stencil_requirements(
-    const DatabaseMetadata& meta, const TableMetaCache& table_meta,
+    const DatabaseMetadata& meta, TableMetaCache& table_meta,
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
@@ -1148,15 +1189,27 @@ Result derive_stencil_requirements(
     }
   }
 
-  // Associate input ops with table ids
-  std::vector<i32> table_ids(job.inputs_size());
-  std::vector<i32> column_ids(job.inputs_size());
-  for (auto& col_input : job.inputs()) {
-    i32 col_idx =
-        analysis_results.input_ops_to_first_op_columns.at(col_input.op_index());
-    table_ids[col_idx] = meta.get_table_id(col_input.table_name());
-    column_ids[col_idx] = table_meta.at(col_input.table_name())
-                              .column_id(col_input.column_name());
+  std::vector<std::unique_ptr<Enumerator>> enumerators(job.inputs_size());
+  {
+    // Instantiate enumerators to determine number of rows produced from each
+    // Source op
+    auto registry = get_enumerator_registry();
+    for (auto& source_input : job.inputs()) {
+      const std::string& source_name = ops.at(source_input.op_index()).name();
+      i32 col_idx = analysis_results.input_ops_to_first_op_columns.at(
+          source_input.op_index());
+      EnumeratorFactory* factory = registry->get_enumerator(source_name);
+      EnumeratorConfig config;
+      size_t size = source_input.enumerator_args().size();
+      config.args = std::vector<u8>(source_input.enumerator_args().begin(),
+                                    source_input.enumerator_args().end());
+      Enumerator* e = factory->new_instance(config);
+      enumerators[col_idx].reset(e);
+      // If this is a source enumerator, we must provide table meta
+      if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e)) {
+        column_enumerator->set_table_meta(&table_meta);
+      }
+    }
   }
 
   // Compute the required rows for each kernel based on the stencil, sampling
@@ -1174,6 +1227,8 @@ Result derive_stencil_requirements(
   std::vector<std::vector<i64>> required_input_op_input_rows;
   required_input_op_input_rows.resize(ops.at(0).inputs_size());
   assert(ops.at(0).inputs_size() == job.inputs_size());
+  std::vector<std::vector<ElementArgs>> required_input_op_element_args;
+  required_input_op_element_args.resize(ops.at(0).inputs_size());
   // HACK(apoms): we currently propagate this boundary condition upward,
   // but that would technically cause the upstream sequence to have more
   // elements than required. Should we stop the boundary condition at the Op
@@ -1224,23 +1279,28 @@ Result derive_stencil_requirements(
       // Determine which upstream rows are needed for the requested output rows
       std::vector<i64> new_rows;
       // Input Op
-      if (op.name() == INPUT_OP_NAME) {
+      if (op.is_source()) {
         // Ignore if it is not the first input
         if (op_idx == 0) {
-          // Determine input table this column came from
-          for (size_t i = 0; i < table_ids.size(); ++i) {
-            i32 table_id = table_ids[i];
+          for (size_t i = 0; i < enumerators.size(); ++i) {
             std::vector<i64> output_rows(
                 required_input_op_output_rows.at(i).begin(),
                 required_input_op_output_rows.at(i).end());
             std::sort(output_rows.begin(), output_rows.end());
             std::vector<i64>& input_rows = required_input_op_input_rows.at(i);
-            i64 num_rows = table_meta.at(table_id).num_rows();
+            i64 num_rows = enumerators[i]->total_elements();
 
             // Perform boundary restriction
             Result result = handle_boundary(output_rows, num_rows, input_rows);
             if (!result.success()) {
               return result;
+            }
+            // Generate all the args for the requested input rows
+            std::vector<ElementArgs>& element_args =
+                required_input_op_element_args.at(i);
+            element_args.reserve(input_rows.size());
+            for (i64 input_row : input_rows) {
+              element_args.push_back(enumerators[i]->element_args_at(input_row));
             }
           }
         }
@@ -1380,7 +1440,7 @@ Result derive_stencil_requirements(
 
       required_input_rows_at_op.at(op_idx) = new_rows;
       // Input Op inputs do not connect to any other Ops
-      if (op.name() != INPUT_OP_NAME) {
+      if (!op.is_source()) {
         for (auto& input : op.inputs()) {
           if (input.op_index() == 0) {
             // For the input Op, we track each input column separately since
@@ -1418,18 +1478,21 @@ Result derive_stencil_requirements(
   // Get rid of input stream since this is already captured by the load samples
   task_streams.pop_front();
 
-  for (size_t i = 0; i < table_ids.size(); ++i) {
-    auto out_sample = output_entry.add_samples();
-    out_sample->set_table_id(table_ids[i]);
-    out_sample->set_column_id(column_ids[i]);
+  for (size_t i = 0; i < enumerators.size(); ++i) {
+    auto out_arg = output_entry.add_source_args();
     google::protobuf::RepeatedField<i64> input_data(
         required_input_op_input_rows.at(i).begin(),
         required_input_op_input_rows.at(i).end());
-    out_sample->mutable_input_row_ids()->Swap(&input_data);
+    out_arg->mutable_input_row_ids()->Swap(&input_data);
     google::protobuf::RepeatedField<i64> output_data(
         required_input_op_output_rows.at(i).begin(),
         required_input_op_output_rows.at(i).end());
-    out_sample->mutable_output_row_ids()->Swap(&output_data);
+    out_arg->mutable_output_row_ids()->Swap(&output_data);
+
+    const auto& ele = required_input_op_element_args.at(i);
+    for (size_t j = 0; j < ele.size(); ++j) {
+      out_arg->add_args(ele[j].args.data(), ele[j].args.size());
+    }
   }
   Result result;
   result.set_success(true);

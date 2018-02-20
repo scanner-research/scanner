@@ -128,6 +128,7 @@ struct EvaluateWorkerArgs {
 class EvaluateWorker {
  public:
   EvaluateWorker(const EvaluateWorkerArgs& args);
+
   ~EvaluateWorker();
 
   void new_task(i64 job_idx, i64 task_idx,

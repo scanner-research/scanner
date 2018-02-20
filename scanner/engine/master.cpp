@@ -22,6 +22,8 @@
 #include "scanner/util/glog.h"
 #include "scanner/util/grpc.h"
 #include "scanner/engine/python_kernel.h"
+#include "scanner/engine/source_registry.h"
+#include "scanner/engine/enumerator_registry.h"
 #include "scanner/util/thread_pool.h"
 
 #include <grpc/support/log.h>
@@ -443,6 +445,45 @@ grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
     info->CopyFrom(output_column);
   }
   op_info->mutable_result()->set_success(true);
+
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::GetSourceInfo(
+    grpc::ServerContext* context, const proto::SourceInfoArgs* source_info_args,
+    proto::SourceInfo* source_info) {
+
+  SourceRegistry* registry = get_source_registry();
+  std::string source_name = source_info_args->source_name();
+  if (!registry->has_source(source_name)) {
+    source_info->mutable_result()->set_success(false);
+    source_info->mutable_result()->set_msg("Source " + source_name +
+                                           " does not exist");
+    return grpc::Status::OK;
+  }
+
+  SourceFactory* fact = registry->get_source(source_name);
+  for (auto& output_column : fact->output_columns()) {
+    Column* info = source_info->add_output_columns();
+    info->CopyFrom(output_column);
+  }
+  source_info->mutable_result()->set_success(true);
+
+  return grpc::Status::OK;
+}
+
+grpc::Status MasterImpl::GetEnumeratorInfo(
+    grpc::ServerContext* context, const proto::EnumeratorInfoArgs* info_args,
+    proto::EnumeratorInfo* info) {
+  EnumeratorRegistry* registry = get_enumerator_registry();
+  std::string enumerator_name = info_args->enumerator_name();
+  if (!registry->has_enumerator(enumerator_name)) {
+    info->mutable_result()->set_success(false);
+    info->mutable_result()->set_msg("Enumerator " + enumerator_name +
+                                    " does not exist");
+    return grpc::Status::OK;
+  }
+  info->mutable_result()->set_success(true);
 
   return grpc::Status::OK;
 }
@@ -1117,8 +1158,8 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     return false;
   }
 
-  // Map all input Ops into a single input collection
-  const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.input_ops;
+  // Map all source Ops into a single input collection
+  const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.source_ops;
 
   VLOG(1) << "Finding output columns";
   // Get output columns from last output op to set as output table columns
@@ -1130,22 +1171,12 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     // Get input columns from column inputs specified for each job
     std::map<i64, Column> input_op_idx_to_column;
     {
+      SourceRegistry* registry = get_source_registry();
       for (auto& ci : job.inputs()) {
-        const TableMetadata& table = table_metas_->at(ci.table_name());
-        std::vector<Column> table_columns = table.columns();
-        const std::string& c = ci.column_name();
-        bool found = false;
-        for (Column& col : table_columns) {
-          if (c == col.name()) {
-            Column new_col;
-            new_col.CopyFrom(col);
-            new_col.set_id(0);
-            input_op_idx_to_column[ci.op_index()] = new_col;
-            found = true;
-            break;
-          }
-        }
-        assert(found);
+        std::string op_name = ops.at(ci.op_index()).name();
+        std::vector<Column> source_columns =
+            registry->get_source(op_name)->output_columns();
+        input_op_idx_to_column[ci.op_index()] = source_columns[0];
       }
     }
 
@@ -1159,7 +1190,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       const std::string& col = op_input.column();
       auto& input_op = ops.at(op_idx);
       // For builtin ops, find non bulit-in parent column
-      if (input_op.name() != INPUT_OP_NAME && is_builtin_op(input_op.name())) {
+      if (!input_op.is_source() && is_builtin_op(input_op.name())) {
         // Find the column
         for (auto& in : input_op.inputs()) {
           if (in.column() == col) {
@@ -1171,7 +1202,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
       std::vector<Column> input_columns;
       std::vector<Column> actual_columns;
-      if (input_op.name() == INPUT_OP_NAME) {
+      if (input_op.is_source()) {
         Column col = input_op_idx_to_column.at(op_idx);
         actual_columns = {col};
         col.set_name(input_op.inputs(0).column());
@@ -1196,6 +1227,9 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       Column c = determine_column_info(input);
       c.set_id(output_columns.size());
       output_columns.push_back(c);
+    }
+    for (size_t i = 0; i < job_params->output_column_names_size(); ++i) {
+      output_columns[i].set_name(job_params->output_column_names(i));
     }
   }
   proto::BulkJobDescriptor job_descriptor;
