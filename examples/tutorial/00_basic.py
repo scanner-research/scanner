@@ -33,20 +33,21 @@ with Database() as db:
     # Scanner processes videos by forming a graph of operations that operate
     # on input frames from a table and produce outputs to a new table.
 
-    # FrameInput declares that we want to read from a table column that
+    # FrameColumn declares that we want to read from a table column that
     # represents a video frame.
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
 
     # These frames are input into a Histogram op that computes a color histogram
     # for each frame.
     hist = db.ops.Histogram(frame=frame)
 
     # Finally, any columns provided to Output will be saved to the output
-    # table at the end of the computation.
-    output_op = db.ops.Output(columns=[hist])
+    # table at the end of the computation. Here, 'hist' is the name of the
+    # column for the output table.
+    output_op = db.ops.Output(columns={'hist': hist})
 
-    # A job defines a table you want to create. In op_args, we bind the frame
-    # input column from above to the table we want to read from and name
+    # A job defines a table you want to create. In op_args, we bind the 
+    # FrameColumn from above to the table we want to read from and name
     # the output table 'example_hist' by binding a string to output_op.
     job = Job(op_args={
         frame: db.table('example').column('frame'),
@@ -64,8 +65,7 @@ with Database() as db:
     # Load the histograms from a column of the output table. The
     # parsers.histograms  function  converts the raw bytes output by Scanner
     # into a numpy array for each channel.
-    video_hists = output_tables[0].load(['histogram'], parsers.histograms)
-    print(db.summarize())
+    video_hists = output_tables[0].load(['hist'], parsers.histograms)
 
     # Loop over the column's rows. Each row is a tuple of the frame number and
     # value for that row.

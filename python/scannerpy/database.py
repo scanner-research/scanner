@@ -25,11 +25,12 @@ from scannerpy.common import *
 from scannerpy.profiler import Profiler
 from scannerpy.config import Config
 from scannerpy.op import OpGenerator, Op, OpColumn
+from scannerpy.source import SourceGenerator, Source
 from scannerpy.sampler import Sampler
 from scannerpy.partitioner import TaskPartitioner
 from scannerpy.table import Table
 from scannerpy.column import Column
-from scannerpy.protobuf_generator import ProtobufGenerator
+from scannerpy.protobuf_generator import ProtobufGenerator, python_to_proto
 from scannerpy.job import Job
 from scannerpy.bulk_job import BulkJob
 
@@ -213,6 +214,7 @@ class Database(object):
         self._png_dump_prefix = '__png_dump_{:s}'
 
         self.ops = OpGenerator(self)
+        self.sources = SourceGenerator(self)
         self.sampler = Sampler(self)
         self.partitioner = TaskPartitioner(self)
         self.protobufs = ProtobufGenerator(self.config)
@@ -870,6 +872,23 @@ class Database(object):
 
         return Profiler(self, job_id)
 
+    def _get_source_info(self, source_name):
+        #if op_name in self._op_cache:
+        #    op_info = self._op_cache[op_name]
+        #else:
+        source_info_args = self.protobufs.SourceInfoArgs()
+        source_info_args.source_name = source_name
+
+        source_info = self._try_rpc(
+            lambda: self._master.GetSourceInfo(source_info_args))
+
+        if not source_info.result.success:
+            raise ScannerException(source_info.result.msg)
+
+        #self._op_cache[op_name] = op_info
+
+        return source_info
+
     def _get_op_info(self, op_name):
         if op_name in self._op_cache:
             op_info = self._op_cache[op_name]
@@ -903,7 +922,7 @@ class Database(object):
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
 
-        input_nodes = []
+        source_nodes = []
         explored_nodes = set()
         stack = [op]
         while len(stack) > 0:
@@ -912,8 +931,8 @@ class Database(object):
                 continue
             explored_nodes.add(c)
 
-            if c._name == "Input":
-                input_nodes.append(c)
+            if isinstance(c, Source):
+                source_nodes.append(c)
                 continue
 
             for input in c._inputs:
@@ -925,14 +944,14 @@ class Database(object):
 
         # Keep track of position of input ops and sampling/slicing ops
         # to use for associating job args to
-        input_ops = {}
+        source_ops = {}
         sampling_slicing_ops = {}
         output_ops = {}
 
         # Compute sorted list
         eval_sorted = []
         eval_index = {}
-        stack = input_nodes[:]
+        stack = source_nodes[:]
         while len(stack) > 0:
             c = stack.pop()
             eval_sorted.append(c)
@@ -942,8 +961,8 @@ class Database(object):
                 in_edges_left[child] -= 1
                 if in_edges_left[child] == 0:
                     stack.append(child)
-            if c._name == "Input":
-                input_ops[c] = op_idx
+            if isinstance(c, Source):
+                source_ops[c] = op_idx
             elif (c._name == "Sample" or c._name == "Space"
                   or c._name == "Slice" or c._name == "Unslice"):
                 sampling_slicing_ops[c] = op_idx
@@ -951,7 +970,7 @@ class Database(object):
                 output_ops[c] = op_idx
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
-            input_ops, \
+            source_ops, \
             sampling_slicing_ops, \
             output_ops
 
@@ -1051,8 +1070,10 @@ class Database(object):
                     else:
                         opts.options[k] = str(v)
             compression_options.append(opts)
+        # Get output columns
+        output_column_names = output_op._output_names
 
-        sorted_ops, input_ops, sampling_slicing_ops, output_ops = (
+        sorted_ops, source_ops, sampling_slicing_ops, output_ops = (
             self._toposort(bulk_job.output()))
 
         job_params = self.protobufs.BulkJobParameters()
@@ -1060,6 +1081,7 @@ class Database(object):
         job_params.job_name = job_name
         job_params.ops.extend(sorted_ops)
         job_output_table_names = []
+        job_params.output_column_names[:] = output_column_names
         for job in bulk_job.jobs():
             j = job_params.jobs.add()
             output_table_name = None
@@ -1068,17 +1090,27 @@ class Database(object):
                     op = op_col
                 else:
                     op = op_col._op
-                if op in input_ops:
-                    op_idx = input_ops[op]
-                    col_input = j.inputs.add()
-                    col_input.op_index = op_idx
-                    if not args._table.committed():
-                        raise ScannerException(
-                            'Attempted to bind table {name} to Input Op but '
-                            'table {name} is not committed.'.format(
-                                name=args._table.name()))
-                    col_input.table_name = args._table.name()
-                    col_input.column_name = args.name()
+                if op in source_ops:
+                    op_idx = source_ops[op]
+                    source_input = j.inputs.add()
+                    source_input.op_index = op_idx
+                    # We special case on Column to transform it into a
+                    # (table, col) pair that is then trasnformed into a
+                    # protobuf object
+                    if isinstance(args, Column):
+                        if not args._table.committed():
+                            raise ScannerException(
+                                'Attempted to bind table {name} to Input Op '
+                                'but table {name} is not committed.'.format(
+                                    name=args._table.name()))
+                        args = {'table_name': args._table.name(),
+                                'column_name': args.name()}
+                    n = op._name
+                    if n.startswith('Frame'):
+                        n = n[len('Frame'):]
+                    enumerator_proto_name = n + 'EnumeratorArgs'
+                    source_input.enumerator_args = python_to_proto(
+                        self.protobufs, enumerator_proto_name, args)
                 elif op in sampling_slicing_ops:
                     op_idx = sampling_slicing_ops[op]
                     saa = j.sampling_args_assignment.add()

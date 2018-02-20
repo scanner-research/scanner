@@ -169,9 +169,9 @@ def test_gather_video_column(db):
 
 
 def test_profiler(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     hist = db.ops.Histogram(frame=frame)
-    output_op = db.ops.Output(columns=[hist])
+    output_op = db.ops.Output(columns={'hist': hist})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
@@ -197,9 +197,9 @@ def test_new_table(db):
 
 def test_sample(db):
     def run_sampler_job(sampler_args, expected_rows):
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         sample_frame = frame.sample()
-        output_op = db.ops.Output(columns=[sample_frame])
+        output_op = db.ops.Output(columns={'frame': sample_frame})
 
         job = Job(op_args={
             frame: db.table('test1').column('frame'),
@@ -226,10 +226,10 @@ def test_sample(db):
 
 def test_space(db):
     def run_spacer_job(spacing_args):
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         hist = db.ops.Histogram(frame=frame)
         space_hist = hist.space()
-        output_op = db.ops.Output(columns=[space_hist])
+        output_op = db.ops.Output(columns={'histogram': space_hist})
 
         job = Job(op_args={
             frame: db.table('test1').column('frame'),
@@ -270,10 +270,10 @@ def test_space(db):
 
 
 def test_slicing(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     slice_frame = frame.slice()
     unsliced_frame = slice_frame.unslice()
-    output_op = db.ops.Output(columns=[unsliced_frame])
+    output_op = db.ops.Output(columns={'frame': unsliced_frame})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         slice_frame: db.partitioner.all(50),
@@ -291,10 +291,10 @@ def test_slicing(db):
 def test_bounded_state(db):
     warmup = 3
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     increment = db.ops.TestIncrementBounded(ignore=frame, warmup=warmup)
     sampled_increment = increment.sample()
-    output_op = db.ops.Output(columns=[sampled_increment])
+    output_op = db.ops.Output(columns={'integer': sampled_increment})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         sampled_increment: db.sampler.gather([0, 10, 25, 26, 27]),
@@ -314,11 +314,11 @@ def test_bounded_state(db):
 
 
 def test_unbounded_state(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     slice_frame = frame.slice()
     increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
     unsliced_increment = increment.unslice()
-    output_op = db.ops.Output(columns=[unsliced_increment])
+    output_op = db.ops.Output(columns={'integer': unsliced_increment})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         slice_frame: db.partitioner.all(50),
@@ -352,9 +352,9 @@ def builder(cls):
 @builder
 class TestHistogram:
     def job(self, db, ty):
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         hist = db.ops.Histogram(frame=frame, device=ty)
-        output_op = db.ops.Output(columns=[hist])
+        output_op = db.ops.Output(columns={'histogram': hist})
 
         job = Job(op_args={
             frame: db.table('test1').column('frame'),
@@ -371,10 +371,10 @@ class TestHistogram:
 @builder
 class TestOpticalFlow:
     def job(self, db, ty):
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=ty)
         flow_range = flow.sample()
-        out = db.ops.Output(columns=[flow_range])
+        out = db.ops.Output(columns={'flow': flow_range})
         job = Job(op_args={
             frame: db.table('test1').column('frame'),
             flow_range: db.sampler.range(0, 50),
@@ -398,15 +398,76 @@ class TestOpticalFlow:
         assert flow_array.shape[2] == 2
 
 
+def test_packed_file_source(db):
+    # Write test file
+    path = '/tmp/cpp_source_test'
+    with open(path, 'wb') as f:
+        num_elements = 4
+        f.write(struct.pack('=Q', num_elements))
+        # Write sizes
+        for i in range(num_elements):
+            f.write(struct.pack('=Q', 8))
+        # Write data
+        for i in range(num_elements):
+            f.write(struct.pack('=Q', i))
+
+    data = db.sources.PackedFile()
+    pass_data = db.ops.Pass(input=data)
+    output_op = db.ops.Output(columns={'integer': pass_data})
+    job = Job(op_args={
+        data: {'path': path},
+        output_op: 'test_cpp_source',
+    })
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+
+    num_rows = 0
+    for (frame_index, buf) in tables[0].column('integer').load():
+        (val, ) = struct.unpack('=Q', buf)
+        assert val == num_rows
+        num_rows += 1
+    assert num_elements == tables[0].num_rows()
+
+
+def test_files_source(db):
+    # Write test files
+    path_template = '/tmp/files_source_test_{:d}'
+    num_elements = 4
+    paths = []
+    for i in range(num_elements):
+        path = path_template.format(i)
+        with open(path, 'wb') as f:
+            # Write data
+            f.write(struct.pack('=Q', i))
+        paths.append(path)
+
+    data = db.sources.Files()
+    pass_data = db.ops.Pass(input=data)
+    output_op = db.ops.Output(columns={'integer': pass_data})
+    job = Job(op_args={
+        data: {'paths': paths},
+        output_op: 'test_files_source',
+    })
+    bulk_job = BulkJob(output=output_op, jobs=[job])
+    tables = db.run(bulk_job, force=True, show_progress=False)
+
+    num_rows = 0
+    for (frame_index, buf) in tables[0].column('integer').load():
+        (val, ) = struct.unpack('=Q', buf)
+        assert val == num_rows
+        num_rows += 1
+    assert num_elements == tables[0].num_rows()
+
+
 def test_python_kernel(db):
     db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
     db.register_python_kernel('TestPy', DeviceType.CPU,
                               cwd + '/test_py_kernel.py')
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     test_out = db.ops.TestPy(frame=range_frame)
-    output_op = db.ops.Output(columns=[test_out])
+    output_op = db.ops.Output(columns={'dummy': test_out})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         range_frame: db.sampler.range(0, 30),
@@ -426,10 +487,10 @@ def test_python_batch_kernel(db):
         cwd + '/test_py_batch_kernel.py',
         batch=10)
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
-    output_op = db.ops.Output(columns=[test_out])
+    output_op = db.ops.Output(columns={'dummy': test_out})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         range_frame: db.sampler.range(0, 30),
@@ -442,10 +503,10 @@ def test_python_batch_kernel(db):
 
 
 def test_blur(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.ops.Output(columns=[blurred_frame])
+    output_op = db.ops.Output(columns={'frame': blurred_frame})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         range_frame: db.sampler.range(0, 30),
@@ -465,10 +526,10 @@ def test_blur(db):
 
 
 def test_lossless(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.ops.Output(columns=[blurred_frame.lossless()])
+    output_op = db.ops.Output(columns={'frame': blurred_frame.lossless()})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
@@ -482,11 +543,11 @@ def test_lossless(db):
 
 
 def test_compress(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     compressed_frame = blurred_frame.compress('video', bitrate=1 * 1024 * 1024)
-    output_op = db.ops.Output(columns=[compressed_frame])
+    output_op = db.ops.Output(columns={'frame': compressed_frame})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
@@ -500,10 +561,10 @@ def test_compress(db):
 
 
 def test_save_mp4(db):
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.ops.Output(columns=[blurred_frame])
+    output_op = db.ops.Output(columns={'frame': blurred_frame})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
@@ -542,9 +603,9 @@ def no_workers_db():
 def test_no_workers(no_workers_db):
     db = no_workers_db
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     hist = db.ops.Histogram(frame=frame)
-    output_op = db.ops.Output(columns=[hist])
+    output_op = db.ops.Output(columns={'dummy': hist})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
@@ -634,7 +695,7 @@ def fault_db():
 #     shutdown_process.daemon = True
 #     shutdown_process.start()
 
-#     frame = fault_db.ops.FrameInput()
+#     frame = fault_db.sources.FrameColumn()
 #     range_frame = frame.sample()
 #     sleep_frame = fault_db.ops.SleepFrame(ignore = range_frame)
 #     output_op = fault_db.ops.Output(columns=[sleep_frame])
@@ -730,10 +791,10 @@ def test_fault_tolerance(fault_db):
     killer_process.daemon = True
     killer_process.start()
 
-    frame = fault_db.ops.FrameInput()
+    frame = fault_db.sources.FrameColumn()
     range_frame = frame.sample()
     sleep_frame = fault_db.ops.SleepFrame(ignore=range_frame)
-    output_op = fault_db.ops.Output(columns=[sleep_frame])
+    output_op = fault_db.ops.Output(columns={'dummy': sleep_frame})
 
     job = Job(op_args={
         frame: fault_db.table('test1').column('frame'),
@@ -801,10 +862,10 @@ def test_job_blacklist(blacklist_db):
     db.register_python_kernel('TestPyFail', DeviceType.CPU,
                               cwd + '/test_py_fail_kernel.py')
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     failed_output = db.ops.TestPyFail(frame=range_frame)
-    output_op = db.ops.Output(columns=[failed_output])
+    output_op = db.ops.Output(columns={'dummy': failed_output})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
@@ -850,10 +911,10 @@ def timeout_db():
 def test_job_timeout(timeout_db):
     db = timeout_db
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     sleep_frame = db.ops.SleepFrame(ignore=range_frame)
-    output_op = db.ops.Output(columns=[sleep_frame])
+    output_op = db.ops.Output(columns={'dummy': sleep_frame})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),

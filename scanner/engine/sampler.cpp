@@ -15,6 +15,7 @@
 
 #include "scanner/engine/sampler.h"
 #include "scanner/metadata.pb.h"
+#include "scanner/sampler_args.pb.h"
 
 #include <cmath>
 #include <vector>

@@ -216,7 +216,7 @@ class Column(object):
                     return png_table.load(['img'], parsers.image)
             pair = [(self._table.name(), png_table_name)]
             op_args = {}
-            frame = self._db.ops.FrameInput()
+            frame = self._db.sources.FrameColumn()
             op_args[frame] = self
             enc_input = frame
             if rows is not None:
@@ -224,7 +224,7 @@ class Column(object):
                 op_args[sampled_frame] = self._db.sampler.gather(rows)
                 enc_input = sampled_frame
             img = self._db.ops.ImageEncoder(frame = enc_input)
-            output_op = self._db.ops.Output(columns=[img])
+            output_op = self._db.ops.Output(columns={'img': img})
             op_args[output_op] = png_table_name
             job = Job(op_args=op_args)
             bulk_job = BulkJob(output=output_op, jobs=[job])

@@ -6,9 +6,9 @@ from scannerpy import Database, Job, DeviceType, BulkJob
 
 with Database() as db:
 
-    frame = db.ops.FrameInput()
-    histogram = db.ops.Histogram(frame=frame)
-    output_op = db.ops.Output(columns=[histogram])
+    frame = db.sources.FrameColumn()
+    histogram = db.ops.Histogram(frame = frame)
+    output_op = db.ops.Output(columns={'hist': histogram})
     job = Job(
         op_args={
             frame: db.table('example').column('frame'),

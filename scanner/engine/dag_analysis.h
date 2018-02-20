@@ -42,7 +42,7 @@ bool is_builtin_op(const std::string& name);
 
 struct DAGAnalysisInfo {
   std::vector<i32> op_slice_level;
-  std::map<i64, i64> input_ops;
+  std::map<i64, i64> source_ops;
   std::map<i64, i64> slice_ops;
   std::map<i64, i64> unslice_ops;
   std::map<i64, i64> sampling_ops;
@@ -110,7 +110,7 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                DAGAnalysisInfo& info);
 
 Result derive_stencil_requirements(
-    const DatabaseMetadata& meta, const TableMetaCache& table_meta,
+    const DatabaseMetadata& meta, TableMetaCache& table_meta,
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
