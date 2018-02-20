@@ -172,7 +172,8 @@ class Database(object):
                  debug=None,
                  start_cluster=True,
                  prefetch_table_metadata=True,
-                 no_workers_timeout=30):
+                 no_workers_timeout=30,
+                 grpc_timeout=30):
         """
         Initializes a Scanner database.
 
@@ -197,6 +198,7 @@ class Database(object):
         self._prefetch_table_metadata = prefetch_table_metadata
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
+        self._grpc_timeout = grpc_timeout
         if debug is None:
             self._debug = (master is None and workers is None)
 
@@ -355,7 +357,8 @@ class Database(object):
         channel = self._make_grpc_channel(address)
         worker = self.protobufs.WorkerStub(channel)
         try:
-            self._master.Ping(self.protobufs.Empty())
+            self._worker.Ping(self.protobufs.Empty(),
+                              timeout=self._grpc_timeout)
             return worker
         except grpc.RpcError as e:
             status = e.code()
@@ -371,7 +374,8 @@ class Database(object):
         self._master = self.protobufs.MasterStub(channel)
         result = False
         try:
-            self._master.Ping(self.protobufs.Empty())
+            self._master.Ping(self.protobufs.Empty(),
+                              timeout=self._grpc_timeout)
             result = True
         except grpc.RpcError as e:
             status = e.code()
@@ -405,7 +409,8 @@ class Database(object):
             master = grpc_types.MasterStub(channel)
             while q.empty():
                 try:
-                    master.PokeWatchdog(rpc_types.Empty())
+                    master.PokeWatchdog(rpc_types.Empty(),
+                                        timeout=self._grpc_timeout)
                 except grpc.RpcError as e:
                     pass
                 time.sleep(1)
@@ -555,7 +560,7 @@ class Database(object):
                 sleep_time = 60
                 while slept_so_far < sleep_time:
                     active_workers = self._master.ActiveWorkers(
-                        self.protobufs.Empty())
+                        self.protobufs.Empty(), timeout=self._grpc_timeout)
                     if (len(active_workers.workers) > len(self._worker_conns)):
                         raise ScannerException(
                             ('Master has more workers than requested ' +
@@ -601,7 +606,8 @@ class Database(object):
                 self._stop_heartbeat()
                 try:
                     self._try_rpc(
-                        lambda: self._master.Shutdown(self.protobufs.Empty()))
+                        lambda: self._master.Shutdown(
+                            self.protobufs.Empty(), timeout=self._grpc_timeout))
                 except:
                     pass
                 self._master = None
@@ -644,7 +650,8 @@ class Database(object):
             self.protobufs.add_module(proto_path)
         op_path = self.protobufs.OpPath()
         op_path.path = so_path
-        self._try_rpc(lambda: self._master.LoadOp(op_path))
+        self._try_rpc(lambda: self._master.LoadOp(
+            op_path, timeout=self._grpc_timeout))
 
     def register_op(self,
                     name,
@@ -693,7 +700,8 @@ class Database(object):
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
 
-        self._try_rpc(lambda: self._master.RegisterOp(op_registration))
+        self._try_rpc(lambda: self._master.RegisterOp(
+            op_registration, timeout=self._grpc_timeout))
 
     def register_python_kernel(self,
                                op_name,
@@ -710,7 +718,8 @@ class Database(object):
         py_registration.pickled_config = pickle.dumps(self.config)
         py_registration.batch_size = batch
         self._try_rpc(
-            lambda: self._master.RegisterPythonKernel(py_registration))
+            lambda: self._master.RegisterPythonKernel(
+                py_registration, timeout=self._grpc_timeout))
 
     def ingest_videos(self, videos, inplace=False, force=False):
         """
@@ -869,7 +878,8 @@ class Database(object):
             op_info_args.op_name = op_name
 
             op_info = self._try_rpc(
-                lambda: self._master.GetOpInfo(op_info_args))
+                lambda: self._master.GetOpInfo(
+                    op_info_args, self._grpc_timeout))
 
             if not op_info.result.success:
                 raise ScannerException(op_info.result.msg)
@@ -961,7 +971,8 @@ class Database(object):
         last_failed_workers = 0
         while True:
             try:
-                job_status = self._master.GetJobStatus(self.protobufs.Empty())
+                job_status = self._master.GetJobStatus(
+                    self.protobufs.Empty(), timeout=self._grpc_timeout)
                 if show_progress and pbar is None and job_status.total_jobs != 0 \
                    and job_status.total_tasks != 0:
                     total_tasks = job_status.total_tasks
@@ -1006,7 +1017,8 @@ class Database(object):
     def bulk_fetch_video_metadata(self, tables):
         params = self.protobufs.GetVideoMetadataParams(
             tables=[t.name() for t in tables])
-        result = self._try_rpc(lambda: self._master.GetVideoMetadata(params))
+        result = self._try_rpc(lambda: self._master.GetVideoMetadata(
+            params, timeout=self._grpc_timeout))
         return result.videos
 
     def run(self,
@@ -1132,7 +1144,8 @@ class Database(object):
             job_params.memory_pool_config.gpu.free_space = size
 
         # Run the job
-        self._try_rpc(lambda: self._master.NewJob(job_params))
+        self._try_rpc(lambda: self._master.NewJob(
+            job_params, timeout=self._grpc_timeout))
 
         job_status = self.wait_on_current_job(show_progress)
 
