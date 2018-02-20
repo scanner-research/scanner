@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package scanner.proto;
+
+message LoadSample {
+  int32 table_id = 1;
+  int32 column_id = 2;
+  repeated int64 input_row_ids = 3 [packed=true];
+}
+
+message ColumnEnumeratorArgs {
+  int32 table_id = 1;
+  int32 column_id = 2;
+}
+
+message ColumnSourceArgs {
+  // For creating storehouse adapter
+  string storage_type = 1;
+  string bucket = 2;
+  string region = 3;
+  string endpoint = 4;
+}
+
+message ColumnElementArgs {
+  int32 table_id = 1;
+  int32 column_id = 2;
+  int64 row_id = 3;
+}

@@ -224,13 +224,9 @@ bool PreEvaluateWorker::yield(i32 item_size,
         entry.column_handles.push_back(decoder_output_handle_);
       } else {
         // Encoded as raw data
-        if (num_rows > 0) {
-          FrameInfo frame_info = work_entry.frame_sizes[media_col_idx];
-          for (i64 n = 0; n < num_rows; ++n) {
-            Element& e = work_entry.columns[c][column_start_row + n];
-            assert(e.size == frame_info.size());
-            insert_frame(entry.columns[c], new Frame(frame_info, e.buffer));
-          }
+        for (i64 n = 0; n < num_rows; ++n) {
+          Element& e = work_entry.columns[c][column_start_row + n];
+          entry.columns[c].push_back(e);
         }
         entry.column_handles.push_back(work_entry.column_handles[c]);
       }

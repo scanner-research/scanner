@@ -87,6 +87,14 @@ class MasterImpl final : public proto::Master::Service {
                          const proto::OpInfoArgs* op_info_args,
                          proto::OpInfo* op_info);
 
+  grpc::Status GetSourceInfo(grpc::ServerContext* context,
+                         const proto::SourceInfoArgs* source_info_args,
+                         proto::SourceInfo* source_info);
+
+  grpc::Status GetEnumeratorInfo(grpc::ServerContext* context,
+                                 const proto::EnumeratorInfoArgs* info_args,
+                                 proto::EnumeratorInfo* info);
+
   grpc::Status LoadOp(grpc::ServerContext* context,
                       const proto::OpPath* op_path, Result* result);
 

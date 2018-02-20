@@ -20,13 +20,17 @@ with Database() as db:
     db.load_op('resize_op/build/libresize_op.so',
                'resize_op/build/resize_pb2.py')
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     # Then we use our op just like in the other examples.
-    resize = db.ops.MyResize(frame=frame, width=200, height=300)
-    output_op = db.ops.Output(columns=[resize])
-    job = Job(op_args={
-        frame: db.table('example').column('frame'),
-        output_op: 'example_resized',
-    })
+    resize = db.ops.MyResize(
+        frame = frame,
+        width = 200, height = 300)
+    output_op = db.ops.Output(columns={'resized_frame': resize})
+    job = Job(
+        op_args={
+            frame: db.table('example').column('frame'),
+            output_op: 'example_resized',
+        }
+    )
     bulk_job = BulkJob(output=output_op, jobs=[job])
     db.run(bulk_job, force=True)

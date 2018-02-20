@@ -3,6 +3,7 @@ import grpc
 import copy
 
 from scannerpy.common import *
+from scannerpy.protobuf_generator import python_to_proto
 
 class OpColumn:
     def __init__(self, db, op, col, typ):
@@ -142,6 +143,9 @@ class Op:
             for c in inputs:
                 outputs.append(OpColumn(db, self, c._col, c._type))
         elif name == "OutputTable":
+            columns = inputs
+            self._output_names = [n for n, _ in columns.iteritems()]
+            self._inputs = [c for _, c in columns.iteritems()]
             outputs = []
         else:
             cols = self._db._get_output_columns(self._name)
@@ -198,15 +202,8 @@ class Op:
             # args.proto module, and fill that in with keys from the args dict.
             if len(self._args) > 0:
                 proto_name = self._name + 'Args'
-                args_proto = getattr(self._db.protobufs, proto_name)()
-                for k, v in self._args.iteritems():
-                    try:
-                        setattr(args_proto, k, v)
-                    except AttributeError:
-                        # If the attribute is a nested proto, we can't assign
-                        # directly, so copy from the value.
-                        getattr(args_proto, k).CopyFrom(v)
-                    e.kernel_args = args_proto.SerializeToString()
+                e.kernel_args = python_to_proto(
+                    self._db.protobufs, proto_name, self._args)
         else:
             # If arguments are a protobuf object, serialize it directly
             e.kernel_args = self._args.SerializeToString()

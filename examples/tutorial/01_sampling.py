@@ -6,7 +6,7 @@ from scannerpy.stdlib import parsers
 ################################################################################
 
 with Database() as db:
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
 
     # You can tell Scanner which frames of the video (or which rows of a video
     # table) you want to sample. Here, we indicate that we want to sample
@@ -15,7 +15,7 @@ with Database() as db:
 
     # We process the sampled frame same as before.
     hist = db.ops.Histogram(frame=strided_frame)
-    output_op = db.ops.Output(columns=[hist])
+    output_op = db.ops.Output(columns={'hist': hist})
 
     # For each job, you can specify how sampling should be performed for
     # a specific column. In the same way we used the op_args argument to bind
@@ -34,7 +34,7 @@ with Database() as db:
 
     # Loop over the column's rows. Each row is a tuple of the frame number and
     # value for that row.
-    video_hists = output_tables[0].load(['histogram'], parsers.histograms)
+    video_hists = output_tables[0].load(['hist'], parsers.histograms)
     num_rows = 0
     for (frame_index, frame_hists) in video_hists:
         assert len(frame_hists) == 3

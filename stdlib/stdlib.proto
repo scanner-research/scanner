@@ -100,3 +100,52 @@ message PoseNMSArgs {
 message BBoxNMSArgs {
   float scale = 1;
 }
+
+message PackedFileEnumeratorArgs {
+  // For creating storehouse adapter
+  string storage_type = 1;
+  string bucket = 2;
+  string region = 3;
+  string endpoint = 4;
+  // Path to the file to read
+  string path = 5;
+}
+
+message PackedFileSourceArgs {
+  // For creating storehouse adapter
+  string storage_type = 1;
+  string bucket = 2;
+  string region = 3;
+  string endpoint = 4;
+}
+
+message PackedFileElementArgs {
+  // Path to read
+  string path = 1;
+  // Offset and size to read
+  uint64 offset = 2;
+  uint64 size = 3;
+}
+
+message FilesEnumeratorArgs {
+  // For creating storehouse adapter
+  string storage_type = 1;
+  string bucket = 2;
+  string region = 3;
+  string endpoint = 4;
+  // Path to the files to read
+  repeated string paths = 5;
+}
+
+message FilesSourceArgs {
+  // For creating storehouse adapter
+  string storage_type = 1;
+  string bucket = 2;
+  string region = 3;
+  string endpoint = 4;
+}
+
+message FilesElementArgs {
+  // Path to read
+  string path = 1;
+}
