@@ -83,6 +83,11 @@ else
     HAVE_GPU=false
 fi
 
+# Force building with GPU when specified
+if [[ $USE_GPU == true ]]; then
+    HAVE_GPU=true
+fi
+
 # Directories for installed dependencies
 BOOST_DIR=$INSTALL_PREFIX
 FFMPEG_DIR=$INSTALL_PREFIX
