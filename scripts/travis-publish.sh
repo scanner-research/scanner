@@ -27,6 +27,7 @@ cd -
 
 cd sphinx
 make html
+cd -
 
 cd ${HTML_PATH}
 git add .
