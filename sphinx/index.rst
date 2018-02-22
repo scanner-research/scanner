@@ -3,21 +3,25 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to scanner's documentation!
-===================================
+Scanner
+=======
 
+Scanner is a system for executing video processing applications at scale.
+
+Scanner applications consist of two main components:
+
+* Computation Graphs
+* Data Sources
+
+Index
+=====
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
+   :caption:
 
    intro
    tutorial
    modules
 
-
-Indices and tables
-==================
-
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`

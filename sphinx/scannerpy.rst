@@ -19,14 +19,6 @@ scannerpy\.bulk\_job module
     :undoc-members:
     :show-inheritance:
 
-scannerpy\.collection module
-----------------------------
-
-.. automodule:: scannerpy.collection
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 scannerpy\.column module
 ------------------------
 

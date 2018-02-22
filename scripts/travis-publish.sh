@@ -25,7 +25,8 @@ cd ${HTML_PATH}
 git rm -rf .
 cd -
 
-doxygen .Doxyfile
+cd sphinx
+make html
 
 cd ${HTML_PATH}
 git add .
