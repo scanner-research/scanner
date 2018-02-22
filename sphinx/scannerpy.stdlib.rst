@@ -28,6 +28,14 @@ scannerpy\.stdlib\.build\_flags module
     :undoc-members:
     :show-inheritance:
 
+scannerpy\.stdlib\.kernel module
+--------------------------------
+
+.. automodule:: scannerpy.stdlib.kernel
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 scannerpy\.stdlib\.loaders module
 ---------------------------------
 
@@ -80,14 +88,6 @@ scannerpy\.stdlib\.poses module
 -------------------------------
 
 .. automodule:: scannerpy.stdlib.poses
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannerpy\.stdlib\.pykernel module
-----------------------------------
-
-.. automodule:: scannerpy.stdlib.pykernel
     :members:
     :undoc-members:
     :show-inheritance:
