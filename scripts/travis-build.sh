@@ -26,7 +26,7 @@ build_docker() {
     if [ "$1" = "cpu" ]
     then
         docker build -t $DOCKER_REPO:$1-local . \
-               --build-arg gpu=OFF --build-arg tag=cpu \
+               --build-arg gpu=OFF --build-arg tag=cpu --build-arg deps_opt='' \
                -f docker/Dockerfile.scanner
         # travis_wait allows tests to run for N minutes with no output
         # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
@@ -35,7 +35,7 @@ build_docker() {
         docker rm $(docker ps -a -f status=exited -q)
     else
         docker build -t $DOCKER_REPO:$1-local . \
-               --build-arg gpu=ON --build-arg tag=gpu \
+               --build-arg gpu=ON --build-arg tag=gpu --build-arg deps_opt='-g' \
                -f docker/Dockerfile.scanner
     fi
 
