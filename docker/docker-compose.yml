@@ -4,7 +4,13 @@ services:
     image: scannerresearch/scanner:gpu
     ports:
       - "8888:8888"
+    working_dir: /app
+    volumes:
+      - .:/app
   cpu:
     image: scannerresearch/scanner:cpu
     ports:
       - "8888:8888"
+    working_dir: /app
+    volumes:
+      - .:/app
