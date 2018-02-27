@@ -51,16 +51,12 @@ to build Scanner from source. To start processing some videos, check out [Runnin
 
 Since Scanner programs are written using a high-level python API, running a
 Scanner program is as simple as executing a python script. Let's run a Scanner
-job now to find all the faces of people in a video (you can also use your own 
+job now to find all the faces of people in a video (you can also use your own
 video if you have one on-hand). Run the following commands:
 
 ```bash
-cd path/to/your/scanner/directory
-# Download an example video (or use your own)
 wget https://storage.googleapis.com/scanner-data/tutorial_assets/star_wars_heros.mp4
-# Run the Scanner program
-python examples/apps/face_detection/main.py star_wars_heros.mp4
-
+python /opt/scanner/examples/apps/face_detection/main.py star_wars_heros.mp4
 ```
 
 You should see several progress bars indicating the video is being processed.
