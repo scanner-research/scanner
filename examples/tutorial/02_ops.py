@@ -1,4 +1,4 @@
-from scannerpy import Database, Job, DeviceType
+from scannerpy import Database, Job, DeviceType, BulkJob
 
 ################################################################################
 # This tutorial shows how to combine multiple operators into a computation     #
@@ -11,27 +11,22 @@ with Database() as db:
     # between them. Each graph has starts with data from an input table.
     frame = db.ops.FrameInput()
 
-    blurred_frame = db.ops.Blur(
-        frame = frame,
-        kernel_size = 3,
-        sigma = 0.5)
+    blurred_frame = db.ops.Blur(frame=frame, kernel_size=3, sigma=0.5)
 
     # Multiple operators can be hooked up in a computation by using the outputs
     # of one as the inputs of another.
-    histogram = db.ops.Histogram(
-        frame = blurred_frame)
+    histogram = db.ops.Histogram(frame=blurred_frame)
 
     output_op = db.ops.Output(columns=[histogram])
 
-    job = Job(
-        op_args={
-            frame: db.table('example').column('frame'),
-            output_op: 'output_table',
-        }
-    )
+    job = Job(op_args={
+        frame: db.table('example').column('frame'),
+        output_op: 'output_table',
+    })
     bulk_job = BulkJob(output=output_op, jobs=[job])
 
     db.run(bulk_job, force=True)
+    exit()
 
     # Ops can have several attributes that affect which stream elements they
     # will receive or how they will receive them. These attributes include:
@@ -59,23 +54,16 @@ with Database() as db:
     #
     # The rest of this tutorial will show examples of each attribute in action.
 
-
     # Batch
     # Here we specify that the histogram kernel should receive a batch of 8
     # input elements at once. Logically, each element is still processed
     # independently but multiple elements are provided for efficient
     # batch processing. If there are not enough elements left in a stream,
     # the Op may receive less than a batch worth of elements.
-    histogram = db.ops.Histogram(
-        frame = frame,
-        batch = 8)
-
+    histogram = db.ops.Histogram(frame=frame, batch=8)
 
     # Stencil
-    diff = db.ops.FrameDifference(
-        frame = frame,
-        stencil = [-1, 0])
-
+    diff = db.ops.FrameDifference(frame=frame, stencil=[-1, 0])
 
     # Bounded State
     # Detailed documentation to come...

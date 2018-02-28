@@ -22,9 +22,10 @@ with Database() as db:
     # list. If force is true, it will overwrite existing tables of the same
     # name.
     example_video_path = util.download_video()
-    [input_table], failed = db.ingest_videos([
-        ('example', example_video_path),
-        ('thisshouldfail', 'thisshouldfail.mp4')], force=True)
+    [input_table], failed = db.ingest_videos(
+        [('example', example_video_path),
+         ('thisshouldfail', 'thisshouldfail.mp4')],
+        force=True)
 
     print(db.summarize())
     print('Failures:', failed)
@@ -47,12 +48,10 @@ with Database() as db:
     # A job defines a table you want to create. In op_args, we bind the frame
     # input column from above to the table we want to read from and name
     # the output table 'example_hist' by binding a string to output_op.
-    job = Job(
-        op_args={
-            frame: db.table('example').column('frame'),
-            output_op: 'example_hist'
-        }
-    )
+    job = Job(op_args={
+        frame: db.table('example').column('frame'),
+        output_op: 'example_hist'
+    })
     # Multiple tables can be created using the same execution graph using
     # a bulk job. Here we specify the execution graph (or DAG) by providing
     # the output_op and also specify the jobs we wish to compute.
@@ -66,6 +65,7 @@ with Database() as db:
     # parsers.histograms  function  converts the raw bytes output by Scanner
     # into a numpy array for each channel.
     video_hists = output_tables[0].load(['histogram'], parsers.histograms)
+    print(db.summarize())
 
     # Loop over the column's rows. Each row is a tuple of the frame number and
     # value for that row.
