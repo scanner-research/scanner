@@ -13,7 +13,7 @@
 
 // Custom kernels must inherit the Kernel class or any subclass thereof,
 // e.g. the VideoKernel which provides support for processing video frames.
-class MyResizeKernel : public scanner::VideoKernel {
+class MyResizeKernel : public scanner::Kernel, public scanner::VideoKernel {
  public:
   // To allow ops to be customized by users at a runtime, e.g. to define the
   // target width and height of the MyResizeKernel, Scanner uses Google's Protocol
@@ -23,8 +23,8 @@ class MyResizeKernel : public scanner::VideoKernel {
   // In Python, users will provide the argument fields to the op constructor,
   // and these will get serialized into a string. This string is part of the
   // general configuration each kernel receives from the runtime, config.args.
-  MyResizeKernel(const scanner::Kernel::Config& config)
-      : scanner::VideoKernel(config) {
+  MyResizeKernel(const scanner::KernelConfig& config)
+      : scanner::Kernel(config) {
     // The protobuf arguments must be decoded from the input string.
     MyResizeArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
@@ -36,33 +36,28 @@ class MyResizeKernel : public scanner::VideoKernel {
   // from an input table to a batch of rows of the output table. Here, we map
   // from one input column from the video, "frame", and return
   // a single column, "frame".
-  void execute(const scanner::BatchedColumns& input_columns,
-               scanner::BatchedColumns& output_columns) override {
-    auto& frame_column = input_columns[0];
-    int input_count = num_rows(frame_column);
+  void execute(const scanner::Columns& input_columns,
+               scanner::Columns& output_columns) override {
+    auto& frame_col = input_columns[0];
 
     // This must be called at the top of the execute method in any VideoKernel.
     // See the VideoKernel for the implementation check_frame_info.
-    check_frame(scanner::CPU_DEVICE, frame_column[0]);
+    check_frame(scanner::CPU_DEVICE, frame_col);
 
-    auto& resized_frame_column = output_columns[0];
-    scanner::FrameInfo output_frame_info(
-      height_, width_, 3, scanner::FrameType::U8);
+    auto& resized_frame_col = output_columns[0];
+    scanner::FrameInfo output_frame_info(height_, width_, 3, scanner::FrameType::U8);
 
-    for (int i = 0; i < input_count; ++i) {
-      // Get a frame from the batch of input frames
-      const scanner::Frame* frame = frame_column[i].as_const_frame();
-      cv::Mat input = scanner::frame_to_mat(frame);
+    const scanner::Frame* frame = frame_col.as_const_frame();
+    cv::Mat input = scanner::frame_to_mat(frame);
 
-      // Allocate a frame for the resized output frame
-      scanner::Frame* resized_frame =
-        scanner::new_frame(scanner::CPU_DEVICE, output_frame_info);
-      cv::Mat output = scanner::frame_to_mat(resized_frame);
+    // Allocate a frame for the resized output frame
+    scanner::Frame* resized_frame =
+      scanner::new_frame(scanner::CPU_DEVICE, output_frame_info);
+    cv::Mat output = scanner::frame_to_mat(resized_frame);
 
-      cv::resize(input, output, cv::Size(width_, height_));
+    cv::resize(input, output, cv::Size(width_, height_));
 
-      scanner::insert_frame(resized_frame_column, resized_frame);
-    }
+    scanner::insert_frame(resized_frame_col, resized_frame);
   }
 
  private:
