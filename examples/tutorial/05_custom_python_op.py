@@ -2,14 +2,20 @@ from scannerpy import Database, Job, BulkJob, ColumnType, DeviceType
 import os.path
 
 ################################################################################
-# !! UNDER CONSTRUCTION !! Don't do this tutorial yet                          #
+# This tutorial shows you how to write and use your own Python custom op.      #
 ################################################################################
 
 with Database() as db:
 
+    # Custom kernels have to be registered with the Scanner runtime, providing their
+    # name and input/output types as well as op argument paths.
     cwd = os.path.dirname(os.path.abspath(__file__))
-    db.register_op('MyResize', [('frame', ColumnType.Video)],
-                   [('resized', ColumnType.Video)])
+    db.register_op(
+        'MyResize', [('frame', ColumnType.Video)],
+        [('resized', ColumnType.Video)],
+        proto_path='./resize_pb2.py')
+
+    # Custom Python kernels for ops reside in a separate file, here resize_kernel.py.
     db.register_python_kernel('MyResize', DeviceType.CPU,
                               cwd + '/resize_kernel.py')
 

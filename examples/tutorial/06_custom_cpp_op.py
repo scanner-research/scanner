@@ -2,7 +2,7 @@ from scannerpy import Database, Job, BulkJob
 import os.path
 
 ################################################################################
-# This tutorial shows how to write and use your own custom op.                 #
+# This tutorial shows how to write and use your own C++ custom op.             #
 ################################################################################
 
 # Look at resize_op/resize_op.cpp to start this tutorial.
