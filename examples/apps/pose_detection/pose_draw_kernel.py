@@ -17,8 +17,6 @@ class PoseDrawKernel(scannerpy.Kernel):
             pose = all_pose.pose_keypoints()
             for i in range(18):
                 if pose[i, 2] < 0.35: continue
-                print(pose[i, 1], pose[i, 0])
-                print(frame.shape)
                 x = int(pose[i, 0] * frame.shape[1])
                 y = int(pose[i, 1] * frame.shape[0])
                 cv2.circle(

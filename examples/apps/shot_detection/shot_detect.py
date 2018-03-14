@@ -96,11 +96,11 @@ def main(movie_path):
         # 1. Run Histogram over the entire video in Scanner
         ############ ############ ############ ############
         print('Computing a color histogram for each frame...')
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         histogram = db.ops.Histogram(
             frame = frame,
             device = device)
-        output = db.ops.Output(columns=[histogram])
+        output = db.sinks.Column(columns={'histogram': histogram})
         job = Job(op_args={
             frame: movie_table.column('frame'),
             output: movie_name + '_hist'
@@ -136,7 +136,7 @@ def main(movie_path):
 
         # Compute partial row montages that we will stack together
         # at the end
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         gather_frame = frame.sample()
         sliced_frame = gather_frame.slice()
         montage = db.ops.Montage(
@@ -146,8 +146,8 @@ def main(movie_path):
             frames_per_row = row_length,
             device = device)
         sampled_montage = montage.sample()
-        output = db.ops.Output(
-            columns=[sampled_montage.unslice().lossless()])
+        output = db.sinks.Column(
+            columns={'montage': sampled_montage.unslice().lossless()})
 
         item_size = row_length * rows_per_item
 
@@ -183,6 +183,7 @@ def main(movie_path):
         cv2.imwrite('shots.jpg', montage_img)
         print('Successfully generated shots.jpg')
         print('Total time: {:.2f} s'.format(time.time() - total_start))
+
 
 if __name__ == "__main__":
     if len(sys.argv) <= 1:

@@ -21,12 +21,12 @@ with Database() as db:
 
     sampler = db.sampler.all()
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     flow = db.ops.OpticalFlow(
         frame = frame,
         device=DeviceType.CPU)
     sampled_flow = flow.sample()
-    output = db.ops.Output(columns=[sampled_flow])
+    output = db.sinks.Column(columns={'flow': sampled_flow})
 
     job = Job(op_args={
         frame: input_table.column('frame'),

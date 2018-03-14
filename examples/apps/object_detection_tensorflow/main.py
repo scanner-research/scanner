@@ -212,13 +212,13 @@ if __name__ == '__main__':
                        ['bundled_data'])
         kernel_path = script_dir + '/obj_detect_kernel.py'
         db.register_python_kernel('ObjDetect', DeviceType.CPU, kernel_path)
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         strided_frame = frame.sample()
 
         # Call the newly created object detect op
         objdet_frame = db.ops.ObjDetect(frame = strided_frame)
 
-        output_op = db.ops.Output(columns=[objdet_frame])
+        output_op = db.sinks.Column(columns={'bundled_data': objdet_frame})
         job = Job(
             op_args={
                 frame: db.table('example').column('frame'),

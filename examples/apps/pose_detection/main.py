@@ -38,17 +38,17 @@ with Database() as db:
     db.register_op('PoseDraw', [('frame', ColumnType.Video), 'poses'],
                    [('frame', ColumnType.Video)])
     db.register_python_kernel('PoseDraw', DeviceType.CPU, POSE_KERNEL_PATH)
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     sampled_frame = frame.sample()
-    poses = db.ops.Input()
+    poses = db.sources.Column()
     drawn_frame = db.ops.PoseDraw(
         frame = sampled_frame,
         poses = poses)
-    output = db.ops.Output(columns=[drawn_frame])
+    output = db.sinks.Column(columns={'frame': drawn_frame})
     job = Job(op_args={
         frame: input_table.column('frame'),
         sampled_frame: sampler,
-        poses: poses_table.column('pose'),
+        poses: poses_table.column('poses'),
         output: movie_name + '_drawn_poses',
     })
     bulk_job = BulkJob(output=output, jobs=[job])
