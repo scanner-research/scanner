@@ -19,7 +19,7 @@ with Database() as db:
     descriptor = NetDescriptor.from_file(db, 'nets/resnet.toml')
 
     batch_size = 48
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     caffe_input = db.ops.CaffeInput(
         frame = frame,
         net_descriptor = descriptor.as_proto(),
@@ -31,7 +31,7 @@ with Database() as db:
         batch_size = batch_size,
         batch = batch_size,
         device=DeviceType.GPU)
-    output = db.ops.Output(columns=[caffe_output])
+    output = db.sinks.Column(columns={'softmax': caffe_output})
 
     job = Job(op_args={
         frame: input_table.column('frame'),

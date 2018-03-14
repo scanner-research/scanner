@@ -28,11 +28,11 @@ with Database() as db:
         movie_name + '_bboxes')
 
     print('Drawing faces onto video...')
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     sampled_frame = frame.sample()
-    bboxes = db.ops.Input()
+    bboxes = db.sources.Column()
     out_frame = db.ops.DrawBox(frame = sampled_frame, bboxes = bboxes)
-    output = db.ops.Output(columns=[out_frame])
+    output = db.sinks.Column(columns={'frame': out_frame})
     job = Job(op_args={
         frame: input_table.column('frame'),
         sampled_frame: sampler,

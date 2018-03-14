@@ -995,6 +995,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Break up kernels into groups that run on the same device
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
+    auto source_registry = get_source_registry();
+
     bool first_op = true;
     DeviceType last_device_type;
     groups.emplace_back();
@@ -1013,6 +1015,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         groups.emplace_back();
       }
       auto& op_group = groups.back().op_names;
+      auto& op_source = groups.back().is_source;
       auto& op_sampling = groups.back().sampling_args;
       auto& group = groups.back().kernel_factories;
       auto& lc = groups.back().live_columns;
@@ -1023,6 +1026,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto& bt = groups.back().kernel_batch_sizes;
       const std::string& op_name = ops.at(i).name();
       op_group.push_back(op_name);
+      if (source_registry->has_source(op_name)) {
+        op_source.push_back(true);
+      } else {
+        op_source.push_back(false);
+      }
       if (analysis_results.slice_ops.count(i) > 0) {
         i64 local_op_idx = group.size();
         // Set sampling args
