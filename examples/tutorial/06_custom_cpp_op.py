@@ -25,7 +25,7 @@ with Database() as db:
     resize = db.ops.MyResize(
         frame = frame,
         width = 200, height = 300)
-    output_op = db.ops.Output(columns={'resized_frame': resize})
+    output_op = db.sinks.Column(columns={'resized_frame': resize})
     job = Job(
         op_args={
             frame: db.table('example').column('frame'),

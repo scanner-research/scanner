@@ -15,7 +15,7 @@ with Database() as db:
 
     # We process the sampled frame same as before.
     hist = db.ops.Histogram(frame=strided_frame)
-    output_op = db.ops.Output(columns={'hist': hist})
+    output_op = db.sinks.Column(columns={'hist': hist})
 
     # For each job, you can specify how sampling should be performed for
     # a specific column. In the same way we used the op_args argument to bind

@@ -19,7 +19,7 @@ with Database(debug=True) as db:
     hist = db.ops.Histogram(frame=sliced_frame)
     unsliced_hist = hist.unslice()
 
-    output_op = db.ops.Output(columns={'hist': unsliced_hist})
+    output_op = db.sinks.Column(columns={'hist': unsliced_hist})
 
     # For each job, you can specify how sampling should be performed for
     # a specific column. In the same way we used the op_args argument to bind
@@ -55,7 +55,7 @@ with Database(debug=True) as db:
     gath_hist = hist.sample()
 
     unsliced_hist = gath_hist.unslice()
-    output_op = db.ops.Output(columns=[unsliced_hist])
+    output_op = db.sinks.Column(columns={'hist': unsliced_hist})
 
     # For each job, you can specify how sampling should be performed for
     # a specific column. In the same way we used the op_args argument to bind
