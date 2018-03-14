@@ -140,6 +140,8 @@ message Op {
   int32 warmup = 7;
   // Indicates this is a source
   bool is_source = 8;
+  // Indicates this is a sink
+  bool is_sink = 9;
 }
 
 message OutputColumnCompression {
@@ -150,6 +152,11 @@ message OutputColumnCompression {
 message SourceInput {
   int32 op_index = 1;
   bytes enumerator_args = 2;
+}
+
+message SinkArgs {
+  int32 op_index = 1;
+  bytes args = 2;
 }
 
 message SamplingArgs {
@@ -166,7 +173,8 @@ message SamplingArgsAssignment {
 message Job {
   string output_table_name = 1;
   repeated SourceInput inputs = 2;
-  repeated SamplingArgsAssignment sampling_args_assignment = 3;
+  repeated SinkArgs outputs = 3;
+  repeated SamplingArgsAssignment sampling_args_assignment = 4;
 }
 
 message BulkJobDescriptor {

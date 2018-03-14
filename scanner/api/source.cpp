@@ -36,7 +36,10 @@ SourceRegistration::SourceRegistration(const SourceBuilder& builder) {
   internal::SourceFactory* factory =
       new internal::SourceFactory(name, output_columns, constructor);
   internal::SourceRegistry* registry = internal::get_source_registry();
-  registry->add_source(name, factory);
+  Result result = registry->add_source(name, factory);
+  if (!result.success()) {
+    LOG(WARNING) << "Failed to register source " << name << ": " << result.msg();
+  }
 }
 
 }

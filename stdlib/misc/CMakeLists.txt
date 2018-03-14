@@ -5,6 +5,7 @@ set(SOURCE_FILES
   test_increment_kernel.cpp
   packed_file_source.cpp
   pass_kernel.cpp
-  files_source.cpp)
+  files_source.cpp
+  files_sink.cpp)
 
 add_library(misc OBJECT ${SOURCE_FILES})

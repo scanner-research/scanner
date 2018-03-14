@@ -90,11 +90,6 @@ class OpGenerator:
             return lambda: Op.input(self._db).outputs()
         elif name == 'FrameInput':
             return lambda: Op.frame_input(self._db).outputs()
-        elif name == 'Output':
-            def make_op(columns):
-                op = Op.output(self._db, columns)
-                return op
-            return make_op
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
@@ -134,19 +129,13 @@ class Op:
         self._stencil = stencil
         self._args = args
 
-        if (name == 'Input' or
-            name == 'Space' or
+        if (name == 'Space' or
             name == 'Sample' or
             name == 'Slice' or
             name == 'Unslice'):
             outputs = []
             for c in inputs:
                 outputs.append(OpColumn(db, self, c._col, c._type))
-        elif name == "OutputTable":
-            columns = inputs
-            self._output_names = [n for n, _ in columns.iteritems()]
-            self._inputs = [c for _, c in columns.iteritems()]
-            outputs = []
         else:
             cols = self._db._get_output_columns(self._name)
             outputs = [OpColumn(self._db, self, c.name, c.type) for c in cols]
@@ -163,10 +152,6 @@ class Op:
         c = cls(db, "Input", [OpColumn(db, None, 'col', db.protobufs.Video)],
                 DeviceType.CPU)
         return c
-
-    @classmethod
-    def output(cls, db, inputs):
-        return cls(db, "OutputTable", inputs, DeviceType.CPU)
 
     def inputs(self):
         return self._inputs
@@ -201,7 +186,10 @@ class Op:
             # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
             # args.proto module, and fill that in with keys from the args dict.
             if len(self._args) > 0:
-                proto_name = self._name + 'Args'
+                n = self._name
+                if n.startswith('Frame'):
+                    n = n[len('Frame'):]
+                proto_name = n + 'Args'
                 e.kernel_args = python_to_proto(
                     self._db.protobufs, proto_name, self._args)
         else:

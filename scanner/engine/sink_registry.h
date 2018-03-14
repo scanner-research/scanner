@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "scanner/api/source.h"
-#include "scanner/engine/source_factory.h"
+#include "scanner/api/sink.h"
+#include "scanner/engine/sink_factory.h"
 
 #include "scanner/util/common.h"
 
@@ -25,18 +25,18 @@
 namespace scanner {
 namespace internal {
 
-class SourceRegistry {
+class SinkRegistry {
  public:
-  Result add_source(const std::string& name, SourceFactory* factory);
+  Result add_sink(const std::string& name, SinkFactory* factory);
 
-  bool has_source(const std::string& name);
+  bool has_sink(const std::string& name);
 
-  SourceFactory* get_source(const std::string& name);
+  SinkFactory* get_sink(const std::string& name);
 
  private:
-  std::map<std::string, SourceFactory*> factories_;
+  std::map<std::string, SinkFactory*> factories_;
 };
 
-SourceRegistry* get_source_registry();
+SinkRegistry* get_sink_registry();
 }
 }
