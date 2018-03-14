@@ -17,7 +17,7 @@ with Database() as db:
     # of one as the inputs of another.
     histogram = db.ops.Histogram(frame=blurred_frame)
 
-    output_op = db.ops.Output(columns={'hist': histogram})
+    output_op = db.sinks.Column(columns={'hist': histogram})
 
     job = Job(op_args={
         frame: db.table('example').column('frame'),

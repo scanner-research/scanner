@@ -44,7 +44,7 @@ with Database() as db:
     # Finally, any columns provided to Output will be saved to the output
     # table at the end of the computation. Here, 'hist' is the name of the
     # column for the output table.
-    output_op = db.ops.Output(columns={'hist': hist})
+    output_op = db.sinks.Column(columns={'hist': hist})
 
     # A job defines a table you want to create. In op_args, we bind the 
     # FrameColumn from above to the table we want to read from and name
