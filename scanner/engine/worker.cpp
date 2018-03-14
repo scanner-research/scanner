@@ -821,7 +821,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   job_result->set_success(true);
   auto finished_fn = [&]() {
-    {
+    if (!trigger_shutdown_.raised()) {
       proto::FinishedJobParams params;
       params.set_node_id(node_id_);
       params.mutable_result()->CopyFrom(job_result_);

@@ -1048,6 +1048,16 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
           << "): " << status.error_message();
     }
     // Shutdown self
+    {
+      std::unique_lock<std::mutex> lock(finished_mutex_);
+      finished_ = true;
+    }
+    // Wait until job is done
+    {
+      std::unique_lock<std::mutex> lock(active_mutex_);
+      active_cv_.wait(lock, [this] { return !active_bulk_job_; });
+    }
+
     server->Shutdown();
   });
 }
@@ -1152,7 +1162,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     finished_cv_.notify_all();
     {
-      std::unique_lock<std::mutex> lock(finished_mutex_);
+      std::unique_lock<std::mutex> lock(active_mutex_);
       active_bulk_job_ = false;
     }
     active_cv_.notify_all();
