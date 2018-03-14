@@ -8,7 +8,7 @@ with Database() as db:
 
     frame = db.sources.FrameColumn()
     histogram = db.ops.Histogram(frame = frame)
-    output_op = db.ops.Output(columns={'hist': histogram})
+    output_op = db.sinks.Column(columns={'hist': histogram})
     job = Job(
         op_args={
             frame: db.table('example').column('frame'),
