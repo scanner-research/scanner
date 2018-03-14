@@ -987,6 +987,7 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
   // Start off with the columns from the gathered tables
   OpRegistry* op_registry = get_op_registry();
   KernelRegistry* kernel_registry = get_kernel_registry();
+  SourceRegistry* source_registry = get_source_registry();
   // Active intermediates
   std::map<i32, std::vector<std::tuple<std::string, i32>>> intermediates;
   {
@@ -1033,6 +1034,11 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
           col = col.substr(col.find("_") + 1);
         }
         intermediates[i].push_back(std::make_tuple(col, i));
+      }
+    } else if (op.is_source()) {
+      const auto& source_factory = source_registry->get_source(op.name());
+      for (const auto& output_column : source_factory->output_columns()) {
+        intermediates[i].push_back(std::make_tuple(output_column.name(), i));
       }
     } else {
       const auto& op_info = op_registry->get_op_info(op.name());
@@ -1090,8 +1096,13 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
             if (j == i) {
               // This column was produced by the current Op but not used
               i32 col_index = -1;
-              const std::vector<Column>& op_cols =
-                  op_registry->get_op_info(op.name())->output_columns();
+              std::vector<Column> op_cols;
+              if (op.is_source()) {
+                op_cols =
+                    source_registry->get_source(op.name())->output_columns();
+              } else {
+                op_cols = op_registry->get_op_info(op.name())->output_columns();
+              }
               for (size_t k = 0; k < op_cols.size(); k++) {
                 if (col_name == op_cols[k].name()) {
                   col_index = k;

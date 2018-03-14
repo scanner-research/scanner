@@ -84,6 +84,7 @@ class PreEvaluateWorker {
 
 struct OpArgGroup {
   std::vector<std::string> op_names;
+  std::vector<bool> is_source;
   /// For sampling ops
   // Op -> Job -> slice
   std::map<i64, std::vector<std::vector<proto::SamplingArgs>>> sampling_args;

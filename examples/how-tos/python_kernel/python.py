@@ -8,9 +8,9 @@ with Database() as db:
     kernel_path = script_dir + '/my_kernel.py'
     db.register_python_kernel('MyOp', DeviceType.CPU, kernel_path)
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     test = db.ops.MyOp(frame = frame)
-    output = db.ops.Output(columns=[test])
+    output = db.sinks.Column(columns={'test': test})
 
     job = Job(op_args={
         frame: db.table('example').column('frame'),

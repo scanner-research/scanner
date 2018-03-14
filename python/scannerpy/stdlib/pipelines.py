@@ -74,7 +74,7 @@ def detect_faces(db,
         facenet_args.scale = scale
         caffe_args.batch_size = batch
 
-        frame = db.ops.FrameInput()
+        frame = db.sources.FrameColumn()
         #resized = db.ops.Resize(
         #    frame = frame,
         #    width = width, height = 0,
@@ -89,7 +89,7 @@ def detect_faces(db,
             original_frame_info=frame_info,
             args=facenet_args)
         sampled_output = facenet_output.sample()
-        output = db.ops.Output(columns=[sampled_output])
+        output = db.sinks.Column(columns={'bboxes': sampled_output})
 
         jobs = []
         for output_name, frame_column, output_sampling in zip(
@@ -119,9 +119,9 @@ def detect_faces(db,
     # scale = max(width / float(max_width), 1.0)
     scale = 1.0
 
-    bbox_inputs = [db.ops.Input() for _ in outputs]
+    bbox_inputs = [db.sources.Column() for _ in outputs]
     nmsed_bboxes = db.ops.BBoxNMS(*bbox_inputs, scale=scale)
-    output = db.ops.Output(columns=[nmsed_bboxes])
+    output = db.sinks.Column(columns={'bboxes': nmsed_bboxes})
 
     jobs = []
     for i in range(len(input_frame_columns)):
@@ -196,11 +196,11 @@ def detect_poses(db,
         device = DeviceType.CPU
         pipeline_instances = 1
 
-    frame = db.ops.FrameInput()
+    frame = db.sources.FrameColumn()
     poses_out = db.ops.OpenPose(
         frame=frame, device=device, args=pose_args, batch=batch)
     sampled_poses = poses_out.sample()
-    output = db.ops.Output(columns=[sampled_poses])
+    output = db.sinks.Column(columns={'poses': sampled_poses})
 
     jobs = []
     for i, input_frame_column in enumerate(input_frame_columns):

@@ -463,6 +463,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
     auto op_start = now();
     const std::string& op_name = arg_group_.op_names.at(k);
+    bool is_source = arg_group_.is_source.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
     const std::vector<DeviceHandle>& current_input_handles =
         kernel_input_devices_[k];
@@ -493,7 +494,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Place all new input elements in side output columns into intermediate
     // cache. If different device, move all required values in the side output
     // columns to the proper device for this kernel
-    assert(op_name == INPUT_OP_NAME ||
+    assert(is_source ||
            current_input_handles.size() == input_column_idx.size());
     if (kernel_cache_devices.empty()) {
       for (i32 i = 0; i < input_column_idx.size(); ++i) {
@@ -580,11 +581,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     i32 num_output_columns = 0;
     std::vector<i32> kernel_stencil;
 
-    if (is_builtin_op(op_name)) {
+    if (is_source || is_builtin_op(op_name)) {
       producible_elements = compute_producible_elements(0, 1);
       num_output_columns = 1;
       kernel_stencil = {0};
-      if (op_name == INPUT_OP_NAME) {
+      if (is_source) {
         num_output_columns = 0;
       }
     } else {
@@ -639,7 +640,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     }
 
     auto full_eval_start = now();
-    if (op_name == INPUT_OP_NAME) {
+    if (is_source) {
       // Should ignore it since we remapped inputs
     } else if (op_name == SAMPLE_OP_NAME) {
       // Filter and remap row ids
