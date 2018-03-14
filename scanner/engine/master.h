@@ -19,6 +19,7 @@
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/sampler.h"
+#include "scanner/engine/dag_analysis.h"
 #include "scanner/util/util.h"
 
 #include <mutex>
@@ -94,6 +95,10 @@ class MasterImpl final : public proto::Master::Service {
   grpc::Status GetEnumeratorInfo(grpc::ServerContext* context,
                                  const proto::EnumeratorInfoArgs* info_args,
                                  proto::EnumeratorInfo* info);
+
+  grpc::Status GetSinkInfo(grpc::ServerContext* context,
+                         const proto::SinkInfoArgs* sink_info_args,
+                         proto::SinkInfo* sink_info);
 
   grpc::Status LoadOp(grpc::ServerContext* context,
                       const proto::OpPath* op_path, Result* result);
@@ -204,6 +209,7 @@ class MasterImpl final : public proto::Master::Service {
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
 
+  DAGAnalysisInfo dag_info_;
   // Mapping from jobs to table ids
   std::map<i64, i64> job_to_table_id_;
   // Slice input rows for each job at each slice op

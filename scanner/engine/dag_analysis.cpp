@@ -143,7 +143,7 @@ Result validate_jobs_and_ops(
         // be consumed by an output Op to make it easy to schedule each
         // slice like an independent task.
         if (input_op_name == UNSLICE_OP_NAME &&
-            op.name() != OUTPUT_OP_NAME) {
+            !op.is_sink()) {
           RESULT_ERROR(&result,
                        "Unslice Op specified as input to %s Op. Scanner "
                        "currently only supports Output Ops consuming "
@@ -198,7 +198,9 @@ Result validate_jobs_and_ops(
         }
       }
       // Output
-      else if (op.name() == OUTPUT_OP_NAME) {
+      else if (op.is_sink()) {
+        info.is_table_output = (op.name() == "Column" ||
+                                op.name() == "FrameColumn");
         if (input_slice_level != 0) {
           RESULT_ERROR(&result,
                        "Final output columns are sliced. Final outputs must "
@@ -253,7 +255,7 @@ Result validate_jobs_and_ops(
       }
       op_slice_level.push_back(output_slice_level);
       // Perform Op parameter verification (stenciling, batching, # inputs)
-      if (!op.is_source() && !is_builtin_op(op.name())) {
+      if (!op.is_source() && !op.is_sink() && !is_builtin_op(op.name())) {
         OpInfo* info = op_registry->get_op_info(op.name());
         KernelFactory* factory =
             kernel_registry->get_kernel(op.name(), op.device_type());
@@ -305,10 +307,9 @@ Result validate_jobs_and_ops(
                    op_names.size());
       return result;
     } else {
-      if (op_names.back() != OUTPUT_OP_NAME) {
-        RESULT_ERROR(&result, "Last Op is %s but must be %s",
-                     op_names.back().c_str(),
-                     OUTPUT_OP_NAME.c_str());
+      if (!ops.back().is_sink()) {
+        RESULT_ERROR(&result, "Last Op is %s but must be a Sink.",
+                     ops.back().name().c_str());
         return result;
       }
     }
@@ -317,20 +318,21 @@ Result validate_jobs_and_ops(
   // Validate table tasks
   std::set<std::string> job_output_table_names;
   for (auto& job : jobs) {
-    if (job.output_table_name() == "") {
+    if (info.is_table_output && job.output_table_name() == "") {
       RESULT_ERROR(&result,
                    "Job specified with empty output table name. Output "
                    "tables can not have empty names")
       return result;
     }
-    if (meta.has_table(job.output_table_name())) {
+    if (info.is_table_output && meta.has_table(job.output_table_name())) {
       RESULT_ERROR(&result,
                    "Job specified with duplicate output table name. "
                    "A table with name %s already exists.",
                    job.output_table_name().c_str());
       return result;
     }
-    if (job_output_table_names.count(job.output_table_name()) > 0) {
+    if (info.is_table_output &&
+        job_output_table_names.count(job.output_table_name()) > 0) {
       RESULT_ERROR(&result,
                    "Multiple table tasks specified with output table name %s. "
                    "Table names must be unique.",
@@ -565,7 +567,7 @@ Result determine_input_rows_to_slices(
         slice_group_outputs = first_input_column_slice_groups;
       }
       // Check if we are done
-      if (ops[op_idx].name() == OUTPUT_OP_NAME) {
+      if (ops[op_idx].is_sink()) {
         // Should always be at slice level 0
         assert(slice_group_outputs.size() == 1);
         total_output_rows.push_back(slice_group_outputs.at(0));
@@ -771,7 +773,7 @@ Result derive_slice_final_output_rows(
       }
       else if (op.name() == UNSLICE_OP_NAME) {
       }
-      else if (op.name() == OUTPUT_OP_NAME) {
+      else if (op.is_sink()) {
         // We are done
         current_offset += input_row_count;
         slice_rows.push_back(current_offset);
@@ -873,8 +875,10 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
       }
     }
     // Output
-    else if (op.name() == OUTPUT_OP_NAME) {
+    else if (op.is_sink()) {
       assert(input_slice_level == 0);
+      info.is_table_output = (op.name() == "Column" ||
+                              op.name() == "FrameColumn");
     }
     // Verify op exists and record outputs
     else {
@@ -891,7 +895,7 @@ void populate_analysis_info(const std::vector<proto::Op>& ops,
     op_slice_level.push_back(output_slice_level);
 
     // Perform Op parameter verification (stenciling, batching, # inputs)
-    if (!is_builtin_op(op.name())) {
+    if (!op.is_sink() && !is_builtin_op(op.name())) {
       OpInfo* info = op_registry->get_op_info(op.name());
       KernelFactory* factory =
           kernel_registry->get_kernel(op.name(), op.device_type());
@@ -1012,7 +1016,7 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
       }
       assert(found);
     }
-    if (op.name() == OUTPUT_OP_NAME) {
+    if (op.is_sink()) {
       continue;
     }
     // Add this op's outputs to the intermediate list
@@ -1391,7 +1395,7 @@ Result derive_stencil_requirements(
         }
       }
       // Output Op
-      else if (op.name() == OUTPUT_OP_NAME) {
+      else if (op.is_sink()) {
         new_rows = downstream_rows;
       }
       // Regular Op

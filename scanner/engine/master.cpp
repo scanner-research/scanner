@@ -23,6 +23,7 @@
 #include "scanner/util/grpc.h"
 #include "scanner/engine/python_kernel.h"
 #include "scanner/engine/source_registry.h"
+#include "scanner/engine/sink_registry.h"
 #include "scanner/engine/enumerator_registry.h"
 #include "scanner/util/thread_pool.h"
 
@@ -488,6 +489,30 @@ grpc::Status MasterImpl::GetEnumeratorInfo(
   return grpc::Status::OK;
 }
 
+grpc::Status MasterImpl::GetSinkInfo(
+    grpc::ServerContext* context, const proto::SinkInfoArgs* sink_info_args,
+    proto::SinkInfo* sink_info) {
+
+  SinkRegistry* registry = get_sink_registry();
+  std::string sink_name = sink_info_args->sink_name();
+  if (!registry->has_sink(sink_name)) {
+    sink_info->mutable_result()->set_success(false);
+    sink_info->mutable_result()->set_msg("Sink " + sink_name +
+                                           " does not exist");
+    return grpc::Status::OK;
+  }
+
+  SinkFactory* fact = registry->get_sink(sink_name);
+  for (auto& output_column : fact->input_columns()) {
+    Column* info = sink_info->add_input_columns();
+    info->CopyFrom(output_column);
+  }
+  sink_info->set_variadic_inputs(fact->variadic_inputs());
+  sink_info->mutable_result()->set_success(true);
+
+  return grpc::Status::OK;
+}
+
 grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path, Result* result) {
   std::unique_lock<std::mutex> lk(work_mutex_);
@@ -842,7 +867,9 @@ grpc::Status MasterImpl::NextWork(grpc::ServerContext* context,
     return grpc::Status::OK;
   }
 
-  new_work->set_table_id(job_to_table_id_.at(job_idx));
+  if (dag_info_.is_table_output) {
+    new_work->set_table_id(job_to_table_id_.at(job_idx));
+  }
   new_work->set_job_index(job_idx);
   new_work->set_task_index(task_idx);
   const auto& task_rows = job_tasks_.at(job_idx).at(task_idx);
@@ -897,8 +924,10 @@ grpc::Status MasterImpl::FinishedWork(
     tasks_used_per_job_[job_id]++;
 
     if (tasks_used_per_job_[job_id] == job_tasks_[job_id].size()) {
-      i32 tid = job_uncommitted_tables_[job_id];
-      meta_.commit_table(tid);
+      if (dag_info_.is_table_output) {
+        i32 tid = job_uncommitted_tables_[job_id];
+        meta_.commit_table(tid);
+      }
 
       // Commit database metadata every so often
       if (job_id % job_params_.checkpoint_frequency() == 0) {
@@ -1111,6 +1140,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   total_tasks_ = 0;
   tasks_used_per_job_.clear();
   num_failed_workers_ = 0;
+  dag_info_ = DAGAnalysisInfo();
 
   job_result->set_success(true);
 
@@ -1138,10 +1168,10 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
                                  ? job_params->io_packet_size()
                                  : work_packet_size;
   if (io_packet_size > 0 && io_packet_size % work_packet_size != 0) {
-    RESULT_ERROR(job_result,
-                 "IO packet size (%d) must be a multiple of work packet size (%d).",
-                 io_packet_size,
-                 work_packet_size);
+    RESULT_ERROR(
+        job_result,
+        "IO packet size (%d) must be a multiple of work packet size (%d).",
+        io_packet_size, work_packet_size);
     finished_fn();
     return false;
   }
@@ -1149,7 +1179,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 total_rows = 0;
 
   VLOG(1) << "Validating jobs";
-  DAGAnalysisInfo dag_info;
+  DAGAnalysisInfo& dag_info = dag_info_;
   *job_result =
       validate_jobs_and_ops(meta_, *table_metas_.get(), jobs, ops, dag_info);
   if (!job_result->success()) {
@@ -1165,7 +1195,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
   // Get output columns from last output op to set as output table columns
   OpRegistry* op_registry = get_op_registry();
   auto& last_op = ops.at(ops.size() - 1);
-  assert(last_op.name() == OUTPUT_OP_NAME);
+  assert(last_op.is_sink());
   std::vector<std::vector<Column>> job_output_columns;
   for (const auto& job : jobs) {
     // Get input columns from column inputs specified for each job
@@ -1232,6 +1262,16 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       output_columns[i].set_name(job_params->output_column_names(i));
     }
   }
+
+  // Tell workers about the output columns
+  {
+    std::vector<Column>& output_columns = job_output_columns.back();
+    for (auto& c : output_columns) {
+      Column* col = job_params_.add_output_columns();
+      col->CopyFrom(c);
+    }
+  }
+
   proto::BulkJobDescriptor job_descriptor;
   job_descriptor.set_io_packet_size(io_packet_size);
   job_descriptor.set_work_packet_size(work_packet_size);
@@ -1327,7 +1367,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
 
   VLOG(1) << "Updating db metadata";
   job_uncommitted_tables_.clear();
-  {
+  if (dag_info.is_table_output) {
     for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
       auto& job = job_params->jobs(job_idx);
       i32 table_id = meta_.add_table(job.output_table_name());

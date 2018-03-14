@@ -3,6 +3,7 @@ set(SOURCE_FILES
   kernel.cpp
   op.cpp
   source.cpp
+  sink.cpp
   enumerator.cpp
   database.cpp)
 

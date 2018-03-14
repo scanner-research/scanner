@@ -70,6 +70,7 @@ include(cmake/Dependencies.cmake)
 set(PROTO_FILES
   scanner/metadata.proto
   scanner/source_args.proto
+  scanner/sink_args.proto
   scanner/sampler_args.proto
   scanner/types.proto)
 

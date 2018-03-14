@@ -30,6 +30,7 @@ service Master {
 
   rpc GetOpInfo (OpInfoArgs) returns (OpInfo) {}
   rpc GetSourceInfo (SourceInfoArgs) returns (SourceInfo) {}
+  rpc GetSinkInfo (SinkInfoArgs) returns (SinkInfo) {}
   rpc GetEnumeratorInfo (EnumeratorInfoArgs) returns (EnumeratorInfo) {}
 
   rpc RegisterOp (OpRegistration) returns (Result) {}
@@ -212,6 +213,7 @@ message BulkJobParameters {
 
   // For master's use only
   DatabaseDescriptor db_meta = 18;
+  repeated Column output_columns = 20;
 }
 
 message NewWork {
@@ -235,6 +237,10 @@ message EnumeratorInfoArgs {
   string enumerator_name = 1;
 }
 
+message SinkInfoArgs {
+  string sink_name = 1;
+}
+
 message OpInfo {
   Result result = 1;
   bool variadic_inputs = 2;
@@ -249,4 +255,10 @@ message SourceInfo {
 
 message EnumeratorInfo {
   Result result = 1;
+}
+
+message SinkInfo {
+  Result result = 1;
+  bool variadic_inputs = 2;
+  repeated Column input_columns = 3;
 }
