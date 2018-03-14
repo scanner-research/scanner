@@ -26,6 +26,7 @@ from scannerpy.profiler import Profiler
 from scannerpy.config import Config
 from scannerpy.op import OpGenerator, Op, OpColumn
 from scannerpy.source import SourceGenerator, Source
+from scannerpy.sink import SinkGenerator, Sink
 from scannerpy.sampler import Sampler
 from scannerpy.partitioner import TaskPartitioner
 from scannerpy.table import Table
@@ -215,6 +216,7 @@ class Database(object):
 
         self.ops = OpGenerator(self)
         self.sources = SourceGenerator(self)
+        self.sinks = SinkGenerator(self)
         self.sampler = Sampler(self)
         self.partitioner = TaskPartitioner(self)
         self.protobufs = ProtobufGenerator(self.config)
@@ -889,6 +891,23 @@ class Database(object):
 
         return source_info
 
+    def _get_sink_info(self, sink_name):
+        #if op_name in self._op_cache:
+        #    op_info = self._op_cache[op_name]
+        #else:
+        sink_info_args = self.protobufs.SinkInfoArgs()
+        sink_info_args.sink_name = sink_name
+
+        sink_info = self._try_rpc(
+            lambda: self._master.GetSinkInfo(sink_info_args))
+
+        if not sink_info.result.success:
+            raise ScannerException(sink_info.result.msg)
+
+        #self._op_cache[op_name] = op_info
+
+        return sink_info
+
     def _get_op_info(self, op_name):
         if op_name in self._op_cache:
             op_info = self._op_cache[op_name]
@@ -966,7 +985,7 @@ class Database(object):
             elif (c._name == "Sample" or c._name == "Space"
                   or c._name == "Slice" or c._name == "Unslice"):
                 sampling_slicing_ops[c] = op_idx
-            elif c._name == "OutputTable":
+            elif isinstance(c, Sink):
                 output_ops[c] = op_idx
 
         return [e.to_proto(eval_index) for e in eval_sorted], \
@@ -1055,7 +1074,13 @@ class Database(object):
             task_timeout=0,
             checkpoint_frequency=1000):
         assert isinstance(bulk_job, BulkJob)
-        assert isinstance(bulk_job.output(), Op)
+        assert isinstance(bulk_job.output(), Sink)
+
+        if (bulk_job.output()._name == 'FrameColumn' or
+            bulk_job.output()._name == 'Column'):
+            is_table_output = True
+        else:
+            is_table_output = False
 
         # Collect compression annotations to add to job
         compression_options = []
@@ -1086,7 +1111,7 @@ class Database(object):
             j = job_params.jobs.add()
             output_table_name = None
             for op_col, args in job.op_args().iteritems():
-                if isinstance(op_col, Op):
+                if isinstance(op_col, Op) or isinstance(op_col, Sink):
                     op = op_col
                 else:
                     op = op_col._op
@@ -1122,31 +1147,47 @@ class Database(object):
                         sa.CopyFrom(arg)
                 elif op in output_ops:
                     op_idx = output_ops[op]
-                    assert isinstance(args, basestring)
-                    output_table_name = args
-                    job_output_table_names.append(args)
+                    sink_args = j.outputs.add()
+                    sink_args.op_index = op_idx
+                    # We special case on FrameColumn or Column sinks to catch
+                    # the output table name
+                    n = op._name
+                    if n == 'FrameColumn' or n == 'Column':
+                        assert isinstance(args, basestring)
+                        output_table_name = args
+                        job_output_table_names.append(args)
+                    else:
+                        # Encode the args
+                        if n.startswith('Frame'):
+                            n = n[len('Frame'):]
+                        sink_proto_name = n + 'SinkStreamArgs'
+                        sink_args.args = python_to_proto(
+                            self.protobufs, sink_proto_name, args)
+                        output_table_name = ''
                 else:
                     raise ScannerException(
                         'Attempted to bind arguments to Op {} which is not '
                         'an input, sampling, spacing, slicing, or output Op.'
                         .format(
                             op.name()))  # FIXME(apoms): op.name() is unbound
-            if output_table_name is None:
+            if is_table_output and output_table_name is None:
                 raise ScannerException(
                     'Did not specify the output table name by binding a '
                     'string to the output Op.')
             j.output_table_name = output_table_name
 
         # Delete tables if they exist and force was specified
-        to_delete = []
-        for name in job_output_table_names:
-            if self.has_table(name):
-                if force:
-                    to_delete.append(name)
-                else:
-                    raise ScannerException(
-                        'Job would overwrite existing table {}'.format(name))
-        self.delete_tables(to_delete)
+        if is_table_output:
+            to_delete = []
+            for name in job_output_table_names:
+                if self.has_table(name):
+                    if force:
+                        to_delete.append(name)
+                    else:
+                        raise ScannerException(
+                            'Job would overwrite existing table {}'.format(
+                                name))
+            self.delete_tables(to_delete)
 
         job_params.compression.extend(compression_options)
         job_params.pipeline_instances_per_node = (pipeline_instances_per_node
@@ -1196,4 +1237,7 @@ class Database(object):
             raise ScannerException(
                 'Internal error: job id not found after run')
 
-        return [self.table(t) for t in job_output_table_names]
+        if is_table_output:
+            return [self.table(t) for t in job_output_table_names]
+        else:
+            return []

@@ -17,6 +17,7 @@
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/kernel_registry.h"
 #include "scanner/engine/source_registry.h"
+#include "scanner/engine/sink_registry.h"
 #include "scanner/engine/load_worker.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/save_worker.h"
@@ -424,8 +425,8 @@ void save_driver(SaveInputQueue& save_work,
         std::make_tuple(work_entry.job_index, work_entry.task_index);
     if (workers.count(job_task_id) == 0) {
       SaveWorker* worker = new SaveWorker(args);
-      worker->new_task(work_entry.table_id, work_entry.task_index,
-                       work_entry.column_types);
+      worker->new_task(work_entry.job_index, work_entry.task_index,
+                       work_entry.table_id, work_entry.column_types);
       workers[job_task_id].reset(worker);
     }
 
@@ -895,12 +896,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Read final output columns for use in post-evaluate worker
   // (needed for determining column types)
-  std::vector<Column> final_output_columns;
-  {
-    std::string output_name = jobs.at(0).output_table_name();
-    const TableMetadata& table = table_meta.at(output_name);
-    final_output_columns = table.columns();
-  }
+  std::vector<Column> final_output_columns(
+      job_params->output_columns().begin(),
+      job_params->output_columns().end());
   std::vector<ColumnCompressionOptions> final_compression_options;
   for (auto& opts : job_params->compression()) {
     ColumnCompressionOptions o;
@@ -936,7 +934,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (size_t i = 0; i < ops.size(); ++i) {
     auto& op = ops.at(i);
     const std::string& name = op.name();
-    if (op.is_source() || is_builtin_op(name)) {
+    if (op.is_source() || op.is_sink() || is_builtin_op(name)) {
       kernel_factories.push_back(nullptr);
       kernel_configs.emplace_back();
       continue;
@@ -1177,6 +1175,47 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  // Setup sink factories and sink configs that will be used
+  // to instantiate save worker instances
+  std::vector<SinkFactory*> sink_factories;
+  std::vector<SinkConfig> sink_configs;
+  {
+    auto registry = get_sink_registry();
+    sink_factories.resize(1);
+    sink_configs.resize(1);
+
+    auto& output_op = ops.back();
+    auto sink_factory = registry->get_sink(output_op.name());
+    sink_factories[0] = sink_factory;
+
+    auto& in_cols = sink_factory->input_columns();
+    SinkConfig config;
+    for (auto& col : in_cols) {
+      config.input_columns.push_back(col.name());
+      config.input_column_types.push_back(col.type());
+    }
+    config.args =
+        std::vector<u8>(output_op.kernel_args().begin(),
+                        output_op.kernel_args().end());
+    config.node_id = node_id_;
+
+    sink_configs[0] = config;
+  }
+  // Setup sink args that will be passed to sinks when processing
+  // the stream for that job
+  // job idx -> op_idx -> args
+  std::vector<std::map<i32, std::vector<u8>>> sink_args;
+  for (const auto& job : jobs) {
+    sink_args.emplace_back();
+    auto& sargs = sink_args.back();
+    for (auto& so : job.outputs()) {
+      // TODO(apoms): use real op_idx when we support multiple outputs
+      //sargs[so.op_index()] =
+      sargs[0] =
+          std::vector<u8>(so.args().begin(), so.args().end());
+    }
+  }
+
   omp_set_num_threads(std::thread::hardware_concurrency());
 
   // Setup shared resources for distributing work to processing threads
@@ -1393,6 +1432,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
   std::vector<Profiler> save_thread_profilers;
+  // TODO: check load and save worker results
+  std::vector<proto::Result> save_results(num_save_workers);
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_thread_profilers.emplace_back(Profiler(base_time));
   }
@@ -1400,9 +1441,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < num_save_workers; ++i) {
     SaveWorkerArgs args{// Uniform arguments
                         node_id_,
+                        std::ref(sink_args),
 
                         // Per worker arguments
-                        i, db_params_.storage_config, save_thread_profilers[i]};
+                        i, db_params_.storage_config,
+                        sink_factories, sink_configs,
+                        std::ref(save_thread_profilers[i]),
+                        std::ref(save_results[i])};
 
     save_threads.emplace_back(save_driver, std::ref(save_work[i]),
                               std::ref(retired_tasks), args);

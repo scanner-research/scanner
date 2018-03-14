@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package scanner.proto;
+
+message ColumnSinkArgs {
+  // For creating storehouse adapter
+  string storage_type = 1;
+  string bucket = 2;
+  string region = 3;
+  string endpoint = 4;
+}

@@ -15,7 +15,9 @@
 
 #pragma once
 
+#include "scanner/api/sink.h"
 #include "scanner/engine/runtime.h"
+#include "scanner/engine/sink_factory.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
 #include "scanner/util/storehouse.h"
@@ -26,11 +28,15 @@ namespace internal {
 struct SaveWorkerArgs {
   // Uniform arguments
   i32 node_id;
+  const std::vector<std::map<i32, std::vector<u8>>>& sink_args;
 
   // Per worker arguments
   int worker_id;
   storehouse::StorageConfig* storage_config;
+  std::vector<SinkFactory*> sink_factories;
+  std::vector<SinkConfig> sink_configs;
   Profiler& profiler;
+  proto::Result& result;
 };
 
 class SaveWorker {
@@ -40,19 +46,21 @@ class SaveWorker {
 
   void feed(EvalWorkEntry& input_entry);
 
-  void new_task(i32 table_id, i32 task_id,
+  void new_task(i32 job_id, i32 task_id, i32 output_table_id,
                 std::vector<ColumnType> column_types);
 
  private:
   const i32 node_id_;
   const i32 worker_id_;
   Profiler& profiler_;
-  // Setup a distinct storage backend for each IO thread
-  std::unique_ptr<storehouse::StorageBackend> storage_;
-  // Files to write io packets to
-  std::vector<std::unique_ptr<storehouse::WriteFile>> output_;
-  std::vector<std::unique_ptr<storehouse::WriteFile>> output_metadata_;
-  std::vector<VideoMetadata> video_metadata_;
+  const std::vector<std::map<i32, std::vector<u8>>> sink_args_;
+
+  //
+  std::vector<i32> sink_op_idx_;
+  std::vector<SinkConfig> sink_configs_;
+  std::vector<std::unique_ptr<Sink>> sinks_;  // Provides the implementation for
+                                              // writing data under the
+                                              // specified data sources
 
   // Continuation state
   bool first_item_;

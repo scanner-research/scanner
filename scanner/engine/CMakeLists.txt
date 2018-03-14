@@ -18,8 +18,10 @@ set(SOURCE_FILES
   kernel_registry.cpp
   op_registry.cpp
   source_registry.cpp
+  sink_registry.cpp
   column_source.cpp
   column_enumerator.cpp
+  column_sink.cpp
   enumerator_registry.cpp
   table_meta_cache.cpp
   python.cpp

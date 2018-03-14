@@ -102,6 +102,9 @@ build_op(
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)
 
+add_custom_command(TARGET stdlib POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/__init__.py)
+
 find_package(OpenCV REQUIRED COMPONENTS "${OPENCV_COMPONENTS}")
 list(APPEND STDLIB_LIBRARIES "${OpenCV_LIBRARIES}")
 

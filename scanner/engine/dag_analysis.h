@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/table_meta_cache.h"
 #include "scanner/engine/runtime.h"
@@ -30,8 +32,6 @@ const std::string SLICE_OP_NAME = "Slice";
 const std::string UNSLICE_OP_NAME = "Unslice";
 
 const std::vector<std::string> BUILTIN_OP_NAMES = {
-  INPUT_OP_NAME,
-  OUTPUT_OP_NAME,
   SAMPLE_OP_NAME,
   SPACE_OP_NAME,
   SLICE_OP_NAME,
@@ -41,6 +41,8 @@ const std::vector<std::string> BUILTIN_OP_NAMES = {
 bool is_builtin_op(const std::string& name);
 
 struct DAGAnalysisInfo {
+  bool is_table_output;
+
   std::vector<i32> op_slice_level;
   std::map<i64, i64> source_ops;
   std::map<i64, i64> slice_ops;

@@ -9,6 +9,7 @@ import scanner.stdlib.stdlib_pb2 as stdlib_types
 import scannerpy.libscanner as bindings
 import scanner.metadata_pb2 as metadata_types
 import scanner.source_args_pb2 as source_types
+import scanner.sink_args_pb2 as sink_types
 import scanner.sampler_args_pb2 as sampler_types
 import scanner.engine.rpc_pb2 as rpc_types
 import scanner.engine.rpc_pb2_grpc as grpc_types
@@ -19,7 +20,7 @@ class ProtobufGenerator:
     def __init__(self, cfg):
         self._mods = []
         for mod in [misc_types, rpc_types, grpc_types, metadata_types,
-                    source_types, sampler_types, stdlib_types]:
+                    source_types, sink_types, sampler_types, stdlib_types]:
             self.add_module(mod)
 
     def add_module(self, path):
