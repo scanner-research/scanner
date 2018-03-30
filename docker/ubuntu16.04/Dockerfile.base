@@ -1,6 +1,7 @@
 # Scanner base image for Ubuntu 16.04
 
-FROM nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04
+ARG base_tag
+FROM ${base_tag}
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
 ARG cpu_only=OFF
