@@ -13,13 +13,13 @@ do
     cp $DIR/../deps.sh $dir/deps.sh
 
     function build {
-        TYPE=$1
-        TAG=$2
-        BASE_TAG=$3
+        local TYPE=$1
+        local TAG=$2
+        local BASE_TAG=$3
 
         docker build \
                --build-arg cores=$CORES \
-               --build-arg base_tag=$BASE_IMAGE \
+               --build-arg base_tag=$BASE_TAG \
                --no-cache=$NO_CACHE \
                -t scannerresearch/scanner-base:$TAG \
                -f $dir/Dockerfile.$TYPE \
@@ -27,11 +27,11 @@ do
     }
 
     function build_chain {
-        TYPE=$1
-        TAG=$2
-        BASE_TAG=$3
+        local TYPE=$1
+        local TAG=$2
+        local BASE_TAG=$3
 
-        build base $TYPE $TAG-base $BASE_IMAGE
+        build base $TAG-base $BASE_TAG
         build $TYPE $TAG $TAG-base
     }
 
@@ -40,10 +40,10 @@ do
     }
 
     function build_push_gpu {
-        CUDA_VERSION=$1
-        CUDNN_VERSION=$2
-        BASE_TAG=nvidia/cuda:${CUDA_VERSION}-{CUDNN_VERSION}-devel-ubuntu16.04
-        TAG=$base-gpu-$CUDA_VERSION-$CUDNN_VERSION
+        local CUDA_VERSION=$1
+        local CUDNN_VERSION=$2
+        local BASE_TAG=nvidia/cuda:${CUDA_VERSION}-{CUDNN_VERSION}-devel-ubuntu16.04
+        local TAG=$base-gpu-$CUDA_VERSION-$CUDNN_VERSION
 
         build_chain gpu $TAG $BASE_TAG
         push $TAG

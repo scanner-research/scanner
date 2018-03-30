@@ -19,10 +19,6 @@ RUN apt-get update && apt-get upgrade -y && \
     libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
     llvm clang python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
     liblapacke-dev swig yasm python2.7 cpio curl unzip
-ADD thirdparty/resources/cuda/libnvcuvid.so.367.48 /usr/lib/x86_64-linux-gnu/libnvcuvid.so
-RUN ln -s /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so \
-       /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so.1
-ENV CUDA_LIB_PATH /usr/local/cuda/lib64/stubs
 
 # Non-apt-installable dependencies
 ENV deps /deps
