@@ -90,17 +90,6 @@ class OpGenerator:
         self._db = db
 
     def __getattr__(self, name):
-        if name == 'Input':
-            return lambda: Op.input(self._db).outputs()
-        elif name == 'FrameInput':
-            return lambda: Op.frame_input(self._db).outputs()
-        elif name == 'Output':
-
-            def make_op(columns):
-                op = Op.output(self._db, columns)
-                return op
-
-            return make_op
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
