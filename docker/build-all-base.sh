@@ -32,7 +32,7 @@ do
         local BASE_TAG=$3
 
         build base $TAG-base $BASE_TAG
-        build $TYPE $TAG $TAG-base
+        build $TYPE $TAG scannerresearch/scanner-base:$TAG-base
     }
 
     function push {
@@ -43,7 +43,7 @@ do
         local CUDA_MAJOR_VERSION=$1
         local CUDA_VERSION=$2
         local CUDNN_VERSION=$3
-        local BASE_TAG=nvidia/cuda:${CUDA_VERSION}-{CUDNN_VERSION}-devel-ubuntu16.04
+        local BASE_TAG=nvidia/cuda:${CUDA_VERSION}-${CUDNN_VERSION}-devel-ubuntu16.04
         local TAG=$base-gpu-$CUDA_VERSION-$CUDNN_VERSION
 
         build_chain gpu${CUDA_MAJOR_VERSION} $TAG $BASE_TAG
