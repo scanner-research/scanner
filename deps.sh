@@ -501,8 +501,10 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]] && \
     cd $BUILD_DIR
     # Caffe rc5
     rm -fr caffe
-    git clone -b rc5 https://github.com/BVLC/caffe && \
-        cd caffe && cp $FILES_DIR/caffe/Makefile.config Makefile.config && \
+    git clone https://github.com/BVLC/caffe && \
+        cd caffe &&
+        git checkout 18b09e807a6e146750d84e89a961ba8e678830b4 &&
+        cp $FILES_DIR/caffe/Makefile.config Makefile.config && \
         mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
               -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX \
