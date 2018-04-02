@@ -19,7 +19,9 @@ env:
     - secure: "mJDNPmfRd3cyFNIhRg6TQo8ow5hOS+FC+DX6MLpM6Giv2nL1KkJD0fgnLqgiZeEKDOFHvGpGswGjYTAzNWYeocsneby88w58sNbueUE6PT74UqsbzrmvMhKh2xtEERkJFz5gKvdwc9a4nAvH5ejJW7OZ5OvSscR2vRBl4tUwTuA3czWbod6NwBC/sUrf0jTZhNgZWWWT1j2SLt379Q52Xmd5+ixAaSibctf8hCEMzE/lNsWprR1gO7H89eyLVRQc8VQh8msVtgo7QD/aapr+w96GDWWUAm6z5iNe8gLGZB9v4BtTm82XOV0iefNDfT0fwIhHrM6vqIdiiuMeYMteErT3rF55h0o8hJrP57lwT5u7hU/yxUhNTvtCdJTo8THJihXHbOT7LjxaF20SlJzjARSGZq9mYHeBgv9sGej2jF80iSn+xTAbalVFbc4hKumELnn/D7mGWRTjsGGTbTqNXvTQvxm/QjXmNusav5vKeRFwjbPGfb0iDSfhlZ7BHkR50OyskZ/R/69WjIFS9gBE2pvp4FlVpndKWkkkd4TVSgmnKCXxnQdeNS8We8NodvTBlTcvHFub8j2izKTZRU7FBXRgo9d+Gu+43nSRvjJUgwg/6D6Bou6boVHJo8ib9xzakVjojbJxehatj+dadpuVkG3tjULejPNg/qnjlJc10Pg=" # PYPI_PASS
   matrix:
     - BUILD_TYPE=cpu
-    - BUILD_TYPE=gpu
+    - BUILD_TYPE=gpu-8.0-cudnn6
+    - BUILD_TYPE=gpu-8.0-cudnn7
+    - BUILD_TYPE=gpu-9.1-cudnn7
 
 install:
 - sudo apt-get update

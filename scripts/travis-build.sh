@@ -34,8 +34,12 @@ build_docker() {
                -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
         docker rm $(docker ps -a -f status=exited -q)
     else
+        # Parse gpu build type
+        local TAG=$1
         docker build -t $DOCKER_REPO:$1-local . \
-               --build-arg gpu=ON --build-arg tag=gpu --build-arg deps_opt='-g' \
+               --build-arg gpu=ON \
+               --build-arg tag=$TAG \
+               --build-arg deps_opt='-g' \
                -f docker/Dockerfile.scanner
     fi
 
