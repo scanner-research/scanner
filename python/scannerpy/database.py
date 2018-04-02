@@ -875,9 +875,6 @@ class Database(object):
         return Profiler(self, job_id)
 
     def _get_source_info(self, source_name):
-        #if op_name in self._op_cache:
-        #    op_info = self._op_cache[op_name]
-        #else:
         source_info_args = self.protobufs.SourceInfoArgs()
         source_info_args.source_name = source_name
 
@@ -887,14 +884,9 @@ class Database(object):
         if not source_info.result.success:
             raise ScannerException(source_info.result.msg)
 
-        #self._op_cache[op_name] = op_info
-
         return source_info
 
     def _get_sink_info(self, sink_name):
-        #if op_name in self._op_cache:
-        #    op_info = self._op_cache[op_name]
-        #else:
         sink_info_args = self.protobufs.SinkInfoArgs()
         sink_info_args.sink_name = sink_name
 
@@ -903,8 +895,6 @@ class Database(object):
 
         if not sink_info.result.success:
             raise ScannerException(sink_info.result.msg)
-
-        #self._op_cache[op_name] = op_info
 
         return sink_info
 

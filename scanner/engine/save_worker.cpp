@@ -125,11 +125,16 @@ void SaveWorker::new_task(i32 job_id, i32 task_id, i32 output_table_id,
     if (auto column_sink = dynamic_cast<ColumnSink*>(sink.get())) {
       column_sink->new_task(output_table_id, task_id, column_types);
     }
-    sink->finished();
     sink->new_stream(sink_args_.at(job_id).at(0));
   }
 
   profiler_.add_interval("io", io_start, now());
+}
+
+void SaveWorker::finished() {
+  for (auto& sink : sinks_) {
+    sink->finished();
+  }
 }
 
 }

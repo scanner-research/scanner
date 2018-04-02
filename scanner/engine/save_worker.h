@@ -49,6 +49,8 @@ class SaveWorker {
   void new_task(i32 job_id, i32 task_id, i32 output_table_id,
                 std::vector<ColumnType> column_types);
 
+  void finished();
+
  private:
   const i32 node_id_;
   const i32 worker_id_;
