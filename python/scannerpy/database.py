@@ -221,6 +221,7 @@ class Database(object):
         self.partitioner = TaskPartitioner(self)
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
+        self._python_ops = set()
 
         self._workers = {}
         self._worker_conns = None
@@ -361,8 +362,8 @@ class Database(object):
         channel = self._make_grpc_channel(address)
         worker = self.protobufs.WorkerStub(channel)
         try:
-            self._worker.Ping(self.protobufs.Empty(),
-                              timeout=self._grpc_timeout)
+            self._worker.Ping(
+                self.protobufs.Empty(), timeout=self._grpc_timeout)
             return worker
         except grpc.RpcError as e:
             status = e.code()
@@ -378,8 +379,8 @@ class Database(object):
         self._master = self.protobufs.MasterStub(channel)
         result = False
         try:
-            self._master.Ping(self.protobufs.Empty(),
-                              timeout=self._grpc_timeout)
+            self._master.Ping(
+                self.protobufs.Empty(), timeout=self._grpc_timeout)
             result = True
         except grpc.RpcError as e:
             status = e.code()
@@ -413,8 +414,8 @@ class Database(object):
             master = grpc_types.MasterStub(channel)
             while q.empty():
                 try:
-                    master.PokeWatchdog(rpc_types.Empty(),
-                                        timeout=self._grpc_timeout)
+                    master.PokeWatchdog(
+                        rpc_types.Empty(), timeout=self._grpc_timeout)
                 except grpc.RpcError as e:
                     pass
                 time.sleep(1)
@@ -654,8 +655,8 @@ class Database(object):
             self.protobufs.add_module(proto_path)
         op_path = self.protobufs.OpPath()
         op_path.path = so_path
-        self._try_rpc(lambda: self._master.LoadOp(
-            op_path, timeout=self._grpc_timeout))
+        self._try_rpc(
+            lambda: self._master.LoadOp(op_path, timeout=self._grpc_timeout))
 
     def register_op(self,
                     name,
@@ -724,6 +725,7 @@ class Database(object):
         self._try_rpc(
             lambda: self._master.RegisterPythonKernel(
                 py_registration, timeout=self._grpc_timeout))
+        self._python_ops.add(op_name)
 
     def ingest_videos(self, videos, inplace=False, force=False):
         """
@@ -906,8 +908,8 @@ class Database(object):
             op_info_args.op_name = op_name
 
             op_info = self._try_rpc(
-                lambda: self._master.GetOpInfo(
-                    op_info_args, self._grpc_timeout))
+                lambda: self._master.GetOpInfo(op_info_args, self._grpc_timeout)
+            )
 
             if not op_info.result.success:
                 raise ScannerException(op_info.result.msg)

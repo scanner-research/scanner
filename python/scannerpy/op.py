@@ -1,9 +1,11 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import grpc
 import copy
+import pickle
 
 from scannerpy.common import *
 from scannerpy.protobuf_generator import python_to_proto
+
 
 class OpColumn:
     def __init__(self, db, op, col, typ):
@@ -27,11 +29,13 @@ class OpColumn:
     def unslice(self):
         return self._db.ops.Unslice(col=self)
 
-    def compress(self, codec = 'video', **kwargs):
+    def compress(self, codec='video', **kwargs):
         self._assert_is_video()
-        codecs = {'video': self.compress_video,
-                  'default': self.compress_default,
-                  'raw': self.lossless}
+        codecs = {
+            'video': self.compress_video,
+            'default': self.compress_default,
+            'raw': self.lossless
+        }
         if codec in codecs:
             return codecs[codec](self, **kwargs)
         else:
@@ -39,7 +43,7 @@ class OpColumn:
                                    'supported. Available codecs are: {}.'
                                    .format(' '.join(codecs.keys())))
 
-    def compress_video(self, quality = -1, bitrate = -1, keyframe_distance = -1):
+    def compress_video(self, quality=-1, bitrate=-1, keyframe_distance=-1):
         self._assert_is_video()
         encode_options = {
             'codec': 'h264',
@@ -61,11 +65,11 @@ class OpColumn:
 
     def _assert_is_video(self):
         if self._type != self._db.protobufs.Video:
-            raise ScannerException(
-                'Compression only supported for columns of'
-                'type "video". Column {} type is {}.'
-                .format(self._col,
-                        self.db.protobufs.ColumnType.Name(self._type)))
+            raise ScannerException('Compression only supported for columns of'
+                                   'type "video". Column {} type is {}.'
+                                   .format(self._col,
+                                           self.db.protobufs.ColumnType.Name(
+                                               self._type)))
 
     def _new_compressed_column(self, encode_options):
         new_col = OpColumn(self._db, self._op, self._col, self._type)
@@ -90,6 +94,13 @@ class OpGenerator:
             return lambda: Op.input(self._db).outputs()
         elif name == 'FrameInput':
             return lambda: Op.frame_input(self._db).outputs()
+        elif name == 'Output':
+
+            def make_op(columns):
+                op = Op.output(self._db, columns)
+                return op
+
+            return make_op
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
@@ -102,24 +113,32 @@ class OpGenerator:
                 for c in op_info.input_columns:
                     val = kwargs.pop(c.name, None)
                     if val is None:
-                        raise ScannerException('Op {} required column {} as input'
-                                               .format(name, c.name))
+                        raise ScannerException(
+                            'Op {} required column {} as input'.format(
+                                name, c.name))
                     inputs.append(val)
             device = kwargs.pop('device', DeviceType.CPU)
             batch = kwargs.pop('batch', -1)
             warmup = kwargs.pop('warmup', 0)
             stencil = kwargs.pop('stencil', [])
             args = kwargs.pop('args', None)
-            op = Op(self._db, name, inputs, device, batch, warmup,
-                    stencil, kwargs if args is None else args)
+            op = Op(self._db, name, inputs, device, batch, warmup, stencil,
+                    kwargs if args is None else args)
             return op.outputs()
 
         return make_op
 
 
 class Op:
-    def __init__(self, db, name, inputs, device, batch=-1, warmup=0,
-                 stencil=[0], args={}):
+    def __init__(self,
+                 db,
+                 name,
+                 inputs,
+                 device,
+                 batch=-1,
+                 warmup=0,
+                 stencil=[0],
+                 args={}):
         self._db = db
         self._name = name
         self._inputs = inputs
@@ -129,10 +148,8 @@ class Op:
         self._stencil = stencil
         self._args = args
 
-        if (name == 'Space' or
-            name == 'Sample' or
-            name == 'Slice' or
-            name == 'Unslice'):
+        if (name == 'Input' or name == 'Space' or name == 'Sample'
+                or name == 'Slice' or name == 'Unslice'):
             outputs = []
             for c in inputs:
                 outputs.append(OpColumn(db, self, c._col, c._type))
@@ -182,16 +199,23 @@ class Op:
                 inp.column = i._col
 
         if isinstance(self._args, dict):
-            # To convert an arguments dict, we search for a protobuf with the
-            # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
-            # args.proto module, and fill that in with keys from the args dict.
-            if len(self._args) > 0:
-                n = self._name
-                if n.startswith('Frame'):
-                    n = n[len('Frame'):]
-                proto_name = n + 'Args'
-                e.kernel_args = python_to_proto(
-                    self._db.protobufs, proto_name, self._args)
+            if self._name in self._db._python_ops:
+                e.kernel_args = pickle.dumps(self._args)
+            else:
+                # To convert an arguments dict, we search for a protobuf with the
+                # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
+                # args.proto module, and fill that in with keys from the args dict.
+                if len(self._args) > 0:
+                    proto_name = self._name + 'Args'
+                    args_proto = getattr(self._db.protobufs, proto_name)()
+                    for k, v in self._args.iteritems():
+                        try:
+                            setattr(args_proto, k, v)
+                        except AttributeError:
+                            # If the attribute is a nested proto, we can't assign
+                            # directly, so copy from the value.
+                            getattr(args_proto, k).CopyFrom(v)
+                        e.kernel_args = args_proto.SerializeToString()
         else:
             # If arguments are a protobuf object, serialize it directly
             e.kernel_args = self._args.SerializeToString()
