@@ -40,12 +40,13 @@ do
     }
 
     function build_push_gpu {
-        local CUDA_VERSION=$1
-        local CUDNN_VERSION=$2
+        local CUDA_MAJOR_VERSION=$1
+        local CUDA_VERSION=$2
+        local CUDNN_VERSION=$3
         local BASE_TAG=nvidia/cuda:${CUDA_VERSION}-{CUDNN_VERSION}-devel-ubuntu16.04
         local TAG=$base-gpu-$CUDA_VERSION-$CUDNN_VERSION
 
-        build_chain gpu $TAG $BASE_TAG
+        build_chain gpu${CUDA_MAJOR_VERSION} $TAG $BASE_TAG
         push $TAG
     }
 
@@ -57,7 +58,7 @@ do
     push $base-cpu
 
     # GPU
-    build_push_gpu 8.0 cudnn6
-    build_push_gpu 8.0 cudnn7
-    build_push_gpu 9.1 cudnn7
+    build_push_gpu 8 8.0 cudnn6
+    build_push_gpu 8 8.0 cudnn7
+    build_push_gpu 9 9.1 cudnn7
 done
