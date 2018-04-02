@@ -73,7 +73,6 @@ def make_config(master_port=None, worker_port=None, path=None):
     if worker_port is not None:
         cfg['network']['worker_port'] = worker_port
 
-
     if path is not None:
         with open(path, 'w') as f:
             cfg_path = path
@@ -95,7 +94,9 @@ def download_videos():
             resp = requests.get(
                 url,
                 stream=True,
-                proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
+                proxies={
+                    'https': 'http://proxy.pdl.cmu.edu:3128/'
+                })
         else:
             resp = requests.get(url, stream=True)
         assert resp.ok
@@ -201,11 +202,12 @@ def test_sample(db):
         sample_frame = frame.sample()
         output_op = db.sinks.Column(columns={'frame': sample_frame})
 
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            sample_frame: sampler_args,
-            output_op: 'test_sample',
-        })
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                sample_frame: sampler_args,
+                output_op: 'test_sample',
+            })
         bulk_job = BulkJob(output=output_op, jobs=[job])
         tables = db.run(bulk_job, force=True, show_progress=False)
         num_rows = 0
@@ -231,11 +233,12 @@ def test_space(db):
         space_hist = hist.space()
         output_op = db.sinks.Column(columns={'histogram': space_hist})
 
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            space_hist: spacing_args,
-            output_op: 'test_space',
-        })
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                space_hist: spacing_args,
+                output_op: 'test_space',
+            })
         bulk_job = BulkJob(output=output_op, jobs=[job])
         tables = db.run(bulk_job, force=True, show_progress=False)
         return tables[0]
@@ -273,12 +276,13 @@ def test_slicing(db):
     frame = db.sources.FrameColumn()
     slice_frame = frame.slice()
     unsliced_frame = slice_frame.unslice()
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        slice_frame: db.partitioner.all(50),
-        output_op: 'test_slicing',
-    })
+    output_op = db.ops.Output(columns=[unsliced_frame])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            slice_frame: db.partitioner.all(50),
+            output_op: 'test_slicing',
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
 
@@ -294,12 +298,13 @@ def test_bounded_state(db):
     frame = db.sources.FrameColumn()
     increment = db.ops.TestIncrementBounded(ignore=frame, warmup=warmup)
     sampled_increment = increment.sample()
-    output_op = db.sinks.Column(columns={'integer': sampled_increment})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        sampled_increment: db.sampler.gather([0, 10, 25, 26, 27]),
-        output_op: 'test_slicing',
-    })
+    output_op = db.ops.Output(columns=[sampled_increment])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            sampled_increment: db.sampler.gather([0, 10, 25, 26, 27]),
+            output_op: 'test_slicing',
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
 
@@ -318,12 +323,13 @@ def test_unbounded_state(db):
     slice_frame = frame.slice()
     increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
     unsliced_increment = increment.unslice()
-    output_op = db.sinks.Column(columns={'integer': unsliced_increment})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        slice_frame: db.partitioner.all(50),
-        output_op: 'test_slicing',
-    })
+    output_op = db.ops.Output(columns=[unsliced_increment])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            slice_frame: db.partitioner.all(50),
+            output_op: 'test_slicing',
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
 
@@ -374,12 +380,13 @@ class TestOpticalFlow:
         frame = db.sources.FrameColumn()
         flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=ty)
         flow_range = flow.sample()
-        out = db.sinks.Column(columns={'flow': flow_range})
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            flow_range: db.sampler.range(0, 50),
-            out: 'test_flow',
-        })
+        out = db.ops.Output(columns=[flow_range])
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                flow_range: db.sampler.range(0, 50),
+                out: 'test_flow',
+            })
         return BulkJob(output=out, jobs=[job])
 
     def run(self, db, job):
@@ -505,13 +512,14 @@ def test_python_kernel(db):
 
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
-    test_out = db.ops.TestPy(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 30),
-        output_op: 'test_hist'
-    })
+    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
+    output_op = db.ops.Output(columns=[test_out])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_hist'
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
 
     tables = db.run(bulk_job, force=True, show_progress=False)
@@ -529,12 +537,13 @@ def test_python_batch_kernel(db):
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 30),
-        output_op: 'test_hist'
-    })
+    output_op = db.ops.Output(columns=[test_out])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_hist'
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
 
     tables = db.run(bulk_job, force=True, show_progress=False)
@@ -545,12 +554,13 @@ def test_blur(db):
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 30),
-        output_op: 'test_blur',
-    })
+    output_op = db.ops.Output(columns=[blurred_frame])
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_blur',
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
@@ -570,11 +580,12 @@ def test_lossless(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame.lossless()})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 30),
-        output_op: 'test_blur_lossless'
-    })
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_blur_lossless'
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
@@ -588,11 +599,12 @@ def test_compress(db):
     compressed_frame = blurred_frame.compress('video', bitrate=1 * 1024 * 1024)
     output_op = db.sinks.Column(columns={'frame': compressed_frame})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 30),
-        output_op: 'test_blur_compressed'
-    })
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_blur_compressed'
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
@@ -605,11 +617,12 @@ def test_save_mp4(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 30),
-        output_op: 'test_save_mp4'
-    })
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_save_mp4'
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
     table = tables[0]
@@ -664,7 +677,8 @@ def test_no_workers(no_workers_db):
 @pytest.fixture()
 def fault_db():
     # Create new config
-    (cfg_path, cfg) = make_config(master_port='5010', worker_port='5011', path='/tmp/config_test')
+    (cfg_path, cfg) = make_config(
+        master_port='5010', worker_port='5011', path='/tmp/config_test')
 
     # Setup and ingest video
     with Database(
@@ -835,11 +849,12 @@ def test_fault_tolerance(fault_db):
     sleep_frame = fault_db.ops.SleepFrame(ignore=range_frame)
     output_op = fault_db.sinks.Column(columns={'dummy': sleep_frame})
 
-    job = Job(op_args={
-        frame: fault_db.table('test1').column('frame'),
-        range_frame: fault_db.sampler.range(0, 20),
-        output_op: 'test_fault',
-    })
+    job = Job(
+        op_args={
+            frame: fault_db.table('test1').column('frame'),
+            range_frame: fault_db.sampler.range(0, 20),
+            output_op: 'test_fault',
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     table = fault_db.run(
         bulk_job,
@@ -906,11 +921,12 @@ def test_job_blacklist(blacklist_db):
     failed_output = db.ops.TestPyFail(frame=range_frame)
     output_op = db.sinks.Column(columns={'dummy': failed_output})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 1),
-        output_op: 'test_py_fail'
-    })
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 1),
+            output_op: 'test_py_fail'
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(
         bulk_job,
@@ -955,11 +971,12 @@ def test_job_timeout(timeout_db):
     sleep_frame = db.ops.SleepFrame(ignore=range_frame)
     output_op = db.sinks.Column(columns={'dummy': sleep_frame})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        range_frame: db.sampler.range(0, 1),
-        output_op: 'test_timeout',
-    })
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 1),
+            output_op: 'test_timeout',
+        })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     table = db.run(
         bulk_job,

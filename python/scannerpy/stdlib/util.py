@@ -3,6 +3,7 @@ import os
 import urllib2
 import errno
 
+
 def mkdir_p(path):
     try:
         os.makedirs(path)
@@ -30,6 +31,12 @@ def download_temp_file(url, local_path=None):
         with open(local_path, 'wb') as local_f:
             local_f.write(f.read())
     return local_path
+
+
+def default(d, k, v):
+    if k not in d:
+        return v() if callable(v) else v
+    return d[k]
 
 
 # def download_temp_youtube_video(url, local_path=None):

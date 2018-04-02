@@ -83,7 +83,7 @@ PythonKernel::PythonKernel(const KernelConfig& config,
         "input_types = [ColumnType(c) for c in input_column_types]\n"
         "kernel_config = KernelConfig(handles, input_columns,\n"
         "                             input_column_types, output_columns,\n"
-        "                             args, node_id)\n"
+        "                             pickle.loads(args), node_id)\n"
         "exec(kernel_str)\n"
         "kernel = KERNEL(kernel_config, protobufs)",
         main_namespace);
