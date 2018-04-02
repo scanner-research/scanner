@@ -51,13 +51,13 @@ class Sink {
   virtual void validate(proto::Result* result) { result->set_success(true); }
 
   /**
-   * @brief Informs the Sink that it will now be processing an new stream.
+   * @brief Called when the Sink is about to process a new stream.
    *
    * @param args
    *        the arguments that were bound to this output for this stream
    *
    */
-  virtual void new_stream(const std::vector<u8>& args) = 0;
+  virtual void new_stream(const std::vector<u8>& args) {};
 
   /**
    * @brief Runs the Sink to write elements.
@@ -69,10 +69,8 @@ class Sink {
   virtual void write(const BatchedElements& input_columns) = 0;
 
   /**
-   * @brief Called when the Sink has received the end of a contiguous sequence
-   *        of data items (for example, when the last element of a stream is
-   *        provided to the Sink).
-   *
+   * @brief When this function returns, the data for all previous 'write'
+   *        calls MUST BE durably written.
    */
   virtual void finished() {};
 

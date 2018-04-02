@@ -442,6 +442,7 @@ void save_driver(SaveInputQueue& save_work,
     args.profiler.add_interval("task", work_start, now());
 
     if (work_entry.last_in_task) {
+      worker->finished();
       output_work.push(std::make_tuple(pipeline_instance, work_entry.job_index,
                                        work_entry.task_index));
       workers.erase(job_task_id);
