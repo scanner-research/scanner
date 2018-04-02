@@ -276,7 +276,7 @@ def test_slicing(db):
     frame = db.sources.FrameColumn()
     slice_frame = frame.slice()
     unsliced_frame = slice_frame.unslice()
-    output_op = db.ops.Output(columns=[unsliced_frame])
+    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
@@ -298,7 +298,7 @@ def test_bounded_state(db):
     frame = db.sources.FrameColumn()
     increment = db.ops.TestIncrementBounded(ignore=frame, warmup=warmup)
     sampled_increment = increment.sample()
-    output_op = db.ops.Output(columns=[sampled_increment])
+    output_op = db.sinks.Column(columns={'integer': sampled_increment})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
@@ -323,7 +323,7 @@ def test_unbounded_state(db):
     slice_frame = frame.slice()
     increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
     unsliced_increment = increment.unslice()
-    output_op = db.ops.Output(columns=[unsliced_increment])
+    output_op = db.sinks.Column(columns={'integer': unsliced_increment})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
@@ -380,7 +380,7 @@ class TestOpticalFlow:
         frame = db.sources.FrameColumn()
         flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=ty)
         flow_range = flow.sample()
-        out = db.ops.Output(columns=[flow_range])
+        out = db.sinks.Column(columns={'flow': flow_range})
         job = Job(
             op_args={
                 frame: db.table('test1').column('frame'),
@@ -422,7 +422,9 @@ def test_packed_file_source(db):
     pass_data = db.ops.Pass(input=data)
     output_op = db.sinks.Column(columns={'integer': pass_data})
     job = Job(op_args={
-        data: {'path': path},
+        data: {
+            'path': path
+        },
         output_op: 'test_cpp_source',
     })
     bulk_job = BulkJob(output=output_op, jobs=[job])
@@ -452,7 +454,9 @@ def test_files_source(db):
     pass_data = db.ops.Pass(input=data)
     output_op = db.sinks.Column(columns={'integer': pass_data})
     job = Job(op_args={
-        data: {'paths': paths},
+        data: {
+            'paths': paths
+        },
         output_op: 'test_files_source',
     })
     bulk_job = BulkJob(output=output_op, jobs=[job])
@@ -490,8 +494,12 @@ def test_files_sink(db):
     pass_data = db.ops.Pass(input=data)
     output_op = db.sinks.Files(input=pass_data)
     job = Job(op_args={
-        data: {'paths': input_paths},
-        output_op: {'paths': output_paths}
+        data: {
+            'paths': input_paths
+        },
+        output_op: {
+            'paths': output_paths
+        }
     })
     bulk_job = BulkJob(output=output_op, jobs=[job])
     tables = db.run(bulk_job, force=True, show_progress=False)
@@ -513,7 +521,7 @@ def test_python_kernel(db):
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
-    output_op = db.ops.Output(columns=[test_out])
+    output_op = db.sinks.Column(columns={'dummy': test_out})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
@@ -537,7 +545,7 @@ def test_python_batch_kernel(db):
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
-    output_op = db.ops.Output(columns=[test_out])
+    output_op = db.sinks.Column(columns={'dummy': test_out})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
@@ -554,7 +562,7 @@ def test_blur(db):
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.ops.Output(columns=[blurred_frame])
+    output_op = db.sinks.Column(columns={'frame': blurred_frame})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
