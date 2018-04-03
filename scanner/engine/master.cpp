@@ -673,9 +673,9 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     const std::string& pickled_config = python_kernel->pickled_config();
     const int batch_size = python_kernel->batch_size();
     // Create a kernel builder function
-    auto constructor = [kernel_str, pickled_config,
+    auto constructor = [op_name, kernel_str, pickled_config,
                         batch_size](const KernelConfig& config) {
-      return new PythonKernel(config, kernel_str, pickled_config, batch_size);
+      return new PythonKernel(config, op_name, kernel_str, pickled_config, batch_size);
     };
     // Set all input and output columns to be CPU
     std::map<std::string, DeviceType> input_devices;
