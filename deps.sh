@@ -126,7 +126,7 @@ if [[ $INSTALL_NONE == true ]]; then
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
     while true; do
-        echo "Do you have boost>=1.63.0 installed with the modules: "
+        echo "Do you have boost>=1.65.0 installed with the modules: "
         echo -n "thread, program_options, regex, python, numpy? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -295,15 +295,15 @@ elif [[ $INSTALL_ALL == false ]]; then
 fi
 
 if [[ $INSTALL_BOOST == true ]] && [[ ! -f $BUILD_DIR/boost.done ]] ; then
-    echo "Installing boost 1.63.0..."
+    echo "Installing boost 1.65.0..."
     cd $BUILD_DIR
     rm -fr boost*
-    wget "https://dl.bintray.com/boostorg/release/1.63.0/source/boost_1_63_0.tar.gz" && \
-        tar -xf boost_1_63_0.tar.gz && cd boost_1_63_0 && ./bootstrap.sh && \
+    wget "https://dl.bintray.com/boostorg/release/1.65.0/source/boost_1_65_0.tar.gz" && \
+        tar -xf boost_1_65_0.tar.gz && cd boost_1_65_0 && ./bootstrap.sh && \
         ./b2 install --prefix=$INSTALL_PREFIX -j${cores} && \
-        rm -rf $BUILD_DIR/boost_1_63_0.tar.gz && touch $BUILD_DIR/boost.done \
+        rm -rf $BUILD_DIR/boost_1_65_0.tar.gz && touch $BUILD_DIR/boost.done \
             || { echo 'Installing boost failed!' ; exit 1; }
-    echo "Done installing boost 1.63.0"
+    echo "Done installing boost 1.65.0"
 fi
 
 
