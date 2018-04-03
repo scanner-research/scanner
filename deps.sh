@@ -165,7 +165,7 @@ elif [[ $INSTALL_ALL == false ]]; then
     done
 
     while true; do
-        echo -n "Do you have opencv>=3.2.0 with contrib installed? [y/N]: "
+        echo -n "Do you have opencv>=3.4.0 with contrib installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_OPENCV=false
@@ -324,13 +324,13 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
 fi
 
 if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
-    # OpenCV 3.2.0 + OpenCV contrib
-    echo "Installing OpenCV 3.2.0..."
+    # OpenCV 3.4.0 + OpenCV contrib
+    echo "Installing OpenCV 3.4.0..."
     cd $BUILD_DIR
     rm -rf opencv opencv_contrib ceres-solver
-    git clone -b 3.2.0 https://github.com/opencv/opencv && \
-        git clone -b 3.2.0  https://github.com/opencv/opencv_contrib && \
-        git clone -b 1.12.0 https://github.com/ceres-solver/ceres-solver && \
+    git clone -b 3.4.1 https://github.com/opencv/opencv && \
+        git clone -b 3.4.1  https://github.com/opencv/opencv_contrib && \
+        git clone -b 1.14.0 https://github.com/ceres-solver/ceres-solver && \
         cd ceres-solver && mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
         make install -j$cores && \
@@ -346,7 +346,7 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               .. && \
         make install -j$cores && touch $BUILD_DIR/opencv.done \
             || { echo 'Installing OpenCV failed!' ; exit 1; }
-    echo "Done installing OpenCV 3.2.0"
+    echo "Done installing OpenCV 3.4.0"
 fi
 
 if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
