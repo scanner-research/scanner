@@ -1,5 +1,6 @@
 #include "scanner/engine/python_kernel.h"
 #include "scanner/util/util.h"
+#include "scanner/util/tinyformat.h"
 
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
@@ -30,12 +31,14 @@ std::string handle_pyerror() {
 }
 
 PythonKernel::PythonKernel(const KernelConfig& config,
+                           const std::string& op_name,
                            const std::string& kernel_str,
                            const std::string& pickled_config,
                            const int preferred_batch)
-  : BatchedKernel(config), config_(config), device_(config.devices[0]) {
+  : BatchedKernel(config), config_(config), device_(config.devices[0]), op_name_(op_name) {
   PyGILState_STATE gstate = PyGILState_Ensure();
   can_batch_ = (preferred_batch > 1);
+  kernel_name_ = tfm::format("%s_kernel", op_name_);
   try {
     py::object main = py::import("__main__");
     main.attr("kernel_str") = py::str(kernel_str);
@@ -71,7 +74,7 @@ PythonKernel::PythonKernel(const KernelConfig& config,
     main.attr("node_id") = node_id;
 
     py::object main_namespace = main.attr("__dict__");
-    py::exec(
+    std::string pycode = tfm::format(
         "import pickle\n"
         "from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig, "
         "ColumnType\n"
@@ -85,8 +88,9 @@ PythonKernel::PythonKernel(const KernelConfig& config,
         "                             input_column_types, output_columns,\n"
         "                             pickle.loads(args), node_id)\n"
         "exec(kernel_str)\n"
-        "kernel = KERNEL(kernel_config, protobufs)",
-        main_namespace);
+        "%s = KERNEL(kernel_config, protobufs)",
+        kernel_name_);
+    py::exec(py::str(pycode), main_namespace);
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }
@@ -97,7 +101,7 @@ PythonKernel::~PythonKernel() {
   PyGILState_STATE gstate = PyGILState_Ensure();
   try {
     py::object main = py::import("__main__");
-    py::object kernel = main.attr("kernel");
+    py::object kernel = main.attr(py::str(kernel_name_));
     kernel.attr("close")();
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
@@ -109,7 +113,7 @@ void PythonKernel::reset() {
   PyGILState_STATE gstate = PyGILState_Ensure();
   try {
     py::object main = py::import("__main__");
-    py::object kernel = main.attr("kernel");
+    py::object kernel = main.attr(py::str(kernel_name_));
     kernel.attr("reset")();
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
@@ -124,7 +128,7 @@ void PythonKernel::batched_python_execute(const BatchedElements& input_columns,
 
   try {
     py::object main = py::import("__main__");
-    py::object kernel = main.attr("kernel");
+    py::object kernel = main.attr(py::str(kernel_name_));
 
     py::list batched_cols;
     for (i32 j = 0; j < input_columns.size(); ++j) {
@@ -241,7 +245,7 @@ void PythonKernel::single_python_execute(const BatchedElements& input_columns,
 
   try {
     py::object main = py::import("__main__");
-    py::object kernel = main.attr("kernel");
+    py::object kernel = main.attr(py::str(kernel_name_));
 
     for (i32 i = 0; i < input_count; ++i) {
       py::list cols;

@@ -10,7 +10,9 @@ namespace scanner {
 
 class PythonKernel : public BatchedKernel {
  public:
-  PythonKernel(const KernelConfig& config, const std::string& kernel_str,
+  PythonKernel(const KernelConfig& config,
+               const std::string& op_name,
+               const std::string& kernel_str,
                const std::string& pickled_config,
                const int preferred_batch = 1);
 
@@ -29,6 +31,8 @@ class PythonKernel : public BatchedKernel {
   KernelConfig config_;
   DeviceHandle device_;
   bool can_batch_;
+  std::string op_name_;
+  std::string kernel_name_;
 };
 
 }
