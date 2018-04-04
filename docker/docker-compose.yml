@@ -1,7 +1,7 @@
 version: "2"
 services:
   gpu:
-    image: scannerresearch/scanner:gpu
+    image: scannerresearch/scanner:gpu-9.1-cudnn7
     ports:
       - "8888:8888"
     working_dir: /app

@@ -90,7 +90,7 @@ PythonKernel::PythonKernel(const KernelConfig& config,
         "exec(kernel_str)\n"
         "%s = KERNEL(kernel_config, protobufs)",
         kernel_name_);
-    py::exec(py::str(pycode), main_namespace);
+    py::exec(pycode.c_str(), main_namespace);
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }

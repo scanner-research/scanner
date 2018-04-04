@@ -1,7 +1,6 @@
 import scannerpy
 import scannerpy.stdlib.writers as writers
 
-
 class TestPyKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
