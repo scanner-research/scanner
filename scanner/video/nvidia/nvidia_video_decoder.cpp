@@ -24,7 +24,6 @@
 #include <thread>
 
 #include <cuda.h>
-#include <nvcuvid.h>
 
 namespace scanner {
 namespace internal {
