@@ -744,6 +744,7 @@ grpc::Status MasterImpl::Shutdown(grpc::ServerContext* context,
   VLOG(1) << "Master received shutdown!";
   result->set_success(true);
   trigger_shutdown_.set();
+  active_cv_.notify_all();
   return grpc::Status::OK;
 }
 
