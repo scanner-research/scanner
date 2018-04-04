@@ -22,10 +22,10 @@ INSTALL_OPENPOSE=true
 USE_GPU=false
 
 # Assume not installed
+INSTALL_GOOGLETEST=true
 INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
-INSTALL_GOOGLETEST=true
 
 INSTALL_PREFIX=$DEFAULT_INSTALL_DIR
 
@@ -118,10 +118,10 @@ if [[ $INSTALL_NONE == true ]]; then
     INSTALL_CAFFE=false
     INSTALL_HALIDE=false
     INSTALL_OPENPOSE=false
+    INSTALL_GOOGLETEST=false
     INSTALL_HWANG=false
     INSTALL_TINYTOML=false
     INSTALL_STOREHOUSE=false
-    INSTALL_GOOGLETEST=false
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
@@ -411,6 +411,19 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
     echo "Done installing storehouse"
 fi
 
+if [[ $INSTALL_GOOGLETEST == true ]] && [[ ! -f $BUILD_DIR/googletest.done ]]; then
+    echo "Installing googletest..."
+    cd $BUILD_DIR
+    rm -fr googletest
+    git clone https://github.com/google/googletest && \
+        cd googletest && mkdir build && cd build && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
+        make -j${cores} && make install && \
+        touch $BUILD_DIR/googletest.done \
+            || { echo 'Installing googletest failed!' ; exit 1; }
+    echo "Done installing googletest"
+fi
+
 if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     echo "Installing hwang..."
     cd $BUILD_DIR
@@ -443,19 +456,6 @@ if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
         touch $BUILD_DIR/tinytoml.done \
             || { echo 'Installing tinytoml failed!' ; exit 1; }
     echo "Done installing tinytoml"
-fi
-
-if [[ $INSTALL_GOOGLETEST == true ]] && [[ ! -f $BUILD_DIR/googletest.done ]]; then
-    echo "Installing googletest..."
-    cd $BUILD_DIR
-    rm -fr googletest
-    git clone https://github.com/google/googletest && \
-        cd googletest && mkdir build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
-        make -j${cores} && make install && \
-        touch $BUILD_DIR/googletest.done \
-            || { echo 'Installing googletest failed!' ; exit 1; }
-    echo "Done installing googletest"
 fi
 
 if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
