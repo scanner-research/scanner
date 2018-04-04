@@ -685,6 +685,7 @@ grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
   try_unregister();
   // Inform watchdog that we are done for
   trigger_shutdown_.set();
+  active_cv_.notify_all();
   result->set_success(true);
   return grpc::Status::OK;
 }
@@ -776,7 +777,7 @@ void WorkerImpl::try_unregister() {
 
     proto::Empty em;
     grpc::Status status;
-    GRPC_BACKOFF(master_->UnregisterWorker(&ctx, node_info, &em), status);
+    GRPC_BACKOFF_D(master_->UnregisterWorker(&ctx, node_info, &em), status, 15);
     if (!status.ok()) {
       LOG(WARNING) << "Worker could not unregister from master server "
                    << "(" << status.error_code()
