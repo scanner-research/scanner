@@ -69,8 +69,6 @@ SaveWorker::~SaveWorker() {
 void SaveWorker::feed(EvalWorkEntry& input_entry) {
   EvalWorkEntry& work_entry = input_entry;
 
-  assert(work_entry.columns.size() == sinks_.size());
-
   // Write out each output column to an individual data file
   std::vector<bool> compressed;
   std::vector<FrameInfo> frame_info;

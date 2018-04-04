@@ -6,12 +6,14 @@ from timeit import default_timer as now
 from scannerpy.common import *
 from scannerpy.column import Column
 
+
 class Table:
     """
     A table in a Database.
 
     Can be part of many Collection objects.
     """
+
     def __init__(self, db, name, id):
         self._db = db
         # We pass name and id to avoid having to read the descriptor
@@ -42,14 +44,13 @@ class Table:
                     video_descriptor = self._db._load_descriptor(
                         self._db.protobufs.VideoDescriptor,
                         'tables/{:d}/{:d}_0_video_metadata.bin'.format(
-                            self._id,
-                            c.id))
+                            self._id, c.id))
                 self._video_descriptors.append(video_descriptor)
         for i, c in enumerate(self._descriptor.columns):
             if c.name == name:
                 return c, self._video_descriptors[i]
-        raise ScannerException('Column {} not found in Table {}'
-                               .format(name, self._name))
+        raise ScannerException('Column {} not found in Table {}'.format(
+            name, self._name))
 
     def _load_job(self):
         self._need_descriptor()
@@ -62,11 +63,10 @@ class Table:
                 if task.output_table_name == self._name:
                     self._task = task
             if self._task is None:
-                raise ScannerException('Table {} not found in job {}'
-                                       .format(self._name, self._descriptor.job_id))
+                raise ScannerException('Table {} not found in job {}'.format(
+                    self._name, self._descriptor.job_id))
         else:
             self._job = None
-
 
     # HACK(wcrichto): reading from TableDescriptor to avoid loading VideoDescriptors
     def column_names(self):
@@ -89,7 +89,8 @@ class Table:
     def parent_rows(self):
         self._need_descriptor()
         if self._descriptor.job_id == -1:
-            raise ScannerException('Table {} has no parent'.format(self.name()))
+            raise ScannerException('Table {} has no parent'.format(
+                self.name()))
 
         return [i for _, i in self.load(['index'], fn=self._parse_index)]
 
@@ -107,9 +108,7 @@ class Table:
             raise ScannerException('Table has not committed yet.')
         cols = [self.column(c).load(rows=rows) for c in columns]
         for tup in izip(*cols):
-            row = tup[0][0]
-            vals = [x for _, x in tup]
             if fn is not None:
-                yield (row, fn(vals, self._db))
+                yield fn(tup, self._db)
             else:
-                yield (row, vals)
+                yield tup

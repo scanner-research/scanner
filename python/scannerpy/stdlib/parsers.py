@@ -5,12 +5,13 @@ import struct
 
 from scannerpy.stdlib.poses import Pose
 
+
 def bboxes(buf, protobufs):
-    (num_bboxes,) = struct.unpack("=Q", buf[:8])
+    (num_bboxes, ) = struct.unpack("=Q", buf[:8])
     buf = buf[8:]
     bboxes = []
     for i in range(num_bboxes):
-        (bbox_size,) = struct.unpack("=Q", buf[:8])
+        (bbox_size, ) = struct.unpack("=Q", buf[:8])
         buf = buf[8:]
         box = protobufs.BoundingBox()
         box.ParseFromString(buf[:bbox_size])
@@ -18,26 +19,27 @@ def bboxes(buf, protobufs):
         bboxes.append(box)
     return bboxes
 
+
 def poses(buf, protobufs):
     if len(buf) == 1:
         return []
 
-    kp_size = (Pose.POSE_KEYPOINTS +
-               Pose.FACE_KEYPOINTS +
-               Pose.HAND_KEYPOINTS * 2) * 3
+    kp_size = (
+        Pose.POSE_KEYPOINTS + Pose.FACE_KEYPOINTS + Pose.HAND_KEYPOINTS * 2
+    ) * 3
     poses = []
     all_kp = np.frombuffer(buf, dtype=np.float32)
     for j in range(0, len(all_kp), kp_size):
-        pose = Pose.from_buffer(all_kp[j:(j+kp_size)].tobytes())
+        pose = Pose.from_buffer(all_kp[j:(j + kp_size)].tobytes())
         poses.append(pose)
     return poses
 
 
-def histograms(bufs, protobufs):
+def histograms(buf, protobufs):
     # bufs[0] is None when element is null
-    if bufs[0] is None:
+    if buf is None:
         return None
-    return np.split(np.frombuffer(bufs[0], dtype=np.dtype(np.int32)), 3)
+    return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
 
 
 def frame_info(buf, protobufs):
@@ -57,15 +59,18 @@ def flow(bufs, protobufs):
 def array(ty):
     def parser(bufs, protobufs):
         return np.frombuffer(bufs[0], dtype=np.dtype(ty))
+
     return parser
 
 
 def image(bufs, protobufs):
-    return cv2.imdecode(np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)),
-                        cv2.IMREAD_COLOR)
+    return cv2.imdecode(
+        np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
+
 
 def raw_frame_gen(shape0, shape1, shape2, typ):
     def parser(bufs, protobufs):
         output = np.frombuffer(bufs, dtype=typ)
         return output.reshape((shape0, shape1, shape2))
+
     return parser
