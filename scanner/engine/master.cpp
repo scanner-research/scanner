@@ -320,6 +320,44 @@ grpc::Status MasterImpl::RegisterWorker(grpc::ServerContext* context,
         << status.error_code() << "): " << status.error_message();
   }
 
+  // Register Ops on worker
+  for (auto& reg : op_registrations_) {
+    grpc::ClientContext ctx;
+    // Set timeout
+    u32 timeout = REGISTER_OP_WORKER_TIMEOUT;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    ctx.set_deadline(deadline);
+
+    proto::Result w_result;
+
+    grpc::Status status;
+    //GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty), status, 4);
+    status = workers_[node_id]->RegisterOp(&ctx, reg, &w_result);
+    LOG_IF(WARNING, !status.ok())
+        << "Master could not register op for worker at " << worker_address << " ("
+        << status.error_code() << "): " << status.error_message();
+  };
+
+  // Register Python Kernels on worker
+  for (auto& reg : py_kernel_registrations_) {
+    proto::Result w_result;
+    grpc::Status status;
+
+    grpc::ClientContext ctx;
+    // Set timeout
+    u32 timeout = REGISTER_PYTHON_KERNEL_WORKER_TIMEOUT;
+    std::chrono::system_clock::time_point deadline =
+        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    ctx.set_deadline(deadline);
+
+    status = workers_[node_id]->RegisterPythonKernel(&ctx, reg, &w_result);
+    LOG_IF(WARNING, !status.ok())
+      << "Master could not register python kernel for worker at "
+      << worker_address << " (" << status.error_code()
+      << "): " << status.error_message();
+  };
+
   unstarted_workers_.push_back(node_id);
 
   return grpc::Status::OK;
