@@ -86,12 +86,12 @@ def start_master(port=None,
 
 
 def worker_process((master_address, machine_params, port, config, config_path,
-                    block, watchdog, prefetch_table_metadata)):
+                    block, watchdog, prefetch_table_metadata, db)):
     config = config or Config(config_path)
     port = port or config.worker_port
 
     # Load all protobuf types
-    db = bindings.Database(
+    db = db or bindings.Database(
         config.storage_config,
         #storage_config,
         config.db_path.encode('ascii'),
@@ -116,7 +116,8 @@ def start_worker(master_address,
                  block=False,
                  watchdog=True,
                  prefetch_table_metadata=True,
-                 num_workers=None):
+                 num_workers=None,
+                 db=None):
     """
     Start a worker instance on this node.
 
@@ -140,11 +141,11 @@ def start_worker(master_address,
     if num_workers is not None:
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             results = list(
-                executor.map(
-                    worker_process,
-                    ([(master_address, machine_params, int(port) + i, config,
-                       config_path, block, watchdog, prefetch_table_metadata)
-                      for i in range(num_workers)])))
+                executor.map(worker_process,
+                             ([(master_address, machine_params, int(port) + i,
+                                config, config_path, block, watchdog,
+                                prefetch_table_metadata, None)
+                               for i in range(num_workers)])))
 
         for result in results:
             if not result.success: return result
@@ -153,7 +154,7 @@ def start_worker(master_address,
     else:
         return worker_process(
             (master_address, machine_params, port, config, config_path, block,
-             watchdog, prefetch_table_metadata))
+             watchdog, prefetch_table_metadata, db))
 
 
 class Database(object):
@@ -197,6 +198,7 @@ class Database(object):
             self.config = Config(config_path)
 
         self._start_cluster = start_cluster
+        self._workers_started = False
         self._prefetch_table_metadata = prefetch_table_metadata
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
@@ -225,7 +227,8 @@ class Database(object):
 
         self._workers = {}
         self._worker_conns = None
-        self.start_cluster(master, workers)
+        self._worker_paths = workers
+        self.start_master(master)
 
     def __del__(self):
         self.stop_cluster()
@@ -438,7 +441,7 @@ class Database(object):
             self.stop_cluster()
             sys.exit(1)
 
-    def start_cluster(self, master, workers):
+    def start_master(self, master):
         """
         Starts  a Scanner cluster.
 
@@ -452,12 +455,6 @@ class Database(object):
                 self.config.master_address + ':' + self.config.master_port)
         else:
             self._master_address = master
-        if workers is None:
-            self._worker_addresses = [
-                self.config.master_address + ':' + self.config.worker_port
-            ]
-        else:
-            self._worker_addresses = workers
 
         # Boot up C++ database bindings
         self._db = self._bindings.Database(
@@ -474,7 +471,6 @@ class Database(object):
 
             if self._debug:
                 self._master_conn = None
-                self._worker_conns = None
                 machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
                     self._db, self.config.master_port.encode('ascii'), True,
@@ -489,18 +485,6 @@ class Database(object):
                         'port already?)'.format(self.config.master_port))
 
                 self._start_heartbeat()
-
-                for i in range(len(self._worker_addresses)):
-                    res = self._bindings.start_worker(
-                        self._db, machine_params,
-                        str(int(self.config.worker_port) + i).encode('ascii'),
-                        True, self._prefetch_table_metadata).success
-                    if not res:
-                        raise ScannerException(
-                            'Failed to start local worker on port {:d} and '
-                            'connect to master. (Is there another process that '
-                            'is bound to that port already?)'.format(
-                                self.config.worker_port))
             else:
                 master_port = self._master_address.partition(':')[2]
                 pickled_config = pickle.dumps(self.config)
@@ -517,13 +501,6 @@ class Database(object):
                         config=pickled_config,
                         prefetch=self._prefetch_table_metadata,
                         no_workers=self._no_workers_timeout)
-                worker_cmd = (
-                    'python -c ' + '\"from scannerpy import start_worker\n' +
-                    'import pickle\n' +
-                    'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n'
-                    + '             block=True,\n' +
-                    '             config=config)\" ' + '')
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
 
@@ -542,48 +519,6 @@ class Database(object):
                         'Timed out waiting to connect to master')
                 # Start up heartbeat to keep master alive
                 self._start_heartbeat()
-
-                # Start workers now that master is ready
-                self._worker_conns = []
-                ignored_nodes = 0
-                for w in self._worker_addresses:
-                    try:
-                        self._worker_conns.append(
-                            self._run_remote_cmd(
-                                w,
-                                worker_cmd.format(
-                                    master=self._master_address,
-                                    config=pickled_config,
-                                    worker_port=w.partition(':')[2]),
-                                nohup=True))
-                    except:
-                        print('WARNING: Failed to ssh into {:s}, ignoring'.
-                              format(w))
-                        ignored_nodes += 1
-                slept_so_far = 0
-                # Has to be this long for GCS
-                sleep_time = 60
-                while slept_so_far < sleep_time:
-                    active_workers = self._master.ActiveWorkers(
-                        self.protobufs.Empty(), timeout=self._grpc_timeout)
-                    if (len(active_workers.workers) > len(self._worker_conns)):
-                        raise ScannerException(
-                            ('Master has more workers than requested ' +
-                             '({:d} vs {:d})').format(
-                                 len(active_workers.workers),
-                                 len(self._worker_conns)))
-                    if (len(active_workers.workers) == len(
-                            self._worker_conns)):
-                        break
-                    time.sleep(0.3)
-                    slept_so_far += 0.3
-                if slept_so_far >= sleep_time:
-                    self.stop_cluster()
-                    raise ScannerException(
-                        'Timed out waiting for workers to connect to master')
-                if ignored_nodes > 0:
-                    print('Ignored {:d} nodes during startup.'.format(
-                        ignored_nodes))
         else:
             self._master_conn = None
             self._worker_conns = None
@@ -603,6 +538,85 @@ class Database(object):
         # Load stdlib
         self.load_op('{}/libstdlib.so'.format(SCRIPT_DIR),
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
+
+    def start_workers(self, workers, multiple=False):
+        if workers is None:
+            self._worker_addresses = [
+                self.config.master_address + ':' + self.config.worker_port
+            ]
+        else:
+            self._worker_addresses = workers
+
+        if self._debug:
+            self._worker_conns = None
+            for i in range(len(self._worker_addresses)):
+                start_worker(
+                    self._master_address,
+                    port=str(int(self.config.worker_port) + i).encode('ascii'),
+                    config=self.config,
+                    db=self._db,
+                    num_workers=cpu_count() if multiple else None)
+                # res = self._bindings.start_worker(
+                #     self._db, machine_params,
+                #     str(int(self.config.worker_port) + i).encode('ascii'),
+                #     True, self._prefetch_table_metadata
+                # ).success
+                # if not res:
+                #     raise ScannerException(
+                #         'Failed to start local worker on port {:d} and '
+                #         'connect to master. (Is there another process that '
+                #         'is bound to that port already?)'.format(
+                #             self.config.worker_port))
+        else:
+            pickled_config = pickle.dumps(self.config)
+            worker_cmd = (
+                'python -c ' + '\"from scannerpy import start_worker\n' +
+                'import pickle\n' +
+                'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
+                'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
+                '             block=True,\n' +
+                '             config=config)\" ' + '')
+
+            # Start workers now that master is ready
+            self._worker_conns = []
+            ignored_nodes = 0
+            for w in self._worker_addresses:
+                try:
+                    self._worker_conns.append(
+                        self._run_remote_cmd(
+                            w,
+                            worker_cmd.format(
+                                master=self._master_address,
+                                config=pickled_config,
+                                worker_port=w.partition(':')[2]),
+                            nohup=True))
+                except:
+                    print(
+                        'WARNING: Failed to ssh into {:s}, ignoring'.format(w))
+                    ignored_nodes += 1
+            slept_so_far = 0
+            # Has to be this long for GCS
+            sleep_time = 60
+            while slept_so_far < sleep_time:
+                active_workers = self._master.ActiveWorkers(
+                    self.protobufs.Empty(), timeout=self._grpc_timeout)
+                if (len(active_workers.workers) > len(self._worker_conns)):
+                    raise ScannerException(
+                        ('Master has more workers than requested ' +
+                         '({:d} vs {:d})').format(
+                             len(active_workers.workers),
+                             len(self._worker_conns)))
+                if (len(active_workers.workers) == len(self._worker_conns)):
+                    break
+                time.sleep(0.3)
+                slept_so_far += 0.3
+            if slept_so_far >= sleep_time:
+                self.stop_cluster()
+                raise ScannerException(
+                    'Timed out waiting for workers to connect to master')
+            if ignored_nodes > 0:
+                print(
+                    'Ignored {:d} nodes during startup.'.format(ignored_nodes))
 
     def stop_cluster(self):
         if self._start_cluster:
@@ -1068,8 +1082,8 @@ class Database(object):
         assert isinstance(bulk_job, BulkJob)
         assert isinstance(bulk_job.output(), Sink)
 
-        if (bulk_job.output()._name == 'FrameColumn' or
-            bulk_job.output()._name == 'Column'):
+        if (bulk_job.output()._name == 'FrameColumn'
+                or bulk_job.output()._name == 'Column'):
             is_table_output = True
         else:
             is_table_output = False
@@ -1099,6 +1113,8 @@ class Database(object):
         job_params.ops.extend(sorted_ops)
         job_output_table_names = []
         job_params.output_column_names[:] = output_column_names
+        using_python_op = False
+
         for job in bulk_job.jobs():
             j = job_params.jobs.add()
             output_table_name = None
@@ -1107,6 +1123,10 @@ class Database(object):
                     op = op_col
                 else:
                     op = op_col._op
+
+                if op._name in self._python_ops:
+                    using_python_op = True
+
                 if op in source_ops:
                     op_idx = source_ops[op]
                     source_input = j.inputs.add()
@@ -1120,8 +1140,10 @@ class Database(object):
                                 'Attempted to bind table {name} to Input Op '
                                 'but table {name} is not committed.'.format(
                                     name=args._table.name()))
-                        args = {'table_name': args._table.name(),
-                                'column_name': args.name()}
+                        args = {
+                            'table_name': args._table.name(),
+                            'column_name': args.name()
+                        }
                     n = op._name
                     if n.startswith('Frame'):
                         n = n[len('Frame'):]
@@ -1182,8 +1204,14 @@ class Database(object):
             self.delete_tables(to_delete)
 
         job_params.compression.extend(compression_options)
-        job_params.pipeline_instances_per_node = (pipeline_instances_per_node
-                                                  or -1)
+
+        # HACK: this should be in the scheduler
+        if using_python_op:
+            job_params.pipeline_instances_per_node = 1
+        else:
+            job_params.pipeline_instances_per_node = (
+                pipeline_instances_per_node or -1)
+
         job_params.work_packet_size = work_packet_size
         job_params.io_packet_size = io_packet_size
         job_params.profiling = profiling
@@ -1207,6 +1235,9 @@ class Database(object):
             job_params.memory_pool_config.gpu.use_pool = True
             size = self._parse_size_string(gpu_pool)
             job_params.memory_pool_config.gpu.free_space = size
+
+        if not self._workers_started:
+            self.start_workers(self._worker_paths, multiple=using_python_op)
 
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(
