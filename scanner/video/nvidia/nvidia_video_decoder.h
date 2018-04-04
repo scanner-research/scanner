@@ -22,7 +22,11 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#if CUDA_VERSION >= 9000
+#include "scanner/video/nvidia/nvcuvid.h"
+#else
 #include <nvcuvid.h>
+#endif
 
 namespace scanner {
 namespace internal {

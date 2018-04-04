@@ -126,7 +126,7 @@ if [[ $INSTALL_NONE == true ]]; then
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
     while true; do
-        echo "Do you have boost>=1.65.0 installed with the modules: "
+        echo "Do you have boost>=1.65.1 installed with the modules: "
         echo -n "thread, program_options, regex, python, numpy? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -295,15 +295,15 @@ elif [[ $INSTALL_ALL == false ]]; then
 fi
 
 if [[ $INSTALL_BOOST == true ]] && [[ ! -f $BUILD_DIR/boost.done ]] ; then
-    echo "Installing boost 1.65.0..."
+    echo "Installing boost 1.65.1..."
     cd $BUILD_DIR
     rm -fr boost*
-    wget "https://dl.bintray.com/boostorg/release/1.65.0/source/boost_1_65_0.tar.gz" && \
-        tar -xf boost_1_65_0.tar.gz && cd boost_1_65_0 && ./bootstrap.sh && \
+    wget "https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz" && \
+        tar -xf boost_1_65_1.tar.gz && cd boost_1_65_1 && ./bootstrap.sh && \
         ./b2 install --prefix=$INSTALL_PREFIX -j${cores} && \
-        rm -rf $BUILD_DIR/boost_1_65_0.tar.gz && touch $BUILD_DIR/boost.done \
+        rm -rf $BUILD_DIR/boost_1_65_1.tar.gz && touch $BUILD_DIR/boost.done \
             || { echo 'Installing boost failed!' ; exit 1; }
-    echo "Done installing boost 1.65.0"
+    echo "Done installing boost 1.65.1"
 fi
 
 
@@ -417,7 +417,7 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     rm -fr hwang
     git clone https://github.com/scanner-research/hwang && \
         cd hwang && \
-        git checkout f1a8a44a1121442313ecbb30e13f0f86fa491d84 && \
+        git checkout 40a518c4fae66d3213e3397fef8901aad254e507 && \
         bash ./deps.sh -a \
              --with-boost $INSTALL_PREFIX \
              --with-ffmpeg $INSTALL_PREFIX \
@@ -538,6 +538,9 @@ if [[ $INSTALL_OPENPOSE == true ]] && [[ $HAVE_GPU == true ]] && [[ ! -f $BUILD_
               -D DOWNLOAD_COCO_MODEL=Off \
               -D DOWNLOAD_HAND_MODEL=Off \
               -D DOWNLOAD_FACE_MODEL=Off \
+              -DCUDA_ARCH="Manual" \
+              -DCUDA_ARCH_BIN="30 35 50 60 61" \
+              -DCUDA_ARCH_PTX="30 35 50 60 61" \
               .. && \
         make install -j${cores} && \
         touch $BUILD_DIR/openpose.done \
