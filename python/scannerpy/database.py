@@ -1238,6 +1238,7 @@ class Database(object):
 
         if not self._workers_started:
             self.start_workers(self._worker_paths, multiple=using_python_op)
+            self._workers_started = True
 
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(
