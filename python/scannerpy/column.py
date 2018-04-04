@@ -9,9 +9,9 @@ from storehouse import RandomReadFile
 from scannerpy.stdlib import parsers
 from scannerpy.common import *
 from scannerpy.job import Job
-from scannerpy.bulk_job import BulkJob
 
 LOAD_SPARSITY_THRESHOLD = 10
+
 
 class Column(object):
     """
@@ -49,9 +49,9 @@ class Column(object):
 
     def keyframes(self):
         self._load_meta()
-        if (self._descriptor.type == self._db.protobufs.Video and
-            self._video_descriptor.codec_type ==
-            self._db.protobufs.VideoDescriptor.H264):
+        if (self._descriptor.type == self._db.protobufs.Video
+                and self._video_descriptor.codec_type ==
+                self._db.protobufs.VideoDescriptor.H264):
             # For each encoded video, add start frame offset
             frame_offset = 0
             kf_offset = 0
@@ -62,7 +62,8 @@ class Column(object):
                 keyframes += [
                     frame_offset + kfi
                     for kfi in self._video_descriptor.keyframe_indices[
-                            kf_offset:kf_offset + kfs_per_video]]
+                        kf_offset:kf_offset + kfs_per_video]
+                ]
                 frame_offset += frames_per_video
                 kf_offset += kfs_per_video
             return keyframes
@@ -73,19 +74,21 @@ class Column(object):
         assert len(rows) > 0
 
         metadata_path = '{}/tables/{}/{}_{}_metadata.bin'.format(
-            self._db_path, self._table._descriptor.id,
-            self._descriptor.id, item_id)
+            self._db_path, self._table._descriptor.id, self._descriptor.id,
+            item_id)
         try:
-            metadata_file = RandomReadFile(self._storage, metadata_path.encode('ascii'))
+            metadata_file = RandomReadFile(self._storage,
+                                           metadata_path.encode('ascii'))
         except UserWarning:
-            raise ScannerException('Path {} does not exist'.format(
-                metadata_path))
+            raise ScannerException(
+                'Path {} does not exist'.format(metadata_path))
 
         data_path = '{}/tables/{}/{}_{}.bin'.format(
-            self._db_path, self._table._descriptor.id,
-            self._descriptor.id, item_id)
+            self._db_path, self._table._descriptor.id, self._descriptor.id,
+            item_id)
         try:
-            data_file = RandomReadFile(self._storage, data_path.encode('ascii'))
+            data_file = RandomReadFile(self._storage,
+                                       data_path.encode('ascii'))
         except UserWarning:
             raise ScannerException('Path {} does not exist'.format(path))
 
@@ -93,8 +96,8 @@ class Column(object):
         last_row_edge_case = rows == [self._table._descriptor.end_rows[-1] - 1]
         if last_row_edge_case:
             size = metadata_file.size()
-            metadata_file.seek(size-8)
-            (buf_len,) = struct.unpack('=Q', metadata_file.read(8))
+            metadata_file.seek(size - 8)
+            (buf_len, ) = struct.unpack('=Q', metadata_file.read(8))
             data_file.seek(data_file.size() - buf_len)
             buf = data_file.read(buf_len)
             if len(buf) == 0:
@@ -115,11 +118,11 @@ class Column(object):
         total_rows = 0
         i = 0
         while i < len(metadata_contents):
-            (num_rows,) = struct.unpack("=Q", metadata_contents[i:i+8])
+            (num_rows, ) = struct.unpack("=Q", metadata_contents[i:i + 8])
             total_rows += num_rows
             i += 8
             for fi in range(num_rows):
-                (buf_len,) = struct.unpack("=Q", metadata_contents[i:i+8])
+                (buf_len, ) = struct.unpack("=Q", metadata_contents[i:i + 8])
                 lens.append(buf_len)
                 i += 8
 
@@ -140,7 +143,7 @@ class Column(object):
                     data_file.seek(i)
                     buf = data_file.read(buf_len)
                 else:
-                    buf = data_contents[i:i+buf_len]
+                    buf = data_contents[i:i + buf_len]
 
                 # len(buf) == 0 when element is null
                 if len(buf) == 0:
@@ -181,7 +184,7 @@ class Column(object):
                     break
             if select_rows:
                 for output in self._load_output_file(item_id, select_rows, fn):
-                    yield (input_rows[i], output)
+                    yield output
                     i += 1
             rows_so_far += item_rows
 
@@ -203,10 +206,11 @@ class Column(object):
         self._load_meta()
         # If the column is a video, then dump the requested frames to disk as
         # PNGs and return the decoded PNGs
-        if (self._descriptor.type == self._db.protobufs.Video and
-            self._video_descriptor.codec_type ==
-            self._db.protobufs.VideoDescriptor.H264):
-            png_table_name = self._db._png_dump_prefix.format(self._table.name())
+        if (self._descriptor.type == self._db.protobufs.Video
+                and self._video_descriptor.codec_type ==
+                self._db.protobufs.VideoDescriptor.H264):
+            png_table_name = self._db._png_dump_prefix.format(
+                self._table.name())
             if self._db.has_table(png_table_name):
                 png_table = self._db.table(png_table_name)
                 if rows is None and \
@@ -223,12 +227,12 @@ class Column(object):
                 sampled_frame = frame.sample()
                 op_args[sampled_frame] = self._db.sampler.gather(rows)
                 enc_input = sampled_frame
-            img = self._db.ops.ImageEncoder(frame = enc_input)
+            img = self._db.ops.ImageEncoder(frame=enc_input)
             output_op = self._db.sinks.Column(columns={'img': img})
             op_args[output_op] = png_table_name
             job = Job(op_args=op_args)
-            bulk_job = BulkJob(output=output_op, jobs=[job])
-            [out_tbl] = self._db.run(bulk_job, force=True, show_progress=False)
+            [out_tbl] = self._db.run(
+                output_op, [job], force=True, show_progress=False)
             return out_tbl.load(['img'], parsers.image)
         elif self._descriptor.type == self._db.protobufs.Video:
             frame_type = self._video_descriptor.frame_type
@@ -238,18 +242,17 @@ class Column(object):
                 dtype = np.float32
             elif frame_type == self._db.protobufs.F64:
                 dtype = np.float64
-            parser_fn = parsers.raw_frame_gen(self._video_descriptor.height,
-                                              self._video_descriptor.width,
-                                              self._video_descriptor.channels,
-                                              dtype)
+            parser_fn = parsers.raw_frame_gen(
+                self._video_descriptor.height, self._video_descriptor.width,
+                self._video_descriptor.channels, dtype)
             return self._load(fn=parser_fn, rows=rows)
         else:
             return self._load(fn, rows=rows)
 
     def save_mp4(self, output_name, fps=None, scale=None):
         self._load_meta()
-        if not (self._descriptor.type == self._db.protobufs.Video and
-                self._video_descriptor.codec_type ==
+        if not (self._descriptor.type == self._db.protobufs.Video
+                and self._video_descriptor.codec_type ==
                 self._db.protobufs.VideoDescriptor.H264):
             raise ScannerException('Attempted to save a non-h264-compressed '
                                    'column as an mp4. Try compressing the '
@@ -257,10 +260,12 @@ class Column(object):
                                    'an RGB24 frame')
         num_items = len(self._table._descriptor.end_rows)
 
-        paths = ['{}/tables/{:d}/{:d}_{:d}.bin'.format(
-            self._db._db_path,
-            self._table._descriptor.id, self._descriptor.id, item_id)
-                          for item_id in range(num_items)]
+        paths = [
+            '{}/tables/{:d}/{:d}_{:d}.bin'.format(self._db._db_path,
+                                                  self._table._descriptor.id,
+                                                  self._descriptor.id, item_id)
+            for item_id in range(num_items)
+        ]
         temp_paths = []
         for _ in range(len(paths)):
             fd, p = tempfile.mkstemp()
@@ -273,9 +278,8 @@ class Column(object):
 
         files = '|'.join(temp_paths)
 
-        vid_fps = (fps or
-                   (1.0/(self._video_descriptor.time_base_num /
-                         float(self._video_descriptor.time_base_denom))))
+        vid_fps = (fps or (1.0 / (self._video_descriptor.time_base_num / float(
+            self._video_descriptor.time_base_denom))))
 
         args = ''
         if scale:
@@ -283,15 +287,15 @@ class Column(object):
 
         cmd = (
             'ffmpeg -y '
-            '-r {fps:f} ' # set the input fps
-            '-i "concat:{input_files:s}" ' # concatenate the h264 files
+            '-r {fps:f} '  # set the input fps
+            '-i "concat:{input_files:s}" '  # concatenate the h264 files
             '-c:v libx264 '
-            '-filter:v "setpts=N" ' # h264 does not have pts' in it
+            '-filter:v "setpts=N" '  # h264 does not have pts' in it
             '{extra_args:s}'
             '{output_name:s}.mp4'.format(
-                input_files = files,
-                fps = vid_fps,
-                extra_args = args,
+                input_files=files,
+                fps=vid_fps,
+                extra_args=args,
                 output_name=output_name))
         rc = Popen(cmd, shell=True).wait()
         if rc != 0:

@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import math
 import os.path
 
-from scannerpy import DeviceType, Job, BulkJob
+from scannerpy import DeviceType, Job
 from scannerpy.stdlib import NetDescriptor, writers, bboxes, poses, parsers
 from scannerpy.stdlib.util import temp_directory, download_temp_file
 
@@ -102,9 +102,9 @@ def detect_faces(db,
                 })
             jobs.append(job)
 
-        bulk_job = BulkJob(output=output, jobs=jobs)
         output = db.run(
-            bulk_job,
+            output,
+            jobs,
             force=True,
             work_packet_size=batch * 4,
             io_packet_size=batch * 20,
@@ -130,8 +130,7 @@ def detect_faces(db,
             op_args[bbox_inputs[bi]] = cols[i].column('bboxes')
         op_args[output] = output_names[i]
         jobs.append(Job(op_args=op_args))
-    bulk_job = BulkJob(output=output, jobs=jobs)
-    return db.run(bulk_job, force=True)
+    return db.run(output, jobs, force=True)
 
 
 def detect_poses(db,
@@ -211,9 +210,9 @@ def detect_poses(db,
                 output: '{}_{}_poses'.format(output_name, i)
             })
         jobs.append(job)
-    bulk_job = BulkJob(output=output, jobs=jobs)
     output = db.run(
-        bulk_job,
+        output,
+        jobs,
         force=True,
         work_packet_size=8,
         pipeline_instances_per_node=pipeline_instances)

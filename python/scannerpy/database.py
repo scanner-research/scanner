@@ -33,7 +33,6 @@ from scannerpy.table import Table
 from scannerpy.column import Column
 from scannerpy.protobuf_generator import ProtobufGenerator, python_to_proto
 from scannerpy.job import Job
-from scannerpy.bulk_job import BulkJob
 
 from storehouse import StorageConfig, StorageBackend
 
@@ -550,23 +549,24 @@ class Database(object):
         if self._debug:
             self._worker_conns = None
             for i in range(len(self._worker_addresses)):
-                start_worker(
-                    self._master_address,
-                    port=str(int(self.config.worker_port) + i).encode('ascii'),
-                    config=self.config,
-                    db=self._db,
-                    num_workers=cpu_count() if multiple else None)
-                # res = self._bindings.start_worker(
-                #     self._db, machine_params,
-                #     str(int(self.config.worker_port) + i).encode('ascii'),
-                #     True, self._prefetch_table_metadata
-                # ).success
-                # if not res:
-                #     raise ScannerException(
-                #         'Failed to start local worker on port {:d} and '
-                #         'connect to master. (Is there another process that '
-                #         'is bound to that port already?)'.format(
-                #             self.config.worker_port))
+                # start_worker(
+                #     self._master_address,
+                #     port=str(int(self.config.worker_port) + i).encode('ascii'),
+                #     config=self.config,
+                #     db=self._db,
+                #     num_workers=cpu_count()
+                #     if multiple and len(self._worker_addresses) == 1 else None)
+                res = self._bindings.start_worker(
+                    self._db, machine_params,
+                    str(int(self.config.worker_port) + i).encode('ascii'),
+                    True, self._prefetch_table_metadata).success
+                if not res:
+                    raise ScannerException(
+                        'Failed to start local worker on port {:d} and '
+                        'connect to master. (Is there another process that '
+                        'is bound to that port already?)'.format(
+                            self.config.worker_port))
+
         else:
             pickled_config = pickle.dumps(self.config)
             worker_cmd = (
@@ -617,6 +617,8 @@ class Database(object):
             if ignored_nodes > 0:
                 print(
                     'Ignored {:d} nodes during startup.'.format(ignored_nodes))
+
+        self._workers_started = True
 
     def stop_cluster(self):
         if self._start_cluster:
@@ -1066,7 +1068,8 @@ class Database(object):
         return result.videos
 
     def run(self,
-            bulk_job,
+            output,
+            jobs,
             force=False,
             work_packet_size=250,
             io_packet_size=-1,
@@ -1079,18 +1082,16 @@ class Database(object):
             tasks_in_queue_per_pu=4,
             task_timeout=0,
             checkpoint_frequency=1000):
-        assert isinstance(bulk_job, BulkJob)
-        assert isinstance(bulk_job.output(), Sink)
+        assert isinstance(output, Sink)
 
-        if (bulk_job.output()._name == 'FrameColumn'
-                or bulk_job.output()._name == 'Column'):
+        if (output._name == 'FrameColumn' or output._name == 'Column'):
             is_table_output = True
         else:
             is_table_output = False
 
         # Collect compression annotations to add to job
         compression_options = []
-        output_op = bulk_job.output()
+        output_op = output
         for out_col in output_op.inputs():
             opts = self.protobufs.OutputColumnCompression()
             opts.codec = 'default'
@@ -1105,7 +1106,7 @@ class Database(object):
         output_column_names = output_op._output_names
 
         sorted_ops, source_ops, sampling_slicing_ops, output_ops = (
-            self._toposort(bulk_job.output()))
+            self._toposort(output))
 
         job_params = self.protobufs.BulkJobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
@@ -1115,7 +1116,7 @@ class Database(object):
         job_params.output_column_names[:] = output_column_names
         using_python_op = False
 
-        for job in bulk_job.jobs():
+        for job in jobs:
             j = job_params.jobs.add()
             output_table_name = None
             for op_col, args in job.op_args().iteritems():
@@ -1238,7 +1239,6 @@ class Database(object):
 
         if not self._workers_started:
             self.start_workers(self._worker_paths, multiple=using_python_op)
-            self._workers_started = True
 
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(

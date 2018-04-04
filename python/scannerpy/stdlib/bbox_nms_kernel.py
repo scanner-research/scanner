@@ -5,6 +5,7 @@ import scannerpy.stdlib.parsers as parsers
 import scannerpy.stdlib.writers as writers
 import scannerpy.stdlib.bboxes as bboxes
 
+
 class BBoxNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
@@ -21,5 +22,6 @@ class BBoxNMSKernel(scannerpy.Kernel):
             bboxes_list += parsers.bboxes(c, self.protobufs)
         nmsed_bboxes = bboxes.nms(bboxes_list, 0.1)
         return writers.bboxes([nmsed_bboxes], self.protobufs)
+
 
 KERNEL = BBoxNMSKernel
