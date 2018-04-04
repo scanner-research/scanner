@@ -549,23 +549,23 @@ class Database(object):
         if self._debug:
             self._worker_conns = None
             for i in range(len(self._worker_addresses)):
-                # start_worker(
-                #     self._master_address,
-                #     port=str(int(self.config.worker_port) + i).encode('ascii'),
-                #     config=self.config,
-                #     db=self._db,
-                #     num_workers=cpu_count()
-                #     if multiple and len(self._worker_addresses) == 1 else None)
-                res = self._bindings.start_worker(
-                    self._db, machine_params,
-                    str(int(self.config.worker_port) + i).encode('ascii'),
-                    True, self._prefetch_table_metadata).success
-                if not res:
-                    raise ScannerException(
-                        'Failed to start local worker on port {:d} and '
-                        'connect to master. (Is there another process that '
-                        'is bound to that port already?)'.format(
-                            self.config.worker_port))
+                start_worker(
+                    self._master_address,
+                    port=str(int(self.config.worker_port) + i).encode('ascii'),
+                    config=self.config,
+                    db=self._db,
+                    num_workers=cpu_count()
+                    if multiple and len(self._worker_addresses) == 1 else None)
+                # res = self._bindings.start_worker(
+                #     self._db, machine_params,
+                #     str(int(self.config.worker_port) + i).encode('ascii'),
+                #     True, self._prefetch_table_metadata).success
+                # if not res:
+                #     raise ScannerException(
+                #         'Failed to start local worker on port {:d} and '
+                #         'connect to master. (Is there another process that '
+                #         'is bound to that port already?)'.format(
+                #             self.config.worker_port))
 
         else:
             pickled_config = pickle.dumps(self.config)
