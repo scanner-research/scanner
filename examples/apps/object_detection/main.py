@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job, BulkJob
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import NetDescriptor, parsers, bboxes
 import math
 import os
@@ -47,8 +47,8 @@ with Database() as db:
         frame: input_table.column('frame'),
         output: input_table.name() + '_detections'
     })
-    bulk_job = BulkJob(output=output, jobs=[job])
-    [output] = db.run(bulk_job, pipeline_instances_per_node = 1,
+    [output] = db.run(output=output, jobs=[job],
+                      pipeline_instances_per_node = 1,
                       work_packet_size = 10, io_packet_size = 40, force=True)
 
     output = db.table(input_table.name() + '_detections')

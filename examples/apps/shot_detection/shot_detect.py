@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job, BulkJob
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers
 from scipy.spatial import distance
 from subprocess import check_call as run
@@ -105,8 +105,7 @@ def main(movie_path):
             frame: movie_table.column('frame'),
             output: movie_name + '_hist'
         })
-        bulk_job = BulkJob(output=output, jobs=[job])
-        [hists_table] = db.run(bulk_job, force=True)
+        [hists_table] = db.run(output=output, jobs=[job], force=True)
         print('\nTime: {:.1f}s, {:.1f} fps'.format(
             time.time() - s,
             movie_table.num_rows() / (time.time() - s)))
@@ -118,8 +117,8 @@ def main(movie_path):
         ############ ############ ############ ############
         print('Computing shot boundaries...')
         # Read histograms from disk
-        hists = [h for _, h in hists_table.load(['histogram'],
-                                                parsers.histograms)]
+        hists = [h for h in
+                 hists_table.column('histogram').load(parsers.histograms)]
         boundaries = compute_shot_boundaries(hists)
         print('Found {:d} shots.'.format(len(boundaries)))
         print('Time: {:.1f}s'.format(time.time() - s))
@@ -130,7 +129,7 @@ def main(movie_path):
         ############ ############ ############ ############
         print('Creating shot montage...')
 
-        row_length = 16
+        row_length = min(16, len(boundaries))
         rows_per_item = 1
         target_width = 256
 
@@ -164,13 +163,11 @@ def main(movie_path):
                               for _ in range(len(boundaries) / item_size)],
             output: 'montage_image'
         })
-        bulk_job = BulkJob(output=output, jobs=[job])
-
-        [montage_table] = db.run(bulk_job, force=True)
+        [montage_table] = db.run(output=output, jobs=[job], force=True)
 
         # Stack all partial montages together
         montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
-        for idx, img in montage_table.column('montage').load():
+        for img in montage_table.column('montage').load():
             img = np.flip(img, 2)
             montage_img = np.vstack((montage_img, img))
 

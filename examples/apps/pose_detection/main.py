@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job, ColumnType, BulkJob
+from scannerpy import Database, DeviceType, Job, ColumnType
 from scannerpy.stdlib import NetDescriptor, parsers, pipelines
 import math
 import os
@@ -51,8 +51,7 @@ with Database() as db:
         poses: poses_table.column('poses'),
         output: movie_name + '_drawn_poses',
     })
-    bulk_job = BulkJob(output=output, jobs=[job])
-    [drawn_poses_table] = db.run(bulk_job, force=True)
+    [drawn_poses_table] = db.run(output=output, jobs=[job], force=True)
     print('Writing output video...')
     drawn_poses_table.column('frame').save_mp4('{:s}_poses'.format(
         movie_name))

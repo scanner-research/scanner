@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job, BulkJob
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import pipelines
 import subprocess
 import cv2
@@ -39,8 +39,7 @@ with Database() as db:
         bboxes: bboxes_table.column('bboxes'),
         output: movie_name + '_bboxes_overlay',
     })
-    bulk_job = BulkJob(output=output, jobs=[job])
-    [out_table] = db.run(bulk_job, force=True)
+    [out_table] = db.run(output=output, jobs=[job], force=True)
     out_table.column('frame').save_mp4(movie_name + '_faces')
 
     print('Successfully generated {:s}_faces.mp4'.format(movie_name))
