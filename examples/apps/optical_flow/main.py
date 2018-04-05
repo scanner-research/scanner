@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job, BulkJob
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import parsers
 import os
 import os.path as osp
@@ -33,9 +33,8 @@ with Database() as db:
         sampled_flow: sampler,
         output: input_table.name() + '_flow'
     })
-    bulk_job = BulkJob(output=output, jobs=[job])
+    [output_table] = db.run(output=output, jobs=[job],
+                            pipeline_instances_per_node=1, force=True)
 
-    [output_table] = db.run(bulk_job, pipeline_instances_per_node=1, force=True)
-
-    vid_flows = [flow[0] for _, flow in output_table.load(['flow'], rows=[0])]
+    vid_flows = [flow[0] for flow in output_table.column('flow').load(rows=[0])]
     np.save('flows.npy', vid_flows)

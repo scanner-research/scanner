@@ -1,4 +1,4 @@
-from scannerpy import Database, Job, BulkJob, ColumnType, DeviceType
+from scannerpy import Database, Job, ColumnType, DeviceType
 import os
 import sys
 import math
@@ -226,8 +226,8 @@ if __name__ == '__main__':
                 output_op: 'example_obj_detect',
             }
         )
-        bulk_job = BulkJob(output=output_op, jobs=[job])
-        [out_table] = db.run(bulk_job, force=True, pipeline_instances_per_node=1)
+        [out_table] = db.run(output=output_op, jobs=[job], force=True,
+                             pipeline_instances_per_node=1)
 
         print('Extracting data from Scanner output...')
 

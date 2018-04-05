@@ -9,9 +9,7 @@ import scannerpy.stdlib.bboxes as bboxes
 class BBoxNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
-        args = protobufs.BBoxNMSArgs()
-        args.ParseFromString(config.args)
-        self.scale = args.scale
+        self.scale = config.args['scale']
 
     def close(self):
         pass

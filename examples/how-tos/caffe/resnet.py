@@ -1,4 +1,4 @@
-from scannerpy import Database, DeviceType, Job, BulkJob
+from scannerpy import Database, DeviceType, Job
 from scannerpy.stdlib import NetDescriptor
 import numpy as np
 import cv2
@@ -37,6 +37,5 @@ with Database() as db:
         frame: input_table.column('frame'),
         output: input_table.name() + '_classification'
     })
-    bulk_job = BulkJob(output=output, jobs=[job])
 
-    [output] = db.run(bulk_job, pipeline_instances_per_node=1, force=True)
+    [output] = db.run(output=output, jobs=[job], pipeline_instances_per_node=1)
