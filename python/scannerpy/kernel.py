@@ -19,6 +19,9 @@ class Kernel(object):
     def close(self):
         pass
 
+    def new_stream(self, args):
+        pass
+
     def reset(self):
         pass
 

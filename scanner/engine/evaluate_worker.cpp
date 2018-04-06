@@ -429,9 +429,17 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   }
 
   // Make the op aware of the format of the data
-  for (auto& kernel : kernels_) {
+  for (size_t i = 0; i < kernels_.size(); ++i) {
+    auto& kernel = kernels_[i];
     if (kernel) {
       kernel->reset();
+      // Pass new op args
+      if (arg_group_.op_args[i].size() > 0) {
+        auto& a = arg_group_.op_args[i][job_idx];
+        kernel->new_stream(a);
+      } else {
+        kernel->new_stream({});
+      }
     }
   }
 

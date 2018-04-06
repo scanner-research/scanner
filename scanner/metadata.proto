@@ -154,6 +154,11 @@ message SourceInput {
   bytes enumerator_args = 2;
 }
 
+message OpArgs {
+  int32 op_index = 1;
+  bytes op_args = 2;
+}
+
 message SinkArgs {
   int32 op_index = 1;
   bytes args = 2;
@@ -173,8 +178,9 @@ message SamplingArgsAssignment {
 message Job {
   string output_table_name = 1;
   repeated SourceInput inputs = 2;
-  repeated SinkArgs outputs = 3;
-  repeated SamplingArgsAssignment sampling_args_assignment = 4;
+  repeated OpArgs op_args = 3;
+  repeated SinkArgs outputs = 4;
+  repeated SamplingArgsAssignment sampling_args_assignment = 5;
 }
 
 message BulkJobDescriptor {

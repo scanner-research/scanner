@@ -554,8 +554,8 @@ class Database(object):
                     port=str(int(self.config.worker_port) + i).encode('ascii'),
                     config=self.config,
                     db=self._db,
-                    num_workers=cpu_count()
-                    if multiple and len(self._worker_addresses) == 1 else None)
+                    num_workers=None)
+                    #cpu_count() if multiple and len(self._worker_addresses) == 1 else None)
                 # res = self._bindings.start_worker(
                 #     self._db, machine_params,
                 #     str(int(self.config.worker_port) + i).encode('ascii'),
@@ -996,7 +996,8 @@ class Database(object):
             elif isinstance(c, Sink):
                 output_ops[c] = op_idx
 
-        return [e.to_proto(eval_index) for e in eval_sorted], \
+        return eval_sorted, \
+            eval_index, \
             source_ops, \
             sampling_slicing_ops, \
             output_ops
@@ -1105,13 +1106,13 @@ class Database(object):
         # Get output columns
         output_column_names = output_op._output_names
 
-        sorted_ops, source_ops, sampling_slicing_ops, output_ops = (
+        sorted_ops, op_index, source_ops, sampling_slicing_ops, output_ops = (
             self._toposort(output))
 
         job_params = self.protobufs.BulkJobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
-        job_params.ops.extend(sorted_ops)
+        job_params.ops.extend([e.to_proto(op_index) for e in sorted_ops])
         job_output_table_names = []
         job_params.output_column_names[:] = output_column_names
         using_python_op = False
@@ -1180,11 +1181,20 @@ class Database(object):
                             self.protobufs, sink_proto_name, args)
                         output_table_name = ''
                 else:
-                    raise ScannerException(
-                        'Attempted to bind arguments to Op {} which is not '
-                        'an input, sampling, spacing, slicing, or output Op.'
-                        .format(
-                            op.name()))  # FIXME(apoms): op.name() is unbound
+                    # Regular old Op
+                    op_idx = op_index[op]
+                    oargs = j.op_args.add()
+                    oargs.op_index = op_idx
+                    # Encode the args
+                    n = op._name
+                    if n in self._python_ops:
+                        oargs.op_args = pickle.dumps(args)
+                    else:
+                        if n.startswith('Frame'):
+                            n = n[len('Frame'):]
+                        proto_name = n + 'Args'
+                        oargs.op_args = python_to_proto(
+                            self.protobufs, proto_name, args)
             if is_table_output and output_table_name is None:
                 raise ScannerException(
                     'Did not specify the output table name by binding a '

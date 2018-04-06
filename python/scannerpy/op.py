@@ -196,15 +196,8 @@ class Op:
                 # args.proto module, and fill that in with keys from the args dict.
                 if len(self._args) > 0:
                     proto_name = self._name + 'Args'
-                    args_proto = getattr(self._db.protobufs, proto_name)()
-                    for k, v in self._args.iteritems():
-                        try:
-                            setattr(args_proto, k, v)
-                        except AttributeError:
-                            # If the attribute is a nested proto, we can't assign
-                            # directly, so copy from the value.
-                            getattr(args_proto, k).CopyFrom(v)
-                        e.kernel_args = args_proto.SerializeToString()
+                    e.kernel_args = python_to_proto(
+                        self._db.protobufs, proto_name, self._args)
         else:
             # If arguments are a protobuf object, serialize it directly
             e.kernel_args = self._args.SerializeToString()

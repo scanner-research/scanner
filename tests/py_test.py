@@ -14,6 +14,7 @@ import numpy as np
 import sys
 import grpc
 import struct
+import pickle
 
 try:
     run(['nvidia-smi'])
@@ -550,6 +551,35 @@ def test_python_batch_kernel(db):
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     next(tables[0].load(['dummy']))
+
+def test_bind_op_args(db):
+    db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
+    db.register_python_kernel('TestPy', DeviceType.CPU,
+                              cwd + '/test_py_kernel.py')
+
+    frame = db.sources.FrameColumn()
+    range_frame = frame.sample()
+    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
+    output_op = db.sinks.Column(columns={'dummy': test_out})
+
+    pairs = [(1, 5), (10, 50)]
+    jobs = []
+    for x, y in pairs:
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                test_out: {'x': x, 'y': y},
+                range_frame: db.sampler.range(0, 1),
+                output_op: 'test_hist_{:d}'.format(x)
+            })
+        jobs.append(job)
+
+    tables = db.run(output_op, jobs, force=True, show_progress=False)
+    for i, (x, y) in enumerate(pairs):
+        values = [v for v in tables[i].column('dummy').load()]
+        p = pickle.loads(values[0])
+        assert p['x'] == x
+        assert p['y'] == y
 
 
 def test_blur(db):
