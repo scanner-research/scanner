@@ -18,6 +18,8 @@ class PythonKernel : public BatchedKernel {
 
   ~PythonKernel();
 
+  void new_stream(const std::vector<u8>& args) override;
+
   void execute(const BatchedElements& input_columns,
                BatchedElements& output_columns) override;
 

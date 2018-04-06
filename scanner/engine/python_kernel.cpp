@@ -332,6 +332,32 @@ void PythonKernel::single_python_execute(const BatchedElements& input_columns,
   PyGILState_Release(gstate);
 }
 
+void PythonKernel::new_stream(const std::vector<u8>& args) {
+  PyGILState_STATE gstate = PyGILState_Ensure();
+
+  try {
+    py::object main = py::import("__main__");
+    py::object kernel = main.attr(py::str(kernel_name_));
+
+    py::object main_namespace = main.attr("__dict__");
+    main.attr("args_str") = py::str(reinterpret_cast<const char*>(args.data()),
+                                    args.size());
+    std::string pycode = tfm::format(
+        "import pickle\n"
+        "if len(args_str) == 0:\n"
+        "  args = None\n"
+        "else:\n"
+        "  args = pickle.loads(args_str)\n"
+        "%s.new_stream(args)",
+        kernel_name_);
+    py::exec(pycode.c_str(), main_namespace);
+  } catch (py::error_already_set& e) {
+    LOG(FATAL) << handle_pyerror();
+  }
+
+  PyGILState_Release(gstate);
+}
+
 void PythonKernel::execute(const BatchedElements& input_columns,
                            BatchedElements& output_columns) {
   if (can_batch_) {

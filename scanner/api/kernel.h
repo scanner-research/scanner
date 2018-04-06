@@ -150,6 +150,15 @@ class BaseKernel {
   virtual void validate(proto::Result* result) { result->set_success(true); }
 
   /**
+   * @brief Called when the Kernel is about to process a new stream.
+   *
+   * @param args
+   *        the arguments that were bound to this Op for this stream
+   *
+   */
+  virtual void new_stream(const std::vector<u8>& args) {};
+
+  /**
    * @brief Requests that kernel resets its logical state.
    *
    * Scanner calls reset on a kernel when it provides non-consecutive

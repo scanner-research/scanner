@@ -97,6 +97,8 @@ struct OpArgGroup {
   /// For regular kernels
   std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
+  // Op -> Job -> slice
+  std::map<i64, std::vector<std::vector<u8>>> op_args;
   // Discarded after kernel use
   std::vector<std::vector<i32>> dead_columns;
   // Discarded immediately after kernel execute

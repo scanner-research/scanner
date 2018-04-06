@@ -932,6 +932,21 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  // Setup op args that will be passed to Ops when processing
+  // the stream for that job
+  // op_idx -> job idx -> args
+  std::map<i64, std::vector<std::vector<u8>>> op_args;
+  for (const auto& job : jobs) {
+    for (auto& oa : job.op_args()) {
+      auto& op_job_args = op_args[oa.op_index()];
+      op_job_args.emplace_back();
+      auto& sargs = op_job_args.back();
+      // TODO(apoms): use real op_idx when we support multiple outputs
+      // sargs[so.op_index()] =
+      sargs = std::vector<u8>(oa.op_args().begin(), oa.op_args().end());
+    }
+  }
+
   // Populate kernel_factories and kernel_configs
   for (size_t i = 0; i < ops.size(); ++i) {
     auto& op = ops.at(i);
@@ -1020,6 +1035,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto& op_source = groups.back().is_source;
       auto& op_sampling = groups.back().sampling_args;
       auto& group = groups.back().kernel_factories;
+      auto& oargs = groups.back().op_args;
       auto& lc = groups.back().live_columns;
       auto& dc = groups.back().dead_columns;
       auto& uo = groups.back().unused_outputs;
@@ -1069,7 +1085,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         }
         assert(sampling_args_per_job.size() == jobs.size());
       }
+      i64 local_op_idx = group.size();
       group.push_back(std::make_tuple(factory, kernel_configs[i]));
+      oargs[local_op_idx] = op_args[i];
       lc.push_back(live_columns[i]);
       dc.push_back(dead_columns[i]);
       uo.push_back(unused_outputs[i]);
