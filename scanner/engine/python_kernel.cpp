@@ -137,12 +137,24 @@ void PythonKernel::batched_python_execute(const BatchedElements& input_columns,
       if (config_.input_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
           const Frame *frame = input_columns[j][i].as_const_frame();
+          np::dtype dtype = np::dtype::get_builtin<uint8_t>();
+          u32 dtype_size;
+          if (frame->type == FrameType::U8) {
+            dtype = np::dtype::get_builtin<uint8_t>();
+            dtype_size = 1;
+          } else if (frame->type == FrameType::F32) {
+            dtype = np::dtype::get_builtin<float>();
+            dtype_size = 4;
+          } else if (frame->type == FrameType::F64) {
+            dtype = np::dtype::get_builtin<double>();
+            dtype_size = 8;
+          }
           np::ndarray frame_np =
-              np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),
+              np::from_data(frame->data, dtype,
                             py::make_tuple(frame->height(), frame->width(),
                                            frame->channels()),
-                            py::make_tuple(frame->width() * frame->channels(),
-                                           frame->channels(), 1),
+                            py::make_tuple(frame->width() * frame->channels() * dtype_size,
+                                           frame->channels() * dtype_size, dtype_size),
                             py::object());
           rows.append(frame_np);
         }
@@ -253,12 +265,24 @@ void PythonKernel::single_python_execute(const BatchedElements& input_columns,
         // HACK(wcrichto): should pass column type in config and check here
         if (config_.input_column_types[j] == proto::ColumnType::Video) {
           const Frame* frame = input_columns[j][i].as_const_frame();
+          np::dtype dtype = np::dtype::get_builtin<uint8_t>();
+          u32 dtype_size;
+          if (frame->type == FrameType::U8) {
+            dtype = np::dtype::get_builtin<uint8_t>();
+            dtype_size = 1;
+          } else if (frame->type == FrameType::F32) {
+            dtype = np::dtype::get_builtin<float>();
+            dtype_size = 4;
+          } else if (frame->type == FrameType::F64) {
+            dtype = np::dtype::get_builtin<double>();
+            dtype_size = 8;
+          }
           np::ndarray frame_np =
-              np::from_data(frame->data, np::dtype::get_builtin<uint8_t>(),
+              np::from_data(frame->data, dtype,
                             py::make_tuple(frame->height(), frame->width(),
                                            frame->channels()),
-                            py::make_tuple(frame->width() * frame->channels(),
-                                           frame->channels(), 1),
+                            py::make_tuple(frame->width() * frame->channels() * dtype_size,
+                                           frame->channels() * dtype_size, dtype_size),
                             py::object());
           cols.append(frame_np);
         } else {
