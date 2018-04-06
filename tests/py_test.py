@@ -552,10 +552,14 @@ def test_python_batch_kernel(db):
     tables = db.run(output_op, [job], force=True, show_progress=False)
     next(tables[0].load(['dummy']))
 
+
 def test_bind_op_args(db):
-    db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
-    db.register_python_kernel('TestPy', DeviceType.CPU,
-                              cwd + '/test_py_kernel.py')
+    try:
+        db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
+        db.register_python_kernel('TestPy', DeviceType.CPU,
+                                  cwd + '/test_py_kernel.py')
+    except ScannerException:
+        pass
 
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
@@ -568,7 +572,10 @@ def test_bind_op_args(db):
         job = Job(
             op_args={
                 frame: db.table('test1').column('frame'),
-                test_out: {'x': x, 'y': y},
+                test_out: {
+                    'x': x,
+                    'y': y
+                },
                 range_frame: db.sampler.range(0, 1),
                 output_op: 'test_hist_{:d}'.format(x)
             })
