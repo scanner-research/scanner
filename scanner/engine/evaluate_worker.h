@@ -96,9 +96,12 @@ struct OpArgGroup {
   std::map<i64, std::vector<std::vector<i64>>> unslice_input_rows;
   /// For regular kernels
   std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
-  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
-  // Op -> Job -> slice
+  // Number of rows in the input domain for this op
+  // Op -> Job -> slice -> rows
+  std::map<i64, std::vector<std::vector<i64>>> op_input_domain_size;
+  // Op -> Job -> args
   std::map<i64, std::vector<std::vector<u8>>> op_args;
+  std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   // Discarded after kernel use
   std::vector<std::vector<i32>> dead_columns;
   // Discarded immediately after kernel execute
@@ -122,6 +125,7 @@ struct EvaluateWorkerArgs {
   i32 ki;
   i32 kg;
   OpArgGroup arg_group;
+  proto::BulkJobParameters::BoundaryCondition boundary_condition;
 
   Profiler& profiler;
   proto::Result& result;

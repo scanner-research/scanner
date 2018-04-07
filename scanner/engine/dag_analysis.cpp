@@ -1171,6 +1171,8 @@ Result derive_stencil_requirements(
 
   i64 num_ops = ops.size();
 
+  const std::map<i64, std::vector<i64>>& job_total_rows_per_op =
+      analysis_results.total_rows_per_op.at(job_idx);
   const std::map<i64, std::vector<i64>>& job_slice_output_rows =
       analysis_results.slice_output_rows.at(job_idx);
   const std::map<i64, std::vector<i64>>& job_unslice_input_rows =
@@ -1255,23 +1257,14 @@ Result derive_stencil_requirements(
     for (size_t i = 0; i < downstream_rows.size(); ++i) {
       i64 r = downstream_rows[i];
       if (r < 0 || r >= max_rows) {
-        switch (boundary_condition) {
-          case proto::BulkJobParameters::REPEAT_EDGE: {
-            r = (r < 0) ? 0 : max_rows - 1;
-            break;
-          }
-          case proto::BulkJobParameters::REPEAT_NULL: {
-            r = -1;
-            break;
-          }
-          case proto::BulkJobParameters::ERROR: {
+        if (boundary_condition == proto::BulkJobParameters::ERROR) {
             Result result;
             RESULT_ERROR(&result, "Boundary error.");
             return result;
-          }
         }
+      } else {
+        bounded_rows.push_back(r);
       }
-      bounded_rows.push_back(r);
     }
     Result result;
     result.set_success(true);
@@ -1305,11 +1298,8 @@ Result derive_stencil_requirements(
             std::vector<i64>& input_rows = required_input_op_input_rows.at(i);
             i64 num_rows = enumerators[i]->total_elements();
 
-            // Perform boundary restriction
-            Result result = handle_boundary(output_rows, num_rows, input_rows);
-            if (!result.success()) {
-              return result;
-            }
+            input_rows = output_rows;
+
             // Generate all the args for the requested input rows
             std::vector<ElementArgs>& element_args =
                 required_input_op_element_args.at(i);
@@ -1365,13 +1355,7 @@ Result derive_stencil_requirements(
         }
 
         i64 rows_in_group = slice_output_counts.at(slice_group);
-        // Perform boundary restriction
-        std::vector<i64> bounded_rows;
-        Result result =
-            handle_boundary(downstream_rows, rows_in_group, bounded_rows);
-        if (!result.success()) {
-          return result;
-        }
+        std::vector<i64> bounded_rows = downstream_rows;
 
         // Remap row indices
         for (i64 r : bounded_rows) {
@@ -1451,11 +1435,24 @@ Result derive_stencil_requirements(
         }
         new_rows = std::vector<i64>(stencil_rows.begin(), stencil_rows.end());
         std::sort(new_rows.begin(), new_rows.end());
+
+        // Perform boundary restriction to limit requested rows from other ops
+        // to only those which are within the domain
+        assert(op.inputs().size() > 0);
+        std::vector<i64> bounded_rows;
+        Result result = handle_boundary(
+            new_rows,
+            job_total_rows_per_op.at(op.inputs(0).op_index()).at(slice_group),
+            bounded_rows);
+        new_rows = bounded_rows;
       }
 
       required_input_rows_at_op.at(op_idx) = new_rows;
+
       // Input Op inputs do not connect to any other Ops
       if (!op.is_source()) {
+        assert(op.inputs().size() > 0);
+
         for (auto& input : op.inputs()) {
           if (input.op_index() == 0) {
             // For the input Op, we track each input column separately since
@@ -1469,8 +1466,8 @@ Result derive_stencil_requirements(
               }
             }
             assert(col_id != -1);
-            required_input_op_output_rows.at(col_id).insert(new_rows.begin(),
-                                                            new_rows.end());
+            required_input_op_output_rows.at(col_id).insert(
+                new_rows.begin(), new_rows.end());
           }
           auto& input_outputs = required_output_rows_at_op.at(input.op_index());
           input_outputs.insert(new_rows.begin(), new_rows.end());
@@ -1480,6 +1477,23 @@ Result derive_stencil_requirements(
       if (compute_rows.empty()) {
         compute_rows = new_rows;
       }
+
+      VLOG(3) << "Op " << op_idx;
+      std::string st;
+      for (auto s : new_rows) {
+        st += std::to_string(s) + " ";
+      }
+      VLOG(3) << "Valid inputs: " << st;
+      st = "";
+      for (auto s : compute_rows) {
+        st += std::to_string(s) + " ";
+      }
+      VLOG(3) << "Compute inputs: " << st;
+      st = "";
+      for (auto s : downstream_rows) {
+        st += std::to_string(s) + " ";
+      }
+      VLOG(3) << "Valid outputs: " << st;
 
       TaskStream s;
       s.slice_group = slice_group;
