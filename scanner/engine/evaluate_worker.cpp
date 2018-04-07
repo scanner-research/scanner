@@ -254,6 +254,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
     worker_id_(worker_id_),
     profiler_(args.profiler),
     arg_group_(args.arg_group) {
+  assert(args.boundary_condition == proto::BulkJobParameters::REPEAT_EDGE);
   auto setup_start = now();
   for (auto& col : arg_group_.column_mapping) {
     column_mapping_set_.emplace_back(col.begin(), col.end());
@@ -478,6 +479,8 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     const std::vector<DeviceHandle>& current_output_handles =
         kernel_output_devices_[k];
 
+    VLOG(1) << "Processing Op " << op_name;
+
     std::vector<i64>& kernel_valid_input_rows = valid_input_rows_[k];
     std::set<i64>& kernel_valid_input_rows_set = valid_input_rows_set_[k];
     std::vector<i64>& kernel_current_input_idx = current_valid_input_idx_[k];
@@ -564,16 +567,36 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       }
     }
 
+    // Determine input op max rows for handling boundary
+    i64 max_rows;
+    if (op_name == SLICE_OP_NAME) {
+      // HACK(apoms): we can only do this because we guarantee that there is
+      // only one slice per pipeline and it is at the beginning
+      max_rows = arg_group_.op_input_domain_size.at(k).at(job_idx_).at(0);
+    } else {
+      max_rows =
+          arg_group_.op_input_domain_size.at(k).at(job_idx_).at(slice_group_);
+    }
+
     // Figure out how many elements can be produced
     auto compute_producible_elements =
         [kernel_element_cache_input_idx, kernel_current_compute_idx,
-         &kernel_compute_rows, max_row_id_seen](i64 stencil, i64 batch) {
+         &kernel_compute_rows, max_row_id_seen,
+         max_rows](i64 stencil, i64 batch) {
           i64 producible_rows = 0;
           for (i64 i = kernel_element_cache_input_idx;
                i < kernel_current_compute_idx; ++i) {
             i64 row = kernel_compute_rows[i];
+            VLOG(3) << "compute row " << row << ", stencil row "
+                    << row + stencil << ", max row " << max_row_id_seen;
             // Check if this row was seen by all inputs
-            if (row + stencil > max_row_id_seen) {
+            i64 req_row = row + stencil;
+            if (req_row < 0) {
+              req_row = 0;
+            } else if (req_row >= max_rows) {
+              req_row = max_rows - 1;
+            }
+            if (req_row > max_row_id_seen) {
               break;
             }
             producible_rows++;
@@ -774,12 +797,18 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
             i64 curr_row = kernel_compute_rows[r];
             for (i64 s : kernel_stencil) {
               i64 desired_row = curr_row + s;
+              if (desired_row < 0) {
+                desired_row = 0;
+              } else if (desired_row >= max_rows) {
+                desired_row = max_rows - 1;
+              }
               input_stencil.push_back(cache_row_map[desired_row]);
             }
             assert(input_stencil.size() == kernel_stencil.size());
           }
         }
-        profiler_.add_interval("stencil_create:" + op_name, stencil_create_start, now());
+        profiler_.add_interval("stencil_create:" + op_name,
+                               stencil_create_start, now());
 
         // Setup output buffers to receive op output
         BatchedElements output_columns;

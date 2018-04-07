@@ -1009,6 +1009,22 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     kernel_configs.push_back(kernel_config);
   }
 
+  // Figure out op input domain size for handling boundary restriction during
+  // stencil
+  // Op -> job -> slice -> rows
+  std::vector<std::vector<std::vector<i64>>> op_input_domain_size(ops.size());
+  for (size_t i = 0; i < ops.size(); ++i) {
+    // Grab one of the inputs to this op to figure out this ops input domain
+    i64 input_op_idx = i;
+    if (!ops.at(i).is_source()) {
+      input_op_idx = ops.at(i).inputs(0).op_index();
+    }
+    for (const auto& op_total_rows : analysis_results.total_rows_per_op) {
+      const auto& op_slice_rows = op_total_rows.at(input_op_idx);
+      op_input_domain_size.at(i).push_back(op_slice_rows);
+    }
+  }
+
   // Break up kernels into groups that run on the same device
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
@@ -1035,6 +1051,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto& op_source = groups.back().is_source;
       auto& op_sampling = groups.back().sampling_args;
       auto& group = groups.back().kernel_factories;
+      auto& op_input = groups.back().op_input_domain_size;
       auto& oargs = groups.back().op_args;
       auto& lc = groups.back().live_columns;
       auto& dc = groups.back().dead_columns;
@@ -1087,6 +1104,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       i64 local_op_idx = group.size();
       group.push_back(std::make_tuple(factory, kernel_configs[i]));
+      op_input[local_op_idx] = op_input_domain_size[i];
       oargs[local_op_idx] = op_args[i];
       lc.push_back(live_columns[i]);
       dc.push_back(dead_columns[i]);
@@ -1377,7 +1395,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           node_id_, startup_lock, startup_cv, startup_count,
 
           // Per worker arguments
-          ki, kg, groups[kg], eval_thread_profilers[kg + 1], results[kg]});
+          ki, kg, groups[kg], job_params->boundary_condition(),
+          eval_thread_profilers[kg + 1], results[kg]});
       eval_total += 1;
     }
     // Pre evaluate worker
