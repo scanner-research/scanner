@@ -16,6 +16,7 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
       return;
     }
     image_type_ = args.format();
+    valid_.set_success(true);
   }
 
   void validate(proto::Result* result) {
