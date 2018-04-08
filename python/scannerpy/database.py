@@ -880,7 +880,7 @@ class Database(object):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, basestring):
             job_id = None
-            for job in db_meta.jobs:
+            for job in db_meta.bulk_jobs:
                 if job.name == job_name:
                     job_id = job.id
                     break
