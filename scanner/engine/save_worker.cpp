@@ -103,6 +103,12 @@ void SaveWorker::feed(EvalWorkEntry& input_entry) {
   if (auto column_sink = dynamic_cast<ColumnSink*>(sink.get())) {
     column_sink->provide_column_info(compressed, frame_info);
   }
+  // Provide index to sink
+  for (size_t i = 0; i < work_entry.columns.size(); ++i) {
+    for (size_t j = 0; j < work_entry.columns[i].size(); ++j) {
+      work_entry.columns[i][j].index = work_entry.row_ids[i][j];
+    }
+  }
   sink->write(work_entry.columns);
 
   profiler_.add_interval("io", io_start, now());
