@@ -80,6 +80,7 @@ class ImageDecoderKernelGPU : public Kernel {
         if (!d_reader->nextFrame(gpu_mat)) {
           LOG(FATAL) << "Failed to decode image";
         }
+        cvc::cvtColor(gpu_mat, gpu_mat, CV_BGR2RGB);
         insert_frame(output_columns[0], frames[i]);
       } else if (image_type == proto::ImageDecoderArgs_ImageType_ANY) {
         LOG(FATAL) << "Not yet supported";
