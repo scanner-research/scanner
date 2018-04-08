@@ -84,10 +84,15 @@ message ResizeArgs {
   bool preserve_aspect = 4;
 }
 
+message ImageEncoderArgs {
+ string format = 1;
+}
+
 message ImageDecoderArgs {
   enum ImageType {
-    JPEG = 0;
-    ANY = 1;
+    PNG = 0;
+    JPEG = 1;
+    ANY = 2;
   }
 
   ImageType image_type = 1;
