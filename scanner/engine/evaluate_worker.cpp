@@ -1188,10 +1188,10 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         buffered_entry_.columns[i].insert(buffered_entry_.columns[i].end(),
                                           work_entry.columns[col_idx].begin(),
                                           work_entry.columns[col_idx].end());
-        buffered_entry_.row_ids[i].insert(buffered_entry_.row_ids[i].end(),
-                                          work_entry.row_ids[col_idx].begin(),
-                                          work_entry.row_ids[col_idx].end());
       }
+      buffered_entry_.row_ids[i].insert(buffered_entry_.row_ids[i].end(),
+                                        work_entry.row_ids[col_idx].begin(),
+                                        work_entry.row_ids[col_idx].end());
     }
 
     // Delete unused columns
