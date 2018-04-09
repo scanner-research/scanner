@@ -23,6 +23,7 @@
 
 namespace scanner {
 
+// Currently supports U8, U16, F32, F64
 using proto::FrameType;
 
 size_t size_of_frame_type(FrameType type);

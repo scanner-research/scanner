@@ -48,8 +48,9 @@ enum ColumnType {
 
 enum FrameType {
   U8 = 0;
-  F32 = 1;
-  F64 = 2;
+  U16 = 1;
+  F32 = 2;
+  F64 = 3;
 }
 
 message Column {
