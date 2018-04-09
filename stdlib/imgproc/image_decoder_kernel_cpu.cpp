@@ -18,7 +18,7 @@ class ImageDecoderKernelCPU : public BatchedKernel {
       std::vector<u8> input_buf(
         input_columns[0][i].buffer,
         input_columns[0][i].buffer + input_columns[0][i].size);
-      cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
+      cv::Mat img = cv::imdecode(input_buf, cv::IMREAD_UNCHANGED);
       cv::cvtColor(img, img, CV_BGR2RGB);
       LOG_IF(FATAL, img.empty() || !img.data) << "Failed to decode image";
       size_t size = img.total() * img.elemSize();
