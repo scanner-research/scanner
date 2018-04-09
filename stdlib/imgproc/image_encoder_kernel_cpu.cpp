@@ -15,7 +15,7 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
       RESULT_ERROR(&valid_, "Could not parse ImageEncoderArgs");
       return;
     }
-    image_type_ = args.format();
+    image_type_ = args.format() == "" ? "png" : args.format();
     valid_.set_success(true);
   }
 
@@ -42,7 +42,8 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
       std::vector<u8> buf;
       cv::Mat recolored;
       cv::cvtColor(img, recolored, CV_RGB2BGR);
-      bool success = cv::imencode("." + image_type_, recolored, buf, encode_params);
+      bool success =
+          cv::imencode("." + image_type_, recolored, buf, encode_params);
       LOG_IF(FATAL, !success) << "Failed to encode image";
       u8* output_buf = new_buffer(CPU_DEVICE, buf.size());
       std::memcpy(output_buf, buf.data(), buf.size());

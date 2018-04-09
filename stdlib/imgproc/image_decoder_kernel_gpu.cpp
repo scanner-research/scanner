@@ -63,7 +63,7 @@ class ImageDecoderKernelGPU : public Kernel {
     memcpy_buffer(cpu_buf, CPU_DEVICE, input_columns[0][0].buffer,
                   device_, sz);
     std::vector<u8> input_buf(cpu_buf, cpu_buf + sz);
-    cv::Mat img = cv::imdecode(input_buf, CV_LOAD_IMAGE_COLOR);
+    cv::Mat img = cv::imdecode(input_buf, cv::IMREAD_UNCHANGED);
     FrameInfo frame_info(img.rows, img.cols, 3, FrameType::U8);
     delete_buffer(CPU_DEVICE, cpu_buf);
 
