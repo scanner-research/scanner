@@ -17,6 +17,10 @@ int frame_to_cv_type(FrameType type, int channels) {
       cv_type = CV_8U;
       break;
     }
+    case FrameType::U16: {
+      cv_type = CV_16U;
+      break;
+    }
     case FrameType::F32: {
       cv_type = CV_32F;
       break;
@@ -36,6 +40,10 @@ FrameType cv_to_frame_type(int t) {
       type = FrameType::U8;
       break;
     }
+    case CV_16U: {
+      type = FrameType::U16;
+      break;
+    }
     case CV_32F: {
       type = FrameType::F32;
       break;
@@ -50,7 +58,7 @@ FrameType cv_to_frame_type(int t) {
 }
 
 FrameInfo mat_to_frame_info(const cv::Mat& mat) {
-  return FrameInfo(mat.rows, mat.cols, mat.channels(), 
+  return FrameInfo(mat.rows, mat.cols, mat.channels(),
                    cv_to_frame_type(mat.depth()));
 }
 

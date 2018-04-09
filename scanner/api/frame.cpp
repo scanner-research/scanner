@@ -24,6 +24,9 @@ size_t size_of_frame_type(FrameType type) {
     case FrameType::U8:
       s = sizeof(u8);
       break;
+    case FrameType::U16:
+      s = sizeof(u16);
+      break;
     case FrameType::F32:
       s = sizeof(f32);
       break;
