@@ -170,6 +170,8 @@ class MasterImpl final : public proto::Master::Service {
 
   std::thread pinger_thread_;
   std::atomic<bool> pinger_active_;
+  std::condition_variable pinger_wake_cv_;
+  std::mutex pinger_wake_mutex_;
   // Tracks number of times the pinger has failed to reach a worker
   std::map<i64, i64> pinger_number_of_failed_pings_;
 

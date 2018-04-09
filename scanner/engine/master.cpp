@@ -1712,18 +1712,21 @@ void MasterImpl::start_worker_pinger() {
           pinger_number_of_failed_pings_[worker_id] = 0;
         }
       }
-      // FIXME(apoms): this sleep is unfortunate because it means a
-      //               job must take at least this long. A solution
-      //               would be to have this wait on a cv so it could
-      //               be woken up early.
-      std::this_thread::sleep_for(std::chrono::seconds(5));
+      // Sleep for 5 seconds or wake up if the job has finished before then
+      std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
+      pinger_wake_cv_.wait_for(lk, std::chrono::seconds(5),
+                               [&] { return pinger_active_ == false; });
     }
   });
 }
 
 void MasterImpl::stop_worker_pinger() {
   if (pinger_thread_.joinable()) {
-    pinger_active_ = false;
+    {
+      std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
+      pinger_active_ = false;
+    }
+    pinger_wake_cv_.notify_all();
     pinger_thread_.join();
   }
 }
