@@ -6,22 +6,22 @@
 Scanner
 =======
 
-Scanner is a system for executing video processing applications at scale.
+Scanner is a system for efficient video processing and understanding at scale.
+Scanner provides a python API for expressing computations and a distributed
+runtime for scheduling these computations onto clusters of machines with
+CPUs and/or GPUs.
 
-Scanner applications consist of two main components:
+Scanner is an active research project, part of a collaboration between Carnegie
+Mellon and Stanford University. Please contact
+`Alex Poms <http://www.cs.cmu.edu/~apoms/>`_ and
+`Will Crichton <http://willcrichton.net/>`_ with questions.
 
-* Computation Graphs
-* Data Sources
-
-Index
-=====
 .. toctree::
    :maxdepth: 1
-   :caption:
+   :caption: Table of Contents
 
-   intro
-   tutorial
-   modules
-
-* :ref:`genindex`
-* :ref:`modindex`
+   installation
+   getting-started
+   concepts
+   api
+   about
