@@ -9,7 +9,6 @@ CPUs or GPUs.
 * [Running Scanner](https://github.com/scanner-research/scanner#running-scanner)
 * [Tutorials & Examples](https://github.com/scanner-research/scanner#tutorials--examples)
 * [Documentation](https://github.com/scanner-research/scanner#documentation)
-* [Contributing](https://github.com/scanner-research/scanner#contributing)
 
 Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
 
@@ -81,8 +80,4 @@ directory. Some of the examples include:
 
 ## Documentation
 
-TODO(apoms)
-
-## Contributing
-
-TODO(apoms)
+[Documentation](https://scanner-research.github.io/scanner/index.html)
