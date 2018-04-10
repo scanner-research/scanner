@@ -4,4 +4,5 @@ API Reference
 .. toctree::
    :maxdepth: 2
 
-   scannerpy
+   api/scannerpy
+   api/scanner
