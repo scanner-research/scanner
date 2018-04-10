@@ -11,11 +11,6 @@ Scanner provides a python API for expressing computations and a distributed
 runtime for scheduling these computations onto clusters of machines with
 CPUs and/or GPUs.
 
-Scanner is an active research project, part of a collaboration between Carnegie
-Mellon and Stanford University. Please contact
-`Alex Poms <http://www.cs.cmu.edu/~apoms/>`_ and
-`Will Crichton <http://willcrichton.net/>`_ with questions.
-
 .. toctree::
    :maxdepth: 1
    :caption: Table of Contents
