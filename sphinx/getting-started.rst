@@ -1,5 +1,5 @@
-Getting Started
-===============
+Quickstart
+==========
 
 .. toctree::
    :maxdepth: 1
