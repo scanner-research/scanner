@@ -1,6 +1,5 @@
 Building Scanner from Source
-============================
-
+----------------------------
 
 This guide has been tested on Ubuntu 16.04.
 
@@ -24,7 +23,7 @@ command below. If you only need to install a few, we also provide apt-get
 commands for each package.
 
 Install apt-get Dependencies
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All dependencies
 
@@ -47,7 +46,7 @@ All dependencies
       curl unzip
 
 Install Pip Dependencies
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Scanner depends on several python packages installable via pip. From the top-level directory, run:
 
@@ -56,7 +55,7 @@ Scanner depends on several python packages installable via pip. From the top-lev
    pip install -r requirements.txt
 
 Run deps.sh
------------
+~~~~~~~~~~~
 
 To install or specify where your major dependencies are, from the top-level directory run:
 
@@ -67,7 +66,8 @@ To install or specify where your major dependencies are, from the top-level dire
 This script will query you for each major dependency and install those that are not already installed. By default, it will install the dependencies to a local directory inside the scanner repo (it will not install system-wide).
 
 Build Scanner
--------------
+~~~~~~~~~~~~~
+
 Run the following commands from the top-level directory:
 
 .. code-block:: bash
@@ -78,7 +78,7 @@ Run the following commands from the top-level directory:
    make -j
 
 Install scannerpy python package
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Run the following commands from the top-level directory:
 
 .. code-block:: bash
