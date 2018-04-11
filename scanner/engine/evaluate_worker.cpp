@@ -314,7 +314,12 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
       cudaSetDevice(0);
 #endif
       auto kernel = factory->new_instance(config);
-      kernel->validate(&args.result);
+      {
+        Result result;
+        kernel->validate(&result);
+        args.result.set_msg(result.msg());
+        args.result.set_success(result.success());
+      }
       VLOG(1) << "Kernel finished validation " << args.result.success();
       if (!args.result.success()) {
         LOG(ERROR) << "Kernel validate failed: " << args.result.msg();
