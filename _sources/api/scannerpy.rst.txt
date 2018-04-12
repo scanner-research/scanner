@@ -1,15 +1,34 @@
-scannerpy package
-=================
-
-Subpackages
------------
+Scanner Python API
+==================
 
 .. toctree::
 
-    scannerpy.stdlib
+Database
+--------
 
-Submodules
-----------
+.. automodule:: scannerpy.database
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Op
+--
+
+.. automodule:: scannerpy.op
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Job
+---
+
+.. automodule:: scannerpy.job
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 scannerpy\.bulk\_job module
 ---------------------------
@@ -43,34 +62,11 @@ scannerpy\.config module
     :undoc-members:
     :show-inheritance:
 
-scannerpy\.database module
---------------------------
-
-.. automodule:: scannerpy.database
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannerpy\.job module
----------------------
-
-.. automodule:: scannerpy.job
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 scannerpy\.kernel module
 ------------------------
 
 .. automodule:: scannerpy.kernel
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannerpy\.op module
---------------------
-
-.. automodule:: scannerpy.op
     :members:
     :undoc-members:
     :show-inheritance:

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>scannerpy &mdash; Scanner 0.0.1 documentation</title>
+  <title>Using a Cluster &mdash; Scanner 0.0.1 documentation</title>
   
 
   
@@ -29,7 +29,9 @@
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Writing a custom Op" href="custom-ops.html" />
+    <link rel="prev" title="System Overview" href="concepts.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -82,12 +84,30 @@
               
             
             
-              <p class="caption"><span class="caption-text">Table of Contents</span></p>
+              <p class="caption"><span class="caption-text">Installation</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="docker.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="from_source.html">Building Scanner from Source</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="getting-started.html">Quickstart</a></li>
-<li class="toctree-l1"><a class="reference internal" href="concepts.html">Programming Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Programming Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">System Overview</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Using a Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-ops.html">Writing a custom Op</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-source.html">Writing a custom Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-sink.html">Writing a custom Sink</a></li>
+</ul>
+<p class="caption"><span class="caption-text">API Reference</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Help</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
 
@@ -134,13 +154,13 @@
     
       <li><a href="index.html">Docs</a> &raquo;</li>
         
-      <li>scannerpy</li>
+      <li>Using a Cluster</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/modules.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/distributed.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -153,31 +173,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="scannerpy">
-<h1>scannerpy<a class="headerlink" href="#scannerpy" title="Permalink to this headline">¶</a></h1>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="scannerpy.html">scannerpy package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#subpackages">Subpackages</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-bulk-job-module">scannerpy.bulk_job module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-column-module">scannerpy.column module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-common-module">scannerpy.common module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-config-module">scannerpy.config module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-database-module">scannerpy.database module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-job-module">scannerpy.job module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-kernel-module">scannerpy.kernel module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-op-module">scannerpy.op module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-partitioner-module">scannerpy.partitioner module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-profiler-module">scannerpy.profiler module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-protobuf-generator-module">scannerpy.protobuf_generator module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-sampler-module">scannerpy.sampler module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#scannerpy-table-module">scannerpy.table module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.html#module-contents">Module contents</a></li>
-</ul>
-</li>
-</ul>
-</div>
+  <div class="section" id="using-a-cluster">
+<h1>Using a Cluster<a class="headerlink" href="#using-a-cluster" title="Permalink to this headline">¶</a></h1>
 </div>
 
 
@@ -185,6 +182,15 @@
            
           </div>
           <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="custom-ops.html" class="btn btn-neutral float-right" title="Writing a custom Op" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="concepts.html" class="btn btn-neutral" title="System Overview" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
   
 
   <hr/>

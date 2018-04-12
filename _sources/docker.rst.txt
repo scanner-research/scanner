@@ -21,4 +21,6 @@ Otherwise, you should run:
    docker-compose pull cpu
    docker-compose run --service-ports cpu /bin/bash
 
-If these commands were successful, you should now have bash session at the Scanner directory inside the docker container. To start processing some videos, check out Running Scanner
+If these commands were successful, you should now have bash session at the
+Scanner directory inside the docker container. To start processing some videos,
+check out Running Scanner

@@ -31,7 +31,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Building Scanner from Source" href="from_source.html" />
-    <link rel="prev" title="Installation" href="installation.html" /> 
+    <link rel="prev" title="Scanner" href="index.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -84,16 +84,30 @@
               
             
             
-              <p class="caption"><span class="caption-text">Table of Contents</span></p>
+              <p class="caption"><span class="caption-text">Installation</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="installation.html">Installation</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Docker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="from_source.html">Building Scanner from Source</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="from_source.html">Building Scanner from Source</a></li>
 </ul>
-</li>
+<p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="getting-started.html">Quickstart</a></li>
-<li class="toctree-l1"><a class="reference internal" href="concepts.html">Programming Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Programming Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">System Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed.html">Using a Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-ops.html">Writing a custom Op</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-source.html">Writing a custom Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-sink.html">Writing a custom Sink</a></li>
+</ul>
+<p class="caption"><span class="caption-text">API Reference</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Help</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
 
@@ -140,8 +154,6 @@
     
       <li><a href="index.html">Docs</a> &raquo;</li>
         
-          <li><a href="installation.html">Installation</a> &raquo;</li>
-        
       <li>Docker</li>
     
     
@@ -179,7 +191,9 @@ docker-compose pull cpu
 docker-compose run --service-ports cpu /bin/bash
 </pre></div>
 </div>
-<p>If these commands were successful, you should now have bash session at the Scanner directory inside the docker container. To start processing some videos, check out Running Scanner</p>
+<p>If these commands were successful, you should now have bash session at the
+Scanner directory inside the docker container. To start processing some videos,
+check out Running Scanner</p>
 </div>
 
 
@@ -193,7 +207,7 @@ docker-compose run --service-ports cpu /bin/bash
         <a href="from_source.html" class="btn btn-neutral float-right" title="Building Scanner from Source" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="installation.html" class="btn btn-neutral" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral" title="Scanner" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

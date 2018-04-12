@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>scannerpy package &mdash; Scanner 0.0.1 documentation</title>
+  <title>Scanner Python API &mdash; Scanner 0.0.1 documentation</title>
   
 
   
@@ -25,16 +25,16 @@
   
 
   
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <link rel="author" title="About these documents" href="about.html" />
-    <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="scannerpy.stdlib package" href="scannerpy.stdlib.html" />
-    <link rel="prev" title="API Reference" href="api.html" /> 
+    <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Scanner C++ API" href="scanner.html" />
+    <link rel="prev" title="API Reference" href="../api.html" /> 
 
   
-  <script src="_static/js/modernizr.min.js"></script>
+  <script src="../_static/js/modernizr.min.js"></script>
 
 </head>
 
@@ -50,7 +50,7 @@
           
 
           
-            <a href="index.html" class="icon icon-home"> Scanner
+            <a href="../index.html" class="icon icon-home"> Scanner
           
 
           
@@ -67,7 +67,7 @@
 
           
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -84,26 +84,36 @@
               
             
             
-              <p class="caption"><span class="caption-text">Table of Contents</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Quickstart</a></li>
-<li class="toctree-l1"><a class="reference internal" href="concepts.html">Programming Guide</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="api.html">API Reference</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">scannerpy package</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#subpackages">Subpackages</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="scannerpy.stdlib.html">scannerpy.stdlib package</a></li>
+              <p class="caption"><span class="caption-text">Installation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../docker.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../from_source.html">Building Scanner from Source</a></li>
 </ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial.html">Tutorial</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Programming Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../concepts.html">System Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../distributed.html">Using a Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../custom-ops.html">Writing a custom Op</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../custom-source.html">Writing a custom Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../custom-sink.html">Writing a custom Sink</a></li>
+</ul>
+<p class="caption"><span class="caption-text">API Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Scanner Python API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#database">Database</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#op">Op</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#job">Job</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-bulk-job-module">scannerpy.bulk_job module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-column-module">scannerpy.column module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-common-module">scannerpy.common module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-config-module">scannerpy.config module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-database-module">scannerpy.database module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-job-module">scannerpy.job module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-kernel-module">scannerpy.kernel module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-op-module">scannerpy.op module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-partitioner-module">scannerpy.partitioner module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-profiler-module">scannerpy.profiler module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scannerpy-protobuf-generator-module">scannerpy.protobuf_generator module</a></li>
@@ -112,9 +122,13 @@
 <li class="toctree-l3"><a class="reference internal" href="#module-contents">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="scanner.html">Scanner C++ API</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Help</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
 </ul>
 
             
@@ -129,7 +143,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Scanner</a>
+          <a href="../index.html">Scanner</a>
         
       </nav>
 
@@ -158,17 +172,17 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="index.html">Docs</a> &raquo;</li>
+      <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="api.html">API Reference</a> &raquo;</li>
+          <li><a href="../api.html">API Reference</a> &raquo;</li>
         
-      <li>scannerpy package</li>
+      <li>Scanner Python API</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/scannerpy.rst.txt" rel="nofollow"> View page source</a>
+            <a href="../_sources/api/scannerpy.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -181,36 +195,18 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="scannerpy-package">
-<h1>scannerpy package<a class="headerlink" href="#scannerpy-package" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="subpackages">
-<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
+  <div class="section" id="scanner-python-api">
+<h1>Scanner Python API<a class="headerlink" href="#scanner-python-api" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="scannerpy.stdlib.html">scannerpy.stdlib package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-bbox-nms-kernel-module">scannerpy.stdlib.bbox_nms_kernel module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-bboxes-module">scannerpy.stdlib.bboxes module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-build-flags-module">scannerpy.stdlib.build_flags module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-kernel-module">scannerpy.stdlib.kernel module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-loaders-module">scannerpy.stdlib.loaders module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-montage-module">scannerpy.stdlib.montage module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-net-descriptor-module">scannerpy.stdlib.net_descriptor module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-parsers-module">scannerpy.stdlib.parsers module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-pipelines-module">scannerpy.stdlib.pipelines module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-pose-nms-kernel-module">scannerpy.stdlib.pose_nms_kernel module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-poses-module">scannerpy.stdlib.poses module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-util-module">scannerpy.stdlib.util module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-video-module">scannerpy.stdlib.video module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#scannerpy-stdlib-writers-module">scannerpy.stdlib.writers module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="scannerpy.stdlib.html#module-contents">Module contents</a></li>
-</ul>
-</li>
-</ul>
 </div>
+<div class="section" id="database">
+<h2>Database<a class="headerlink" href="#database" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="op">
+<h2>Op<a class="headerlink" href="#op" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="job">
+<h2>Job<a class="headerlink" href="#job" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="scannerpy-bulk-job-module">
 <h2>scannerpy.bulk_job module<a class="headerlink" href="#scannerpy-bulk-job-module" title="Permalink to this headline">¶</a></h2>
@@ -224,17 +220,8 @@
 <div class="section" id="scannerpy-config-module">
 <h2>scannerpy.config module<a class="headerlink" href="#scannerpy-config-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="scannerpy-database-module">
-<h2>scannerpy.database module<a class="headerlink" href="#scannerpy-database-module" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="scannerpy-job-module">
-<h2>scannerpy.job module<a class="headerlink" href="#scannerpy-job-module" title="Permalink to this headline">¶</a></h2>
-</div>
 <div class="section" id="scannerpy-kernel-module">
 <h2>scannerpy.kernel module<a class="headerlink" href="#scannerpy-kernel-module" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="scannerpy-op-module">
-<h2>scannerpy.op module<a class="headerlink" href="#scannerpy-op-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="scannerpy-partitioner-module">
 <h2>scannerpy.partitioner module<a class="headerlink" href="#scannerpy-partitioner-module" title="Permalink to this headline">¶</a></h2>
@@ -264,10 +251,10 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="scannerpy.stdlib.html" class="btn btn-neutral float-right" title="scannerpy.stdlib package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="scanner.html" class="btn btn-neutral float-right" title="Scanner C++ API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="api.html" class="btn btn-neutral" title="API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../api.html" class="btn btn-neutral" title="API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -297,7 +284,7 @@
 
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
+            URL_ROOT:'../',
             VERSION:'0.0.1',
             LANGUAGE:'None',
             COLLAPSE_INDEX:false,
@@ -306,16 +293,16 @@
             SOURCELINK_SUFFIX: '.txt'
         };
     </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="../_static/jquery.js"></script>
+      <script type="text/javascript" src="../_static/underscore.js"></script>
+      <script type="text/javascript" src="../_static/doctools.js"></script>
       <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 
   
   
-    <script type="text/javascript" src="_static/js/theme.js"></script>
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
   
 
   <script type="text/javascript">
