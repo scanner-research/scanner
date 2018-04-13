@@ -91,7 +91,14 @@
 </ul>
 <p class="caption"><span class="caption-text">Getting Started</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart</a><ul class="simple">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#starting-up-scanner">Starting up Scanner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ingesting-a-video-into-the-database">Ingesting a video into the Database</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#defining-a-computation-graph">Defining a Computation Graph</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#defining-a-job">Defining a Job</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-a-job">Running a Job</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reading-the-results-of-a-job">Reading the results of a Job</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#saving-a-video-file">Saving a video file</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
@@ -179,23 +186,66 @@
 <h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
-<p>Scanner applications are written using a simple Python API:</p>
+<p>To explain how you Scanner is used, let’s walkthrough a simple example that
+reads frames from a video, resizes them, and then creates a new video using
+those resized frames.</p>
+<div class="section" id="starting-up-scanner">
+<h2>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h2>
+<p>The first step in any Scanner program is to create a <cite>Database</cite> object.
+The <cite>Database</cite> object manages videos or other data that you have may have
+stored from data processing you’ve done in the past and it also provides the
+API to construct and execute new applications.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scannerpy</span> <span class="kn">import</span> <span class="n">Database</span><span class="p">,</span> <span class="n">Job</span>
 
 <span class="n">db</span> <span class="o">=</span> <span class="n">Database</span><span class="p">()</span>
-<span class="n">db</span><span class="o">.</span><span class="n">ingest_videos</span><span class="p">([(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;example.mp4&#39;</span><span class="p">)])</span>
-
-<span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="ingesting-a-video-into-the-database">
+<h2>Ingesting a video into the Database<a class="headerlink" href="#ingesting-a-video-into-the-database" title="Permalink to this headline">¶</a></h2>
+<p>Scanner is designed to provide fast access to frames in videos, even under
+random access patterns. In order to provide this functionality, Scanner first
+needs to analyze the video to build an index on the video. For example, given
+an mp4 video named ‘example.mp4’, we can ingest this video as follow:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">ingest_videos</span><span class="p">([(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;example.mp4&#39;</span><span class="p">)])</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="defining-a-computation-graph">
+<h2>Defining a Computation Graph<a class="headerlink" href="#defining-a-computation-graph" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
 <span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
 <span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
-
-<span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="defining-a-job">
+<h2>Defining a Job<a class="headerlink" href="#defining-a-job" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
     <span class="n">frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">),</span>
     <span class="n">output_frame</span><span class="p">:</span> <span class="s1">&#39;resized_example&#39;</span>
 <span class="p">})</span>
-
-<span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">],</span> <span class="n">force</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 </pre></div>
+</div>
+</div>
+<div class="section" id="running-a-job">
+<h2>Running a Job<a class="headerlink" href="#running-a-job" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">],</span> <span class="n">force</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="reading-the-results-of-a-job">
+<h2>Reading the results of a Job<a class="headerlink" href="#reading-the-results-of-a-job" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">resized_frame</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_example&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">):</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">resized_frame</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="saving-a-video-file">
+<h2>Saving a video file<a class="headerlink" href="#saving-a-video-file" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_example&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized_video.mp4&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
 </div>
 </div>
 
