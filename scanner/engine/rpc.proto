@@ -246,19 +246,24 @@ message OpInfo {
   bool variadic_inputs = 2;
   repeated Column input_columns = 3;
   repeated Column output_columns = 4;
+  string protobuf_name = 5;
 }
 
 message SourceInfo {
   Result result = 1;
   repeated Column output_columns = 4;
+  string protobuf_name = 5;
 }
 
 message EnumeratorInfo {
   Result result = 1;
+  string protobuf_name = 5;
 }
 
 message SinkInfo {
   Result result = 1;
   bool variadic_inputs = 2;
   repeated Column input_columns = 3;
+  string protobuf_name = 5;
+  string stream_protobuf_name = 6;
 }

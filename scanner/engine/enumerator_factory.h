@@ -29,11 +29,15 @@ namespace internal {
 class EnumeratorFactory {
  public:
   EnumeratorFactory(const std::string& enumerator_name,
+                    const std::string& protobuf_name,
                     EnumeratorConstructor constructor)
     : name_(enumerator_name),
+      protobuf_name_(protobuf_name),
       constructor_(constructor) {}
 
   const std::string& get_name() const { return name_; }
+
+  const std::string& protobuf_name() const { return protobuf_name_; }
 
   /* @brief Constructs a kernel to be used for processing elements of data.
    */
@@ -43,6 +47,7 @@ class EnumeratorFactory {
 
  private:
   std::string name_;
+  std::string protobuf_name_;
   EnumeratorConstructor constructor_;
 };
 

@@ -132,7 +132,8 @@ class OpenPoseKernel : public scanner::BatchedKernel,
   op::Wrapper<std::vector<op::Datum>> opWrapper_;
 };
 
-REGISTER_OP(OpenPose).frame_input("frame").output("pose");
+REGISTER_OP(OpenPose).frame_input("frame").output("pose").protobuf_name(
+    "OpenPoseArgs");
 
 REGISTER_KERNEL(OpenPose, OpenPoseKernel)
     .device(scanner::DeviceType::GPU)

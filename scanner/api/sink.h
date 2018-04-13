@@ -154,6 +154,16 @@ class SinkBuilder {
     return *this;
   }
 
+  SinkBuilder& protobuf_name(const std::string& name) {
+    protobuf_name_ = name;
+    return *this;
+  }
+
+  SinkBuilder& stream_protobuf_name(const std::string& name) {
+    stream_protobuf_name_ = name;
+    return *this;
+  }
+
  private:
   std::string name_;
   SinkConstructor constructor_;
@@ -161,6 +171,8 @@ class SinkBuilder {
   std::vector<std::tuple<std::string, ColumnType>> input_columns_;
   bool per_element_output_;
   bool entire_stream_output_;
+  std::string protobuf_name_;
+  std::string stream_protobuf_name_;
 };
 }
 

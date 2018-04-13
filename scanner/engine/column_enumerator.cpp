@@ -86,9 +86,12 @@ void ColumnEnumerator::set_table_meta(TableMetaCache* cache) {
 
 }
 
-REGISTER_ENUMERATOR(Column, ColumnEnumerator);
+REGISTER_ENUMERATOR(Column, ColumnEnumerator)
+    .protobuf_name("ColumnEnumeratorArgs");
 
-REGISTER_ENUMERATOR(FrameColumn, ColumnEnumerator);
+REGISTER_ENUMERATOR(FrameColumn, ColumnEnumerator)
+    .protobuf_name("ColumnEnumeratorArgs");
+
 
 }
 }  // namespace scanner

@@ -190,14 +190,17 @@ class Op:
         if isinstance(self._args, dict):
             if self._name in self._db._python_ops:
                 e.kernel_args = pickle.dumps(self._args)
-            else:
+            elif len(self._args) > 0:
                 # To convert an arguments dict, we search for a protobuf with the
                 # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
                 # args.proto module, and fill that in with keys from the args dict.
-                if len(self._args) > 0:
-                    proto_name = self._name + 'Args'
+                op_info = self._db._get_op_info(self._name)
+                if len(op_info.protobuf_name) > 0:
+                    proto_name = op_info.protobuf_name
                     e.kernel_args = python_to_proto(
                         self._db.protobufs, proto_name, self._args)
+                else:
+                    e.kernel_args = self._args
         else:
             # If arguments are a protobuf object, serialize it directly
             e.kernel_args = self._args.SerializeToString()

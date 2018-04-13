@@ -29,17 +29,18 @@ namespace internal {
  */
 class SinkFactory {
  public:
-  SinkFactory(const std::string& name,
-              bool variadic_inputs,
-              const std::vector<Column>& input_columns,
-              bool per_element_output,
-              bool entire_stream_output,
+  SinkFactory(const std::string& name, bool variadic_inputs,
+              const std::vector<Column>& input_columns, bool per_element_output,
+              bool entire_stream_output, const std::string& protobuf_name,
+              const std::string& stream_protobuf_name,
               SinkConstructor constructor)
     : name_(name),
       variadic_inputs_(variadic_inputs),
       input_columns_(input_columns),
       per_element_output_(per_element_output),
       entire_stream_output_(entire_stream_output),
+      protobuf_name_(protobuf_name),
+      stream_protobuf_name_(stream_protobuf_name),
       constructor_(constructor) {}
 
   const std::string& get_name() const { return name_; }
@@ -52,11 +53,15 @@ class SinkFactory {
 
   const bool entire_stream_output() const { return entire_stream_output_; }
 
+  const std::string& protobuf_name() const { return protobuf_name_; }
+
+  const std::string& stream_protobuf_name() const {
+    return stream_protobuf_name_;
+  }
+
   /* @brief Constructs a Sink to be used for writing elements
    */
-  Sink* new_instance(const SinkConfig& config) {
-    return constructor_(config);
-  }
+  Sink* new_instance(const SinkConfig& config) { return constructor_(config); }
 
  private:
   std::string name_;
@@ -64,6 +69,8 @@ class SinkFactory {
   std::vector<Column> input_columns_;
   bool per_element_output_;
   bool entire_stream_output_;
+  std::string protobuf_name_;
+  std::string stream_protobuf_name_;
   SinkConstructor constructor_;
 };
 }

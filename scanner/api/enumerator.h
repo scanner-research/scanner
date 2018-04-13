@@ -75,9 +75,15 @@ class EnumeratorBuilder {
     : name_(name),
       constructor_(constructor) {}
 
+  EnumeratorBuilder& protobuf_name(std::string protobuf_name) {
+    protobuf_name_ = protobuf_name;
+    return *this;
+  }
+
  private:
   std::string name_;
   EnumeratorConstructor constructor_;
+  std::string protobuf_name_;
 };
 }
 

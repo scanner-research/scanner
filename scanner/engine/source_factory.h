@@ -31,14 +31,18 @@ class SourceFactory {
  public:
   SourceFactory(const std::string& name,
                 const std::vector<Column>& output_columns,
+                const std::string& protobuf_name,
                 SourceConstructor constructor)
     : name_(name),
       output_columns_(output_columns),
+      protobuf_name_(protobuf_name),
       constructor_(constructor) {}
 
   const std::string& get_name() const { return name_; }
 
   const std::vector<Column>& output_columns() const { return output_columns_; }
+
+  const std::string& protobuf_name() const { return protobuf_name_; }
 
   /* @brief Constructs a source to be used for reading elements
    */
@@ -49,6 +53,7 @@ class SourceFactory {
  private:
   std::string name_;
   std::vector<Column> output_columns_;
+  std::string protobuf_name_;
   SourceConstructor constructor_;
 };
 }

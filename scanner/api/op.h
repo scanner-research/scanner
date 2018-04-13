@@ -101,6 +101,11 @@ class OpBuilder {
     return *this;
   }
 
+  OpBuilder& protobuf_name(std::string protobuf_name) {
+    protobuf_name_ = protobuf_name;
+    return *this;
+  }
+
  private:
   std::string name_;
   bool variadic_inputs_;
@@ -111,6 +116,7 @@ class OpBuilder {
   bool has_bounded_state_;
   i32 warmup_;
   bool has_unbounded_state_;
+  std::string protobuf_name_;
 };
 }
 

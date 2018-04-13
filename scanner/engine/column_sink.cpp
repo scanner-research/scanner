@@ -254,11 +254,15 @@ void ColumnSink::provide_column_info(const std::vector<bool>& compressed,
   frame_info_ = frame_info;
 }
 
-
-REGISTER_SINK(Column, ColumnSink).variadic_inputs().per_element_output();
+REGISTER_SINK(Column, ColumnSink)
+    .variadic_inputs()
+    .per_element_output()
+    .protobuf_name("ColumnSinkArgs");
 
 REGISTER_SINK(FrameColumn, ColumnSink)
     .variadic_inputs()
-    .per_element_output();
+    .per_element_output()
+    .protobuf_name("ColumnSinkArgs");
+;
 }
 }  // namespace scanner

@@ -74,7 +74,8 @@ class ResizeKernel : public BatchedKernel {
   proto::ResizeArgs args_;
 };
 
-REGISTER_OP(Resize).frame_input("frame").frame_output("frame");
+REGISTER_OP(Resize).frame_input("frame").frame_output("frame").protobuf_name(
+    "ResizeArgs");
 
 REGISTER_KERNEL(Resize, ResizeKernel).device(DeviceType::CPU).num_devices(1);
 

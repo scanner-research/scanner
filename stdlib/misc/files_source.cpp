@@ -164,8 +164,11 @@ class FilesSource : public Source {
       storage_;  // Setup a distinct storage backend for each IO thread
 };
 
-REGISTER_ENUMERATOR(Files, FilesEnumerator);
+REGISTER_ENUMERATOR(Files, FilesEnumerator)
+    .protobuf_name("FilesEnumeratorArgs");
 
-REGISTER_SOURCE(Files, FilesSource).output("output");
+REGISTER_SOURCE(Files, FilesSource)
+    .output("output")
+    .protobuf_name("FilesSourceArgs");
 
 }  // namespace scanner

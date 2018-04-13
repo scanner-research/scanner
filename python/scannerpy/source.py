@@ -56,12 +56,13 @@ class Source:
             # {Name}EnumeratorArgs (e.g. ColumnEnumeratorArgs) in the
             # args.proto module, and fill that in with keys from the args dict.
             if len(self._args) > 0:
-                n = self._name
-                if n.startswith('Frame'):
-                    n = n[len('Frame'):]
-                source_proto_name = n + 'SourceArgs'
-                e.kernel_args = python_to_proto(
-                    self._db.protobufs, source_proto_name, self._args)
+                source_info = self._db._get_source_info(self._name)
+                if len(source_info.protobuf_name) > 0:
+                    proto_name = source_info.protobuf_name
+                    e.kernel_args = python_to_proto(
+                        self._db.protobufs, proto_name, self._args)
+                else:
+                    e.kernel_args = self._args
         else:
             # If arguments are a protobuf object, serialize it directly
             e.kernel_args = self._args.SerializeToString()

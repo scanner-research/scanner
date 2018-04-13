@@ -25,8 +25,8 @@ EnumeratorRegistration::EnumeratorRegistration(
     const EnumeratorBuilder& builder) {
   const std::string& name = builder.name_;
   EnumeratorConstructor constructor = builder.constructor_;
-  internal::EnumeratorFactory* factory =
-      new internal::EnumeratorFactory(name, constructor);
+  internal::EnumeratorFactory* factory = new internal::EnumeratorFactory(
+      name, builder.protobuf_name_, constructor);
   internal::EnumeratorRegistry* registry = internal::get_enumerator_registry();
   registry->add_enumerator(name, factory);
 }

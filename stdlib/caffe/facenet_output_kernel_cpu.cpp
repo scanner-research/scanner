@@ -186,7 +186,8 @@ class FacenetOutputKernel : public BatchedKernel, public VideoKernel {
 REGISTER_OP(FacenetOutput)
     .frame_input("facenet_output")
     .input("original_frame_info")
-    .output("bboxes");
+    .output("bboxes")
+    .protobuf_name("FacenetArgs");
 
 REGISTER_KERNEL(FacenetOutput, FacenetOutputKernel)
     .device(DeviceType::CPU)

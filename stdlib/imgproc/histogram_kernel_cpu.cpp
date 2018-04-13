@@ -56,4 +56,3 @@ REGISTER_KERNEL(Histogram, HistogramKernelCPU)
     .batch()
     .num_devices(1);
 }
-

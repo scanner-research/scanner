@@ -113,10 +113,16 @@ class SourceBuilder {
     return output(name, ColumnType::Video);
   }
 
+  SourceBuilder& protobuf_name(const std::string& name) {
+    protobuf_name_ = name;
+    return *this;
+  }
+
  private:
   std::string name_;
   SourceConstructor constructor_;
   std::vector<std::tuple<std::string, ColumnType>> output_columns_;
+  std::string protobuf_name_;
 };
 }
 

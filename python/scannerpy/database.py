@@ -905,6 +905,18 @@ class Database(object):
 
         return source_info
 
+    def _get_enumerator_info(self, enumerator_name):
+        enumerator_info_args = self.protobufs.EnumeratorInfoArgs()
+        enumerator_info_args.enumerator_name = enumerator_name
+
+        enumerator_info = self._try_rpc(
+            lambda: self._master.GetEnumeratorInfo(enumerator_info_args))
+
+        if not enumerator_info.result.success:
+            raise ScannerException(enumerator_info.result.msg)
+
+        return enumerator_info
+
     def _get_sink_info(self, sink_name):
         sink_info_args = self.protobufs.SinkInfoArgs()
         sink_info_args.sink_name = sink_name
@@ -1148,11 +1160,14 @@ class Database(object):
                             'column_name': args.name()
                         }
                     n = op._name
-                    if n.startswith('Frame'):
-                        n = n[len('Frame'):]
-                    enumerator_proto_name = n + 'EnumeratorArgs'
-                    source_input.enumerator_args = python_to_proto(
-                        self.protobufs, enumerator_proto_name, args)
+                    enumerator_info = self._get_enumerator_info(n)
+                    if len(args) > 0:
+                        if len(enumerator_info.protobuf_name) > 0:
+                            enumerator_proto_name = enumerator_info.protobuf_name
+                            source_input.enumerator_args = python_to_proto(
+                                self.protobufs, enumerator_proto_name, args)
+                        else:
+                            source_input.enumerator_args = args
                 elif op in sampling_slicing_ops:
                     op_idx = sampling_slicing_ops[op]
                     saa = j.sampling_args_assignment.add()
@@ -1175,11 +1190,14 @@ class Database(object):
                         job_output_table_names.append(args)
                     else:
                         # Encode the args
-                        if n.startswith('Frame'):
-                            n = n[len('Frame'):]
-                        sink_proto_name = n + 'SinkStreamArgs'
-                        sink_args.args = python_to_proto(
-                            self.protobufs, sink_proto_name, args)
+                        if len(args) > 0:
+                            sink_info = self._get_sink_info(n)
+                            if len(sink_info.stream_protobuf_name) > 0:
+                                sink_proto_name = sink_info.stream_protobuf_name
+                                sink_args.args = python_to_proto(
+                                    self.protobufs, sink_proto_name, args)
+                            else:
+                                sink_args.args = args
                         output_table_name = ''
                 else:
                     # Regular old Op
@@ -1191,11 +1209,14 @@ class Database(object):
                     if n in self._python_ops:
                         oargs.op_args = pickle.dumps(args)
                     else:
-                        if n.startswith('Frame'):
-                            n = n[len('Frame'):]
-                        proto_name = n + 'Args'
-                        oargs.op_args = python_to_proto(
-                            self.protobufs, proto_name, args)
+                        if len(args) > 0:
+                            op_info = self._get_op_info(n)
+                            if len(op_info.protobuf_name) > 0:
+                                proto_name = op_info.protobuf_name
+                                oargs.op_args = python_to_proto(
+                                    self.protobufs, proto_name, args)
+                            else:
+                                oargs.op_args = args
             if is_table_output and output_table_name is None:
                 raise ScannerException(
                     'Did not specify the output table name by binding a '

@@ -796,7 +796,8 @@ REGISTER_OP(CPM2Output)
     .frame_input("cpm2_resized_map")
     .frame_input("cpm2_joints")
     .input("original_frame_info")
-    .output("poses");
+    .output("poses")
+    .protobuf_name("CPM2Args");
 
 REGISTER_KERNEL(CPM2Output, CPM2OutputKernel)
     .device(DeviceType::CPU)
