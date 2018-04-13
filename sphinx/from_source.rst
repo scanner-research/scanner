@@ -43,7 +43,7 @@ All dependencies
       automake libass-dev libfreetype6-dev libsdl2-dev libtheora-dev libtool \
       libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
       libxcb-xfixes0-dev mercurial pkg-config texinfo wget zlib1g-dev \
-      curl unzip
+      curl unzip libcap-dev
 
 Install Pip Dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~~
