@@ -421,7 +421,7 @@ ColumnSource::ColumnSource(const SourceConfig& config) : Source(config) {
   StorageConfig* sc_config = nullptr;
   if (args.storage_type() == "posix") {
     sc_config = StorageConfig::make_posix_config();
-  } else if (args.storage_type() == "gcs" || args.storage_type() == "aws") {
+  } else if (args.storage_type() == "gcs" || args.storage_type() == "s3") {
     sc_config = StorageConfig::make_s3_config(args.bucket(), args.region(),
                                               args.endpoint());
   } else {
