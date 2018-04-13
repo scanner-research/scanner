@@ -19,7 +19,7 @@ RUN apt-get update && apt-get upgrade -y && \
     libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
     llvm clang python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
     liblapacke-dev swig yasm python2.7 cpio curl unzip openssl libssl-dev \
-    libgl-dev
+    libgl-dev libcap-dev
 
 # Non-apt-installable dependencies
 ENV deps /deps

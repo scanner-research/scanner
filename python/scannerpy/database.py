@@ -13,6 +13,7 @@ import signal
 import copy
 import collections
 import subprocess
+import prctl
 from tqdm import tqdm
 
 from concurrent.futures import ProcessPoolExecutor
@@ -411,7 +412,10 @@ class Database(object):
 
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
-        def heartbeat_task(q, master_address):
+        def heartbeat_task(q, master_address, ppid):
+            prctl.set_pdeathsig(signal.SIGTERM)
+            if os.getppid() != ppid:
+                return
             channel = self._make_grpc_channel(master_address)
             master = grpc_types.MasterStub(channel)
             while q.empty():
@@ -423,9 +427,10 @@ class Database(object):
                 time.sleep(1)
 
         self._heartbeat_queue = Queue()
+        pid = os.getpid()
         self._heartbeat_process = Process(
             target=heartbeat_task,
-            args=(self._heartbeat_queue, self._master_address))
+            args=(self._heartbeat_queue, self._master_address, pid))
         self._heartbeat_process.daemon = True
         self._heartbeat_process.start()
 
@@ -433,12 +438,17 @@ class Database(object):
         self._heartbeat_queue.put(0)
 
     def _handle_signal(self, signum, frame):
-        if (signum == signal.SIGINT or signum == signal.SIGTERM
-                or signum == signal.SIGKILL):
+        if (signum == signal.SIGINT or
+            signum == signal.SIGTERM or
+            signum == signal.SIGSEGV or
+            signum == signal.SIGABRT):
             # Stop cluster
             self._stop_heartbeat()
             self.stop_cluster()
-            sys.exit(1)
+            if signum == signal.SIGINT:
+                sys.exit(0)
+            else:
+                sys.exit(1)
 
     def start_master(self, master):
         """
@@ -467,6 +477,8 @@ class Database(object):
             # the cluster
             signal.signal(signal.SIGINT, self._handle_signal)
             signal.signal(signal.SIGTERM, self._handle_signal)
+            signal.signal(signal.SIGSEGV, self._handle_signal)
+            signal.signal(signal.SIGABRT, self._handle_signal)
 
             if self._debug:
                 self._master_conn = None
@@ -556,17 +568,6 @@ class Database(object):
                     db=self._db,
                     num_workers=None)
                     #cpu_count() if multiple and len(self._worker_addresses) == 1 else None)
-                # res = self._bindings.start_worker(
-                #     self._db, machine_params,
-                #     str(int(self.config.worker_port) + i).encode('ascii'),
-                #     True, self._prefetch_table_metadata).success
-                # if not res:
-                #     raise ScannerException(
-                #         'Failed to start local worker on port {:d} and '
-                #         'connect to master. (Is there another process that '
-                #         'is bound to that port already?)'.format(
-                #             self.config.worker_port))
-
         else:
             pickled_config = pickle.dumps(self.config)
             worker_cmd = (
