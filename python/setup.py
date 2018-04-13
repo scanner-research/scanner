@@ -114,7 +114,8 @@ REQUIRED_PACKAGES = [
     'enum34 >= 1.1.6',
     'numpy >= 1.12.0',
     'scipy >= 0.18.1',
-    'tqdm >= 4.19.5'
+    'tqdm >= 4.19.5',
+    'python-prctl >= 1.7.0'
 ]
 
 print(find_packages(where=PIP_DIR))
