@@ -14,27 +14,27 @@ video_path = sys.argv[1]
 print('Performing optical flow on {}...'.format(video_path))
 video_name = os.path.splitext(os.path.basename(video_path))[0]
 
-with Database() as db:
-    if not db.has_table(video_name):
-        db.ingest_videos([(video_name, video_path)])
-    input_table = db.table(video_name)
+db = Database()
+if not db.has_table(video_name):
+    db.ingest_videos([(video_name, video_path)])
+input_table = db.table(video_name)
 
-    sampler = db.sampler.all()
+sampler = db.sampler.all()
 
-    frame = db.sources.FrameColumn()
-    flow = db.ops.OpticalFlow(
-        frame = frame,
-        device=DeviceType.CPU)
-    sampled_flow = flow.sample()
-    output = db.sinks.Column(columns={'flow': sampled_flow})
+frame = db.sources.FrameColumn()
+flow = db.ops.OpticalFlow(
+    frame = frame,
+    device=DeviceType.CPU)
+sampled_flow = flow.sample()
+output = db.sinks.Column(columns={'flow': sampled_flow})
 
-    job = Job(op_args={
-        frame: input_table.column('frame'),
-        sampled_flow: sampler,
-        output: input_table.name() + '_flow'
-    })
-    [output_table] = db.run(output=output, jobs=[job],
-                            pipeline_instances_per_node=1, force=True)
+job = Job(op_args={
+    frame: input_table.column('frame'),
+    sampled_flow: sampler,
+    output: input_table.name() + '_flow'
+})
+[output_table] = db.run(output=output, jobs=[job],
+                        pipeline_instances_per_node=1, force=True)
 
-    vid_flows = [flow[0] for flow in output_table.column('flow').load(rows=[0])]
-    np.save('flows.npy', vid_flows)
+vid_flows = [flow[0] for flow in output_table.column('flow').load(rows=[0])]
+np.save('flows.npy', vid_flows)

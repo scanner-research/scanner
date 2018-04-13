@@ -74,112 +74,113 @@ def main(movie_path):
     movie_name = os.path.basename(movie_path)
 
     # Use GPU kernels if we have a GPU
-    with Database() as db:
-        print('Loading movie into Scanner database...')
-        s = time.time()
+    db = Database()
 
-        if db.has_gpu():
-            device = DeviceType.GPU
-        else:
-            device = DeviceType.CPU
+    print('Loading movie into Scanner database...')
+    s = time.time()
 
-        ############ ############ ############ ############
-        # 0. Ingest the video into the database
-        ############ ############ ############ ############
-        [movie_table], _ = db.ingest_videos([(movie_name, movie_path)],
-                                            force=True)
-        print('Time: {:.1f}s'.format(time.time() - s))
-        print('Number of frames in movie: {:d}'.format(movie_table.num_rows()))
+    if db.has_gpu():
+        device = DeviceType.GPU
+    else:
+        device = DeviceType.CPU
 
-        s = time.time()
-        ############ ############ ############ ############
-        # 1. Run Histogram over the entire video in Scanner
-        ############ ############ ############ ############
-        print('Computing a color histogram for each frame...')
-        frame = db.sources.FrameColumn()
-        histogram = db.ops.Histogram(
-            frame = frame,
-            device = device)
-        output = db.sinks.Column(columns={'histogram': histogram})
-        job = Job(op_args={
-            frame: movie_table.column('frame'),
-            output: movie_name + '_hist'
-        })
-        [hists_table] = db.run(output=output, jobs=[job], force=True)
-        print('\nTime: {:.1f}s, {:.1f} fps'.format(
-            time.time() - s,
-            movie_table.num_rows() / (time.time() - s)))
+    ############ ############ ############ ############
+    # 0. Ingest the video into the database
+    ############ ############ ############ ############
+    [movie_table], _ = db.ingest_videos([(movie_name, movie_path)],
+                                        force=True)
+    print('Time: {:.1f}s'.format(time.time() - s))
+    print('Number of frames in movie: {:d}'.format(movie_table.num_rows()))
 
-        s = time.time()
-        ############ ############ ############ ############
-        # 2. Load histograms and compute shot boundaries
-        #    in python
-        ############ ############ ############ ############
-        print('Computing shot boundaries...')
-        # Read histograms from disk
-        hists = [h for h in
-                 hists_table.column('histogram').load(parsers.histograms)]
-        boundaries = compute_shot_boundaries(hists)
-        print('Found {:d} shots.'.format(len(boundaries)))
-        print('Time: {:.1f}s'.format(time.time() - s))
+    s = time.time()
+    ############ ############ ############ ############
+    # 1. Run Histogram over the entire video in Scanner
+    ############ ############ ############ ############
+    print('Computing a color histogram for each frame...')
+    frame = db.sources.FrameColumn()
+    histogram = db.ops.Histogram(
+        frame = frame,
+        device = device)
+    output = db.sinks.Column(columns={'histogram': histogram})
+    job = Job(op_args={
+        frame: movie_table.column('frame'),
+        output: movie_name + '_hist'
+    })
+    [hists_table] = db.run(output=output, jobs=[job], force=True)
+    print('\nTime: {:.1f}s, {:.1f} fps'.format(
+        time.time() - s,
+        movie_table.num_rows() / (time.time() - s)))
 
-        s = time.time()
-        ############ ############ ############ ############
-        # 3. Create montage in Scanner
-        ############ ############ ############ ############
-        print('Creating shot montage...')
+    s = time.time()
+    ############ ############ ############ ############
+    # 2. Load histograms and compute shot boundaries
+    #    in python
+    ############ ############ ############ ############
+    print('Computing shot boundaries...')
+    # Read histograms from disk
+    hists = [h for h in
+             hists_table.column('histogram').load(parsers.histograms)]
+    boundaries = compute_shot_boundaries(hists)
+    print('Found {:d} shots.'.format(len(boundaries)))
+    print('Time: {:.1f}s'.format(time.time() - s))
 
-        row_length = min(16, len(boundaries))
-        rows_per_item = 1
-        target_width = 256
+    s = time.time()
+    ############ ############ ############ ############
+    # 3. Create montage in Scanner
+    ############ ############ ############ ############
+    print('Creating shot montage...')
 
-        # Compute partial row montages that we will stack together
-        # at the end
-        frame = db.sources.FrameColumn()
-        gather_frame = frame.sample()
-        sliced_frame = gather_frame.slice()
-        montage = db.ops.Montage(
-            frame = sliced_frame,
-            num_frames = row_length * rows_per_item,
-            target_width = target_width,
-            frames_per_row = row_length,
-            device = device)
-        sampled_montage = montage.sample()
-        output = db.sinks.Column(
-            columns={'montage': sampled_montage.unslice().lossless()})
+    row_length = min(16, len(boundaries))
+    rows_per_item = 1
+    target_width = 256
 
-        item_size = row_length * rows_per_item
+    # Compute partial row montages that we will stack together
+    # at the end
+    frame = db.sources.FrameColumn()
+    gather_frame = frame.sample()
+    sliced_frame = gather_frame.slice()
+    montage = db.ops.Montage(
+        frame = sliced_frame,
+        num_frames = row_length * rows_per_item,
+        target_width = target_width,
+        frames_per_row = row_length,
+        device = device)
+    sampled_montage = montage.sample()
+    output = db.sinks.Column(
+        columns={'montage': sampled_montage.unslice().lossless()})
 
-        starts_remainder = len(boundaries) % item_size
-        evenly_divisible = (starts_remainder == 0)
-        if not evenly_divisible:
-            boundaries = boundaries[0:len(boundaries) - starts_remainder]
+    item_size = row_length * rows_per_item
 
-        job = Job(op_args={
-            frame: movie_table.column('frame'),
-            gather_frame: db.sampler.gather(boundaries),
-            sliced_frame: db.partitioner.all(item_size),
-            sampled_montage: [db.sampler.gather([item_size - 1])
-                              for _ in range(len(boundaries) / item_size)],
-            output: 'montage_image'
-        })
-        [montage_table] = db.run(output=output, jobs=[job], force=True)
+    starts_remainder = len(boundaries) % item_size
+    evenly_divisible = (starts_remainder == 0)
+    if not evenly_divisible:
+        boundaries = boundaries[0:len(boundaries) - starts_remainder]
 
-        # Stack all partial montages together
-        montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
-        for img in montage_table.column('montage').load():
-            img = np.flip(img, 2)
-            montage_img = np.vstack((montage_img, img))
+    job = Job(op_args={
+        frame: movie_table.column('frame'),
+        gather_frame: db.sampler.gather(boundaries),
+        sliced_frame: db.partitioner.all(item_size),
+        sampled_montage: [db.sampler.gather([item_size - 1])
+                          for _ in range(len(boundaries) / item_size)],
+        output: 'montage_image'
+    })
+    [montage_table] = db.run(output=output, jobs=[job], force=True)
 
-        print('')
-        print('Time: {:.1f}s'.format(time.time() - s))
+    # Stack all partial montages together
+    montage_img = np.zeros((1, target_width * row_length, 3), dtype=np.uint8)
+    for img in montage_table.column('montage').load():
+        img = np.flip(img, 2)
+        montage_img = np.vstack((montage_img, img))
 
-        ############ ############ ############ ############
-        # 4. Write montage to disk
-        ############ ############ ############ ############
-        cv2.imwrite('shots.jpg', montage_img)
-        print('Successfully generated shots.jpg')
-        print('Total time: {:.2f} s'.format(time.time() - total_start))
+    print('')
+    print('Time: {:.1f}s'.format(time.time() - s))
+
+    ############ ############ ############ ############
+    # 4. Write montage to disk
+    ############ ############ ############ ############
+    cv2.imwrite('shots.jpg', montage_img)
+    print('Successfully generated shots.jpg')
+    print('Total time: {:.2f} s'.format(time.time() - total_start))
 
 
 if __name__ == "__main__":
