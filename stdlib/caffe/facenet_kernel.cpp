@@ -36,7 +36,8 @@ class FacenetKernel : public CaffeKernel {
 
 REGISTER_OP(Facenet)
     .frame_input("facenet_input")
-    .frame_output("facenet_output");
+    .frame_output("facenet_output")
+    .protobuf_name("FacenetArgs");
 
 REGISTER_KERNEL(Facenet, FacenetKernel)
     .device(DeviceType::CPU)

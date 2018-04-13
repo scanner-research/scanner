@@ -21,7 +21,8 @@ REGISTER_OP(FasterRCNN)
     .frame_input("caffe_input")
     .frame_output("cls_prob")
     .frame_output("rois")
-    .frame_output("fc7");
+    .frame_output("fc7")
+    .protobuf_name("CaffeArgs");
 
 REGISTER_KERNEL(FasterRCNN, FasterRCNNKernel)
     .device(DeviceType::CPU)

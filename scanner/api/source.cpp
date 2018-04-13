@@ -33,8 +33,8 @@ SourceRegistration::SourceRegistration(const SourceBuilder& builder) {
     output_columns.push_back(col);
   }
   SourceConstructor constructor = builder.constructor_;
-  internal::SourceFactory* factory =
-      new internal::SourceFactory(name, output_columns, constructor);
+  internal::SourceFactory* factory = new internal::SourceFactory(
+      name, output_columns, builder.protobuf_name_, constructor);
   internal::SourceRegistry* registry = internal::get_source_registry();
   Result result = registry->add_source(name, factory);
   if (!result.success()) {

@@ -208,8 +208,11 @@ class PackedFileSource : public Source {
       storage_;  // Setup a distinct storage backend for each IO thread
 };
 
-REGISTER_ENUMERATOR(PackedFile, PackedFileEnumerator);
+REGISTER_ENUMERATOR(PackedFile, PackedFileEnumerator)
+    .protobuf_name("PackedFileEnumeratorArgs");
 
-REGISTER_SOURCE(PackedFile, PackedFileSource).output("output");
+REGISTER_SOURCE(PackedFile, PackedFileSource)
+    .output("output")
+    .protobuf_name("PackedFileSourceArgs");
 
 }  // namespace scanner

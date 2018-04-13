@@ -29,7 +29,7 @@ class OpInfo {
          const std::vector<Column>& input_columns,
          const std::vector<Column>& output_columns, bool can_stencil,
          const std::vector<i32> preferred_stencil, bool bounded_state,
-         i32 warmup, bool unbounded_state)
+         i32 warmup, bool unbounded_state, const std::string& protobuf_name)
     : name_(name),
       variadic_inputs_(variadic_inputs),
       input_columns_(input_columns),
@@ -38,7 +38,8 @@ class OpInfo {
       preferred_stencil_(preferred_stencil),
       bounded_state_(bounded_state),
       warmup_(warmup),
-      unbounded_state_(unbounded_state) {}
+      unbounded_state_(unbounded_state),
+      protobuf_name_(protobuf_name) {}
 
   const std::string& name() const { return name_; }
 
@@ -62,6 +63,8 @@ class OpInfo {
 
   const bool has_unbounded_state() const { return unbounded_state_; }
 
+  const std::string& protobuf_name() const { return protobuf_name_; }
+
  private:
   std::string name_;
   bool variadic_inputs_;
@@ -72,6 +75,7 @@ class OpInfo {
   bool bounded_state_;
   i32 warmup_;
   bool unbounded_state_;
+  std::string protobuf_name_;
 };
 }
 }

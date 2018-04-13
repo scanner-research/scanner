@@ -120,7 +120,8 @@ class FeatureExtractorKernel : public Kernel, public VideoKernel {
 REGISTER_OP(FeatureExtractor)
     .frame_input("frame")
     .output("features")
-    .output("keypoints");
+    .output("keypoints")
+    .protobuf_name("FeatureExtractorArgs");
 
 REGISTER_KERNEL(FeatureExtractor, FeatureExtractorKernel)
     .device(DeviceType::GPU)

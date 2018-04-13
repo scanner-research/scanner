@@ -541,9 +541,12 @@ void ColumnSource::set_table_meta(TableMetaCache* cache) {
   table_metadata_ = cache;
 }
 
-REGISTER_SOURCE(Column, ColumnSource).output("output");
+REGISTER_SOURCE(Column, ColumnSource)
+    .output("output")
+    .protobuf_name("ColumnSourceArgs");
 
-REGISTER_SOURCE(FrameColumn, ColumnSource).frame_output("frame_output");
-
+REGISTER_SOURCE(FrameColumn, ColumnSource)
+    .frame_output("frame_output")
+    .protobuf_name("ColumnSourceArgs");
 }
 }  // namespace scanner

@@ -107,9 +107,10 @@ class MontageKernelCPU : public BatchedKernel, public VideoKernel {
 };
 
 REGISTER_OP(Montage)
-.frame_input("frame")
-.frame_output("montage")
-.unbounded_state();
+    .frame_input("frame")
+    .frame_output("montage")
+    .unbounded_state()
+    .protobuf_name("MontageArgs");
 
 REGISTER_KERNEL(Montage, MontageKernelCPU)
     .device(DeviceType::CPU)

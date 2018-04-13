@@ -56,7 +56,10 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
   std::string image_type_;
 };
 
-REGISTER_OP(ImageEncoder).frame_input("frame").output("img");
+REGISTER_OP(ImageEncoder)
+    .frame_input("frame")
+    .output("img")
+    .protobuf_name("ImageEncoderArgs");
 
 REGISTER_KERNEL(ImageEncoder, ImageEncoderKernel)
     .device(DeviceType::CPU)

@@ -62,6 +62,8 @@ class FilesSink : public Sink {
   void new_stream(const std::vector<u8>& args) override {
     paths_.clear();
 
+    std::abort();
+
     scanner::proto::FilesSinkStreamArgs sargs;
     if (args.size() != 0) {
       bool parsed = sargs.ParseFromArray(args.data(), args.size());
@@ -94,6 +96,9 @@ class FilesSink : public Sink {
   std::vector<std::string> paths_;
 };
 
-REGISTER_SINK(Files, FilesSink).input("input").per_element_output();
-
+REGISTER_SINK(Files, FilesSink)
+    .input("input")
+    .per_element_output()
+    .protobuf_name("FilesSinkArgs")
+    .stream_protobuf_name("FilesSinkStreamArgs");
 }  // namespace scanner

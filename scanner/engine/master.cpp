@@ -483,6 +483,8 @@ grpc::Status MasterImpl::GetOpInfo(grpc::ServerContext* context,
     Column* info = op_info->add_output_columns();
     info->CopyFrom(output_column);
   }
+  op_info->set_protobuf_name(info->protobuf_name());
+
   op_info->mutable_result()->set_success(true);
 
   return grpc::Status::OK;
@@ -506,6 +508,7 @@ grpc::Status MasterImpl::GetSourceInfo(
     Column* info = source_info->add_output_columns();
     info->CopyFrom(output_column);
   }
+  source_info->set_protobuf_name(fact->protobuf_name());
   source_info->mutable_result()->set_success(true);
 
   return grpc::Status::OK;
@@ -522,6 +525,8 @@ grpc::Status MasterImpl::GetEnumeratorInfo(
                                     " does not exist");
     return grpc::Status::OK;
   }
+  EnumeratorFactory* fact = registry->get_enumerator(enumerator_name);
+  info->set_protobuf_name(fact->protobuf_name());
   info->mutable_result()->set_success(true);
 
   return grpc::Status::OK;
@@ -546,6 +551,8 @@ grpc::Status MasterImpl::GetSinkInfo(
     info->CopyFrom(output_column);
   }
   sink_info->set_variadic_inputs(fact->variadic_inputs());
+  sink_info->set_protobuf_name(fact->protobuf_name());
+  sink_info->set_stream_protobuf_name(fact->stream_protobuf_name());
   sink_info->mutable_result()->set_success(true);
 
   return grpc::Status::OK;
@@ -655,7 +662,8 @@ grpc::Status MasterImpl::RegisterOp(
     bool has_unbounded_state = op_registration->has_unbounded_state();
     OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
                               output_columns, can_stencil, stencil,
-                              has_bounded_state, warmup, has_unbounded_state);
+                              has_bounded_state, warmup, has_unbounded_state,
+                              "");
     OpRegistry* registry = get_op_registry();
     *result = registry->add_op(name, info);
   }
@@ -1079,7 +1087,8 @@ void MasterImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
       proto::Empty empty;
       proto::Result wresult;
       grpc::Status status;
-      GRPC_BACKOFF(workers_copy.at(i)->Shutdown(&ctx, empty, &wresult), status);
+      GRPC_BACKOFF_D(workers_copy.at(i)->Shutdown(&ctx, empty, &wresult),
+                     status, 15);
       const std::string& worker_address = worker_addresses_[i];
       LOG_IF(WARNING, !status.ok())
           << "Master could not send shutdown message to worker at "

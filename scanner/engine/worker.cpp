@@ -610,7 +610,7 @@ grpc::Status WorkerImpl::RegisterOp(
   bool has_unbounded_state = op_registration->has_unbounded_state();
   OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
                             output_columns, can_stencil, stencil,
-                            has_bounded_state, warmup, has_unbounded_state);
+                            has_bounded_state, warmup, has_unbounded_state, "");
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
   VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;

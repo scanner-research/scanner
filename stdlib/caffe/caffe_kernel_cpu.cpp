@@ -2,7 +2,10 @@
 
 namespace scanner {
 
-REGISTER_OP(Caffe).frame_input("caffe_frame").frame_output("caffe_output");
+REGISTER_OP(Caffe)
+    .frame_input("caffe_frame")
+    .frame_output("caffe_output")
+    .protobuf_name("CaffeArgs");
 
 REGISTER_KERNEL(Caffe, CaffeKernel)
     .device(DeviceType::CPU)

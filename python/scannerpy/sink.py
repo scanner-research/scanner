@@ -66,12 +66,13 @@ class Sink:
             # {Name}EnumeratorArgs (e.g. ColumnEnumeratorArgs) in the
             # args.proto module, and fill that in with keys from the args dict.
             if len(self._args) > 0:
-                n = self._name
-                if n.startswith('Frame'):
-                    n = n[len('Frame'):]
-                source_proto_name = n + 'SinkArgs'
-                e.kernel_args = python_to_proto(
-                    self._db.protobufs, source_proto_name, self._args)
+                sink_info = self._db._get_sink_info(self._name)
+                if len(sink_info.protobuf_name) > 0:
+                    proto_name = sink_info.protobuf_name
+                    e.kernel_args = python_to_proto(
+                        self._db.protobufs, proto_name, self._args)
+                else:
+                    e.kernel_args = self._args
         else:
             # If arguments are a protobuf object, serialize it directly
             e.kernel_args = self._args.SerializeToString()

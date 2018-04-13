@@ -135,7 +135,10 @@ class FacenetInputKernelCPU : public BatchedKernel, public VideoKernel {
   std::vector<cv::Mat> planar_input_;
 };
 
-REGISTER_OP(FacenetInput).frame_input("frame").frame_output("facenet_input");
+REGISTER_OP(FacenetInput)
+    .frame_input("frame")
+    .frame_output("facenet_input")
+    .protobuf_name("FacenetArgs");
 
 REGISTER_KERNEL(FacenetInput, FacenetInputKernelCPU)
     .device(DeviceType::CPU)

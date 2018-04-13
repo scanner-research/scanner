@@ -90,7 +90,8 @@ class BlurKernel : public Kernel, public VideoKernel {
   Result valid_;
 };
 
-REGISTER_OP(Blur).frame_input("frame").frame_output("frame");
+REGISTER_OP(Blur).frame_input("frame").frame_output("frame").protobuf_name(
+    "BlurArgs");
 
 REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 }

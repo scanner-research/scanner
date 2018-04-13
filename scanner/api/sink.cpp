@@ -38,7 +38,8 @@ SinkRegistration::SinkRegistration(const SinkBuilder& builder) {
   SinkConstructor constructor = builder.constructor_;
   internal::SinkFactory* factory = new internal::SinkFactory(
       name, variadic_inputs, input_columns, per_element_output,
-      entire_stream_output, constructor);
+      entire_stream_output, builder.protobuf_name_,
+      builder.stream_protobuf_name_, constructor);
   SinkRegistry* registry = get_sink_registry();
   Result result = registry->add_sink(name, factory);
   if (!result.success()) {
