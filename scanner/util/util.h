@@ -136,7 +136,7 @@ class Condition {
     value_ = set_to;
     lock.unlock();
     cv_.notify_all();
-    return;
+    return true;
   }
 
   T wait_for_change(const T& v) {
