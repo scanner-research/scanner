@@ -1438,11 +1438,15 @@ Result derive_stencil_requirements(
 
         // Perform boundary restriction to limit requested rows from other ops
         // to only those which are within the domain
+        i64 slice = 0;
+        if (analysis_results.op_slice_level.at(op_idx) > 0) {
+          slice = slice_group;
+        }
         assert(op.inputs().size() > 0);
         std::vector<i64> bounded_rows;
         Result result = handle_boundary(
             new_rows,
-            job_total_rows_per_op.at(op.inputs(0).op_index()).at(slice_group),
+            job_total_rows_per_op.at(op.inputs(0).op_index()).at(slice),
             bounded_rows);
         new_rows = bounded_rows;
       }
@@ -1478,7 +1482,7 @@ Result derive_stencil_requirements(
         compute_rows = new_rows;
       }
 
-      VLOG(3) << "Op " << op_idx;
+      VLOG(3) << "Op " << op.name() << " (" << op_idx << ")";
       std::string st;
       for (auto s : new_rows) {
         st += std::to_string(s) + " ";

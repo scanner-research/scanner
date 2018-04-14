@@ -478,6 +478,29 @@ def test_stencil(db):
     assert num_rows == 1
 
 
+def test_wider_than_packet_stencil(db):
+    frame = db.sources.FrameColumn()
+    sample_frame = frame.sample()
+    flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output_op = db.sinks.Column(columns={'flow': flow})
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            sample_frame: db.sampler.range(0, 3),
+            output_op: 'test_sencil',
+        })
+
+    tables = db.run(output_op, [job], force=True, show_progress=False,
+                    io_packet_size=1,
+                    work_packet_size=1,
+                    pipeline_instances_per_node=1)
+
+    num_rows = 0
+    for _ in tables[0].column('flow').load():
+        num_rows += 1
+    assert num_rows == 3
+
+
 def test_packed_file_source(db):
     # Write test file
     path = '/tmp/cpp_source_test'

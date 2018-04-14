@@ -19,7 +19,11 @@ class ImageDecoderKernelCPU : public BatchedKernel {
         input_columns[0][i].buffer,
         input_columns[0][i].buffer + input_columns[0][i].size);
       cv::Mat img = cv::imdecode(input_buf, cv::IMREAD_UNCHANGED);
-      cv::cvtColor(img, img, CV_BGR2RGB);
+      if (img.channels() == 4) {
+        cv::cvtColor(img, img, CV_BGRA2RGBA);
+      } else if (img.channels() == 3) {
+        cv::cvtColor(img, img, CV_BGR2RGB);
+      }
       LOG_IF(FATAL, img.empty() || !img.data) << "Failed to decode image";
       size_t size = img.total() * img.elemSize();
       Frame* frame = new_frame(CPU_DEVICE, mat_to_frame_info(img));
