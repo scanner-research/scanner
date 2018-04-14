@@ -1216,7 +1216,8 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
     // Flush video encoder and get rest of packets
     for (size_t i = 0; i < column_mapping_.size(); ++i) {
       ColumnType column_type = columns_[i].type();
-      if (compression_enabled_[i] && column_type == ColumnType::Video &&
+      if (encoder_configured_[encoder_idx] &&
+          compression_enabled_[i] && column_type == ColumnType::Video &&
           buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
         auto& encoder = encoders_[encoder_idx];
 
@@ -1239,8 +1240,6 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       }
     }
 
-    assert(buffered_entry_.columns.size() > 0 &&
-           buffered_entry_.columns[0].size() > 0);
     // Only push an entry if it is non empty
     if (buffered_entry_.columns.size() > 0 &&
         buffered_entry_.columns[0].size() > 0) {

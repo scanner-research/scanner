@@ -1384,7 +1384,7 @@ bool MasterImpl::process_job(const proto::BulkJobParameters* job_params,
       // Split stream into partitions, respecting slice boundaries
       // We assume there is only one slice for now since
       // they all must have the same number of groups
-      assert(slice_input_rows.size() == 1);
+
       // Derive the output rows produced by each slice group
       i64 slice_op_idx = slice_input_rows.begin()->first;
       i64 slice_in_rows = slice_input_rows.begin()->second;
