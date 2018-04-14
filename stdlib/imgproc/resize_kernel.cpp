@@ -41,7 +41,7 @@ class ResizeKernel : public BatchedKernel {
     }
 
     i32 input_count = num_rows(frame_col);
-    FrameInfo info(target_height, target_width, 3, FrameType::U8);
+    FrameInfo info(target_height, target_width, frame->channels(), frame->type);
     std::vector<Frame*> output_frames = new_frames(device_, info, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
