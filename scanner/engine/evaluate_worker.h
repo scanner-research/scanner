@@ -90,6 +90,7 @@ struct OpArgGroup {
   std::map<i64, std::vector<std::vector<proto::SamplingArgs>>> sampling_args;
   /// For slice ops
   // Op -> Job -> slice
+  std::map<i64, std::vector<i64>> slice_input_rows;
   std::map<i64, std::vector<std::vector<i64>>> slice_output_rows;
   /// For unslice ops
   // Op -> Job -> slice
@@ -167,6 +168,7 @@ class EvaluateWorker {
   i64 job_idx_;
   i64 task_idx_;
   i64 slice_group_;
+  std::map<i64, std::unique_ptr<Partitioner>> partitioners_;
   std::map<i64, std::unique_ptr<DomainSampler>> domain_samplers_;
 
   // Inputs

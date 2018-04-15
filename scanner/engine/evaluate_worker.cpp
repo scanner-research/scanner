@@ -411,7 +411,8 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     current_element_cache_input_idx_.push_back(0);
   }
 
-  // Initialize domain samplers for this job and this slice
+  // Initialize partitioners and domain samplers for this job and this slice
+  partitioners_.clear();
   domain_samplers_.clear();
   for (auto& kv : arg_group_.sampling_args) {
     i64 op_idx = kv.first;
@@ -421,17 +422,36 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     }
     auto& sampling_args =
         arg_group_.sampling_args.at(op_idx).at(job_idx).at(slice);
-    DomainSampler* sampler = nullptr;
-    Result result = make_domain_sampler_instance(
-        sampling_args.sampling_function(),
-        std::vector<u8>(sampling_args.sampling_args().begin(),
-                        sampling_args.sampling_args().end()),
-        sampler);
-    if (!result.success()) {
-      VLOG(1) << "Make domain sampler failed: " << result.msg();
-      THREAD_RETURN_SUCCESS();
+    if (arg_group_.slice_input_rows.count(op_idx) > 0) {
+      // Slice op
+      Partitioner* tpartitioner = nullptr;
+      Result result = make_partitioner_instance(
+          sampling_args.sampling_function(),
+          std::vector<u8>(
+              sampling_args.sampling_args().begin(),
+              sampling_args.sampling_args().end()),
+          arg_group_.slice_input_rows.at(op_idx).at(job_idx),
+          tpartitioner);
+      partitioners_[op_idx].reset(tpartitioner);
+      if (!result.success()) {
+        VLOG(1) << "Make partitioner failed: " << result.msg();
+        THREAD_RETURN_SUCCESS();
+      }
+
+    } else {
+      // Sample op
+      DomainSampler* sampler = nullptr;
+      Result result = make_domain_sampler_instance(
+          sampling_args.sampling_function(),
+          std::vector<u8>(sampling_args.sampling_args().begin(),
+                          sampling_args.sampling_args().end()),
+          sampler);
+      domain_samplers_[op_idx].reset(sampler);
+      if (!result.success()) {
+        VLOG(1) << "Make domain sampler failed: " << result.msg();
+        THREAD_RETURN_SUCCESS();
+      }
     }
-    domain_samplers_[op_idx].reset(sampler);
   }
 
   // Make the op aware of the format of the data
@@ -728,17 +748,21 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       side_row_ids.back() = downstream_rows;
     } else if (op_name == SLICE_OP_NAME) {
       // Remap row ids from original domain to sub domain
-      const auto& slice_output_counts =
-          arg_group_.slice_output_rows.at(k).at(job_idx_);
-      i64 offset = 0;
-      for (i64 i = 0; i < slice_group_; ++i) {
-        offset += slice_output_counts.at(i);
+      PartitionGroup g = partitioners_.at(k)->group_at(slice_group_);
+      // Build index from partition row to idx
+      // The pre-slice row id is mapped to the post-slice row id by
+      // looking up the index of where the pre-slice row id occurs in the
+      // partition group
+      std::map<i64, i64> index;
+      for (i64 i = 0; i < g.rows.size(); ++i) {
+        index[g.rows[i]] = i;
       }
       // For each row id, remap it and keep output element the same
       auto& output_column = side_output_columns.back();
       auto& output_row_ids = side_row_ids.back();
       for (size_t i = 0; i < producible_row_ids.size(); ++i) {
-        output_row_ids.push_back(producible_row_ids[i] - offset);
+        i64 rrow = index.at(producible_row_ids[i]);
+        output_row_ids.push_back(rrow);
         auto& element = *(kernel_cache.at(0).begin() + i);
         Element ele = add_element_ref(current_handle, element);
         output_column.push_back(ele);
@@ -1266,3 +1290,4 @@ bool PostEvaluateWorker::yield(EvalWorkEntry& output) {
 
 }
 }
+

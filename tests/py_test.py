@@ -272,7 +272,7 @@ def test_space(db):
     assert num_rows == db.table('test1').num_rows() * spacing_distance
 
 
-def test_slicing(db):
+def test_slice(db):
     frame = db.sources.FrameColumn()
     slice_frame = frame.slice()
     unsliced_frame = slice_frame.unslice()
@@ -290,6 +290,33 @@ def test_slicing(db):
     for _ in tables[0].column('frame').load():
         num_rows += 1
     assert num_rows == db.table('test1').num_rows()
+
+
+def test_overlapping_slice(db):
+    frame = db.sources.FrameColumn()
+    slice_frame = frame.slice()
+    sample_frame = slice_frame.sample()
+    unsliced_frame = sample_frame.unslice()
+    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            slice_frame: db.partitioner.strided_ranges(
+                [(0, 15), (5, 25), (15, 35)], 1),
+            sample_frame: [
+                db.sampler.range(0, 10),
+                db.sampler.range(5, 15),
+                db.sampler.range(5, 15),
+            ],
+            output_op: 'test_slicing',
+        })
+
+    tables = db.run(output_op, [job], force=True, show_progress=False)
+
+    num_rows = 0
+    for _ in tables[0].column('frame').load():
+        num_rows += 1
+    assert num_rows == 30
 
 
 def test_bounded_state(db):

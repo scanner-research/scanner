@@ -1075,6 +1075,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           auto& slice_groups = job_slice_outputs.at(i);
           slice_outputs_per_job.push_back(slice_groups);
         }
+        auto& slice_inputs_per_job =
+            groups.back().slice_input_rows[local_op_idx];
+        for (auto& job_slice_inputs : analysis_results.slice_input_rows) {
+          auto& slice_groups = job_slice_inputs.at(i);
+          slice_inputs_per_job.push_back(slice_groups);
+        }
       }
       if (analysis_results.unslice_ops.count(i) > 0) {
         i64 local_op_idx = group.size();
@@ -1086,7 +1092,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           unslice_inputs_per_job.push_back(slice_groups);
         }
       }
-      if (analysis_results.sampling_ops.count(i) > 0) {
+      if (analysis_results.sampling_ops.count(i) > 0 ||
+          analysis_results.slice_ops.count(i) > 0) {
         i64 local_op_idx = group.size();
         // Set sampling args
         auto& sampling_args_per_job = groups.back().sampling_args[local_op_idx];
