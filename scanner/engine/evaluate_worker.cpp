@@ -594,9 +594,9 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     // Determine input op max rows for handling boundary
     i64 max_rows;
-    if (op_name == SLICE_OP_NAME) {
+    if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
       // HACK(apoms): we can only do this because we guarantee that there is
-      // only one slice per pipeline and it is at the beginning
+      // only one slice per pipeline 
       max_rows = arg_group_.op_input_domain_size.at(k).at(job_idx_).at(0);
     } else {
       max_rows =
