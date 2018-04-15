@@ -435,7 +435,8 @@ class Database(object):
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        self._heartbeat_queue.put(0)
+        if self._heartbeat_queue:
+            self._heartbeat_queue.put(0)
 
     def _handle_signal(self, signum, frame):
         if (signum == signal.SIGINT or
@@ -464,6 +465,12 @@ class Database(object):
                 self.config.master_address + ':' + self.config.master_port)
         else:
             self._master_address = master
+
+        if ':' not in self._master_address:
+            raise ScannerException(
+                ('Did you forget to specify the master port number? '
+                'Specified address is {:s}. It should look like {:s}:5001')
+                .format(self._master_address))
 
         # Boot up C++ database bindings
         self._db = self._bindings.Database(
