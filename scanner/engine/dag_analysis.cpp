@@ -608,7 +608,7 @@ Result determine_input_rows_to_slices(
         assert(op_slice_level.at(op_idx) == 1);
         assert(slice_group_outputs.size() == 1);
         // Create Partitioner to enumerate slices
-        Partitioner* partitioner = nullptr;
+        Partitioner* tpartitioner = nullptr;
         auto& args = args_assignment[op_idx].sampling_args(0);
         result = make_partitioner_instance(
             args.sampling_function(),
@@ -616,7 +616,8 @@ Result determine_input_rows_to_slices(
                 args.sampling_args().begin(),
                 args.sampling_args().end()),
             slice_group_outputs.at(0),
-            partitioner);
+            tpartitioner);
+        std::unique_ptr<Partitioner> partitioner{tpartitioner};
         if (!result.success()) {
           return result;
         }
@@ -625,7 +626,6 @@ Result determine_input_rows_to_slices(
         job_slice_input_rows.insert({op_idx, slice_group_outputs.at(0)});
         // Update outputs with the new slice group outputs for this partition
         slice_group_outputs = partitioner->total_rows_per_group();
-        delete partitioner;
 
         if (number_of_slice_groups == -1) {
           number_of_slice_groups == slice_group_outputs.size();
@@ -1173,6 +1173,8 @@ Result derive_stencil_requirements(
 
   const std::map<i64, std::vector<i64>>& job_total_rows_per_op =
       analysis_results.total_rows_per_op.at(job_idx);
+  const std::map<i64, i64>& job_slice_input_rows =
+      analysis_results.slice_input_rows.at(job_idx);
   const std::map<i64, std::vector<i64>>& job_slice_output_rows =
       analysis_results.slice_output_rows.at(job_idx);
   const std::map<i64, std::vector<i64>>& job_unslice_input_rows =
@@ -1184,13 +1186,16 @@ Result derive_stencil_requirements(
   const std::map<i64, i32>& warmup_sizes = analysis_results.warmup_sizes;
   // Create domain samplers
   // Op -> slice
+  std::map<i64, proto::SamplingArgsAssignment> args_assignment;
   std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
   for (const proto::SamplingArgsAssignment& saa :
        job.sampling_args_assignment()) {
-    std::vector<std::unique_ptr<DomainSampler>>& samplers =
-        domain_samplers[saa.op_index()];
-    // Assign number of rows to correct op
-    if (ops.at(saa.op_index()).name() != SLICE_OP_NAME) {
+    if (ops.at(saa.op_index()).name() == SLICE_OP_NAME) {
+      args_assignment[saa.op_index()] = saa;
+    } else {
+      std::vector<std::unique_ptr<DomainSampler>>& samplers =
+          domain_samplers[saa.op_index()];
+      // Assign number of rows to correct op
       for (auto& sa : saa.sampling_args()) {
         DomainSampler* sampler;
         Result result = make_domain_sampler_instance(
@@ -1348,18 +1353,27 @@ Result derive_stencil_requirements(
         // that all rows are in the same slice
         assert(slice_group != -1);
 
-        const auto& slice_output_counts = job_slice_output_rows.at(op_idx);
-        i64 offset = 0;
-        for (i64 i = 0; i < slice_group; ++i) {
-          offset += slice_output_counts.at(i);
+        // Build partitioner to determine input rows to our slice
+        Partitioner* tpartitioner = nullptr;
+        auto& args = args_assignment[op_idx].sampling_args(0);
+        Result result = make_partitioner_instance(
+            args.sampling_function(),
+            std::vector<u8>(
+                args.sampling_args().begin(),
+                args.sampling_args().end()),
+            job_slice_input_rows.at(op_idx),
+            tpartitioner);
+        std::unique_ptr<Partitioner> partitioner{tpartitioner};
+        if (!result.success()) {
+          return result;
         }
 
-        i64 rows_in_group = slice_output_counts.at(slice_group);
+        PartitionGroup g = partitioner->group_at(slice_group);
         std::vector<i64> bounded_rows = downstream_rows;
 
         // Remap row indices
         for (i64 r : bounded_rows) {
-          new_rows.push_back(r + offset);
+          new_rows.push_back(g.rows.at(r));
         }
       }
       // Unslice Op
