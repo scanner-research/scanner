@@ -12,72 +12,40 @@ CPUs or GPUs.
 
 Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
 
-## Install
+## Installation
 
-There are two ways to build and run Scanner on your machine:
-* [Docker](https://github.com/scanner-research/scanner#docker)
-* [From Source](https://github.com/scanner-research/scanner#from-source)
+There are two ways to build and run Scanner on your machine: using Docker, or building from source.
 
 ### Docker
-First, install [Docker](https://docs.docker.com/engine/installation/#supported-platforms).
-If you have a GPU and you're running on Linux, install [nvidia-docker 1.0](https://github.com/NVIDIA/nvidia-docker/tree/1.0) and run:
 
-```bash
-pip install --upgrade nvidia-docker-compose
-wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-nvidia-docker-compose pull gpu
-nvidia-docker-compose run --service-ports gpu /bin/bash
-```
+We provide prebuilt [Docker](https://docs.docker.com/engine/installation/#supported-platforms) images containing Scanner and all its dependencies (e.g. OpenCV, Caffe) at [`scannerresearch/scanner`](https://hub.docker.com/r/scannerresearch/scanner/). We support the following builds:
+* `scannerresearch/scanner:cpu` - CPU-only build
+* `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.1, CUDNN 7
+* `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.0, CUDNN 7
+* `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 8.0, CUDNN 6
 
-Otherwise, you should run:
+### From Source
+
+Follow the instructions at [INSTALL](https://github.com/scanner-research/scanner/blob/master/INSTALL.md)
+to build Scanner from source. To start processing some videos, check out [Running Scanner](https://github.com/scanner-research/scanner#running-scanner).
+
+## Getting started
+
+To start using Scanner, we recommend trying our Jupyter notebook tutorial. To start the notebook, if you're using Docker:
 
 ```bash
 pip install --upgrade docker-compose
 wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-docker-compose pull cpu
-docker-compose run --service-ports cpu /bin/bash
+docker-compose up cpu
 ```
 
-If these commands were successful, you should now have bash session at the
-Scanner directory inside the docker container. To start processing some videos,
-check out [Running Scanner](https://github.com/scanner-research/scanner#running-scanner)
-
-### From Source
-Follow the instructions at [INSTALL](https://github.com/scanner-research/scanner/blob/master/INSTALL.md)
-to build Scanner from source. To start processing some videos, check out [Running Scanner](https://github.com/scanner-research/scanner#running-scanner).
-
-## Running Scanner
-
-Since Scanner programs are written using a high-level python API, running a
-Scanner program is as simple as executing a python script. Let's run a Scanner
-job now to find all the faces of people in a video (you can also use your own
-video if you have one on-hand). Run the following commands:
+If you installed Scanner yourself, then run:
 
 ```bash
-wget https://storage.googleapis.com/scanner-data/tutorial_assets/star_wars_heros.mp4
-python /opt/scanner/examples/apps/face_detection/main.py star_wars_heros.mp4
+cd path/to/scanner
+jupyter notebook --ip=0.0.0.0 --port=8888
 ```
 
-You should see several progress bars indicating the video is being processed.
-When finished, there will be an mp4 file in your current directory called `
-star_wars_heros_faces.mp4` with bounding boxes drawn over every
-face in the original video. Congratulations, you just ran your first Scanner
-program! Here's a few next steps:
-
-* To learn how to start writing your own Scanner programs, dive into the API with the [tutorials](https://github.com/scanner-research/scanner#tutorials--examples).
-* To run other Scanner programs on your videos, check out the [examples](https://github.com/scanner-research/scanner#tutorials--examples).
-* If you're looking for a code reference, check out the [documentation](https://github.com/scanner-research/scanner#documentation)
-
-## Tutorials & Examples & How-To's
-
-The tutorials and examples are located in the
+Then visit port 8888 on your server/localhost, click through to `examples/Walkthrough.ipynb`, and follow the directions in the notebook. To learn more, the tutorials and examples are located in the
 [examples](https://github.com/scanner-research/scanner/tree/master/examples)
-directory. Some of the examples include:
-
-* [Locate and recognize faces in a video](https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection/)
-* [Detect shots in a film](https://github.com/scanner-research/scanner/blob/master/examples/apps/shot_detection/)
-* [Search videos by image](https://github.com/scanner-research/scanner/blob/master/examples/apps/reverse_image_search/)
-
-## Documentation
-
-[Documentation](https://scanner-research.github.io/scanner/index.html)
+directory. You can find a comprehensive API reference in the [documentation](https://scanner-research.github.io/scanner/index.html)
