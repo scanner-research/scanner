@@ -36,4 +36,4 @@ RUN wget "https://cmake.org/files/v3.7/cmake-3.7.0.tar.gz" && \
 # Python dependencies
 WORKDIR /opt/scanner-base
 ADD . .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install -r requirements.txt
