@@ -730,7 +730,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
       OpRegistry* registry = get_op_registry();
       OpInfo* info = registry->get_op_info(op_name);
       if (info->variadic_inputs()) {
-        assert(device_type != DeviceType::GPU);
+        LOG_IF(FATAL, device_type == DeviceType::GPU) << "Cannot have variadic inputs on the GPU";
       } else {
         for (const auto& in_col : info->input_columns()) {
           input_devices[in_col.name()] = DeviceType::CPU;

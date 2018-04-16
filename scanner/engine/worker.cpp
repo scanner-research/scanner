@@ -991,6 +991,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     const std::vector<Column>& output_columns = op_info->output_columns();
     for (auto& col : output_columns) {
       kernel_config.output_columns.push_back(col.name());
+      kernel_config.output_column_types.push_back(col.type());
     }
 
     // Tell kernel what its inputs are from the Op DAG

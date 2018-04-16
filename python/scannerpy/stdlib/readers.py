@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import numpy as np
-import cv2
 import struct
 
 from scannerpy.stdlib.poses import Pose
@@ -51,21 +50,22 @@ def frame_info(buf, protobufs):
 def flow(bufs, protobufs):
     if bufs[0] is None:
         return None
-    output = np.frombuffer(bufs[0], dtype=np.dtype(np.float32))
+    output = np.frombuffer(bufs, dtype=np.dtype(np.float32))
     info = frame_info(bufs[1], db)
     return output.reshape((info.height, info.width, 2))
 
 
 def array(ty):
-    def parser(bufs, protobufs):
-        return np.frombuffer(bufs[0], dtype=np.dtype(ty))
+    def parser(buf, protobufs):
+        return np.frombuffer(buf, dtype=np.dtype(ty))
 
     return parser
 
 
-def image(bufs, protobufs):
+def image(buf, protobufs):
+    import cv2
     return cv2.imdecode(
-        np.frombuffer(bufs[0], dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
+        np.frombuffer(buf, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
 
 
 def raw_frame_gen(shape0, shape1, shape2, typ):

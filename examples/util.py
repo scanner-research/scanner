@@ -1,19 +1,23 @@
 import os.path
 
 try:
-    import youtube_dl
+    import requests
 except ImportError:
-    print('You need to install youtube-dl to run this. Try running:\npip install youtube-dl')
+    print(
+        'You need to install requests to run this. Try running:\npip install requests'
+    )
     exit()
 
-VID_PATH = "/tmp/example.mp4"
+VID_URL = "https://storage.googleapis.com/scanner-data/public/sample-clip.mp4"
+VID_PATH = '/tmp/example.mp4'
+
 
 def download_video():
     if not os.path.isfile(VID_PATH):
-        ydl_opts = {
-            'format': '134',
-            'outtmpl': u'/tmp/example.%(ext)s'
-        }
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            ydl.download(["https://www.youtube.com/watch?v=79DijItQXMM"])
+        with open(VID_PATH, 'wb') as f:
+            resp = requests.get(VID_URL, stream=True)
+            assert resp.ok
+            for block in resp.iter_content(1024):
+                f.write(block)
+            f.flush()
     return VID_PATH

@@ -10,15 +10,13 @@ class MyResizeKernel(scannerpy.Kernel):
     # are provided through a protobuf object that you manually deserialize. See resize.proto for the
     # protobuf definition.
     def __init__(self, config, protobufs):
-        self.args = db.protobufs.MyResizeArgs()
-        self.args.ParseFromString(config.args)
+        self._width = config.args['width']
+        self._height = config.args['height']
 
     # execute is the core computation routine maps inputs to outputs, e.g. here resizes an input
     # frame to a smaller output frame.
-    def execute(self, input_columns):
-        return [
-            cv2.resize(input_columns[0], (self.args.width, self.args.height))
-        ]
+    def execute(self, columns):
+        return [cv2.resize(columns[0], (self._width, self._height))]
 
 
 KERNEL = MyResizeKernel

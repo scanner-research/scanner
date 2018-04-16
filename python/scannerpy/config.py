@@ -3,6 +3,7 @@ import os
 import toml
 import sys
 from subprocess import check_output
+import errno
 
 from scannerpy.common import *
 from storehouse import StorageConfig, StorageBackend
@@ -12,38 +13,50 @@ def read_line(s):
     return sys.stdin.readline().strip()
 
 
+# https://stackoverflow.com/questions/600268/mkdir-p-functionality-in-python
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
+
 class Config(object):
     def __init__(self, config_path=None, db_path=None):
-
         self.config_path = config_path or self.default_config_path()
 
+        # Prompt to create Scanner configuration file if it doesn't already exit
         if not os.path.isfile(self.config_path):
-            sys.stdout.write(
-                'Your Scanner configuration file does not exist. Create one? '
-                '[Y/n] ')
-            if sys.stdin.readline().strip().lower() == 'n':
-                exit()
+            self._create_config_prompt()
 
-            config = self.default_config()
-            path = self.default_config_path()
-            with open(path, 'w') as f:
-                f.write(toml.dumps(config))
-            print('Wrote Scanner configuration to {}'.format(path))
+        # Load configuration from file
+        config = self._load_config(self.config_path)
+        self.config = config
 
-        self.config = self.load_config(self.config_path)
-        config = self.config
+        # Extract information from configuration
         try:
+            # Add build directory to Python import path
             self.module_dir = os.path.dirname(os.path.realpath(__file__))
-            build_path = self.module_dir + '/build'
+            build_path = os.path.join(self.module_dir, 'build')
             sys.path.append(build_path)
 
+            # Determine path to database
             if db_path is not None:
                 self.db_path = db_path
             else:
                 storage = config['storage']
                 self.db_path = str(storage['db_path'])
-            storage_config = self._make_storage_config(config)
+            mkdir_p(self.db_path)
 
+            # Create connector to Storehouse
+            storage_config = self._make_storage_config(config)
+            self.storage_config = storage_config
+            self.storage = StorageBackend.make_from_config(storage_config)
+
+            # Configure network settings
             self.master_address = 'localhost'
             self.master_port = '5001'
             self.worker_port = '5002'
@@ -62,8 +75,6 @@ class Config(object):
         except KeyError as key:
             raise ScannerException(
                 'Scanner config missing key: {}'.format(key))
-        self.storage_config = storage_config
-        self.storage = StorageBackend.make_from_config(storage_config)
 
     def _make_storage_config(self, config):
         storage = config['storage']
@@ -83,11 +94,7 @@ class Config(object):
                 'Unsupported storage type {}'.format(storage_type))
         return storage_config
 
-    @staticmethod
-    def default_config_path():
-        return os.path.expanduser('~') + '/.scanner.toml'
-
-    def load_config(self, path):
+    def _load_config(self, path):
         try:
             with open(path, 'r') as f:
                 return toml.loads(f.read())
@@ -95,11 +102,32 @@ class Config(object):
             raise ScannerException('Scanner config file does not exist: {}'
                                    .format(path))
 
+    def _create_config_prompt(self):
+        sys.stdout.write(
+            'Your Scanner configuration file ({}) does not exist. Create one? '
+            '[Y/n] '.format(self.config_path))
+        if sys.stdin.readline().strip().lower() == 'n':
+            print(
+                'Exiting script. Please create a Scanner configuration file or re-run this script and follow '
+                'the dialogue.')
+            exit()
+
+        config = self.default_config()
+        path = self.default_config_path()
+        mkdir_p(os.path.split(path)[0])
+        with open(path, 'w') as f:
+            f.write(toml.dumps(config))
+        print('Wrote Scanner configuration to {}'.format(path))
+
+    @staticmethod
+    def default_config_path():
+        return os.path.expanduser('~/.scanner/config.toml')
+
     @staticmethod
     def default_config():
         hostname = check_output(['hostname']).strip()
 
-        db_path = os.path.expanduser('~') + '/.scanner_db'
+        db_path = os.path.expanduser('~/.scanner/db')
 
         return {
             'storage': {
