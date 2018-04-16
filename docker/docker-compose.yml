@@ -1,16 +1,17 @@
-version: "2"
+version: "2.3"
 services:
   gpu:
     image: scannerresearch/scanner:gpu-9.1-cudnn7
+    command: jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
     ports:
       - "8888:8888"
-    working_dir: /app
     volumes:
       - .:/app
+    runtime: nvidia
   cpu:
     image: scannerresearch/scanner:cpu
+    command: jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
     ports:
       - "8888:8888"
-    working_dir: /app
     volumes:
       - .:/app
