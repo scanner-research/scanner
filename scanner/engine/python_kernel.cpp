@@ -62,6 +62,10 @@ PythonKernel::PythonKernel(const KernelConfig& config,
     for (auto& outc : config.output_columns) {
       output_columns.append(outc);
     }
+    py::list output_column_types;
+    for (auto& inc : config.output_column_types) {
+      output_column_types.append(py::object(inc == ColumnType::Other ? 0 : 1));
+    }
     py::str args((const char*)config.args.data(), config.args.size());
     py::object node_id(config.node_id);
 
@@ -70,6 +74,7 @@ PythonKernel::PythonKernel(const KernelConfig& config,
     main.attr("input_columns") = input_columns;
     main.attr("input_column_types") = input_column_types;
     main.attr("output_columns") = output_columns;
+    main.attr("output_column_types") = input_column_types;
     main.attr("args") = args;
     main.attr("node_id") = node_id;
 
@@ -84,8 +89,9 @@ PythonKernel::PythonKernel(const KernelConfig& config,
         "handles = [DeviceHandle(DeviceType(d), di)\n"
         "           for d, di in zip(devices, device_ids)]\n"
         "input_types = [ColumnType(c) for c in input_column_types]\n"
+        "output_types = [ColumnType(c) for c in output_column_types]\n"
         "kernel_config = KernelConfig(handles, input_columns,\n"
-        "                             input_column_types, output_columns,\n"
+        "                             input_column_types, output_columns, output_column_types,\n"
         "                             pickle.loads(args), node_id)\n"
         "exec(kernel_str)\n"
         "%s = KERNEL(kernel_config, protobufs)",
@@ -133,7 +139,6 @@ void PythonKernel::batched_python_execute(const BatchedElements& input_columns,
     py::list batched_cols;
     for (i32 j = 0; j < input_columns.size(); ++j) {
       py::list rows;
-      // HACK(wcrichto): should pass column type in config and check here
       if (config_.input_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
           const Frame *frame = input_columns[j][i].as_const_frame();
@@ -178,7 +183,7 @@ void PythonKernel::batched_python_execute(const BatchedElements& input_columns,
       LOG_IF(FATAL, py::len(batched_out_cols[j]) != input_count)
           << "Incorrect number of output rows. Expected "
           << input_count;
-      if (config_.output_columns[j] == "frame") {
+      if (config_.output_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
           np::ndarray frame_np =
               py::extract<np::ndarray>(batched_out_cols[j][i]);
@@ -262,7 +267,6 @@ void PythonKernel::single_python_execute(const BatchedElements& input_columns,
     for (i32 i = 0; i < input_count; ++i) {
       py::list cols;
       for (i32 j = 0; j < input_columns.size(); ++j) {
-        // HACK(wcrichto): should pass column type in config and check here
         if (config_.input_column_types[j] == proto::ColumnType::Video) {
           const Frame* frame = input_columns[j][i].as_const_frame();
           np::dtype dtype = np::dtype::get_builtin<uint8_t>();
@@ -297,8 +301,7 @@ void PythonKernel::single_python_execute(const BatchedElements& input_columns,
           << output_columns.size();
 
       for (i32 j = 0; j < output_columns.size(); ++j) {
-        // HACK(wcrichto): should pass column type in config and check here
-        if (config_.output_columns[j] == "frame") {
+        if (config_.output_column_types[j] == proto::ColumnType::Video) {
           np::ndarray frame_np = py::extract<np::ndarray>(out_cols[j]);
           FrameType frame_type;
           {

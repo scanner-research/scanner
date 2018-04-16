@@ -3,12 +3,10 @@
 
 cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
 
-# Uncomment the line below and change the Scanner path to the repo you cloned:
-set(SCANNER_PATH /opt/scanner)
-if(NOT SCANNER_PATH)
-  message(FATAL_ERROR "You need to update the SCANNER_PATH in resize_op/CMakeLists.txt first.")
-endif()
-include(${SCANNER_PATH}/cmake/Util/Op.cmake)
+execute_process(
+  OUTPUT_VARIABLE SCANNER_CMAKE_PATH
+  COMMAND python -c "import scannerpy.stdlib.build_flags as b; b.print_cmake()")
+include(${SCANNER_CMAKE_PATH})
 
 # build_op will create a shared library called lib${LIB_NAME}.so that builds
 # from all of the CPP_SRCS. You can also optionally specify a PROTO_SRC that

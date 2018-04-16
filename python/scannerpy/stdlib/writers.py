@@ -1,17 +1,19 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import struct
 
-def bboxes(bufs, protobufs):
-    s = struct.pack('=Q', len(bufs[0]))
-    for bbox in bufs[0]:
+
+def bboxes(buf, protobufs):
+    s = struct.pack('=Q', len(buf))
+    for bbox in buf:
         bs = bbox.SerializeToString()
         s += struct.pack('=Q', len(bs))
         s += bs
-    return [s]
+    return s
 
-def poses(bufs, protobufs):
-    s = struct.pack("=Q", len(bufs[0]))
-    for pose in bufs[0]:
+
+def poses(buf, protobufs):
+    s = struct.pack("=Q", len(buf))
+    for pose in buf:
         # Num joints
         s += struct.pack("=Q", len(pose))
         for i in range(len(pose)):
@@ -22,4 +24,4 @@ def poses(bufs, protobufs):
             # Point size
             s += struct.pack("=Q", point.ByteSize())
             s += point.SerializeToString()
-    return [s]
+    return s

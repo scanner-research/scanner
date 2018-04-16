@@ -231,12 +231,16 @@ class Database(object):
         self.start_master(master)
 
     def __del__(self):
-        self.stop_cluster()
+        # Database crashed during config creation if this attr is missing
+        if hasattr(self, '_start_cluster'):
+            self._stop_heartbeat()
+            self.stop_cluster()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exception_type, exception_val, exception_tb):
+        self._stop_heartbeat()
         self.stop_cluster()
         del self._db
 
@@ -439,10 +443,8 @@ class Database(object):
             self._heartbeat_queue.put(0)
 
     def _handle_signal(self, signum, frame):
-        if (signum == signal.SIGINT or
-            signum == signal.SIGTERM or
-            signum == signal.SIGSEGV or
-            signum == signal.SIGABRT):
+        if (signum == signal.SIGINT or signum == signal.SIGTERM
+                or signum == signal.SIGSEGV or signum == signal.SIGABRT):
             # Stop cluster
             self._stop_heartbeat()
             self.stop_cluster()
@@ -469,7 +471,7 @@ class Database(object):
         if ':' not in self._master_address:
             raise ScannerException(
                 ('Did you forget to specify the master port number? '
-                'Specified address is {:s}. It should look like {:s}:5001')
+                 'Specified address is {:s}. It should look like {:s}:5001')
                 .format(self._master_address))
 
         # Boot up C++ database bindings
@@ -489,7 +491,6 @@ class Database(object):
 
             if self._debug:
                 self._master_conn = None
-                machine_params = self._bindings.default_machine_params()
                 res = self._bindings.start_master(
                     self._db, self.config.master_port.encode('ascii'), True,
                     self._prefetch_table_metadata,
@@ -813,7 +814,7 @@ class Database(object):
     def delete_table(self, name):
         self.delete_tables([name])
 
-    def new_table(self, name, columns, rows, fn=None, force=False):
+    def new_table(self, name, columns, rows, fns=None, force=False):
         """
         Creates a new table from a list of rows.
 
@@ -839,8 +840,9 @@ class Database(object):
                 raise ScannerException(
                     'Attempted to create table with existing '
                     'name {}'.format(name))
-        if fn is not None:
-            rows = [fn(row, self.protobufs) for row in rows]
+        if fns is not None:
+            rows = [[fn(col, self.protobufs) for fn, col in zip(fns, row)]
+                    for row in rows]
 
         params = self.protobufs.NewTableParams()
         params.table_name = name
@@ -1135,7 +1137,11 @@ class Database(object):
         job_params.ops.extend([e.to_proto(op_index) for e in sorted_ops])
         job_output_table_names = []
         job_params.output_column_names[:] = output_column_names
+
         using_python_op = False
+        for op in sorted_ops:
+            if op._name in self._python_ops:
+                using_python_op = True
 
         for job in jobs:
             j = job_params.jobs.add()
@@ -1145,9 +1151,6 @@ class Database(object):
                     op = op_col
                 else:
                     op = op_col._op
-
-                if op._name in self._python_ops:
-                    using_python_op = True
 
                 if op in source_ops:
                     op_idx = source_ops[op]

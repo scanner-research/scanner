@@ -3,7 +3,7 @@ import math
 import os.path
 
 from scannerpy import DeviceType, Job
-from scannerpy.stdlib import NetDescriptor, writers, bboxes, poses, parsers
+from scannerpy.stdlib import NetDescriptor
 from scannerpy.stdlib.util import temp_directory, download_temp_file
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -130,6 +130,7 @@ def detect_faces(db,
             op_args[bbox_inputs[bi]] = cols[i].column('bboxes')
         op_args[output] = output_names[i]
         jobs.append(Job(op_args=op_args))
+
     return db.run(output, jobs, force=True)
 
 

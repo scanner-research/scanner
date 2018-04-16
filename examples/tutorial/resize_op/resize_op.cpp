@@ -36,8 +36,8 @@ class MyResizeKernel : public scanner::Kernel, public scanner::VideoKernel {
   // from an input table to a batch of rows of the output table. Here, we map
   // from one input column from the video, "frame", and return
   // a single column, "frame".
-  void execute(const scanner::Columns& input_columns,
-               scanner::Columns& output_columns) override {
+  void execute(const scanner::Elements& input_columns,
+               scanner::Elements& output_columns) override {
     auto& frame_col = input_columns[0];
 
     // This must be called at the top of the execute method in any VideoKernel.
@@ -68,7 +68,7 @@ class MyResizeKernel : public scanner::Kernel, public scanner::VideoKernel {
 // These functions run statically when the shared library is loaded to tell the
 // Scanner runtime about your custom op.
 
-REGISTER_OP(MyResize).frame_input("frame").frame_output("frame");
+REGISTER_OP(MyResize).frame_input("frame").frame_output("frame").protobuf_name("ResizeArgs");
 
 REGISTER_KERNEL(MyResize, MyResizeKernel)
     .device(scanner::DeviceType::CPU)

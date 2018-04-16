@@ -1,6 +1,6 @@
 from scannerpy import (Database, Config, DeviceType, ColumnType, Job,
                        ProtobufGenerator, ScannerException)
-from scannerpy.stdlib import parsers
+from scannerpy.stdlib import readers
 import tempfile
 import toml
 import pytest
@@ -247,7 +247,7 @@ def test_space(db):
     spacing_distance = 8
     table = run_spacer_job(db.sampler.space_repeat(spacing_distance))
     num_rows = 0
-    for hist in table.column('histogram').load(parsers.histograms):
+    for hist in table.column('histogram').load(readers.histograms):
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
@@ -260,7 +260,7 @@ def test_space(db):
     # Null
     table = run_spacer_job(db.sampler.space_null(spacing_distance))
     num_rows = 0
-    for hist in table.column('histogram').load(parsers.histograms):
+    for hist in table.column('histogram').load(readers.histograms):
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
             assert hist is not None
@@ -300,15 +300,17 @@ def test_overlapping_slice(db):
     output_op = db.sinks.Column(columns={'frame': unsliced_frame})
     job = Job(
         op_args={
-            frame: db.table('test1').column('frame'),
-            slice_frame: db.partitioner.strided_ranges(
-                [(0, 15), (5, 25), (15, 35)], 1),
+            frame:
+            db.table('test1').column('frame'),
+            slice_frame:
+            db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1),
             sample_frame: [
                 db.sampler.range(0, 10),
                 db.sampler.range(5, 15),
                 db.sampler.range(5, 15),
             ],
-            output_op: 'test_slicing',
+            output_op:
+            'test_slicing',
         })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
@@ -396,7 +398,7 @@ class TestHistogram:
 
     def run(self, db, job):
         tables = db.run(job[0], job[1], force=True, show_progress=False)
-        next(tables[0].column('histogram').load(parsers.histograms))
+        next(tables[0].column('histogram').load(readers.histograms))
 
 
 @builder
@@ -441,14 +443,16 @@ def test_stencil(db):
             output_op: 'test_sencil',
         })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False,
-                    pipeline_instances_per_node=1)
+    tables = db.run(
+        output_op, [job],
+        force=True,
+        show_progress=False,
+        pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
         num_rows += 1
     assert num_rows == 1
-
 
     frame = db.sources.FrameColumn()
     sample_frame = frame.sample()
@@ -461,9 +465,11 @@ def test_stencil(db):
             output_op: 'test_sencil',
         })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False,
-                    pipeline_instances_per_node=1)
-
+    tables = db.run(
+        output_op, [job],
+        force=True,
+        show_progress=False,
+        pipeline_instances_per_node=1)
 
     frame = db.sources.FrameColumn()
     sample_frame = frame.sample()
@@ -476,14 +482,16 @@ def test_stencil(db):
             output_op: 'test_sencil',
         })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False,
-                    pipeline_instances_per_node=1)
+    tables = db.run(
+        output_op, [job],
+        force=True,
+        show_progress=False,
+        pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
         num_rows += 1
     assert num_rows == 2
-
 
     frame = db.sources.FrameColumn()
     flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
@@ -496,8 +504,11 @@ def test_stencil(db):
             output_op: 'test_sencil',
         })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False,
-                    pipeline_instances_per_node=1)
+    tables = db.run(
+        output_op, [job],
+        force=True,
+        show_progress=False,
+        pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -517,10 +528,13 @@ def test_wider_than_packet_stencil(db):
             output_op: 'test_sencil',
         })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False,
-                    io_packet_size=1,
-                    work_packet_size=1,
-                    pipeline_instances_per_node=1)
+    tables = db.run(
+        output_op, [job],
+        force=True,
+        show_progress=False,
+        io_packet_size=1,
+        work_packet_size=1,
+        pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():

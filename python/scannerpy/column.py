@@ -6,7 +6,7 @@ import tempfile
 import os
 
 from storehouse import RandomReadFile
-from scannerpy.stdlib import parsers
+from scannerpy.stdlib import readers
 from scannerpy.common import *
 from scannerpy.job import Job
 
@@ -217,7 +217,7 @@ class Column(object):
                    png_table.num_rows() == self._table.num_rows() and \
                    png_table._descriptor.timestamp > \
                    self._table._descriptor.timestamp:
-                    return png_table.load(['img'], parsers.image)
+                    return png_table.column('img').load(readers.image)
             pair = [(self._table.name(), png_table_name)]
             op_args = {}
             frame = self._db.sources.FrameColumn()
@@ -233,7 +233,7 @@ class Column(object):
             job = Job(op_args=op_args)
             [out_tbl] = self._db.run(
                 output_op, [job], force=True, show_progress=False)
-            return out_tbl.load(['img'], parsers.image)
+            return out_tbl.column('img').load(readers.image)
         elif self._descriptor.type == self._db.protobufs.Video:
             frame_type = self._video_descriptor.frame_type
             if frame_type == self._db.protobufs.U8:
@@ -242,7 +242,7 @@ class Column(object):
                 dtype = np.float32
             elif frame_type == self._db.protobufs.F64:
                 dtype = np.float64
-            parser_fn = parsers.raw_frame_gen(
+            parser_fn = readers.raw_frame_gen(
                 self._video_descriptor.height, self._video_descriptor.width,
                 self._video_descriptor.channels, dtype)
             return self._load(fn=parser_fn, rows=rows)
