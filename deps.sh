@@ -340,8 +340,6 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               -D CUDA_FAST_MATH=1 -D WITH_CUBLAS=1 -D WITH_NVCUVID=1 \
               -D BUILD_opencv_rgbd=OFF \
               -D BUILD_opencv_cnn_3dobj=OFF \
-              -D BUILD_TIFF=OFF \
-              -D WITH_TIFF=OFF \
               -D OPENCV_EXTRA_MODULES_PATH=$BUILD_DIR/opencv_contrib/modules \
               .. && \
         make install -j$cores && touch $BUILD_DIR/opencv.done \
