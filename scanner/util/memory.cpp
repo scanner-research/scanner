@@ -251,16 +251,23 @@ class BlockAllocator {
     allocations_.clear();
   }
 
-  u8* allocate(size_t size, i32 refs) {
+  u8* allocate(size_t size, i32 refs, std::string call_file = "",
+               i32 call_line = 0) {
     u8* buffer = allocator_->allocate(size);
 
     Allocation alloc;
     alloc.buffer = buffer;
     alloc.size = size;
     alloc.refs = refs;
+    alloc.call_file = call_file;
+    alloc.call_line = call_line;
 
     std::lock_guard<std::mutex> guard(lock_);
     allocations_.push_back(alloc);
+
+    current_memory_allocated_ += alloc.size;
+    max_memory_allocated_ =
+        std::max(current_memory_allocated_, max_memory_allocated_);
 
     return buffer;
   }
@@ -274,6 +281,8 @@ class BlockAllocator {
         << "Block allocator tried to add ref to non-block buffer";
 
     Allocation& alloc = allocations_[index];
+    assert(alloc.refs > 0);
+
     alloc.refs += refs;
   }
 
@@ -289,6 +298,8 @@ class BlockAllocator {
     alloc.refs -= 1;
 
     if (alloc.refs == 0) {
+      current_memory_allocated_ -= alloc.size;
+
       allocator_->free(alloc.buffer);
       allocations_.erase(allocations_.begin() + index);
     }
@@ -332,17 +343,26 @@ class BlockAllocator {
     }
     return false;
   }
+
+  const std::vector<Allocation>& allocations() {
+    return allocations_;
+  }
+
+  u64 current_memory_allocated() {
+    return current_memory_allocated_;
+  }
+
+  u64 max_memory_allocated() {
+    return max_memory_allocated_;
+  }
+
  private:
-
-  typedef struct {
-    u8* buffer;
-    size_t size;
-    i32 refs;
-  } Allocation;
-
   std::mutex lock_;
   std::vector<Allocation> allocations_;
   Allocator* allocator_;
+
+  u64 current_memory_allocated_ = 0;
+  u64 max_memory_allocated_ = 0;
 };
 
 class LinkedAllocator {
@@ -623,17 +643,19 @@ BlockAllocator* block_allocator_for_device(DeviceHandle device) {
   }
 }
 
-u8* new_buffer(DeviceHandle device, size_t size) {
-  return new_block_buffer(device, size, 1);
+u8* new_buffer_(DeviceHandle device, size_t size, std::string call_file,
+               i32 call_line) {
+  return new_block_buffer_(device, size, 1, call_file, call_line);
 }
 
-u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs) {
+u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
+                     std::string call_file, i32 call_line) {
   assert(size > 0);
 #ifdef USE_LINKED_ALLOCATOR
   return linked_allocator->allocate(device, size, refs);
 #else
   BlockAllocator* allocator = block_allocator_for_device(device);
-  return allocator->allocate(size, refs);
+  return allocator->allocate(size, refs, call_file, call_line);
 #endif
 }
 
@@ -803,6 +825,21 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
     memcpy_vec(dest_buffers, dest_device, src_buffers, src_device, sizes);
   }
 #endif
+}
+
+u64 current_memory_allocated(DeviceHandle device) {
+  BlockAllocator* block_allocator = block_allocator_for_device(device);
+  return block_allocator->current_memory_allocated();
+}
+
+u64 max_memory_allocated(DeviceHandle device) {
+  BlockAllocator* block_allocator = block_allocator_for_device(device);
+  return block_allocator->max_memory_allocated();
+}
+
+const std::vector<Allocation>& allocator_allocations(DeviceHandle device) {
+  BlockAllocator* block_allocator = block_allocator_for_device(device);
+  return block_allocator->allocations();
 }
 
 }
