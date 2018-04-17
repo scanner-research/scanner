@@ -1,4 +1,4 @@
-/* Copyright 2016 Carnegie Mellon University
+/* Copyright 2018 Carnegie Mellon University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,30 @@ namespace scanner {
 
 static const i64 DEFAULT_POOL_SIZE = 2L * 1024L * 1024L * 1024L;
 
+typedef struct {
+  u8* buffer;
+  size_t size;
+  i32 refs;
+  std::string call_file;
+  i32 call_line;
+} Allocation;
+
 void init_memory_allocators(MemoryPoolConfig config,
                             std::vector<i32> gpu_device_ids);
 
 void destroy_memory_allocators();
 
-u8* new_buffer(DeviceHandle device, size_t size);
+u8* new_buffer_(DeviceHandle device, size_t size, std::string call_file,
+               i32 call_line);
 
-u8* new_block_buffer(DeviceHandle device, size_t size, i32 refs);
+#define new_buffer(device__, size__) \
+  new_buffer_(device__, size__, __FILE__, __LINE__)
+
+u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
+                     std::string call_file, i32 call_line);
+
+#define new_block_buffer(device__, size__, refs__)                  \
+  new_block_buffer_(device__, size__, refs__, __FILE__, __LINE__)
 
 void add_buffer_ref(DeviceHandle device, u8* buffer);
 
@@ -50,4 +66,11 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
                          const std::vector<u8*>& src_buffers,
                          DeviceHandle src_device,
                          const std::vector<size_t>& sizes);
+
+u64 current_memory_allocated(DeviceHandle device);
+
+u64 max_memory_allocated(DeviceHandle device);
+
+const std::vector<Allocation>& allocator_allocations(DeviceHandle device);
+
 }

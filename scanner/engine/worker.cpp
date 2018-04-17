@@ -1775,6 +1775,24 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Write out total time interval
   timepoint_t end_time = now();
 
+  // Check if we have any more allocations
+  u64 max_mem_used = max_memory_allocated(CPU_DEVICE);
+  u64 current_mem_used = current_memory_allocated(CPU_DEVICE);
+  const auto& allocations = allocator_allocations(CPU_DEVICE);
+  VLOG(1) << "Max memory allocated:     " << max_mem_used / (1024 * 1024)
+          << " MBs";
+  VLOG(1) << "Current memory allocated: " << current_mem_used / (1024 * 1024)
+          << " MBs";
+  if (num_load_workers > 0) {
+    load_thread_profilers[0].increment("max_memory_used", max_mem_used);
+    load_thread_profilers[0].increment("current_memory_used", current_mem_used);
+  }
+  VLOG(2) << "Leaked allocations: ";
+  for (const auto& alloc : allocations) {
+    VLOG(2) << alloc.call_file << ":" << alloc.call_line << ": refs "
+            << alloc.refs << ", size " << alloc.size;
+  }
+
   // Execution done, write out profiler intervals for each worker
   // TODO: job_name -> job_id?
   i32 job_id = meta.get_bulk_job_id(job_params->job_name());
