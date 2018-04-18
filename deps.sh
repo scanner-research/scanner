@@ -10,7 +10,6 @@ FILES_DIR=$LOCAL_DIR/thirdparty/resources
 POSITIONAL=()
 
 # Ask if installed
-INSTALL_BOOST=true
 INSTALL_FFMPEG=true
 INSTALL_OPENCV=true
 INSTALL_PROTOBUF=true
@@ -88,8 +87,9 @@ if [[ $USE_GPU == true ]]; then
     HAVE_GPU=true
 fi
 
+HAVE_GPU=false
+
 # Directories for installed dependencies
-BOOST_DIR=$INSTALL_PREFIX
 FFMPEG_DIR=$INSTALL_PREFIX
 OPENCV_DIR=$INSTALL_PREFIX
 PROTOBUF_DIR=$INSTALL_PREFIX
@@ -110,7 +110,6 @@ mkdir -p $BUILD_DIR
 mkdir -p $INSTALL_PREFIX
 
 if [[ $INSTALL_NONE == true ]]; then
-    INSTALL_BOOST=false
     INSTALL_FFMPEG=false
     INSTALL_OPENCV=false
     INSTALL_PROTOBUF=false
@@ -125,26 +124,6 @@ if [[ $INSTALL_NONE == true ]]; then
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
-    while true; do
-        echo "Do you have boost>=1.65.1 installed with the modules: "
-        echo -n "thread, program_options, regex, python, numpy? [y/N]: "
-        read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
-            INSTALL_BOOST=false
-            echo -n "Where is your boost install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                BOOST_DIR=/usr/local
-            else
-                BOOST_DIR=$install_location
-            fi
-            break
-        else
-            INSTALL_BOOST=true
-            break
-        fi
-    done
-
     while true; do
         echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
         read yn
@@ -294,19 +273,6 @@ elif [[ $INSTALL_ALL == false ]]; then
     done
 fi
 
-if [[ $INSTALL_BOOST == true ]] && [[ ! -f $BUILD_DIR/boost.done ]] ; then
-    echo "Installing boost 1.65.1..."
-    cd $BUILD_DIR
-    rm -fr boost*
-    wget "https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz" && \
-        tar -xf boost_1_65_1.tar.gz && cd boost_1_65_1 && ./bootstrap.sh && \
-        ./b2 install --prefix=$INSTALL_PREFIX -j${cores} && \
-        rm -rf $BUILD_DIR/boost_1_65_1.tar.gz && touch $BUILD_DIR/boost.done \
-            || { echo 'Installing boost failed!' ; exit 1; }
-    echo "Done installing boost 1.65.1"
-fi
-
-
 if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
     echo "Installing ffmpeg 3.3.1..."
     # FFMPEG
@@ -396,13 +362,12 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
     cd $BUILD_DIR
     rm -fr storehouse
     git clone https://github.com/scanner-research/storehouse && \
-        cd storehouse && git checkout c256c034ee31f0716b5b4219c5e792d0a69ba6c3 && \
+        cd storehouse && git checkout 406ef8738ff9b66e94300e0844cd56b73c32703b && \
         cd thirdparty && mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
         make -j${cores} && cd ../../ && \
         mkdir build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBOOST_ROOT=$BOOST_DIR && make -j${cores} && \
-        make install && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
         cd .. && ./build.sh && \
         touch $BUILD_DIR/storehouse.done \
             || { echo 'Installing storehouse failed!' ; exit 1; }
@@ -428,17 +393,14 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     rm -fr hwang
     git clone https://github.com/scanner-research/hwang && \
         cd hwang && \
-        git checkout 13ae9210bfd5dc84b90024e650ea6a09be7e71a0 && \
+        git checkout 606c94b42dd71bb54b878eb42db5f51974a6b352 && \
         bash ./deps.sh -a \
-             --with-boost $INSTALL_PREFIX \
              --with-ffmpeg $INSTALL_PREFIX \
              --with-protobuf $INSTALL_PREFIX \
              --cores ${cores} && \
         mkdir -p build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=$USE_GPU && \
-        make -j${cores} && make install -j${cores} && cd .. && \
-        cd python && python setup.py bdist_wheel && \
-        pip install dist/hwang-0.1.0-py2-none-any.whl && \
+        cd .. && ./build.sh && \
         touch $BUILD_DIR/hwang.done \
             || { echo 'Installing hwang failed!' ; exit 1; }
     echo "Done installing hwang"
@@ -469,6 +431,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
         echo "2604f435da7bb9f1896ae37200d91734adfdba9c" > mkldnn.commit && \
         mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
+              -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX \
               -DCPU_ONLY=ON \
               -DOpenCV_DIR=$INSTALL_PREFIX \
               -DBLAS=mkl \
@@ -530,7 +493,6 @@ if [[ $INSTALL_OPENPOSE == true ]] && [[ $HAVE_GPU == true ]] && [[ ! -f $BUILD_
               -D BUILD_CAFFE=OFF \
               -D Caffe_INCLUDE_DIRS=$CAFFE_DIR/include \
               -D Caffe_LIBS=$CAFFE_DIR/lib/libcaffe.so \
-              -D BOOST_ROOT=$BOOST_DIR \
               -D BUILD_EXAMPLES=Off \
               -D BUILD_DOCS=Off \
               -D DOWNLOAD_COCO_MODEL=Off \
@@ -551,7 +513,6 @@ DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE
 echo "HAVE_GPU=$HAVE_GPU" >> $DEP_FILE
 echo "CAFFE_GPU=$USE_GPU" >> $DEP_FILE
-echo "BOOST_DIR=$BOOST_DIR" >> $DEP_FILE
 echo "FFMPEG_DIR=$FFMPEG_DIR" >> $DEP_FILE
 echo "OpenCV_DIR=$OPENCV_DIR" >> $DEP_FILE
 echo "PROTOBUF_DIR=$PROTOBUF_DIR" >> $DEP_FILE

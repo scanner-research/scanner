@@ -45,7 +45,6 @@ find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
-find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
 find_package(GFlags REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GoogleTest REQUIRED)
@@ -55,9 +54,11 @@ find_package(Storehouse REQUIRED CONFIG
   PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install")
 find_package(Hwang REQUIRED)
 find_package(TinyToml REQUIRED)
-find_package(PythonLibs 2.7 EXACT REQUIRED)
 find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
 find_package(OpenMP REQUIRED)
+
+set(PYBIND11_PYTHON_VERSION 3.5)
+find_package(pybind11 REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
@@ -77,12 +78,9 @@ set(SCANNER_LIBRARIES
   "${CURL_LIBRARIES}"
   "${ICONV_LIBRARIES}"
   "${SCANNER_LIBRARIES}"
-  "-lpython2.7"
-  "${Boost_LIBRARIES}"
-  "${Boost_LIBRARY_DIRS}/libboost_python.so"
-  "${Boost_LIBRARY_DIRS}/libboost_numpy.so"
   "${STOREHOUSE_LIBRARIES}"
   "${OPENSSL_LIBRARIES}"
+  "${PYTHON_LIBRARIES}"
   "-ljpeg"
   "-lz"
   "-ldl"
@@ -103,7 +101,7 @@ include_directories(
   "${GLOG_INCLUDE_DIRS}"
   "${LIBLZMA_INCLUDE_DIRS}"
   "${PYTHON_INCLUDE_DIRS}"
-  "${Boost_INCLUDE_DIRS}")
+  "${pybind11_INCLUDE_DIR}")
 
 if (OpenCV_FOUND)
   list(APPEND SCANNER_LIBRARIES ${OpenCV_LIBRARIES})
