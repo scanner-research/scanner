@@ -1,4 +1,3 @@
-
 import struct
 import math
 from subprocess import Popen, PIPE
@@ -77,8 +76,7 @@ class Column(object):
             self._db_path, self._table._descriptor.id, self._descriptor.id,
             item_id)
         try:
-            metadata_file = RandomReadFile(self._storage,
-                                           metadata_path.encode('ascii'))
+            metadata_file = RandomReadFile(self._storage, metadata_path)
         except UserWarning:
             raise ScannerException(
                 'Path {} does not exist'.format(metadata_path))
@@ -87,8 +85,7 @@ class Column(object):
             self._db_path, self._table._descriptor.id, self._descriptor.id,
             item_id)
         try:
-            data_file = RandomReadFile(self._storage,
-                                       data_path.encode('ascii'))
+            data_file = RandomReadFile(self._storage, data_path)
         except UserWarning:
             raise ScannerException('Path {} does not exist'.format(path))
 
@@ -273,8 +270,8 @@ class Column(object):
             temp_paths.append(p)
         # Copy all files locally before calling ffmpeg
         for in_path, temp_path in zip(paths, temp_paths):
-            with open(temp_path, 'w') as f:
-                f.write(self._storage.read(in_path.encode('ascii')))
+            with open(temp_path, 'wb') as f:
+                f.write(self._storage.read(in_path))
 
         files = '|'.join(temp_paths)
 
