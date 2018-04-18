@@ -100,14 +100,9 @@ include_files = glob_files(
 package_data = {'scannerpy': ['./*.so'] + include_files + cmake_files}
 
 REQUIRED_PACKAGES = [
-    # 'protobuf == 3.4.0',
-    # 'grpcio == 1.7.3',
-    # 'toml >= 0.9.2',
-    # 'enum34 >= 1.1.6',
-    # 'numpy >= 1.12.0',
-    # 'scipy >= 0.18.1',
-    # 'tqdm >= 4.19.5',
-    # 'python-prctl >= 1.7.0'
+    'protobuf == 3.4.0', 'grpcio == 1.7.3', 'toml >= 0.9.2', 'enum34 >= 1.1.6',
+    'numpy >= 1.12.0', 'scipy >= 0.18.1', 'tqdm >= 4.19.5',
+    'python-prctl >= 1.7.0'
 ]
 
 setup(

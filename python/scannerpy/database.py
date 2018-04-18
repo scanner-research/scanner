@@ -505,6 +505,7 @@ class Database(object):
                 self._start_heartbeat()
             else:
                 master_port = self._master_address.partition(':')[2]
+                # https://stackoverflow.com/questions/30469575/how-to-pickle-and-unpickle-to-portable-string-in-python-3
                 pickled_config = pickle.dumps(self.config, 0).decode()
                 master_cmd = (
                     'python3 -c ' + '\"from scannerpy import start_master\n' +
@@ -568,13 +569,9 @@ class Database(object):
         if self._debug:
             self._worker_conns = None
             machine_params = self._bindings.default_machine_params()
-            p = self.protobufs.MachineParameters()
-            p.ParseFromString(machine_params)
-            p.num_load_workers = 1
             for i in range(len(self._worker_addresses)):
                 start_worker(
                     self._master_address,
-                    machine_params=p.SerializeToString(),
                     port=str(int(self.config.worker_port) + i),
                     config=self.config,
                     db=self._db,

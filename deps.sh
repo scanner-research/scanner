@@ -83,8 +83,6 @@ else
     HAVE_GPU=false
 fi
 
-HAVE_GPU=false
-
 # Force building with GPU when specified
 if [[ $USE_GPU == true ]]; then
     HAVE_GPU=true
@@ -529,6 +527,7 @@ DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE
 echo "HAVE_GPU=$HAVE_GPU" >> $DEP_FILE
 echo "CAFFE_GPU=$USE_GPU" >> $DEP_FILE
+echo "PYBIND11_DIR=$PYBIND_DIR" >> $DEP_FILE
 echo "FFMPEG_DIR=$FFMPEG_DIR" >> $DEP_FILE
 echo "OpenCV_DIR=$OPENCV_DIR" >> $DEP_FILE
 echo "PROTOBUF_DIR=$PROTOBUF_DIR" >> $DEP_FILE
