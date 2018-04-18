@@ -1,16 +1,15 @@
+import pickle
+
+
 class KernelConfig(object):
     def __init__(self, config):
-        pass
-
-    # def __init__(self, device_handles, input_columns, input_column_types,
-    #              output_columns, output_column_types, args, node_id):
-    #     self.devices = device_handles
-    #     self.input_columns = input_columns
-    #     self.input_column_types = input_column_types
-    #     self.output_columns = output_columns
-    #     self.output_column_types = output_column_types
-    #     self.args = args
-    #     self.node_id = node_id
+        self.devices = config.devices
+        self.input_columns = config.input_columns
+        self.input_column_types = config.input_column_types
+        self.output_columns = config.output_columns
+        self.output_column_types = config.output_column_types
+        self.args = pickle.loads(config.args())
+        self.node_id = config.node_id
 
 
 class Kernel(object):

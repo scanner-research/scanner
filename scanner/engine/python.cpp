@@ -3,7 +3,10 @@
 #include "scanner/engine/op_info.h"
 #include "scanner/engine/op_registry.h"
 #include "scanner/util/common.h"
+
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/functional.h>
 
 namespace scanner {
 
@@ -87,10 +90,14 @@ namespace scanner {
       .def_readonly("input_column_types", &KernelConfig::input_column_types)
       .def_readonly("output_columns", &KernelConfig::output_columns)
       .def_readonly("output_column_types", &KernelConfig::output_column_types)
+      .def_readonly("node_id", &KernelConfig::node_id)
       .def("args", [](const KernelConfig& config) {
           std::string s(config.args.begin(), config.args.end());
           return py::bytes(s);
         });
+
+    py::class_<DeviceHandle>(m, "DeviceHandle")
+      .def_readonly("id", &DeviceHandle::id);
 
     // TODO: fill this type in
     py::enum_<proto::ColumnType>(m, "ColumnType");
