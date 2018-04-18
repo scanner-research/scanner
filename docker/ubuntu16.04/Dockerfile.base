@@ -10,16 +10,15 @@ ARG cpu_only=OFF
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y software-properties-common && \
     add-apt-repository -y ppa:git-core/ppa && \
-    add-apt-repository -y ppa:jonathonf/python-2.7 && \
     apt-get update && \
     apt-get install -y libssl-dev libcurl3-dev liblzma-dev libeigen3-dev  \
     libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libgflags-dev \
     libx264-dev libopenjpeg-dev libxvidcore-dev \
-    libpng-dev libjpeg-dev libbz2-dev git python-pip wget \
-    libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
-    llvm clang python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
-    liblapacke-dev swig yasm python2.7 cpio curl unzip openssl libssl-dev \
-    libgl-dev libcap-dev
+    libpng-dev libjpeg-dev libbz2-dev git wget \
+    libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev  \
+    llvm clang autoconf autogen libtool libtbb-dev libopenblas-dev \
+    liblapacke-dev swig yasm cpio curl unzip openssl libssl-dev \
+    libgl-dev libcap-dev python3-dev
 
 # Non-apt-installable dependencies
 ENV deps /deps

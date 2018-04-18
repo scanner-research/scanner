@@ -1,1 +1,1 @@
-from net_descriptor import NetDescriptor
+from .net_descriptor import NetDescriptor

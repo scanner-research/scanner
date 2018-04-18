@@ -15,11 +15,12 @@ import sys
 import grpc
 import struct
 import pickle
+import subprocess
 
 try:
     run(['nvidia-smi'])
     has_gpu = True
-except OSError:
+except (OSError, subprocess.CalledProcessError) as e:
     has_gpu = False
 
 gpu = pytest.mark.skipif(not has_gpu, reason='need GPU to run')
@@ -53,13 +54,14 @@ def test_tutorial():
 
 @slow
 def test_examples():
-    def run_py((d, f)):
+    def run_py(arg):
+        [d, f] = arg
         print(f)
         run('cd {}/../examples/{} && python {}.py'.format(cwd, d, f),
             shell=True)
 
-    examples = [('face_detection', 'face_detect'), ('shot_detection',
-                                                    'shot_detect')]
+    examples = [['face_detection', 'face_detect'],
+                ['shot_detection', 'shot_detect']]
 
     for e in examples:
         run_py(e)
@@ -81,7 +83,7 @@ def make_config(master_port=None, worker_port=None, path=None):
     else:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             cfg_path = f.name
-            f.write(toml.dumps(cfg))
+            f.write(bytes(toml.dumps(cfg), 'utf-8'))
     return (cfg_path, cfg)
 
 
@@ -190,10 +192,14 @@ def test_profiler(db):
 
 
 def test_new_table(db):
-    db.new_table('test', ['col1', 'col2'], [['r00', 'r01'], ['r10', 'r11']])
+    def b(s):
+        return bytes(s, 'utf-8')
+
+    db.new_table('test', ['col1', 'col2'],
+                 [[b('r00'), b('r01')], [b('r10'), b('r11')]])
     t = db.table('test')
     assert (t.num_rows() == 2)
-    assert (next(t.column('col2').load()) == 'r01')
+    assert (next(t.column('col2').load()) == b('r01'))
 
 
 def test_sample(db):
@@ -216,7 +222,7 @@ def test_sample(db):
         assert num_rows == expected_rows
 
     # Stride
-    expected = (db.table('test1').num_rows() + 8 - 1) / 8
+    expected = int((db.table('test1').num_rows() + 8 - 1) / 8)
     run_sampler_job(db.sampler.strided(8), expected)
     # Range
     run_sampler_job(db.sampler.range(0, 30), 30)

@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import os.path
 import sys
@@ -72,11 +71,10 @@ def start_master(port=None,
     port = port or config.master_port
 
     # Load all protobuf types
-    db = bindings.Database(
-        config.storage_config, config.db_path.encode('ascii'),
-        (config.master_address + ':' + port).encode('ascii'))
-    result = bindings.start_master(db, port.encode('ascii'), watchdog,
-                                   prefetch_table_metadata, no_workers_timeout)
+    db = bindings.Database(config.storage_config, config.db_path,
+                           (config.master_address + ':' + port))
+    result = bindings.start_master(db, port, watchdog, prefetch_table_metadata,
+                                   no_workers_timeout)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
@@ -85,8 +83,11 @@ def start_master(port=None,
     return db
 
 
-def worker_process((master_address, machine_params, port, config, config_path,
-                    block, watchdog, prefetch_table_metadata, db)):
+def worker_process(args):
+    [
+        master_address, machine_params, port, config, config_path, block,
+        watchdog, prefetch_table_metadata, db
+    ] = args
     config = config or Config(config_path)
     port = port or config.worker_port
 
@@ -94,11 +95,10 @@ def worker_process((master_address, machine_params, port, config, config_path,
     db = db or bindings.Database(
         config.storage_config,
         #storage_config,
-        config.db_path.encode('ascii'),
-        master_address.encode('ascii'))
+        config.db_path,
+        master_address)
     machine_params = machine_params or bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params,
-                                   str(port).encode('ascii'), watchdog,
+    result = bindings.start_worker(db, machine_params, str(port), watchdog,
                                    prefetch_table_metadata)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(
@@ -141,20 +141,21 @@ def start_worker(master_address,
     if num_workers is not None:
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             results = list(
-                executor.map(worker_process,
-                             ([(master_address, machine_params, int(port) + i,
-                                config, config_path, block, watchdog,
-                                prefetch_table_metadata, None)
-                               for i in range(num_workers)])))
+                executor.map(worker_process, ([[
+                    master_address, machine_params,
+                    int(port) + i, config, config_path, block, watchdog,
+                    prefetch_table_metadata, None
+                ] for i in range(num_workers)])))
 
         for result in results:
             if not result.success: return result
         return results[0]
 
     else:
-        return worker_process(
-            (master_address, machine_params, port, config, config_path, block,
-             watchdog, prefetch_table_metadata, db))
+        return worker_process([
+            master_address, machine_params, port, config, config_path, block,
+            watchdog, prefetch_table_metadata, db
+        ])
 
 
 class Database(object):
@@ -303,15 +304,14 @@ class Database(object):
         d = descriptor()
         path = '{}/{}'.format(self._db_path, path)
         try:
-            d.ParseFromString(self._storage.read(path.encode('ascii')))
+            d.ParseFromString(self._storage.read(path))
         except UserWarning:
             raise ScannerException(
                 'Internal error. Missing file {}'.format(path))
         return d
 
     def _save_descriptor(self, descriptor, path):
-        self._storage.write(('{}/{}'.format(self._db_path,
-                                            path)).encode('ascii'),
+        self._storage.write(('{}/{}'.format(self._db_path, path)),
                             descriptor.SerializeToString())
 
     def _load_table_metadata(self, table_names):
@@ -351,7 +351,7 @@ class Database(object):
             if self._prefetch_table_metadata:
                 self._table_descriptor = {}
                 # Read all table descriptors from database
-                table_names = self._table_name.keys()
+                table_names = list(self._table_name.keys())
                 tables = self._load_table_metadata(table_names)
                 for table in tables:
                     self._table_descriptor[table.id] = table
@@ -402,7 +402,7 @@ class Database(object):
 
     def _run_remote_cmd(self, host, cmd, nohup=False):
         host_name, _, _ = host.partition(':')
-        host_ip = unicode(socket.gethostbyname(host_name), "utf-8")
+        host_ip = str(socket.gethostbyname(host_name), "utf-8")
         if ipaddress.ip_address(host_ip).is_loopback:
             return Popen(cmd, shell=True)
         else:
@@ -475,10 +475,9 @@ class Database(object):
                 .format(self._master_address))
 
         # Boot up C++ database bindings
-        self._db = self._bindings.Database(
-            self.config.storage_config,
-            str(self._db_path).encode('ascii'),
-            str(self._master_address).encode('ascii'))
+        self._db = self._bindings.Database(self.config.storage_config,
+                                           str(self._db_path),
+                                           str(self._master_address))
 
         if self._start_cluster:
             # Set handler to shutdown cluster on signal
@@ -492,7 +491,7 @@ class Database(object):
             if self._debug:
                 self._master_conn = None
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port.encode('ascii'), True,
+                    self._db, self.config.master_port, True,
                     self._prefetch_table_metadata,
                     self._no_workers_timeout).success
                 assert res
@@ -568,14 +567,19 @@ class Database(object):
 
         if self._debug:
             self._worker_conns = None
+            machine_params = self._bindings.default_machine_params()
+            p = self.protobufs.MachineParameters()
+            p.ParseFromString(machine_params)
+            p.num_load_workers = 1
             for i in range(len(self._worker_addresses)):
                 start_worker(
                     self._master_address,
-                    port=str(int(self.config.worker_port) + i).encode('ascii'),
+                    machine_params=p.SerializeToString(),
+                    port=str(int(self.config.worker_port) + i),
                     config=self.config,
                     db=self._db,
                     num_workers=None)
-                    #cpu_count() if multiple and len(self._worker_addresses) == 1 else None)
+                #cpu_count() if multiple and len(self._worker_addresses) == 1 else None)
         else:
             pickled_config = pickle.dumps(self.config)
             worker_cmd = (
@@ -698,7 +702,7 @@ class Database(object):
         op_registration.has_unbounded_state = unbounded_state
 
         def add_col(columns, col):
-            if isinstance(col, basestring):
+            if isinstance(col, str):
                 c = columns.add()
                 c.name = col
                 c.type = self.protobufs.Other
@@ -770,7 +774,7 @@ class Database(object):
         if len(videos) == 0:
             raise ScannerException('Must ingest at least one video.')
 
-        [table_names, paths] = zip(*videos)
+        [table_names, paths] = list(zip(*videos))
         to_delete = []
         for table_name in table_names:
             if self.has_table(table_name):
@@ -789,8 +793,8 @@ class Database(object):
             lambda: self._master.IngestVideos(ingest_params))
         if not ingest_result.result.success:
             raise ScannerException(ingest_result.result.msg)
-        failures = zip(ingest_result.failed_paths,
-                       ingest_result.failed_messages)
+        failures = list(
+            zip(ingest_result.failed_paths, ingest_result.failed_messages))
 
         self._cached_db_metadata = None
         return ([
@@ -846,11 +850,11 @@ class Database(object):
 
         params = self.protobufs.NewTableParams()
         params.table_name = name
-        params.columns[:] = ["index"] + columns
+        params.columns[:] = columns
 
         for i, row in enumerate(rows):
             row_proto = params.rows.add()
-            row_proto.columns[:] = [struct.pack('=Q', i)] + row
+            row_proto.columns[:] = row
 
         self._try_rpc(lambda: self._master.NewTable(params))
 
@@ -863,7 +867,7 @@ class Database(object):
 
         table_name = None
         table_id = None
-        if isinstance(name, basestring):
+        if isinstance(name, str):
             if name in self._table_name:
                 table_name = name
                 table_id = db_meta.tables[self._table_name[name]].id
@@ -888,7 +892,7 @@ class Database(object):
 
     def profiler(self, job_name):
         db_meta = self._load_db_metadata()
-        if isinstance(job_name, basestring):
+        if isinstance(job_name, str):
             job_id = None
             for job in db_meta.bulk_jobs:
                 if job.name == job_name:
@@ -1119,7 +1123,7 @@ class Database(object):
             opts = self.protobufs.OutputColumnCompression()
             opts.codec = 'default'
             if out_col._type == self.protobufs.Video:
-                for k, v in out_col._encode_options.iteritems():
+                for k, v in out_col._encode_options.items():
                     if k == 'codec':
                         opts.codec = v
                     else:
@@ -1146,7 +1150,7 @@ class Database(object):
         for job in jobs:
             j = job_params.jobs.add()
             output_table_name = None
-            for op_col, args in job.op_args().iteritems():
+            for op_col, args in job.op_args().items():
                 if isinstance(op_col, Op) or isinstance(op_col, Sink):
                     op = op_col
                 else:
@@ -1195,7 +1199,7 @@ class Database(object):
                     # the output table name
                     n = op._name
                     if n == 'FrameColumn' or n == 'Column':
-                        assert isinstance(args, basestring)
+                        assert isinstance(args, str)
                         output_table_name = args
                         job_output_table_names.append(args)
                     else:

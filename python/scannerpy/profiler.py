@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 import struct
 import json
 
@@ -55,7 +55,7 @@ class Profiler:
         }
         traces = []
         next_tid = 0
-        for proc, (_, worker_profiler_groups) in self._profilers.iteritems():
+        for proc, (_, worker_profiler_groups) in self._profilers.items():
             for worker_type, profs in [('load', worker_profiler_groups['load']),
                                        ('decode', worker_profiler_groups['decode']),
                                        ('eval', worker_profiler_groups['eval']),
@@ -98,15 +98,15 @@ class Profiler:
                 return '{:2f}'.format(t / 1.0e9)
             return t
         return {k: self._convert_time(v) if isinstance(v, dict) else convert(v)
-                for (k, v) in d.iteritems()}
+                for (k, v) in d.items()}
 
     def total_time_interval(self):
-        intv, _ = self._profilers.values()[0]
+        intv, _ = list(self._profilers.values())[0]
         return intv
 
     def statistics(self):
         totals = {}
-        for (total_start, total_end), profiler in self._profilers.values():
+        for (total_start, total_end), profiler in list(self._profilers.values()):
             for kind in profiler:
                 if kind not in totals:
                     totals[kind] = {}
@@ -115,7 +115,7 @@ class Profiler:
                         if key not in totals[kind]:
                             totals[kind][key] = 0.0
                         totals[kind][key] += end-start
-                    for (name, value) in thread['counters'].iteritems():
+                    for (name, value) in thread['counters'].items():
                         if name not in totals[kind]:
                             totals[kind][name] = 0
                         totals[kind][name] += value

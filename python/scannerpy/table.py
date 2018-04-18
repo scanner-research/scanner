@@ -1,6 +1,6 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 import struct
-from itertools import izip
+
 from timeit import default_timer as now
 
 from scannerpy.common import *
@@ -107,7 +107,7 @@ class Table:
         if not self.committed():
             raise ScannerException('Table has not committed yet.')
         cols = [self.column(c).load(rows=rows) for c in columns]
-        for tup in izip(*cols):
+        for tup in zip(*cols):
             if fn is not None:
                 yield fn(tup, self._db)
             else:
