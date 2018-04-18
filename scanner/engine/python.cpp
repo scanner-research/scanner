@@ -99,8 +99,10 @@ namespace scanner {
     py::class_<DeviceHandle>(m, "DeviceHandle")
       .def_readonly("id", &DeviceHandle::id);
 
-    // TODO: fill this type in
-    py::enum_<proto::ColumnType>(m, "ColumnType");
+    py::enum_<proto::ColumnType>(m, "ColumnType")
+      .value("Other", ColumnType::Other)
+      .value("Video", ColumnType::Video)
+      .value("Image", ColumnType::Image);
 
     m.def("start_master", &start_master_wrapper);
     m.def("start_worker", &start_worker_wrapper);
