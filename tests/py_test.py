@@ -35,7 +35,7 @@ cwd = os.path.dirname(os.path.abspath(__file__))
 def test_tutorial():
     def run_py(path):
         print(path)
-        run('cd {}/../examples/tutorial && python {}.py'.format(cwd, path),
+        run('cd {}/../examples/tutorial && python3 {}.py'.format(cwd, path),
             shell=True)
 
     run('cd {}/../examples/tutorial/resize_op && '
@@ -57,7 +57,7 @@ def test_examples():
     def run_py(arg):
         [d, f] = arg
         print(f)
-        run('cd {}/../examples/{} && python {}.py'.format(cwd, d, f),
+        run('cd {}/../examples/{} && python3 {}.py'.format(cwd, d, f),
             shell=True)
 
     examples = [['face_detection', 'face_detect'],
@@ -994,7 +994,7 @@ def test_fault_tolerance(fault_db):
         with open(os.devnull, 'w') as fp:
             p = subprocess.Popen(
                 [
-                    'python ' + script_dir +
+                    'python3 ' + script_dir +
                     '/spawn_worker.py {:d}'.format(force_kill_spawn_port)
                 ],
                 shell=True,
@@ -1016,7 +1016,7 @@ def test_fault_tolerance(fault_db):
             # Spawn the worker again
             subprocess.call(
                 [
-                    'python ' + script_dir +
+                    'python3 ' + script_dir +
                     '/spawn_worker.py {:d}'.format(normal_spawn_port)
                 ],
                 shell=True)

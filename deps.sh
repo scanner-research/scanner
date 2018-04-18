@@ -25,6 +25,7 @@ INSTALL_GOOGLETEST=true
 INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
+INSTALL_PYBIND=true
 
 INSTALL_PREFIX=$DEFAULT_INSTALL_DIR
 
@@ -82,12 +83,12 @@ else
     HAVE_GPU=false
 fi
 
+HAVE_GPU=false
+
 # Force building with GPU when specified
 if [[ $USE_GPU == true ]]; then
     HAVE_GPU=true
 fi
-
-HAVE_GPU=false
 
 # Directories for installed dependencies
 FFMPEG_DIR=$INSTALL_PREFIX
@@ -96,6 +97,7 @@ PROTOBUF_DIR=$INSTALL_PREFIX
 GRPC_DIR=$INSTALL_PREFIX
 CAFFE_DIR=$INSTALL_PREFIX
 HALIDE_DIR=$INSTALL_PREFIX
+PYBIND_DIR=$INSTALL_PREFIX
 HWANG_DIR=$INSTALL_PREFIX
 STOREHOUSE_DIR=$INSTALL_PREFIX
 TINYTOML_DIR=$INSTALL_PREFIX
@@ -121,6 +123,7 @@ if [[ $INSTALL_NONE == true ]]; then
     INSTALL_HWANG=false
     INSTALL_TINYTOML=false
     INSTALL_STOREHOUSE=false
+    INSTALL_PYBIND=false
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
@@ -357,6 +360,19 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
     echo "Done installing Halide"
 fi
 
+if [[ $INSTALL_PYBIND == true ]] && [[ ! -f $BUILD_DIR/pybind.done ]] ; then
+    echo "Installing pybind..."
+    rm -fr pybind11
+    git clone -b v2.2.2 https://github.com/pybind/pybind11 && \
+        cd pybind11 && \
+        mkdir build && cd build && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DPYBIND11_TEST=Off && \
+        make install -j${cores} && cd ../../ && \
+        touch $BUILD_DIR/pybind.done \
+            || { echo 'Installing pybind failed!' ; exit 1; }
+    echo "Done installing pybind"
+fi
+
 if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; then
     echo "Installing storehouse..."
     cd $BUILD_DIR
@@ -393,7 +409,7 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     rm -fr hwang
     git clone https://github.com/scanner-research/hwang && \
         cd hwang && \
-        git checkout 606c94b42dd71bb54b878eb42db5f51974a6b352 && \
+        git checkout cc18bfa4beb5bb50e0b440cbb339526be58a9621 && \
         bash ./deps.sh -a \
              --with-ffmpeg $INSTALL_PREFIX \
              --with-protobuf $INSTALL_PREFIX \

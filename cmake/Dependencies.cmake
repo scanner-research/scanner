@@ -86,8 +86,6 @@ set(SCANNER_LIBRARIES
   "-ldl"
   )
 
-message(${SCANNER_LIBRARIES})
-
 include_directories(
   "."
   "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files

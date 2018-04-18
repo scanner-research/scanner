@@ -402,7 +402,7 @@ class Database(object):
 
     def _run_remote_cmd(self, host, cmd, nohup=False):
         host_name, _, _ = host.partition(':')
-        host_ip = str(socket.gethostbyname(host_name), "utf-8")
+        host_ip = socket.gethostbyname(host_name)
         if ipaddress.ip_address(host_ip).is_loopback:
             return Popen(cmd, shell=True)
         else:
@@ -505,12 +505,12 @@ class Database(object):
                 self._start_heartbeat()
             else:
                 master_port = self._master_address.partition(':')[2]
-                pickled_config = pickle.dumps(self.config)
+                pickled_config = pickle.dumps(self.config, 0).decode()
                 master_cmd = (
-                    'python -c ' + '\"from scannerpy import start_master\n' +
+                    'python3 -c ' + '\"from scannerpy import start_master\n' +
                     'import pickle\n' +
-                    'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                    'start_master(port=\'{master_port:s}\', block=True,\n' +
+                    'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
+                    + 'start_master(port=\'{master_port:s}\', block=True,\n' +
                     '             config=config,\n' +
                     '             prefetch_table_metadata={prefetch},\n' +
                     '             no_workers_timeout={no_workers})\" ' +
@@ -581,12 +581,12 @@ class Database(object):
                     num_workers=None)
                 #cpu_count() if multiple and len(self._worker_addresses) == 1 else None)
         else:
-            pickled_config = pickle.dumps(self.config)
+            pickled_config = pickle.dumps(self.config, 0).decode()
             worker_cmd = (
-                'python -c ' + '\"from scannerpy import start_worker\n' +
+                'python3 -c ' + '\"from scannerpy import start_worker\n' +
                 'import pickle\n' +
-                'config=pickle.loads(\'\'\'{config:s}\'\'\')\n' +
-                'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
+                'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
+                + 'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
                 '             block=True,\n' +
                 '             config=config)\" ' + '')
 

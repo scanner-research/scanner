@@ -1,4 +1,3 @@
-
 import struct
 import json
 
@@ -28,9 +27,8 @@ class Profiler:
 
     def __init__(self, db, job_id):
         self._storage = db._storage
-        job = db._load_descriptor(
-            db.protobufs.BulkJobDescriptor,
-            'jobs/{}/descriptor.bin'.format(job_id))
+        job = db._load_descriptor(db.protobufs.BulkJobDescriptor,
+                                  'jobs/{}/descriptor.bin'.format(job_id))
 
         self._profilers = {}
         for n in range(job.num_nodes):
@@ -50,16 +48,18 @@ class Profiler:
         """
 
         # https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html
-        colors = {
-            'idle': 'grey'
-        }
+        colors = {'idle': 'grey'}
         traces = []
         next_tid = 0
         for proc, (_, worker_profiler_groups) in self._profilers.items():
-            for worker_type, profs in [('load', worker_profiler_groups['load']),
-                                       ('decode', worker_profiler_groups['decode']),
-                                       ('eval', worker_profiler_groups['eval']),
-                                       ('save', worker_profiler_groups['save'])]:
+            for worker_type, profs in [('load',
+                                        worker_profiler_groups['load']),
+                                       ('decode',
+                                        worker_profiler_groups['decode']),
+                                       ('eval',
+                                        worker_profiler_groups['eval']),
+                                       ('save',
+                                        worker_profiler_groups['save'])]:
                 for i, prof in enumerate(profs):
                     tid = next_tid
                     next_tid += 1
@@ -71,10 +71,12 @@ class Profiler:
                         'pid': proc,
                         'tid': tid,
                         'args': {
-                            'name': '{}_{:02d}_{:02d}'.format(
-                                worker_type, proc, worker_num) + (
-                                    "_" + str(tag) if tag else "")
-                        }})
+                            'name':
+                            '{}_{:02d}_{:02d}'.format(worker_type, proc,
+                                                      worker_num) +
+                            ("_" + str(tag) if tag else "")
+                        }
+                    })
                     for interval in prof['intervals']:
                         trace = {
                             'name': interval[0],
@@ -97,8 +99,11 @@ class Profiler:
             if isinstance(t, float):
                 return '{:2f}'.format(t / 1.0e9)
             return t
-        return {k: self._convert_time(v) if isinstance(v, dict) else convert(v)
-                for (k, v) in d.items()}
+
+        return {
+            k: self._convert_time(v) if isinstance(v, dict) else convert(v)
+            for (k, v) in d.items()
+        }
 
     def total_time_interval(self):
         intv, _ = list(self._profilers.values())[0]
@@ -106,7 +111,8 @@ class Profiler:
 
     def statistics(self):
         totals = {}
-        for (total_start, total_end), profiler in list(self._profilers.values()):
+        for (total_start,
+             total_end), profiler in list(self._profilers.values()):
             for kind in profiler:
                 if kind not in totals:
                     totals[kind] = {}
@@ -114,7 +120,7 @@ class Profiler:
                     for (key, start, end) in thread['intervals']:
                         if key not in totals[kind]:
                             totals[kind][key] = 0.0
-                        totals[kind][key] += end-start
+                        totals[kind][key] += end - start
                     for (name, value) in thread['counters'].items():
                         if name not in totals[kind]:
                             totals[kind][name] = 0
@@ -180,7 +186,7 @@ class Profiler:
         }, offset
 
     def _parse_profiler_file(self, profiler_path):
-        bytes_buffer = self._storage.read(profiler_path.encode('ascii'))
+        bytes_buffer = self._storage.read(profiler_path)
         offset = 0
         # Read start and end time intervals
         t, offset = read_advance('q', bytes_buffer, offset)
@@ -202,7 +208,8 @@ class Profiler:
         groups_per_chain = t[0]
         for pu in range(num_eval_workers):
             for fg in range(groups_per_chain):
-                prof, offset = self._parse_profiler_output(bytes_buffer, offset)
+                prof, offset = self._parse_profiler_output(
+                    bytes_buffer, offset)
                 profilers[prof['worker_type']].append(prof)
         # Save worker profilers
         t, offset = read_advance('B', bytes_buffer, offset)

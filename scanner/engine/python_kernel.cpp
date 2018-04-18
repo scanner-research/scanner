@@ -143,6 +143,7 @@ void PythonKernel::execute(const BatchedElements &input_columns,
     std::vector<std::vector<py::object>> batched_out_cols;
 
     if (can_batch_) {
+      batched_out_cols = kernel.attr("execute")(batched_cols).cast<std::vector<std::vector<py::object>>>();
     } else {
          for (i32 j = 0; j < output_columns.size(); ++j) {
               batched_out_cols.emplace_back();
