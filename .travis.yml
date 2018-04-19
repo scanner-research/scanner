@@ -27,8 +27,8 @@ env:
 install:
 - sudo apt-get update
 - sudo apt-get install -y doxygen graphviz
-- sudo pip3 install requests[security] --upgrade
-- sudo pip3 install doxypypy twine Sphinx sphinx_rtd_theme
+- pip3 install requests[security] --upgrade
+- pip3 install doxypypy twine Sphinx sphinx_rtd_theme
 
 script: ./scripts/travis-build.sh
 
