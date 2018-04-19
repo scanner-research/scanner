@@ -14,6 +14,7 @@ thirdparty
 !docker/**/thirdparty
 python/*.egg-info
 docker/**/deps.sh
+docker/**/thirdparty
 **/*.mp4
 **/*.mkv
 
