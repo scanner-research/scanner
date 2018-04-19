@@ -1,7 +1,8 @@
+language: python
+python:
+  - "3.5"
+
 sudo: required
-
-language: cpp
-
 services:
 - docker
 
