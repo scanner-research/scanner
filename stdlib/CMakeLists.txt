@@ -124,9 +124,3 @@ if (HALIDE_TARGETS)
     add_dependencies(stdlib scanner_halide)
   endif()
 endif()
-
-find_package(Boost COMPONENTS thread program_options regex python REQUIRED)
-target_link_libraries(stdlib PUBLIC
-  "${Boost_LIBRAIRES}"
-  "${Boost_LIBRARY_DIRS}/libboost_numpy.so")
-target_include_directories(stdlib PUBLIC "${Boost_INCLUDE_DIRS}")

@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 import grpc
 import copy
 
@@ -25,8 +25,8 @@ class Sink:
                     'db.sinks.Column(columns={\'column_name\': col}).')
 
             columns = sink_args['columns']
-            self._output_names = [n for n, _ in columns.iteritems()]
-            self._inputs = [c for _, c in columns.iteritems()]
+            self._output_names = [n for n, _ in columns.items()]
+            self._inputs = [c for _, c in columns.items()]
 
             del sink_args['columns']
         else:

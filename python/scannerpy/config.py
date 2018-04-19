@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import toml
 import sys
@@ -63,14 +62,11 @@ class Config(object):
             if 'network' in config:
                 network = config['network']
                 if 'master' in network:
-                    self.master_address = network['master'].encode(
-                        'ascii', 'ignore')
+                    self.master_address = network['master']
                 if 'master_port' in network:
-                    self.master_port = network['master_port'].encode(
-                        'ascii', 'ignore')
+                    self.master_port = network['master_port']
                 if 'worker_port' in network:
-                    self.worker_port = network['worker_port'].encode(
-                        'ascii', 'ignore')
+                    self.worker_port = network['worker_port']
 
         except KeyError as key:
             raise ScannerException(
@@ -82,13 +78,10 @@ class Config(object):
         if storage_type == 'posix':
             storage_config = StorageConfig.make_posix_config()
         elif storage_type == 'gcs':
-            storage_config = StorageConfig.make_gcs_config(
-                storage['bucket'].encode('latin-1'))
+            storage_config = StorageConfig.make_gcs_config(storage['bucket'])
         elif storage_type == 's3':
             storage_config = StorageConfig.make_s3_config(
-                storage['bucket'].encode('latin-1'),
-                storage['region'].encode('latin-1'),
-                storage['endpoint'].encode('latin-1'))
+                storage['bucket'], storage['region'], storage['endpoint'])
         else:
             raise ScannerException(
                 'Unsupported storage type {}'.format(storage_type))
@@ -106,6 +99,7 @@ class Config(object):
         sys.stdout.write(
             'Your Scanner configuration file ({}) does not exist. Create one? '
             '[Y/n] '.format(self.config_path))
+        sys.stdout.flush()
         if sys.stdin.readline().strip().lower() == 'n':
             print(
                 'Exiting script. Please create a Scanner configuration file or re-run this script and follow '
@@ -125,7 +119,7 @@ class Config(object):
 
     @staticmethod
     def default_config():
-        hostname = check_output(['hostname']).strip()
+        hostname = check_output(['hostname']).strip().decode('utf-8')
 
         db_path = os.path.expanduser('~/.scanner/db')
 

@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 import cv2
 
 def write_video(path, frames, fps=24.0):

@@ -12,6 +12,10 @@ do
 
     cp $DIR/../deps.sh $dir/deps.sh
 
+    rm -rf $dir/thirdparty
+    mkdir -p $dir/thirdparty
+    cp -r $DIR/../thirdparty/resources $dir/thirdparty/
+
     function build {
         local TYPE=$1
         local TAG=$2
@@ -54,11 +58,14 @@ do
     base_tag=scannerresearch/scanner-base:$base
 
     # Build cpu with ubuntu:16.04
-    build_chain cpu $base-cpu ubuntu:16.04
-    push $base-cpu
+    build_chain cpu $base-cpu ubuntu:16.04 &
 
     # GPU
-    build_push_gpu 8 8.0 cudnn6
-    build_push_gpu 8 8.0 cudnn7
-    build_push_gpu 9 9.1 cudnn7
+    build_push_gpu 8 8.0 cudnn6 &
+    build_push_gpu 8 8.0 cudnn7 &
+    build_push_gpu 9 9.1 cudnn7 &
+
+    wait $(jobs -p)
+
+    push $base-cpu
 done

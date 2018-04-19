@@ -35,6 +35,8 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <omp.h>
+#include <pybind11/embed.h>
+
 
 // For avcodec_register_all()... should go in software video with global mutex
 extern "C" {
@@ -44,6 +46,7 @@ extern "C" {
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
+namespace py = pybind11;
 
 namespace scanner {
 namespace internal {
@@ -482,9 +485,6 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
 
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
-
-  // Set up Python runtime if any kernels need it
-  Py_Initialize();
 
   // Processes jobs in the background
   start_job_processor();

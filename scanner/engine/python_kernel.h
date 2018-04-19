@@ -3,9 +3,6 @@
 #include "scanner/util/memory.h"
 #include "scanner/metadata.pb.h"
 
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-
 namespace scanner {
 
 class PythonKernel : public BatchedKernel {
@@ -26,10 +23,6 @@ class PythonKernel : public BatchedKernel {
   void reset() override;
 
  private:
-  void batched_python_execute(const BatchedElements& input_columns,
-                              BatchedElements& output_columns);
-  void single_python_execute(const BatchedElements& input_columns,
-                             BatchedElements& output_columns);
   KernelConfig config_;
   DeviceHandle device_;
   bool can_batch_;
