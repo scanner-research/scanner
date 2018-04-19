@@ -1,8 +1,8 @@
-
 from ..kernel import Kernel
 from scannerpy import DeviceType
 
 import tensorflow as tf
+
 
 class TensorFlowKernel(Kernel):
     def __init__(self, config, protobufs):
@@ -10,14 +10,12 @@ class TensorFlowKernel(Kernel):
         # any GPUs for its graph operations
         cpu_only = True
         for handle in config.devices:
-            if handle.device == DeviceType.GPU:
+            if handle.type == DeviceType.GPU.value:
                 cpu_only = False
         if cpu_only:
-            tf_config = tf.ConfigProto(
-                device_count = {'GPU': 0}
-            )
+            tf_config = tf.ConfigProto(device_count={'GPU': 0})
         else:
-            tf_config = tf.ConfigProto(allow_soft_placement = True)
+            tf_config = tf.ConfigProto(allow_soft_placement=True)
         # TODO: wrap this in "with device"
         self.config = config
         self.tf_config = tf_config
