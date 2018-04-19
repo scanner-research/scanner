@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 import os.path
 import imp
 import sys
@@ -24,7 +24,7 @@ class ProtobufGenerator:
             self.add_module(mod)
 
     def add_module(self, path):
-        if isinstance(path, basestring):
+        if isinstance(path, str):
             if not os.path.isfile(path):
                 raise ScannerException('Protobuf path does not exist: {}'
                                        .format(path))
@@ -64,7 +64,7 @@ def python_to_proto(protos, proto_name, obj):
 
     def serialize_obj(args_proto, p, obj):
         if isinstance(obj, dict):
-            for k, v in obj.iteritems():
+            for k, v in obj.items():
                 if k not in p:
                     raise ScannerException(
                         'Protobuf does not have field {:s}'.format(k))

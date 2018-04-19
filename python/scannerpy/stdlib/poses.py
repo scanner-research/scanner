@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 
 import numpy as np
 import cv2
@@ -146,7 +146,7 @@ def nms(orig_poses, overlapThresh):
                     overlaps[idx] += 1
 
         duplicates = []
-        for idx, num_overlaps in overlaps.iteritems():
+        for idx, num_overlaps in overlaps.items():
             if num_overlaps >= min(3, num_joints_per_pose[idx]):
                 for ii, idx2 in enumerate(idxs):
                     if idx == idx2:

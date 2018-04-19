@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+
 import grpc
 import copy
 import pickle
@@ -41,7 +41,7 @@ class OpColumn:
         else:
             raise ScannerException('Compression codec {} not currently '
                                    'supported. Available codecs are: {}.'
-                                   .format(' '.join(codecs.keys())))
+                                   .format(' '.join(list(codecs.keys()))))
 
     def compress_video(self, quality=-1, bitrate=-1, keyframe_distance=-1):
         self._assert_is_video()

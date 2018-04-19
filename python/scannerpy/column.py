@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 import struct
 import math
 from subprocess import Popen, PIPE
@@ -68,7 +67,7 @@ class Column(object):
                 kf_offset += kfs_per_video
             return keyframes
         else:
-            return range(self._table.num_rows())
+            return list(range(self._table.num_rows()))
 
     def _load_output_file(self, item_id, rows, fn=None):
         assert len(rows) > 0
@@ -77,8 +76,7 @@ class Column(object):
             self._db_path, self._table._descriptor.id, self._descriptor.id,
             item_id)
         try:
-            metadata_file = RandomReadFile(self._storage,
-                                           metadata_path.encode('ascii'))
+            metadata_file = RandomReadFile(self._storage, metadata_path)
         except UserWarning:
             raise ScannerException(
                 'Path {} does not exist'.format(metadata_path))
@@ -87,8 +85,7 @@ class Column(object):
             self._db_path, self._table._descriptor.id, self._descriptor.id,
             item_id)
         try:
-            data_file = RandomReadFile(self._storage,
-                                       data_path.encode('ascii'))
+            data_file = RandomReadFile(self._storage, data_path)
         except UserWarning:
             raise ScannerException('Path {} does not exist'.format(path))
 
@@ -128,7 +125,7 @@ class Column(object):
 
         start_pos = None
         pos = 0
-        rows = rows if len(rows) > 0 else range(total_rows)
+        rows = rows if len(rows) > 0 else list(range(total_rows))
         for fi in range(total_rows):
             old_pos = pos
             pos += lens[fi]
@@ -167,7 +164,7 @@ class Column(object):
         i = 0
         rows_so_far = 0
         rows_idx = 0
-        rows = range(total_rows) if rows is None else rows
+        rows = list(range(total_rows)) if rows is None else rows
         prev = 0
         for item_id in range(num_items):
             start_row = prev
@@ -273,8 +270,8 @@ class Column(object):
             temp_paths.append(p)
         # Copy all files locally before calling ffmpeg
         for in_path, temp_path in zip(paths, temp_paths):
-            with open(temp_path, 'w') as f:
-                f.write(self._storage.read(in_path.encode('ascii')))
+            with open(temp_path, 'wb') as f:
+                f.write(self._storage.read(in_path))
 
         files = '|'.join(temp_paths)
 
