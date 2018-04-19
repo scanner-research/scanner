@@ -1057,7 +1057,7 @@ void EvaluateWorker::clear_stencil_cache() {
       auto& row_id_deque = kernel_cache_row_ids[i];
       row_id_deque.clear();
       auto& cache_deque = kernel_cache[i];
-      for (i64 j = 0; j < cache_deque.size(); ++j) {
+      while (!cache_deque.empty()) {
         assert(!kernel_cache_devices.empty());
         Element element = cache_deque.back();
         delete_element(kernel_cache_devices[i], element);
@@ -1290,4 +1290,3 @@ bool PostEvaluateWorker::yield(EvalWorkEntry& output) {
 
 }
 }
-
