@@ -2,9 +2,9 @@
 #include "scanner/util/tinyformat.h"
 #include "scanner/util/util.h"
 
-#include <pybind11/pybind11.h>
 #include <pybind11/eval.h>
 #include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 namespace scanner {
@@ -71,8 +71,8 @@ void PythonKernel::new_stream(const std::vector<u8> &args) {
   try {
     py::module main = py::module::import("__main__");
     py::object kernel = main.attr(kernel_name_.c_str());
-    main.attr("args_str") = py::bytes(reinterpret_cast<const char*>(args.data()),
-                                      args.size());
+    main.attr("args_str") =
+        py::bytes(reinterpret_cast<const char *>(args.data()), args.size());
     std::string pycode = tfm::format(R"(
 import pickle
 if len(args_str) == 0:
@@ -80,9 +80,9 @@ if len(args_str) == 0:
 else:
   args = pickle.loads(args_str)
 %s.new_stream(args))",
-        kernel_name_);
+                                     kernel_name_);
     py::exec(pycode.c_str(), main.attr("__dict__"));
-  } catch (py::error_already_set& e) {
+  } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
   }
 }
@@ -98,7 +98,11 @@ void PythonKernel::execute(const BatchedElements &input_columns,
 
     std::vector<std::vector<py::object>> batched_cols;
     for (i32 j = 0; j < input_columns.size(); ++j) {
-      std::vector<py::object> rows;
+      batched_cols.emplace_back();
+    }
+
+    for (i32 j = 0; j < input_columns.size(); ++j) {
+      std::vector<py::object> &col = batched_cols[j];
       if (config_.input_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
           const Frame *frame = input_columns[j][i].as_const_frame();
@@ -120,92 +124,97 @@ void PythonKernel::execute(const BatchedElements &input_columns,
               {(long int)frame->height(), (long int)frame->width(),
                (long int)frame->channels()},
               {(long int)frame->width() * frame->channels() * dtype_size,
-               (long int)frame->channels() * dtype_size,
-                  (long int)dtype_size});
+               (long int)frame->channels() * dtype_size, (long int)dtype_size});
 
           if (frame->type == FrameType::U8) {
-            rows.push_back(py::object(py::array_t<u8>(buffer)));
+            col.push_back(py::object(py::array_t<u8>(buffer)));
           } else if (frame->type == FrameType::F32) {
-            rows.push_back(py::object(py::array_t<f32>(buffer)));
+            col.push_back(py::object(py::array_t<f32>(buffer)));
           } else if (frame->type == FrameType::F64) {
-            rows.push_back(py::object(py::array_t<f64>(buffer)));
+            col.push_back(py::object(py::array_t<f64>(buffer)));
           }
         }
       } else {
         for (i32 i = 0; i < input_count; ++i) {
-          rows.push_back(py::object(py::str((char const *)input_columns[j][i].buffer,
-                                            input_columns[j][i].size)));
+          std::string s((char const *)input_columns[j][i].buffer,
+                        input_columns[j][i].size);
+          col.push_back(py::object(py::bytes(s)));
         }
       }
-      batched_cols.push_back(rows);
     }
 
     std::vector<std::vector<py::object>> batched_out_cols;
 
     if (can_batch_) {
-      batched_out_cols = kernel.attr("execute")(batched_cols).cast<std::vector<std::vector<py::object>>>();
+      batched_out_cols = kernel.attr("execute")(batched_cols)
+                             .cast<std::vector<std::vector<py::object>>>();
+
+      LOG_IF(FATAL, batched_out_cols.size() != output_columns.size())
+          << "Incorrect number of output columns. Expected "
+          << output_columns.size() << ", got " << batched_out_cols.size();
     } else {
-         for (i32 j = 0; j < output_columns.size(); ++j) {
-              batched_out_cols.emplace_back();
-         }
+      for (i32 j = 0; j < output_columns.size(); ++j) {
+        batched_out_cols.emplace_back();
+      }
 
-         for (auto& in_row : batched_cols) {
-              std::vector<py::object> out_row = kernel.attr("execute")(in_row).cast<std::vector<py::object>>();
-              for (i32 j = 0; j < out_row.size(); ++j) {
-                   batched_out_cols[j].push_back(out_row[j]);
-              }
-         }
+      for (i32 i = 0; i < input_count; ++i) {
+        std::vector<py::object> in_row;
+        for (i32 j = 0; j < batched_cols.size(); ++j) {
+          in_row.push_back(batched_cols[j][i]);
+        }
+        std::vector<py::object> out_row =
+            kernel.attr("execute")(in_row).cast<std::vector<py::object>>();
+        for (i32 j = 0; j < out_row.size(); ++j) {
+          batched_out_cols[j].push_back(out_row[j]);
+        }
+      }
     }
-
-    // LOG_IF(FATAL, outputs.size() != output_columns.size())
-    //      << "Incorrect number of output columns. Expected "
-    //      << output_columns.size();
-
 
     for (i32 j = 0; j < output_columns.size(); ++j) {
       // push all rows to that column
       LOG_IF(FATAL, batched_out_cols[j].size() != input_count)
-          << "Incorrect number of output rows. Expected " << input_count;
+          << "Incorrect number of output rows at column " << j << ". Expected "
+          << input_count << ", got " << batched_out_cols[j].size();
       if (config_.output_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
-             py::array frame_np = batched_out_cols[j][i].cast<py::array>();
-             FrameType frame_type;
-             if (frame_np.dtype().is(py::dtype("uint8"))) {
-                  frame_type = FrameType::U8;
-             } else if (frame_np.dtype().is(py::dtype("float"))) {
-                  frame_type = FrameType::F32;
-             } else if (frame_np.dtype().is(py::dtype("double"))) {
-                  frame_type = FrameType::F64;
-             } else {
-              LOG(FATAL) << "Invalid numpy dtype";
-             }
+          py::array frame_np = batched_out_cols[j][i].cast<py::array>();
+          FrameType frame_type;
+          if (frame_np.dtype().is(py::dtype("uint8"))) {
+            frame_type = FrameType::U8;
+          } else if (frame_np.dtype().is(py::dtype("float"))) {
+            frame_type = FrameType::F32;
+          } else if (frame_np.dtype().is(py::dtype("double"))) {
+            frame_type = FrameType::F64;
+          } else {
+            LOG(FATAL) << "Invalid numpy dtype";
+          }
 
-             i32 ndim = frame_np.ndim();
-             if (ndim > 3) {
-                  LOG(FATAL) << "Invalid number of dimensions (must be less than 4): "
-                             << ndim;
-             }
-             std::vector<i32> shapes;
-             std::vector<i32> strides;
-             for (int n = 0; n < ndim; ++n) {
-                  shapes.push_back(frame_np.shape(n));
-                  strides.push_back(frame_np.strides(n));
-             }
-             FrameInfo frame_info(shapes, frame_type);
-             Frame *frame = new_frame(CPU_DEVICE, frame_info);
-             const char *frame_data = (const char*) frame_np.data();
+          i32 ndim = frame_np.ndim();
+          if (ndim > 3) {
+            LOG(FATAL) << "Invalid number of dimensions (must be less than 4): "
+                       << ndim;
+          }
+          std::vector<i32> shapes;
+          std::vector<i32> strides;
+          for (int n = 0; n < ndim; ++n) {
+            shapes.push_back(frame_np.shape(n));
+            strides.push_back(frame_np.strides(n));
+          }
+          FrameInfo frame_info(shapes, frame_type);
+          Frame *frame = new_frame(CPU_DEVICE, frame_info);
+          const char *frame_data = (const char *)frame_np.data();
 
-             if (ndim == 3) {
-                  assert(strides[1] % strides[2] == 0);
-                  for (int i = 0; i < shapes[0]; ++i) {
-                       u64 offset = strides[0] * i;
-                       memcpy(frame->data + offset, frame_data + offset,
-                              shapes[2] * shapes[1] * strides[2]);
-                  }
-             } else {
-                  LOG(FATAL) << "Can not support ndim != 3.";
-             }
-             insert_frame(output_columns[j], frame);
+          if (ndim == 3) {
+            assert(strides[1] % strides[2] == 0);
+            for (int i = 0; i < shapes[0]; ++i) {
+              u64 offset = strides[0] * i;
+              memcpy(frame->data + offset, frame_data + offset,
+                     shapes[2] * shapes[1] * strides[2]);
+            }
+          } else {
+            LOG(FATAL) << "Can not support ndim != 3.";
+          }
+          insert_frame(output_columns[j], frame);
         }
       } else {
         std::vector<std::string> outputs;

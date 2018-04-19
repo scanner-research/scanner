@@ -97,7 +97,12 @@ namespace scanner {
         });
 
     py::class_<DeviceHandle>(m, "DeviceHandle")
-      .def_readonly("id", &DeviceHandle::id);
+      .def_readonly("id", &DeviceHandle::id)
+      .def_readonly("type", &DeviceHandle::type);
+
+    py::enum_<DeviceType>(m, "DeviceType")
+      .value("GPU", DeviceType::GPU)
+      .value("CPU", DeviceType::CPU);
 
     py::enum_<proto::ColumnType>(m, "ColumnType")
       .value("Other", ColumnType::Other)
