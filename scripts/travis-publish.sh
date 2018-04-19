@@ -41,8 +41,8 @@ cd -
 if [ -n "$TRAVIS_TAG" ];
 then
     docker run $DOCKER_REPO:gpu /bin/bash -c "
-pip install twine && \
-python setup.py bdist_wheel && \
+pip3 install twine && \
+python3 setup.py bdist_wheel && \
 twine upload -u 'wcrichto' -p '${PYPI_PASS}' dist/*
 "
 fi
