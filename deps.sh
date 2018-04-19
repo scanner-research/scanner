@@ -360,6 +360,7 @@ fi
 
 if [[ $INSTALL_PYBIND == true ]] && [[ ! -f $BUILD_DIR/pybind.done ]] ; then
     echo "Installing pybind..."
+    cd $BUILD_DIR
     rm -fr pybind11
     git clone -b v2.2.2 https://github.com/pybind/pybind11 && \
         cd pybind11 && \
@@ -382,7 +383,7 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
         make -j${cores} && cd ../../ && \
         mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
-        cd .. && ./build.sh && \
+        make install -j${cores} && cd .. && ./build.sh && \
         touch $BUILD_DIR/storehouse.done \
             || { echo 'Installing storehouse failed!' ; exit 1; }
     echo "Done installing storehouse"
@@ -407,14 +408,14 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     rm -fr hwang
     git clone https://github.com/scanner-research/hwang && \
         cd hwang && \
-        git checkout cc18bfa4beb5bb50e0b440cbb339526be58a9621 && \
+        git checkout acd150d14706b545cf1bace756e5c6b684187c39 && \
         bash ./deps.sh -a \
              --with-ffmpeg $INSTALL_PREFIX \
              --with-protobuf $INSTALL_PREFIX \
              --cores ${cores} && \
         mkdir -p build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=$USE_GPU && \
-        cd .. && ./build.sh && \
+        make install -j${cores} && cd .. && ./build.sh && \
         touch $BUILD_DIR/hwang.done \
             || { echo 'Installing hwang failed!' ; exit 1; }
     echo "Done installing hwang"
@@ -448,6 +449,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
               -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX \
               -DCPU_ONLY=ON \
               -DOpenCV_DIR=$INSTALL_PREFIX \
+              -Dpython_version=3 \
               -DBLAS=mkl \
               .. && \
         make -j${cores} && \
@@ -485,6 +487,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == true ]] && \
               -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX \
               -DINTEL_ROOT=$INSTALL_PREFIX/intel \
               -DBLAS=mkl \
+              -Dpython_version=3 \
               -DCUDA_ARCH_NAME="Manual" \
               -DCUDA_ARCH_BIN="30 35 50 60 61" \
               -DCUDA_ARCH_PTX="30 35 50 60 61" \
