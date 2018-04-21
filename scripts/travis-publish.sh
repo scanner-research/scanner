@@ -24,7 +24,6 @@ git clone -b gh-pages ${REPO_PATH} --single-branch ${HTML_PATH}
 cd ${HTML_PATH}
 cp CNAME /tmp
 git rm -rf .
-cp /tmp/CNAME .
 cd -
 
 cd sphinx
@@ -32,6 +31,7 @@ make html
 cd -
 
 cd ${HTML_PATH}
+cp /tmp/CNAME .
 git add .
 git config user.name "${COMMIT_USER}"
 git config user.email "${COMMIT_EMAIL}"
