@@ -111,14 +111,25 @@ html_static_path = ['_static']
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 html_sidebars = {
     '**': [
-        'globaltoc.html',
+        'about.html',
+        'navigation.html',
         'relations.html',
         'sourcelink.html',
         'searchbox.html'
     ],
 }
 
-
+html_context = {
+    'description': 'Efficient Video Analysis at Scale',
+    'github_user': 'scanner-research',
+    'github_repo': 'scanner',
+    'badge_branch': 'master',
+    'github_button': True,
+    'github_type': 'star',
+    'github_count': 'true',
+    'travis_button': True,
+    'codecov_button': False,
+}
 
 # -- Options for HTMLHelp output ------------------------------------------
 
@@ -177,7 +188,8 @@ texinfo_documents = [
 ]
 
 
-
-
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
+
+def setup(app):
+    app.add_stylesheet('custom.css')

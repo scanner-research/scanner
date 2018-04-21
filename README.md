@@ -1,51 +1,71 @@
 # Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
-Scanner is a system for efficient video processing and understanding at scale.
-Scanner provides a python API for expressing computations and a heterogeneous
-runtime for scheduling these computations onto clusters of machines with
-CPUs or GPUs.
+Scanner is a system for writing applications that process video efficiently.
+* **Computation Graphs:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.
+* **Random Access to Video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
+* **First-class support for GPUs:** Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.
+* **Distributed Execution:** Scanner can scale out applications to a cluster of machines.
 
-* [Install](https://github.com/scanner-research/scanner#install)
-* [Running Scanner](https://github.com/scanner-research/scanner#running-scanner)
-* [Tutorials & Examples](https://github.com/scanner-research/scanner#tutorials--examples)
-* [Documentation](https://github.com/scanner-research/scanner#documentation)
+## Documentation
 
-Scanner is an active research project, part of a collaboration between Carnegie Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.
+Scanner's documentation is hosted at [scanner.run](http://scanner.run). Here
+are a few links to get you started:
 
-## Installation
+* [Installation](http://scanner.run/installation.html)
+* [Getting Started](http://scanner.run/getting-started.html)
+* [Programming Handbook](http://scanner.run/programming-handbook.html)
+* [API Reference](http://scanner.run/api.html)
 
-There are two ways to build and run Scanner on your machine: using Docker, or building from source.
+## Examples
 
-### Docker
+Scanner applications are written using our python API. Here's an example
+application that resizes a video and then saves it as an mp4:
 
-We provide prebuilt [Docker](https://docs.docker.com/engine/installation/#supported-platforms) images containing Scanner and all its dependencies (e.g. OpenCV, Caffe) at [`scannerresearch/scanner`](https://hub.docker.com/r/scannerresearch/scanner/). We support the following builds:
-* `scannerresearch/scanner:cpu` - CPU-only build
-* `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.1, CUDNN 7
-* `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.0, CUDNN 7
-* `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 8.0, CUDNN 6
+```python
+from scannerpy import Database, Job
 
-### From Source
+# Ingest a video into the database
+db = Database()
+db.ingest_videos([('example_table', 'example.mp4')])
 
-Follow the instructions at [INSTALL](https://github.com/scanner-research/scanner/blob/master/INSTALL.md)
-to build Scanner from source. To start processing some videos, check out [Running Scanner](https://github.com/scanner-research/scanner#running-scanner).
+# Define a Computation Graph
+frame = db.sources.FrameColumn() # Read from the database
+resized = db.ops.Resize(frame=frame, width=640, height=480) # Resize input frame
+output_frame = db.sinks.Column(columns={'frame': resized}) # Save resized frame
 
-## Getting started
+job = Job(op_args={
+    frame: db.table('example_table').column('frame'), # Column to read input frames from
+    output_frame: 'resized_example' # Name of output table
+})
 
-To start using Scanner, we recommend trying our Jupyter notebook tutorial. To start the notebook, if you're using Docker:
-
-```bash
-pip install --upgrade docker-compose
-wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-docker-compose up cpu
+# Execute the computation graph and return a handle to the newly produced tables
+output_tables = db.run(output=output, jobs=[job], force=True)
+# Save the resized video as an mp4 file
+output_tables[0].column('frame').save_mp4('resized_video.mp4')
 ```
 
-If you installed Scanner yourself, then run:
+Our [Quickstart](http://crissy.pdl.cmu.edu:4567/quickstart.html) walks through
+this example in more detail.
 
-```bash
-cd path/to/scanner
-jupyter notebook --ip=0.0.0.0 --port=8888
-```
+If you'd like to see other example applications written with Scanner, check
+out our [Examples](https://github.com/scanner-research/scanner/tree/master/examples)
+directory in this repository.
 
-Then visit port 8888 on your server/localhost, click through to `examples/Walkthrough.ipynb`, and follow the directions in the notebook. To learn more, the tutorials and examples are located in the
-[examples](https://github.com/scanner-research/scanner/tree/master/examples)
-directory. You can find a comprehensive API reference in the [documentation](https://scanner-research.github.io/scanner/index.html)
+## Contributing
+
+If you'd like to contribute to the development of Scanner, you should first
+build Scanner [from source](http://crissy.pdl.cmu.edu:4567/from_source.html).
+
+Please submit a pull-request rebased against the most recent version of the
+master branch and we will review your changes to be merged. Thanks for
+contributing!
+
+### Running tests
+You can run our full suite of tests by executing `make test` in the directory
+you used to build Scanner. This will run both our C++ tests and our end-to-end
+tests that verify the python API.
+
+## About
+Scanner is an active research project, part of a collaboration between Carnegie
+Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and
+[Will Crichton](https://github.com/willcrichton) with questions.

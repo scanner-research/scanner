@@ -5,7 +5,7 @@ fi
 
 # Commit docs
 REPO_PATH=git@github.com:scanner-research/scanner.git
-HTML_PATH=build/doc/html
+HTML_PATH=build/docs/html
 COMMIT_USER="Documentation Builder"
 COMMIT_EMAIL="wcrichto@cs.stanford.edu"
 CHANGESET=$(git rev-parse --verify HEAD)
