@@ -2,4 +2,3 @@ Scanner C++ API
 ===============
 
 .. toctree::
-

@@ -1,8 +1,10 @@
 Installation
 ============
 
+The easiest way to setup Scanner is using our pre-built :ref:`docker` images.
+
 .. toctree::
    :maxdepth: 1
 
-There are several ways to install and start using Scanner.
-
+   docker
+   from_source
