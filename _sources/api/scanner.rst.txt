@@ -1,5 +1,0 @@
-Scanner C++ API
-===============
-
-.. toctree::
-
