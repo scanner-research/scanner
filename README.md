@@ -1,10 +1,19 @@
 # Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
 Scanner is a system for writing applications that process video efficiently.
-* **Computation Graphs:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.
-* **Random Access to Video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
+
+Scanner has been used for:
+* **Big video data analysis:** labeling and data mining two large video datasets: a dataset containing over 600 feature length  lms (106 million frames) and a dataset of 70,000 hours of TV news (12 billion frames, 20 TB).
+* **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360), which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
+* **Model accuracy analysis:**
+
+## Key Features
+
+Scanner's key features include:
+* **Computation graphs:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.
+* **Random access to video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
 * **First-class support for GPUs:** Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.
-* **Distributed Execution:** Scanner can scale out applications to a cluster of machines.
+* **Distributed execution:** Scanner can scale out applications to hundreds of machines.
 
 ## Documentation
 
@@ -39,7 +48,7 @@ job = Job(op_args={
 })
 
 # Execute the computation graph and return a handle to the newly produced tables
-output_tables = db.run(output=output, jobs=[job], force=True)
+output_tables = db.run(output=output_frame, jobs=[job], force=True)
 # Save the resized video as an mp4 file
 output_tables[0].column('frame').save_mp4('resized_video.mp4')
 ```
@@ -69,3 +78,7 @@ tests that verify the python API.
 Scanner is an active research project, part of a collaboration between Carnegie
 Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and
 [Will Crichton](https://github.com/willcrichton) with questions.
+
+### Paper citation
+Scanner will appear in the proceedings of SIGGRAPH 2018. If you use this
+software in your research, please be sure to cite the paper.
