@@ -1,3 +1,7 @@
+#!/bin/bash
+
+set -e
+
 # Exit if this is not the master branch
 if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
     exit 0
@@ -26,7 +30,7 @@ cp CNAME /tmp
 git rm -rf .
 cd -
 
-cd sphinx
+cd docs
 make html
 cd -
 
