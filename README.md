@@ -3,9 +3,8 @@
 Scanner is a system for writing applications that process video efficiently.
 
 Scanner has been used for:
-* **Big video data analysis:** labeling and data mining two large video datasets: a dataset containing over 600 feature length  lms (106 million frames) and a dataset of 70,000 hours of TV news (12 billion frames, 20 TB).
+* **Big video data analysis:** labeling and data mining two large video datasets: a dataset containing over 600 feature length movies (106 million frames) and a dataset of 70,000 hours of TV news (12 billion frames, 20 TB).
 * **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360), which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
-* **Model accuracy analysis:**
 
 ## Key Features
 
@@ -25,10 +24,12 @@ are a few links to get you started:
 * [Programming Handbook](http://scanner.run/programming-handbook.html)
 * [API Reference](http://scanner.run/api.html)
 
-## Examples
+## Example code
 
 Scanner applications are written using our python API. Here's an example
-application that resizes a video and then saves it as an mp4:
+application that resizes a video and then saves it as an mp4 (our
+[Quickstart](http://crissy.pdl.cmu.edu:4567/quickstart.html) walks through this
+example in more detail):
 
 ```python
 from scannerpy import Database, Job
@@ -52,9 +53,6 @@ output_tables = db.run(output=output_frame, jobs=[job], force=True)
 # Save the resized video as an mp4 file
 output_tables[0].column('frame').save_mp4('resized_video.mp4')
 ```
-
-Our [Quickstart](http://crissy.pdl.cmu.edu:4567/quickstart.html) walks through
-this example in more detail.
 
 If you'd like to see other example applications written with Scanner, check
 out our [Examples](https://github.com/scanner-research/scanner/tree/master/examples)
