@@ -3,7 +3,7 @@
 Scanner is a system for writing applications that process video efficiently.
 
 Scanner has been used for:
-* **Big video data analysis:** labeling and data mining two large video datasets: a dataset containing over 600 feature length movies (106 million frames) and a dataset of 70,000 hours of TV news (12 billion frames, 20 TB).
+* **Big video data analysis:** labeling and data mining large video datasets: a dataset containing over 600 feature length movies (106 million frames) and a dataset of 70,000 hours of TV news (12 billion frames, 20 TB).
 * **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360), which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
 
 ## Key Features
@@ -28,7 +28,7 @@ are a few links to get you started:
 
 Scanner applications are written using our python API. Here's an example
 application that resizes a video and then saves it as an mp4 (our
-[Quickstart](http://crissy.pdl.cmu.edu:4567/quickstart.html) walks through this
+[Quickstart](http://scanner.run/quickstart.html) walks through this
 example in more detail):
 
 ```python
@@ -61,7 +61,7 @@ directory in this repository.
 ## Contributing
 
 If you'd like to contribute to the development of Scanner, you should first
-build Scanner [from source](http://crissy.pdl.cmu.edu:4567/from_source.html).
+build Scanner [from source](http://scanner.run/from_source.html).
 
 Please submit a pull-request rebased against the most recent version of the
 master branch and we will review your changes to be merged. Thanks for
