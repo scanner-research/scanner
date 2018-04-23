@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Installation &#8212; Scanner 0.0.1 documentation</title>
+    <title>Interactive Jupyter Walkthrough &#8212; Scanner 0.0.1 documentation</title>
     <link rel="stylesheet" href="_static/readable.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -18,8 +18,8 @@
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Docker" href="docker.html" />
-    <link rel="prev" title="Scanner" href="index.html" />
+    <link rel="next" title="Tutorial" href="tutorial.html" />
+    <link rel="prev" title="Quickstart" href="quickstart.html" />
    
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
 
@@ -34,12 +34,13 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="docker.html" title="Docker"
+          <a href="tutorial.html" title="Tutorial"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="index.html" title="Scanner"
+          <a href="quickstart.html" title="Quickstart"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">Scanner 0.0.1 documentation</a> &#187;</li> 
+        <li class="nav-item nav-item-0"><a href="index.html">Scanner 0.0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="getting-started.html" accesskey="U">Getting Started</a> &#187;</li> 
       </ul>
     </div>  
 
@@ -48,15 +49,23 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="installation">
-<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
-<p>The easiest way to setup Scanner is using our pre-built <a class="reference internal" href="docker.html#docker"><span class="std std-ref">Docker</span></a> images.</p>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="docker.html">Docker</a></li>
-<li class="toctree-l1"><a class="reference internal" href="from_source.html">Building Scanner from Source</a></li>
-</ul>
-</div>
+  <div class="section" id="interactive-jupyter-walkthrough">
+<h1>Interactive Jupyter Walkthrough<a class="headerlink" href="#interactive-jupyter-walkthrough" title="Permalink to this headline">¶</a></h1>
+<p>To get a more detailed understanding of how Scanner can be used in a real
+application, we recommend trying our Jupyter notebook tutorial. To start the
+notebook, if you’re using Docker:</p>
+<p><code class="docutils literal notranslate"><span class="pre">`bash</span>
+<span class="pre">pip</span> <span class="pre">install</span> <span class="pre">--upgrade</span> <span class="pre">docker-compose</span>
+<span class="pre">wget</span> <span class="pre">https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml</span>
+<span class="pre">docker-compose</span> <span class="pre">up</span> <span class="pre">cpu</span>
+<span class="pre">`</span></code></p>
+<p>If you installed Scanner yourself, then run:</p>
+<p><code class="docutils literal notranslate"><span class="pre">`bash</span>
+<span class="pre">cd</span> <span class="pre">path/to/scanner</span>
+<span class="pre">jupyter</span> <span class="pre">notebook</span> <span class="pre">--ip=0.0.0.0</span> <span class="pre">--port=8888</span>
+<span class="pre">`</span></code></p>
+<p>Then visit port 8888 on your server/localhost, click through to
+<cite>examples/Walkthrough.ipynb</cite>, and follow the directions in the notebook.</p>
 </div>
 
 
@@ -167,26 +176,29 @@
    -->
 <h3>Navigation</h3>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="docker.html">Docker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="from_source.html">Building Scanner from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="getting-started.html">Getting Started</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Interactive Jupyter Walkthrough</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation index</a><ul>
-      <li>Previous: <a href="index.html" title="previous chapter">Scanner</a></li>
-      <li>Next: <a href="docker.html" title="next chapter">Docker</a></li>
+  <li><a href="getting-started.html">Getting Started</a><ul>
+      <li>Previous: <a href="quickstart.html" title="previous chapter">Quickstart</a></li>
+      <li>Next: <a href="tutorial.html" title="next chapter">Tutorial</a></li>
+  </ul></li>
   </ul></li>
 </ul>
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
     <ul class="this-page-menu">
-      <li><a href="_sources/installation.rst.txt"
+      <li><a href="_sources/walkthrough.rst.txt"
             rel="nofollow">Show Source</a></li>
     </ul>
    </div>

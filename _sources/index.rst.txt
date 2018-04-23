@@ -6,10 +6,12 @@
 Scanner
 =======
 
-Scanner is a system for efficient video processing and understanding at scale.
-Scanner provides a python API for expressing computations and a distributed
-runtime for scheduling these computations onto clusters of machines with
-CPUs and/or GPUs.
+Scanner is a system for writing applications that process video efficiently.
+
+- **Computation Graphs:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.
+- **Random Access to Video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
+- **First-class Support for GPUs:** Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.
+- **Distributed Execution:** Scanner can scale out applications to a cluster of machines.
 
 
 .. toctree::
