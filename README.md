@@ -9,7 +9,7 @@ Scanner has been used for:
 ## Key Features
 
 Scanner's key features include:
-* **Computation graphs:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.
+* **Computation graphs designed for video:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. Scanner graphs support features useful for video processing, such as sparse sampling of video frames, access to temporal windows of frames, and state propagation across computations on successive frames. The Scanner runtime is responsible for executing this graph efficiently given all the processing resources on your machine.
 * **Random access to video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
 * **First-class support for GPUs:** Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.
 * **Distributed execution:** Scanner can scale out applications to hundreds of machines.
