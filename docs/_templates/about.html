@@ -52,41 +52,13 @@
 
 {% if github_user and github_repo %}
 {% if github_button|lower == 'true' %}
-<p>
-<iframe src="https://ghbtns.com/github-btn.html?user={{ github_user }}&repo={{ github_repo }}&type={{ github_type }}&count={{ github_count }}&size=large&v=2"
-  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+<p style="margin-bottom: 0px">
+<a href="https://github.com/{{ github_user }}/{{ github_repo }}" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
+<iframe src="https://ghbtns.com/github-btn.html?user={{ github_user }}&repo={{ github_repo }}&type={{ github_type }}&count={{ github_count }}&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
 </p>
 {% endif %}
 {% endif %}
 
-{% if travis_button|lower != 'false' %}
-{% if travis_button|lower == 'true' %}
-    {% set path = github_user + '/' + github_repo %}
-{% else %}
-    {% set path = travis_button %}
-{% endif %}
-<p>
-<a href="https://travis-ci.org/{{ path }}">
-    <img
-        alt="https://secure.travis-ci.org/{{ path }}.svg?branch={{ badge_branch }}"
-        src="https://secure.travis-ci.org/{{ path }}.svg?branch={{ badge_branch }}"
-    />
-</a>
+<p style="padding-bottom: 1px; margin-top: 0px; margin-bottom: 20px;">
 </p>
-{% endif %}
-
-{% if codecov_button|lower != 'false' %}
-{% if codecov_button|lower == 'true' %}
-    {% set path = github_user + '/' + github_repo %}
-{% else %}
-    {% set path = codecov_button %}
-{% endif %}
-<p>
-<a href="https://codecov.io/github/{{ path }}">
-    <img
-    alt="https://codecov.io/github/{{ path }}/coverage.svg?branch={{ badge_branch }}"
-    src="https://codecov.io/github/{{ path }}/coverage.svg?branch={{ badge_branch }}"
-    />
-</a>
-</p>
-{% endif %}
