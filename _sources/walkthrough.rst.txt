@@ -1,3 +1,5 @@
+.. _walkthrough:
+
 Interactive Jupyter Walkthrough
 ===============================
 

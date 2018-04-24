@@ -3,8 +3,17 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Scanner
-=======
+Scanner: Efficient Video Analysis at Scale
+==========================================
+
+.. raw:: html
+
+   <a href="https://travis-ci.org/scanner-research/scanner">
+       <img
+           alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
+           src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
+       />
+   </a>
 
 Scanner is a system for writing applications that process video efficiently.
 
@@ -20,6 +29,6 @@ Scanner is a system for writing applications that process video efficiently.
 
    installation
    getting-started
-   programming-guide
+   programming-handbook
    api
    about

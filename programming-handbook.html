@@ -18,6 +18,8 @@
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="System Overview" href="handbook/concepts.html" />
+    <link rel="prev" title="Tutorial" href="tutorial.html" />
    
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
 
@@ -31,6 +33,12 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="handbook/concepts.html" title="System Overview"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="tutorial.html" title="Tutorial"
+             accesskey="P">previous</a> |</li>
         <li class="nav-item nav-item-0"><a href="index.html">Scanner 0.0.1 documentation</a> &#187;</li> 
       </ul>
     </div>  
@@ -42,14 +50,18 @@
             
   <div class="section" id="programming-handbook">
 <h1>Programming Handbook<a class="headerlink" href="#programming-handbook" title="Permalink to this headline">¶</a></h1>
+<p>The programming handbook is a collection of guides that explain how to use
+some of advanced functionality in Scanner, such as writing custom Ops or
+using <a class="reference internal" href="handbook/kubernetes.html#kubernetes"><span class="std std-ref">Scanner on Kubernetes</span></a>, or simply provide more details about the Scanner
+system.</p>
 <div class="toctree-wrapper compound">
-<p class="caption"><span class="caption-text">Programming Handbook</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="concepts.html">System Overview</a></li>
-<li class="toctree-l1"><a class="reference internal" href="distributed.html">Using a Cluster</a></li>
-<li class="toctree-l1"><a class="reference internal" href="custom-ops.html">Writing a custom Op</a></li>
-<li class="toctree-l1"><a class="reference internal" href="custom-source.html">Writing a custom Source</a></li>
-<li class="toctree-l1"><a class="reference internal" href="custom-sink.html">Writing a custom Sink</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handbook/concepts.html">System Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handbook/distributed.html">Using a Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handbook/kubernetes.html">Scanner on Kubernetes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handbook/custom-ops.html">Writing a custom Op</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handbook/custom-source.html">Writing a custom Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handbook/custom-sink.html">Writing a custom Sink</a></li>
 </ul>
 </div>
 </div>
@@ -104,28 +116,16 @@
 
 
 
-<p>
-<iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&size=large&v=2"
-  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+<p style="margin-bottom: 0px">
+<a href="https://github.com/scanner-research/scanner" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
+<iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
 </p>
 
 
 
-
-
-    
-
-<p>
-<a href="https://travis-ci.org/scanner-research/scanner">
-    <img
-        alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-        src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-    />
-</a>
-</p>
-
-
-<!-- Copyright (c) 2018 Jeff Forcier.
+<p style="padding-bottom: 1px; margin-top: 0px; margin-bottom: 20px;">
+</p><!-- Copyright (c) 2018 Jeff Forcier.
 
      Based on original work copyright (c) 2011 Kenneth Reitz and copyright (c) 2010
      Armin Ronacher.
@@ -161,15 +161,26 @@
      POSSIBILITY OF SUCH DAMAGE.
    -->
 <h3>Navigation</h3>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Programming Handbook</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="handbook/concepts.html">System Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="handbook/distributed.html">Using a Cluster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="handbook/kubernetes.html">Scanner on Kubernetes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="handbook/custom-ops.html">Writing a custom Op</a></li>
+<li class="toctree-l2"><a class="reference internal" href="handbook/custom-source.html">Writing a custom Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="handbook/custom-sink.html">Writing a custom Sink</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation index</a><ul>
+      <li>Previous: <a href="tutorial.html" title="previous chapter">Tutorial</a></li>
+      <li>Next: <a href="handbook/concepts.html" title="next chapter">System Overview</a></li>
   </ul></li>
 </ul>
   <div role="note" aria-label="source link">
