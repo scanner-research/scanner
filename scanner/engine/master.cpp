@@ -564,16 +564,16 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   std::string so_path = op_path->path();
   VLOG(1) << "Master loading Op: " << so_path;
 
+  if (so_path == "__stdlib") {
+    so_path = db_params_.python_dir + "/libstdlib.so";
+  }
+
   for (auto& loaded_path : so_paths_) {
     if (loaded_path == so_path) {
       LOG(WARNING) << "Master received redundant request to load op " << so_path;
       result->set_success(true);
       return grpc::Status::OK;
     }
-  }
-
-  if (so_path == "__stdlib") {
-    so_path = db_params_.python_dir + "/libstdlib.so";
   }
 
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
