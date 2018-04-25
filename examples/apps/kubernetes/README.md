@@ -16,7 +16,7 @@ gcloud components install kubectl
 export ZONE=us-west1-b
 
 gcloud container clusters create example-cluster \
-       --zone "$ZONE"
+       --zone "$ZONE" \
        --machine-type "n1-standard-2" \
        --num-nodes 1
 
