@@ -1,10 +1,9 @@
 Programming Handbook
 ====================
 
-The programming handbook is a collection of guides that explain how to use
-some of advanced functionality in Scanner, such as writing custom Ops or
-using :ref:`kubernetes`, or simply provide more details about the Scanner
-system.
+The programming handbook is a collection of guides that provide more details
+about the Scanner system or explain how to use some of the more advanced
+functionality in Scanner, such as writing custom Ops or using :ref:`kubernetes`.
 
 .. toctree::
    :maxdepth: 1

@@ -3,17 +3,24 @@ Scanner Python API
 
 .. toctree::
 
-Database
---------
+scannerpy\.database module
+--------------------------
 
 .. automodule:: scannerpy.database
     :members:
     :undoc-members:
     :show-inheritance:
 
+scannerpy\.config module
+------------------------
 
-Op
---
+.. automodule:: scannerpy.config
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+scannerpy\.op module
+--------------------
 
 .. automodule:: scannerpy.op
     :members:
@@ -21,22 +28,14 @@ Op
     :show-inheritance:
 
 
-Job
----
+scannerpy\.job module
+---------------------
 
 .. automodule:: scannerpy.job
     :members:
     :undoc-members:
     :show-inheritance:
 
-
-scannerpy\.bulk\_job module
----------------------------
-
-.. automodule:: scannerpy.bulk_job
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 scannerpy\.column module
 ------------------------
@@ -53,15 +52,6 @@ scannerpy\.common module
     :members:
     :undoc-members:
     :show-inheritance:
-
-scannerpy\.config module
-------------------------
-
-.. automodule:: scannerpy.config
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 
 scannerpy\.kernel module
 ------------------------
