@@ -1,0 +1,37 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: scanner-master
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: scanner-master
+    spec:
+      containers:
+        - name: scanner-master
+          #image: gcr.io/INSERT_YOUR_PROJECT_ID_HERE/scanner-master:cpu
+          image: gcr.io/visualdb-1046/scanner-master:cpu
+          imagePullPolicy: Always
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-storage-key
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-storage-key
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: GLOG_logtostderr
+              value: '1'
+            - name: GLOG_minloglevel
+              value: '0'
+            - name: GLOG_v
+              value: '2'
+          ports:
+            - containerPort: 8080
+      nodeSelector:
+        cloud.google.com/gke-nodepool: default-pool
