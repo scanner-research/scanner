@@ -517,6 +517,7 @@ WorkerImpl::~WorkerImpl() {
 grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                 const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
+  VLOG(1) << "Worker " << node_id_ << " received NewJob";
   // Ensure that only one job is running at a time and that the worker
   // is in idle mode before transitioning to job start
   State state = state_.get();
@@ -568,8 +569,13 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path,
                                 proto::Empty* empty) {
-  const std::string& so_path = op_path->path();
+  std::string so_path = op_path->path();
   VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
+
+  if (so_path == "__stdlib") {
+    so_path = db_params_.python_dir + "/libstdlib.so";
+  }
+
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == nullptr)
       << "dlopen of " << so_path << " failed: " << dlerror();
