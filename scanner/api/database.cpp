@@ -98,6 +98,7 @@ Database::Database(storehouse::StorageConfig* storage_config,
 
 Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& port,
+                              const std::string& python_dir,
                               bool watchdog,
                               bool prefetch_table_metadata,
                               i64 no_workers_timeout) {
@@ -112,6 +113,7 @@ Result Database::start_master(const MachineParameters& machine_params,
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.prefetch_table_metadata = prefetch_table_metadata;
   params.no_workers_timeout = no_workers_timeout;
+  params.python_dir = python_dir;
 
   auto master_service = scanner::internal::get_master_service(params);
   master_state_->service.reset(master_service);
@@ -129,11 +131,14 @@ Result Database::start_master(const MachineParameters& machine_params,
 
 Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port,
+                              const std::string& python_dir,
                               bool watchdog,
                               bool prefetch_table_metadata) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.prefetch_table_metadata = prefetch_table_metadata;
+  params.python_dir = python_dir;
+
   ServerState* s = new ServerState;
   ServerState& state = *s;
   auto worker_service =

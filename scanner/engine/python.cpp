@@ -29,17 +29,17 @@ namespace scanner {
   }
 
   proto::Result start_master_wrapper(Database& db, const std::string& port,
-                                     bool watchdog, bool prefetch_table_metadata,
-                                     i64 no_workers_timeout) {
+                                     const std::string& python_dir, bool watchdog,
+                                     bool prefetch_table_metadata, i64 no_workers_timeout) {
     py::gil_scoped_release release;
-    return db.start_master(default_machine_params(), port, watchdog,
+    return db.start_master(default_machine_params(), port, python_dir, watchdog,
                            prefetch_table_metadata,
                            no_workers_timeout);
   }
 
   proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
-                                     const std::string& port, bool watchdog,
-                                     bool prefetch_table_metadata) {
+                                     const std::string& port, const std::string& python_dir,
+                                     bool watchdog, bool prefetch_table_metadata) {
     py::gil_scoped_release release;
 
     proto::MachineParameters params_proto;
@@ -52,7 +52,7 @@ namespace scanner {
       params.gpu_ids.push_back(gpu_id);
     }
 
-    return db.start_worker(params, port, watchdog, prefetch_table_metadata);
+    return db.start_worker(params, port, python_dir, watchdog, prefetch_table_metadata);
   }
 
   std::vector<FailedVideo> ingest_videos_wrapper(Database& db, std::vector<std::string> table_names,
