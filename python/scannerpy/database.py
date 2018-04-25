@@ -233,7 +233,7 @@ class Database(object):
 
     def __del__(self):
         # Database crashed during config creation if this attr is missing
-        if hasattr(self, '_start_cluster'):
+        if hasattr(self, '_start_cluster') and self._start_cluster:
             self._stop_heartbeat()
             self.stop_cluster()
 
