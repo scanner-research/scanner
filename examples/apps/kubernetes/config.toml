@@ -1,0 +1,4 @@
+[storage]
+type = "gcs"
+bucket = "YOUR_BUCKET_HERE"
+db_path = "test/scanner_db"
