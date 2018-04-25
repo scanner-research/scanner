@@ -51,11 +51,13 @@ class Database {
            const std::string& db_path, const std::string& master_address);
 
   Result start_master(const MachineParameters& params, const std::string& port,
+                      const std::string& python_dir,
                       bool watchdog = true,
                       bool prefetch_table_metadata = true,
                       i64 no_workers_timeout = 30);
 
   Result start_worker(const MachineParameters& params, const std::string& port,
+                      const std::string& python_dir,
                       bool watchdog = true,
                       bool prefetch_table_metadata = true);
 

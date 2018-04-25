@@ -73,8 +73,8 @@ def start_master(port=None,
     # Load all protobuf types
     db = bindings.Database(config.storage_config, config.db_path,
                            (config.master_address + ':' + port))
-    result = bindings.start_master(db, port, watchdog, prefetch_table_metadata,
-                                   no_workers_timeout)
+    result = bindings.start_master(db, port, SCRIPT_DIR, watchdog,
+                                   prefetch_table_metadata, no_workers_timeout)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
@@ -98,8 +98,8 @@ def worker_process(args):
         config.db_path,
         master_address)
     machine_params = machine_params or bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params, str(port), watchdog,
-                                   prefetch_table_metadata)
+    result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
+                                   watchdog, prefetch_table_metadata)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(
             result.msg()))
@@ -471,8 +471,8 @@ class Database(object):
         if ':' not in self._master_address:
             raise ScannerException(
                 ('Did you forget to specify the master port number? '
-                 'Specified address is {:s}. It should look like {:s}:5001')
-                .format(self._master_address))
+                 'Specified address is {s:s}. It should look like {s:s}:5001')
+                .format(s=self._master_address))
 
         # Boot up C++ database bindings
         self._db = self._bindings.Database(self.config.storage_config,
@@ -491,7 +491,7 @@ class Database(object):
             if self._debug:
                 self._master_conn = None
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port, True,
+                    self._db, self.config.master_port, SCRIPT_DIR, True,
                     self._prefetch_table_metadata,
                     self._no_workers_timeout).success
                 assert res
@@ -555,7 +555,7 @@ class Database(object):
                     'Timed out waiting to connect to master')
 
         # Load stdlib
-        self.load_op('{}/libstdlib.so'.format(SCRIPT_DIR),
+        self.load_op('__stdlib',
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def start_workers(self, workers, multiple=False):
@@ -1280,7 +1280,7 @@ class Database(object):
             size = self._parse_size_string(gpu_pool)
             job_params.memory_pool_config.gpu.free_space = size
 
-        if not self._workers_started:
+        if not self._workers_started and self._start_cluster:
             self.start_workers(self._worker_paths, multiple=using_python_op)
 
         # Run the job

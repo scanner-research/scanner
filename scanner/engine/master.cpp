@@ -561,7 +561,7 @@ grpc::Status MasterImpl::GetSinkInfo(
 grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path, Result* result) {
   std::unique_lock<std::mutex> lk(work_mutex_);
-  const std::string& so_path = op_path->path();
+  std::string so_path = op_path->path();
   VLOG(1) << "Master loading Op: " << so_path;
 
   for (auto& loaded_path : so_paths_) {
@@ -572,12 +572,8 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
     }
   }
 
-  {
-    std::ifstream infile(so_path);
-    if (!infile.good()) {
-      RESULT_ERROR(result, "Op library was not found: %s", so_path.c_str());
-      return grpc::Status::OK;
-    }
+  if (so_path == "__stdlib") {
+    so_path = db_params_.python_dir + "/libstdlib.so";
   }
 
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);

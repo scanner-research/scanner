@@ -43,14 +43,13 @@ ColumnSink::ColumnSink(const SinkConfig& config) : Sink(config) {
   }
 
   // Setup storagebackend using config arguments
-  StorageConfig* sc_config = nullptr;
-  if (args.storage_type() == "posix") {
-    sc_config = StorageConfig::make_posix_config();
-  } else if (args.storage_type() == "gcs" || args.storage_type() == "s3") {
-    sc_config = StorageConfig::make_s3_config(args.bucket(), args.region(),
-                                              args.endpoint());
-  } else {
-    LOG(FATAL) << "Not a valid storage config type";
+  std::map<std::string, std::string> storage_args;
+  storage_args["bucket"] = args.bucket();
+  storage_args["region"] = args.region();
+  storage_args["endpoint"] = args.endpoint();
+  StorageConfig* sc_config = StorageConfig::make_config(args.storage_type(), storage_args);
+  if (sc_config == nullptr) {
+    LOG(FATAL) << "Invalid storage config";
   }
   storage_.reset(storehouse::StorageBackend::make_from_config(sc_config));
   assert(storage_.get());
