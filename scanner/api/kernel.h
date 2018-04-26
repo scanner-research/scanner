@@ -124,6 +124,12 @@ struct KernelConfig {
   std::vector<proto::ColumnType> output_column_types;
   std::vector<u8> args;  //! Byte-string of proto args if given.
   i32 node_id;
+
+  static KernelConfig dummy() {
+    KernelConfig config;
+    config.devices.push_back(CPU_DEVICE);
+    return config;
+  }
 };
 
 /**
