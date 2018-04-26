@@ -85,6 +85,7 @@ namespace scanner {
       .def("msg", &proto::Result::msg);
 
     py::class_<KernelConfig>(m, "KernelConfig")
+      .def_static("dummy", &KernelConfig::dummy)
       .def_readonly("devices", &KernelConfig::devices)
       .def_readonly("input_columns", &KernelConfig::input_columns)
       .def_readonly("input_column_types", &KernelConfig::input_column_types)
