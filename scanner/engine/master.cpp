@@ -560,9 +560,10 @@ grpc::Status MasterImpl::GetSinkInfo(
 
 grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
                                 const proto::OpPath* op_path, Result* result) {
-  std::unique_lock<std::mutex> lk(work_mutex_);
   std::string so_path = op_path->path();
   VLOG(1) << "Master loading Op: " << so_path;
+
+  std::unique_lock<std::mutex> lk(work_mutex_);
 
   if (so_path == "__stdlib") {
     so_path = db_params_.python_dir + "/libstdlib.so";
@@ -616,14 +617,16 @@ grpc::Status MasterImpl::LoadOp(grpc::ServerContext* context,
   }
 
   result->set_success(true);
+  VLOG(1) << "Master successfully loaded Op: " << op_path->path();
   return grpc::Status::OK;
 }
 
 grpc::Status MasterImpl::RegisterOp(
     grpc::ServerContext* context, const proto::OpRegistration* op_registration,
     proto::Result* result) {
-  std::unique_lock<std::mutex> lk(work_mutex_);
   VLOG(1) << "Master registering Op: " << op_registration->name();
+
+  std::unique_lock<std::mutex> lk(work_mutex_);
 
   result->set_success(true);
   const std::string& name = op_registration->name();
@@ -698,6 +701,7 @@ grpc::Status MasterImpl::RegisterOp(
   }
 
   op_registrations_.push_back(*op_registration);
+  VLOG(1) << "Master successfully registered Op: " << op_registration->name();
   return grpc::Status::OK;
 }
 
@@ -705,8 +709,9 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     grpc::ServerContext* context,
     const proto::PythonKernelRegistration* python_kernel,
     proto::Result* result) {
-  std::unique_lock<std::mutex> lk(work_mutex_);
   VLOG(1) << "Master registering Python Kernel: " << python_kernel->op_name();
+
+  std::unique_lock<std::mutex> lk(work_mutex_);
 
   {
     const std::string& op_name = python_kernel->op_name();
@@ -778,6 +783,7 @@ grpc::Status MasterImpl::RegisterPythonKernel(
 
   py_kernel_registrations_.push_back(*python_kernel);
   result->set_success(true);
+  VLOG(1) << "Master successfully registered Python Kernel: " << python_kernel->op_name();
   return grpc::Status::OK;
 }
 
