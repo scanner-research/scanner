@@ -283,7 +283,7 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
     ./configure --prefix=$INSTALL_PREFIX --extra-version=0ubuntu0.16.04.1 \
                 --toolchain=hardened --cc=cc --cxx=g++ --enable-gpl \
                 --enable-shared --disable-stripping \
-                --disable-decoder=libschroedinger \
+                --disable-decoder=libschroedinger --enable-gnutls \
                 --enable-avresample --enable-libx264 --enable-nonfree && \
     make -j${cores} && make install && touch $BUILD_DIR/ffmpeg.done \
         || { echo 'Installing ffmpeg failed!' ; exit 1; }

@@ -18,7 +18,7 @@ RUN apt-get update && apt-get upgrade -y && \
     libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev  \
     llvm clang autoconf autogen libtool libtbb-dev libopenblas-dev \
     liblapacke-dev swig yasm cpio curl unzip openssl libssl-dev \
-    libgl-dev libcap-dev python3-dev python3-pip
+    libgl-dev libcap-dev python3-dev python3-pip libgnutls-dev
 RUN apt-get install -y --no-install-recommends libboost-all-dev
 
 # Non-apt-installable dependencies
