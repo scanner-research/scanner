@@ -9,9 +9,8 @@ build
 **/*.pyc
 **/*.trace
 thirdparty
-!thidparty/resources
+!thirdparty/resources
 !thirdparty/CMakeLists.txt
-!docker/**/thirdparty
 python/*.egg-info
 docker/**/deps.sh
 docker/**/thirdparty
