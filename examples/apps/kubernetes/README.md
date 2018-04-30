@@ -4,7 +4,7 @@ Scanner on Google Kubernetes Engine
 Pre-requisites:
 ---------------
 
-1. Install Scanner via [installation](https://scanner.run/installation.html)
+1. Install Scanner via [installation](http://scanner.run/installation.html)
 
 2. Install [Docker](https://docs.docker.com/install/)
 
@@ -32,6 +32,8 @@ brew install jq
 
 Instructions:
 -------------
+
+The following instructions assume you have a terminal session in this example directory. The instructions will make use of the files in this directory and expect you to modify some of them.
 
 1. Create a bucket on Google Cloud Storage (GCS). Put the name into `storage.bucket` in `config.toml`.
 
