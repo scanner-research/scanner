@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Building Scanner from Source &#8212; Scanner 0.0.1 documentation</title>
+    <title>Building Scanner from source &#8212; Scanner 0.0.1 documentation</title>
     <link rel="stylesheet" href="_static/readable.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -50,7 +50,7 @@
           <div class="body" role="main">
             
   <div class="section" id="building-scanner-from-source">
-<h1>Building Scanner from Source<a class="headerlink" href="#building-scanner-from-source" title="Permalink to this headline">¶</a></h1>
+<h1>Building Scanner from source<a class="headerlink" href="#building-scanner-from-source" title="Permalink to this headline">¶</a></h1>
 <p>This guide has been tested on Ubuntu 16.04.</p>
 <dl class="docutils">
 <dt>Scanner depends on the following major dependencies:</dt>
@@ -72,29 +72,40 @@
 </dl>
 <p>Scanner provides a dependency script deps.sh to automatically install any or all
 of the major dependencies if they are not already installed. Each of these
-dependencies has a set of required system-level packages. If you need to
-install all or most of of these dependencies, run the ‘All dependencies’ apt-get
-command below. If you only need to install a few, we also provide apt-get
-commands for each package.</p>
-<div class="section" id="install-apt-get-dependencies">
-<h2>Install apt-get Dependencies<a class="headerlink" href="#install-apt-get-dependencies" title="Permalink to this headline">¶</a></h2>
-<p>All dependencies</p>
+dependencies has a set of required system-level packages.</p>
+<div class="section" id="install-system-level-packages">
+<h2>Install system-level packages<a class="headerlink" href="#install-system-level-packages" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="ubuntu-16-04">
+<h3>Ubuntu 16.04<a class="headerlink" href="#ubuntu-16-04" title="Permalink to this headline">¶</a></h3>
+<p>Run the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt-get install <span class="se">\</span>
    build-essential <span class="se">\</span>
-   cmake git libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev <span class="se">\</span>
-   libswscale-dev unzip llvm clang libc++-dev libgflags-dev libgtest-dev <span class="se">\</span>
-   libssl-dev libcurl3-dev liblzma-dev libeigen3-dev  <span class="se">\</span>
-   libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libgflags-dev <span class="se">\</span>
-   libx264-dev libopenjpeg-dev libxvidcore-dev <span class="se">\</span>
-   libpng-dev libjpeg-dev libbz2-dev git python-pip wget <span class="se">\</span>
+   cmake git libgtk2.0-dev pkg-config unzip llvm-5.0-dev clang-5.0 libc++-dev <span class="se">\</span>
+   libgflags-dev libgtest-dev libssl-dev libcurl3-dev liblzma-dev <span class="se">\</span>
+   libeigen3-dev libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev <span class="se">\</span>
+   libgflags-dev libx264-dev libopenjpeg-dev libxvidcore-dev <span class="se">\</span>
+   libpng-dev libjpeg-dev libbz2-dev wget <span class="se">\</span>
    libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev <span class="se">\</span>
    python-tk autoconf autogen libtool libtbb-dev libopenblas-dev <span class="se">\</span>
-   liblapacke-dev swig yasm python2.7 cpio <span class="se">\</span>
-   automake libass-dev libfreetype6-dev libsdl2-dev libtheora-dev libtool <span class="se">\</span>
+   liblapacke-dev swig yasm python3.5 python3-pip cpio automake libass-dev <span class="se">\</span>
+   libfreetype6-dev libsdl2-dev libtheora-dev libtool <span class="se">\</span>
    libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev <span class="se">\</span>
-   libxcb-xfixes0-dev mercurial pkg-config texinfo wget zlib1g-dev <span class="se">\</span>
-   curl unzip libcap-dev
+   libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev <span class="se">\</span>
+   libboost-all-dev libgnutls-dev
 </pre></div>
+</div>
+</div>
+<div class="section" id="macos">
+<h3>macOS<a class="headerlink" href="#macos" title="Permalink to this headline">¶</a></h3>
+<p>Install <a class="reference external" href="https://brew.sh/">homebrew</a> then run the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew install coreutils cmake git wget unzip <span class="se">\</span>
+             automake fdk-aac lame libass libtool libvorbis libvpx <span class="se">\</span>
+             opus sdl shtool texi2html theora x264 x265 xvid nasm <span class="se">\</span>
+             eigen glog <span class="se">\</span>
+             snappy leveldb gflags glog szip lmdb hdf5 boost boost-python3 <span class="se">\</span>
+             llvm python gnutls
+</pre></div>
+</div>
 </div>
 </div>
 <div class="section" id="install-pip-dependencies">
@@ -231,8 +242,12 @@ pip install dist/scannerpy-0.1.13-py2-none-any.whl
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="installation.html">Installation</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="docker.html">Docker</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Building Scanner from Source</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#install-apt-get-dependencies">Install apt-get Dependencies</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Building Scanner from source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#install-system-level-packages">Install system-level packages</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ubuntu-16-04">Ubuntu 16.04</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#macos">macOS</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#install-pip-dependencies">Install Pip Dependencies</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#run-deps-sh">Run deps.sh</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#build-scanner">Build Scanner</a></li>

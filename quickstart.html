@@ -85,11 +85,12 @@ video in the database. You can see the contents of the database by running:</p>
 <span class="go">0  | table_name | 360    | index, frame | true</span>
 </pre></div>
 </div>
-<p>Scanner can also operate on videos in-place by providing the <cite>inplace</cite> flag.</p>
+<p>Scanner can also read videos without copying them using the <cite>inplace</cite> flag.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">ingest_videos</span><span class="p">([(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;example.mp4&#39;</span><span class="p">)],</span> <span class="n">inplace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This avoids copying the files into the database, but still creates a table.</p>
+<p>This still builds the index for accessing the video but avoids copying the files
+into the database.</p>
 </div>
 <div class="section" id="defining-a-computation-graph">
 <h2>Defining a Computation Graph<a class="headerlink" href="#defining-a-computation-graph" title="Permalink to this headline">¶</a></h2>
