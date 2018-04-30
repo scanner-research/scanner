@@ -3,6 +3,7 @@ import os
 import os.path
 import shutil
 import glob
+from sys import platform
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCANNERPY_DIR = os.path.join(SCRIPT_DIR, 'scannerpy')
@@ -20,13 +21,21 @@ shutil.copytree(SCRIPT_DIR, PIP_DIR)
 # Copy python into pip directory
 #shutil.copytree(SCANNERPY_DIR, PIP_DIR + '/scannerpy')
 
+if platform == 'linux' or platform == 'linux2':
+    EXT = '.so'
+else:
+    EXT = '.dylib'
+
 # Copy libraries into pip directory
 LIBRARIES = [
-    os.path.join(BUILD_DIR, 'libscanner.so'),
-    os.path.join(BUILD_DIR, 'stdlib', 'libstdlib.so')
+    os.path.join(BUILD_DIR, 'libscanner' + EXT),
+    os.path.join(BUILD_DIR, 'stdlib', 'libstdlib' + EXT)
 ]
 for library in LIBRARIES:
-    shutil.copy(library, PIP_DIR + '/scannerpy/')
+    name = os.path.splitext(os.path.basename(library))[0]
+    shutil.copyfile(
+        library,
+        os.path.join(PIP_DIR, 'scannerpy', name + '.so'))
 
 
 def copy_partial_tree(from_dir, to_dir, pattern):
@@ -97,13 +106,14 @@ copy_partial_tree(
 include_files = glob_files(
     os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
 
-package_data = {'scannerpy': ['./*.so'] + include_files + cmake_files}
+package_data = {'scannerpy': ['./*.so', './*' + EXT] + include_files + cmake_files}
 
 REQUIRED_PACKAGES = [
     'protobuf == 3.4.0', 'grpcio == 1.7.3', 'toml >= 0.9.2', 'enum34 >= 1.1.6',
     'numpy >= 1.12.0', 'scipy >= 0.18.1', 'tqdm >= 4.19.5',
-    'python-prctl >= 1.7.0'
 ]
+if platform == 'linux' or platform == 'linux2':
+    REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')
 
 setup(
     name='scannerpy',

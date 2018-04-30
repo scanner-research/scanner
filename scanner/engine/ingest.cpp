@@ -57,7 +57,7 @@ const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
 struct FFStorehouseState {
   std::unique_ptr<RandomReadFile> file = nullptr;
-  size_t size = 0;  // total file size
+  u64 size = 0;  // total file size
   u64 pos = 0;
 
   u64 buffer_start = 0;
@@ -85,7 +85,8 @@ i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
     fs->buffer_end = fs->pos + size_read;
   }
 
-  size_t size_read = std::min((size_t)buf_size, fs->buffer_end - fs->pos);
+  size_t size_read = std::min(
+      (size_t)buf_size, (size_t)(fs->buffer_end - fs->pos));
   memcpy(buf, fs->buffer.data() + (fs->pos - fs->buffer_start), size_read);
   fs->pos += size_read;
   return static_cast<i32>(size_read);

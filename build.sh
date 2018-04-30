@@ -2,8 +2,20 @@
 
 PKG=scannerpy
 
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    cores=$(nproc)
+        # ...
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    cores=$(gnproc)
+        # Mac OSX
+else
+    # Unknown.
+    echo "Unknown OSTYPE: $OSTYPE. Exiting."
+    exit 1
+fi
+
 pushd build
-if make -j$(nproc); then
+if make -j$cores; then
     popd
     if rm -rf dist && \
         python3 python/setup.py bdist_wheel;

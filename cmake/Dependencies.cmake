@@ -43,6 +43,9 @@ find_package(SaneProtobuf REQUIRED)
 find_package(GRPC REQUIRED)
 find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
+if (APPLE)
+  set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
+endif()
 find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(GFlags REQUIRED)
@@ -51,16 +54,28 @@ find_package(GoogleTest REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
-  PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install")
+  PATHS "/Users/apoms/repos/storehouse/install"
+  "${CMAKE_SOURCE_DIR}/thirdparty/install")
 find_package(Hwang REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
-find_package(OpenMP REQUIRED)
 
-set(PYBIND11_PYTHON_VERSION 3.5)
+set(PYBIND11_PYTHON_VERSION 3)
 find_package(pybind11 REQUIRED)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+find_package(Boost
+  COMPONENTS python${PYTHON_VERSION_MAJOR})
+find_package(Boost
+  COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
+find_package(Boost
+  COMPONENTS python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
+find_package(Boost
+  COMPONENTS python36)
+
+if(NOT APPLE AND UNIX)
+  find_package(OpenMP REQUIRED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
 
 set(GTEST_INCLUDE_DIRS ${GOOGLETEST_INCLUDE_DIR})
 set(GTEST_LIBRARIES ${GOOGLETEST_LIBRARIES})

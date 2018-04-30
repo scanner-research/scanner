@@ -34,8 +34,11 @@
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <sys/socket.h>
-#include <omp.h>
 #include <pybind11/embed.h>
+
+#ifdef __linux__
+#include <omp.h>
+#endif
 
 
 // For avcodec_register_all()... should go in software video with global mutex
@@ -1276,7 +1279,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+#ifdef __linux__
   omp_set_num_threads(std::thread::hardware_concurrency());
+#endif
 
   // Setup shared resources for distributing work to processing threads
   i64 accepted_tasks = 0;

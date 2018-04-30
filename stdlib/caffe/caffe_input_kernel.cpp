@@ -4,6 +4,7 @@
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
 
+#include "Halide.h"
 #ifdef HAVE_CUDA
 #include "HalideRuntimeCuda.h"
 #include "scanner/util/halide_context.h"
@@ -41,7 +42,7 @@ void CaffeInputKernel::new_frame_info() {
   }
 }
 
-void CaffeInputKernel::set_halide_buf(buffer_t& halide_buf, u8* buf,
+void CaffeInputKernel::set_halide_buf(halide_buffer_t& halide_buf, u8* buf,
                                       size_t size) {
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({
@@ -49,13 +50,13 @@ void CaffeInputKernel::set_halide_buf(buffer_t& halide_buf, u8* buf,
 
       // "You likely want to set the dev_dirty flag for correctness. (It will
       // not matter if all the code runs on the GPU.)"
-      halide_buf.dev_dirty = true;
+      halide_buf.set_device_dirty();
 
       i32 err =
           halide_cuda_wrap_device_ptr(nullptr, &halide_buf, (uintptr_t)buf);
       LOG_IF(FATAL, err != 0) << "Halide wrap device ptr failed";
 
-      // "You'll need to set the host field of the buffer_t structs to
+      // "You'll need to set the host field of the halide_buffer_t structs to
       // something other than nullptr as that is used to indicate bounds query
       // calls" - Zalman Stern
       halide_buf.host = (u8*)0xdeadbeef;
@@ -65,7 +66,7 @@ void CaffeInputKernel::set_halide_buf(buffer_t& halide_buf, u8* buf,
   }
 }
 
-void CaffeInputKernel::unset_halide_buf(buffer_t& halide_buf) {
+void CaffeInputKernel::unset_halide_buf(halide_buffer_t& halide_buf) {
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({ halide_cuda_detach_device_ptr(nullptr, &halide_buf); });
   }
@@ -78,7 +79,7 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
   size_t net_input_size =
       net_input_width_ * net_input_height_ * 3 * sizeof(float);
 
-  buffer_t input_buf = {0}, output_buf = {0};
+  halide_buffer_t input_buf = {0}, output_buf = {0};
 
   set_halide_buf(input_buf, const_cast<u8*>(input_buffer),
                  frame_width * frame_height * 3);
@@ -86,24 +87,35 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
 
   // Halide has the input format x * stride[0] + y * stride[1] + c * stride[2]
   // input_buf.host = input_buffer;
-  input_buf.stride[0] = 3;
-  input_buf.stride[1] = frame_width * 3;
-  input_buf.stride[2] = 1;
-  input_buf.extent[0] = frame_width;
-  input_buf.extent[1] = frame_height;
-  input_buf.extent[2] = 3;
-  input_buf.elem_size = 1;
+  input_buf.dimensions = 3;
+  input_buf.dim = new halide_dimension_t[3];
+  input_buf.dim[0].min = 0;
+  input_buf.dim[1].min = 0;
+  input_buf.dim[2].min = 0;
+  input_buf.dim[0].stride = 3;
+  input_buf.dim[1].stride = frame_width * 3;
+  input_buf.dim[2].stride = 1;
+  input_buf.dim[0].extent = frame_width;
+  input_buf.dim[1].extent = frame_height;
+  input_buf.dim[2].extent = 3;
+  input_buf.type = halide_type_of<uint8_t>();
 
   // Halide conveniently defaults to a planar format, which is what Caffe
   // expects
   output_buf.host = output_buffer;
-  output_buf.stride[0] = 1;
-  output_buf.stride[1] = net_input_width_;
-  output_buf.stride[2] = net_input_width_ * net_input_height_;
-  output_buf.extent[0] = net_input_width_;
-  output_buf.extent[1] = net_input_height_;
-  output_buf.extent[2] = 3;
-  output_buf.elem_size = 4;
+
+  output_buf.dimensions = 3;
+  output_buf.dim = new halide_dimension_t[3];
+  output_buf.dim[0].min = 0;
+  output_buf.dim[1].min = 0;
+  output_buf.dim[2].min = 0;
+  output_buf.dim[0].stride = 1;
+  output_buf.dim[1].stride = net_input_width_;;
+  output_buf.dim[2].stride = net_input_width_ * net_input_height_;
+  output_buf.dim[0].extent = net_input_width_;
+  output_buf.dim[1].extent = net_input_height_;
+  output_buf.dim[2].extent = 3;
+  output_buf.type = halide_type_of<float>();
 
   decltype(caffe_input_transformer_cpu)* func;
   if (device_.type == DeviceType::GPU) {
@@ -117,6 +129,9 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
            net_input_height_, descriptor.normalize(), descriptor.mean_colors(2),
            descriptor.mean_colors(1), descriptor.mean_colors(0), &output_buf);
   LOG_IF(FATAL, error != 0) << "Halide error " << error;
+
+  delete[] input_buf.dim;
+  delete[] output_buf.dim;
 
   unset_halide_buf(input_buf);
   unset_halide_buf(output_buf);

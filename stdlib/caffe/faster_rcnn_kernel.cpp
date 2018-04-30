@@ -9,7 +9,7 @@ class FasterRCNNKernel : public CaffeKernel {
 
   void net_config() override {
     boost::shared_ptr<caffe::Blob<float>> blob = net_->blob_by_name("im_info");
-    f32 buf[3] = {frame_info_.shape[2], frame_info_.shape[1], 1.0};
+    f32 buf[3] = {(f32)frame_info_.shape[2], (f32)frame_info_.shape[1], 1.0};
     f32* blob_data = device_.type == DeviceType::GPU ? blob->mutable_gpu_data()
                                                      : blob->mutable_cpu_data();
     memcpy_buffer((u8*)blob_data, device_, (u8*)buf, CPU_DEVICE,

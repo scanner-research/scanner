@@ -19,9 +19,6 @@
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/prctl.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <atomic>
 #include <chrono>
@@ -31,6 +28,12 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#ifdef __linux__
+#include <sys/prctl.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#endif
 
 namespace scanner {
 
@@ -195,6 +198,8 @@ class Flag {
 ///////////////////////////////////////////////////////////////////////////////
 /// Debugging utils
 
+#ifdef __linux
+
 // Hacky way to print a stack trace while running. Useful right before
 // a LOG(FATAL) or other type of fatal event.
 inline void print_trace() {
@@ -214,4 +219,7 @@ inline void print_trace() {
     waitpid(child_pid, NULL, 0);
   }
 }
+
+#endif
+
 }
