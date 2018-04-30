@@ -27,7 +27,7 @@ jq '.spec.ports[0].nodePort' -r
 master = '{}:{}'.format(ip, port)
 
 print('Connecting to Scanner database...')
-db = Database(master=master, start_cluster=False)
+db = Database(master=master, start_cluster=False, config_path='./config.toml')
 
 print('Running Scanner job...')
 example_video_path = 'sample.mp4'
@@ -37,8 +37,8 @@ example_video_path = 'sample.mp4'
 print(db.summarize())
 
 frame = db.sources.FrameColumn()
-hist = db.ops.Histogram(frame=frame)
-output_op = db.sinks.Column(columns={'hist': hist})
+r_frame = db.ops.Resize(frame=frame, width=320, height=240)
+output_op = db.sinks.Column(columns={'frame': r_frame})
 job = Job(op_args={
     frame: db.table('example').column('frame'),
     output_op: 'example_hist'
@@ -46,13 +46,14 @@ job = Job(op_args={
 
 output_tables = db.run(output=output_op, jobs=[job], force=True)
 
-video_hists = output_tables[0].column('hist').load(readers.histograms)
+output_tables[0].column('frame').save_mp4('resized_video')
+# video_frames = output_tables[0].column('frame').load(readers.histograms)
 
-num_rows = 0
-for frame_hists in video_hists:
-    assert len(frame_hists) == 3
-    assert frame_hists[0].shape[0] == 16
-    num_rows += 1
-assert num_rows == db.table('example').num_rows()
+# num_rows = 0
+# for frame_hists in video_hists:
+#     assert len(frame_hists) == 3
+#     assert frame_hists[0].shape[0] == 16
+#     num_rows += 1
+# assert num_rows == db.table('example').num_rows()
 
 print('Complete!')
