@@ -65,12 +65,14 @@ find_package(pybind11 REQUIRED)
 
 find_package(Boost
   COMPONENTS python${PYTHON_VERSION_MAJOR})
-find_package(Boost
-  COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
-find_package(Boost
-  COMPONENTS python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
-find_package(Boost
-  COMPONENTS python36)
+if (NOT Boost_FOUND)
+  find_package(Boost
+    COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
+endif()
+if (NOT Boost_FOUND)
+  find_package(Boost
+    COMPONENTS python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
+endif()
 
 if(NOT APPLE AND UNIX)
   find_package(OpenMP REQUIRED)
