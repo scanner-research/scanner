@@ -31,14 +31,14 @@ Run the following command:
 
    apt-get install \
       build-essential \
-      cmake git libgtk2.0-dev pkg-config unzip llvm-5.0-dev clang-5.0 libc++-dev
+      cmake git libgtk2.0-dev pkg-config unzip llvm-5.0-dev clang-5.0 libc++-dev \
       libgflags-dev libgtest-dev libssl-dev libcurl3-dev liblzma-dev \
       libeigen3-dev libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev \
       libgflags-dev libx264-dev libopenjpeg-dev libxvidcore-dev \
-      libpng-dev libjpeg-dev libbz2-dev python-pip wget \
+      libpng-dev libjpeg-dev libbz2-dev wget \
       libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
       python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
-      liblapacke-dev swig yasm python3.5 cpio automake libass-dev \
+      liblapacke-dev swig yasm python3.5 python3-pip cpio automake libass-dev \
       libfreetype6-dev libsdl2-dev libtheora-dev libtool \
       libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
       libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev \
@@ -78,6 +78,10 @@ To install or specify where your major dependencies are, from the top-level dire
    bash ./deps.sh
 
 This script will query you for each major dependency and install those that are not already installed. By default, it will install the dependencies to a local directory inside the scanner repo (it will not install system-wide).
+
+.. note:
+   Make sure to follow the directions after `deps.sh finishes that tell you to
+   add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH
 
 Build Scanner
 ~~~~~~~~~~~~~

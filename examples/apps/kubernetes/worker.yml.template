@@ -1,18 +1,17 @@
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: scanner-master
+  name: scanner-worker
 spec:
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
-        app: scanner-master
+        app: scanner-worker
     spec:
       containers:
-        - name: scanner-master
-          #image: gcr.io/INSERT_YOUR_PROJECT_ID_HERE/scanner-master:cpu
-          image: gcr.io/visualdb-1046/scanner-master:cpu
+        - name: scanner-worker
+          image: gcr.io/YOUR_PROJECT_ID/scanner-worker:cpu
           imagePullPolicy: Always
           env:
             - name: AWS_ACCESS_KEY_ID
@@ -31,7 +30,8 @@ spec:
               value: '0'
             - name: GLOG_v
               value: '2'
-          ports:
-            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 1.1
       nodeSelector:
-        cloud.google.com/gke-nodepool: default-pool
+        cloud.google.com/gke-nodepool: workers
