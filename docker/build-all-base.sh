@@ -27,7 +27,9 @@ do
                --no-cache=$NO_CACHE \
                -t scannerresearch/scanner-base:$TAG \
                -f $dir/Dockerfile.$TYPE \
-               $dir
+               $dir 2>&1 > ${TAG}-output.log \
+            && rm ${TAG}-output.log \
+            || { echo "Building $TAG failed! Check $TAG-output.log."; }
     }
 
     function build_chain {
@@ -35,8 +37,8 @@ do
         local TAG=$2
         local BASE_TAG=$3
 
-        build base $TAG-base $BASE_TAG
-        build $TYPE $TAG scannerresearch/scanner-base:$TAG-base
+        build base $TAG-base $BASE_TAG && \
+            build $TYPE $TAG scannerresearch/scanner-base:$TAG-base
     }
 
     function push {
@@ -50,8 +52,8 @@ do
         local BASE_TAG=nvidia/cuda:${CUDA_VERSION}-${CUDNN_VERSION}-devel-ubuntu16.04
         local TAG=$base-gpu-$CUDA_VERSION-$CUDNN_VERSION
 
-        build_chain gpu${CUDA_MAJOR_VERSION} $TAG $BASE_TAG
-        push $TAG
+        build_chain gpu${CUDA_MAJOR_VERSION} $TAG $BASE_TAG && \
+            push $TAG
     }
 
 

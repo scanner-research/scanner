@@ -41,19 +41,11 @@ r_frame = db.ops.Resize(frame=frame, width=320, height=240)
 output_op = db.sinks.Column(columns={'frame': r_frame})
 job = Job(op_args={
     frame: db.table('example').column('frame'),
-    output_op: 'example_hist'
+    output_op: 'example_frame'
 })
 
 output_tables = db.run(output=output_op, jobs=[job], force=True)
 
 output_tables[0].column('frame').save_mp4('resized_video')
-# video_frames = output_tables[0].column('frame').load(readers.histograms)
-
-# num_rows = 0
-# for frame_hists in video_hists:
-#     assert len(frame_hists) == 3
-#     assert frame_hists[0].shape[0] == 16
-#     num_rows += 1
-# assert num_rows == db.table('example').num_rows()
 
 print('Complete!')
