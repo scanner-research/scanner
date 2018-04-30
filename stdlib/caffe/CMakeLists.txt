@@ -1,8 +1,9 @@
 set(SOURCE_FILES
   caffe_kernel.cpp
   caffe_kernel_cpu.cpp
-  caffe_input_kernel.cpp
-  caffe_input_kernel_cpu.cpp
+  # Removed until halide '_halide_downgrade_buffer_t' symbol issue resolved
+  # caffe_input_kernel.cpp
+  # caffe_input_kernel_cpu.cpp
   facenet_input_kernel_cpu.cpp
   facenet_kernel.cpp
   facenet_output_kernel_cpu.cpp
@@ -12,7 +13,8 @@ set(SOURCE_FILES
 if (BUILD_CUDA)
   list(APPEND SOURCE_FILES
     caffe_kernel_gpu.cpp
-    caffe_input_kernel_gpu.cpp
+    # Removed until halide '_halide_downgrade_buffer_t' symbol issue resolved
+    #caffe_input_kernel_gpu.cpp
     facenet_input_kernel_gpu.cpp)
 endif()
 
@@ -25,22 +27,22 @@ if (BUILD_OPENPOSE_OPS)
   endif()
 endif()
 
-add_halide_target(caffe_input_transformer_cpu.cpp host)
+add_library(caffe OBJECT ${SOURCE_FILES})
+
+#halide_library(caffe_input_transformer_cpu
+#  SRCS caffe_input_transformer_cpu.cpp)
+#add_dependencies(caffe caffe_input_transformer_cpu)
+#include_directories(${CMAKE_BINARY_DIR}/genfiles/caffe_input_transformer_cpu)
 if (BUILD_CUDA)
-  add_halide_target(caffe_input_transformer_gpu.cpp cuda)
+  # halide_library(caffe_input_transformer_gpu
+  #   SRCS caffe_input_transformer_gpu.cpp
+  #   HALIDE_TARGET cuda)
+  # include_directories(${CMAKE_BINARY_DIR}/genfiles/caffe_input_transformer_gpu)
+  # add_dependencies(caffe caffe_input_transformer_gpu)
 endif()
 
 add_definitions(-DUSE_OPENCV)
 
-add_library(caffe OBJECT ${SOURCE_FILES})
-
-# TODO(wcrichto): auto add these dependencies?
-add_dependencies(caffe
-  caffe_input_transformer_cpu.exec_generator)
-if (BUILD_CUDA)
-  add_dependencies(caffe
-    caffe_input_transformer_gpu.exec_generator)
-endif()
 
 list(APPEND OPENCV_COMPONENTS core highgui imgproc video videoio)
 if (BUILD_CUDA)

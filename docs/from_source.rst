@@ -1,4 +1,4 @@
-Building Scanner from Source
+Building Scanner from source
 ----------------------------
 
 This guide has been tested on Ubuntu 16.04.
@@ -17,33 +17,47 @@ Scanner optionally requires:
 
 Scanner provides a dependency script deps.sh to automatically install any or all
 of the major dependencies if they are not already installed. Each of these
-dependencies has a set of required system-level packages. If you need to
-install all or most of of these dependencies, run the 'All dependencies' apt-get
-command below. If you only need to install a few, we also provide apt-get
-commands for each package.
+dependencies has a set of required system-level packages.
 
-Install apt-get Dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Install system-level packages
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All dependencies
+Ubuntu 16.04
+````````````
+
+Run the following command:
 
 .. code-block:: bash
 
    apt-get install \
       build-essential \
-      cmake git libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev \
-      libswscale-dev unzip llvm clang libc++-dev libgflags-dev libgtest-dev \
-      libssl-dev libcurl3-dev liblzma-dev libeigen3-dev  \
-      libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libgflags-dev \
-      libx264-dev libopenjpeg-dev libxvidcore-dev \
-      libpng-dev libjpeg-dev libbz2-dev git python-pip wget \
+      cmake git libgtk2.0-dev pkg-config unzip llvm-5.0-dev clang-5.0 libc++-dev
+      libgflags-dev libgtest-dev libssl-dev libcurl3-dev liblzma-dev \
+      libeigen3-dev libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev \
+      libgflags-dev libx264-dev libopenjpeg-dev libxvidcore-dev \
+      libpng-dev libjpeg-dev libbz2-dev python-pip wget \
       libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
       python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
-      liblapacke-dev swig yasm python2.7 cpio \
-      automake libass-dev libfreetype6-dev libsdl2-dev libtheora-dev libtool \
+      liblapacke-dev swig yasm python3.5 cpio automake libass-dev \
+      libfreetype6-dev libsdl2-dev libtheora-dev libtool \
       libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
-      libxcb-xfixes0-dev mercurial pkg-config texinfo wget zlib1g-dev \
-      curl unzip libcap-dev
+      libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev \
+      libboost-all-dev libgnutls-dev
+
+macOS
+`````
+
+Install `homebrew <https://brew.sh/>`__ then run the following command:
+
+.. code-block:: bash
+
+   brew install coreutils cmake git wget unzip \
+                automake fdk-aac lame libass libtool libvorbis libvpx \
+                opus sdl shtool texi2html theora x264 x265 xvid nasm \
+                eigen glog \
+                snappy leveldb gflags glog szip lmdb hdf5 boost boost-python3 \
+                llvm python gnutls
+
 
 Install Pip Dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -87,3 +101,5 @@ Run the following commands from the top-level directory:
    pip install dist/scannerpy-0.1.13-py2-none-any.whl
 
 Congratulations! You've installed the scannerpy package.
+
+

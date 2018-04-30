@@ -18,25 +18,13 @@ if (NOT ${BUILD_CUDA})
   set(BUILD_OPENPOSE_OPS OFF)
 endif()
 
-set(HALIDE_TARGETS)
-macro(add_halide_target SRC TARGET)
-  if (NOT HALIDE_FOUND)
-    find_package(Halide REQUIRED)
-    include(${CMAKE_SOURCE_DIR}/cmake/Util/HalideGenerator.cmake)
-    include_directories("${HALIDE_INCLUDE_DIR}")
-    include_directories("${PROJECT_BINARY_DIR}/generator_genfiles")
-  endif()
+find_package(Halide REQUIRED)
+set(HALIDE_DISTRIB_DIR "${Halide_DIR}")
+set(HALIDE_DISTRIB_USE_STATIC_LIBRARY TRUE)
+include(${Halide_DIR}/halide.cmake)
+#include_directories("${HALIDE_INCLUDE_DIR}")
+#include_directories("${PROJECT_BINARY_DIR}/generator_genfiles")
 
-  get_filename_component(NAME ${SRC} NAME_WE)
-  set(GENERATOR ${NAME}.generator)
-  halide_add_generator(${GENERATOR}
-    SRCS ${SRC})
-  halide_add_aot_library(${NAME}
-    GENERATOR_TARGET ${GENERATOR}
-    GENERATOR_ARGS target=${TARGET})
-  list(APPEND HALIDE_TARGETS ${NAME})
-  set(HALIDE_TARGETS ${HALIDE_TARGETS} PARENT_SCOPE)
-endmacro()
 
 if (BUILD_CUDA)
   find_package(CUDA REQUIRED)
@@ -60,6 +48,12 @@ set(TARGETS)
 if (BUILD_CAFFE_OPS)
   add_subdirectory(caffe)
   list(APPEND TARGETS caffe)
+  #list(APPEND STDLIB_LIBRARIES
+  #  ${PROJECT_BINARY_DIR}/genfiles/caffe_input_transformer_cpu/caffe_input_transformer_cpu.a)
+  #if (BUILD_CUDA)
+  #  list(APPEND STDLIB_LIBRARIES
+  #    ${PROJECT_BINARY_DIR}/genfiles/caffe_input_transformer_gpu/caffe_input_transformer_gpu.a)
+  #endif()
 endif()
 
 if (BUILD_IMGPROC_OPS)
@@ -113,14 +107,7 @@ foreach (TARGET ${TARGETS})
   add_dependencies(${TARGET} stdlib_proto_files)
 endforeach()
 
-target_link_libraries(stdlib PUBLIC "${STDLIB_LIBRARIES}" scanner)
-
-if (HALIDE_TARGETS)
-  foreach(HALIDE_TARGET ${HALIDE_TARGETS})
-    add_dependencies(stdlib "${HALIDE_TARGET}.exec_generator")
-    halide_add_aot_library_dependency(stdlib ${HALIDE_TARGET})
-  endforeach()
-  if (BUILD_CUDA)
-    add_dependencies(stdlib scanner_halide)
-  endif()
-endif()
+target_link_libraries(stdlib PUBLIC scanner
+  ${STDLIB_LIBRARIES}
+  ${HALIDE_LIBRARY}
+  ${Boost_LIBRARIES})

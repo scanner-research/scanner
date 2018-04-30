@@ -3,6 +3,7 @@
 #define HAS_AUTOSCHEDULER
 
 using namespace Halide;
+using namespace Halide::Internal;
 
 // Resize code taken from
 // https://github.com/halide/Halide/blob/master/apps/resize/resize.cpp

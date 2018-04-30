@@ -44,13 +44,14 @@ video in the database. You can see the contents of the database by running:
    ---------------------------------------------------
    0  | table_name | 360    | index, frame | true
 
-Scanner can also operate on videos in-place by providing the `inplace` flag.
+Scanner can also read videos without copying them using the `inplace` flag.
 
 .. code-block:: python
 
    db.ingest_videos([('table_name', 'example.mp4')], inplace=True)
 
-This avoids copying the files into the database, but still creates a table.
+This still builds the index for accessing the video but avoids copying the files
+into the database.
 
 
 Defining a Computation Graph

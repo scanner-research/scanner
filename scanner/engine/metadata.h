@@ -272,10 +272,10 @@ void serialize_db_proto(storehouse::WriteFile* file, const T& descriptor) {
 template <typename T>
 T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
   T descriptor;
-  size_t size;
+  uint64_t size;
   BACKOFF_FAIL(file->get_size(size));
   std::vector<u8> data = storehouse::read_entire_file(
-      file, pos, std::max(size, (size_t)1024 * 1024));
+      file, pos, std::max((size_t)size, (size_t)1024 * 1024));
   descriptor.ParseFromArray(data.data(), data.size());
   return descriptor;
 }

@@ -12,8 +12,10 @@ import signal
 import copy
 import collections
 import subprocess
-import prctl
 from tqdm import tqdm
+
+if sys.platform == 'linux' or sys.platform == 'linux2':
+    import prctl
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Process, Queue, cpu_count
@@ -417,12 +419,13 @@ class Database(object):
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
         def heartbeat_task(q, master_address, ppid):
-            prctl.set_pdeathsig(signal.SIGTERM)
-            if os.getppid() != ppid:
-                return
+            if sys.platform == 'linux' or sys.platform == 'linux2':
+                prctl.set_pdeathsig(signal.SIGTERM)
             channel = self._make_grpc_channel(master_address)
             master = grpc_types.MasterStub(channel)
             while q.empty():
+                if os.getppid() != ppid:
+                    return
                 try:
                     master.PokeWatchdog(
                         rpc_types.Empty(), timeout=self._grpc_timeout)
@@ -474,6 +477,13 @@ class Database(object):
                  'Specified address is {s:s}. It should look like {s:s}:5001')
                 .format(s=self._master_address))
 
+        # Start up heartbeat to keep master alive
+        # NOTE(apoms): This MUST BE before any grpc channel is created, since it
+        # forks a process and forking after channel creation causes hangs in the
+        # forked process under grpc
+        # https://github.com/grpc/grpc/issues/13873#issuecomment-358476408
+        self._start_heartbeat()
+
         # Boot up C++ database bindings
         self._db = self._bindings.Database(self.config.storage_config,
                                            str(self._db_path),
@@ -502,7 +512,6 @@ class Database(object):
                         '{:s}. (Is there another process that is bound to that '
                         'port already?)'.format(self.config.master_port))
 
-                self._start_heartbeat()
             else:
                 master_port = self._master_address.partition(':')[2]
                 # https://stackoverflow.com/questions/30469575/how-to-pickle-and-unpickle-to-portable-string-in-python-3
@@ -536,8 +545,6 @@ class Database(object):
                     self._master_conn = None
                     raise ScannerException(
                         'Timed out waiting to connect to master')
-                # Start up heartbeat to keep master alive
-                self._start_heartbeat()
         else:
             self._master_conn = None
             self._worker_conns = None

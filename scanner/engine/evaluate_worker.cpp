@@ -251,7 +251,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
 
 EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   : node_id_(args.node_id),
-    worker_id_(worker_id_),
+    worker_id_(args.ki),
     profiler_(args.profiler),
     arg_group_(args.arg_group) {
   assert(args.boundary_condition == proto::BulkJobParameters::REPEAT_EDGE);

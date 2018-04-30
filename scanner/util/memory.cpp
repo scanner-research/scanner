@@ -16,11 +16,16 @@
 #include "scanner/util/memory.h"
 #include "scanner/util/cuda.h"
 
-#include <sys/syscall.h>
-#include <sys/sysinfo.h>
 #include <unistd.h>
 #include <cassert>
 #include <mutex>
+
+#ifdef __linux
+#include <sys/syscall.h>
+#include <sys/sysinfo.h>
+#elif __APPLE__
+#include <sys/sysctl.h>
+#endif
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -28,6 +33,28 @@
 #endif
 
 namespace scanner {
+namespace {
+
+size_t get_total_ram() {
+  size_t total_mem;
+
+#ifdef __linux__
+  struct sysinfo info;
+  i32 err = sysinfo(&info);
+  LOG_IF(FATAL, err < 0) << "sysinfo failed: " << strerror(errno);
+  total_mem = info.totalram;
+#elif __APPLE__
+  int mem_size;
+  size_t length = sizeof(mem_size);
+  i32 err = sysctlbyname("hw.memsize", &mem_size, &length, NULL, 0);
+  LOG_IF(FATAL, err < 0) << "sysctlbyname failed: " << strerror(err);
+  total_mem = mem_size;
+#endif
+
+  return total_mem;
+}
+
+}
 
 // Allocations in Scanner differ from manual memory management in three
 // respects:
@@ -539,10 +566,7 @@ void init_memory_allocators(MemoryPoolConfig config,
   cpu_system_allocator.reset(new SystemAllocator(CPU_DEVICE));
   Allocator* cpu_block_allocator_base = cpu_system_allocator.get();
   if (config.cpu().use_pool()) {
-    struct sysinfo info;
-    i32 err = sysinfo(&info);
-    LOG_IF(FATAL, err < 0) << "sysinfo failed: " << strerror(errno);
-    size_t total_mem = info.totalram;
+    size_t total_mem = get_total_ram();
     LOG_IF(FATAL, config.cpu().free_space() > total_mem)
         << "Requested CPU free space (" << config.cpu().free_space() << ") "
         << "larger than total CPU memory size ( " << total_mem << ")";
