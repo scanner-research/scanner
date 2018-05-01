@@ -199,6 +199,9 @@ void PythonKernel::execute(const BatchedElements &input_columns,
           for (int n = 0; n < ndim; ++n) {
             shapes.push_back(frame_np.shape(n));
             strides.push_back(frame_np.strides(n));
+            if (frame_np.strides(n) < 0) {
+              LOG(FATAL) << "We do not yet support negative strides in PythonKernel!";
+            }
           }
           FrameInfo frame_info(shapes, frame_type);
           Frame *frame = new_frame(CPU_DEVICE, frame_info);
