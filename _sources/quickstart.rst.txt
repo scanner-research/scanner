@@ -84,7 +84,7 @@ by passing them into a Column Sink.
 
 At this point, we have defined a computation graph that describes *what*
 computation to run, but we haven't told Scanner to run the computation graph
-yet. 
+yet.
 
 Defining a Job
 --------------
@@ -132,7 +132,7 @@ querying the 'frame' column on the table 'resized_table':
 
 .. code-block:: python
 
-   for resized_frame in db.table('resized_table').column('frame'):
+   for resized_frame in db.table('resized_table').column('frame').load():
        print(resized_frame.shape)
 
 Video frames are returned as numpy arrays. Here we are printing out the shape

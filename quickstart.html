@@ -156,7 +156,7 @@ jobs are done, <cite>db.run</cite> returns the newly computed tables, here shown
 <h2>Reading the results of a Job<a class="headerlink" href="#reading-the-results-of-a-job" title="Permalink to this headline">¶</a></h2>
 <p>We can directly read the results of job we just ran in our Python code by
 querying the ‘frame’ column on the table ‘resized_table’:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">resized_frame</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">resized_frame</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">load</span><span class="p">():</span>
     <span class="k">print</span><span class="p">(</span><span class="n">resized_frame</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 </pre></div>
 </div>
