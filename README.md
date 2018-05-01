@@ -1,18 +1,16 @@
 # Scanner: Efficient Video Analysis at Scale [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
-Scanner is a system for writing applications that process video efficiently.
-
-Scanner has been used for:
+Scanner is a system for writing applications that process video efficiently. Scanner has been used for:
 * **Big video data analysis:** labeling and data mining large video datasets: a dataset containing over 600 feature length movies (106 million frames) and a dataset of 70,000 hours of TV news (12 billion frames, 20 TB).
 * **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360), which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
 
 ## Key Features
 
 Scanner's key features include:
-* **Computation graphs designed for video:** Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. Scanner graphs support features useful for video processing, such as sparse sampling of video frames, access to temporal windows of frames, and state propagation across computations on successive frames. The Scanner runtime is responsible for executing this graph efficiently given all the processing resources on your machine.
+* **Computation graphs designed for video processing:** Similar to the dataflow model used by many modern ML frameworks, Scanner applications are written by composing together functions that process streams of data (called Scanner Ops) into graphs. Computation graphs process sequences of video frames. Scanner graphs support features useful for video processing, such as sparse sampling of video frames, access to temporal sliding windows of frames, and state propagation across computations on successive frames. The Scanner runtime executes computation graphs efficiently on the processing resources on your machine, whether it be a single multi-core laptop, or a collection of machines in the cloud.
 * **Random access to video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
-* **First-class support for GPUs:** Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.
-* **Distributed execution:** Scanner can scale out applications to hundreds of machines.
+* **First-class support for GPUs:** Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on multiple GPUs in a single machined.
+* **Distributed execution:** Scanner can scale out applications to hundreds of machines, and is designed to use cheaper preemptible machines on cloud computing platforms.
 
 ## Documentation
 
@@ -78,5 +76,4 @@ Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and
 [Will Crichton](https://github.com/willcrichton) with questions.
 
 ### Paper citation
-Scanner will appear in the proceedings of SIGGRAPH 2018. If you use this
-software in your research, please be sure to cite the paper.
+Scanner will appear in the proceedings of SIGGRAPH 2018. If you use Scanner in your research, we'd appreciate it if you cite the paper.
