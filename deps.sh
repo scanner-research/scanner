@@ -212,7 +212,7 @@ elif [[ $INSTALL_ALL == false ]]; then
     done
 
     while true; do
-        echo -n "Do you have grpc>=1.7.2 installed? [y/N]: "
+        echo -n "Do you have grpc==1.7.2 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_GRPC=false
@@ -431,16 +431,22 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
     if [[ "$OSTYPE" == "linux-gnu" ]]; then
         # If CLANG is not set, we should set it to clang or clang-5.0
         if [ -z ${CLANG+x} ]; then
-            if command -v clang >/dev/null 2>&1; then
+            if command -v clang >/dev/null 2>&1 &&
+                   [[ $(clang++ -v 2>&1 |
+                         grep version |
+                         sed 's/.*version \([0-9]*.[0-9]*.[0-9]*\) .*/\1/g' |
+                         perl -pe '($_)=/([0-9]+([.][0-9]+)+)/') > '4.0.0' ]]; then
                 export CLANG=clang
             elif command -v clang-5.0 >/dev/null 2>&1; then
                 export CLANG=clang-5.0
             fi
+            echo $CLANG
         fi
         # If LLVM_CONFIG is not set, we should set it to llvm-config or
         # llvm-config-5.0
         if [ -z ${LLVM_CONFIG+x} ]; then
-            if command -v llvm-config >/dev/null 2>&1; then
+            if command -v llvm-config >/dev/null 2>&1 &&
+                   [[ $(llvm-config --version) > '4.0.0' ]]; then
                 export LLVM_CONFIG=llvm-config
             elif command -v llvm-config-5.0 >/dev/null 2>&1; then
                 export LLVM_CONFIG=llvm-config-5.0

@@ -1,23 +1,23 @@
 Building Scanner from source
 ----------------------------
 
-This guide has been tested on Ubuntu 16.04.
+Scanner provides a dependency script deps.sh to automatically install any or all
+of its major dependencies if they are not already installed. Each of these
+dependencies has a set of required system-level packages.
 
 Scanner depends on the following major dependencies:
-  - Python == 2.7
-  - boost >= 1.65.1
+  - Python >= 3.0
+  - pybind >= 1.58.0
   - ffmpeg >= 3.3.1
   - opencv >= 3.4.0
   - protobuf == 3.4.0
   - grpc == 1.7.2
   - caffe >= rc5 OR intel-caffe >= 1.0.6
 
-Scanner optionally requires:
-  - CUDA >= 8.0
+To compile with CUDA support, it requires:
 
-Scanner provides a dependency script deps.sh to automatically install any or all
-of the major dependencies if they are not already installed. Each of these
-dependencies has a set of required system-level packages.
+  - [CUDA](https://developer.nvidia.com/cuda-downloads) 8.0 or above
+  - [cuDNN](https://developer.nvidia.com/cudnn) v6.x or above
 
 Install system-level packages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -101,9 +101,6 @@ Run the following commands from the top-level directory:
 
 .. code-block:: bash
 
-   python python/setup.py bdist_wheel
-   pip install dist/scannerpy-0.1.13-py2-none-any.whl
+   bash ./build.sh
 
 Congratulations! You've installed the scannerpy package.
-
-

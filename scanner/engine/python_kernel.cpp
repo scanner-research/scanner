@@ -10,6 +10,7 @@
 namespace scanner {
 
 namespace py = pybind11;
+using namespace pybind11::literals;
 
 PythonKernel::PythonKernel(const KernelConfig &config,
                            const std::string &op_name,
@@ -21,26 +22,34 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   py::gil_scoped_acquire acquire;
   can_batch_ = (preferred_batch > 1);
   kernel_name_ = tfm::format("%s_kernel", op_name_);
+  std::string kernel_ns_name_ = tfm::format("ns_%s", op_name_);
 
   try {
     py::module main = py::module::import("__main__");
     py::object scope = main.attr("__dict__");
-    main.attr("kernel_str") = kernel_str;
-    main.attr("user_config_str") = py::bytes(pickled_config);
-    main.attr("config") = config;
+    main.attr(kernel_ns_name_.c_str()) = py::dict(
+        "kernel_str"_a=kernel_str,
+        "user_config_str"_a=py::bytes(pickled_config),
+        "config"_a=config);
 
     std::string pycode = tfm::format(R"(
-import pickle
-import traceback
-from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig, ColumnType
-from scannerpy.protobuf_generator import ProtobufGenerator
+def %s_fn():
+  import pickle
+  import traceback
+  from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig, ColumnType
+  from scannerpy.protobuf_generator import ProtobufGenerator
 
-user_config = pickle.loads(user_config_str)
-protobufs = ProtobufGenerator(user_config)
-kernel_config = KernelConfig(config)
-exec(kernel_str)
-%s = KERNEL(kernel_config, protobufs))",
-                                     kernel_name_);
+  n = %s
+  user_config = pickle.loads(n['user_config_str'])
+  protobufs = ProtobufGenerator(user_config)
+  kernel_config = KernelConfig(n['config'])
+  ns = {**locals()}
+  exec(n['kernel_str'], globals(), ns)
+  globals().update(ns)
+  return ns['KERNEL'](kernel_config, protobufs)
+
+%s = %s_fn()
+)", kernel_name_, kernel_ns_name_, kernel_name_, kernel_name_);
     py::exec(pycode, scope);
   } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
