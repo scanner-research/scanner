@@ -30,6 +30,7 @@ import logging
 import os
 import sys
 import time
+import pickle
 
 from caffe2.python import workspace
 
@@ -52,15 +53,14 @@ c2_utils.import_detectron_ops()
 cv2.ocl.setUseOpenCL(False)
 
 
-class MaskRCNNKernel(caffe2.Caffe2Kernel):
+class DetectronKernel(caffe2.Caffe2Kernel):
     def build_graph(self):
-        self.dataset = dummy_datasets.get_coco_dataset()
         merge_cfg_from_file(self.config.args['config_path'])
 
         # If this is a CPU kernel, tell Caffe2 that it should not use
         # any GPUs for its graph operations
         cpu_only = True
-        for handle in config.devices:
+        for handle in self.config.devices:
             if handle.type == DeviceType.GPU.value:
                 cpu_only = False
 
@@ -76,9 +76,11 @@ class MaskRCNNKernel(caffe2.Caffe2Kernel):
         return model
 
     def execute(self, cols):
+        print(len(cols))
         logger = logging.getLogger(__name__)
 
         image = cols[0]
+
         timers = defaultdict(Timer)
         t = time.time()
         with c2_utils.NamedCudaScope(0):
@@ -89,17 +91,9 @@ class MaskRCNNKernel(caffe2.Caffe2Kernel):
         for k, v in timers.items():
             logger.info(' | {}: {:.3f}s'.format(k, v.average_time))
 
-        vis_im = vis_utils.vis_one_image_opencv(
-            image[:, :, ::1],  # BGR -> RGB for visualization
-            cls_boxes,
-            cls_segms,
-            cls_keyps,
-            dataset=self.dataset,
-            show_class=False,
-            thresh=0.7,
-            kp_thresh=2
-        )
-        return [vis_im]
+        return [pickle.dumps(cls_boxes),
+                pickle.dumps(cls_segms),
+                pickle.dumps(cls_keyps)]
 
 
-KERNEL = MaskRCNNKernel
+KERNEL = DetectronKernel

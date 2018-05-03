@@ -18,4 +18,23 @@ cmake .. \
 
 2. Install Detectron.
 
-3. Build Scanner without Caffe Ops
+3. Build Scanner without Caffe Ops (Caffe and Caffe2 can not be in the same process):
+
+```
+cmake .. -DBUILD_CAFFE_OPS=OFF
+```
+
+Example Usage:
+--------------
+
+```bash
+DETECTRON_PATH=...
+
+CONFIG_PATH=$DETECTRON_PATH/configs/12_2017_baselines/e2e_mask_rcnn_R-101-FPN_2x.yaml
+WEIGHTS_PATH='https://s3-us-west-2.amazonaws.com/detectron/35861858/12_2017_baselines/e2e_mask_rcnn_R-101-FPN_2x.yaml.02_32_51.SgT4y1cO/output/train/coco_2014_train:coco_2014_valminusminival/generalized_rcnn/model_final.pkl'
+
+python3 main.py --weights-path $WEIGHTS_PATH --config-path $CONFIG_PATH --video-path example.mp4
+```
+
+This will output a video named `example_detected.mp4' overlaid with the network
+detections.
