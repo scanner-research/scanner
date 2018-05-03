@@ -59,7 +59,6 @@ internal::DatabaseParameters machine_params_to_db_params(
   db.num_load_workers = params.num_load_workers;
   db.num_save_workers = params.num_save_workers;
   db.gpu_ids = params.gpu_ids;
-  db.prefetch_table_metadata = true;
   db.no_workers_timeout = 30;
   return db;
 }
@@ -100,7 +99,6 @@ Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& port,
                               const std::string& python_dir,
                               bool watchdog,
-                              bool prefetch_table_metadata,
                               i64 no_workers_timeout) {
   if (master_state_ != nullptr) {
     LOG(WARNING) << "Master already started";
@@ -111,7 +109,6 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_state_.reset(new ServerState);
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
-  params.prefetch_table_metadata = prefetch_table_metadata;
   params.no_workers_timeout = no_workers_timeout;
   params.python_dir = python_dir;
 
@@ -132,11 +129,9 @@ Result Database::start_master(const MachineParameters& machine_params,
 Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port,
                               const std::string& python_dir,
-                              bool watchdog,
-                              bool prefetch_table_metadata) {
+                              bool watchdog) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
-  params.prefetch_table_metadata = prefetch_table_metadata;
   params.python_dir = python_dir;
 
   ServerState* s = new ServerState;

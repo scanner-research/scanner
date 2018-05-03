@@ -1123,14 +1123,6 @@ void MasterImpl::recover_and_init_database() {
   // Setup table metadata cache
   table_metas_.reset(new TableMetaCache(storage_, meta_));
 
-  // std::vector<std::string> valid_table_names;
-  // for (const auto& name : meta_.table_names()) {
-  //   i32 table_id = meta_.get_table_id(name);
-  //   if (!meta_.table_is_committed(table_id)) {
-  //     //
-  //   }
-  // }
-
   // Prefetch table metadata for all tables
   if (meta_.table_names().size() > 0 &&
       !table_metas_->has(meta_.table_names()[0])) {
