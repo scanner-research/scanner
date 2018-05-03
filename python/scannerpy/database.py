@@ -52,23 +52,41 @@ def start_master(port=None,
                  config_path=None,
                  block=False,
                  watchdog=True,
-                 prefetch_table_metadata=True,
                  no_workers_timeout=30):
-    """
-    Start a master server instance on this node.
+    r""" Start a master server instance on this node.
 
-    Kwargs:
-        config: A scanner Config object. If specified, config_path is
-                ignored.
-        config_path: Path to a Scanner configuration TOML, by default
-                     assumed to be `~/.scanner.toml`.
-        block: If true, will wait until the server is shutdown. Server
-               will not shutdown currently unless wait_For_server_shutdown
-               is eventually called.
+    Parameters
+    ----------
+    port : int, optional
+      The port number to start the master on. If unspecified, it will be
+      read from the provided Config.
 
-    Returns:
-        A cpp database instance.
+    config : Config, optional
+      The scanner Config to use. If specified, config_path is ignored.
+
+    config_path : str, optional
+      Path to a Scanner configuration TOML, by default assumed to be
+      `~/.scanner/config.toml`.
+
+    block : bool, optional
+      If true, will wait until the server is shutdown. Server will not
+      shutdown currently unless wait_for_server_shutdown is eventually
+      called.
+
+    watchdog : bool, optional
+      If true, the master will shutdown after a time interval if
+      PokeWatchdog is not called.
+
+    no_workers_timeout : float, optional
+      The interval after which the master will consider a job to have failed if
+      it has no workers connected to it.
+
+    Returns
+    -------
+    Database
+      A cpp database instance.
     """
+
     config = config or Config(config_path)
     port = port or config.master_port
 
@@ -76,7 +94,7 @@ def start_master(port=None,
     db = bindings.Database(config.storage_config, config.db_path,
                            (config.master_address + ':' + port))
     result = bindings.start_master(db, port, SCRIPT_DIR, watchdog,
-                                   prefetch_table_metadata, no_workers_timeout)
+                                   no_workers_timeout)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
@@ -88,7 +106,7 @@ def start_master(port=None,
 def worker_process(args):
     [
         master_address, machine_params, port, config, config_path, block,
-        watchdog, prefetch_table_metadata, db
+        watchdog, db
     ] = args
     config = config or Config(config_path)
     port = port or config.worker_port
@@ -101,7 +119,7 @@ def worker_process(args):
         master_address)
     machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
-                                   watchdog, prefetch_table_metadata)
+                                   watchdog)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(
             result.msg()))
@@ -117,27 +135,52 @@ def start_worker(master_address,
                  config_path=None,
                  block=False,
                  watchdog=True,
-                 prefetch_table_metadata=True,
                  num_workers=None,
                  db=None):
-    """
-    Start a worker instance on this node.
+    r"""Starts a worker instance on this node.
 
-    Args:
-        master_address: The address of the master server to connect this worker
-                        to.
+    Parameters
+    ----------
+    master_address : str,
+      The address of the master server to connect this worker to. The expected
+      format is '0.0.0.0:5000' (ip:port).
 
-    Kwargs:
-        config: A scanner Config object. If specified, config_path is
-                ignored.
-        config_path: Path to a Scanner configuration TOML, by default
-                     assumed to be `~/.scanner.toml`.
-        block: If true, will wait until the server is shutdown. Server
-               will not shutdown currently unless wait_ror_server_shutdown
-               is eventually called.
+    machine_params : MachineParams, optional
+      Describes the resources of the machine that the worker should manage. If
+      left unspecified, the machine resources will be inferred.
 
-    Returns:
-        A cpp database instance.
+    config : Config, optional
+      The Config object to use in creating the worker. If specified, config_path
+      is ignored.
+
+    config_path : str, optional
+      Path to a Scanner configuration TOML, by default assumed to be
+      `~/.scanner/config.toml`.
+
+    block : bool, optional
+      If true, will wait until the server is shutdown. Server will not shutdown
+      currently unless wait_for_server_shutdown is eventually called.
+
+    watchdog : bool, optional
+      If true, the worker will shutdown after a time interval if
+      PokeWatchdog is not called.
+
+    Other Parameters
+    ----------------
+    num_workers : int, optional
+      Specifies the number of workers to create. If unspecified, only one is
+      created. This is a legacy feature that exists to deal with kernels that
+      can not be executed in the same process due to shared global state. By
+      spawning multiple worker processes and using a single pipeline per worker,
+      this limitation can be avoided.
+
+    db : Database
+      This is for internal usage only.
+
+    Returns
+    -------
+    Database
+      A cpp database instance.
     """
 
     if num_workers is not None:
@@ -146,7 +189,7 @@ def start_worker(master_address,
                 executor.map(worker_process, ([[
                     master_address, machine_params,
                     int(port) + i, config, config_path, block, watchdog,
-                    prefetch_table_metadata, None
+                    None
                 ] for i in range(num_workers)])))
 
         for result in results:
@@ -156,7 +199,7 @@ def start_worker(master_address,
     else:
         return worker_process([
             master_address, machine_params, port, config, config_path, block,
-            watchdog, prefetch_table_metadata, db
+            watchdog, db
         ])
 
 
@@ -164,19 +207,31 @@ class Database(object):
     """
     Entrypoint for all Scanner operations.
 
-    Attributes:
-        config: The Config object for the database.
-        ops: An OpGenerator object for computation creation.
-        protobufs: TODO(wcrichto)
+    Attributes
+    ----------
+    config : Config
+
+    ops : OpGenerator
+
+    sources : SourceGenerator
+
+    sinks : SinkGenerator
+
+    sampler : Sampler
+
+    partitioner : TaskPartitioner
+
+    protobufs : ProtobufGenerator
+
     """
 
     def __init__(self,
                  master=None,
                  workers=None,
+                 start_cluster=True,
                  config_path=None,
                  config=None,
                  debug=None,
-                 start_cluster=True,
                  prefetch_table_metadata=True,
                  no_workers_timeout=30,
                  grpc_timeout=30):
@@ -186,13 +241,47 @@ class Database(object):
         This will create a database at the `db_path` specified in the config
         if none exists.
 
-        Kwargs:
-            config_path: Path to a Scanner configuration TOML, by default
-                         assumed to be `~/.scanner.toml`.
-            config: A scanner Config object. If specified, config_path is
-                    ignored.
+        Parameters
+        ----------
+        master : str, optional
+          The address of the master process. The addresses should be formatted
+          as 'ip:port'. If the `start_cluster` flag is specified, the Database
+          object will ssh into the provided address and start a master process.
+          You should have ssh access to the target machine and scannerpy should
+          be installed.
 
-        Returns:
+        workers : list of str, optional
+          The list of addresses to spawn worker processes on. The addresses
+          should be formatted as 'ip:port'. Like with `master`, you should have
+          ssh access to the target machine and scannerpy should be installed. If
+          `start_cluster` is false, this parameter has no effect.
+
+        start_cluster : bool, optional
+          If true, a master process and worker processes will be spawned at the
+          addresses specified by `master` and `workers`, respectively.
+
+        config_path : str, optional
+          Path to a Scanner configuration TOML, by default assumed to be
+          '~/.scanner/config.toml'.
+
+
+        config : Config, optional
+
+        debug : bool, optional
+
+
+        Other Parameters
+        ----------------
+
+        prefetch_table_metadata : bool, optional
+
+        no_workers_timeout : float, optional
+
+        grpc_timeout : float, optional
+
+
+        Returns
+        -------
             A database instance.
         """
         if config:
@@ -246,61 +335,6 @@ class Database(object):
         self._stop_heartbeat()
         self.stop_cluster()
         del self._db
-
-    def has_gpu(self):
-        try:
-            with open(os.devnull, 'w') as f:
-                subprocess.check_call(['nvidia-smi'], stdout=f, stderr=f)
-            return True
-        except:
-            pass
-        return False
-
-    def summarize(self):
-        summary = ''
-        db_meta = self._load_db_metadata()
-        if len(db_meta.tables) == 0:
-            return 'Your database is empty!'
-
-        tables = [
-            ('TABLES', [
-                ('ID', [str(t.id) for t in db_meta.tables]),
-                ('Name', [t.name for t in db_meta.tables]),
-                ('# rows',
-                 [str(self.table(t.id).num_rows()) for t in db_meta.tables]),
-                ('Columns', [
-                    ', '.join(self.table(t.id).column_names())
-                    for t in db_meta.tables
-                ]),
-                ('Committed', [
-                    'true' if self.table(t.id).committed() else 'false'
-                    for t in db_meta.tables
-                ]),
-            ]),
-        ]
-
-        for table_idx, (label, cols) in enumerate(tables):
-            if table_idx > 0:
-                summary += '\n\n'
-            num_cols = len(cols)
-            max_col_lens = [
-                max(max([len(s) for s in c] or [0]), len(name))
-                for name, c in cols
-            ]
-            table_width = sum(max_col_lens) + 3 * (num_cols - 1)
-            label = '** {} **'.format(label)
-            summary += ' ' * int(
-                table_width / 2 - len(label) / 2) + label + '\n'
-            summary += '-' * table_width + '\n'
-            col_name_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
-            col_name_fmt = col_name_fmt.format(*max_col_lens)
-            summary += col_name_fmt.format(*[s for s, _ in cols]) + '\n'
-            summary += '-' * table_width + '\n'
-            row_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
-            row_fmt = row_fmt.format(*max_col_lens)
-            for i in range(len(cols[0][1])):
-                summary += row_fmt.format(*[c[i] for _, c in cols]) + '\n'
-        return summary
 
     def _load_descriptor(self, descriptor, path):
         d = descriptor()
@@ -456,6 +490,226 @@ class Database(object):
             else:
                 sys.exit(1)
 
+    def _try_rpc(self, fn):
+        try:
+            result = fn()
+        except grpc.RpcError as e:
+            raise ScannerException(e)
+
+        if isinstance(result, self.protobufs.Result):
+            if not result.success:
+                raise ScannerException(result.msg)
+
+        return result
+
+    def _get_source_info(self, source_name):
+        source_info_args = self.protobufs.SourceInfoArgs()
+        source_info_args.source_name = source_name
+
+        source_info = self._try_rpc(
+            lambda: self._master.GetSourceInfo(source_info_args))
+
+        if not source_info.result.success:
+            raise ScannerException(source_info.result.msg)
+
+        return source_info
+
+    def _get_enumerator_info(self, enumerator_name):
+        enumerator_info_args = self.protobufs.EnumeratorInfoArgs()
+        enumerator_info_args.enumerator_name = enumerator_name
+
+        enumerator_info = self._try_rpc(
+            lambda: self._master.GetEnumeratorInfo(enumerator_info_args))
+
+        if not enumerator_info.result.success:
+            raise ScannerException(enumerator_info.result.msg)
+
+        return enumerator_info
+
+    def _get_sink_info(self, sink_name):
+        sink_info_args = self.protobufs.SinkInfoArgs()
+        sink_info_args.sink_name = sink_name
+
+        sink_info = self._try_rpc(
+            lambda: self._master.GetSinkInfo(sink_info_args))
+
+        if not sink_info.result.success:
+            raise ScannerException(sink_info.result.msg)
+
+        return sink_info
+
+    def _get_op_info(self, op_name):
+        if op_name in self._op_cache:
+            op_info = self._op_cache[op_name]
+        else:
+            op_info_args = self.protobufs.OpInfoArgs()
+            op_info_args.op_name = op_name
+
+            op_info = self._try_rpc(
+                lambda: self._master.GetOpInfo(op_info_args, self._grpc_timeout)
+            )
+
+            if not op_info.result.success:
+                raise ScannerException(op_info.result.msg)
+
+            self._op_cache[op_name] = op_info
+
+        return op_info
+
+    def _check_has_op(self, op_name):
+        self._get_op_info(op_name)
+
+    def _get_input_columns(self, op_name):
+        return self._get_op_info(op_name).input_columns
+
+    def _get_output_columns(self, op_name):
+        return self._get_op_info(op_name).output_columns
+
+    def _toposort(self, dag):
+        op = dag
+        # Perform DFS on modified graph
+        edges = defaultdict(list)
+        in_edges_left = defaultdict(int)
+
+        source_nodes = []
+        explored_nodes = set()
+        stack = [op]
+        while len(stack) > 0:
+            c = stack.pop()
+            if c in explored_nodes:
+                continue
+            explored_nodes.add(c)
+
+            if isinstance(c, Source):
+                source_nodes.append(c)
+                continue
+
+            for input in c._inputs:
+                edges[input._op].append(c)
+                in_edges_left[c] += 1
+
+                if input._op not in explored_nodes:
+                    stack.append(input._op)
+
+        # Keep track of position of input ops and sampling/slicing ops
+        # to use for associating job args to
+        source_ops = {}
+        sampling_slicing_ops = {}
+        output_ops = {}
+
+        # Compute sorted list
+        eval_sorted = []
+        eval_index = {}
+        stack = source_nodes[:]
+        while len(stack) > 0:
+            c = stack.pop()
+            eval_sorted.append(c)
+            op_idx = len(eval_sorted) - 1
+            eval_index[c] = op_idx
+            for child in edges[c]:
+                in_edges_left[child] -= 1
+                if in_edges_left[child] == 0:
+                    stack.append(child)
+            if isinstance(c, Source):
+                source_ops[c] = op_idx
+            elif (c._name == "Sample" or c._name == "Space"
+                  or c._name == "Slice" or c._name == "Unslice"):
+                sampling_slicing_ops[c] = op_idx
+            elif isinstance(c, Sink):
+                output_ops[c] = op_idx
+
+        return eval_sorted, \
+            eval_index, \
+            source_ops, \
+            sampling_slicing_ops, \
+            output_ops
+
+    def _parse_size_string(self, s):
+        (prefix, suffix) = (s[:-1], s[-1])
+        mults = {'G': 1024**3, 'M': 1024**2, 'K': 1024**1}
+        suffix = suffix.upper()
+        if suffix not in mults:
+            raise ScannerException('Invalid size suffix in "{}"'.format(s))
+        return int(prefix) * mults[suffix]
+
+    def load_op(self, so_path, proto_path=None):
+        """
+        Loads a custom op into the Scanner runtime.
+
+        By convention, if the op requires arguments from Python, it must
+        have a protobuf message called <OpName>Args, e.g. BlurArgs or
+        HistogramArgs, and the path to that protobuf should be provided.
+
+        Args:
+            so_path: Path to the custom op's shared object file.
+
+        Kwargs:
+            proto_path: Path to the custom op's arguments protobuf
+                        if one exists.
+        """
+        if proto_path is not None:
+            self.protobufs.add_module(proto_path)
+        op_path = self.protobufs.OpPath()
+        op_path.path = so_path
+        self._try_rpc(
+            lambda: self._master.LoadOp(op_path, timeout=self._grpc_timeout))
+
+
+    def has_gpu(self):
+        try:
+            with open(os.devnull, 'w') as f:
+                subprocess.check_call(['nvidia-smi'], stdout=f, stderr=f)
+            return True
+        except:
+            pass
+        return False
+
+    def summarize(self):
+        summary = ''
+        db_meta = self._load_db_metadata()
+        if len(db_meta.tables) == 0:
+            return 'Your database is empty!'
+
+        tables = [
+            ('TABLES', [
+                ('ID', [str(t.id) for t in db_meta.tables]),
+                ('Name', [t.name for t in db_meta.tables]),
+                ('# rows',
+                 [str(self.table(t.id).num_rows()) for t in db_meta.tables]),
+                ('Columns', [
+                    ', '.join(self.table(t.id).column_names())
+                    for t in db_meta.tables
+                ]),
+                ('Committed', [
+                    'true' if self.table(t.id).committed() else 'false'
+                    for t in db_meta.tables
+                ]),
+            ]),
+        ]
+
+        for table_idx, (label, cols) in enumerate(tables):
+            if table_idx > 0:
+                summary += '\n\n'
+            num_cols = len(cols)
+            max_col_lens = [
+                max(max([len(s) for s in c] or [0]), len(name))
+                for name, c in cols
+            ]
+            table_width = sum(max_col_lens) + 3 * (num_cols - 1)
+            label = '** {} **'.format(label)
+            summary += ' ' * int(
+                table_width / 2 - len(label) / 2) + label + '\n'
+            summary += '-' * table_width + '\n'
+            col_name_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
+            col_name_fmt = col_name_fmt.format(*max_col_lens)
+            summary += col_name_fmt.format(*[s for s, _ in cols]) + '\n'
+            summary += '-' * table_width + '\n'
+            row_fmt = ' | '.join(['{{:{}}}' for _ in range(num_cols)])
+            row_fmt = row_fmt.format(*max_col_lens)
+            for i in range(len(cols[0][1])):
+                summary += row_fmt.format(*[c[i] for _, c in cols]) + '\n'
+        return summary
+
     def start_master(self, master):
         """
         Starts  a Scanner cluster.
@@ -502,7 +756,6 @@ class Database(object):
                 self._master_conn = None
                 res = self._bindings.start_master(
                     self._db, self.config.master_port, SCRIPT_DIR, True,
-                    self._prefetch_table_metadata,
                     self._no_workers_timeout).success
                 assert res
                 res = self._connect_to_master()
@@ -522,12 +775,10 @@ class Database(object):
                     'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
                     + 'start_master(port=\'{master_port:s}\', block=True,\n' +
                     '             config=config,\n' +
-                    '             prefetch_table_metadata={prefetch},\n' +
                     '             no_workers_timeout={no_workers})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
-                        prefetch=self._prefetch_table_metadata,
                         no_workers=self._no_workers_timeout)
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
@@ -656,40 +907,6 @@ class Database(object):
                 for wc in self._worker_conns:
                     wc.kill()
                 self._worker_conns = None
-
-    def _try_rpc(self, fn):
-        try:
-            result = fn()
-        except grpc.RpcError as e:
-            raise ScannerException(e)
-
-        if isinstance(result, self.protobufs.Result):
-            if not result.success:
-                raise ScannerException(result.msg)
-
-        return result
-
-    def load_op(self, so_path, proto_path=None):
-        """
-        Loads a custom op into the Scanner runtime.
-
-        By convention, if the op requires arguments from Python, it must
-        have a protobuf message called <OpName>Args, e.g. BlurArgs or
-        HistogramArgs, and the path to that protobuf should be provided.
-
-        Args:
-            so_path: Path to the custom op's shared object file.
-
-        Kwargs:
-            proto_path: Path to the custom op's arguments protobuf
-                        if one exists.
-        """
-        if proto_path is not None:
-            self.protobufs.add_module(proto_path)
-        op_path = self.protobufs.OpPath()
-        op_path.path = so_path
-        self._try_rpc(
-            lambda: self._master.LoadOp(op_path, timeout=self._grpc_timeout))
 
     def register_op(self,
                     name,
@@ -910,135 +1127,6 @@ class Database(object):
 
         return Profiler(self, job_id)
 
-    def _get_source_info(self, source_name):
-        source_info_args = self.protobufs.SourceInfoArgs()
-        source_info_args.source_name = source_name
-
-        source_info = self._try_rpc(
-            lambda: self._master.GetSourceInfo(source_info_args))
-
-        if not source_info.result.success:
-            raise ScannerException(source_info.result.msg)
-
-        return source_info
-
-    def _get_enumerator_info(self, enumerator_name):
-        enumerator_info_args = self.protobufs.EnumeratorInfoArgs()
-        enumerator_info_args.enumerator_name = enumerator_name
-
-        enumerator_info = self._try_rpc(
-            lambda: self._master.GetEnumeratorInfo(enumerator_info_args))
-
-        if not enumerator_info.result.success:
-            raise ScannerException(enumerator_info.result.msg)
-
-        return enumerator_info
-
-    def _get_sink_info(self, sink_name):
-        sink_info_args = self.protobufs.SinkInfoArgs()
-        sink_info_args.sink_name = sink_name
-
-        sink_info = self._try_rpc(
-            lambda: self._master.GetSinkInfo(sink_info_args))
-
-        if not sink_info.result.success:
-            raise ScannerException(sink_info.result.msg)
-
-        return sink_info
-
-    def _get_op_info(self, op_name):
-        if op_name in self._op_cache:
-            op_info = self._op_cache[op_name]
-        else:
-            op_info_args = self.protobufs.OpInfoArgs()
-            op_info_args.op_name = op_name
-
-            op_info = self._try_rpc(
-                lambda: self._master.GetOpInfo(op_info_args, self._grpc_timeout)
-            )
-
-            if not op_info.result.success:
-                raise ScannerException(op_info.result.msg)
-
-            self._op_cache[op_name] = op_info
-
-        return op_info
-
-    def _check_has_op(self, op_name):
-        self._get_op_info(op_name)
-
-    def _get_input_columns(self, op_name):
-        return self._get_op_info(op_name).input_columns
-
-    def _get_output_columns(self, op_name):
-        return self._get_op_info(op_name).output_columns
-
-    def _toposort(self, dag):
-        op = dag
-        # Perform DFS on modified graph
-        edges = defaultdict(list)
-        in_edges_left = defaultdict(int)
-
-        source_nodes = []
-        explored_nodes = set()
-        stack = [op]
-        while len(stack) > 0:
-            c = stack.pop()
-            if c in explored_nodes:
-                continue
-            explored_nodes.add(c)
-
-            if isinstance(c, Source):
-                source_nodes.append(c)
-                continue
-
-            for input in c._inputs:
-                edges[input._op].append(c)
-                in_edges_left[c] += 1
-
-                if input._op not in explored_nodes:
-                    stack.append(input._op)
-
-        # Keep track of position of input ops and sampling/slicing ops
-        # to use for associating job args to
-        source_ops = {}
-        sampling_slicing_ops = {}
-        output_ops = {}
-
-        # Compute sorted list
-        eval_sorted = []
-        eval_index = {}
-        stack = source_nodes[:]
-        while len(stack) > 0:
-            c = stack.pop()
-            eval_sorted.append(c)
-            op_idx = len(eval_sorted) - 1
-            eval_index[c] = op_idx
-            for child in edges[c]:
-                in_edges_left[child] -= 1
-                if in_edges_left[child] == 0:
-                    stack.append(child)
-            if isinstance(c, Source):
-                source_ops[c] = op_idx
-            elif (c._name == "Sample" or c._name == "Space"
-                  or c._name == "Slice" or c._name == "Unslice"):
-                sampling_slicing_ops[c] = op_idx
-            elif isinstance(c, Sink):
-                output_ops[c] = op_idx
-
-        return eval_sorted, \
-            eval_index, \
-            source_ops, \
-            sampling_slicing_ops, \
-            output_ops
-
-    def _parse_size_string(self, s):
-        (prefix, suffix) = (s[:-1], s[-1])
-        mults = {'G': 1024**3, 'M': 1024**2, 'K': 1024**1}
-        suffix = suffix.upper()
-        if suffix not in mults:
-            raise ScannerException('Invalid size suffix in "{}"'.format(s))
-        return int(prefix) * mults[suffix]
 
     def wait_on_current_job(self, show_progress=True):
         pbar = None
