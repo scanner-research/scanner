@@ -38,3 +38,8 @@ python3 main.py --weights-path $WEIGHTS_PATH --config-path $CONFIG_PATH --video-
 
 This will output a video named `example_detected.mp4' overlaid with the network
 detections.
+
+.. note:
+
+   Caffe2 currently crashes when the program is cleaning up. You might see an
+   error related to CUDA at the end of execution. This is expected.
