@@ -51,12 +51,14 @@
             
   <div class="section" id="building-scanner-from-source">
 <h1>Building Scanner from source<a class="headerlink" href="#building-scanner-from-source" title="Permalink to this headline">¶</a></h1>
-<p>This guide has been tested on Ubuntu 16.04.</p>
+<p>Scanner provides a dependency script deps.sh to automatically install any or all
+of its major dependencies if they are not already installed. Each of these
+dependencies has a set of required system-level packages.</p>
 <dl class="docutils">
 <dt>Scanner depends on the following major dependencies:</dt>
 <dd><ul class="first last simple">
-<li>Python == 2.7</li>
-<li>boost &gt;= 1.65.1</li>
+<li>Python &gt;= 3.0</li>
+<li>pybind &gt;= 1.58.0</li>
 <li>ffmpeg &gt;= 3.3.1</li>
 <li>opencv &gt;= 3.4.0</li>
 <li>protobuf == 3.4.0</li>
@@ -64,15 +66,14 @@
 <li>caffe &gt;= rc5 OR intel-caffe &gt;= 1.0.6</li>
 </ul>
 </dd>
-<dt>Scanner optionally requires:</dt>
-<dd><ul class="first last simple">
-<li>CUDA &gt;= 8.0</li>
-</ul>
-</dd>
 </dl>
-<p>Scanner provides a dependency script deps.sh to automatically install any or all
-of the major dependencies if they are not already installed. Each of these
-dependencies has a set of required system-level packages.</p>
+<p>To compile with CUDA support, it requires:</p>
+<blockquote>
+<div><ul class="simple">
+<li>[CUDA](<a class="reference external" href="https://developer.nvidia.com/cuda-downloads">https://developer.nvidia.com/cuda-downloads</a>) 8.0 or above</li>
+<li>[cuDNN](<a class="reference external" href="https://developer.nvidia.com/cudnn">https://developer.nvidia.com/cudnn</a>) v6.x or above</li>
+</ul>
+</div></blockquote>
 <div class="section" id="install-system-level-packages">
 <h2>Install system-level packages<a class="headerlink" href="#install-system-level-packages" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="ubuntu-16-04">
@@ -136,8 +137,7 @@ make -j
 <div class="section" id="install-scannerpy-python-package">
 <h2>Install scannerpy python package<a class="headerlink" href="#install-scannerpy-python-package" title="Permalink to this headline">¶</a></h2>
 <p>Run the following commands from the top-level directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python python/setup.py bdist_wheel
-pip install dist/scannerpy-0.1.13-py2-none-any.whl
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash ./build.sh
 </pre></div>
 </div>
 <p>Congratulations! You’ve installed the scannerpy package.</p>
