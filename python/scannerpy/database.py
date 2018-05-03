@@ -476,7 +476,7 @@ class Database(object):
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        if self._heartbeat_queue:
+        if self._heartbeat_queue and not self._heartbeat_queue.empty():
             self._heartbeat_queue.put(0)
 
     def _handle_signal(self, signum, frame):
