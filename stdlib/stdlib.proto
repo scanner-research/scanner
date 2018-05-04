@@ -164,7 +164,6 @@ message SQLQuery {
   string table = 2;
   string id = 3;
   string group = 4;
-  string output_type = 5;
 }
 
 message SQLEnumeratorArgs {
