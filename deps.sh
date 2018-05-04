@@ -30,6 +30,7 @@ INSTALL_HALIDE=true
 INSTALL_OPENPOSE=true
 
 USE_GPU=false
+NO_USE_GPU=false
 
 # Assume not installed
 INSTALL_GOOGLETEST=true
@@ -37,6 +38,7 @@ INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
 INSTALL_PYBIND=true
+INSTALL_LIBPQXX=true
 
 INSTALL_PREFIX=$DEFAULT_INSTALL_DIR
 
@@ -55,6 +57,10 @@ case $key in
     ;;
     -g|--use-gpu)
     USE_GPU=true
+    shift # past arg
+    ;;
+    -ng|--no-use-gpu)
+    NO_USE_GPU=true
     shift # past arg
     ;;
     -p|--prefix)
@@ -110,6 +116,11 @@ if [[ $USE_GPU == true ]]; then
     HAVE_GPU=true
 fi
 
+# Force NOT building with GPU when specified, overriding other commands
+if [[ $NO_USE_GPU == true ]]; then
+    HAVE_GPU=false
+fi
+
 echo ""
 echo "Configuration:"
 echo "--------------------------------------------------------------"
@@ -129,6 +140,7 @@ HWANG_DIR=$INSTALL_PREFIX
 STOREHOUSE_DIR=$INSTALL_PREFIX
 TINYTOML_DIR=$INSTALL_PREFIX
 OPENPOSE_DIR=$INSTALL_PREFIX
+LIBPQXX_DIR=$INSTALL_PREFIX
 
 export C_INCLUDE_PATH=$INSTALL_PREFIX/include:$C_INCLUDE_PATH
 export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
@@ -151,6 +163,7 @@ if [[ $INSTALL_NONE == true ]]; then
     INSTALL_TINYTOML=false
     INSTALL_STOREHOUSE=false
     INSTALL_PYBIND=false
+    INSTALL_LIBPQXX=false
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
@@ -578,7 +591,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-#if [[ $INSTALL_CAFFE == true ]] && 
+#if [[ $INSTALL_CAFFE == true ]] &&
 if [[ $INSTALL_CAFFE == true ]] && \
        ([[ $USE_GPU == true ]] ||
         [[ "$OSTYPE" == "darwin"* ]]) && \
@@ -656,6 +669,17 @@ if [[ $INSTALL_OPENPOSE == true ]] && [[ $HAVE_GPU == true ]] && [[ ! -f $BUILD_
 fi
 
 
+if [[ $INSTALL_LIBPQXX == true ]] && [[ ! -f $BUILD_DIR/libpqxx.done ]]; then
+    cd $BUILD_DIR
+    rm -rf libpqxx
+    git clone -b 6.2.2 https://github.com/jtv/libpqxx --depth 1 && \
+        cd libpqxx && \
+        CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --disable-documentation && \
+        make install -j${cores} && \
+        touch $BUILD_DIR/libpqxx.done \
+              || { echo 'Installing libpqxx failed!'; exit 1; }
+fi
+
 
 DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE
@@ -671,10 +695,12 @@ echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
 echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
 echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
 echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
+echo "LIBPQXX_DIR=$LIBPQXX_DIR" >> $DEP_FILE
 
 echo "Done installing required dependencies!"
-echo -n "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH and "
-echo -n "add $INSTALL_PREFIX/bin to your PATH so the installed "
+echo -n "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH, "
+echo -n "add $INSTALL_PREFIX/bin to your PATH, and "
+echo -n "add $INSTALL_PREFIX/lib/pkgconfig to your PKG_CONFIG_PATH so the installed "
 echo -n "dependencies can be found! "
 echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"
 if [[ $INSTALL_OPENCV == true ]]; then
@@ -683,4 +709,3 @@ fi
 if [[ $INSTALL_CAFFE_CPU == true ]] || [[ $INSTALL_CAFFE_GPU == true ]]; then
     echo "Add $INSTALL_PREFIX/python to your PYTHONPATH to use Caffe from Python"
 fi
-#echo "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH"
