@@ -881,7 +881,8 @@ class Database(object):
             self,
             op_name: str,
             device_type: DeviceType,
-            kernel: Union[types.FunctionType, types.BuiltinFunctionType],
+            kernel: Union[types.FunctionType, types.BuiltinFunctionType,
+                          Kernel],
             batch: int = 1):
         r"""Register a Python Kernel with the Scanner master.
 
