@@ -156,13 +156,15 @@ message SQLConfig {
   string dbname = 3;
   string user = 4;
   string password = 5;
+  string adapter = 6;
 }
 
 message SQLQuery {
   string fields = 1;
   string table = 2;
-  string group = 3;
-  string output_type = 4;
+  string id = 3;
+  string group = 4;
+  string output_type = 5;
 }
 
 message SQLEnumeratorArgs {
@@ -177,6 +179,16 @@ message SQLSourceArgs {
 }
 
 message SQLElementArgs {
+  string filter = 1;
+}
+
+message SQLSinkArgs {
+  SQLConfig config = 1;
+  SQLQuery query = 2;
+  string column = 3;
+}
+
+message SQLSinkStreamArgs {
   string filter = 1;
 }
 

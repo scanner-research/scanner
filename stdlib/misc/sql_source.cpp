@@ -48,10 +48,13 @@ class SQLEnumerator : public Enumerator {
 
     // Setup connection to database
     auto sql_config = args_.config();
-    conn_.reset(new pqxx::connection{
-      tfm::format("hostaddr=%s port=%d dbname=%s user=%s password=%s",
-                  sql_config.hostaddr(), sql_config.port(), sql_config.dbname(), sql_config.user(), sql_config.password())
-    });
+    LOG_IF(FATAL, sql_config.adapter() != "postgres")
+        << "Requested adapter " << sql_config.adapter()
+        << " does not exist. Only \"postgres\" is supported right now.";
+    conn_.reset(new pqxx::connection{tfm::format(
+        "hostaddr=%s port=%d dbname=%s user=%s password=%s",
+        sql_config.hostaddr(), sql_config.port(), sql_config.dbname(),
+        sql_config.user(), sql_config.password())});
   }
 
   i64 total_elements() override {
@@ -126,8 +129,8 @@ class SQLSource : public Source {
       // Execute SELECT to fetch all the rows
       pqxx::work txn{*conn_};
       std::string query_str = tfm::format(
-          "SELECT %s, %s AS number FROM %s WHERE %s ORDER BY number",
-          query.fields(), query.group(), query.table(), filter);
+          "SELECT %s, %s AS _scanner_id, %s AS _scanner_number FROM %s WHERE %s ORDER BY _scanner_number, _scanner_id",
+          query.fields(), query.id(), query.group(), query.table(), filter);
 
       pqxx::result result = txn.exec(query_str);
       LOG_IF(FATAL, result.size() == 0) << "Query returned zero rows. Executed query was:\n" << query_str;
@@ -137,7 +140,7 @@ class SQLSource : public Source {
       std::vector<pqxx::row> cur_group;
       i32 last_group = -1;
       for (auto row : result) {
-        i32 num = row["number"].as<i32>();
+        i32 num = row["_scanner_number"].as<i32>();
         if (num != last_group) {
           last_group = num;
           cached_rows_.push_back(cur_group);
