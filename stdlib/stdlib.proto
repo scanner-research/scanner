@@ -162,8 +162,9 @@ message SQLConfig {
 message SQLQuery {
   string fields = 1;
   string table = 2;
-  string id = 3;
-  string group = 4;
+  string joins = 3;
+  string id = 4;
+  string group = 5;
 }
 
 message SQLEnumeratorArgs {
@@ -188,7 +189,6 @@ message SQLSinkArgs {
 }
 
 message SQLSinkStreamArgs {
-  string filter = 1;
 }
 
 message FilesElementArgs {

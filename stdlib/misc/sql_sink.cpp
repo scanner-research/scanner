@@ -14,19 +14,21 @@
  */
 
 #include "scanner/api/sink.h"
-#include "stdlib/stdlib.pb.h"
+#include "scanner/util/json.hpp"
 #include "scanner/util/tinyformat.h"
+#include "stdlib/stdlib.pb.h"
 
 #include <glog/logging.h>
-#include <vector>
 #include <pqxx/pqxx>
+#include <vector>
+
+using nlohmann::json;
 
 namespace scanner {
 
 class SQLSink : public Sink {
  public:
-  SQLSink(const SinkConfig& config) :
-      Sink(config) {
+  SQLSink(const SinkConfig& config) : Sink(config) {
     bool parsed = args_.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed) {
       RESULT_ERROR(&valid_, "Could not parse SQLSinkArgs");
@@ -60,7 +62,31 @@ class SQLSink : public Sink {
 
     for (size_t i = 0; i < input_columns[0].size(); ++i) {
       auto& element = input_columns[0][i];
-      txn.exec("UPDATE table SET a = b WHERE c = d");
+      json jrows =
+          json::parse(std::string((char*)element.buffer, element.size));
+
+      for (json& jrow : jrows) {
+        std::string update_str;
+        i64 id = -1;
+        for (json::iterator it = jrow.begin(); it != jrow.end(); ++it) {
+          if (it.key() == "id") {
+            id = it.value();
+          } else {
+            update_str += tfm::format("%s = %s, ", it.key(), it.value());
+          }
+        }
+
+        auto query = args_.query();
+        std::string query_str;
+        if (id == -1) {
+          LOG(FATAL) << "TODO(wcrichto): insert case";
+        } else {
+          query_str = tfm::format("UPDATE %s SET %s WHERE id = %d",
+                                  query.table(), update_str, id);
+        }
+
+        txn.exec(query_str);
+      }
     }
 
     txn.commit();
