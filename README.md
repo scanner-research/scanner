@@ -50,7 +50,7 @@ job = Job(op_args={
 output_tables = db.run(output=output_frame, jobs=[job], force=True)
 
 # Save the resized video as an mp4 file
-output_tables[0].column('frame').save_mp4('resized_video.mp4')
+output_tables[0].column('frame').save_mp4('resized_video')
 ```
 
 If you'd like to see other example applications written with Scanner, check
