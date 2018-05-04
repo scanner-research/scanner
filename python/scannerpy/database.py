@@ -1420,7 +1420,7 @@ class Database(object):
             job_params.memory_pool_config.gpu.free_space = size
 
         if not self._workers_started and self._start_cluster:
-            self.start_workers(self._worker_paths, multiple=using_python_op)
+            self.start_workers(self._worker_paths)
 
         # Run the job
         self._try_rpc(lambda: self._master.NewJob(
