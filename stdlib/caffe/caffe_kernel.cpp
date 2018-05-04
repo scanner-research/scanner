@@ -10,7 +10,6 @@
 #include "toml/toml.h"
 
 #include <Python.h>
-#include <boost/python.hpp>
 
 namespace scanner {
 
@@ -380,12 +379,7 @@ void CaffeKernel::execute(const BatchedElements& input_columns,
 
     // Compute features
     auto net_start = now();
-    try {
-      net_->ForwardPrefilled();
-    } catch (boost::python::error_already_set) {
-      PyErr_Print();
-      exit(0);
-    }
+    net_->ForwardPrefilled();
     if (profiler_) {
       // #ifdef SCANNER_PROFILING
       //      CUDA_PROTECT({ cudaDeviceSynchronize(); });
