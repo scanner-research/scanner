@@ -17,9 +17,6 @@
 #include "scanner/api/enumerator.h"
 #include "stdlib/stdlib.pb.h"
 
-#include "storehouse/storage_backend.h"
-#include "scanner/engine/video_index_entry.h"
-#include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/tinyformat.h"
 #include "scanner/util/serialize.h"
 #include "scanner/util/json.hpp"
@@ -28,11 +25,6 @@
 #include <vector>
 #include <pqxx/pqxx>
 
-using storehouse::StorageBackend;
-using storehouse::StorageConfig;
-using storehouse::StoreResult;
-using storehouse::WriteFile;
-using storehouse::RandomReadFile;
 using nlohmann::json;
 
 namespace scanner {
@@ -62,9 +54,10 @@ class SQLEnumerator : public Enumerator {
   i64 total_elements() override {
     pqxx::work txn{*conn_};
     // Count the number the number of groups
+    auto query = args_.query();
     pqxx::row r = txn.exec1(tfm::format(
-        "SELECT COUNT(DISTINCT(%s)) FROM %s WHERE %s",
-        args_.query().group(), args_.query().table(), args_.filter()));
+        "SELECT COUNT(DISTINCT(%s)) FROM %s %s WHERE %s",
+        query.group(), query.table(), query.joins(), args_.filter()));
     return r[0].as<i32>();
   }
 
@@ -111,11 +104,12 @@ class SQLSource : public Source {
     }
   }
 
-  json row_to_json(pqxx::row& row) {
+  json row_to_json(pqxx::row row) {
     json jrow;
 
     for (pqxx::field field : row) {
-      if (field.name() == "_scanner_id" || field.name() == "_scanner_number") {
+      std::string name(field.name());
+      if (name == "_scanner_id" || name == "_scanner_number") {
         continue;
       }
 
@@ -124,13 +118,13 @@ class SQLSource : public Source {
       bool assigned = false;
 
       #define ASSIGN_IF(NAME, TYPE) \
-        if (typname == NAME) { jrow[field.name()] = field.as<TYPE>(); assigned = true; }
+        if (typname == NAME) { jrow[name] = field.as<TYPE>(); assigned = true; }
 
       ASSIGN_IF("int4", i32);
       ASSIGN_IF("float8", f32);
 
       LOG_IF(FATAL, !assigned)
-          << "Requested row has field " << field.name()
+          << "Requested row has field " << name
           << " with a type we can't serialize yet: " << typname;
     }
 
@@ -163,8 +157,8 @@ class SQLSource : public Source {
       // Execute SELECT to fetch all the rows
       pqxx::work txn{*conn_};
       std::string query_str = tfm::format(
-          "SELECT %s, %s AS _scanner_id, %s AS _scanner_number FROM %s WHERE %s ORDER BY _scanner_number, _scanner_id",
-          query.fields(), query.id(), query.group(), query.table(), filter);
+          "SELECT %s, %s AS _scanner_id, %s AS _scanner_number FROM %s %s WHERE %s ORDER BY _scanner_number, _scanner_id",
+          query.fields(), query.id(), query.group(), query.table(), query.joins(), filter);
 
       pqxx::result result = txn.exec(query_str);
       LOG_IF(FATAL, result.size() == 0) << "Query returned zero rows. Executed query was:\n" << query_str;

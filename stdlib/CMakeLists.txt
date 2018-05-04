@@ -95,7 +95,6 @@ build_op(
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)
 
-
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(libpqxx REQUIRED libpqxx)
 list(APPEND STDLIB_LIBRARIES "${libpqxx_LIBRARY_DIRS}/libpqxx.a" pq)
