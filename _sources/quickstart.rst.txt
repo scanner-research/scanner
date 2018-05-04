@@ -146,7 +146,7 @@ We can also directly save the frame column as an mp4 file by calling
 
 .. code-block:: python
 
-   db.table('resized_table').column('frame').save_mp4('resized_video.mp4')
+   db.table('resized_table').column('frame').save_mp4('resized_video')
 
 After this call returns, an mp4 video should be saved to the current working
 directory called 'resized_video.mp4' that consists of the resized frames

@@ -167,7 +167,7 @@ of the frame, which should have a width of 640 and height of 480.</p>
 <h2>Saving a video file<a class="headerlink" href="#saving-a-video-file" title="Permalink to this headline">¶</a></h2>
 <p>We can also directly save the frame column as an mp4 file by calling
 <cite>save_mp4</cite> on the ‘frame’ column:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized_video.mp4&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized_video&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>After this call returns, an mp4 video should be saved to the current working
