@@ -6,7 +6,7 @@ of its major dependencies if they are not already installed. Each of these
 dependencies has a set of required system-level packages.
 
 Scanner depends on the following major dependencies:
-  - Python >= 3.0
+  - Python >= 3.5
   - pybind >= 1.58.0
   - ffmpeg >= 3.3.1
   - opencv >= 3.4.0

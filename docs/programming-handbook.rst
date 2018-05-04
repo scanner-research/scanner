@@ -6,7 +6,7 @@ about the Scanner system or explain how to use some of the more advanced
 functionality in Scanner, such as writing custom Ops or using :ref:`kubernetes`.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    handbook/concepts
    handbook/distributed
