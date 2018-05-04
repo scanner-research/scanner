@@ -5,21 +5,27 @@ import math
 import argparse
 from tqdm import tqdm
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-
+from detection_kernel import DetectronKernel
+from detection_visualize_kernel import DetectronVisualizeKernel
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument(
-        '--weights-path', type=str, required=True,
+        '--weights-path',
+        type=str,
+        required=True,
         help=('Path to the detectron model weights file. '
               'Can be a URL, in which case it will be cached after '
               'downloading.'))
     p.add_argument(
-        '--config-path', type=str, required=True,
+        '--config-path',
+        type=str,
+        required=True,
         help=('Path to the detectron model config yaml file.'))
     p.add_argument(
-        '--video-path', type=str, required=True,
+        '--video-path',
+        type=str,
+        required=True,
         help=('Path to video to process.'))
 
     args = p.parse_args()
@@ -34,26 +40,19 @@ if __name__ == '__main__':
     sample_stride = 1
 
     db = Database()
-    [input_table], failed = db.ingest_videos([('example', movie_path)],
-                                             force=True)
+    [input_table], failed = db.ingest_videos(
+        [('example', movie_path)], force=True)
 
-    db.register_op('DetectronVisualize',
-                   [('frame', ColumnType.Video),
-                    'cls_boxes',
-                    'cls_segms',
-                    'cls_keyps'],
-                   [('vis_frame', ColumnType.Video)])
-    kernel_path = script_dir + '/detectron_visualize_kernel.py'
-    db.register_python_kernel('DetectronVisualize', DeviceType.CPU, kernel_path)
+    db.register_op(
+        'DetectronVisualize',
+        [('frame', ColumnType.Video), 'cls_boxes', 'cls_segms', 'cls_keyps'],
+        [('vis_frame', ColumnType.Video)])
+    db.register_python_kernel('DetectronVisualize', DeviceType.CPU,
+                              DetectronVisualizeKernel)
 
-
-    db.register_op('Detectron',
-                   [('frame', ColumnType.Video)],
-                   ['cls_boxes',
-                    'cls_segms',
-                    'cls_keyps'])
-    kernel_path = script_dir + '/detectron_kernel.py'
-    db.register_python_kernel('Detectron', DeviceType.GPU, kernel_path)
+    db.register_op('Detectron', [('frame', ColumnType.Video)],
+                   ['cls_boxes', 'cls_segms', 'cls_keyps'])
+    db.register_python_kernel('Detectron', DeviceType.GPU, DetectronKernel)
 
     frame = db.sources.FrameColumn()
     strided_frame = frame.sample()
@@ -77,10 +76,12 @@ if __name__ == '__main__':
             frame: db.table('example').column('frame'),
             strided_frame: db.sampler.strided(sample_stride),
             output_op: 'example_obj_detect',
-        }
-    )
-    [out_table] = db.run(output=output_op, jobs=[job], force=True,
-                         pipeline_instances_per_node=1)
+        })
+    [out_table] = db.run(
+        output=output_op,
+        jobs=[job],
+        force=True,
+        pipeline_instances_per_node=1)
 
     out_table.column('frame').save_mp4('{:s}_detected'.format(movie_name))
     print('Successfully generated {:s}_detected.mp4'.format(movie_name))

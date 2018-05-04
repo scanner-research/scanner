@@ -633,13 +633,13 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
     proto::Result* result) {
   const std::string& op_name = python_kernel->op_name();
   DeviceType device_type = python_kernel->device_type();
-  const std::string& kernel_str = python_kernel->kernel_str();
+  const std::string& kernel_code = python_kernel->kernel_code();
   const std::string& pickled_config = python_kernel->pickled_config();
   const int batch_size = python_kernel->batch_size();
   // Create a kernel builder function
-  auto constructor = [op_name, kernel_str, pickled_config, batch_size](
+  auto constructor = [op_name, kernel_code, pickled_config, batch_size](
     const KernelConfig& config) {
-    return new PythonKernel(config, op_name, kernel_str, pickled_config, batch_size);
+    return new PythonKernel(config, op_name, kernel_code, pickled_config, batch_size);
   };
   // Set all input and output columns to be CPU
   std::map<std::string, DeviceType> input_devices;
