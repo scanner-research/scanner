@@ -28,14 +28,6 @@ scannerpy\.stdlib\.build\_flags module
     :undoc-members:
     :show-inheritance:
 
-scannerpy\.stdlib\.kernel module
---------------------------------
-
-.. automodule:: scannerpy.stdlib.kernel
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 scannerpy\.stdlib\.loaders module
 ---------------------------------
 

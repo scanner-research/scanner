@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import os
-from scannerpy.stdlib import kernel
+from scannerpy.stdlib import tensorflow
 
 ##################################################################################################
 # Assume that DNN model is located in PATH_TO_GRAPH with filename 'frozen_inference_graph.pb'    #
@@ -17,7 +17,7 @@ PATH_TO_REPO = script_dir
 
 PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', 'frozen_inference_graph.pb')
 
-class ObjDetectKernel(kernel.TensorFlowKernel):
+class ObjDetectKernel(tensorflow.TensorFlowKernel):
     def build_graph(self):
         dnn = tf.Graph()
         with dnn.as_default():

@@ -77,14 +77,14 @@ The first line in the above code creates a Source that reads from a
 Column representing frames in a table (later, we will tell Scanner which
 table to read from). The `frame` object it returns represents the stream of
 frames that are stored in the table. On the the second line, we then process
-those frames by creating an Op that will resize the frames in `frame` to
-640x480. This Op then returns a new stream of frames which we call `resized`.
-Finally, we write these resizes frames to a column called 'frame' in a new table
+those frames by creating an Op that will resize the frames in the `frame` stream
+to 640x480. This Op then returns a new stream of frames which we call `resized`.
+Finally, we write these resized frames to a column called 'frame' in a new table
 by passing them into a Column Sink.
 
 At this point, we have defined a computation graph that describes *what*
-computation to run, but we haven't told Scanner to run the computation graph
-yet.
+computation to run, but we haven't yet told Scanner to run the computation
+graph.
 
 Defining a Job
 --------------
@@ -103,7 +103,7 @@ is specified by the *Job* object:
 
 Here, we say that the `FrameColumn` indicated by `frame` should read from the
 column 'frame' in the table 'table_name'. Similarly, we specify that the output
-table indicated by 'output_frame' should be called 'resized_table'. In this
+table indicated by `output_frame` should be called 'resized_table'. In this
 example, we only define one job, but Scanner can process multiple jobs at the
 same time (given they use the same computation graph). When many jobs
 are provided, Scanner will process them all in parallel.

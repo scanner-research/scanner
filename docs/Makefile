@@ -19,5 +19,10 @@ help:
 %: Makefile
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-watch:
+watch: autobuild notifywait
+
+autobuild:
 	sphinx-autobuild -b html "$(SOURCEDIR)" $(SPHINXOPTS) $(O) $(BUILDDIR)/html -p 4567 -H 0.0.0.0
+
+notifywait:
+	inotifywait -mr .. @../build @../thirdparty @../dist @../docs --format '%f' | while read i; do cd .. && python3 python/setup.py bdist_wheel && cd docs && touch Makefile; done

@@ -28,7 +28,8 @@ install:
 - sudo apt-get update
 - sudo apt-get install -y doxygen graphviz
 - pip3 install requests[security] --upgrade
-- pip3 install doxypypy twine Sphinx sphinx_readable_theme
+- pip3 install doxypypy twine 
+- pip3 install Sphinx sphinx_readable_theme sphinx-autodoc-typehints
 
 script: ./scripts/travis-build.sh
 

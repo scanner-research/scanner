@@ -13,6 +13,7 @@ import copy
 import collections
 import subprocess
 from tqdm import tqdm
+from typing import Dict, List, Union, Tuple, Optional
 
 if sys.platform == 'linux' or sys.platform == 'linux2':
     import prctl
@@ -47,243 +48,92 @@ import scanner.types_pb2 as misc_types
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-def start_master(port=None,
-                 config=None,
-                 config_path=None,
-                 block=False,
-                 watchdog=True,
-                 no_workers_timeout=30):
-    r""" Start a master server instance on this node.
+class Database(object):
+    r"""Entrypoint for all Scanner operations.
 
     Parameters
     ----------
-    port : int, optional
-      The port number to start the master on. If unspecified, it will be
-      read from the provided Config.
+    master
+      The address of the master process. The addresses should be formatted
+      as 'ip:port'. If the `start_cluster` flag is specified, the Database
+      object will ssh into the provided address and start a master process.
+      You should have ssh access to the target machine and scannerpy should
+      be installed.
 
-    config : Config, optional
+    workers
+      The list of addresses to spawn worker processes on. The addresses
+      should be formatted as 'ip:port'. Like with `master`, you should have
+      ssh access to the target machine and scannerpy should be installed. If
+      `start_cluster` is false, this parameter has no effect.
+
+    start_cluster
+      If true, a master process and worker processes will be spawned at the
+      addresses specified by `master` and `workers`, respectively.
+
+    config_path
+      Path to a Scanner configuration TOML, by default assumed to be
+      '~/.scanner/config.toml'.
+
+    config
       The scanner Config to use. If specified, config_path is ignored.
 
-    config_path : str, optional
-      Path to a Scanner configuration TOML, by default assumed to be
-      `~/.scanner/config.toml`.
-
-    block : bool, optional
-      If true, will wait until the server is shutdown. Server will not
-      shutdown currently unless wait_for_server_shutdown is eventually
-      called.
-
-    watchdog : bool, optional
-      If true, the master will shutdown after a time interval if
-      PokeWatchdog is not called.
-
-    no_workers_timeout : float, optional
-      The interval after which the master will consider a job to have failed if
-      it has no workers connected to it.
-
-    Returns
-    -------
-    Database
-      A cpp database instance.
-    """
-
-    config = config or Config(config_path)
-    port = port or config.master_port
-
-    # Load all protobuf types
-    db = bindings.Database(config.storage_config, config.db_path,
-                           (config.master_address + ':' + port))
-    result = bindings.start_master(db, port, SCRIPT_DIR, watchdog,
-                                   no_workers_timeout)
-    if not result.success():
-        raise ScannerException('Failed to start master: {}'.format(
-            result.msg()))
-    if block:
-        bindings.wait_for_server_shutdown(db)
-    return db
-
-
-def worker_process(args):
-    [
-        master_address, machine_params, port, config, config_path, block,
-        watchdog, db
-    ] = args
-    config = config or Config(config_path)
-    port = port or config.worker_port
-
-    # Load all protobuf types
-    db = db or bindings.Database(
-        config.storage_config,
-        #storage_config,
-        config.db_path,
-        master_address)
-    machine_params = machine_params or bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
-                                   watchdog)
-    if not result.success():
-        raise ScannerException('Failed to start worker: {}'.format(
-            result.msg()))
-    if block:
-        bindings.wait_for_server_shutdown(db)
-    return result
-
-
-def start_worker(master_address,
-                 machine_params=None,
-                 port=None,
-                 config=None,
-                 config_path=None,
-                 block=False,
-                 watchdog=True,
-                 num_workers=None,
-                 db=None):
-    r"""Starts a worker instance on this node.
-
-    Parameters
-    ----------
-    master_address : str,
-      The address of the master server to connect this worker to. The expected
-      format is '0.0.0.0:5000' (ip:port).
-
-    machine_params : MachineParams, optional
-      Describes the resources of the machine that the worker should manage. If
-      left unspecified, the machine resources will be inferred.
-
-    config : Config, optional
-      The Config object to use in creating the worker. If specified, config_path
-      is ignored.
-
-    config_path : str, optional
-      Path to a Scanner configuration TOML, by default assumed to be
-      `~/.scanner/config.toml`.
-
-    block : bool, optional
-      If true, will wait until the server is shutdown. Server will not shutdown
-      currently unless wait_for_server_shutdown is eventually called.
-
-    watchdog : bool, optional
-      If true, the worker will shutdown after a time interval if
-      PokeWatchdog is not called.
+    debug
+      This flag is only relevant when `start_cluster == True`. If true, the
+      master and worker servers are spawned in the same process as the
+      invoking python code, enabling easy gdb-based debugging.
 
     Other Parameters
     ----------------
-    num_workers : int, optional
-      Specifies the number of workers to create. If unspecified, only one is
-      created. This is a legacy feature that exists to deal with kernels that
-      can not be executed in the same process due to shared global state. By
-      spawning multiple worker processes and using a single pipeline per worker,
-      this limitation can be avoided.
+    prefetch_table_metadata
 
-    db : Database
-      This is for internal usage only.
+    no_workers_timeout
 
-    Returns
-    -------
-    Database
-      A cpp database instance.
-    """
+    grpc_timeout
 
-    if num_workers is not None:
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            results = list(
-                executor.map(worker_process, ([[
-                    master_address, machine_params,
-                    int(port) + i, config, config_path, block, watchdog,
-                    None
-                ] for i in range(num_workers)])))
-
-        for result in results:
-            if not result.success: return result
-        return results[0]
-
-    else:
-        return worker_process([
-            master_address, machine_params, port, config, config_path, block,
-            watchdog, db
-        ])
-
-
-class Database(object):
-    """
-    Entrypoint for all Scanner operations.
 
     Attributes
     ----------
     config : Config
+      The Config object used to initialize this Database.
 
     ops : OpGenerator
+      Represents the set of available Ops. Ops can be created like so:
+
+      `output = db.ops.ExampleOp(arg='example')`
+
+      For a more detailed description, see :class:`~scannerpy.op.OpGenerator`
 
     sources : SourceGenerator
+      Represents the set of available Sources. Sources are created just like Ops.
+      See :class:`~scannerpy.op.SourceGenerator`
 
     sinks : SinkGenerator
+      Represents the set of available Sinks. Sinks are created just like Ops.
+      See :class:`~scannerpy.op.SinkGenerator`
 
     sampler : Sampler
+      Used to specify which elements to sample from a sequence.
+      See :class:`~scannerpy.sampler.Sampler`
 
     partitioner : TaskPartitioner
+      Used to specify how to split the elements in a sequence when performing a
+      slice operation. See :class:`~scannerpy.partitioner.TaskPartitioner`.
 
     protobufs : ProtobufGenerator
-
+      Used to construct protobuf objects that handle serialization/deserialization
+      of the outputs of Ops.
     """
 
     def __init__(self,
-                 master=None,
-                 workers=None,
-                 start_cluster=True,
-                 config_path=None,
-                 config=None,
-                 debug=None,
-                 prefetch_table_metadata=True,
-                 no_workers_timeout=30,
-                 grpc_timeout=30):
-        """
-        Initializes a Scanner database.
-
-        This will create a database at the `db_path` specified in the config
-        if none exists.
-
-        Parameters
-        ----------
-        master : str, optional
-          The address of the master process. The addresses should be formatted
-          as 'ip:port'. If the `start_cluster` flag is specified, the Database
-          object will ssh into the provided address and start a master process.
-          You should have ssh access to the target machine and scannerpy should
-          be installed.
-
-        workers : list of str, optional
-          The list of addresses to spawn worker processes on. The addresses
-          should be formatted as 'ip:port'. Like with `master`, you should have
-          ssh access to the target machine and scannerpy should be installed. If
-          `start_cluster` is false, this parameter has no effect.
-
-        start_cluster : bool, optional
-          If true, a master process and worker processes will be spawned at the
-          addresses specified by `master` and `workers`, respectively.
-
-        config_path : str, optional
-          Path to a Scanner configuration TOML, by default assumed to be
-          '~/.scanner/config.toml'.
-
-
-        config : Config, optional
-
-        debug : bool, optional
-
-
-        Other Parameters
-        ----------------
-
-        prefetch_table_metadata : bool, optional
-
-        no_workers_timeout : float, optional
-
-        grpc_timeout : float, optional
-
-
-        Returns
-        -------
-            A database instance.
-        """
+                 master: str = None,
+                 workers: List[str] = None,
+                 start_cluster: bool = True,
+                 config_path: str = None,
+                 config: Config = None,
+                 debug: bool = None,
+                 prefetch_table_metadata: bool = True,
+                 no_workers_timeout: float = 30,
+                 grpc_timeout: float = 30):
         if config:
             self.config = config
         else:
@@ -632,20 +482,22 @@ class Database(object):
             raise ScannerException('Invalid size suffix in "{}"'.format(s))
         return int(prefix) * mults[suffix]
 
-    def load_op(self, so_path, proto_path=None):
-        """
-        Loads a custom op into the Scanner runtime.
+    def load_op(self, so_path: str, proto_path: str = None):
+        r"""Loads a custom op into the Scanner runtime.
 
-        By convention, if the op requires arguments from Python, it must
-        have a protobuf message called <OpName>Args, e.g. BlurArgs or
-        HistogramArgs, and the path to that protobuf should be provided.
+        Parameters
+        ----------
+        so_path
+          Path to the custom op's shared library (.so).
 
-        Args:
-            so_path: Path to the custom op's shared object file.
+        proto_path
+          Path to the custom op's arguments protobuf if one exists.
 
-        Kwargs:
-            proto_path: Path to the custom op's arguments protobuf
-                        if one exists.
+        Raises
+        ------
+        ScannerException
+          Raised when the master fails to load the op.
+
         """
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
@@ -664,7 +516,9 @@ class Database(object):
             pass
         return False
 
-    def summarize(self):
+    def summarize(self) -> str:
+        r"""Returns a human-readable summarization of the database state.
+        """
         summary = ''
         db_meta = self._load_db_metadata()
         if len(db_meta.tables) == 0:
@@ -710,13 +564,13 @@ class Database(object):
                 summary += row_fmt.format(*[c[i] for _, c in cols]) + '\n'
         return summary
 
-    def start_master(self, master):
-        """
-        Starts  a Scanner cluster.
+    def start_master(self, master: str):
+        r"""Starts a Scanner master.
 
-        Args:
-            master: ssh-able address of the master node.
-            workers: list of ssh-able addresses of the worker nodes.
+        Parameters
+        ----------
+        master
+          ssh-able address of the master node.
         """
 
         if master is None:
@@ -816,7 +670,14 @@ class Database(object):
         self.load_op('__stdlib',
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
-    def start_workers(self, workers, multiple=False):
+    def start_workers(self, workers: List[str]):
+        r"""Starts Scanner workers.
+
+        Parameters
+        ----------
+        workers
+          list of ssh-able addresses of the worker nodes.
+        """
         if workers is None:
             self._worker_addresses = [
                 self.config.master_address + ':' + self.config.worker_port
@@ -889,6 +750,8 @@ class Database(object):
         self._workers_started = True
 
     def stop_cluster(self):
+        r"""Stops the Scanner master and workers.
+        """
         if self._start_cluster:
             if self._master:
                 # Stop heartbeat
@@ -909,14 +772,68 @@ class Database(object):
                 self._worker_conns = None
 
     def register_op(self,
-                    name,
-                    input_columns,
-                    output_columns,
-                    variadic_inputs=False,
-                    stencil=None,
-                    proto_path=None,
-                    unbounded_state=False,
-                    bounded_state=None):
+                    name: str,
+                    input_columns: List[Union[str, Tuple[str, ColumnType]]],
+                    output_columns: List[Union[str, Tuple[str, ColumnType]]],
+                    variadic_inputs: bool = False,
+                    stencil: List[int] = None,
+                    unbounded_state: bool = False,
+                    bounded_state: int = None,
+                    proto_path: str = None):
+        r"""Register a new Op with the Scanner master.
+
+        Parameters
+        ----------
+        name
+          Name of the Op.
+
+        input_columns
+          A list of the inputs for this Op. Can be either the name of the input
+          as a string or a tuple of ('name', ColumnType). If only the name is
+          specified as a string, the ColumnType is assumed to be
+          ColumnType.Blob.
+
+        output_columns
+          A list of the outputs for this Op. Can be either the name of the output
+          as a string or a tuple of ('name', ColumnType). If only the name is
+          specified as a string, the ColumnType is assumed to be
+          ColumnType.Blob.
+
+        variadic_inputs
+          If true, this Op may take a variable number of inputs and
+          `input_columns` is ignored. Variadic inputs are specified as
+          positional arguments when invoking the Op, instead of keyword
+          arguments.
+
+        stencil
+          Specifies the default stencil to use for the Op. If none, indicates
+          that the the Op does not have the ability to stencil. A stencil of
+          [0] should be specified if the Op can stencil but should not by
+          default.
+
+        unbounded_state
+          If true, indicates that the Op needs to see all previous elements
+          of its input sequences before it can compute a given element. For
+          example, to compute output element at index 100, the Op must have
+          already produced elements 0-99. This option is mutually exclusive
+          with `bounded_state`.
+
+        bounded_state
+          If true, indicates that the Op needs to see all previous elements
+          of its input sequences before it can compute a given element. For
+          example, to compute output element at index 100, the Op must have
+          already produced elements 0-99. This option is mutually exclusive
+          with `bounded_state`.
+
+        proto_path
+          Optional path to the proto file that describes the configuration
+          arguments to this Op.
+
+        Raises
+        ------
+        ScannerException
+          Raised when the master fails to register the Op.
+        """
         op_registration = self.protobufs.OpRegistration()
         op_registration.name = name
         op_registration.variadic_inputs = variadic_inputs
@@ -959,10 +876,33 @@ class Database(object):
             op_registration, timeout=self._grpc_timeout))
 
     def register_python_kernel(self,
-                               op_name,
-                               device_type,
-                               kernel_path,
-                               batch=1):
+                               op_name: str,
+                               device_type: DeviceType,
+                               kernel_path: str,
+                               batch: int = 1):
+        r"""Register a Python Kernel with the Scanner master.
+
+        Parameters
+        ----------
+        op_name
+          Name of the Op.
+
+        device_type
+          The device type of the resource this kernel uses.
+
+        kernel_path
+          The path to the python kernel file.
+
+        batch
+          Specifies a default for how many elements this kernel should batch
+          over. If `batch == 1`, kernel is assume to not be able to batch.
+
+        Raises
+        ------
+        ScannerException
+          Raised when the master fails to register the kernel.
+        """
+
         with open(kernel_path, 'r') as f:
             kernel_str = f.read()
         py_registration = self.protobufs.PythonKernelRegistration()
@@ -977,19 +917,34 @@ class Database(object):
                 py_registration, timeout=self._grpc_timeout))
         self._python_ops.add(op_name)
 
-    def ingest_videos(self, videos, inplace=False, force=False):
-        """
-        Creates a Table from a video.
+    def ingest_videos(self,
+                      videos: List[Tuple[str, str]],
+                      inplace: bool = False,
+                      force: bool = False) -> Tuple[List[Table],
+                                                    List[Tuple[str, str]]]:
+        r"""Creates tables from videos.
 
-        Args:
-            videos: TODO(wcrichto)
+        Parameters
+        ----------
+        videos
+          The list of videos to ingest into the database. Each element in the
+          list should be ('table_name', 'path/to/video').
 
+        inplace
+          If true, ingests the videos without copying them into the database.
+          Currently only supported for mp4 containers.
 
-        Kwargs:
-            force: TODO(wcrichto)
+        force
+          If true, deletes existing tables with the same names.
 
-        Returns:
-            (list of created Tables, list of (path, reason) failures to ingest)
+        Returns
+        -------
+        tables: List[Table]
+          List of table objects for the ingested videos.
+
+        failures: List[Tuple[str, str]]
+          List of ('path/to/video', 'reason for failure') tuples for each video
+          which failed to ingest.
         """
 
         if len(videos) == 0:
@@ -1023,39 +978,77 @@ class Database(object):
             if p not in ingest_result.failed_paths
         ], failures)
 
-    def has_table(self, name):
+    def has_table(self, name: str) -> bool:
+        r"""Checks if a table exists in the database.
+
+        Parameters
+        ----------
+        name
+          The name of the table to check for.
+
+        Returns
+        -------
+        bool
+          True if the table exists, false otherwise.
+        """
         db_meta = self._load_db_metadata()
         if name in self._table_name:
             return True
         return False
 
-    def delete_tables(self, names):
+    def delete_tables(self, names: List[str]):
+        r"""Deletes tables from the database.
+
+        Parameters
+        ----------
+        names
+          The names of the tables to delete.
+        """
         delete_tables_params = self.protobufs.DeleteTablesParams()
         for name in names:
             delete_tables_params.tables.append(name)
         self._try_rpc(lambda: self._master.DeleteTables(delete_tables_params))
         self._cached_db_metadata = None
 
-    def delete_table(self, name):
+    def delete_table(self, name: str):
+        r"""Deletes a table from the database.
+
+        Parameters
+        ----------
+        name
+          The name of the table to delete.
+        """
         self.delete_tables([name])
 
-    def new_table(self, name, columns, rows, fns=None, force=False):
-        """
-        Creates a new table from a list of rows.
+    def new_table(self,
+                  name: str,
+                  columns: List[str],
+                  rows: List[List[bytes]],
+                  fns=None,
+                  force: bool = False) -> Table:
+        r"""Creates a new table from a list of rows.
 
-        Args:
-            name: String name of the table to create
-            columns: List of names of table columns
-            rows: List of rows with each row a list of elements corresponding
-                  to the specified columns. Elements must be strings of
-                  serialized representations of the data.
+        Parameters
+        ----------
+        name
+          String name of the table to create
 
-        Kwargs:
-            fn: TODO(wcrichto)
-            force: TODO(apoms)
+        columns
+          List of names of table columns
 
-        Returns:
-            The new table object.
+        rows
+          List of rows with each row a list of elements corresponding
+          to the specified columns. Elements must be strings of
+          serialized representations of the data.
+
+        fns
+
+        force
+
+        Returns
+        -------
+        Table
+          The new table object.
         """
 
         if self.has_table(name):
@@ -1083,7 +1076,19 @@ class Database(object):
 
         return self.table(name)
 
-    def table(self, name):
+    def table(self, name: str) -> Table:
+        r"""Retrieves a Table.
+
+        Parameters
+        ----------
+        name
+          Name of the table to retrieve.
+
+        Returns
+        -------
+        Table
+          The table object.
+        """
         db_meta = self._load_db_metadata()
 
         table_name = None
@@ -1188,19 +1193,58 @@ class Database(object):
 
     def run(self,
             output,
-            jobs,
-            force=False,
-            work_packet_size=250,
-            io_packet_size=-1,
-            cpu_pool=None,
-            gpu_pool=None,
-            pipeline_instances_per_node=None,
-            show_progress=True,
-            profiling=False,
-            load_sparsity_threshold=8,
-            tasks_in_queue_per_pu=4,
-            task_timeout=0,
-            checkpoint_frequency=1000):
+            jobs: List[Job],
+            force: bool = False,
+            work_packet_size: int = 250,
+            io_packet_size: int = -1,
+            cpu_pool: str = None,
+            gpu_pool: str = None,
+            pipeline_instances_per_node: int = None,
+            show_progress: bool = True,
+            profiling: bool = False,
+            load_sparsity_threshold: int = 8,
+            tasks_in_queue_per_pu: int = 4,
+            task_timeout: int = 0,
+            checkpoint_frequency: int = 1000):
+        r"""Runs a collection of jobs.
+
+        Parameters
+        ----------
+        output
+
+        jobs
+
+        force
+
+        work_packet_size
+
+        io_packet_size
+
+        cpu_pool
+
+        gpu_pool
+
+        pipeline_instances_per_node
+
+        show_progress
+
+        profiling
+
+        Other Parameters
+        ----------------
+        load_sparsity_threshold
+
+        tasks_in_queue_per_pu
+
+        task_timeout
+
+        checkpoint_frequency
+
+        Returns
+        -------
+        Table
+          The new table object.
+        """
         assert isinstance(output, Sink)
 
         if (output._name == 'FrameColumn' or output._name == 'Column'):
@@ -1403,3 +1447,159 @@ class Database(object):
             return [self.table(t) for t in job_output_table_names]
         else:
             return []
+
+
+def start_master(port: int = None,
+                 config: Config = None,
+                 config_path: str = None,
+                 block: bool = False,
+                 watchdog: bool = True,
+                 no_workers_timeout: float = 30):
+    r""" Start a master server instance on this node.
+
+    Parameters
+    ----------
+    port
+      The port number to start the master on. If unspecified, it will be
+      read from the provided Config.
+
+    config
+      The scanner Config to use. If specified, config_path is ignored.
+
+    config_path : optional
+      Path to a Scanner configuration TOML, by default assumed to be
+      `~/.scanner/config.toml`.
+
+    block : optional
+      If true, will wait until the server is shutdown. Server will not
+      shutdown currently unless wait_for_server_shutdown is eventually
+      called.
+
+    watchdog : optional
+      If true, the master will shutdown after a time interval if
+      PokeWatchdog is not called.
+
+    no_workers_timeout : optional
+      The interval after which the master will consider a job to have failed if
+      it has no workers connected to it.
+
+    Returns
+    -------
+    Database
+      A cpp database instance.
+    """
+
+    config = config or Config(config_path)
+    port = port or config.master_port
+
+    # Load all protobuf types
+    db = bindings.Database(config.storage_config, config.db_path,
+                           (config.master_address + ':' + port))
+    result = bindings.start_master(db, port, SCRIPT_DIR, watchdog,
+                                   no_workers_timeout)
+    if not result.success():
+        raise ScannerException('Failed to start master: {}'.format(
+            result.msg()))
+    if block:
+        bindings.wait_for_server_shutdown(db)
+    return db
+
+
+def worker_process(args):
+    [
+        master_address, machine_params, port, config, config_path, block,
+        watchdog, db
+    ] = args
+    config = config or Config(config_path)
+    port = port or config.worker_port
+
+    # Load all protobuf types
+    db = db or bindings.Database(
+        config.storage_config,
+        #storage_config,
+        config.db_path,
+        master_address)
+    machine_params = machine_params or bindings.default_machine_params()
+    result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
+                                   watchdog)
+    if not result.success():
+        raise ScannerException('Failed to start worker: {}'.format(
+            result.msg()))
+    if block:
+        bindings.wait_for_server_shutdown(db)
+    return result
+
+
+def start_worker(master_address: str,
+                 machine_params = None,
+                 port: int = None,
+                 config: Config = None,
+                 config_path: str = None,
+                 block: bool = False,
+                 watchdog: bool = True,
+                 num_workers: int = None,
+                 db: Database = None):
+    r"""Starts a worker instance on this node.
+
+    Parameters
+    ----------
+    master_address
+      The address of the master server to connect this worker to. The expected
+      format is '0.0.0.0:5000' (ip:port).
+
+    machine_params
+      Describes the resources of the machine that the worker should manage. If
+      left unspecified, the machine resources will be inferred.
+
+    config
+      The Config object to use in creating the worker. If specified, config_path
+      is ignored.
+
+    config_path
+      Path to a Scanner configuration TOML, by default assumed to be
+      `~/.scanner/config.toml`.
+
+    block
+      If true, will wait until the server is shutdown. Server will not shutdown
+      currently unless wait_for_server_shutdown is eventually called.
+
+    watchdog
+      If true, the worker will shutdown after a time interval if
+      PokeWatchdog is not called.
+
+    Other Parameters
+    ----------------
+    num_workers
+      Specifies the number of workers to create. If unspecified, only one is
+      created. This is a legacy feature that exists to deal with kernels that
+      can not be executed in the same process due to shared global state. By
+      spawning multiple worker processes and using a single pipeline per worker,
+      this limitation can be avoided.
+
+    db
+      This is for internal usage only.
+
+    Returns
+    -------
+    Database
+      A cpp database instance.
+    """
+
+    if num_workers is not None:
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            results = list(
+                executor.map(worker_process, ([[
+                    master_address, machine_params,
+                    int(port) + i, config, config_path, block, watchdog,
+                    None
+                ] for i in range(num_workers)])))
+
+        for result in results:
+            if not result.success: return result
+        return results[0]
+
+    else:
+        return worker_process([
+            master_address, machine_params, port, config, config_path, block,
+            watchdog, db
+        ])

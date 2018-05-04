@@ -1,5 +1,3 @@
-
-
 import scannerpy
 import scannerpy.stdlib.readers as readers
 import scannerpy.stdlib.writers as writers
