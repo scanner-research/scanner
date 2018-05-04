@@ -12,6 +12,8 @@ import signal
 import copy
 import collections
 import subprocess
+import cloudpickle
+import types
 from tqdm import tqdm
 from typing import Dict, List, Union, Tuple, Optional
 
@@ -36,6 +38,7 @@ from scannerpy.table import Table
 from scannerpy.column import Column
 from scannerpy.protobuf_generator import ProtobufGenerator, python_to_proto
 from scannerpy.job import Job
+from scannerpy.kernel import Kernel
 
 from storehouse import StorageConfig, StorageBackend
 
@@ -506,7 +509,6 @@ class Database(object):
         self._try_rpc(
             lambda: self._master.LoadOp(op_path, timeout=self._grpc_timeout))
 
-
     def has_gpu(self):
         try:
             with open(os.devnull, 'w') as f:
@@ -875,11 +877,12 @@ class Database(object):
         self._try_rpc(lambda: self._master.RegisterOp(
             op_registration, timeout=self._grpc_timeout))
 
-    def register_python_kernel(self,
-                               op_name: str,
-                               device_type: DeviceType,
-                               kernel_path: str,
-                               batch: int = 1):
+    def register_python_kernel(
+            self,
+            op_name: str,
+            device_type: DeviceType,
+            kernel: Union[types.FunctionType, types.BuiltinFunctionType],
+            batch: int = 1):
         r"""Register a Python Kernel with the Scanner master.
 
         Parameters
@@ -903,13 +906,26 @@ class Database(object):
           Raised when the master fails to register the kernel.
         """
 
-        with open(kernel_path, 'r') as f:
-            kernel_str = f.read()
+        if isinstance(kernel, types.FunctionType) or isinstance(
+                kernel, types.BuiltinFunctionType):
+
+            class KernelWrapper(Kernel):
+                def __init__(self, config, protobufs):
+                    self._config = config
+                    self._protobufs = protobufs
+
+                def execute(self, columns):
+                    return kernel(columns, self._config, self._protobufs)
+
+            kernel_cls = KernelWrapper
+        else:
+            kernel_cls = kernel
+
         py_registration = self.protobufs.PythonKernelRegistration()
         py_registration.op_name = op_name
         py_registration.device_type = DeviceType.to_proto(
             self.protobufs, device_type)
-        py_registration.kernel_str = kernel_str
+        py_registration.kernel_code = cloudpickle.dumps(kernel_cls)
         py_registration.pickled_config = pickle.dumps(self.config)
         py_registration.batch_size = batch
         self._try_rpc(
@@ -917,11 +933,11 @@ class Database(object):
                 py_registration, timeout=self._grpc_timeout))
         self._python_ops.add(op_name)
 
-    def ingest_videos(self,
-                      videos: List[Tuple[str, str]],
-                      inplace: bool = False,
-                      force: bool = False) -> Tuple[List[Table],
-                                                    List[Tuple[str, str]]]:
+    def ingest_videos(
+            self,
+            videos: List[Tuple[str, str]],
+            inplace: bool = False,
+            force: bool = False) -> Tuple[List[Table], List[Tuple[str, str]]]:
         r"""Creates tables from videos.
 
         Parameters
@@ -1131,7 +1147,6 @@ class Database(object):
             job_id = job_name
 
         return Profiler(self, job_id)
-
 
     def wait_on_current_job(self, show_progress=True):
         pbar = None
@@ -1531,7 +1546,7 @@ def worker_process(args):
 
 
 def start_worker(master_address: str,
-                 machine_params = None,
+                 machine_params=None,
                  port: int = None,
                  config: Config = None,
                  config_path: str = None,
@@ -1590,8 +1605,7 @@ def start_worker(master_address: str,
             results = list(
                 executor.map(worker_process, ([[
                     master_address, machine_params,
-                    int(port) + i, config, config_path, block, watchdog,
-                    None
+                    int(port) + i, config, config_path, block, watchdog, None
                 ] for i in range(num_workers)])))
 
         for result in results:

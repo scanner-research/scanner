@@ -15,7 +15,9 @@ from scannerpy.stdlib import tensorflow
 script_dir = os.path.dirname(os.path.abspath(__file__))
 PATH_TO_REPO = script_dir
 
-PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17', 'frozen_inference_graph.pb')
+PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17',
+                             'frozen_inference_graph.pb')
+
 
 class ObjDetectKernel(tensorflow.TensorFlowKernel):
     def build_graph(self):
@@ -39,11 +41,13 @@ class ObjDetectKernel(tensorflow.TensorFlowKernel):
         with self.graph.as_default():
             (boxes, scores, classes) = self.sess.run(
                 [boxes, scores, classes],
-                feed_dict={image_tensor: np.expand_dims(image, axis=0)})
-            
-            # bundled data format: [box position(x1 y1 x2 y2), box class, box score]
-            bundled_data = np.concatenate((boxes.reshape(100,4), classes.reshape(100,1), scores.reshape(100,1)), 1)[:20]
-            
-            return [bundled_data.tobytes()]
+                feed_dict={
+                    image_tensor: np.expand_dims(image, axis=0)
+                })
 
-KERNEL = ObjDetectKernel
+            # bundled data format: [box position(x1 y1 x2 y2), box class, box score]
+            bundled_data = np.concatenate(
+                (boxes.reshape(100, 4), classes.reshape(100, 1),
+                 scores.reshape(100, 1)), 1)[:20]
+
+            return [bundled_data.tobytes()]
