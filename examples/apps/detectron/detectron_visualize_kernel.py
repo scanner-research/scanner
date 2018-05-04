@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##############################################################################
-
 """Perform inference on a single image or all images with a certain extension
 (e.g., .jpg) in a folder.
 """
@@ -27,6 +26,7 @@ import datasets.dummy_datasets as dummy_datasets
 import pickle
 
 from scannerpy import Kernel
+
 
 class DetectronVizualizeKernel(Kernel):
     def __init__(self, config, protobufs):
@@ -49,9 +49,6 @@ class DetectronVizualizeKernel(Kernel):
             dataset=self.dataset,
             show_class=True,
             thresh=0.7,
-            kp_thresh=2
-        )
+            kp_thresh=2)
 
         return [vis_im]
-
-KERNEL = DetectronVizualizeKernel

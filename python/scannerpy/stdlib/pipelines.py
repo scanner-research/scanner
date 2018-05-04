@@ -1,4 +1,3 @@
-
 import math
 import os.path
 
@@ -7,6 +6,27 @@ from scannerpy.stdlib import NetDescriptor
 from scannerpy.stdlib.util import temp_directory, download_temp_file
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
+
+import scannerpy
+import scannerpy.stdlib.readers as readers
+import scannerpy.stdlib.writers as writers
+import scannerpy.stdlib.bboxes as bboxes
+
+
+class BBoxNMSKernel(scannerpy.Kernel):
+    def __init__(self, config, protobufs):
+        self.protobufs = protobufs
+        self.scale = config.args['scale']
+
+    def close(self):
+        pass
+
+    def execute(self, input_columns):
+        bboxes_list = []
+        for c in input_columns:
+            bboxes_list += readers.bboxes(c, self.protobufs)
+        nmsed_bboxes = bboxes.nms(bboxes_list, 0.1)
+        return [writers.bboxes(nmsed_bboxes, self.protobufs)]
 
 
 def detect_faces(db,
@@ -114,8 +134,7 @@ def detect_faces(db,
 
     # Register nms bbox op and kernel
     db.register_op('BBoxNMS', [], ['bboxes'], variadic_inputs=True)
-    kernel_path = script_dir + '/bbox_nms_kernel.py'
-    db.register_python_kernel('BBoxNMS', DeviceType.CPU, kernel_path)
+    db.register_python_kernel('BBoxNMS', DeviceType.CPU, BBoxNMSKernel)
     # scale = max(width / float(max_width), 1.0)
     scale = 1.0
 

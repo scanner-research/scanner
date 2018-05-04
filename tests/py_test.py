@@ -1,5 +1,5 @@
 from scannerpy import (Database, Config, DeviceType, ColumnType, Job,
-                       ProtobufGenerator, ScannerException)
+                       ProtobufGenerator, ScannerException, Kernel)
 from scannerpy.stdlib import readers
 import tempfile
 import toml
@@ -656,10 +656,35 @@ def test_files_sink(db):
             assert d == i
 
 
+class TestPyKernel(Kernel):
+    def __init__(self, config, protobufs):
+        self.protobufs = protobufs
+        assert (config.args['kernel_arg'] == 1)
+        self.x = 20
+        self.y = 20
+
+    def close(self):
+        pass
+
+    def new_stream(self, args):
+        if args is None:
+            return
+        if 'x' in args:
+            self.x = args['x']
+        if 'y' in args:
+            self.y = args['y']
+
+    def execute(self, input_columns):
+        point = {}
+        point['x'] = self.x
+        point['y'] = self.y
+        return [pickle.dumps(point)]
+
+
 def test_python_kernel(db):
+
     db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
-    db.register_python_kernel('TestPy', DeviceType.CPU,
-                              cwd + '/test_py_kernel.py')
+    db.register_python_kernel('TestPy', DeviceType.CPU, TestPyKernel)
 
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
@@ -676,13 +701,29 @@ def test_python_kernel(db):
     next(tables[0].load(['dummy']))
 
 
+class TestPyBatchKernel(Kernel):
+    def __init__(self, config, protobufs):
+        self.protobufs = protobufs
+        pass
+
+    def close(self):
+        pass
+
+    def execute(self, input_columns):
+        point = self.protobufs.Point()
+        point.x = 10
+        point.y = 5
+        input_count = len(input_columns[0])
+        column_count = len(input_columns)
+        return [[point.SerializeToString() for _ in range(input_count)]
+                for _ in range(column_count)]
+
+
 def test_python_batch_kernel(db):
+
     db.register_op('TestPyBatch', [('frame', ColumnType.Video)], ['dummy'])
     db.register_python_kernel(
-        'TestPyBatch',
-        DeviceType.CPU,
-        cwd + '/test_py_batch_kernel.py',
-        batch=10)
+        'TestPyBatch', DeviceType.CPU, TestPyBatchKernel, batch=10)
 
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()
@@ -702,8 +743,7 @@ def test_python_batch_kernel(db):
 def test_bind_op_args(db):
     try:
         db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
-        db.register_python_kernel('TestPy', DeviceType.CPU,
-                                  cwd + '/test_py_kernel.py')
+        db.register_python_kernel('TestPy', DeviceType.CPU, TestPyKernel)
     except ScannerException:
         pass
 
@@ -1093,11 +1133,22 @@ def blacklist_db():
         ])
 
 
+class TestPyFailKernel(Kernel):
+    def __init__(self, config, protobufs):
+        self.protobufs = protobufs
+        pass
+
+    def close(self):
+        pass
+
+    def execute(self, input_columns):
+        raise scannerpy.ScannerException('Test')
+
+
 def test_job_blacklist(blacklist_db):
     db = blacklist_db
     db.register_op('TestPyFail', [('frame', ColumnType.Video)], ['dummy'])
-    db.register_python_kernel('TestPyFail', DeviceType.CPU,
-                              cwd + '/test_py_fail_kernel.py')
+    db.register_python_kernel('TestPyFail', DeviceType.CPU, TestPyFailKernel)
 
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()

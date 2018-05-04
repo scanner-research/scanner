@@ -33,9 +33,7 @@ LIBRARIES = [
 ]
 for library in LIBRARIES:
     name = os.path.splitext(os.path.basename(library))[0]
-    shutil.copyfile(
-        library,
-        os.path.join(PIP_DIR, 'scannerpy', name + '.so'))
+    shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', name + '.so'))
 
 
 def copy_partial_tree(from_dir, to_dir, pattern):
@@ -106,11 +104,14 @@ copy_partial_tree(
 include_files = glob_files(
     os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
 
-package_data = {'scannerpy': ['./*.so', './*' + EXT] + include_files + cmake_files}
+package_data = {
+    'scannerpy': ['./*.so', './*' + EXT] + include_files + cmake_files
+}
 
 REQUIRED_PACKAGES = [
     'protobuf == 3.4.0', 'grpcio == 1.7.3', 'toml >= 0.9.2', 'enum34 >= 1.1.6',
     'numpy >= 1.12.0', 'scipy >= 0.18.1', 'tqdm >= 4.19.5',
+    'cloudpickle >= 0.5.2'
 ]
 if platform == 'linux' or platform == 'linux2':
     REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')

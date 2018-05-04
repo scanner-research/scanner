@@ -14,7 +14,7 @@ using namespace pybind11::literals;
 
 PythonKernel::PythonKernel(const KernelConfig &config,
                            const std::string &op_name,
-                           const std::string &kernel_str,
+                           const std::string &kernel_code,
                            const std::string &pickled_config,
                            const int preferred_batch)
     : BatchedKernel(config), config_(config), device_(config.devices[0]),
@@ -28,13 +28,14 @@ PythonKernel::PythonKernel(const KernelConfig &config,
     py::module main = py::module::import("__main__");
     py::object scope = main.attr("__dict__");
     main.attr(kernel_ns_name_.c_str()) = py::dict(
-        "kernel_str"_a=kernel_str,
+        "kernel_code"_a=py::bytes(kernel_code),
         "user_config_str"_a=py::bytes(pickled_config),
         "config"_a=config);
 
     std::string pycode = tfm::format(R"(
 def %s_fn():
   import pickle
+  import cloudpickle
   import traceback
   from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig, ColumnType
   from scannerpy.protobuf_generator import ProtobufGenerator
@@ -44,10 +45,7 @@ def %s_fn():
   protobufs = ProtobufGenerator(user_config)
   kernel_config = KernelConfig(n['config'])
   ns = {**locals()}
-  exec(n['kernel_str'], globals(), ns)
-  globals().update(ns)
-  return ns['KERNEL'](kernel_config, protobufs)
-
+  return cloudpickle.loads(n['kernel_code'])(kernel_config, protobufs)
 %s = %s_fn()
 )", kernel_name_, kernel_ns_name_, kernel_name_, kernel_name_);
     py::exec(pycode, scope);

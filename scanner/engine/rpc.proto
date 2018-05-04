@@ -151,7 +151,7 @@ message OpRegistration {
 message PythonKernelRegistration {
   string op_name = 1;
   DeviceType device_type = 2;
-  string kernel_str = 3;
+  bytes kernel_code = 3;
   bytes pickled_config = 4;
   int32 batch_size = 5;
 }
