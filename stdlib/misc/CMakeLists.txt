@@ -7,6 +7,7 @@ set(SOURCE_FILES
   pass_kernel.cpp
   files_source.cpp
   files_sink.cpp
-  sql_source.cpp)
+  sql_source.cpp
+  sql_sink.cpp)
 
 add_library(misc OBJECT ${SOURCE_FILES})

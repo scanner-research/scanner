@@ -70,10 +70,13 @@ def python_to_proto(protos, proto_name, obj):
     p = analyze_proto(args_proto.DESCRIPTOR)
 
     def create_obj(proto, p, obj):
-        proto_obj = proto()
-        if not isinstance(obj, dict):
+        if isinstance(obj, proto):
+            return obj
+        elif not isinstance(obj, dict):
             raise ScannerException('Attempted to bind a non-dict type to a '
                                    'protobuf')
+
+        proto_obj = proto()
 
         for k, v in obj.items():
             if k not in p:
