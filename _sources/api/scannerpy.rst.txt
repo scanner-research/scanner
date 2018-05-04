@@ -27,6 +27,21 @@ scannerpy\.op module
     :undoc-members:
     :show-inheritance:
 
+scannerpy\.source module
+------------------------
+
+.. automodule:: scannerpy.source
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+scannerpy\.sink module
+------------------------
+
+.. automodule:: scannerpy.sink
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 scannerpy\.job module
 ---------------------

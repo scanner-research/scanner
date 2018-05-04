@@ -1,9 +1,24 @@
 Concepts
 ========
 
+
+Database
+--------
+
+Computation Graphs
+------------------
+
+Sources
+~~~~~~~
+
+Ops
+~~~
+
+Sinks
+~~~~~
+
+Jobs
+----
+
 .. toctree::
    :maxdepth: 1
-
-   concepts/database
-   concepts/graphs
-   concepts/jobs

@@ -112,13 +112,13 @@ save them back to a new database table:</p>
 Column representing frames in a table (later, we will tell Scanner which
 table to read from). The <cite>frame</cite> object it returns represents the stream of
 frames that are stored in the table. On the the second line, we then process
-those frames by creating an Op that will resize the frames in <cite>frame</cite> to
-640x480. This Op then returns a new stream of frames which we call <cite>resized</cite>.
-Finally, we write these resizes frames to a column called ‘frame’ in a new table
+those frames by creating an Op that will resize the frames in the <cite>frame</cite> stream
+to 640x480. This Op then returns a new stream of frames which we call <cite>resized</cite>.
+Finally, we write these resized frames to a column called ‘frame’ in a new table
 by passing them into a Column Sink.</p>
 <p>At this point, we have defined a computation graph that describes <em>what</em>
-computation to run, but we haven’t told Scanner to run the computation graph
-yet.</p>
+computation to run, but we haven’t yet told Scanner to run the computation
+graph.</p>
 </div>
 <div class="section" id="defining-a-job">
 <h2>Defining a Job<a class="headerlink" href="#defining-a-job" title="Permalink to this headline">¶</a></h2>
@@ -134,7 +134,7 @@ is specified by the <em>Job</em> object:</p>
 </div>
 <p>Here, we say that the <cite>FrameColumn</cite> indicated by <cite>frame</cite> should read from the
 column ‘frame’ in the table ‘table_name’. Similarly, we specify that the output
-table indicated by ‘output_frame’ should be called ‘resized_table’. In this
+table indicated by <cite>output_frame</cite> should be called ‘resized_table’. In this
 example, we only define one job, but Scanner can process multiple jobs at the
 same time (given they use the same computation graph). When many jobs
 are provided, Scanner will process them all in parallel.</p>
