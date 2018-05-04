@@ -22,6 +22,7 @@
 #include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/tinyformat.h"
 #include "scanner/util/serialize.h"
+#include "scanner/util/json.hpp"
 
 #include <glog/logging.h>
 #include <vector>
@@ -32,6 +33,7 @@ using storehouse::StorageConfig;
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
+using nlohmann::json;
 
 namespace scanner {
 
@@ -101,6 +103,38 @@ class SQLSource : public Source {
       tfm::format("hostaddr=%s port=%d dbname=%s user=%s password=%s",
                   sql_config.hostaddr(), sql_config.port(), sql_config.dbname(), sql_config.user(), sql_config.password())
     });
+
+    pqxx::work txn{*conn_};
+    pqxx::result types = txn.exec("SELECT oid, typname FROM pg_type");
+    for (auto row : types) {
+      pq_types_[row["oid"].as<pqxx::oid>()] = row["typname"].as<std::string>();
+    }
+  }
+
+  json row_to_json(pqxx::row& row) {
+    json jrow;
+
+    for (pqxx::field field : row) {
+      if (field.name() == "_scanner_id" || field.name() == "_scanner_number") {
+        continue;
+      }
+
+      pqxx::oid type = field.type();
+      std::string& typname = pq_types_[type];
+      bool assigned = false;
+
+      #define ASSIGN_IF(NAME, TYPE) \
+        if (typname == NAME) { jrow[field.name()] = field.as<TYPE>(); assigned = true; }
+
+      ASSIGN_IF("int4", i32);
+      ASSIGN_IF("float8", f32);
+
+      LOG_IF(FATAL, !assigned)
+          << "Requested row has field " << field.name()
+          << " with a type we can't serialize yet: " << typname;
+    }
+
+    return std::move(jrow);
   }
 
   void read(const std::vector<ElementArgs>& element_args,
@@ -152,42 +186,25 @@ class SQLSource : public Source {
 
     size_t total_size = 0;
     std::vector<size_t> sizes;
-    std::vector<u8*> buffers;
 
-    // Pick a serialization method based on the requested output type
-    if (query.output_type() == "BoundingBox") {
-      std::vector<std::vector<proto::BoundingBox> > bboxes;
-      for (auto row_id : row_ids) {
-        bboxes.emplace_back();
-        auto& row_bboxes = bboxes[bboxes.size()-1];
-        for (auto row : cached_rows_[row_id]) {
-          row_bboxes.emplace_back();
-          auto& bb = row_bboxes[row_bboxes.size() - 1];
-          bb.set_x1(row["x1"].as<f32>());
-          bb.set_y1(row["y1"].as<f32>());
-          bb.set_x2(row["x2"].as<f32>());
-          bb.set_y2(row["y2"].as<f32>());
-        }
+    std::vector<std::string> rows_serialized;
+    for (auto row_id : row_ids) {
+      json jrows = json::array();
+      auto& row_group = cached_rows_[row_id];
+      for (auto row : row_group) {
+        jrows.push_back(row_to_json(row));
       }
-
-      for (auto& bb : bboxes) {
-        u8* buffer;
-        size_t size;
-        serialize_proto_vector(bb, buffer, size);
-        sizes.push_back(size);
-        buffers.push_back(buffer);
-        total_size += size;
-      }
-    } else {
-      LOG(FATAL) << "Invalid query output type " << query.output_type();
+      std::string serialized = jrows.dump();
+      rows_serialized.push_back(serialized);
+      sizes.push_back(serialized.size());
+      total_size += serialized.size();
     }
 
     // Pack serialized results into a single block buffer;
-    u8* block_buffer = new_block_buffer(CPU_DEVICE, total_size, buffers.size());
+    u8* block_buffer = new_block_buffer(CPU_DEVICE, total_size, sizes.size());
     u8* cursor = block_buffer;
-    for (i32 i = 0; i < buffers.size(); ++i) {
-      memcpy_buffer(cursor, CPU_DEVICE, buffers[i], CPU_DEVICE, sizes[i]);
-      delete_buffer(CPU_DEVICE, buffers[i]);
+    for (i32 i = 0; i < sizes.size(); ++i) {
+      memcpy_buffer(cursor, CPU_DEVICE, (u8*) rows_serialized[i].c_str(), CPU_DEVICE, sizes[i]);
       insert_element(output_columns[0], cursor, sizes[i]);
       cursor += sizes[i];
     }
@@ -199,6 +216,7 @@ class SQLSource : public Source {
   scanner::proto::SQLSourceArgs args_;
   std::string last_filter_;
   std::vector<std::vector<pqxx::row>> cached_rows_;
+  std::map<pqxx::oid, std::string> pq_types_;
 };
 
 REGISTER_ENUMERATOR(SQL, SQLEnumerator)
