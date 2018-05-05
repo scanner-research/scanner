@@ -185,7 +185,6 @@ message SQLElementArgs {
 message SQLSinkArgs {
   SQLConfig config = 1;
   SQLQuery query = 2;
-  string column = 3;
 }
 
 message SQLSinkStreamArgs {

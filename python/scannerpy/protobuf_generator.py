@@ -81,7 +81,8 @@ def python_to_proto(protos, proto_name, obj):
         for k, v in obj.items():
             if k not in p:
                 raise ScannerException(
-                    'Protobuf does not have field {:s}'.format(k))
+                    'Protobuf {} does not have field {:s}'.format(
+                        proto_name, k))
             desc = p[k]
 
             # If a message field
