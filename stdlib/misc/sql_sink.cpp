@@ -66,13 +66,13 @@ class SQLSink : public Sink {
           json::parse(std::string((char*)element.buffer, element.size));
 
       for (json& jrow : jrows) {
-        std::string update_str;
+        std::vector<std::string> updates;
         i64 id = -1;
         for (json::iterator it = jrow.begin(); it != jrow.end(); ++it) {
           if (it.key() == "id") {
             id = it.value();
           } else {
-            update_str += tfm::format("%s = %s, ", it.key(), it.value());
+            updates.push_back(tfm::format("%s = %s", it.key(), it.value()));
           }
         }
 
@@ -81,6 +81,10 @@ class SQLSink : public Sink {
         if (id == -1) {
           LOG(FATAL) << "TODO(wcrichto): insert case";
         } else {
+          std::ostringstream stream;
+          std::copy(updates.begin(), updates.end(), std::ostream_iterator<std::string>(stream, ","));
+          std::string update_str = stream.str();
+          update_str.erase(update_str.length()-1);
           query_str = tfm::format("UPDATE %s SET %s WHERE id = %d",
                                   query.table(), update_str, id);
         }

@@ -329,8 +329,8 @@ class Database(object):
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        if (self._heartbeat_stop_event and
-            not self._heartbeat_stop_event.is_set()):
+        if (self._heartbeat_stop_event
+                and not self._heartbeat_stop_event.is_set()):
             self._heartbeat_stop_event.set()
 
     def _handle_signal(self, signum, frame):
@@ -1355,9 +1355,12 @@ class Database(object):
                             'table_name': args._table.name(),
                             'column_name': args.name()
                         }
+                        full_args = args
+                    else:
+                        full_args = {**op._args, **args}
+
                     n = op._name
                     enumerator_info = self._get_enumerator_info(n)
-                    full_args = {**op._args, **args}
                     if len(full_args) > 0:
                         if len(enumerator_info.protobuf_name) > 0:
                             enumerator_proto_name = enumerator_info.protobuf_name

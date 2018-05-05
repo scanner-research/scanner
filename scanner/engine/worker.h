@@ -92,7 +92,7 @@ class WorkerImpl final : public proto::Worker::Service {
   Flag trigger_shutdown_;
   std::string master_address_;
   std::string worker_port_;
-  i32 node_id_;
+  i32 node_id_ = -1;
   storehouse::StorageBackend* storage_;
   bool memory_pool_initialized_ = false;
   MemoryPoolConfig cached_memory_pool_config_;
