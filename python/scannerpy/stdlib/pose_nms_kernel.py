@@ -21,6 +21,3 @@ class PoseNMSKernel(scannerpy.Kernel):
             pose_list += readers.poses(c, self.protobufs)
         nmsed_poses = poses.nms(pose_list, self.height * 0.2)
         return [writers.poses(nmsed_poses, self.protobufs)]
-
-
-KERNEL = PoseNMSKernel
