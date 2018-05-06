@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from scannerpy.table import Table

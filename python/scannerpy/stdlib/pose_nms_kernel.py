@@ -1,11 +1,12 @@
-
-
 import scannerpy
 import scannerpy.stdlib.readers as readers
 import scannerpy.stdlib.writers as writers
 import scannerpy.stdlib.poses as poses
 
 
+@scannerpy.register_python_op(
+    variadic_inputs=True,
+    outputs=['pose'])
 class PoseNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs

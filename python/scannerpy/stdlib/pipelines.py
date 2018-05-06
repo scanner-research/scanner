@@ -13,6 +13,9 @@ import scannerpy.stdlib.writers as writers
 import scannerpy.stdlib.bboxes as bboxes
 
 
+@scannerpy.register_python_op(
+    variadic_inputs=True,
+    outputs=['bboxes'])
 class BBoxNMSKernel(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
@@ -132,9 +135,6 @@ def detect_faces(db,
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
 
-    # Register nms bbox op and kernel
-    db.register_op('BBoxNMS', [], ['bboxes'], variadic_inputs=True)
-    db.register_python_kernel('BBoxNMS', DeviceType.CPU, BBoxNMSKernel)
     # scale = max(width / float(max_width), 1.0)
     scale = 1.0
 

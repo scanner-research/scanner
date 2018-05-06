@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import os
+import scannerpy
+
 from scannerpy.stdlib import tensorflow
 
 ##################################################################################################
@@ -19,7 +21,10 @@ PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17',
                              'frozen_inference_graph.pb')
 
 
-class ObjDetectKernel(tensorflow.TensorFlowKernel):
+@scannerpy.register_python_op(
+    inputs=[('frame', ColumnType.Video)],
+    outputs=['bundled_data'])
+class ObjDetect(tensorflow.TensorFlowKernel):
     def build_graph(self):
         dnn = tf.Graph()
         with dnn.as_default():

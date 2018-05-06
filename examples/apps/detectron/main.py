@@ -5,8 +5,7 @@ import math
 import argparse
 from tqdm import tqdm
 
-from detection_kernel import DetectronKernel
-from detection_visualize_kernel import DetectronVisualizeKernel
+import detectron_kernels
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
@@ -43,17 +42,6 @@ if __name__ == '__main__':
     [input_table], failed = db.ingest_videos(
         [('example', movie_path)], force=True)
 
-    db.register_op(
-        'DetectronVisualize',
-        [('frame', ColumnType.Video), 'cls_boxes', 'cls_segms', 'cls_keyps'],
-        [('vis_frame', ColumnType.Video)])
-    db.register_python_kernel('DetectronVisualize', DeviceType.CPU,
-                              DetectronVisualizeKernel)
-
-    db.register_op('Detectron', [('frame', ColumnType.Video)],
-                   ['cls_boxes', 'cls_segms', 'cls_keyps'])
-    db.register_python_kernel('Detectron', DeviceType.GPU, DetectronKernel)
-
     frame = db.sources.FrameColumn()
     strided_frame = frame.sample()
 
@@ -64,7 +52,7 @@ if __name__ == '__main__':
         weights_path=weights_path,
         device=DeviceType.GPU)
 
-    objdet_frame = db.ops.DetectronVisualize(
+    objdet_frame = db.ops.DetectronVizualize(
         frame=strided_frame,
         cls_boxes=cls_boxes,
         cls_segms=cls_segms,

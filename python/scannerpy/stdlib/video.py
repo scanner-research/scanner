@@ -1,4 +1,3 @@
-
 import cv2
 
 def write_video(path, frames, fps=24.0):
