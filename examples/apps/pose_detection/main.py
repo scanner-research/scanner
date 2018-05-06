@@ -11,7 +11,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import util
 
 
-class PoseDrawKernel(scannerpy.Kernel):
+@scannerpy.register_python_op(
+    inputs=[('frame', ColumnType.Video), 'poses'],
+    outputs=[('frame', ColumnType.Video)])
+class PoseDraw(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
 
@@ -53,9 +56,6 @@ sampler = db.sampler.range(120, 480)
                                        '{:s}_poses'.format(movie_name))
 
 print('Drawing on frames...')
-db.register_op('PoseDraw', [('frame', ColumnType.Video), 'poses'],
-               [('frame', ColumnType.Video)])
-db.register_python_kernel('PoseDraw', DeviceType.CPU, PoseDrawKernel)
 frame = db.sources.FrameColumn()
 sampled_frame = frame.sample()
 poses = db.sources.Column()

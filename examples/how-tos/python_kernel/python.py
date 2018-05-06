@@ -1,8 +1,12 @@
-from scannerpy import Database, Job, ColumnType, DeviceType, Kernel
+import scannerpy
 import os
 import struct
 
+from scannerpy import Database, Job, ColumnType, DeviceType, Kernel
 
+@scannerpy.register_python_op(
+    inputs=[('frame', ColumnType.Video)],
+    outputs=['test'])
 class MyOpKernel(Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
@@ -15,9 +19,6 @@ class MyOpKernel(Kernel):
 
 
 with Database() as db:
-    db.register_op('MyOp', [('frame', ColumnType.Video)], ['test'])
-    db.register_python_kernel('MyOp', DeviceType.CPU, MyOpKernel)
-
     frame = db.sources.FrameColumn()
     test = db.ops.MyOp(frame=frame)
     output = db.sinks.Column(columns={'test': test})
