@@ -23,7 +23,7 @@ are a few links to get you started:
 * [Getting Started](http://scanner.run/getting-started.html)
 * [Programming Handbook](http://scanner.run/programming-handbook.html)
 * [API Reference](http://scanner.run/api.html)
-* [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf).  
+* [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)  
 
 ## Example code
 
@@ -80,4 +80,4 @@ Scanner is an active research project, part of a collaboration between Stanford 
 Scanner was developed with the support of the NSF (IIS-1539069), the Intel Corporation (through the Intel Science and Technology Center for Visual Cloud Computing and the NSF/Intel VEC program), and by Google.
 
 ### Paper citation
-Scanner will appear in the proceedings of SIGGRAPH 2018 as "[Scanner: Efficient Video Analysis at Scale]"(http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf) by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
+Scanner will appear in the proceedings of SIGGRAPH 2018 as "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)" by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
