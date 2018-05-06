@@ -4,12 +4,14 @@ Scanner is a system for writing applications that process video efficiently. Sca
 * **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames). 
 * **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360), which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
 
+To learn more about Scanner and how it can been used, see the documentation below or read the SIGGRAPH 2018 Technical Paper: "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)" by Poms, Crichton, Hanrahan, and Fatahalian.
+
 ## Key Features
 
 Scanner's key features include:
-* **Computation graphs designed for video processing:** Similar to the dataflow model used by many modern ML frameworks, Scanner applications are written by composing together functions that process streams of data (called Scanner Ops) into graphs. Computation graphs process sequences of video frames. Scanner graphs support features useful for video processing, such as sparse sampling of video frames, access to temporal sliding windows of frames, and state propagation across computations on successive frames. The Scanner runtime executes computation graphs efficiently on the processing resources on your machine, whether it be a multi-core laptop, a machine with multiple GPUs, or a large collection of machines in the cloud.
-* **Random access to video:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.
-* **First-class support for GPUs:** Most image processing algorithms can benefit greatly from GPU execution, so Scanner provides first-class support for writing Ops that execute on multiple GPUs in a single machine. Scanner also leverage specialized GPU hardware for video decoding.
+* **Computation graphs designed for video processing:** Similar to the dataflow model used by many modern ML frameworks, Scanner applications are written by composing together functions that process streams of data (called Scanner Ops) into graphs. Computation graphs process sequences of video frames. Scanner graphs support features useful for video processing, such as the ability to sparsely sample  video frames, access to temporal sliding windows of frames, and propagate state across computations on successive frames (e.g., tracking). The Scanner runtime executes computation graphs efficiently on the processing resources on your machine, whether it be a multi-core laptop, a machine with multiple GPUs, or a large collection of machines in the cloud.
+* **Random access to video frames:** Since Scanner understands how video is compressed, it can provide fast *random* access to video frames.  This feature has proven useful in video data analytics applications that want to access a sparse set of frames from a video.
+* **First-class support for GPU acceleration:** Most image processing algorithms can benefit greatly from GPU execution, so Scanner provides first-class support for writing Ops that execute on multiple GPUs in a single machine. Scanner also leverage specialized GPU hardware for video decoding.
 * **Distributed execution:** Scanner can scale out applications to hundreds of machines, and is designed to use cheaper preemptible machines on cloud computing platforms.
 
 ## Documentation
@@ -21,7 +23,7 @@ are a few links to get you started:
 * [Getting Started](http://scanner.run/getting-started.html)
 * [Programming Handbook](http://scanner.run/programming-handbook.html)
 * [API Reference](http://scanner.run/api.html)
-* [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)
+* [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf).  
 
 ## Example code
 
@@ -73,9 +75,9 @@ you used to build Scanner. This will run both our C++ tests and our end-to-end
 tests that verify the python API.
 
 ## About
-Scanner is an active research project, part of a collaboration between Carnegie
-Mellon and Stanford. Please contact [Alex Poms](https://github.com/apoms) and
-[Will Crichton](https://github.com/willcrichton) with questions.
+Scanner is an active research project, part of a collaboration between Stanford and Carnegie Mellon University. Please contact [Alex Poms](https://github.com/apoms) and [Will Crichton](https://github.com/willcrichton) with questions.  
+
+Scanner was developed with the support of the NSF (IIS-1539069), the Intel Corporation (through the Intel Science and Technology Center for Visual Cloud Computing and the NSF/Intel VEC program), and by Google.
 
 ### Paper citation
-Scanner will appear in the proceedings of SIGGRAPH 2018 as ["Scanner: Video Analysis at Scale"](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf) by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
+Scanner will appear in the proceedings of SIGGRAPH 2018 as "[Scanner: Efficient Video Analysis at Scale]"(http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf) by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
