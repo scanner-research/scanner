@@ -657,7 +657,7 @@ def test_files_sink(db):
             assert d == i
 
 
-@scannerpy.register_python(
+@scannerpy.register_python_op(
     inputs=[('frame', ColumnType.Video)],
     outputs=['dummy'])
 class TestPy(Kernel):
@@ -701,7 +701,7 @@ def test_python_kernel(db):
     next(tables[0].load(['dummy']))
 
 
-@scannerpy.register_python(
+@scannerpy.register_python_op(
     inputs=[('frame', ColumnType.Video)],
     outputs=['dummy'],
     batch=50)
@@ -1131,7 +1131,7 @@ def test_job_blacklist(blacklist_db):
     # NOTE(wcrichto): this class must NOT be at the top level. If it is, then pytest injects
     # some of its dependencies, and sending this class to an external Scanner process will fail
     # with a missing "py_test" import..
-    @scannerpy.register_python(
+    @scannerpy.register_python_op(
         inputs=[('frame', ColumnType.Video)],
         outputs=['dummy'])
     class TestPyFailKernel(Kernel):
