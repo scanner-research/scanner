@@ -1,10 +1,11 @@
-
 import grpc
 import copy
 import pickle
+import types
 
 from scannerpy.common import *
 from scannerpy.protobuf_generator import python_to_proto
+from typing import Dict, List, Union, Tuple, Optional
 
 
 class OpColumn:
@@ -76,6 +77,7 @@ class OpColumn:
         new_col._encode_options = encode_options
         return new_col
 
+PYTHON_OP_REGISTRY = {}
 
 class OpGenerator:
     """
@@ -90,6 +92,24 @@ class OpGenerator:
         self._db = db
 
     def __getattr__(self, name):
+        # Check python registry for Op
+        if name in PYTHON_OP_REGISTRY:
+            py_op_info = PYTHON_OP_REGISTRY[name]
+            # If Op has not been registered yet, register it
+            if not name in self._db._python_ops:
+                self._db.register_op(
+                    name,
+                    py_op_info['input_columns'],
+                    py_op_info['output_columns'],
+                    py_op_info['variadic_inputs'],
+                    py_op_info['stencil'],
+                    py_op_info['unbounded_state'],
+                    py_op_info['proto_path'])
+                self._db.register_python_kernel(
+                    name,
+                    py_op_info['device_type'],
+                    py_op_info['kernel'],
+                    py_op_info['batch'])
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
@@ -206,3 +226,46 @@ class Op:
             e.kernel_args = self._args.SerializeToString()
 
         return e
+
+
+def register_python_op(
+        inputs: List[Union[str, Tuple[str, ColumnType]]],
+        outputs: List[Union[str, Tuple[str, ColumnType]]],
+        name: str = None,
+        variadic_inputs: bool = False,
+        stencil: List[int] = None,
+        unbounded_state: bool = False,
+        bounded_state: int = None,
+        device_type: DeviceType = DeviceType.CPU,
+        batch: int = 1,
+        proto_path: str = None):
+    def dec(fn_or_class):
+        is_fn = False
+        if isinstance(fn_or_class, types.FunctionType) or isinstance(
+                      fn_or_class, types.BuiltinFunctionType):
+            is_fn = True
+
+        if name is None:
+            # Infer name from fn_or_class name
+            kname = fn_or_class.__name__
+        else:
+            kname = name
+
+        if kname in PYTHON_OP_REGISTRY:
+            raise ScannerException(
+                'Attempted to register Op with name {:s} twice'.format(kname))
+
+        PYTHON_OP_REGISTRY[kname] = {
+            'input_columns': inputs,
+            'output_columns': outputs,
+            'variadic_inputs': variadic_inputs,
+            'stencil': stencil,
+            'unbounded_state': unbounded_state,
+            'bounded_state': bounded_state,
+            'kernel': fn_or_class,
+            'device_type': device_type,
+            'batch': batch,
+            'proto_path': proto_path,
+        }
+        return fn_or_class
+    return dec

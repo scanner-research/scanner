@@ -12,6 +12,11 @@ import cv2
 # will run independently over each element of the input sequence. For example:
 
 
+# Custom kernels have to be registered with the Scanner runtime, providing their
+# name and input/output types as well as op argument paths.
+@scannerpy.register_python_op(
+    inputs=[('frame', ColumnType.Video)],
+    outputs=[('resized', ColumnType.Video)])
 def resize(columns, config, protobufs):
     # Custom ops take as input three things: the input elements (columns), the kernel configuration (config),
     # and a pointer to the available protobufs (protobufs). Here, we use the width and height from the kernel
@@ -21,11 +26,14 @@ def resize(columns, config, protobufs):
     ]
 
 
-# If your kernel has state (e.g. it tracks objects over time) or if it has high start-up costs (e.g. it loads a
+# If your op has state (e.g. it tracks objects over time) or if it has high start-up costs (e.g. it loads a
 # neural network model into memory), then you can also use our class-based interface:
 
 
-class ResizeKernel(Kernel):
+@scannerpy.register_python_op(
+    inputs=[('frame', ColumnType.Video)],
+    outputs=[('resized', ColumnType.Video)])
+class Resize2(Kernel):
     # Init runs once when the class instance is initialized
     def __init__(self, config, protobufs):
         self._width = config.args['width']
@@ -36,14 +44,8 @@ class ResizeKernel(Kernel):
         return [cv2.resize(columns[0], (self._width, self._height))]
 
 
-# Once your kernels are ready to go, we boot up the database and register them with the Scanner runtime.
+# Once your ops are ready to go, we boot up the database
 db = Database()
-
-# Custom kernels have to be registered with the Scanner runtime, providing their
-# name and input/output types as well as op argument paths.
-db.register_op('MyResize', [('frame', ColumnType.Video)],
-               [('resized', ColumnType.Video)])
-db.register_python_kernel('MyResize', DeviceType.CPU, resize)
 
 # The difference between an op and a kernel is that of interface and implementation. An op represents a kind of
 # computation, and a kernel is a concrete implementation of that computation. There can be multiple kernels for

@@ -896,7 +896,7 @@ class Database(object):
           The device type of the resource this kernel uses.
 
         kernel
-          The path to the python kernel file.
+          The class or function that implements the kernel.
 
         batch
           Specifies a default for how many elements this kernel should batch

@@ -232,9 +232,6 @@ if __name__ == '__main__':
     db = Database()
     [input_table], failed = db.ingest_videos(
         [('example', movie_path)], force=True)
-    db.register_op('ObjDetect', [('frame', ColumnType.Video)],
-                   ['bundled_data'])
-    db.register_python_kernel('ObjDetect', DeviceType.CPU, ObjDetectKernel)
     frame = db.sources.FrameColumn()
     strided_frame = frame.sample()
 
