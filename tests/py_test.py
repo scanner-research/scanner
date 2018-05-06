@@ -682,7 +682,6 @@ class TestPyKernel(Kernel):
 
 
 def test_python_kernel(db):
-
     db.register_op('TestPy', [('frame', ColumnType.Video)], ['dummy'])
     db.register_python_kernel('TestPy', DeviceType.CPU, TestPyKernel)
 
@@ -1133,19 +1132,22 @@ def blacklist_db():
         ])
 
 
-class TestPyFailKernel(Kernel):
-    def __init__(self, config, protobufs):
-        self.protobufs = protobufs
-        pass
-
-    def close(self):
-        pass
-
-    def execute(self, input_columns):
-        raise scannerpy.ScannerException('Test')
-
-
 def test_job_blacklist(blacklist_db):
+
+    # NOTE(wcrichto): this class must NOT be at the top level. If it is, then pytest injects
+    # some of its dependencies, and sending this class to an external Scanner process will fail
+    # with a missing "py_test" import..
+    class TestPyFailKernel(Kernel):
+        def __init__(self, config, protobufs):
+            self.protobufs = protobufs
+            pass
+
+        def close(self):
+            pass
+
+        def execute(self, input_columns):
+            raise ScannerException('Test')
+
     db = blacklist_db
     db.register_op('TestPyFail', [('frame', ColumnType.Video)], ['dummy'])
     db.register_python_kernel('TestPyFail', DeviceType.CPU, TestPyFailKernel)
