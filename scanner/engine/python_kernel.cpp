@@ -44,7 +44,6 @@ def %s_fn():
   user_config = pickle.loads(n['user_config_str'])
   protobufs = ProtobufGenerator(user_config)
   kernel_config = KernelConfig(n['config'])
-  ns = {**locals()}
   return cloudpickle.loads(n['kernel_code'])(kernel_config, protobufs)
 %s = %s_fn()
 )", kernel_name_, kernel_ns_name_, kernel_name_, kernel_name_);

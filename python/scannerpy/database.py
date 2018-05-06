@@ -21,7 +21,7 @@ if sys.platform == 'linux' or sys.platform == 'linux2':
     import prctl
 
 from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import Process, Queue, cpu_count
+from multiprocessing import Process, cpu_count, Event
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
@@ -305,12 +305,12 @@ class Database(object):
 
     def _start_heartbeat(self):
         # Start up heartbeat to keep master alive
-        def heartbeat_task(q, master_address, ppid):
+        def heartbeat_task(stop_event, master_address, ppid):
             if sys.platform == 'linux' or sys.platform == 'linux2':
                 prctl.set_pdeathsig(signal.SIGTERM)
             channel = self._make_grpc_channel(master_address)
             master = grpc_types.MasterStub(channel)
-            while q.empty():
+            while not stop_event.is_set():
                 if os.getppid() != ppid:
                     return
                 try:
@@ -320,17 +320,18 @@ class Database(object):
                     pass
                 time.sleep(1)
 
-        self._heartbeat_queue = Queue()
+        self._heartbeat_stop_event = Event()
         pid = os.getpid()
         self._heartbeat_process = Process(
             target=heartbeat_task,
-            args=(self._heartbeat_queue, self._master_address, pid))
+            args=(self._heartbeat_stop_event, self._master_address, pid))
         self._heartbeat_process.daemon = True
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        if self._heartbeat_queue and not self._heartbeat_queue.empty():
-            self._heartbeat_queue.put(0)
+        if (self._heartbeat_stop_event and
+            not self._heartbeat_stop_event.is_set()):
+            self._heartbeat_stop_event.set()
 
     def _handle_signal(self, signum, frame):
         if (signum == signal.SIGINT or signum == signal.SIGTERM
@@ -894,7 +895,7 @@ class Database(object):
         device_type
           The device type of the resource this kernel uses.
 
-        kernel_path
+        kernel
           The path to the python kernel file.
 
         batch
