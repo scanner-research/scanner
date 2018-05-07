@@ -660,8 +660,8 @@ def test_files_sink(db):
 
 @scannerpy.register_python_op()
 class TestPy(Kernel):
-    def __init__(self, config, protobufs):
-        self.protobufs = protobufs
+    def __init__(self, config):
+        self.protobufs = config.protobufs
         assert (config.args['kernel_arg'] == 1)
         self.x = 20
         self.y = 20
@@ -677,11 +677,11 @@ class TestPy(Kernel):
         if 'y' in args:
             self.y = args['y']
 
-    def execute(self, frame: FrameType) -> Tuple[bytes]:
+    def execute(self, frame: FrameType) -> bytes:
         point = {}
         point['x'] = self.x
         point['y'] = self.y
-        return [pickle.dumps(point)]
+        return pickle.dumps(point)
 
 
 def test_python_kernel(db):
@@ -702,22 +702,20 @@ def test_python_kernel(db):
 
 @scannerpy.register_python_op(batch=50)
 class TestPyBatch(Kernel):
-    def __init__(self, config, protobufs):
-        self.protobufs = protobufs
+    def __init__(self, config):
+        self.protobufs = config.protobufs
         pass
 
     def close(self):
         pass
 
-    def execute(self,
-                frame: Sequence[FrameType]) -> Tuple[Sequence[bytes]]:
+    def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
         point = self.protobufs.Point()
         point.x = 10
         point.y = 5
         input_count = len(frame)
         column_count = 1
-        return [[point.SerializeToString() for _ in range(input_count)]
-                for _ in range(column_count)]
+        return [point.SerializeToString() for _ in range(input_count)]
 
 
 def test_python_batch_kernel(db):
@@ -1129,14 +1127,14 @@ def test_job_blacklist(blacklist_db):
     # with a missing "py_test" import..
     @scannerpy.register_python_op()
     class TestPyFail(Kernel):
-        def __init__(self, config, protobufs):
-            self.protobufs = protobufs
+        def __init__(self, config):
+            self.protobufs = config.protobufs
             pass
 
         def close(self):
             pass
 
-        def execute(self, frame: FrameType) -> Tuple[bytes]:
+        def execute(self, frame: FrameType) -> bytes:
             raise ScannerException('Test')
 
     db = blacklist_db

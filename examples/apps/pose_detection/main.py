@@ -20,7 +20,7 @@ class PoseDraw(scannerpy.Kernel):
     def close(self):
         pass
 
-    def execute(self, frame: FrameType, frame_poses: bytes) -> Tuple[FrameType]:
+    def execute(self, frame: FrameType, frame_poses: bytes) -> FrameType:
         for all_pose in readers.poses(frame_poses, self.protobufs):
             pose = all_pose.pose_keypoints()
             for i in range(18):
@@ -28,7 +28,7 @@ class PoseDraw(scannerpy.Kernel):
                 x = int(pose[i, 0] * frame.shape[1])
                 y = int(pose[i, 1] * frame.shape[0])
                 cv2.circle(frame, (x, y), 8, (255, 0, 0), 3)
-        return [frame]
+        return frame
 
 
 if len(sys.argv) <= 1:

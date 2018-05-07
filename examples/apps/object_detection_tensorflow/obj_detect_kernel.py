@@ -35,7 +35,7 @@ class ObjDetect(tensorflow.TensorFlowKernel):
 
     # Evaluate object detection DNN model on a frame
     # Return bounding box position, class and score
-    def execute(self, frame: FrameType) -> Tuple[bytes]:
+    def execute(self, frame: FrameType) -> bytes:
         image = frame
         image_tensor = self.graph.get_tensor_by_name('image_tensor:0')
         boxes = self.graph.get_tensor_by_name('detection_boxes:0')
@@ -53,4 +53,4 @@ class ObjDetect(tensorflow.TensorFlowKernel):
                 (boxes.reshape(100, 4), classes.reshape(100, 1),
                  scores.reshape(100, 1)), 1)[:20]
 
-            return [bundled_data.tobytes()]
+            return bundled_data.tobytes()

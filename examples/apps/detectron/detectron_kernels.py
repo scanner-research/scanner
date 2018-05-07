@@ -98,7 +98,7 @@ def detectron_vizualize(config,
                         frame: FrameType,
                         cls_boxes: bytes,
                         cls_segms: bytes,
-                        cls_keyps: bytes) -> Tuple[FrameType]:
+                        cls_keyps: bytes) -> FrameType:
         cls_boxes = pickle.loads(cls_boxes)
         cls_segms = pickle.loads(cls_segms)
         cls_keyps = pickle.loads(cls_keyps)
@@ -113,11 +113,11 @@ def detectron_vizualize(config,
             thresh=0.7,
             kp_thresh=2)
 
-        return vis_im,
+        return vis_im
 
 
 @scannerpy.register_python_op(name='MaskNonBBox')
-def mask_non_bbox(config, frame: FrameType, cls_segms: bytes) -> Tuple[FrameType]:
+def mask_non_bbox(config, frame: FrameType, cls_segms: bytes) -> FrameType:
     cls_segms = pickle.loads(cls_segms)
     _, segms, _, _ = vis_utils.convert_from_cls_format([], cls_segms, None)
 
@@ -133,4 +133,4 @@ def mask_non_bbox(config, frame: FrameType, cls_segms: bytes) -> Tuple[FrameType
 
     img[idx[0], idx[1], :] = 0
 
-    return img,
+    return img

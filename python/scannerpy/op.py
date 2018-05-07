@@ -282,7 +282,7 @@ def register_python_op(
                     typ.__origin__ != Sequence):
                     raise ScannerException(
                         ('A batched kernel must specify a "Sequence" type '
-                         'annotation for each input.'))
+                         'annotation for each input and output.'))
                 typ = typ.__args__[0]
             if typ == param.empty:
                 raise ScannerException(
@@ -332,18 +332,22 @@ def register_python_op(
             raise ScannerException(
                 ('Return annotation must be specified for "execute" method.'))
 
-        if getattr(typ, '__tuple_params__', None):
-            # Python 3.5
-            use_ellipsis = typ.__tuple_use_ellipsis__
-            tuple_params = typ.__tuple_params__
-        elif getattr(typ, '__args__', None):
-            # Python 3.6+
-            use_ellipsis = typ.__args__[-1] is Ellipsis
-            tuple_params = typ.__args__[:-1 if use_ellipsis else None]
+        return_is_tuple = True
+        if getattr(typ, '__origin__', None) == Tuple:
+            if getattr(typ, '__tuple_params__', None):
+                # Python 3.5
+                use_ellipsis = typ.__tuple_use_ellipsis__
+                tuple_params = typ.__tuple_params__
+            elif getattr(typ, '__args__', None):
+                # Python 3.6+
+                use_ellipsis = typ.__args__[-1] is Ellipsis
+                tuple_params = typ.__args__[:-1 if use_ellipsis else None]
+            else:
+                raise ScannerException('This should not happen...')
         else:
-            raise ScannerException(
-                ('Return annotation must be a parameterized "Tuple" at the top '
-                 'level.'))
+            use_ellipsis = False
+            return_is_tuple = False
+            tuple_params = [typ]
 
         if use_ellipsis:
             raise ScannerException(
@@ -357,28 +361,34 @@ def register_python_op(
             raise ScannerException(
                 'Attempted to register Op with name {:s} twice'.format(kname))
 
+        def parse_ret(r):
+            if return_is_tuple:
+                return r
+            else:
+                return (r,)
+
         # Wrap exec_fn to destructure input and outputs to proper python inputs
         if is_fn:
             if has_variadic_inputs:
                 def wrapper_exec(config, in_cols):
-                    return exec_fn(config, *in_cols)
+                    return parse_ret(exec_fn(config, *in_cols))
             else:
                 def wrapper_exec(config, in_cols):
                     args = {}
                     for (param_name, _), c in zip(input_columns, in_cols):
                         args[param_name] = c
-                    return exec_fn(config, **args)
+                    return parse_ret(exec_fn(config, **args))
             fn_or_class = wrapper_exec
         else:
             if has_variadic_inputs:
                 def execute(self, in_cols):
-                    return exec_fn(self, *in_cols)
+                    return parse_ret(exec_fn(self, *in_cols))
             else:
                 def execute(self, in_cols):
                     args = {}
                     for (param_name, _), c in zip(input_columns, in_cols):
                         args[param_name] = c
-                    return exec_fn(self, **args)
+                    return parse_ret(exec_fn(self, **args))
             fn_or_class.execute = execute
 
         PYTHON_OP_REGISTRY[kname] = {
