@@ -841,7 +841,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
         // Setup output buffers to receive op output
         BatchedElements output_columns;
-        output_columns.resize(num_output_columns);
+        output_columns.resize(kernel_num_outputs_[k]);
 
         // Map from previous output columns to the set of input columns needed
         // by the kernel
