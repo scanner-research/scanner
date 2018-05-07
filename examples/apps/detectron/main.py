@@ -5,7 +5,10 @@ import math
 import argparse
 from tqdm import tqdm
 
+import scannerpy
 import detectron_kernels
+from typing import Tuple, Sequence
+
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
@@ -53,16 +56,16 @@ if __name__ == '__main__':
         device=DeviceType.GPU)
 
     objdet_frame = db.ops.DetectronVizualize(
-        frame=strided_frame,
-        cls_boxes=cls_boxes,
-        cls_segms=cls_segms,
-        cls_keyps=cls_keyps)
+       frame=strided_frame,
+       cls_boxes=cls_boxes,
+       cls_segms=cls_segms,
+       cls_keyps=cls_keyps)
 
     output_op = db.sinks.Column(columns={'frame': objdet_frame})
     job = Job(
         op_args={
             frame: db.table('example').column('frame'),
-            strided_frame: db.sampler.strided(sample_stride),
+            strided_frame: db.sampler.range(0, 60),
             output_op: 'example_obj_detect',
         })
     [out_table] = db.run(

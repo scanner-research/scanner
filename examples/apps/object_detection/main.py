@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType, Job
-from scannerpy.stdlib import NetDescriptor, parsers, bboxes
+from scannerpy.stdlib import NetDescriptor, readers, bboxes
 import math
 import os
 import subprocess
@@ -65,7 +65,7 @@ def parse_features(buf, db):
         out = np.frombuffer(buf, dtype=np.dtype(np.int32))
         return out.reshape((-1, 4096))
 
-video_bboxes = [box for (_, box) in output.column('bboxes').load(parsers.bboxes)]
+video_bboxes = [box for (_, box) in output.column('bboxes').load(readers.bboxes)]
 video_features = [feature for (_, feature) in output.column('features').load(parse_features)]
 video_frames = [f[0] for _, f in db.table('example').load(['frame'])]
 

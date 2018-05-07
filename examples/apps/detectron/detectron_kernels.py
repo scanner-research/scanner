@@ -25,6 +25,7 @@ import os
 import sys
 import time
 import pickle
+import numpy as np
 
 from caffe2.python import workspace
 
@@ -39,6 +40,7 @@ import utils.c2 as c2_utils
 import utils.logging
 import utils.vis as vis_utils
 import scannerpy
+import pycocotools.mask as mask_util
 
 from scannerpy import Kernel, FrameType, DeviceType
 from scannerpy.stdlib import caffe2
@@ -85,24 +87,18 @@ class Detectron(caffe2.Caffe2Kernel):
         for k, v in timers.items():
             logger.info(' | {}: {:.3f}s'.format(k, v.average_time))
 
-        return [
+        return (
             pickle.dumps(cls_boxes),
             pickle.dumps(cls_segms),
-            pickle.dumps(cls_keyps)
-        ]
+            pickle.dumps(cls_keyps))
 
 
-@scannerpy.register_python_op()
-class DetectronVizualize(Kernel):
-    def __init__(self, config, protobufs):
-        self.dataset = dummy_datasets.get_coco_dataset()
-        pass
-
-    def execute(self,
-                frame: FrameType,
-                cls_boxes: bytes,
-                cls_segms: bytes,
-                cls_keyps: bytes) -> Tuple[FrameType]:
+@scannerpy.register_python_op(name='DetectronVizualize')
+def detectron_vizualize(config,
+                        frame: FrameType,
+                        cls_boxes: bytes,
+                        cls_segms: bytes,
+                        cls_keyps: bytes) -> Tuple[FrameType]:
         cls_boxes = pickle.loads(cls_boxes)
         cls_segms = pickle.loads(cls_segms)
         cls_keyps = pickle.loads(cls_keyps)
@@ -112,9 +108,29 @@ class DetectronVizualize(Kernel):
             cls_boxes,
             cls_segms,
             cls_keyps,
-            dataset=self.dataset,
+            dataset=dummy_datasets.get_coco_dataset(),
             show_class=True,
             thresh=0.7,
             kp_thresh=2)
 
-        return [vis_im]
+        return vis_im,
+
+
+@scannerpy.register_python_op(name='MaskNonBBox')
+def mask_non_bbox(config, frame: FrameType, cls_segms: bytes) -> Tuple[FrameType]:
+    cls_segms = pickle.loads(cls_segms)
+    _, segms, _, _ = vis_utils.convert_from_cls_format([], cls_segms, None)
+
+    if segms is not None and len(segms) > 0:
+        masks = mask_util.decode(segms)
+
+    sum_mask = np.zeros_like(frame)[..., 0]
+    for mi in range(masks.shape[2]):
+        sum_mask = np.logical_or(sum_mask, masks[:, :, mi])
+
+    idx = np.nonzero(np.invert(sum_mask))
+    img = frame.copy()
+
+    img[idx[0], idx[1], :] = 0
+
+    return img,

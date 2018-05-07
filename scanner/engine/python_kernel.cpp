@@ -152,8 +152,11 @@ void PythonKernel::execute(const BatchedElements &input_columns,
     std::vector<std::vector<py::object>> batched_out_cols;
 
     if (can_batch_) {
-      batched_out_cols = kernel.attr("execute")(batched_cols)
-                             .cast<std::vector<std::vector<py::object>>>();
+      py::tuple out_cols = kernel.attr("execute")(batched_cols)
+          .cast<py::tuple>();
+      for (i32 j = 0; j < out_cols.size(); ++j) {
+        batched_out_cols.push_back(out_cols[j].cast<std::vector<py::object>>());
+      }
 
       LOG_IF(FATAL, batched_out_cols.size() != output_columns.size())
           << "Incorrect number of output columns. Expected "
@@ -168,8 +171,8 @@ void PythonKernel::execute(const BatchedElements &input_columns,
         for (i32 j = 0; j < batched_cols.size(); ++j) {
           in_row.push_back(batched_cols[j][i]);
         }
-        std::vector<py::object> out_row =
-            kernel.attr("execute")(in_row).cast<std::vector<py::object>>();
+        py::tuple out_row =
+            kernel.attr("execute")(in_row).cast<py::tuple>();
         for (i32 j = 0; j < out_row.size(); ++j) {
           batched_out_cols[j].push_back(out_row[j]);
         }
