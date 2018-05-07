@@ -913,11 +913,11 @@ class Database(object):
 
             class KernelWrapper(Kernel):
                 def __init__(self, config, protobufs):
+                    config.protobufs = protobufs
                     self._config = config
-                    self._protobufs = protobufs
 
                 def execute(self, columns):
-                    return kernel(columns, self._config, self._protobufs)
+                    return kernel(self._config, columns)
 
             kernel_cls = KernelWrapper
         else:

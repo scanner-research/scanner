@@ -1,6 +1,6 @@
 import scannerpy
 from scannerpy import Database, DeviceType, Job, FrameType
-from scannerpy.stdlib import NetDescriptor, parsers, pipelines
+from scannerpy.stdlib import NetDescriptor, readers, pipelines
 import math
 import os
 import subprocess
@@ -12,9 +12,7 @@ import util
 
 from typing import Tuple
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video), 'poses'],
-    outputs=[('frame', ColumnType.Video)])
+@scannerpy.register_python_op()
 class PoseDraw(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
@@ -23,7 +21,7 @@ class PoseDraw(scannerpy.Kernel):
         pass
 
     def execute(self, frame: FrameType, frame_poses: bytes) -> Tuple[FrameType]:
-        for all_pose in parsers.poses(frame_poses, self.protobufs):
+        for all_pose in readers.poses(frame_poses, self.protobufs):
             pose = all_pose.pose_keypoints()
             for i in range(18):
                 if pose[i, 2] < 0.35: continue
