@@ -37,7 +37,7 @@ def %s_fn():
   import pickle
   import cloudpickle
   import traceback
-  from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig, ColumnType
+  from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig
   from scannerpy.protobuf_generator import ProtobufGenerator
 
   n = %s

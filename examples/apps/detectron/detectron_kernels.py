@@ -16,11 +16,6 @@
 (e.g., .jpg) in a folder.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 from collections import defaultdict
 import argparse
 import cv2  # NOQA (Must import before importing caffe2 due to bug in cv2)
@@ -43,16 +38,14 @@ import datasets.dummy_datasets as dummy_datasets
 import utils.c2 as c2_utils
 import utils.logging
 import utils.vis as vis_utils
-
-from scannerpy import Kernel, ColumnType, DeviceType
-from scannerpy.stdlib import caffe2
 import scannerpy
 
+from scannerpy import Kernel, FrameType, DeviceType
+from scannerpy.stdlib import caffe2
+from typing import Tuple, Sequence
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=['cls_boxes', 'cls_segms', 'cls_keyps'],
-    device_type=DeviceType.GPU)
+
+@scannerpy.register_python_op(device_type=DeviceType.GPU)
 class Detectron(caffe2.Caffe2Kernel):
     def build_graph(self):
         c2_utils.import_detectron_ops()
@@ -80,17 +73,14 @@ class Detectron(caffe2.Caffe2Kernel):
         model = infer_engine.initialize_model_from_cfg(weights_path)
         return model
 
-    def execute(self, cols):
-        print(len(cols))
+    def execute(self, frame: FrameType) -> Tuple[bytes, bytes, bytes]:
         logger = logging.getLogger(__name__)
-
-        image = cols[0]
 
         timers = defaultdict(Timer)
         t = time.time()
         with c2_utils.NamedCudaScope(0):
             cls_boxes, cls_segms, cls_keyps = infer_engine.im_detect_all(
-                self.graph, image, None, timers=timers)
+                self.graph, frame, None, timers=timers)
         logger.info('Inference time: {:.3f}s'.format(time.time() - t))
         for k, v in timers.items():
             logger.info(' | {}: {:.3f}s'.format(k, v.average_time))
@@ -102,25 +92,23 @@ class Detectron(caffe2.Caffe2Kernel):
         ]
 
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video),
-            'cls_boxes', 'cls_segms', 'cls_keyps'],
-    outputs=[('vis_frame', ColumnType.Video)])
+@scannerpy.register_python_op()
 class DetectronVizualize(Kernel):
     def __init__(self, config, protobufs):
         self.dataset = dummy_datasets.get_coco_dataset()
         pass
 
-    def execute(self, cols):
-        print('in viz')
-        print(globals())
-        image = cols[0]
-        cls_boxes = pickle.loads(cols[1])
-        cls_segms = pickle.loads(cols[2])
-        cls_keyps = pickle.loads(cols[3])
+    def execute(self,
+                frame: FrameType,
+                cls_boxes: bytes,
+                cls_segms: bytes,
+                cls_keyps: bytes) -> Tuple[FrameType]:
+        cls_boxes = pickle.loads(cls_boxes)
+        cls_segms = pickle.loads(cls_segms)
+        cls_keyps = pickle.loads(cls_keyps)
 
         vis_im = vis_utils.vis_one_image_opencv(
-            image[:, :, ::1],  # BGR -> RGB for visualization
+            frame[:, :, ::1],  # BGR -> RGB for visualization
             cls_boxes,
             cls_segms,
             cls_keyps,
