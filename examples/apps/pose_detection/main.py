@@ -1,5 +1,5 @@
 import scannerpy
-from scannerpy import Database, DeviceType, Job, ColumnType
+from scannerpy import Database, DeviceType, Job, FrameType
 from scannerpy.stdlib import NetDescriptor, parsers, pipelines
 import math
 import os
@@ -10,6 +10,7 @@ import os.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import util
 
+from typing import Tuple
 
 @scannerpy.register_python_op(
     inputs=[('frame', ColumnType.Video), 'poses'],
@@ -21,9 +22,7 @@ class PoseDraw(scannerpy.Kernel):
     def close(self):
         pass
 
-    def execute(self, input_columns):
-        frame = input_columns[0]
-        frame_poses = input_columns[1]
+    def execute(self, frame: FrameType, frame_poses: bytes) -> Tuple[FrameType]:
         for all_pose in parsers.poses(frame_poses, self.protobufs):
             pose = all_pose.pose_keypoints()
             for i in range(18):
