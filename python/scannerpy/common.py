@@ -28,6 +28,12 @@ class DeviceHandle(object):
         self.device_id = device_id
 
 
+# Class purely for type annotaiton
+class FrameType(object):
+    pass
+
+BlobType = bytes
+
 class ColumnType(enum.Enum):
     """ Enum for specifying what the type of a column is. """
     Blob = 0
