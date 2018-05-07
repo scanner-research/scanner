@@ -2,11 +2,10 @@ import scannerpy
 import os
 import struct
 
-from scannerpy import Database, Job, ColumnType, DeviceType, Kernel
+from scannerpy import Database, Job, FrameType, DeviceType, Kernel
+from typing import Tuple
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=['test'])
+@scannerpy.register_python_op()
 class MyOpKernel(Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
@@ -14,7 +13,7 @@ class MyOpKernel(Kernel):
     def close(self):
         pass
 
-    def execute(self, input_columns):
+    def execute(self, frame: FrameType) -> Tuple[bytes]:
         return [struct.pack('=q', 9000)]
 
 

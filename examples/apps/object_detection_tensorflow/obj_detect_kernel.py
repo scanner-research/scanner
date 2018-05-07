@@ -1,4 +1,3 @@
-# Mostly taken from: https://github.com/tensorflow/models/blob/master/object_detection/object_detection_tutorial.ipynb
 
 import numpy as np
 import tensorflow as tf
@@ -7,6 +6,7 @@ import os
 import scannerpy
 
 from scannerpy.stdlib import tensorflow
+from typing import Tuple
 
 ##################################################################################################
 # Assume that DNN model is located in PATH_TO_GRAPH with filename 'frozen_inference_graph.pb'    #
@@ -21,9 +21,7 @@ PATH_TO_GRAPH = os.path.join(PATH_TO_REPO, 'ssd_mobilenet_v1_coco_2017_11_17',
                              'frozen_inference_graph.pb')
 
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=['bundled_data'])
+@scannerpy.register_python_op()
 class ObjDetect(tensorflow.TensorFlowKernel):
     def build_graph(self):
         dnn = tf.Graph()
@@ -37,8 +35,8 @@ class ObjDetect(tensorflow.TensorFlowKernel):
 
     # Evaluate object detection DNN model on a frame
     # Return bounding box position, class and score
-    def execute(self, cols):
-        image = cols[0]
+    def execute(self, frame: FrameType) -> Tuple[bytes]:
+        image = frame
         image_tensor = self.graph.get_tensor_by_name('image_tensor:0')
         boxes = self.graph.get_tensor_by_name('detection_boxes:0')
         scores = self.graph.get_tensor_by_name('detection_scores:0')
