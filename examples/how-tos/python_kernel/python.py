@@ -13,8 +13,8 @@ class MyOpKernel(Kernel):
     def close(self):
         pass
 
-    def execute(self, frame: FrameType) -> Tuple[bytes]:
-        return [struct.pack('=q', 9000)]
+    def execute(self, frame: FrameType) -> bytes:
+        return struct.pack('=q', 9000)
 
 
 with Database() as db:

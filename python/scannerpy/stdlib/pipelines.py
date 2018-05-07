@@ -16,19 +16,19 @@ import scannerpy.stdlib.bboxes as bboxes
 
 @scannerpy.register_python_op()
 class BBoxNMS(scannerpy.Kernel):
-    def __init__(self, config, protobufs):
-        self.protobufs = protobufs
+    def __init__(self, config):
+        self.protobufs = config.protobufs
         self.scale = config.args['scale']
 
     def close(self):
         pass
 
-    def execute(self, *inputs) -> Tuple[bytes]:
+    def execute(self, *inputs) -> bytes:
         bboxes_list = []
         for c in inputs:
             bboxes_list += readers.bboxes(c, self.protobufs)
         nmsed_bboxes = bboxes.nms(bboxes_list, 0.1)
-        return [writers.bboxes(nmsed_bboxes, self.protobufs)]
+        return writers.bboxes(nmsed_bboxes, self.protobufs)
 
 
 def detect_faces(db,

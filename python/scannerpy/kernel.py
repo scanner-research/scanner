@@ -13,9 +13,9 @@ class KernelConfig(object):
 
 
 class Kernel(object):
-    def __init__(self, config, protobufs):
+    def __init__(self, config):
         self.config = config
-        self.protobufs = protobufs
+        self.protobufs = config.protobufs
 
     def close(self):
         pass

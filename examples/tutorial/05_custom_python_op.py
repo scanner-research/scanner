@@ -14,25 +14,21 @@ import cv2
 
 # Custom kernels have to be registered with the Scanner runtime, providing their
 # name and input/output types as well as op argument paths.
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=[('resized', ColumnType.Video)])
-def resize(columns, config, protobufs):
-    # Custom ops take as input three things: the input elements (columns), the kernel configuration (config),
-    # and a pointer to the available protobufs (protobufs). Here, we use the width and height from the kernel
-    # config to resize our image.
-    return [
-        cv2.resize(columns[0], (config.args['width'], config.args['height']))
-    ]
+@scannerpy.register_python_op()
+def resize(config, frame: FrameType) -> FrameType:
+    # Custom ops always take as input the kernel configuration (config). All
+    # other inputs must be annotated with one of two types: FrameType for
+    # inputs which represent images, or bytes for inputs which represent
+    # serialized values. The return type must also be annotated with the same
+    # types.
+
+    # Here, we use the width and height from the kernel config to resize our image.
+    return cv2.resize(frame, (config.args['width'], config.args['height']))
 
 
 # If your op has state (e.g. it tracks objects over time) or if it has high start-up costs (e.g. it loads a
 # neural network model into memory), then you can also use our class-based interface:
-
-
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=[('resized', ColumnType.Video)])
+@scannerpy.register_python_op()
 class Resize2(Kernel):
     # Init runs once when the class instance is initialized
     def __init__(self, config, protobufs):
@@ -40,8 +36,8 @@ class Resize2(Kernel):
         self._height = config.args['height']
 
     # Execute runs on every element
-    def execute(self, columns):
-        return [cv2.resize(columns[0], (self._width, self._height))]
+    def execute(self, frame: FrameType) -> FrameType:
+        return cv2.resize(frame, (self._width, self._height))
 
 
 # Once your ops are ready to go, we boot up the database

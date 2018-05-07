@@ -5,10 +5,10 @@ from caffe2.python import workspace
 
 
 class Caffe2Kernel(Kernel):
-    def __init__(self, config, protobufs):
+    def __init__(self, config):
         workspace.GlobalInit(['caffe2', '--caffe2_log_level=0'])
         self.config = config
-        self.protobufs = protobufs
+        self.protobufs = config.protobufs
         self.graph = self.build_graph()
 
     def close(self):
