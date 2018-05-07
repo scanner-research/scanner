@@ -1,4 +1,4 @@
-from scannerpy import Database, Job, ColumnType, DeviceType
+from scannerpy import Database, Job, FrameType, DeviceType
 import os
 import sys
 import math

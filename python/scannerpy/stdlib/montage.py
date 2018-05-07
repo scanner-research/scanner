@@ -1,7 +1,7 @@
-
 import cv2
 import math
 import numpy as np
+
 
 def make_montage(n, frames, frame_width=64, frames_per_row=16):
     frame = next(frames)

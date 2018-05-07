@@ -1,7 +1,8 @@
 import scannerpy
-from scannerpy import (Database, Config, DeviceType, ColumnType, Job,
+from scannerpy import (Database, Config, DeviceType, FrameType, Job,
                        ProtobufGenerator, ScannerException, Kernel)
 from scannerpy.stdlib import readers
+from typing import Dict, List, Sequence, Tuple
 import tempfile
 import toml
 import pytest
@@ -657,9 +658,7 @@ def test_files_sink(db):
             assert d == i
 
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=['dummy'])
+@scannerpy.register_python_op()
 class TestPy(Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
@@ -678,7 +677,7 @@ class TestPy(Kernel):
         if 'y' in args:
             self.y = args['y']
 
-    def execute(self, input_columns):
+    def execute(self, frame: FrameType) -> Tuple[bytes]:
         point = {}
         point['x'] = self.x
         point['y'] = self.y
@@ -701,11 +700,8 @@ def test_python_kernel(db):
     next(tables[0].load(['dummy']))
 
 
-@scannerpy.register_python_op(
-    inputs=[('frame', ColumnType.Video)],
-    outputs=['dummy'],
-    batch=50)
-class TestPyBatchKernel(Kernel):
+@scannerpy.register_python_op(batch=50)
+class TestPyBatch(Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
         pass
@@ -713,12 +709,13 @@ class TestPyBatchKernel(Kernel):
     def close(self):
         pass
 
-    def execute(self, input_columns):
+    def execute(self,
+                frame: Sequence[FrameType]) -> Tuple[Sequence[bytes]]:
         point = self.protobufs.Point()
         point.x = 10
         point.y = 5
-        input_count = len(input_columns[0])
-        column_count = len(input_columns)
+        input_count = len(frame)
+        column_count = 1
         return [[point.SerializeToString() for _ in range(input_count)]
                 for _ in range(column_count)]
 
@@ -1127,14 +1124,11 @@ def blacklist_db():
 
 
 def test_job_blacklist(blacklist_db):
-
     # NOTE(wcrichto): this class must NOT be at the top level. If it is, then pytest injects
     # some of its dependencies, and sending this class to an external Scanner process will fail
     # with a missing "py_test" import..
-    @scannerpy.register_python_op(
-        inputs=[('frame', ColumnType.Video)],
-        outputs=['dummy'])
-    class TestPyFailKernel(Kernel):
+    @scannerpy.register_python_op()
+    class TestPyFail(Kernel):
         def __init__(self, config, protobufs):
             self.protobufs = protobufs
             pass
@@ -1142,7 +1136,7 @@ def test_job_blacklist(blacklist_db):
         def close(self):
             pass
 
-        def execute(self, input_columns):
+        def execute(self, frame: FrameType) -> Tuple[bytes]:
             raise ScannerException('Test')
 
     db = blacklist_db
