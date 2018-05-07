@@ -4,6 +4,7 @@ import os.path
 from scannerpy import DeviceType, Job
 from scannerpy.stdlib import NetDescriptor
 from scannerpy.stdlib.util import temp_directory, download_temp_file
+from typing import Tuple
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -13,10 +14,8 @@ import scannerpy.stdlib.writers as writers
 import scannerpy.stdlib.bboxes as bboxes
 
 
-@scannerpy.register_python_op(
-    variadic_inputs=True,
-    outputs=['bboxes'])
-class BBoxNMSKernel(scannerpy.Kernel):
+@scannerpy.register_python_op()
+class BBoxNMS(scannerpy.Kernel):
     def __init__(self, config, protobufs):
         self.protobufs = protobufs
         self.scale = config.args['scale']
@@ -24,9 +23,9 @@ class BBoxNMSKernel(scannerpy.Kernel):
     def close(self):
         pass
 
-    def execute(self, input_columns):
+    def execute(self, *inputs) -> Tuple[bytes]:
         bboxes_list = []
-        for c in input_columns:
+        for c in inputs:
             bboxes_list += readers.bboxes(c, self.protobufs)
         nmsed_bboxes = bboxes.nms(bboxes_list, 0.1)
         return [writers.bboxes(nmsed_bboxes, self.protobufs)]
