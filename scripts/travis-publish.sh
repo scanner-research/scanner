@@ -43,9 +43,9 @@ cd -
 cd ${HTML_PATH}
 cp /tmp/CNAME .
 git add .
-git config user.name "${COMMIT_USER}"
-git config user.email "${COMMIT_EMAIL}"
-git commit -m "Automated documentation build for changeset ${CHANGESET}."
+git config user.name \"${COMMIT_USER}\"
+git config user.email \"${COMMIT_EMAIL}\"
+git commit -m \"Automated documentation build for changeset ${CHANGESET}.\"
 git push origin gh-pages
 cd -
 "
