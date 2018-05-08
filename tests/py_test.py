@@ -1297,9 +1297,9 @@ def sql_db(db):
 
 
 @scannerpy.register_python_op(name='AddOne')
-def add_one(config, row: bytes) -> Tuple[bytes]:
+def add_one(config, row: bytes) -> bytes:
     row = json.loads(row.decode('utf-8'))
-    return (json.dumps([{'id': r['id'], 'num2': r['num'] + 1} for r in row]), )
+    return json.dumps([{'id': r['id'], 'num2': r['num'] + 1} for r in row])
 
 
 def test_sql(sql_db):
