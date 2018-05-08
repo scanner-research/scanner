@@ -636,14 +636,12 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
   const std::string& kernel_code = python_kernel->kernel_code();
   const std::string& pickled_config = python_kernel->pickled_config();
   const int batch_size = python_kernel->batch_size();
-  // Create a kernel builder function
-  auto constructor = [op_name, kernel_code, pickled_config, batch_size](
-    const KernelConfig& config) {
-    return new PythonKernel(config, op_name, kernel_code, pickled_config, batch_size);
-  };
+
   // Set all input and output columns to be CPU
   std::map<std::string, DeviceType> input_devices;
   std::map<std::string, DeviceType> output_devices;
+  bool can_batch = batch_size > 1;
+  bool can_stencil;
   {
     OpRegistry* registry = get_op_registry();
     OpInfo* info = registry->get_op_info(op_name);
@@ -657,9 +655,17 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
     for (const auto& out_col : info->output_columns()) {
       output_devices[out_col.name()] = DeviceType::CPU;
     }
+    can_stencil = info->can_stencil();
   }
+
+  // Create a kernel builder function
+  auto constructor = [op_name, kernel_code, pickled_config,
+                      can_batch, can_stencil](const KernelConfig& config) {
+      return new PythonKernel(config, op_name, kernel_code, pickled_config,
+                              can_batch, can_stencil);
+  };
+
   // Create a new kernel factory
-  bool can_batch = (batch_size > 1);
   KernelFactory* factory =
       new KernelFactory(op_name, device_type, 1, input_devices, output_devices,
                         can_batch, batch_size, constructor);

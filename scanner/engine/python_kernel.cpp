@@ -16,11 +16,13 @@ PythonKernel::PythonKernel(const KernelConfig &config,
                            const std::string &op_name,
                            const std::string &kernel_code,
                            const std::string &pickled_config,
-                           const int preferred_batch)
-    : BatchedKernel(config), config_(config), device_(config.devices[0]),
-      op_name_(op_name) {
+                           const bool can_batch,
+                           const bool can_stencil)
+    : StenciledBatchedKernel(config), config_(config),
+      device_(config.devices[0]), op_name_(op_name) {
   py::gil_scoped_acquire acquire;
-  can_batch_ = (preferred_batch > 1);
+  can_batch_ = can_batch;
+  can_stencil_ = can_stencil;
   kernel_name_ = tfm::format("%s_kernel", op_name_);
   std::string kernel_ns_name_ = tfm::format("ns_%s", op_name_);
 
@@ -94,91 +96,126 @@ else:
   }
 }
 
-void PythonKernel::execute(const BatchedElements &input_columns,
+void PythonKernel::execute(const StenciledBatchedElements &input_columns,
                            BatchedElements &output_columns) {
-  i32 input_count = (i32)num_rows(input_columns[0]);
+  i32 input_count = (i32)input_columns[0].size();
   py::gil_scoped_acquire acquire;
 
   try {
     py::object kernel =
         py::module::import("__main__").attr(kernel_name_.c_str());
 
-    std::vector<std::vector<py::object>> batched_cols;
+    std::vector<std::vector<std::vector<py::object>>> batched_cols;
     for (i32 j = 0; j < input_columns.size(); ++j) {
       batched_cols.emplace_back();
     }
 
     for (i32 j = 0; j < input_columns.size(); ++j) {
-      std::vector<py::object> &col = batched_cols[j];
+      std::vector<std::vector<py::object>> &batched_col = batched_cols[j];
       if (config_.input_column_types[j] == proto::ColumnType::Video) {
         for (i32 i = 0; i < input_count; ++i) {
-          const Frame *frame = input_columns[j][i].as_const_frame();
-          std::string dtype;
-          u32 dtype_size;
-          if (frame->type == FrameType::U8) {
-            dtype = py::format_descriptor<u8>::format();
-            dtype_size = 1;
-          } else if (frame->type == FrameType::F32) {
-            dtype = py::format_descriptor<f32>::format();
-            dtype_size = 4;
-          } else if (frame->type == FrameType::F64) {
-            dtype = py::format_descriptor<f64>::format();
-            dtype_size = 8;
-          }
+          batched_col.emplace_back();
+          std::vector<py::object> &col = batched_col.back();
+          for (i32 k = 0; k < input_columns[j][i].size(); ++k) {
+            const Frame *frame = input_columns[j][i][k].as_const_frame();
+            std::string dtype;
+            u32 dtype_size;
+            if (frame->type == FrameType::U8) {
+              dtype = py::format_descriptor<u8>::format();
+              dtype_size = 1;
+            } else if (frame->type == FrameType::F32) {
+              dtype = py::format_descriptor<f32>::format();
+              dtype_size = 4;
+            } else if (frame->type == FrameType::F64) {
+              dtype = py::format_descriptor<f64>::format();
+              dtype_size = 8;
+            }
 
-          py::buffer_info buffer(
-              frame->data, (size_t)dtype_size, dtype, 3,
-              {(long int)frame->height(), (long int)frame->width(),
-               (long int)frame->channels()},
-              {(long int)frame->width() * frame->channels() * dtype_size,
-               (long int)frame->channels() * dtype_size, (long int)dtype_size});
+            py::buffer_info buffer(
+                frame->data, (size_t)dtype_size, dtype, 3,
+                {(long int)frame->height(), (long int)frame->width(),
+                 (long int)frame->channels()},
+                {(long int)frame->width() * frame->channels() * dtype_size,
+                 (long int)frame->channels() * dtype_size,
+                 (long int)dtype_size});
 
-          if (frame->type == FrameType::U8) {
-            col.push_back(py::object(py::array_t<u8>(buffer)));
-          } else if (frame->type == FrameType::F32) {
-            col.push_back(py::object(py::array_t<f32>(buffer)));
-          } else if (frame->type == FrameType::F64) {
-            col.push_back(py::object(py::array_t<f64>(buffer)));
+            if (frame->type == FrameType::U8) {
+              col.push_back(py::object(py::array_t<u8>(buffer)));
+            } else if (frame->type == FrameType::F32) {
+              col.push_back(py::object(py::array_t<f32>(buffer)));
+            } else if (frame->type == FrameType::F64) {
+              col.push_back(py::object(py::array_t<f64>(buffer)));
+            }
           }
         }
       } else {
         for (i32 i = 0; i < input_count; ++i) {
-          std::string s((char const *)input_columns[j][i].buffer,
-                        input_columns[j][i].size);
-          col.push_back(py::object(py::bytes(s)));
+          batched_col.emplace_back();
+          std::vector<py::object> &col = batched_col.back();
+          for (i32 k = 0; k < input_columns[j][i].size(); ++k) {
+            std::string s((char const *)input_columns[j][i][k].buffer,
+                          input_columns[j][i][k].size);
+            col.push_back(py::object(py::bytes(s)));
+          }
         }
       }
     }
 
     std::vector<std::vector<py::object>> batched_out_cols;
 
-    if (can_batch_) {
+    if (can_batch_ && can_stencil_) {
       py::tuple out_cols = kernel.attr("execute")(batched_cols)
           .cast<py::tuple>();
       for (i32 j = 0; j < out_cols.size(); ++j) {
         batched_out_cols.push_back(out_cols[j].cast<std::vector<py::object>>());
       }
-
-      LOG_IF(FATAL, batched_out_cols.size() != output_columns.size())
-          << "Incorrect number of output columns. Expected "
-          << output_columns.size() << ", got " << batched_out_cols.size();
-    } else {
+    } else if (can_stencil_) {
+      // Remove the batch dimension since we are only stenciling
+      std::vector<std::vector<py::object>> in_row(batched_cols.size());
+      for (size_t i = 0; i < batched_cols.size(); ++i) {
+        in_row[i] = batched_cols[i][0];
+      }
+      py::tuple out_row = kernel.attr("execute")(in_row)
+          .cast<py::tuple>();
       for (i32 j = 0; j < output_columns.size(); ++j) {
         batched_out_cols.emplace_back();
       }
+      for (i32 j = 0; j < out_row.size(); ++j) {
+        batched_out_cols[j].push_back(out_row[j]);
+      }
 
-      for (i32 i = 0; i < input_count; ++i) {
-        std::vector<py::object> in_row;
-        for (i32 j = 0; j < batched_cols.size(); ++j) {
-          in_row.push_back(batched_cols[j][i]);
-        }
-        py::tuple out_row =
-            kernel.attr("execute")(in_row).cast<py::tuple>();
-        for (i32 j = 0; j < out_row.size(); ++j) {
-          batched_out_cols[j].push_back(out_row[j]);
+    } else if (can_batch_) {
+      // Remove the stencil dimension since we are only batching
+      std::vector<std::vector<py::object>> in_row(batched_cols.size());
+      for (size_t i = 0; i < batched_cols.size(); ++i) {
+        for (size_t j = 0; j < batched_cols[i].size(); ++j) {
+          in_row[i].push_back(batched_cols[i][j][0]);
         }
       }
+      py::tuple out_cols = kernel.attr("execute")(in_row)
+          .cast<py::tuple>();
+      for (i32 j = 0; j < out_cols.size(); ++j) {
+        batched_out_cols.push_back(out_cols[j].cast<std::vector<py::object>>());
+      }
+    } else {
+      // Remove both the stencil and batch dimension
+      std::vector<py::object> in_row;
+      for (i32 j = 0; j < batched_cols.size(); ++j) {
+        in_row.push_back(batched_cols[j][0][0]);
+      }
+      py::tuple out_row =
+          kernel.attr("execute")(in_row).cast<py::tuple>();
+
+      for (i32 j = 0; j < output_columns.size(); ++j) {
+        batched_out_cols.emplace_back();
+      }
+      for (i32 j = 0; j < out_row.size(); ++j) {
+        batched_out_cols[j].push_back(out_row[j]);
+      }
     }
+    LOG_IF(FATAL, batched_out_cols.size() != output_columns.size())
+        << "Incorrect number of output columns. Expected "
+        << output_columns.size() << ", got " << batched_out_cols.size();
 
     for (i32 j = 0; j < output_columns.size(); ++j) {
       // push all rows to that column
