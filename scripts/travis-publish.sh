@@ -21,8 +21,12 @@ ssh-add .travis/travisci_rsa
 cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
 
 # Install python package for autodoc
-bash build.sh
+docker run $DOCKER_REPO:cpu-local /bin/bash -c "
+pip3 install doxypypy twine
+pip3 install Sphinx sphinx_readable_theme sphinx-autodoc-typehints
 
+cd /opt/scanner && \
+bash build.sh && \
 rm -rf ${HTML_PATH}
 mkdir -p ${HTML_PATH}
 git clone -b gh-pages ${REPO_PATH} --single-branch ${HTML_PATH}
@@ -44,6 +48,7 @@ git config user.email "${COMMIT_EMAIL}"
 git commit -m "Automated documentation build for changeset ${CHANGESET}."
 git push origin gh-pages
 cd -
+"
 
 # Publish Python package if on a new tag
 if [ -n "$TRAVIS_TAG" ];
