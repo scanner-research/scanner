@@ -48,8 +48,6 @@ build_docker() {
         docker push $DOCKER_REPO:$1
         docker rmi -f $DOCKER_REPO:$1
     fi
-
-    docker rmi -f $DOCKER_REPO:$1-local
 }
 
 if [ $PUSH -eq 0 ]; then
