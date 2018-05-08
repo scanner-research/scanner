@@ -18,6 +18,9 @@ import grpc
 import struct
 import pickle
 import subprocess
+from testing.postgresql import Postgresql
+import psycopg2
+import json
 
 try:
     run(['nvidia-smi'])
@@ -99,9 +102,7 @@ def download_videos():
             resp = requests.get(
                 url,
                 stream=True,
-                proxies={
-                    'https': 'http://proxy.pdl.cmu.edu:3128/'
-                })
+                proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
         else:
             resp = requests.get(url, stream=True)
         assert resp.ok
@@ -1265,3 +1266,77 @@ def test_job_timeout(timeout_db):
     table = table[0]
 
     assert table.committed() == False
+
+
+@pytest.fixture(scope='module')
+def sql_db(db):
+    with Postgresql() as postgresql:
+        conn = psycopg2.connect(**postgresql.dsn())
+        cur = conn.cursor()
+
+        cur.execute(
+            'CREATE TABLE test (id serial PRIMARY KEY, num integer, num2 integer, grp integer)'
+        )
+        cur.execute('INSERT INTO test (num, grp) VALUES (10, 0)')
+        cur.execute('INSERT INTO test (num, grp) VALUES (20, 0)')
+        cur.execute('INSERT INTO test (num, grp) VALUES (30, 1)')
+        conn.commit()
+
+        sql_params = postgresql.dsn()
+        sql_config = db.protobufs.SQLConfig(
+            hostaddr=sql_params['host'],
+            port=sql_params['port'],
+            dbname=sql_params['database'],
+            user=sql_params['user'],
+            adapter='postgres')
+
+        yield db, sql_config, cur
+
+        cur.close()
+        conn.close()
+
+
+@scannerpy.register_python_op(name='AddOne')
+def add_one(config, row: bytes) -> Tuple[bytes]:
+    row = json.loads(row.decode('utf-8'))
+    return (json.dumps([{'id': r['id'], 'num2': r['num'] + 1} for r in row]), )
+
+
+def test_sql(sql_db):
+    (db, sql_config, cur) = sql_db
+
+    sql_query = db.protobufs.SQLQuery(
+        fields='test.id as id, test.num as num',
+        table='test',
+        id='test.id',
+        group='test.id')
+
+    row = db.sources.SQL(config=sql_config, query=sql_query)
+    row2 = db.ops.AddOne(row=row)
+    output_op = db.sinks.SQL(input=row2, config=sql_config, query=sql_query)
+
+    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
+    db.run(output_op, [job])
+
+    cur.execute('SELECT num2 FROM test')
+    assert cur.fetchone()[0] == 11
+
+
+def test_sql_nested(sql_db):
+    (db, sql_config, cur) = sql_db
+
+    sql_query = db.protobufs.SQLQuery(
+        fields='test.id as id, test.num as num',
+        table='test',
+        id='test.id',
+        group='test.grp')
+
+    row = db.sources.SQL(config=sql_config, query=sql_query)
+    row2 = db.ops.AddOne(row=row)
+    output_op = db.sinks.SQL(input=row2, config=sql_config, query=sql_query)
+
+    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
+    db.run(output_op, [job])
+
+    cur.execute('SELECT num2 FROM test')
+    assert cur.fetchone()[0] == 11

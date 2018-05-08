@@ -45,13 +45,19 @@ class SQLEnumerator : public Enumerator {
     LOG_IF(FATAL, sql_config.adapter() != "postgres")
         << "Requested adapter " << sql_config.adapter()
         << " does not exist. Only \"postgres\" is supported right now.";
-    conn_.reset(new pqxx::connection{tfm::format(
-        "hostaddr=%s port=%d dbname=%s user=%s password=%s",
-        sql_config.hostaddr(), sql_config.port(), sql_config.dbname(),
-        sql_config.user(), sql_config.password())});
+
+    try {
+      conn_.reset(new pqxx::connection{tfm::format(
+          "hostaddr=%s port=%d dbname=%s user=%s password=%s",
+          sql_config.hostaddr(), sql_config.port(), sql_config.dbname(),
+          sql_config.user(), sql_config.password())});
+    } catch (pqxx::pqxx_exception& e) {
+      LOG(FATAL) << e.base().what();
+    }
   }
 
   i64 total_elements() override {
+    try {
     pqxx::work txn{*conn_};
     // Count the number the number of groups
     auto query = args_.query();
@@ -59,6 +65,9 @@ class SQLEnumerator : public Enumerator {
         "SELECT COUNT(DISTINCT(%s)) FROM %s %s WHERE %s",
         query.group(), query.table(), query.joins(), args_.filter()));
     return r[0].as<i32>();
+    } catch (pqxx::pqxx_exception& e) {
+      LOG(FATAL) << e.base().what();
+    }
   }
 
   ElementArgs element_args_at(i64 element_idx) override {
@@ -166,7 +175,7 @@ class SQLSource : public Source {
       // Group the rows based on the provided key
       cached_rows_.clear();
       std::vector<pqxx::row> cur_group;
-      i32 last_group = -1;
+      i32 last_group = result[0]["_scanner_number"].as<i32>();
       for (auto row : result) {
         i32 num = row["_scanner_number"].as<i32>();
         if (num != last_group) {
@@ -176,6 +185,8 @@ class SQLSource : public Source {
         }
         cur_group.push_back(row);
       }
+
+      cached_rows_.push_back(cur_group);
     }
 
     size_t total_size = 0;

@@ -9,6 +9,7 @@ from typing import Dict, List, Union, Tuple, Optional, Sequence
 from inspect import signature
 from itertools import islice
 from collections import OrderedDict
+from functools import wraps
 
 
 class OpColumn:
@@ -58,17 +59,19 @@ class OpColumn:
     def _assert_is_video(self):
         if self._type != self._db.protobufs.Video:
             raise ScannerException('Compression only supported for columns of'
-                                   'type "video". Column {} type is {}.'
-                                   .format(self._col,
-                                           self.db.protobufs.ColumnType.Name(
-                                               self._type)))
+                                   'type "video". Column {} type is {}.'.format(
+                                       self._col,
+                                       self.db.protobufs.ColumnType.Name(
+                                           self._type)))
 
     def _new_compressed_column(self, encode_options):
         new_col = OpColumn(self._db, self._op, self._col, self._type)
         new_col._encode_options = encode_options
         return new_col
 
+
 PYTHON_OP_REGISTRY = {}
+
 
 class OpGenerator:
     """
@@ -89,19 +92,13 @@ class OpGenerator:
             # If Op has not been registered yet, register it
             if not name in self._db._python_ops:
                 self._db.register_op(
-                    name,
-                    py_op_info['input_columns'],
-                    py_op_info['output_columns'],
-                    py_op_info['variadic_inputs'],
-                    py_op_info['stencil'],
-                    py_op_info['unbounded_state'],
-                    py_op_info['bounded_state'],
-                    py_op_info['proto_path'])
-                self._db.register_python_kernel(
-                    name,
-                    py_op_info['device_type'],
-                    py_op_info['kernel'],
-                    py_op_info['batch'])
+                    name, py_op_info['input_columns'],
+                    py_op_info['output_columns'], py_op_info['variadic_inputs'],
+                    py_op_info['stencil'], py_op_info['unbounded_state'],
+                    py_op_info['bounded_state'], py_op_info['proto_path'])
+                self._db.register_python_kernel(name, py_op_info['device_type'],
+                                                py_op_info['kernel'],
+                                                py_op_info['batch'])
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
@@ -152,8 +149,8 @@ class Op:
         self._args = args
         self._extra = extra
 
-        if (name == 'Space' or name == 'Sample' or
-            name == 'Slice' or name == 'Unslice'):
+        if (name == 'Space' or name == 'Sample' or name == 'Slice'
+                or name == 'Unslice'):
             outputs = []
             for c in inputs:
                 outputs.append(OpColumn(db, self, c._col, c._type))
@@ -200,8 +197,8 @@ class Op:
                 op_info = self._db._get_op_info(self._name)
                 if len(op_info.protobuf_name) > 0:
                     proto_name = op_info.protobuf_name
-                    e.kernel_args = python_to_proto(
-                        self._db.protobufs, proto_name, self._args)
+                    e.kernel_args = python_to_proto(self._db.protobufs,
+                                                    proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:
@@ -211,18 +208,17 @@ class Op:
         return e
 
 
-def register_python_op(
-        name: str = None,
-        stencil: List[int] = None,
-        unbounded_state: bool = False,
-        bounded_state: int = None,
-        device_type: DeviceType = DeviceType.CPU,
-        batch: int = 1,
-        proto_path: str = None):
+def register_python_op(name: str = None,
+                       stencil: List[int] = None,
+                       unbounded_state: bool = False,
+                       bounded_state: int = None,
+                       device_type: DeviceType = DeviceType.CPU,
+                       batch: int = 1,
+                       proto_path: str = None):
     def dec(fn_or_class):
         is_fn = False
         if isinstance(fn_or_class, types.FunctionType) or isinstance(
-                      fn_or_class, types.BuiltinFunctionType):
+                fn_or_class, types.BuiltinFunctionType):
             is_fn = True
 
         if name is None:
@@ -260,8 +256,8 @@ def register_python_op(
             if can_batch:
                 # If the op can batch, then we expect the types to be
                 # Sequence[T], where T = {bytes, FrameType}
-                if (not getattr(typ, '__origin__', None) or
-                    typ.__origin__ != Sequence):
+                if (not getattr(typ, '__origin__', None)
+                        or typ.__origin__ != Sequence):
                     raise ScannerException(
                         ('A batched Op must specify a "Sequence" type '
                          'annotation for each input and output.'))
@@ -270,14 +266,14 @@ def register_python_op(
             if is_input and can_stencil:
                 # If the op can stencil, then we expect the input types to be
                 # Sequence[T], where T = {bytes, FrameType}
-                if (not getattr(typ, '__origin__', None) or
-                    typ.__origin__ != Sequence):
+                if (not getattr(typ, '__origin__', None)
+                        or typ.__origin__ != Sequence):
                     raise ScannerException(
                         ('A stenciled Op must specify a "Sequence" type '
                          'annotation for each input. If the Op both stencils '
                          'and batches, then it should have the type '
                          '"Sequence[Sequence[T]], where T = {bytes, FrameType}.'
-                        ))
+                         ))
                 typ = typ.__args__[0]
 
             if typ == param.empty:
@@ -293,8 +289,7 @@ def register_python_op(
                 raise ScannerException(
                     ('Invalid type annotation specified for input {:s}. Must '
                      'specify an annotation of type "bytes" or '
-                     '"FrameType".')
-                    .format(param_name))
+                     '"FrameType".').format(param_name))
             return column_type
 
         # Analyze exec_fn parameters to determine the input types
@@ -302,8 +297,7 @@ def register_python_op(
             # We only allow keyword arguments and *args.
             # There is no support currently for positional or **kwargs
             kind = param.kind
-            if (kind == param.POSITIONAL_ONLY or
-                kind == param.VAR_KEYWORD):
+            if (kind == param.POSITIONAL_ONLY or kind == param.VAR_KEYWORD):
                 raise ScannerException(
                     ('Positional arguments and **kwargs are currently not '
                      'supported for the "execute" method of kernels'))
@@ -361,30 +355,38 @@ def register_python_op(
             if return_is_tuple:
                 return r
             else:
-                return (r,)
+                return (r, )
 
         # Wrap exec_fn to destructure input and outputs to proper python inputs
         if is_fn:
             if has_variadic_inputs:
+
+                @wraps(fn_or_class)
                 def wrapper_exec(config, in_cols):
                     return parse_ret(exec_fn(config, *in_cols))
             else:
+
+                @wraps(fn_or_class)
                 def wrapper_exec(config, in_cols):
                     args = {}
                     for (param_name, _), c in zip(input_columns, in_cols):
                         args[param_name] = c
                     return parse_ret(exec_fn(config, **args))
+
             fn_or_class = wrapper_exec
         else:
             if has_variadic_inputs:
+
                 def execute(self, in_cols):
                     return parse_ret(exec_fn(self, *in_cols))
             else:
+
                 def execute(self, in_cols):
                     args = {}
                     for (param_name, _), c in zip(input_columns, in_cols):
                         args[param_name] = c
                     return parse_ret(exec_fn(self, **args))
+
             fn_or_class.execute = execute
 
         PYTHON_OP_REGISTRY[kname] = {
@@ -400,4 +402,5 @@ def register_python_op(
             'proto_path': proto_path,
         }
         return fn_or_class
+
     return dec

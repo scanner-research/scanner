@@ -69,10 +69,14 @@ class SQLSink : public Sink {
         std::vector<std::string> updates;
         i64 id = -1;
         for (json::iterator it = jrow.begin(); it != jrow.end(); ++it) {
-          if (it.key() == "id") {
-            id = it.value();
-          } else {
-            updates.push_back(tfm::format("%s = %s", it.key(), it.value()));
+          try {
+            if (it.key() == "id") {
+              id = it.value();
+            } else {
+              updates.push_back(tfm::format("%s = %s", it.key(), it.value()));
+            }
+          } catch (nlohmann::detail::invalid_iterator) {
+            LOG(FATAL) << "JSON had invalid structure. Each element should be a list of dictionaries.";
           }
         }
 
