@@ -20,6 +20,8 @@ eval `ssh-agent -s`
 ssh-add .travis/travisci_rsa
 cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
 
+# Install python package for autodoc
+bash build.sh
 
 rm -rf ${HTML_PATH}
 mkdir -p ${HTML_PATH}
