@@ -6,38 +6,41 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Scanner: Efficient Video Analysis at Scale &#8212; Scanner 0.0.1 documentation</title>
-    <link rel="stylesheet" href="_static/readable.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <link rel="stylesheet" href="_static/custom.css" type="text/css" />
-    <script type="text/javascript" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
+    <title>Scanner Standard Library &#8212; Scanner 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/readable.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+    <script type="text/javascript" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="author" title="About these documents" href="about.html" />
-    <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Installation" href="installation.html" />
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Scanner Python API" href="scannerpy.html" />
+    <link rel="prev" title="API Reference" href="../api.html" />
    
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
 
   </head><body>
   
   
-  <div class="indexwrapper">
-  
 
     <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
-          <a href="genindex.html" title="General Index"
+          <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="installation.html" title="Installation"
+          <a href="scannerpy.html" title="Scanner Python API"
              accesskey="N">next</a> |</li>
-        <li class="nav-item nav-item-0"><a href="#">Scanner 0.0.1 documentation</a> &#187;</li> 
+        <li class="right" >
+          <a href="../api.html" title="API Reference"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../api.html" accesskey="U">API Reference</a> &#187;</li> 
       </ul>
     </div>  
 
@@ -46,50 +49,16 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="scanner-efficient-video-analysis-at-scale">
-<h1>Scanner: Efficient Video Analysis at Scale<a class="headerlink" href="#scanner-efficient-video-analysis-at-scale" title="Permalink to this headline">¶</a></h1>
-<a href="https://travis-ci.org/scanner-research/scanner">
-    <img
-        alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-        src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-    />
-</a><p>Scanner is a system for writing applications that process video efficiently.</p>
-<ul class="simple">
-<li><strong>Computation Graphs:</strong> Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.</li>
-<li><strong>Random Access to Video:</strong> Since Scanner understands how video is compressed, it can provide fast <em>random</em> access to video frames.</li>
-<li><strong>First-class Support for GPUs:</strong> Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.</li>
-<li><strong>Distributed Execution:</strong> Scanner can scale out applications to a cluster of machines.</li>
-</ul>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="docker.html">Docker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="from_source.html">Building Scanner from source</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
-<li class="toctree-l2"><a class="reference internal" href="walkthrough.html">Interactive Jupyter Walkthrough</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="programming-handbook.html">Programming Handbook</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="handbook/concepts.html">Concepts</a></li>
-<li class="toctree-l2"><a class="reference internal" href="handbook/distributed.html">Using a Cluster</a></li>
-<li class="toctree-l2"><a class="reference internal" href="handbook/kubernetes.html">Scanner on Kubernetes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="handbook/custom-ops.html">Writing a custom Op</a></li>
-<li class="toctree-l2"><a class="reference internal" href="handbook/custom-source.html">Writing a custom Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="handbook/custom-sink.html">Writing a custom Sink</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="api/stdlib.html">Scanner Standard Library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannerpy.html">Scanner Python API</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scanner.html">Scanner C++ API</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
-</ul>
+  <div class="section" id="scanner-standard-library">
+<span id="standard-library"></span><h1>Scanner Standard Library<a class="headerlink" href="#scanner-standard-library" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="built-in-sources">
+<h2>Built-in Sources<a class="headerlink" href="#built-in-sources" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="built-in-ops">
+<h2>Built-in Ops<a class="headerlink" href="#built-in-ops" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="built-in-sinks">
+<h2>Built-in Sinks<a class="headerlink" href="#built-in-sinks" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
@@ -134,7 +103,7 @@
      POSSIBILITY OF SUCH DAMAGE.
    -->
 
-<h1 class="logo"><a href="#">Scanner</a></h1>
+<h1 class="logo"><a href="../index.html">Scanner</a></h1>
 
 
 
@@ -188,30 +157,43 @@
      POSSIBILITY OF SUCH DAMAGE.
    -->
 <h3>Navigation</h3>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="programming-handbook.html">Programming Handbook</a></li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../programming-handbook.html">Programming Handbook</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Scanner Standard Library</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#built-in-sources">Built-in Sources</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#built-in-ops">Built-in Ops</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#built-in-sinks">Built-in Sinks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="scannerpy.html">Scanner Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="scanner.html">Scanner C++ API</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
 </ul>
 <h3>Related Topics</h3>
 <ul>
-  <li><a href="#">Documentation index</a><ul>
-      <li>Next: <a href="installation.html" title="next chapter">Installation</a></li>
+  <li><a href="../index.html">Documentation index</a><ul>
+  <li><a href="../api.html">API Reference</a><ul>
+      <li>Previous: <a href="../api.html" title="previous chapter">API Reference</a></li>
+      <li>Next: <a href="scannerpy.html" title="next chapter">Scanner Python API</a></li>
+  </ul></li>
   </ul></li>
 </ul>
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
     <ul class="this-page-menu">
-      <li><a href="_sources/index.rst.txt"
+      <li><a href="../_sources/api/stdlib.rst.txt"
             rel="nofollow">Show Source</a></li>
     </ul>
    </div>
 <div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
     <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
+    <form class="search" action="../search.html" method="get">
       <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
@@ -227,8 +209,6 @@
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
     Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.4.
-  </div>
-  
   </div>
   
   </body>

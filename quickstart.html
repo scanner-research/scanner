@@ -52,8 +52,18 @@
   <div class="section" id="quickstart">
 <span id="id1"></span><h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
 <p>To explain how Scanner is used, let’s walkthrough a simple example that
-reads frames from a video, resizes them, and then creates a new video using
-those resized frames.</p>
+reads frames from a video, selects every third frame, resizes them, and then
+creates a new video using those resized frames. If you’d like to run the code
+first, install Scanner (<a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>) and from the top-level Scanner
+directory, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/quickstart
+wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
+python3 main.py
+</pre></div>
+</div>
+<p>After “main.py” exits, you should now have a resized version of
+“sample-clip.mp4” named “resized-video.mp4” in the current directory. Let’s see
+how that happened by looking inside “main.py”.</p>
 <div class="section" id="starting-up-scanner">
 <h2>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h2>
 <p>The first step in any Scanner program is to create a <cite>Database</cite> object.
@@ -93,51 +103,80 @@ video in the database. You can see the contents of the database by running:</p>
 into the database.</p>
 </div>
 <div class="section" id="defining-a-computation-graph">
-<h2>Defining a Computation Graph<a class="headerlink" href="#defining-a-computation-graph" title="Permalink to this headline">¶</a></h2>
+<span id="defining-a-graph"></span><h2>Defining a Computation Graph<a class="headerlink" href="#defining-a-computation-graph" title="Permalink to this headline">¶</a></h2>
 <p>Now we can tell Scanner how to process the video by constructing a
-<em>computation graph</em>. A computation graph is a graph of input nodes (<em>Sources</em>),
-function nodes (<em>Ops</em>), and output nodes (<em>Sinks</em>). Sources can read data from
+<em>computation graph</em>. A computation graph is a graph of input nodes (<strong>Sources</strong>),
+function nodes (<strong>Ops</strong>), and output nodes (<strong>Sinks</strong>). <strong>Sources</strong> can read data from
 the database (such as the table we ingested above) or from other sources of
-data, such as the filesystem. Ops represent functions that transform their
-inputs into new outputs. Sinks, like Sources, write data to the database or to
-other forms of persistent storage. Let’s define a computation graph to
-read frames from the database, resize them to 640x480 resolution, and then
-save them back to a new database table:</p>
+data, such as the filesystem. <strong>Ops</strong> represent functions that transform their
+inputs into new outputs. <strong>Sinks</strong>, like <strong>Sources</strong>, write data to the database or to
+other forms of persistent storage.</p>
+<p>Let’s define a computation graph to read frames from the database, select every
+third frame, resize them to 640x480 resolution, and then save them back to a new
+database table. First, we’ll create a Source that reads from a column in a table:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
-<span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>But wait a second, we didn’t tell the <strong>Source</strong> the table and column it should
+read from. What’s going on? Since it’s fairly typical to use the same
+computation graph to process a collection of videos at once, Scanner adopts a
+“binding model” that lets the user define a computation graph up front and then
+later “bind” different videos to the inputs. We’ll see this in action in the
+<a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a> section.</p>
+<p>The <cite>frame</cite> object returned by the <strong>Source</strong> represents the stream of frames that
+are stored in the table, and we’ll use it as the input to the next operation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="c1"># Select only some of the frames</span>
+</pre></div>
+</div>
+<p>This is where we select only every third frame from the stream of frames we read
+from the <strong>Source</strong>. But here we only indicated that we should sample the stream
+<cite>frame</cite>, not <em>how</em> to sample it. Just like with the <strong>Source</strong> above, we’ll
+“bind” the specific sampling pattern to the graph when we get to
+<a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a>.</p>
+<p>We then process the sampled frames by instantiating a Resize <strong>Op</strong> that will
+resize the frames in the <cite>frame</cite> stream to 640x480:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This <strong>Op</strong> returns a new stream of frames which we call <cite>resized</cite>. The Resize
+<strong>Op</strong> is one of the collection of built-in <strong>Ops</strong> in the
+<a class="reference internal" href="api/stdlib.html#standard-library"><span class="std std-ref">Scanner Standard Library</span></a>. (You can learn how to write your own <strong>Ops</strong> by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.)</p>
+<p>Finally, we write these resized frames to a column called ‘frame’ in a new table
+by passing them into a column <strong>Sink</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>Putting it all together, we have:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
+<span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="c1"># Select only some of the frames</span>
+<span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
 <span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
 </pre></div>
 </div>
-<p>The first line in the above code creates a Source that reads from a
-Column representing frames in a table (later, we will tell Scanner which
-table to read from). The <cite>frame</cite> object it returns represents the stream of
-frames that are stored in the table. On the the second line, we then process
-those frames by creating an Op that will resize the frames in the <cite>frame</cite> stream
-to 640x480. This Op then returns a new stream of frames which we call <cite>resized</cite>.
-Finally, we write these resized frames to a column called ‘frame’ in a new table
-by passing them into a Column Sink.</p>
-<p>At this point, we have defined a computation graph that describes <em>what</em>
-computation to run, but we haven’t yet told Scanner to run the computation
-graph.</p>
+<p>At this point, we have defined a computation graph that describes the
+computation to run, but we haven’t yet told Scanner to execute the graph.</p>
 </div>
 <div class="section" id="defining-a-job">
-<h2>Defining a Job<a class="headerlink" href="#defining-a-job" title="Permalink to this headline">¶</a></h2>
-<p>To run a computation graph, we need to tell Scanner which tables we should
-read and which tables we should write to (notice how when we defined the
-<cite>FrameColumn</cite> source above we didn’t indicate which table to read from). This
-is specified by the <em>Job</em> object:</p>
+<span id="id2"></span><h2>Defining a Job<a class="headerlink" href="#defining-a-job" title="Permalink to this headline">¶</a></h2>
+<p>As alluded to in <a class="reference internal" href="#defining-a-graph"><span class="std std-ref">Defining a Computation Graph</span></a>, we need to tell Scanner which table
+we should read, how to sample the input frames, and which table we should write
+to to execute the computation graph. We can perform this “binding” of arguments
+to graph nodes using a <strong>Job</strong>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
     <span class="n">frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">),</span>
+    <span class="n">sampled_frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">sampler</span><span class="o">.</span><span class="n">stride</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
     <span class="n">output_frame</span><span class="p">:</span> <span class="s1">&#39;resized_table&#39;</span>
 <span class="p">})</span>
 </pre></div>
 </div>
 <p>Here, we say that the <cite>FrameColumn</cite> indicated by <cite>frame</cite> should read from the
-column ‘frame’ in the table ‘table_name’. Similarly, we specify that the output
-table indicated by <cite>output_frame</cite> should be called ‘resized_table’. In this
-example, we only define one job, but Scanner can process multiple jobs at the
-same time (given they use the same computation graph). When many jobs
-are provided, Scanner will process them all in parallel.</p>
+column ‘frame’ in the table ‘table_name’, the <cite>sampled_frame</cite> should select
+every third frame (stride 3), and that the output table indicated by
+<cite>output_frame</cite> should be called ‘resized_table’.</p>
+<p>In this example, we are only defining one job since we only have one video, but
+Scanner can process multiple jobs at the same time (given they use the same
+computation graph). When many jobs are provided, Scanner will process them all
+in parallel.</p>
 </div>
 <div class="section" id="running-a-job">
 <h2>Running a Job<a class="headerlink" href="#running-a-job" title="Permalink to this headline">¶</a></h2>
@@ -167,11 +206,11 @@ of the frame, which should have a width of 640 and height of 480.</p>
 <h2>Saving a video file<a class="headerlink" href="#saving-a-video-file" title="Permalink to this headline">¶</a></h2>
 <p>We can also directly save the frame column as an mp4 file by calling
 <cite>save_mp4</cite> on the ‘frame’ column:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized_video&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized-video&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>After this call returns, an mp4 video should be saved to the current working
-directory called ‘resized_video.mp4’ that consists of the resized frames
+directory called ‘resized-video.mp4’ that consists of the resized frames
 that we generated.</p>
 <div class="toctree-wrapper compound">
 </div>
