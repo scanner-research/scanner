@@ -734,6 +734,74 @@ def test_python_batch_kernel(db):
     next(tables[0].load(['dummy']))
 
 
+@scannerpy.register_python_op(stencil=[0, 1])
+class TestPyStencil(Kernel):
+    def __init__(self, config):
+        self.protobufs = config.protobufs
+        pass
+
+    def close(self):
+        pass
+
+    def execute(self, frame: Sequence[FrameType]) -> bytes:
+        assert len(frame) == 2
+        point = self.protobufs.Point()
+        point.x = 10
+        point.y = 5
+        return point.SerializeToString()
+
+
+def test_python_stencil_kernel(db):
+    frame = db.sources.FrameColumn()
+    range_frame = frame.sample()
+    test_out = db.ops.TestPyStencil(frame=range_frame)
+    output_op = db.sinks.Column(columns={'dummy': test_out})
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_hist'
+        })
+
+    tables = db.run(output_op, [job], force=True, show_progress=False)
+    next(tables[0].load(['dummy']))
+
+
+@scannerpy.register_python_op(stencil=[0, 1], batch=50)
+class TestPyStencilBatch(Kernel):
+    def __init__(self, config):
+        self.protobufs = config.protobufs
+        pass
+
+    def close(self):
+        pass
+
+    def execute(self, frame: Sequence[Sequence[FrameType]]) -> Sequence[bytes]:
+        assert len(frame[0]) == 2
+        point = self.protobufs.Point()
+        point.x = 10
+        point.y = 5
+        input_count = len(frame)
+        column_count = 1
+        return [point.SerializeToString() for _ in range(input_count)]
+
+
+def test_python_stencil_batch_kernel(db):
+    frame = db.sources.FrameColumn()
+    range_frame = frame.sample()
+    test_out = db.ops.TestPyStencilBatch(frame=range_frame, batch=50)
+    output_op = db.sinks.Column(columns={'dummy': test_out})
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            range_frame: db.sampler.range(0, 30),
+            output_op: 'test_hist'
+        })
+
+    tables = db.run(output_op, [job], force=True, show_progress=False)
+    next(tables[0].load(['dummy']))
+
+
 def test_bind_op_args(db):
     frame = db.sources.FrameColumn()
     range_frame = frame.sample()

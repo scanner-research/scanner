@@ -251,6 +251,7 @@ def register_python_op(
         else:
             kname = name
 
+        can_stencil = stencil is not None
         can_batch = batch > 1
 
         # Get execute function to determine input and output types
@@ -274,16 +275,31 @@ def register_python_op(
         else:
             # If this is a class kernel, then first argument should be self
             fn_params = OrderedDict(islice(fn_params.items(), 1, None))
-        def parse_annotation_to_column_type(typ):
+
+        def parse_annotation_to_column_type(typ, is_input=False):
             if can_batch:
-                # If the op can batch, then we expect the input types to be
+                # If the op can batch, then we expect the types to be
                 # Sequence[T], where T = {bytes, FrameType}
                 if (not getattr(typ, '__origin__', None) or
                     typ.__origin__ != Sequence):
                     raise ScannerException(
-                        ('A batched kernel must specify a "Sequence" type '
+                        ('A batched Op must specify a "Sequence" type '
                          'annotation for each input and output.'))
                 typ = typ.__args__[0]
+
+            if is_input and can_stencil:
+                # If the op can stencil, then we expect the input types to be
+                # Sequence[T], where T = {bytes, FrameType}
+                if (not getattr(typ, '__origin__', None) or
+                    typ.__origin__ != Sequence):
+                    raise ScannerException(
+                        ('A stenciled Op must specify a "Sequence" type '
+                         'annotation for each input. If the Op both stencils '
+                         'and batches, then it should have the type '
+                         '"Sequence[Sequence[T]], where T = {bytes, FrameType}.'
+                        ))
+                typ = typ.__args__[0]
+
             if typ == param.empty:
                 raise ScannerException(
                     ('No type annotation specified for input {:s}. Must '
@@ -322,7 +338,7 @@ def register_python_op(
                 break
 
             typ = param.annotation
-            column_type = parse_annotation_to_column_type(typ)
+            column_type = parse_annotation_to_column_type(typ, is_input=True)
             input_columns.append((param_name, column_type))
 
         output_columns = []
