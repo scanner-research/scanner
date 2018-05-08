@@ -1322,7 +1322,7 @@ def test_sql(sql_db):
     assert cur.fetchone()[0] == 11
 
 
-def test_sql_nested(sql_db):
+def test_sql_grouped(sql_db):
     (db, sql_config, cur) = sql_db
 
     sql_query = db.protobufs.SQLQuery(
