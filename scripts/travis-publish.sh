@@ -32,7 +32,11 @@ chmod 0744 ~/.ssh/id_rsa.pub
 ls -lah .travis
 ls -lah ~/.ssh/
 
+echo $SSH_AUTH_SOCK
+echo $SSH_AGENT_PID
 eval `ssh-agent -s`
+echo $SSH_AUTH_SOCK
+echo $SSH_AGENT_PID
 ssh-add
 
 pip3 install doxypypy twine
