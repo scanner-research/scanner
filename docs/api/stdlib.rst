@@ -3,11 +3,11 @@
 Scanner Standard Library
 ========================
 
-Built-in Sources
-----------------
+Sources
+-------
 
-Built-in Ops
-------------
+Ops
+---
 
-Built-in Sinks
---------------
+Sinks
+-----

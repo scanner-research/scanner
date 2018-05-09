@@ -2,7 +2,7 @@ from scannerpy import Database, Job
 from scannerpy.stdlib import readers
 
 ################################################################################
-# This tutorial shows how to select different frames of a video to process.   #
+# This tutorial shows how to select different frames of a video to process.    #
 ################################################################################
 
 db = Database()
