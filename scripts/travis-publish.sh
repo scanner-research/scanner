@@ -8,7 +8,7 @@ if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
 fi
 
 # Commit docs
-REPO_PATH=https://github.com/scanner-research/scanner.git
+REPO_PATH=git@github.com/scanner-research/scanner.git
 HTML_PATH=build/docs/html
 COMMIT_USER="Documentation Builder"
 COMMIT_EMAIL="wcrichto@cs.stanford.edu"
@@ -25,6 +25,8 @@ chmod 0700 ~/.ssh/
 openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in .travis/travisci_rsa.enc -out .travis/travisci_rsa -d
 chmod 0600 .travis/travisci_rsa
 eval `ssh-agent -s`
+ls .travis
+ls ~/.ssh/
 ssh-add .travis/travisci_rsa
 cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
 chmod 0744 ~/.ssh/id_rsa.pub
@@ -49,8 +51,8 @@ cd -
 cd ${HTML_PATH}
 cp /tmp/CNAME .
 git add .
-git config user.name \"${COMMIT_USER}\"
-git config user.email \"${COMMIT_EMAIL}\"
+git config --global user.name \"${COMMIT_USER}\"
+git config --global user.email \"${COMMIT_EMAIL}\"
 git commit -m \"Automated documentation build for changeset ${CHANGESET}.\"
 git push origin gh-pages
 cd -
