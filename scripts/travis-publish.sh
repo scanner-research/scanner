@@ -19,11 +19,15 @@ docker run $DOCKER_REPO:cpu-local /bin/bash -c "
 cd /opt/scanner
 
 # Unencrypt ssh key
+mkdir -p ~/.ssh/
+chmod 0700 ~/.ssh/
+
 openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in .travis/travisci_rsa.enc -out .travis/travisci_rsa -d
 chmod 0600 .travis/travisci_rsa
 eval `ssh-agent -s`
 ssh-add .travis/travisci_rsa
 cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
+chmod 0744 ~/.ssh/id_rsa.pub
 
 pip3 install doxypypy twine
 pip3 install Sphinx sphinx_readable_theme sphinx-autodoc-typehints
