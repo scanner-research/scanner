@@ -8,7 +8,7 @@ if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
 fi
 
 # Commit docs
-REPO_PATH=git@github.com/scanner-research/scanner.git
+REPO_PATH=git@github.com:scanner-research/scanner.git
 HTML_PATH=build/docs/html
 COMMIT_USER="Documentation Builder"
 COMMIT_EMAIL="wcrichto@cs.stanford.edu"
