@@ -8,25 +8,27 @@ if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
 fi
 
 # Commit docs
-REPO_PATH=git@github.com:scanner-research/scanner.git
+REPO_PATH=https://github.com/scanner-research/scanner.git
 HTML_PATH=build/docs/html
 COMMIT_USER="Documentation Builder"
 COMMIT_EMAIL="wcrichto@cs.stanford.edu"
 CHANGESET=$(git rev-parse --verify HEAD)
 
+# Install python package for autodoc
+docker run $DOCKER_REPO:cpu-local /bin/bash -c "
+cd /opt/scanner
+
+# Unencrypt ssh key
 openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in .travis/travisci_rsa.enc -out .travis/travisci_rsa -d
 chmod 0600 .travis/travisci_rsa
 eval `ssh-agent -s`
 ssh-add .travis/travisci_rsa
 cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
 
-# Install python package for autodoc
-docker run $DOCKER_REPO:cpu-local /bin/bash -c "
 pip3 install doxypypy twine
 pip3 install Sphinx sphinx_readable_theme sphinx-autodoc-typehints
 
-cd /opt/scanner && \
-bash build.sh && \
+bash build.sh
 rm -rf ${HTML_PATH}
 mkdir -p ${HTML_PATH}
 git clone -b gh-pages ${REPO_PATH} --single-branch ${HTML_PATH}
