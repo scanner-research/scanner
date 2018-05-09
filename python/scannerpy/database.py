@@ -136,7 +136,8 @@ class Database(object):
                  debug: bool = None,
                  prefetch_table_metadata: bool = True,
                  no_workers_timeout: float = 30,
-                 grpc_timeout: float = 30):
+                 grpc_timeout: float = 30,
+                 machine_params = None):
         if config:
             self.config = config
         else:
@@ -148,6 +149,7 @@ class Database(object):
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
         self._grpc_timeout = grpc_timeout
+        self._machine_params = machine_params
         if debug is None:
             self._debug = (master is None and workers is None)
 
@@ -690,15 +692,14 @@ class Database(object):
 
         if self._debug:
             self._worker_conns = None
-            machine_params = self._bindings.default_machine_params()
+            machine_params = self._machine_params or self._bindings.default_machine_params()
             for i in range(len(self._worker_addresses)):
                 start_worker(
                     self._master_address,
                     port=str(int(self.config.worker_port) + i),
                     config=self.config,
                     db=self._db,
-                    num_workers=None)
-                #cpu_count() if multiple and len(self._worker_addresses) == 1 else None)
+                    machine_params=machine_params)
         else:
             pickled_config = pickle.dumps(self.config, 0).decode()
             worker_cmd = (
@@ -1311,11 +1312,6 @@ class Database(object):
         job_output_table_names = []
         job_params.output_column_names[:] = output_column_names
 
-        using_python_op = False
-        for op in sorted_ops:
-            if op._name in self._python_ops:
-                using_python_op = True
-
         for job in jobs:
             j = job_params.jobs.add()
             output_table_name = None
@@ -1486,13 +1482,7 @@ class Database(object):
 
         job_params.compression.extend(compression_options)
 
-        # HACK: this should be in the scheduler
-        if using_python_op:
-            job_params.pipeline_instances_per_node = 1
-        else:
-            job_params.pipeline_instances_per_node = (
-                pipeline_instances_per_node or -1)
-
+        job_params.pipeline_instances_per_node = (pipeline_instances_per_node or -1)
         job_params.work_packet_size = work_packet_size
         job_params.io_packet_size = io_packet_size
         job_params.profiling = profiling
