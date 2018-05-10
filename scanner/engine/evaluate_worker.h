@@ -52,6 +52,8 @@ class PreEvaluateWorker {
  public:
   PreEvaluateWorker(const PreEvaluateWorkerArgs& args);
 
+  ~PreEvaluateWorker();
+
   void feed(EvalWorkEntry& entry, bool is_first_in_task);
 
   bool yield(i32 item_size, EvalWorkEntry& output);
