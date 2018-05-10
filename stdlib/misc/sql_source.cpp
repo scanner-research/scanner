@@ -20,6 +20,7 @@
 #include "scanner/util/tinyformat.h"
 #include "scanner/util/serialize.h"
 #include "scanner/util/json.hpp"
+#include "stdlib/misc/sql.h"
 
 #include <glog/logging.h>
 #include <vector>
@@ -33,38 +34,24 @@ namespace scanner {
 
 class SQLEnumerator : public Enumerator {
  public:
-  SQLEnumerator(const EnumeratorConfig& config) : Enumerator(config), conn_(nullptr) {
+  SQLEnumerator(const EnumeratorConfig& config) : Enumerator(config) {
     bool parsed = args_.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed) {
       RESULT_ERROR(&valid_, "Could not parse SQLEnumeratorArgs");
       return;
     }
-
-    // Setup connection to database
-    auto sql_config = args_.config();
-    LOG_IF(FATAL, sql_config.adapter() != "postgres")
-        << "Requested adapter " << sql_config.adapter()
-        << " does not exist. Only \"postgres\" is supported right now.";
-
-    try {
-      conn_.reset(new pqxx::connection{tfm::format(
-          "hostaddr=%s port=%d dbname=%s user=%s password=%s",
-          sql_config.hostaddr(), sql_config.port(), sql_config.dbname(),
-          sql_config.user(), sql_config.password())});
-    } catch (pqxx::pqxx_exception& e) {
-      LOG(FATAL) << e.base().what();
-    }
   }
 
   i64 total_elements() override {
     try {
-    pqxx::work txn{*conn_};
-    // Count the number the number of groups
-    auto query = args_.query();
-    pqxx::row r = txn.exec1(tfm::format(
-        "SELECT COUNT(DISTINCT(%s)) FROM %s %s WHERE %s",
-        query.group(), query.table(), query.joins(), args_.filter()));
-    return r[0].as<i32>();
+      std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+      pqxx::work txn{*conn};
+      // Count the number the number of groups
+      auto query = args_.query();
+      pqxx::row r = txn.exec1(tfm::format(
+          "SELECT COUNT(DISTINCT(%s)) FROM %s %s WHERE %s", query.group(),
+          query.table(), query.joins(), args_.filter()));
+      return r[0].as<i32>();
     } catch (pqxx::pqxx_exception& e) {
       LOG(FATAL) << e.base().what();
     }
@@ -86,13 +73,13 @@ class SQLEnumerator : public Enumerator {
  private:
   Result valid_;
   scanner::proto::SQLEnumeratorArgs args_;
-  std::unique_ptr<pqxx::connection> conn_;
+
 };
 
 class SQLSource : public Source {
  public:
   SQLSource(const SourceConfig& config) :
-      Source(config), conn_(nullptr) {
+      Source(config) {
     bool parsed = args_.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed) {
       RESULT_ERROR(&valid_, "Could not parse SQLSourceArgs");
@@ -100,13 +87,8 @@ class SQLSource : public Source {
     }
 
     // Setup connection to database
-    auto sql_config = args_.config();
-    conn_.reset(new pqxx::connection{
-      tfm::format("hostaddr=%s port=%d dbname=%s user=%s password=%s",
-                  sql_config.hostaddr(), sql_config.port(), sql_config.dbname(), sql_config.user(), sql_config.password())
-    });
-
-    pqxx::work txn{*conn_};
+    std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+    pqxx::work txn{*conn};
     pqxx::result types = txn.exec("SELECT oid, typname FROM pg_type");
     for (auto row : types) {
       pq_types_[row["oid"].as<pqxx::oid>()] = row["typname"].as<std::string>();
@@ -164,10 +146,13 @@ class SQLSource : public Source {
       last_filter_ = filter;
 
       // Execute SELECT to fetch all the rows
-      pqxx::work txn{*conn_};
+      std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+      pqxx::work txn{*conn};
       std::string query_str = tfm::format(
-          "SELECT %s, %s AS _scanner_id, %s AS _scanner_number FROM %s %s WHERE %s ORDER BY _scanner_number, _scanner_id",
-          query.fields(), query.id(), query.group(), query.table(), query.joins(), filter);
+          "SELECT %s, %s AS _scanner_id, %s AS _scanner_number FROM %s %s "
+          "WHERE %s ORDER BY _scanner_number, _scanner_id",
+          query.fields(), query.id(), query.group(), query.table(),
+          query.joins(), filter);
 
       pqxx::result result = txn.exec(query_str);
       LOG_IF(FATAL, result.size() == 0) << "Query returned zero rows. Executed query was:\n" << query_str;
@@ -217,7 +202,6 @@ class SQLSource : public Source {
 
  private:
   Result valid_;
-  std::unique_ptr<pqxx::connection> conn_;
   scanner::proto::SQLSourceArgs args_;
   std::string last_filter_;
   std::vector<std::vector<pqxx::row>> cached_rows_;
