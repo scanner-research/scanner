@@ -8,6 +8,7 @@ set(SOURCE_FILES
   files_source.cpp
   files_sink.cpp
   sql_source.cpp
-  sql_sink.cpp)
+  sql_sink.cpp
+  sql.cpp)
 
 add_library(misc OBJECT ${SOURCE_FILES})

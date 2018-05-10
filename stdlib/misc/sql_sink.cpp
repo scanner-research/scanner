@@ -17,6 +17,7 @@
 #include "scanner/util/json.hpp"
 #include "scanner/util/tinyformat.h"
 #include "stdlib/stdlib.pb.h"
+#include "stdlib/misc/sql.h"
 
 #include <glog/logging.h>
 #include <pqxx/pqxx>
@@ -34,36 +35,15 @@ class SQLSink : public Sink {
       RESULT_ERROR(&valid_, "Could not parse SQLSinkArgs");
       return;
     }
-
-    // Setup connection to database
-    auto sql_config = args_.config();
-    LOG_IF(FATAL, sql_config.adapter() != "postgres")
-        << "Requested adapter " << sql_config.adapter()
-        << " does not exist. Only \"postgres\" is supported right now.";
-    conn_.reset(new pqxx::connection{tfm::format(
-        "hostaddr=%s port=%d dbname=%s user=%s password=%s",
-        sql_config.hostaddr(), sql_config.port(), sql_config.dbname(),
-        sql_config.user(), sql_config.password())});
-  }
-
-  void new_stream(const std::vector<u8>& args) override {
-    scanner::proto::SQLSinkStreamArgs sargs;
-    if (args.size() != 0) {
-      bool parsed = sargs.ParseFromArray(args.data(), args.size());
-      if (!parsed) {
-        RESULT_ERROR(&valid_, "Could not parse SQLSinkStreamArgs");
-        return;
-      }
-    }
   }
 
   void write(const BatchedElements& input_columns) override {
-    pqxx::work txn{*conn_};
+    std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+    pqxx::work txn{*conn};
 
     for (size_t i = 0; i < input_columns[0].size(); ++i) {
       auto& element = input_columns[0][i];
-      json jrows =
-          json::parse(std::string((char*)element.buffer, element.size));
+      json jrows = json::parse(std::string((char*)element.buffer, element.size));
 
       for (json& jrow : jrows) {
         std::vector<std::string> updates;
@@ -103,7 +83,6 @@ class SQLSink : public Sink {
  private:
   scanner::proto::SQLSinkArgs args_;
   Result valid_;
-  std::unique_ptr<pqxx::connection> conn_;
 };
 
 REGISTER_SINK(SQL, SQLSink)
