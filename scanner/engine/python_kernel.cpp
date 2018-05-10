@@ -228,12 +228,12 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
           FrameType frame_type;
           if (frame_np.dtype().is(py::dtype("uint8"))) {
             frame_type = FrameType::U8;
-          } else if (frame_np.dtype().is(py::dtype("float"))) {
+          } else if (frame_np.dtype().is(py::dtype("float32"))) {
             frame_type = FrameType::F32;
-          } else if (frame_np.dtype().is(py::dtype("double"))) {
+          } else if (frame_np.dtype().is(py::dtype("float64"))) {
             frame_type = FrameType::F64;
           } else {
-            LOG(FATAL) << "Invalid numpy dtype";
+            LOG(FATAL) << "Invalid numpy dtype: " << frame_np.dtype();
           }
 
           i32 ndim = frame_np.ndim();
