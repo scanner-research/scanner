@@ -57,10 +57,6 @@ DecoderAutomata::~DecoderAutomata() {
 
   wake_feeder_.notify_one();
   feeder_thread_.join();
-
-  for (auto& args : encoded_data_) {
-    delete_buffer(CPU_DEVICE, (u8*)args.encoded_video());
-  }
 }
 
 void DecoderAutomata::initialize(
@@ -71,10 +67,6 @@ void DecoderAutomata::initialize(
 
   std::unique_lock<std::mutex> lk(feeder_mutex_);
   wake_feeder_.wait(lk, [this] { return feeder_waiting_.load(); });
-
-  for (auto& args : encoded_data_) {
-    delete_buffer(CPU_DEVICE, (u8*)args.encoded_video());
-  }
 
   encoded_data_ = encoded_data;
   frame_size_ = encoded_data[0].width() * encoded_data[0].height() * 3;
