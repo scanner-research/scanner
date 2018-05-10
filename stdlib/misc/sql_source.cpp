@@ -113,6 +113,9 @@ class SQLSource : public Source {
 
       ASSIGN_IF("int4", i32);
       ASSIGN_IF("float8", f32);
+      ASSIGN_IF("bool", bool);
+      ASSIGN_IF("text", std::string);
+      ASSIGN_IF("varchar", std::string);
 
       LOG_IF(FATAL, !assigned)
           << "Requested row has field " << name

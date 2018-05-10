@@ -1,6 +1,6 @@
 import scannerpy
-from scannerpy import (Database, Config, DeviceType, FrameType, Job,
-                       ProtobufGenerator, ScannerException, Kernel)
+from scannerpy import (Database, Config, DeviceType, FrameType, Job, ProtobufGenerator,
+                       ScannerException, Kernel)
 from scannerpy.stdlib import readers
 from typing import Dict, List, Sequence, Tuple
 import tempfile
@@ -30,8 +30,7 @@ except (OSError, subprocess.CalledProcessError) as e:
 
 gpu = pytest.mark.skipif(not has_gpu, reason='need GPU to run')
 slow = pytest.mark.skipif(
-    not pytest.config.getoption('--runslow'),
-    reason='need --runslow option to run')
+    not pytest.config.getoption('--runslow'), reason='need --runslow option to run')
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -40,8 +39,7 @@ cwd = os.path.dirname(os.path.abspath(__file__))
 def test_tutorial():
     def run_py(path):
         print(path)
-        run('cd {}/../examples/tutorial && python3 {}.py'.format(cwd, path),
-            shell=True)
+        run('cd {}/../examples/tutorial && python3 {}.py'.format(cwd, path), shell=True)
 
     run('cd {}/../examples/tutorial/resize_op && '
         'mkdir -p build && cd build && cmake -D SCANNER_PATH={} .. && '
@@ -49,8 +47,7 @@ def test_tutorial():
         shell=True)
 
     tutorials = [
-        '00_basic', '01_sampling', '02_collections', '03_ops',
-        '04_compression', '05_custom_op'
+        '00_basic', '01_sampling', '02_collections', '03_ops', '04_compression', '05_custom_op'
     ]
 
     for t in tutorials:
@@ -62,11 +59,9 @@ def test_examples():
     def run_py(arg):
         [d, f] = arg
         print(f)
-        run('cd {}/../examples/{} && python3 {}.py'.format(cwd, d, f),
-            shell=True)
+        run('cd {}/../examples/{} && python3 {}.py'.format(cwd, d, f), shell=True)
 
-    examples = [['face_detection', 'face_detect'],
-                ['shot_detection', 'shot_detect']]
+    examples = [['face_detection', 'face_detect'], ['shot_detection', 'shot_detect']]
 
     for e in examples:
         run_py(e)
@@ -100,9 +95,7 @@ def download_videos():
         # HACK: special proxy case for Ocean cluster
         if host in ['ocean', 'crissy', 'pismo', 'stinson']:
             resp = requests.get(
-                url,
-                stream=True,
-                proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
+                url, stream=True, proxies={'https': 'http://proxy.pdl.cmu.edu:3128/'})
         else:
             resp = requests.get(url, stream=True)
         assert resp.ok
@@ -114,8 +107,8 @@ def download_videos():
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as f:
         vid2_path = f.name
     run([
-        'ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t', '00:00:10',
-        '-c:v', 'libx264', '-strict', '-2', vid2_path
+        'ffmpeg', '-y', '-i', vid1_path, '-ss', '00:00:00', '-t', '00:00:10', '-c:v', 'libx264',
+        '-strict', '-2', vid2_path
     ])
 
     return (vid1_path, vid2_path)
@@ -132,17 +125,12 @@ def db():
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        db.ingest_videos(
-            [('test1_inplace', vid1_path), ('test2_inplace', vid2_path)],
-            inplace=True)
+        db.ingest_videos([('test1_inplace', vid1_path), ('test2_inplace', vid2_path)], inplace=True)
 
         yield db
 
         # Tear down
-        run([
-            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
-            vid2_path
-        ])
+        run(['rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path, vid2_path])
 
 
 def test_new_database(db):
@@ -180,10 +168,7 @@ def test_profiler(db):
     hist = db.ops.Histogram(frame=frame)
     output_op = db.sinks.Column(columns={'hist': hist})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: '_ignore'
-    })
+    job = Job(op_args={frame: db.table('test1').column('frame'), output_op: '_ignore'})
 
     output = db.run(output_op, [job], show_progress=False, force=True)
     profiler = output[0].profiler()
@@ -198,8 +183,7 @@ def test_new_table(db):
     def b(s):
         return bytes(s, 'utf-8')
 
-    db.new_table('test', ['col1', 'col2'],
-                 [[b('r00'), b('r01')], [b('r10'), b('r11')]])
+    db.new_table('test', ['col1', 'col2'], [[b('r00'), b('r01')], [b('r10'), b('r11')]])
     t = db.table('test')
     assert (t.num_rows() == 2)
     assert (next(t.column('col2').load()) == b('r01'))
@@ -402,10 +386,7 @@ class TestHistogram:
         hist = db.ops.Histogram(frame=frame, device=ty)
         output_op = db.sinks.Column(columns={'histogram': hist})
 
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
+        job = Job(op_args={frame: db.table('test1').column('frame'), output_op: 'test_hist'})
 
         return output_op, [job]
 
@@ -456,10 +437,7 @@ def test_stencil(db):
         })
 
     tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        output_op, [job], force=True, show_progress=False, pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -477,10 +455,7 @@ def test_stencil(db):
         })
 
     tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        output_op, [job], force=True, show_progress=False, pipeline_instances_per_node=1)
 
     frame = db.sources.FrameColumn()
     sample_frame = db.streams.Range(frame, 0, 2)
@@ -493,10 +468,7 @@ def test_stencil(db):
         })
 
     tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        output_op, [job], force=True, show_progress=False, pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -514,10 +486,7 @@ def test_stencil(db):
         })
 
     tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        output_op, [job], force=True, show_progress=False, pipeline_instances_per_node=1)
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -638,14 +607,7 @@ def test_files_sink(db):
     data = db.sources.Files()
     pass_data = db.ops.Pass(input=data)
     output_op = db.sinks.Files(input=pass_data)
-    job = Job(op_args={
-        data: {
-            'paths': input_paths
-        },
-        output_op: {
-            'paths': output_paths
-        }
-    })
+    job = Job(op_args={data: {'paths': input_paths}, output_op: {'paths': output_paths}})
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
 
@@ -917,10 +879,7 @@ def no_workers_db():
         yield db
 
         # Tear down
-        run([
-            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
-            vid2_path
-        ])
+        run(['rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path, vid2_path])
 
 
 def test_no_workers(no_workers_db):
@@ -930,10 +889,7 @@ def test_no_workers(no_workers_db):
     hist = db.ops.Histogram(frame=frame)
     output_op = db.sinks.Column(columns={'dummy': hist})
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: '_ignore'
-    })
+    job = Job(op_args={frame: db.table('test1').column('frame'), output_op: '_ignore'})
 
     exc = False
     try:
@@ -947,14 +903,11 @@ def test_no_workers(no_workers_db):
 @pytest.fixture()
 def fault_db():
     # Create new config
-    (cfg_path, cfg) = make_config(
-        master_port='5010', worker_port='5011', path='/tmp/config_test')
+    (cfg_path, cfg) = make_config(master_port='5010', worker_port='5011', path='/tmp/config_test')
 
     # Setup and ingest video
     with Database(
-            master='localhost:5010',
-            workers=[],
-            config_path=cfg_path,
+            master='localhost:5010', workers=[], config_path=cfg_path,
             no_workers_timeout=120) as db:
         (vid1_path, vid2_path) = download_videos()
 
@@ -963,10 +916,7 @@ def fault_db():
         yield db
 
         # Tear down
-        run([
-            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
-            vid2_path
-        ])
+        run(['rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path, vid2_path])
 
 
 # def test_clean_worker_shutdown(fault_db):
@@ -1080,10 +1030,7 @@ def test_fault_tolerance(fault_db):
         script_dir = os.path.dirname(os.path.realpath(__file__))
         with open(os.devnull, 'w') as fp:
             p = subprocess.Popen(
-                [
-                    'python3 ' + script_dir +
-                    '/spawn_worker.py {:d}'.format(force_kill_spawn_port)
-                ],
+                ['python3 ' + script_dir + '/spawn_worker.py {:d}'.format(force_kill_spawn_port)],
                 shell=True,
                 stdout=fp,
                 stderr=fp,
@@ -1102,15 +1049,11 @@ def test_fault_tolerance(fault_db):
 
             # Spawn the worker again
             subprocess.call(
-                [
-                    'python3 ' + script_dir +
-                    '/spawn_worker.py {:d}'.format(normal_spawn_port)
-                ],
+                ['python3 ' + script_dir + '/spawn_worker.py {:d}'.format(normal_spawn_port)],
                 shell=True)
 
     master_addr = fault_db._master_address
-    killer_process = Process(
-        target=worker_killer_task, args=(fault_db.config, master_addr))
+    killer_process = Process(target=worker_killer_task, args=(fault_db.config, master_addr))
     killer_process.daemon = True
     killer_process.start()
 
@@ -1126,18 +1069,14 @@ def test_fault_tolerance(fault_db):
         })
 
     table = fault_db.run(
-        output_op, [job],
-        pipeline_instances_per_node=1,
-        force=True,
-        show_progress=False)
+        output_op, [job], pipeline_instances_per_node=1, force=True, show_progress=False)
     table = table[0]
 
     assert len([_ for _ in table.column('dummy').load()]) == 20
 
     # Shutdown the spawned worker
     channel = grpc.insecure_channel(
-        'localhost:' + str(normal_spawn_port),
-        options=[('grpc.max_message_length', 24499183 * 2)])
+        'localhost:' + str(normal_spawn_port), options=[('grpc.max_message_length', 24499183 * 2)])
     worker = fault_db.protobufs.WorkerStub(channel)
 
     try:
@@ -1148,8 +1087,7 @@ def test_fault_tolerance(fault_db):
             print('could not shutdown worker!')
             exit(1)
         else:
-            raise ScannerException('Worker errored with status: {}'
-                                   .format(status))
+            raise ScannerException('Worker errored with status: {}'.format(status))
     killer_process.join()
 
 
@@ -1162,10 +1100,7 @@ def blacklist_db():
     master = 'localhost:5055'
     workers = ['localhost:{:04d}'.format(5060 + d) for d in range(4)]
     with Database(
-            config_path=cfg_path,
-            no_workers_timeout=120,
-            master=master,
-            workers=workers) as db:
+            config_path=cfg_path, no_workers_timeout=120, master=master, workers=workers) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
@@ -1173,10 +1108,7 @@ def blacklist_db():
         yield db
 
         # Tear down
-        run([
-            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
-            vid2_path
-        ])
+        run(['rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path, vid2_path])
 
 
 def test_job_blacklist(blacklist_db):
@@ -1209,10 +1141,7 @@ def test_job_blacklist(blacklist_db):
         })
 
     tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        output_op, [job], force=True, show_progress=False, pipeline_instances_per_node=1)
     table = tables[0]
     assert table.committed() == False
 
@@ -1226,10 +1155,7 @@ def timeout_db():
     master = 'localhost:5155'
     workers = ['localhost:{:04d}'.format(5160 + d) for d in range(4)]
     with Database(
-            config_path=cfg_path,
-            no_workers_timeout=120,
-            master=master,
-            workers=workers) as db:
+            config_path=cfg_path, no_workers_timeout=120, master=master, workers=workers) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
@@ -1237,10 +1163,7 @@ def timeout_db():
         yield db
 
         # Tear down
-        run([
-            'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
-            vid2_path
-        ])
+        run(['rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path, vid2_path])
 
 
 def test_job_timeout(timeout_db):
@@ -1275,11 +1198,10 @@ def sql_db(db):
         cur = conn.cursor()
 
         cur.execute(
-            'CREATE TABLE test (id serial PRIMARY KEY, num integer, num2 integer, grp integer)'
-        )
-        cur.execute('INSERT INTO test (num, grp) VALUES (10, 0)')
-        cur.execute('INSERT INTO test (num, grp) VALUES (20, 0)')
-        cur.execute('INSERT INTO test (num, grp) VALUES (30, 1)')
+            'CREATE TABLE test (id serial PRIMARY KEY, a integer, b integer, c text, d varchar(255), e boolean, f float, grp integer)')
+        cur.execute("INSERT INTO test (a, b, c, d, e, f, grp) VALUES (10, 0, 'hi', 'hello', true, 2.0, 0)")
+        cur.execute("INSERT INTO test (a, b, c, d, e, f, grp) VALUES (20, 0, 'hi', 'hello', true, 2.0, 0)")
+        cur.execute("INSERT INTO test (a, b, c, d, e, f, grp) VALUES (30, 0, 'hi', 'hello', true, 2.0, 1)")
         conn.commit()
 
         sql_params = postgresql.dsn()
@@ -1299,17 +1221,14 @@ def sql_db(db):
 @scannerpy.register_python_op(name='AddOne')
 def add_one(config, row: bytes) -> bytes:
     row = json.loads(row.decode('utf-8'))
-    return json.dumps([{'id': r['id'], 'num2': r['num'] + 1} for r in row])
+    return json.dumps([{'id': r['id'], 'b': r['a'] + 1} for r in row])
 
 
 def test_sql(sql_db):
     (db, sql_config, cur) = sql_db
 
     sql_query = db.protobufs.SQLQuery(
-        fields='test.id as id, test.num as num',
-        table='test',
-        id='test.id',
-        group='test.id')
+        fields='test.id as id, test.a, test.c, test.d, test.e, test.f', table='test', id='test.id', group='test.id')
 
     row = db.sources.SQL(config=sql_config, query=sql_query)
     row2 = db.ops.AddOne(row=row)
@@ -1318,7 +1237,7 @@ def test_sql(sql_db):
     job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
     db.run(output_op, [job])
 
-    cur.execute('SELECT num2 FROM test')
+    cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 11
 
 
@@ -1326,10 +1245,7 @@ def test_sql_grouped(sql_db):
     (db, sql_config, cur) = sql_db
 
     sql_query = db.protobufs.SQLQuery(
-        fields='test.id as id, test.num as num',
-        table='test',
-        id='test.id',
-        group='test.grp')
+        fields='test.id as id, test.a', table='test', id='test.id', group='test.grp')
 
     row = db.sources.SQL(config=sql_config, query=sql_query)
     row2 = db.ops.AddOne(row=row)
@@ -1338,5 +1254,5 @@ def test_sql_grouped(sql_db):
     job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
     db.run(output_op, [job])
 
-    cur.execute('SELECT num2 FROM test')
+    cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 11
