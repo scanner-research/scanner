@@ -78,7 +78,7 @@ inputs into new outputs. **Sinks**, like **Sources**, write data to the database
 other forms of persistent storage.
 
 Let's define a computation graph to read frames from the database, select every
-third frame, resize them to 640x480 resolution, and then save them back to a new
+third frame, resize them to 640 x 480 resolution, and then save them back to a new
 database table. First, we'll create a Source that reads from a column in a table:
 
 .. code-block:: python
@@ -92,7 +92,7 @@ computation graph to process a collection of videos at once, Scanner adopts a
 later "bind" different videos to the inputs. We'll see this in action in the
 :ref:`defining_a_job` section.
 
-The `frame` object returned by the **Source** represents the stream of frames that
+The :code:`frame` object returned by the **Source** represents the stream of frames that
 are stored in the table, and we'll use it as the input to the next operation:
 
 .. code-block:: python
@@ -101,18 +101,18 @@ are stored in the table, and we'll use it as the input to the next operation:
 
 This is where we select only every third frame from the stream of frames we read
 from the **Source**. But here we only indicated that we should sample the stream
-`frame`, not *how* to sample it. Just like with the **Source** above, we'll
+:code:`frame`, not *how* to sample it. Just like with the **Source** above, we'll
 "bind" the specific sampling pattern to the graph when we get to
 :ref:`defining_a_job`.
 
 We then process the sampled frames by instantiating a Resize **Op** that will
-resize the frames in the `frame` stream to 640x480:
+resize the frames in the :code:`frame` stream to 640 x 480:
 
 .. code-block:: python
 
    resized = db.ops.Resize(frame=sampled_frame, width=640, height=480)
 
-This **Op** returns a new stream of frames which we call `resized`. The Resize
+This **Op** returns a new stream of frames which we call :code:`resized`. The Resize
 **Op** is one of the collection of built-in **Ops** in the
 :ref:`standard_library`. (You can learn how to write your own **Ops** by following the :ref:`tutorial`.)
 
@@ -153,10 +153,10 @@ to graph nodes using a **Job**:
        output_frame: 'resized_table'
    })
 
-Here, we say that the `FrameColumn` indicated by `frame` should read from the
-column 'frame' in the table 'table_name', the `sampled_frame` should select
+Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the
+column 'frame' in the table 'table_name', the :code:`sampled_frame` should select
 every third frame (stride 3), and that the output table indicated by
-`output_frame` should be called 'resized_table'.
+:code:`output_frame` should be called 'resized_table'.
 
 In this example, we are only defining one job since we only have one video, but
 Scanner can process multiple jobs at the same time (given they use the same
@@ -167,7 +167,7 @@ Running a Job
 --------------
 
 Now we can run the computation graph over the video we ingested. This is done by
-simply calling `run` on the database object, specifying the jobs and outputs
+simply calling :code:`run` on the database object, specifying the jobs and outputs
 that we are interested in:
 
 .. code-block:: python
@@ -176,8 +176,8 @@ that we are interested in:
 
 This call will block until Scanner has finished processing the job. You should
 see a progress bar while Scanner is executing the computation graph. Once the
-jobs are done, `db.run` returns the newly computed tables, here shown as
-`output_tables`.
+jobs are done, :code:`run` returns the newly computed tables, here shown as
+:code:`output_tables`.
 
 Reading the results of a Job
 ----------------------------

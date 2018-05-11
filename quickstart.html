@@ -112,7 +112,7 @@ data, such as the filesystem. <strong>Ops</strong> represent functions that tran
 inputs into new outputs. <strong>Sinks</strong>, like <strong>Sources</strong>, write data to the database or to
 other forms of persistent storage.</p>
 <p>Let’s define a computation graph to read frames from the database, select every
-third frame, resize them to 640x480 resolution, and then save them back to a new
+third frame, resize them to 640 x 480 resolution, and then save them back to a new
 database table. First, we’ll create a Source that reads from a column in a table:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
 </pre></div>
@@ -123,22 +123,22 @@ computation graph to process a collection of videos at once, Scanner adopts a
 “binding model” that lets the user define a computation graph up front and then
 later “bind” different videos to the inputs. We’ll see this in action in the
 <a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a> section.</p>
-<p>The <cite>frame</cite> object returned by the <strong>Source</strong> represents the stream of frames that
+<p>The <code class="code docutils literal notranslate"><span class="pre">frame</span></code> object returned by the <strong>Source</strong> represents the stream of frames that
 are stored in the table, and we’ll use it as the input to the next operation:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="c1"># Select only some of the frames</span>
 </pre></div>
 </div>
 <p>This is where we select only every third frame from the stream of frames we read
 from the <strong>Source</strong>. But here we only indicated that we should sample the stream
-<cite>frame</cite>, not <em>how</em> to sample it. Just like with the <strong>Source</strong> above, we’ll
+<code class="code docutils literal notranslate"><span class="pre">frame</span></code>, not <em>how</em> to sample it. Just like with the <strong>Source</strong> above, we’ll
 “bind” the specific sampling pattern to the graph when we get to
 <a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a>.</p>
 <p>We then process the sampled frames by instantiating a Resize <strong>Op</strong> that will
-resize the frames in the <cite>frame</cite> stream to 640x480:</p>
+resize the frames in the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> stream to 640 x 480:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This <strong>Op</strong> returns a new stream of frames which we call <cite>resized</cite>. The Resize
+<p>This <strong>Op</strong> returns a new stream of frames which we call <code class="code docutils literal notranslate"><span class="pre">resized</span></code>. The Resize
 <strong>Op</strong> is one of the collection of built-in <strong>Ops</strong> in the
 <a class="reference internal" href="api/stdlib.html#standard-library"><span class="std std-ref">Scanner Standard Library</span></a>. (You can learn how to write your own <strong>Ops</strong> by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.)</p>
 <p>Finally, we write these resized frames to a column called ‘frame’ in a new table
@@ -169,10 +169,10 @@ to graph nodes using a <strong>Job</strong>:</p>
 <span class="p">})</span>
 </pre></div>
 </div>
-<p>Here, we say that the <cite>FrameColumn</cite> indicated by <cite>frame</cite> should read from the
-column ‘frame’ in the table ‘table_name’, the <cite>sampled_frame</cite> should select
+<p>Here, we say that the <code class="code docutils literal notranslate"><span class="pre">FrameColumn</span></code> indicated by <code class="code docutils literal notranslate"><span class="pre">frame</span></code> should read from the
+column ‘frame’ in the table ‘table_name’, the <code class="code docutils literal notranslate"><span class="pre">sampled_frame</span></code> should select
 every third frame (stride 3), and that the output table indicated by
-<cite>output_frame</cite> should be called ‘resized_table’.</p>
+<code class="code docutils literal notranslate"><span class="pre">output_frame</span></code> should be called ‘resized_table’.</p>
 <p>In this example, we are only defining one job since we only have one video, but
 Scanner can process multiple jobs at the same time (given they use the same
 computation graph). When many jobs are provided, Scanner will process them all
@@ -181,15 +181,15 @@ in parallel.</p>
 <div class="section" id="running-a-job">
 <h2>Running a Job<a class="headerlink" href="#running-a-job" title="Permalink to this headline">¶</a></h2>
 <p>Now we can run the computation graph over the video we ingested. This is done by
-simply calling <cite>run</cite> on the database object, specifying the jobs and outputs
+simply calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the database object, specifying the jobs and outputs
 that we are interested in:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">])</span>
 </pre></div>
 </div>
 <p>This call will block until Scanner has finished processing the job. You should
 see a progress bar while Scanner is executing the computation graph. Once the
-jobs are done, <cite>db.run</cite> returns the newly computed tables, here shown as
-<cite>output_tables</cite>.</p>
+jobs are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as
+<code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
 </div>
 <div class="section" id="reading-the-results-of-a-job">
 <h2>Reading the results of a Job<a class="headerlink" href="#reading-the-results-of-a-job" title="Permalink to this headline">¶</a></h2>

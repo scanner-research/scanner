@@ -53,13 +53,24 @@
         alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
         src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
     />
-</a><p>Scanner is a system for writing applications that process video efficiently.</p>
-<ul class="simple">
-<li><strong>Computation Graphs:</strong> Scanner applications are written by composing together functions that process streams of data (called Ops) into graphs. The Scanner runtime is then responsible for executing this graph efficiently given all the processing resources on your machine.</li>
-<li><strong>Random Access to Video:</strong> Since Scanner understands how video is compressed, it can provide fast <em>random</em> access to video frames.</li>
-<li><strong>First-class Support for GPUs:</strong> Most image processing algorithms can benefit greatly from GPUs, so Scanner provides first class support for writing Ops that execute on GPUs.</li>
-<li><strong>Distributed Execution:</strong> Scanner can scale out applications to a cluster of machines.</li>
-</ul>
+</a><p>Scanner is a system for developing applications that efficiently process large video datasets. Scanner applications can run on a multi-core laptop, a server packed with multiple GPUs, or a large number of machines in the cloud. Scanner has been used for:
+- <strong>Labeling and data mining large video collections:</strong>&nbsp;Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).
+- <strong>VR Video synthesis:</strong> scaling the <a class="reference external" href="https://github.com/scanner-research/Surround360">Surround 360 VR video stitching software</a>, which processes fourteen 2048x2048 input videos to produce 8k stereo video output.</p>
+<p>To learn more about Scanner, see the documentation below or read the SIGGRAPH
+2018 Technical Paper: <a class="reference external" href="http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf">“Scanner: Efficient Video Analysis at Scale”</a> by Poms, Crichton, Hanrahan, and Fatahalian.</p>
+<div class="section" id="key-features">
+<h2>Key Features<a class="headerlink" href="#key-features" title="Permalink to this headline">¶</a></h2>
+<p>Scanner’s key features include:
+- <strong>Computation graphs designed for video processing:</strong> Similar to the execution model used by many modern ML frameworks, creating a Scanner application involves composing together functions (called Scanner Ops) into a dataflow graph. Scanner graphs process sequences of video frames. Scanner graphs support features useful for video processing, such as the ability to sparsely sample frames from a video, access to temporal sliding windows of frames, and propagate state across computations on successive frames (e.g., tracking). The Scanner runtime schedules computation graphs efficiently onto one or many machines.
+- <strong>Random access to video frames:</strong> Since Scanner’s video data store has first-class knowledge of video formats, it can provide fast <em>random</em> access to compressed video frames.  This feature has proven useful in video data analytics applications that want to access a sparse set of frames from a video.
+- <strong>First-class support for GPU acceleration:</strong> Most image processing algorithms can benefit greatly from GPU execution, so Scanner provides first-class support for writing Ops that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
+- <strong>Distributed execution:</strong> Scanner can scale out applications to hundreds of machines, and is designed to be fault tolerant, so your applciations can use cheaper preemptible machines on cloud computing platforms.</p>
+<p>What Scanner is not:
+- Scanner <strong>is not</strong> a new system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular languages like Cuda or Halide.</p>
+</div>
+<div class="section" id="paper-citation">
+<h2>Paper citation<a class="headerlink" href="#paper-citation" title="Permalink to this headline">¶</a></h2>
+<p>Scanner will appear in the proceedings of SIGGRAPH 2018 as <a class="reference external" href="http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf">“Scanner: Efficient Video Analysis at Scale</a> by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we’d appreciate it if you cite the paper.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
@@ -90,6 +101,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
+</div>
 </div>
 </div>
 
