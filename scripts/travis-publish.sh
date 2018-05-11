@@ -3,9 +3,9 @@
 set -e
 
 # Exit if this is not the master branch
-if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
-    exit 0
-fi
+#if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
+#    exit 0
+#fi
 
 # Commit docs
 REPO_PATH=git@github.com:scanner-research/scanner.git
