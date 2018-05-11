@@ -10,17 +10,8 @@ def bboxes(buf, protobufs):
     return s
 
 
-def poses(buf, protobufs):
-    s = struct.pack("=Q", len(buf))
-    for pose in buf:
-        # Num joints
-        s += struct.pack("=Q", len(pose))
-        for i in range(len(pose)):
-            point = protobufs.Point()
-            point.y = pose[i, 0]
-            point.x = pose[i, 1]
-            point.score = pose[i, 2]
-            # Point size
-            s += struct.pack("=Q", point.ByteSize())
-            s += point.SerializeToString()
-    return s
+def poses(poses, protobufs):
+    if len(poses) == 0:
+        return b' '
+    else:
+        return b''.join([pose.keypoints.tobytes() for pose in poses])
