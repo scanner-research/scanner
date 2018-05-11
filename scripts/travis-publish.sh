@@ -37,6 +37,7 @@ echo \$SSH_AGENT_PID
 eval `ssh-agent -s`
 echo \$SSH_AUTH_SOCK
 echo \$SSH_AGENT_PID
+ps -ef | grep ssh-agent
 ls -lah /tmp
 ls -lah /tmp/ssh*
 ls -lah \$SSH_AUTH_SOCK
