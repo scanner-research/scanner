@@ -37,6 +37,28 @@ class SQLSink : public Sink {
     }
   }
 
+  void new_stream(const std::vector<u8>& args) {
+    scanner::proto::SQLSinkStreamArgs sargs;
+    if (args.size() != 0) {
+      bool parsed = sargs.ParseFromArray(args.data(), args.size());
+      if (!parsed) {
+        RESULT_ERROR(&valid_, "Could not parse SQLSinkStreamArgs");
+        return;
+      }
+      job_name_ = sargs.job_name();
+    }
+  }
+
+  void finished() override {
+    std::string job_table = args_.query().job_table();
+    if (job_table != "") {x
+      std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+      pqxx::work txn{*conn};
+      txn.exec(tfm::format("INSERT INTO %s (name) VALUES ('%s')", job_table, job_name_));
+      txn.commit();
+    }
+  }
+
   void write(const BatchedElements& input_columns) override {
     std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
     pqxx::work txn{*conn};
@@ -82,6 +104,7 @@ class SQLSink : public Sink {
 
  private:
   scanner::proto::SQLSinkArgs args_;
+  std::string job_name_;
   Result valid_;
 };
 
