@@ -51,7 +51,7 @@ class SQLSink : public Sink {
 
   void finished() override {
     std::string job_table = args_.query().job_table();
-    if (job_table != "") {x
+    if (job_table != "") {
       std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
       pqxx::work txn{*conn};
       txn.exec(tfm::format("INSERT INTO %s (name) VALUES ('%s')", job_table, job_name_));
