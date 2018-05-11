@@ -30,8 +30,8 @@ build_docker() {
                -f docker/Dockerfile.scanner
         # travis_wait allows tests to run for N minutes with no output
         # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
-        docker run $DOCKER_REPO:$1-local /bin/bash \
-               -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
+        #docker run $DOCKER_REPO:$1-local /bin/bash \
+        #       -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
         docker rm $(docker ps -a -f status=exited -q)
     else
         # Parse gpu build type
