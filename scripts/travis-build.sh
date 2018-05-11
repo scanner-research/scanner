@@ -32,7 +32,7 @@ build_docker() {
         # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
         #docker run $DOCKER_REPO:$1-local /bin/bash \
         #       -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
-        docker rm $(docker ps -a -f status=exited -q)
+        #docker rm $(docker ps -a -f status=exited -q)
     else
         # Parse gpu build type
         local TAG=$1
