@@ -912,8 +912,7 @@ class Database(object):
                 kernel, types.BuiltinFunctionType):
 
             class KernelWrapper(Kernel):
-                def __init__(self, config, protobufs):
-                    config.protobufs = protobufs
+                def __init__(self, config):
                     self._config = config
 
                 def execute(self, columns):
