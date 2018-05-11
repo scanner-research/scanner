@@ -37,6 +37,7 @@ echo \$SSH_AGENT_PID
 eval `ssh-agent -s`
 echo \$SSH_AUTH_SOCK
 echo \$SSH_AGENT_PID
+ls -lah \$SSH_AUTH_SOCK
 ssh-add
 
 pip3 install doxypypy twine
