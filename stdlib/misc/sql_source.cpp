@@ -78,8 +78,7 @@ class SQLEnumerator : public Enumerator {
 
 class SQLSource : public Source {
  public:
-  SQLSource(const SourceConfig& config) :
-      Source(config) {
+  SQLSource(const SourceConfig& config) : Source(config) {
     bool parsed = args_.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed) {
       RESULT_ERROR(&valid_, "Could not parse SQLSourceArgs");
@@ -93,36 +92,6 @@ class SQLSource : public Source {
     for (auto row : types) {
       pq_types_[row["oid"].as<pqxx::oid>()] = row["typname"].as<std::string>();
     }
-  }
-
-  json row_to_json(pqxx::row row) {
-    json jrow;
-
-    for (pqxx::field field : row) {
-      std::string name(field.name());
-      if (name == "_scanner_id" || name == "_scanner_number") {
-        continue;
-      }
-
-      pqxx::oid type = field.type();
-      std::string& typname = pq_types_[type];
-      bool assigned = false;
-
-      #define ASSIGN_IF(NAME, TYPE) \
-        if (typname == NAME) { jrow[name] = field.as<TYPE>(); assigned = true; }
-
-      ASSIGN_IF("int4", i32);
-      ASSIGN_IF("float8", f32);
-      ASSIGN_IF("bool", bool);
-      ASSIGN_IF("text", std::string);
-      ASSIGN_IF("varchar", std::string);
-
-      LOG_IF(FATAL, !assigned)
-          << "Requested row has field " << name
-          << " with a type we can't serialize yet: " << typname;
-    }
-
-    return std::move(jrow);
   }
 
   void read(const std::vector<ElementArgs>& element_args,
@@ -204,6 +173,36 @@ class SQLSource : public Source {
   }
 
  private:
+  json row_to_json(pqxx::row row) {
+    json jrow;
+
+    for (pqxx::field field : row) {
+      std::string name(field.name());
+      if (name == "_scanner_id" || name == "_scanner_number") {
+        continue;
+      }
+
+      pqxx::oid type = field.type();
+      std::string& typname = pq_types_[type];
+      bool assigned = false;
+
+      #define ASSIGN_IF(NAME, TYPE) \
+        if (typname == NAME) { jrow[name] = field.as<TYPE>(); assigned = true; }
+
+      ASSIGN_IF("int4", i32);
+      ASSIGN_IF("float8", f32);
+      ASSIGN_IF("bool", bool);
+      ASSIGN_IF("text", std::string);
+      ASSIGN_IF("varchar", std::string);
+
+      LOG_IF(FATAL, !assigned)
+          << "Requested row has field " << name
+          << " with a type we can't serialize yet: " << typname;
+    }
+
+    return std::move(jrow);
+  }
+
   Result valid_;
   scanner::proto::SQLSourceArgs args_;
   std::string last_filter_;

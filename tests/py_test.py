@@ -1202,6 +1202,7 @@ def sql_db(db):
         cur.execute("INSERT INTO test (a, b, c, d, e, f, grp) VALUES (10, 0, 'hi', 'hello', true, 2.0, 0)")
         cur.execute("INSERT INTO test (a, b, c, d, e, f, grp) VALUES (20, 0, 'hi', 'hello', true, 2.0, 0)")
         cur.execute("INSERT INTO test (a, b, c, d, e, f, grp) VALUES (30, 0, 'hi', 'hello', true, 2.0, 1)")
+        cur.execute('CREATE TABLE jobs (id serial PRIMARY KEY, name text)')
         conn.commit()
 
         sql_params = postgresql.dsn()
@@ -1228,17 +1229,22 @@ def test_sql(sql_db):
     (db, sql_config, cur) = sql_db
 
     sql_query = db.protobufs.SQLQuery(
-        fields='test.id as id, test.a, test.c, test.d, test.e, test.f', table='test', id='test.id', group='test.id')
+        fields='test.id as id, test.a, test.c, test.d, test.e, test.f', table='test', id='test.id', group='test.id',
+        job_table='jobs'
+    )
 
     row = db.sources.SQL(config=sql_config, query=sql_query)
     row2 = db.ops.AddOne(row=row)
     output_op = db.sinks.SQL(input=row2, config=sql_config, query=sql_query)
 
-    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
+    job = Job(op_args={row: {'filter': 'true'}, output_op: {'job_name': 'foobar'}})
     db.run(output_op, [job])
 
     cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 11
+
+    cur.execute('SELECT name FROM jobs')
+    assert cur.fetchone()[0] == 'foobar'
 
 
 def test_sql_grouped(sql_db):

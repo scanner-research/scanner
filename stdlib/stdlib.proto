@@ -165,6 +165,7 @@ message SQLQuery {
   string joins = 3;
   string id = 4;
   string group = 5;
+  string job_table = 6;
 }
 
 message SQLEnumeratorArgs {
@@ -188,6 +189,7 @@ message SQLSinkArgs {
 }
 
 message SQLSinkStreamArgs {
+  string job_name = 1;
 }
 
 message FilesElementArgs {
