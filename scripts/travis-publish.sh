@@ -42,6 +42,8 @@ ls -lah /tmp
 ls -lah /tmp/ssh*
 ls -lah \$SSH_AUTH_SOCK
 ssh-add
+rm -fr ~/.ssh/known_hosts
+ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
 
 pip3 install doxypypy twine
 pip3 install Sphinx sphinx_readable_theme sphinx-autodoc-typehints
