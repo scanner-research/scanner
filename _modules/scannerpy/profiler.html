@@ -83,15 +83,17 @@
             <span class="n">time</span><span class="p">,</span> <span class="n">profs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_profiler_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_profilers</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">profs</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Profiler.write_trace"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.profiler.Profiler.write_trace">[docs]</a>    <span class="k">def</span> <span class="nf">write_trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<div class="viewcode-block" id="Profiler.write_trace"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.profiler.Profiler.write_trace">[docs]</a>    <span class="k">def</span> <span class="nf">write_trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generates a trace file in Chrome format.</span>
 
-<span class="sd">        To visualize the trace, visit [chrome://tracing](chrome://tracing) in</span>
-<span class="sd">        Google Chrome and click &quot;Load&quot; in the top left to load the trace.</span>
+<span class="sd">        To visualize the trace, visit chrome://tracing in Google Chrome and</span>
+<span class="sd">        click &quot;Load&quot; in the top left to load the trace.</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            path: Output path to write the trace.</span>
+<span class="sd">        Args</span>
+<span class="sd">        ----</span>
+<span class="sd">        path</span>
+<span class="sd">          Output path to write the trace.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html</span>

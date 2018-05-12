@@ -62,7 +62,7 @@
 <span class="kn">import</span> <span class="nn">cloudpickle</span>
 <span class="kn">import</span> <span class="nn">types</span>
 <span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;linux&#39;</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;linux2&#39;</span><span class="p">:</span>
     <span class="kn">import</span> <span class="nn">prctl</span>
@@ -1256,8 +1256,8 @@
         <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">videos</span></div>
 
 <div class="viewcode-block" id="Database.run"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
-            <span class="n">output</span><span class="p">,</span>
-            <span class="n">jobs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Job</span><span class="p">],</span>
+            <span class="n">output</span><span class="p">:</span> <span class="n">Sink</span><span class="p">,</span>
+            <span class="n">jobs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Job</span><span class="p">],</span>
             <span class="n">force</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
             <span class="n">work_packet_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">250</span><span class="p">,</span>
             <span class="n">io_packet_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
@@ -1275,22 +1275,37 @@
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        output</span>
+<span class="sd">          The Sink that should be processed.</span>
 
 <span class="sd">        jobs</span>
+<span class="sd">          The set of jobs to process. All of these jobs should share the same</span>
+<span class="sd">          graph of operations.</span>
 
 <span class="sd">        force</span>
+<span class="sd">          If the output tables already exist, overwrite them.</span>
 
 <span class="sd">        work_packet_size</span>
+<span class="sd">          The size of the packets of intermediate elements to pass between</span>
+<span class="sd">          operations. This parameter only affects performance and should not</span>
+<span class="sd">          affect the output.</span>
 
 <span class="sd">        io_packet_size</span>
+<span class="sd">          The size of the packets of elements to read and write from Sources and</span>
+<span class="sd">          sinks. This parameter only affects performance and should not</span>
+<span class="sd">          affect the output. When reading and writing to high latency storage</span>
+<span class="sd">          (such as the cloud), it is helpful to increase this value.</span>
 
 <span class="sd">        cpu_pool</span>
 
 <span class="sd">        gpu_pool</span>
 
 <span class="sd">        pipeline_instances_per_node</span>
+<span class="sd">          The number of concurrent instances of the computation graph to</span>
+<span class="sd">          execute. If set to None, it will be automatically inferred based on</span>
+<span class="sd">          computation graph and the available machine resources.</span>
 
 <span class="sd">        show_progress</span>
+<span class="sd">          If true, will display an ASCII progress bar measuring job status.</span>
 
 <span class="sd">        profiling</span>
 
@@ -1306,8 +1321,9 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        Table</span>
-<span class="sd">          The new table object.</span>
+<span class="sd">        List[Table]</span>
+<span class="sd">          The new table objects if `output` is a db.sinks.Column, otherwise an</span>
+<span class="sd">          empty list.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">Sink</span><span class="p">)</span>
 

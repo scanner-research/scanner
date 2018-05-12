@@ -341,15 +341,23 @@ over. If <cite>batch == 1</cite>, kernel is assume to not be able to batch.</li>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>output</strong> – </li>
-<li><strong>jobs</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference internal" href="#scannerpy.job.Job" title="scannerpy.job.Job"><code class="xref py py-class docutils literal notranslate"><span class="pre">Job</span></code></a>]) – </li>
-<li><strong>force</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
-<li><strong>work_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </li>
-<li><strong>io_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </li>
+<li><strong>output</strong> (<a class="reference internal" href="#scannerpy.sink.Sink" title="scannerpy.sink.Sink"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sink</span></code></a>) – The Sink that should be processed.</li>
+<li><strong>jobs</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Sequence" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<a class="reference internal" href="#scannerpy.job.Job" title="scannerpy.job.Job"><code class="xref py py-class docutils literal notranslate"><span class="pre">Job</span></code></a>]) – The set of jobs to process. All of these jobs should share the same
+graph of operations.</li>
+<li><strong>force</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If the output tables already exist, overwrite them.</li>
+<li><strong>work_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The size of the packets of intermediate elements to pass between
+operations. This parameter only affects performance and should not
+affect the output.</li>
+<li><strong>io_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The size of the packets of elements to read and write from Sources and
+sinks. This parameter only affects performance and should not
+affect the output. When reading and writing to high latency storage
+(such as the cloud), it is helpful to increase this value.</li>
 <li><strong>cpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – </li>
 <li><strong>gpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – </li>
-<li><strong>pipeline_instances_per_node</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – </li>
-<li><strong>show_progress</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
+<li><strong>pipeline_instances_per_node</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The number of concurrent instances of the computation graph to
+execute. If set to None, it will be automatically inferred based on
+computation graph and the available machine resources.</li>
+<li><strong>show_progress</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, will display an ASCII progress bar measuring job status.</li>
 <li><strong>profiling</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
 </ul>
 </td>
@@ -363,10 +371,11 @@ over. If <cite>batch == 1</cite>, kernel is assume to not be able to batch.</li>
 </ul>
 </td>
 </tr>
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The new table object.</p>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The new table objects if <cite>output</cite> is a db.sinks.Column, otherwise an
+empty list.</p>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.table.Table" title="scannerpy.table.Table">Table</a></p>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">List[<a class="reference internal" href="#scannerpy.table.Table" title="scannerpy.table.Table">Table</a>]</p>
 </td>
 </tr>
 </tbody>
@@ -631,62 +640,275 @@ op in a C++ registry.</p>
 <dt id="scannerpy.streams.StreamsGenerator">
 <em class="property">class </em><code class="descclassname">scannerpy.streams.</code><code class="descname">StreamsGenerator</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Utility for specifying which frames of a video (or which rows of a table)
-to run a computation over.</p>
+<p>Provides Ops for sampling elements from streams.</p>
+<p>The methods of this class construct Scanner Ops that enable selecting
+subsets of the elements in a stream to produce new streams.</p>
+<p>This class should not be constructed directly, but accessed via a Database
+object like:</p>
+<blockquote>
+<div>db.streams.Range(input)</div></blockquote>
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.All">
 <code class="descname">All</code><span class="sig-paren">(</span><em>input</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.All"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.All" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples all elements from the stream.</p>
+<p>Serves as an identity sampling function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The sampled stream.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Gather">
 <code class="descname">Gather</code><span class="sig-paren">(</span><em>input</em>, <em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Gather"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Gather" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples a list of elements from the input stream.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</li>
+<li><strong>rows</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Sequence" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]]) – A list of the indices to sample.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Range">
 <code class="descname">Range</code><span class="sig-paren">(</span><em>input</em>, <em>start=None</em>, <em>end=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Range" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples a range of elements from the input stream.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</li>
+<li><strong>start</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default index to start sampling from.</li>
+<li><strong>end</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default index to end sampling at.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Ranges">
 <code class="descname">Ranges</code><span class="sig-paren">(</span><em>input</em>, <em>intervals=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Ranges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Ranges" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples multiple ranges of elements from the input stream.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</li>
+<li><strong>intervals</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Sequence" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]]]) – The default intervals to sample from. This should be a list
+of tuples representing start and end ranges.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<p>For example, to select frames 0-10 and 100-200, you would write:</p>
+<p>db.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])</p>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Repeat">
 <code class="descname">Repeat</code><span class="sig-paren">(</span><em>input</em>, <em>spacing=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Repeat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Repeat" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Expands a sequence by repeating elements.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to expand.</li>
+<li><strong>spacing</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.RepeatNull">
 <code class="descname">RepeatNull</code><span class="sig-paren">(</span><em>input</em>, <em>spacing=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.RepeatNull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.RepeatNull" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Expands a sequence by inserting nulls.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to expand.</li>
+<li><strong>spacing</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Slice">
 <code class="descname">Slice</code><span class="sig-paren">(</span><em>input</em>, <em>partitioner=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Slice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Slice" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Partitions a stream into independent substreams.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to partition.</li>
+<li><strong>partitioner</strong> – The partitioner that should be used to split the stream into
+substreams.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A new stream which represents multiple substreams.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Stride">
 <code class="descname">Stride</code><span class="sig-paren">(</span><em>input</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Stride"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Stride" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples every n’th element from the stream, where n is the stride.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</li>
+<li><strong>stride</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default value to stride by for all jobs.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.StridedRange">
 <code class="descname">StridedRange</code><span class="sig-paren">(</span><em>input</em>, <em>start=None</em>, <em>end=None</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.StridedRange"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.StridedRange" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples a strided range of elements from the input stream.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</li>
+<li><strong>start</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default index to start sampling from.</li>
+<li><strong>end</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default index to end sampling at.</li>
+<li><strong>stride</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default value to stride by.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.StridedRanges">
 <code class="descname">StridedRanges</code><span class="sig-paren">(</span><em>input</em>, <em>intervals=None</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.StridedRanges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.StridedRanges" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Samples strided ranges of elements from the input stream.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream to sample.</li>
+<li><strong>intervals</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Sequence" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]]]) – The default intervals to sample from. This should be a list
+of tuples representing start and end ranges.</li>
+<li><strong>stride</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The default value to stride by.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The sampled stream.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="method">
 <dt id="scannerpy.streams.StreamsGenerator.Unslice">
 <code class="descname">Unslice</code><span class="sig-paren">(</span><em>input</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Unslice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Unslice" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Joins substreams back together.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>input</strong> (<a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpColumn</span></code></a>) – The stream which contains substreams to join back together.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A new stream which is the concatentation of the input substreams.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#scannerpy.op.OpColumn" title="scannerpy.op.OpColumn">scannerpy.op.OpColumn</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 </dd></dl>
 
@@ -980,13 +1202,13 @@ tasks.</p>
 <dt id="scannerpy.profiler.Profiler.write_trace">
 <code class="descname">write_trace</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler.write_trace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler.write_trace" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generates a trace file in Chrome format.</p>
-<p>To visualize the trace, visit [chrome://tracing](chrome://tracing) in
-Google Chrome and click “Load” in the top left to load the trace.</p>
+<p>To visualize the trace, visit chrome://tracing in Google Chrome and
+click “Load” in the top left to load the trace.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>path</strong> – Output path to write the trace.</td>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – Output path to write the trace.</td>
 </tr>
 </tbody>
 </table>
