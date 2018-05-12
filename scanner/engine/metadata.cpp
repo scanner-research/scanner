@@ -458,8 +458,9 @@ void write_table_megafile(
     storehouse::StorageBackend* storage,
     const std::unordered_map<i32, TableMetadata>& table_metadata) {
   std::unique_ptr<WriteFile> output_file;
-  BACKOFF_FAIL(make_unique_write_file(storage, table_megafile_path(),
-                                      output_file));
+  BACKOFF_FAIL(
+      make_unique_write_file(storage, table_megafile_path(), output_file),
+      "while trying to make write file for " + table_megafile_path());
   // Get all table descriptor sizes and write them
   std::vector<i32> ids;
   for (const auto& kv : table_metadata) {
@@ -502,11 +503,13 @@ void write_table_megafile(
 void read_table_megafile(storehouse::StorageBackend* storage,
                          std::unordered_map<i32, TableMetadata>& table_metadata) {
   std::unique_ptr<RandomReadFile> file;
-  BACKOFF_FAIL(make_unique_random_read_file(storage,
-                                            table_megafile_path(), file));
+  BACKOFF_FAIL(
+      make_unique_random_read_file(storage, table_megafile_path(), file),
+      "while trying to make write file for " + table_megafile_path());
 
   u64 file_size = 0;
-  BACKOFF_FAIL(file->get_size(file_size));
+  BACKOFF_FAIL(file->get_size(file_size),
+               "while trying to get size for " + file->path());
   u64 pos = 0;
 
   // Read # entires

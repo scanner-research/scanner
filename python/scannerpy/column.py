@@ -221,8 +221,7 @@ class Column(object):
             op_args[frame] = self
             enc_input = frame
             if rows is not None:
-                sampled_frame = frame.sample()
-                op_args[sampled_frame] = self._db.sampler.gather(rows)
+                sampled_frame = self._db.streams.Gather(frame, rows=rows)
                 enc_input = sampled_frame
             img = self._db.ops.ImageEncoder(frame=enc_input)
             output_op = self._db.sinks.Column(columns={'img': img})

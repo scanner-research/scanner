@@ -21,18 +21,6 @@ class OpColumn:
         if self._type == self._db.protobufs.Video:
             self._encode_options = {'codec': 'default'}
 
-    def sample(self):
-        return self._db.ops.Sample(col=self)
-
-    def space(self):
-        return self._db.ops.Space(col=self)
-
-    def slice(self):
-        return self._db.ops.Slice(col=self)
-
-    def unslice(self):
-        return self._db.ops.Unslice(col=self)
-
     def compress(self, codec='video', **kwargs):
         self._assert_is_video()
         codecs = {
@@ -107,6 +95,7 @@ class OpGenerator:
                     py_op_info['variadic_inputs'],
                     py_op_info['stencil'],
                     py_op_info['unbounded_state'],
+                    py_op_info['bounded_state'],
                     py_op_info['proto_path'])
                 self._db.register_python_kernel(
                     name,
@@ -131,11 +120,12 @@ class OpGenerator:
                     inputs.append(val)
             device = kwargs.pop('device', DeviceType.CPU)
             batch = kwargs.pop('batch', -1)
-            warmup = kwargs.pop('warmup', 0)
+            bounded_state = kwargs.pop('bounded_state', -1)
             stencil = kwargs.pop('stencil', [])
+            extra = kwargs.pop('extra', None)
             args = kwargs.pop('args', None)
-            op = Op(self._db, name, inputs, device, batch, warmup, stencil,
-                    kwargs if args is None else args)
+            op = Op(self._db, name, inputs, device, batch, bounded_state,
+                    stencil, kwargs if args is None else args, extra)
             return op.outputs()
 
         return make_op
@@ -148,9 +138,10 @@ class Op:
                  inputs,
                  device,
                  batch=-1,
-                 warmup=0,
+                 warmup=-1,
                  stencil=[0],
-                 args={}):
+                 args={},
+                 extra=None):
         self._db = db
         self._name = name
         self._inputs = inputs
@@ -159,9 +150,10 @@ class Op:
         self._warmup = warmup
         self._stencil = stencil
         self._args = args
+        self._extra = extra
 
-        if (name == 'Input' or name == 'Space' or name == 'Sample'
-                or name == 'Slice' or name == 'Unslice'):
+        if (name == 'Space' or name == 'Sample' or
+            name == 'Slice' or name == 'Unslice'):
             outputs = []
             for c in inputs:
                 outputs.append(OpColumn(db, self, c._col, c._type))
@@ -169,18 +161,6 @@ class Op:
             cols = self._db._get_output_columns(self._name)
             outputs = [OpColumn(self._db, self, c.name, c.type) for c in cols]
         self._outputs = outputs
-
-    @classmethod
-    def input(cls, db):
-        c = cls(db, "Input", [OpColumn(db, None, 'col', db.protobufs.Other)],
-                DeviceType.CPU)
-        return c
-
-    @classmethod
-    def frame_input(cls, db):
-        c = cls(db, "Input", [OpColumn(db, None, 'col', db.protobufs.Video)],
-                DeviceType.CPU)
-        return c
 
     def inputs(self):
         return self._inputs

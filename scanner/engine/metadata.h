@@ -273,7 +273,8 @@ template <typename T>
 T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
   T descriptor;
   uint64_t size;
-  BACKOFF_FAIL(file->get_size(size));
+  BACKOFF_FAIL(file->get_size(size),
+               "while trying to get size for " + file->path());
   std::vector<u8> data = storehouse::read_entire_file(
       file, pos, std::max((size_t)size, (size_t)1024 * 1024));
   descriptor.ParseFromArray(data.data(), data.size());
@@ -283,18 +284,21 @@ T deserialize_db_proto(storehouse::RandomReadFile* file, u64& pos) {
 template <typename T>
 void write_db_proto(storehouse::StorageBackend* storage, T db_proto) {
   std::unique_ptr<storehouse::WriteFile> output_file;
-  BACKOFF_FAIL(make_unique_write_file(
-      storage, db_proto.Metadata<typename T::Descriptor>::descriptor_path(),
-      output_file));
+  const std::string& desc_path =
+      db_proto.Metadata<typename T::Descriptor>::descriptor_path();
+  BACKOFF_FAIL(make_unique_write_file(storage, desc_path, output_file),
+               "while trying to make write file for " + desc_path);
   serialize_db_proto<typename T::Descriptor>(output_file.get(),
                                              db_proto.get_descriptor());
-  BACKOFF_FAIL(output_file->save());
+  BACKOFF_FAIL(output_file->save(),
+               "while trying to save " + output_file->path());
 }
 
 template <typename T>
 T read_db_proto(storehouse::StorageBackend* storage, const std::string& path) {
   std::unique_ptr<storehouse::RandomReadFile> db_in_file;
-  BACKOFF_FAIL(make_unique_random_read_file(storage, path, db_in_file));
+  BACKOFF_FAIL(make_unique_random_read_file(storage, path, db_in_file),
+               "while trying to make read file for " + path);
   u64 pos = 0;
   return T(deserialize_db_proto<typename T::Descriptor>(db_in_file.get(), pos));
 }

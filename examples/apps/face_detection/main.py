@@ -20,22 +20,25 @@ print('Ingesting video into Scanner ...')
 [input_table], _ = db.ingest_videos(
     [(movie_name, movie_path)], force=True)
 
-sampler = db.sampler.all()
+sampler = db.streams.All
+sampler_args = {}
 
 print('Detecting faces...')
 [bboxes_table] = pipelines.detect_faces(
-    db, [input_table.column('frame')], sampler,
+    db, [input_table.column('frame')],
+    sampler,
+    sampler_args,
     movie_name + '_bboxes')
 
 print('Drawing faces onto video...')
 frame = db.sources.FrameColumn()
-sampled_frame = frame.sample()
+sampled_frame = sampler(frame)
 bboxes = db.sources.Column()
-out_frame = db.ops.DrawBox(frame = sampled_frame, bboxes = bboxes)
+out_frame = db.ops.DrawBox(frame=sampled_frame, bboxes=bboxes)
 output = db.sinks.Column(columns={'frame': out_frame})
 job = Job(op_args={
     frame: input_table.column('frame'),
-    sampled_frame: sampler,
+    sampled_frame: sampler_args,
     bboxes: bboxes_table.column('bboxes'),
     output: movie_name + '_bboxes_overlay',
 })

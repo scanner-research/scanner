@@ -32,7 +32,7 @@ from scannerpy.config import Config
 from scannerpy.op import OpGenerator, Op, OpColumn
 from scannerpy.source import SourceGenerator, Source
 from scannerpy.sink import SinkGenerator, Sink
-from scannerpy.sampler import Sampler
+from scannerpy.streams import StreamsGenerator
 from scannerpy.partitioner import TaskPartitioner
 from scannerpy.table import Table
 from scannerpy.column import Column
@@ -114,9 +114,9 @@ class Database(object):
       Represents the set of available Sinks. Sinks are created just like Ops.
       See :class:`~scannerpy.op.SinkGenerator`
 
-    sampler : Sampler
+    streams : StreamsGenerator
       Used to specify which elements to sample from a sequence.
-      See :class:`~scannerpy.sampler.Sampler`
+      See :class:`~scannerpy.streams.StreamsGenerator`
 
     partitioner : TaskPartitioner
       Used to specify how to split the elements in a sequence when performing a
@@ -164,7 +164,7 @@ class Database(object):
         self.ops = OpGenerator(self)
         self.sources = SourceGenerator(self)
         self.sinks = SinkGenerator(self)
-        self.sampler = Sampler(self)
+        self.streams = StreamsGenerator(self)
         self.partitioner = TaskPartitioner(self)
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
@@ -448,7 +448,7 @@ class Database(object):
         # Keep track of position of input ops and sampling/slicing ops
         # to use for associating job args to
         source_ops = {}
-        sampling_slicing_ops = {}
+        stream_ops = {}
         output_ops = {}
 
         # Compute sorted list
@@ -468,14 +468,14 @@ class Database(object):
                 source_ops[c] = op_idx
             elif (c._name == "Sample" or c._name == "Space"
                   or c._name == "Slice" or c._name == "Unslice"):
-                sampling_slicing_ops[c] = op_idx
+                stream_ops[c] = op_idx
             elif isinstance(c, Sink):
                 output_ops[c] = op_idx
 
         return eval_sorted, \
             eval_index, \
             source_ops, \
-            sampling_slicing_ops, \
+            stream_ops, \
             output_ops
 
     def _parse_size_string(self, s):
@@ -875,6 +875,7 @@ class Database(object):
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
 
+        print(op_registration)
         self._try_rpc(lambda: self._master.RegisterOp(
             op_registration, timeout=self._grpc_timeout))
 
@@ -1284,7 +1285,7 @@ class Database(object):
         # Get output columns
         output_column_names = output_op._output_names
 
-        sorted_ops, op_index, source_ops, sampling_slicing_ops, output_ops = (
+        sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(output))
 
         job_params = self.protobufs.BulkJobParameters()
@@ -1302,14 +1303,27 @@ class Database(object):
         for job in jobs:
             j = job_params.jobs.add()
             output_table_name = None
+            # Build lookup from op to op_args
+            op_to_op_args = {}
             for op_col, args in job.op_args().items():
                 if isinstance(op_col, Op) or isinstance(op_col, Sink):
                     op = op_col
                 else:
                     op = op_col._op
 
+                op_to_op_args[op] = args
+
+            for op in sorted_ops:
                 if op in source_ops:
                     op_idx = source_ops[op]
+                    if not op in op_to_op_args:
+                        raise ScannerException(
+                            'No arguments bound to source {:s}.'.format(
+                                op._name))
+                    else:
+                        args = op_to_op_args[op]
+
+                    args = op_to_op_args[op]
                     source_input = j.inputs.add()
                     source_input.op_index = op_idx
                     # We special case on Column to transform it into a
@@ -1334,19 +1348,60 @@ class Database(object):
                                 self.protobufs, enumerator_proto_name, args)
                         else:
                             source_input.enumerator_args = args
-                elif op in sampling_slicing_ops:
-                    op_idx = sampling_slicing_ops[op]
+                elif op in stream_ops:
+                    op_idx = stream_ops[op]
+                    # If this is an Unslice Op, ignore it since it has no args
+                    if op._name == 'Unslice':
+                        continue
+                    # Check for default. If no default
+                    if not op in op_to_op_args:
+                        # If no args specified, check for default args
+                        if op._extra['default'] is not None:
+                            args = op._extra['default']
+                        else:
+                            raise ScannerException(
+                                'No arguments bound to stream operation {:s} '
+                                'and no default arguments specified.'.format(
+                                    op._extra['type']))
+                    else:
+                        args = op_to_op_args[op]
+
                     saa = j.sampling_args_assignment.add()
                     saa.op_index = op_idx
-                    if not isinstance(args, list):
+                    if ((op._extra['type'] == 'Gather' and
+                         isinstance(args, list) and
+                         not isinstance(args[0], list)) or
+                        not isinstance(args, list)):
                         args = [args]
+
+                    arg_builder = op._extra['arg_builder']
                     for arg in args:
+                        # Construct the sampling_args using the arg_builder
+                        if isinstance(arg, tuple):
+                            # Positional arguments
+                            sargs = arg_builder(*arg)
+                        elif isinstance(arg, dict):
+                            # Keyword arguments
+                            sargs = arg_builder(**arg)
+                        else:
+                            # Single argument
+                            sargs = arg_builder(arg)
+
                         sa = saa.sampling_args.add()
-                        sa.CopyFrom(arg)
+                        sa.CopyFrom(sargs)
+
                 elif op in output_ops:
                     op_idx = output_ops[op]
                     sink_args = j.outputs.add()
                     sink_args.op_index = op_idx
+
+                    if not op in op_to_op_args:
+                        raise ScannerException(
+                            'No arguments bound to sink {:s}.'.format(
+                                op._name))
+                    else:
+                        args = op_to_op_args[op]
+
                     # We special case on FrameColumn or Column sinks to catch
                     # the output table name
                     n = op._name
@@ -1370,6 +1425,12 @@ class Database(object):
                     op_idx = op_index[op]
                     oargs = j.op_args.add()
                     oargs.op_index = op_idx
+
+                    if not op in op_to_op_args:
+                        continue
+                    else:
+                        args = op_to_op_args[op]
+
                     # Encode the args
                     n = op._name
                     if n in self._python_ops:

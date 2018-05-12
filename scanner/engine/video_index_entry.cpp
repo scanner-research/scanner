@@ -22,7 +22,8 @@ std::unique_ptr<storehouse::RandomReadFile> VideoIndexEntry::open_file() const {
   std::unique_ptr<storehouse::RandomReadFile> file;
   const std::string p =
       inplace ? path : table_item_output_path(table_id, column_id, item_id);
-  BACKOFF_FAIL(storehouse::make_unique_random_read_file(storage, p, file));
+  BACKOFF_FAIL(storehouse::make_unique_random_read_file(storage, p, file),
+               "while trying to make read file for " + p);
   return std::move(file);
 }
 
@@ -55,7 +56,8 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   index_entry.codec_type = video_meta.codec_type();
 
   std::unique_ptr<storehouse::RandomReadFile> file = index_entry.open_file();
-  BACKOFF_FAIL(file->get_size(index_entry.file_size));
+  BACKOFF_FAIL(file->get_size(index_entry.file_size),
+               "while trying to get size for " + file->path());
   index_entry.num_encoded_videos = video_meta.num_encoded_videos();
   index_entry.frames_per_video = video_meta.frames_per_video();
   index_entry.keyframes_per_video = video_meta.keyframes_per_video();

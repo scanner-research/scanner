@@ -33,7 +33,8 @@ class BBoxNMS(scannerpy.Kernel):
 
 def detect_faces(db,
                  input_frame_columns,
-                 output_samplings,
+                 output_sampler,
+                 output_sampler_args,
                  output_names,
                  width=960,
                  prototxt_path=None,
@@ -81,12 +82,12 @@ def detect_faces(db,
     else:
         assert (len(output_names) == len(input_frame_columns))
 
-    if type(output_samplings) is not list:
-        output_samplings = [
-            output_samplings for _ in range(len(input_frame_columns))
+    if type(output_sampler_args) is not list:
+        output_sampler_args = [
+            output_sampler_args for _ in range(len(input_frame_columns))
         ]
     else:
-        assert (len(output_samplings) == len(input_frame_columns))
+        assert (len(output_sampler_args) == len(input_frame_columns))
 
     outputs = []
     scales = [1.0, 0.5, 0.25, 0.125]
@@ -110,12 +111,12 @@ def detect_faces(db,
             facenet_output=facenet,
             original_frame_info=frame_info,
             args=facenet_args)
-        sampled_output = facenet_output.sample()
+        sampled_output = output_sampler(facenet_output)
         output = db.sinks.Column(columns={'bboxes': sampled_output})
 
         jobs = []
         for output_name, frame_column, output_sampling in zip(
-                output_names, input_frame_columns, output_samplings):
+                output_names, input_frame_columns, output_sampler_args):
             job = Job(
                 op_args={
                     frame: frame_column,
@@ -154,7 +155,8 @@ def detect_faces(db,
 
 def detect_poses(db,
                  input_frame_columns,
-                 sampling,
+                 output_sampler,
+                 output_sampler_args,
                  output_name,
                  batch=1,
                  models_path=None,
@@ -217,7 +219,7 @@ def detect_poses(db,
     frame = db.sources.FrameColumn()
     poses_out = db.ops.OpenPose(
         frame=frame, device=device, args=pose_args, batch=batch)
-    sampled_poses = poses_out.sample()
+    sampled_poses = output_sampler(poses_out)
     output = db.sinks.Column(columns={'poses': sampled_poses})
 
     jobs = []
@@ -225,7 +227,7 @@ def detect_poses(db,
         job = Job(
             op_args={
                 frame: input_frame_column,
-                sampled_poses: sampling,
+                sampled_poses: output_sampler_args,
                 output: '{}_{}_poses'.format(output_name, i)
             })
         jobs.append(job)

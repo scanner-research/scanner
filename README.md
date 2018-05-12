@@ -44,14 +44,13 @@ db.ingest_videos([('example_table', 'example.mp4')])
 
 # Define a Computation Graph
 frame = db.sources.FrameColumn() # Read sequence of frames from the database as input
-sampled_frame = frame.sample() # Sample a fraction of the frames
+sampled_frame = db.ops.Stride(frame, 3) # Select every third frame
 resized = db.ops.Resize(frame=sampled_frame, width=640, height=480) # Resize input frames
 output_frame = db.sinks.Column(columns={'frame': resized}) # Save resized frames as new video
 
 # Set parameters of computation graph ops
 job = Job(op_args={
     frame: db.table('example_table').column('frame'), # Column to read input frames from
-    sampled_frame: db.sampler.stride(3), # Sample every 3rd frame
     output_frame: 'resized_example' # Name the table that will hold the computation's output
 })
 

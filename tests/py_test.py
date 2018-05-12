@@ -205,9 +205,9 @@ def test_new_table(db):
 
 
 def test_sample(db):
-    def run_sampler_job(sampler_args, expected_rows):
+    def run_sampler_job(sampler, sampler_args, expected_rows):
         frame = db.sources.FrameColumn()
-        sample_frame = frame.sample()
+        sample_frame = sampler(input=frame)
         output_op = db.sinks.Column(columns={'frame': sample_frame})
 
         job = Job(
@@ -225,26 +225,30 @@ def test_sample(db):
 
     # Stride
     expected = int((db.table('test1').num_rows() + 8 - 1) / 8)
-    run_sampler_job(db.sampler.strided(8), expected)
+    run_sampler_job(db.streams.Stride, {'stride': 8}, expected)
     # Range
-    run_sampler_job(db.sampler.range(0, 30), 30)
+    run_sampler_job(db.streams.Range, {'start': 0, 'end': 30}, 30)
     # Strided Range
-    run_sampler_job(db.sampler.strided_range(0, 300, 10), 30)
+    run_sampler_job(db.streams.StridedRange,
+                    {'start': 0, 'end': 300, 'stride': 10},
+                    30)
     # Gather
-    run_sampler_job(db.sampler.gather([0, 150, 377, 500]), 4)
+    run_sampler_job(db.streams.Gather,
+                    {'rows': [0, 150, 377, 500]},
+                    4)
 
 
 def test_space(db):
-    def run_spacer_job(spacing_args):
+    def run_spacer_job(spacer, spacing):
         frame = db.sources.FrameColumn()
         hist = db.ops.Histogram(frame=frame)
-        space_hist = hist.space()
+        space_hist = spacer(input=hist)
         output_op = db.sinks.Column(columns={'histogram': space_hist})
 
         job = Job(
             op_args={
                 frame: db.table('test1').column('frame'),
-                space_hist: spacing_args,
+                space_hist: {'spacing': spacing},
                 output_op: 'test_space',
             })
 
@@ -253,7 +257,7 @@ def test_space(db):
 
     # Repeat
     spacing_distance = 8
-    table = run_spacer_job(db.sampler.space_repeat(spacing_distance))
+    table = run_spacer_job(db.streams.Repeat, spacing_distance)
     num_rows = 0
     for hist in table.column('histogram').load(readers.histograms):
         # Verify outputs are repeated correctly
@@ -266,7 +270,7 @@ def test_space(db):
     assert num_rows == db.table('test1').num_rows() * spacing_distance
 
     # Null
-    table = run_spacer_job(db.sampler.space_null(spacing_distance))
+    table = run_spacer_job(db.streams.RepeatNull, spacing_distance)
     num_rows = 0
     for hist in table.column('histogram').load(readers.histograms):
         # Verify outputs are None for null rows
@@ -282,13 +286,12 @@ def test_space(db):
 
 def test_slice(db):
     frame = db.sources.FrameColumn()
-    slice_frame = frame.slice()
-    unsliced_frame = slice_frame.unslice()
+    slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
+    unsliced_frame = db.streams.Unslice(slice_frame)
     output_op = db.sinks.Column(columns={'frame': unsliced_frame})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            slice_frame: db.partitioner.all(50),
             output_op: 'test_slicing',
         })
 
@@ -302,21 +305,24 @@ def test_slice(db):
 
 def test_overlapping_slice(db):
     frame = db.sources.FrameColumn()
-    slice_frame = frame.slice()
-    sample_frame = slice_frame.sample()
-    unsliced_frame = sample_frame.unslice()
+    slice_frame = db.streams.Slice(frame)
+    sample_frame = db.streams.Range(slice_frame)
+    unsliced_frame = db.streams.Unslice(sample_frame)
     output_op = db.sinks.Column(columns={'frame': unsliced_frame})
     job = Job(
         op_args={
             frame:
             db.table('test1').column('frame'),
+
             slice_frame:
             db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1),
+
             sample_frame: [
-                db.sampler.range(0, 10),
-                db.sampler.range(5, 15),
-                db.sampler.range(5, 15),
+                (0, 10),
+                (5, 15),
+                (5, 15),
             ],
+
             output_op:
             'test_slicing',
         })
@@ -334,12 +340,11 @@ def test_bounded_state(db):
 
     frame = db.sources.FrameColumn()
     increment = db.ops.TestIncrementBounded(ignore=frame, warmup=warmup)
-    sampled_increment = increment.sample()
+    sampled_increment = db.streams.Gather(increment, [0, 10, 25, 26, 27])
     output_op = db.sinks.Column(columns={'integer': sampled_increment})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            sampled_increment: db.sampler.gather([0, 10, 25, 26, 27]),
             output_op: 'test_slicing',
         })
 
@@ -357,14 +362,13 @@ def test_bounded_state(db):
 
 def test_unbounded_state(db):
     frame = db.sources.FrameColumn()
-    slice_frame = frame.slice()
+    slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
     increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
-    unsliced_increment = increment.unslice()
+    unsliced_increment = db.streams.Unslice(increment)
     output_op = db.sinks.Column(columns={'integer': unsliced_increment})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            slice_frame: db.partitioner.all(50),
             output_op: 'test_slicing',
         })
 
@@ -414,12 +418,12 @@ class TestOpticalFlow:
     def job(self, db, ty):
         frame = db.sources.FrameColumn()
         flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=ty)
-        flow_range = flow.sample()
+        flow_range = db.streams.Range(flow, 0, 50)
+
         out = db.sinks.Column(columns={'flow': flow_range})
         job = Job(
             op_args={
                 frame: db.table('test1').column('frame'),
-                flow_range: db.sampler.range(0, 50),
                 out: 'test_flow',
             })
         return out, [job]
@@ -441,13 +445,12 @@ class TestOpticalFlow:
 
 def test_stencil(db):
     frame = db.sources.FrameColumn()
-    sample_frame = frame.sample()
+    sample_frame = db.streams.Range(frame, 0, 1)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            sample_frame: db.sampler.range(0, 1),
             output_op: 'test_sencil',
         })
 
@@ -463,13 +466,12 @@ def test_stencil(db):
     assert num_rows == 1
 
     frame = db.sources.FrameColumn()
-    sample_frame = frame.sample()
+    sample_frame = db.streams.Range(frame, 0, 1)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            sample_frame: db.sampler.range(0, 1),
             output_op: 'test_sencil',
         })
 
@@ -480,13 +482,12 @@ def test_stencil(db):
         pipeline_instances_per_node=1)
 
     frame = db.sources.FrameColumn()
-    sample_frame = frame.sample()
+    sample_frame = db.streams.Range(frame, 0, 2)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            sample_frame: db.sampler.range(0, 2),
             output_op: 'test_sencil',
         })
 
@@ -503,12 +504,11 @@ def test_stencil(db):
 
     frame = db.sources.FrameColumn()
     flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
-    sample_flow = flow.sample()
+    sample_flow = db.streams.Range(flow, 0, 1)
     output_op = db.sinks.Column(columns={'flow': sample_flow})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            sample_flow: db.sampler.range(0, 1),
             output_op: 'test_sencil',
         })
 
@@ -526,13 +526,12 @@ def test_stencil(db):
 
 def test_wider_than_packet_stencil(db):
     frame = db.sources.FrameColumn()
-    sample_frame = frame.sample()
+    sample_frame = db.streams.Range(frame, 0, 3)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            sample_frame: db.sampler.range(0, 3),
             output_op: 'test_sencil',
         })
 
@@ -686,13 +685,12 @@ class TestPy(Kernel):
 
 def test_python_kernel(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 3)
     test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
     output_op = db.sinks.Column(columns={'dummy': test_out})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_hist'
         })
 
@@ -720,13 +718,12 @@ class TestPyBatch(Kernel):
 
 def test_python_batch_kernel(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
     output_op = db.sinks.Column(columns={'dummy': test_out})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_hist'
         })
 
@@ -753,13 +750,12 @@ class TestPyStencil(Kernel):
 
 def test_python_stencil_kernel(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     test_out = db.ops.TestPyStencil(frame=range_frame)
     output_op = db.sinks.Column(columns={'dummy': test_out})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_hist'
         })
 
@@ -788,13 +784,12 @@ class TestPyStencilBatch(Kernel):
 
 def test_python_stencil_batch_kernel(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     test_out = db.ops.TestPyStencilBatch(frame=range_frame, batch=50)
     output_op = db.sinks.Column(columns={'dummy': test_out})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_hist'
         })
 
@@ -804,7 +799,7 @@ def test_python_stencil_batch_kernel(db):
 
 def test_bind_op_args(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 1)
     test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
     output_op = db.sinks.Column(columns={'dummy': test_out})
 
@@ -818,7 +813,6 @@ def test_bind_op_args(db):
                     'x': x,
                     'y': y
                 },
-                range_frame: db.sampler.range(0, 1),
                 output_op: 'test_hist_{:d}'.format(x)
             })
         jobs.append(job)
@@ -833,13 +827,12 @@ def test_bind_op_args(db):
 
 def test_blur(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame})
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_blur',
         })
 
@@ -856,14 +849,13 @@ def test_blur(db):
 
 def test_lossless(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame.lossless()})
 
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_blur_lossless'
         })
 
@@ -874,7 +866,7 @@ def test_lossless(db):
 
 def test_compress(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     compressed_frame = blurred_frame.compress('video', bitrate=1 * 1024 * 1024)
     output_op = db.sinks.Column(columns={'frame': compressed_frame})
@@ -882,7 +874,6 @@ def test_compress(db):
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_blur_compressed'
         })
 
@@ -893,14 +884,13 @@ def test_compress(db):
 
 def test_save_mp4(db):
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 30)
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame})
 
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 30),
             output_op: 'test_save_mp4'
         })
 
@@ -1124,14 +1114,13 @@ def test_fault_tolerance(fault_db):
     killer_process.start()
 
     frame = fault_db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = fault_db.streams.Range(frame, 0, 20)
     sleep_frame = fault_db.ops.SleepFrame(ignore=range_frame)
     output_op = fault_db.sinks.Column(columns={'dummy': sleep_frame})
 
     job = Job(
         op_args={
             frame: fault_db.table('test1').column('frame'),
-            range_frame: fault_db.sampler.range(0, 20),
             output_op: 'test_fault',
         })
 
@@ -1208,14 +1197,13 @@ def test_job_blacklist(blacklist_db):
     db = blacklist_db
 
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 1)
     failed_output = db.ops.TestPyFail(frame=range_frame)
     output_op = db.sinks.Column(columns={'dummy': failed_output})
 
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 1),
             output_op: 'test_py_fail'
         })
 
@@ -1258,14 +1246,13 @@ def test_job_timeout(timeout_db):
     db = timeout_db
 
     frame = db.sources.FrameColumn()
-    range_frame = frame.sample()
+    range_frame = db.streams.Range(frame, 0, 1)
     sleep_frame = db.ops.SleepFrame(ignore=range_frame)
     output_op = db.sinks.Column(columns={'dummy': sleep_frame})
 
     job = Job(
         op_args={
             frame: db.table('test1').column('frame'),
-            range_frame: db.sampler.range(0, 1),
             output_op: 'test_timeout',
         })
 

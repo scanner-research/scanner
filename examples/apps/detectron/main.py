@@ -39,14 +39,12 @@ if __name__ == '__main__':
     print('Detecting objects in movie {}'.format(movie_path))
     movie_name = os.path.splitext(os.path.basename(movie_path))[0]
 
-    sample_stride = 1
-
     db = Database()
     [input_table], failed = db.ingest_videos(
         [('example', movie_path)], force=True)
 
     frame = db.sources.FrameColumn()
-    strided_frame = frame.sample()
+    strided_frame = db.streams.Range(frame, 0, 60)
 
     # Call the newly created object detect op
     cls_boxes, cls_segms, cls_keyps = db.ops.Detectron(
@@ -65,7 +63,6 @@ if __name__ == '__main__':
     job = Job(
         op_args={
             frame: db.table('example').column('frame'),
-            strided_frame: db.sampler.range(0, 60),
             output_op: 'example_obj_detect',
         })
     [out_table] = db.run(

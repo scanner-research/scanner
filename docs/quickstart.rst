@@ -97,13 +97,10 @@ are stored in the table, and we'll use it as the input to the next operation:
 
 .. code-block:: python
 
-   sampled_frame = frame.sample() # Select only some of the frames
+   sampled_frame = db.ops.Stride(frame, 3) # Select every third frame
 
 This is where we select only every third frame from the stream of frames we read
-from the **Source**. But here we only indicated that we should sample the stream
-:code:`frame`, not *how* to sample it. Just like with the **Source** above, we'll
-"bind" the specific sampling pattern to the graph when we get to
-:ref:`defining_a_job`.
+from the **Source**.
 
 We then process the sampled frames by instantiating a Resize **Op** that will
 resize the frames in the :code:`frame` stream to 640 x 480:
@@ -128,7 +125,7 @@ Putting it all together, we have:
 .. code-block:: python
 
    frame = db.sources.FrameColumn()
-   sampled_frame = frame.sample() # Select only some of the frames
+   sampled_frame = db.ops.Stride(frame, 3) # Select every third frame
    resized = db.ops.Resize(frame=sampled_frame, width=640, height=480)
    output_frame = db.sinks.Column(columns={'frame': resized})
 
@@ -149,13 +146,11 @@ to graph nodes using a **Job**:
 
    job = Job(op_args={
        frame: db.table('table_name').column('frame'),
-       sampled_frame: db.sampler.stride(3),
        output_frame: 'resized_table'
    })
 
 Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the
-column 'frame' in the table 'table_name', the :code:`sampled_frame` should select
-every third frame (stride 3), and that the output table indicated by
+column 'frame' in the table 'table_name', and that the output table indicated by
 :code:`output_frame` should be called 'resized_table'.
 
 In this example, we are only defining one job since we only have one video, but

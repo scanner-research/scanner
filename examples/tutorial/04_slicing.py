@@ -1,5 +1,11 @@
-from scannerpy import Database, Job
+import scannerpy
+import cv2
+import numpy as np
+import subprocess
+
+from scannerpy import Database, Job, FrameType
 from scannerpy.stdlib import readers
+from typing import Sequence
 
 ################################################################################
 # This tutorial shows how to slice streams into sub streams to limit           #
@@ -9,42 +15,98 @@ from scannerpy.stdlib import readers
 db = Database()
 frame = db.sources.FrameColumn()
 
-# You can tell Scanner which frames of the video (or which rows of a video
-# table) you want to sample. Here, we indicate that we want to sample
-# the frame column (we will say how to sample when specifying a job).
-strided_frame = frame.sample()
+# When working with bounded or unbounded stateful operations, it is sometimes
+# useful to introduce boundaries between sequences of frames which restrict
+# state being shared between them. For example, if you are tracking objects
+# in a movie, you likely do not want the same trackers when the camera changes
+# scenes since the objects you were tracking are no longer there!
 
-# We process the sampled frame same as before.
-hist = db.ops.Histogram(frame=strided_frame)
-output_op = db.sinks.Column(columns={'hist': hist})
+# Scanner provides support for limiting state propagation across frames through
+# "slicing" operations.
+sliced_frame = db.streams.Slice(frame, db.partitioner.all(50))
+# Here, we sliced the input frame stream into chunks of 50 elements. What this
+# means is that any ops which process 'sliced_frame' will *only* be able to
+# maintain state within each chunk of 50 elements.
 
-# For each job, you can specify how sampling should be performed for
-# a specific column. In the same way we used the op_args argument to bind
-# a table to an input column, we bind a sampling directive to strided_frame.
-job = Job(
-    op_args={
-        frame: db.table('example').column('frame'),
-        # The "strided" sampling mode will run over # every 8th frame,
-        # i.e. frames [0, 8, 16, ...]
-        strided_frame: db.sampler.strided(8),
-        output_op: 'example_hist_strided'
-    })
-output_tables = db.run(output_op, [job], force=True)
+# For example, let's say we grab the background subtraction op from the previous
+# tutorial (02_op_attributes) and want to run it on a static camera video which
+# sometimes jumps forward in time:
+@scannerpy.register_python_op(bounded_state=60)
+class BackgroundSubtraction(scannerpy.Kernel):
+    def __init__(self, config):
+        self.config = config
+        self.alpha = config.args['alpha']
+        self.thresh = config.args['threshold']
 
-# Loop over the column's rows. Each row is a tuple of the frame number and
-# value for that row.
-video_hists = output_tables[0].column('hist').load(readers.histograms)
-num_rows = 0
-for frame_hists in video_hists:
-    assert len(frame_hists) == 3
-    assert frame_hists[0].shape[0] == 16
-    num_rows += 1
-assert num_rows == db.table('example').num_rows() / 8
+    def reset(self):
+        self.average_image = None
 
-# Here's some examples of other sampling modes.
-# Range takes a specific subset of a video. Here, it runs over all frames
-# from 0 to 100
-db.sampler.range(0, 100)
+    def execute(self, frame: FrameType) -> FrameType:
+        if self.average_image is None:
+            self.average_image = frame
 
-# Gather takes an arbitrary list of frames from a video.
-db.sampler.gather([10, 17, 32])
+        mask = np.abs(frame - self.average_image) < 255 * self.thresh
+        mask = np.any(mask, axis=2)
+
+        masked_image = np.copy(frame)
+        wmask = np.where(mask)
+        masked_image[wmask[0], wmask[1], :] = 0
+
+        self.average_image = (self.average_image * (1.0 - self.alpha) +
+                              frame * self.alpha)
+
+        return masked_image
+
+
+# First, we download the static camera video from youtube
+subprocess.check_call(
+    'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
+    shell=True)
+[static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
+                                    force=True)
+
+frame = db.sources.FrameColumn()
+
+# We know that there are scene change at frames 5100, 5400, and 5730, To tell
+# scanner that we do not want background subtraction to cross these boundaries,
+# we can create a 'partitioner' which splits the input. For demonstration, we
+# are going to split into only two sequences (5100, 5350) and (5400, 5830).
+scene_partitions = db.partitioner.ranges([(5100, 5350), (5400, 5830)])
+# Since the second sequence (5400, 5830) has a scene change in it at frame 5730,
+# we will see smearing in the output video.
+
+# Now we slice the input frame sequence into these two partitions using a
+# slice operation
+sliced_frame = db.streams.Slice(frame, partitioner=scene_partitions)
+
+# Then we perform background subtraction and indicate we need 60 prior
+# frames to produce correct output
+masked_frame = db.ops.BackgroundSubtraction(frame=sliced_frame,
+                                            alpha=0.02, threshold=0.05,
+                                            bounded_state=60)
+# Since the background subtraction operation is done, we can unslice the
+# sequence to join it back into a single contiguous stream. You must unslice
+# sequences before feeding them back into sinks
+unsliced_frame = db.streams.Unslice(masked_frame)
+
+output = db.sinks.Column(columns={'frame': unsliced_frame})
+job = Job(op_args={
+    frame: static_table.column('frame'),
+    output: '04_masked_video',
+})
+[table] = db.run(output=output, jobs=[job], force=True)
+
+table.column('frame').save_mp4('04_masked')
+
+videos = []
+videos.append('04_masked.mp4')
+
+# If you look at around 10 seconds in the output video, you should see a
+# sharp transition in the output at the same time as the scene changes. This
+# transition is the first cut we introduced using the slicing operator at frame
+# 5350. If you look at 23 seconds, you should see smearing as the video changes
+# scenes without a cut. This smearing is because we didn't introduce a cut at
+# the right place in the second sequence (5400, 5830).
+
+print('Finished! The following videos were written: {:s}'
+      .format(', '.join(videos)))

@@ -33,22 +33,6 @@ print('Failures:', failed)
 # Scanner processes videos by forming a graph of operations that operate
 # on input frames from a table and produce outputs to a new table.
 
-hists = []
-
-frames = db.sources.FrameColumn()
-
-bboxes = []
-tracker = db.ops.Tracker()
-for i, frame in enumerate(frames):
-    bboxes = None
-    if i % 10 == 0:
-        bboxes = db.ops.Detect(frame=frame)
-    new_bboxes = tracker(frame=frames, bboxes=bboxes)
-    bboxes.append(new_bboxes)
-
-output = db.sinks.Column(columns={'bboxes': bboxes})
-
-
 # FrameColumn declares that we want to read from a table column that
 # represents a video frame.
 frame = db.sources.FrameColumn()

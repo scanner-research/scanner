@@ -79,8 +79,10 @@ class FilesSink : public Sink {
       u64 offset = input_columns[0][i].index;
       assert(offset < paths_.size());
       std::unique_ptr<WriteFile> file;
-      BACKOFF_FAIL(make_unique_write_file(
-          storage_.get(), paths_.at(offset), file));
+      BACKOFF_FAIL(
+          make_unique_write_file(
+              storage_.get(), paths_.at(offset), file),
+          "while trying to make write file for " + paths_.at(offset));
 
       s_write(file.get(), input_columns[0][i].buffer, input_columns[0][i].size);
     }
