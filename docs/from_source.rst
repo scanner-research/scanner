@@ -16,8 +16,8 @@ Scanner depends on the following major dependencies:
 
 To compile with CUDA support, it requires:
 
-  - [CUDA](https://developer.nvidia.com/cuda-downloads) 8.0 or above
-  - [cuDNN](https://developer.nvidia.com/cudnn) v6.x or above
+  - `CUDA <https://developer.nvidia.com/cuda-downloads>`__ 8.0 or above
+  - `cuDNN <https://developer.nvidia.com/cudnn>`__ v6.x or above
 
 Install system-level packages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -59,15 +59,6 @@ Install `homebrew <https://brew.sh/>`__ then run the following command:
                 llvm python gnutls
 
 
-Install Pip Dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Scanner depends on several python packages installable via pip. From the top-level directory, run:
-
-.. code-block:: bash
-
-   pip install -r requirements.txt
-
 Run deps.sh
 ~~~~~~~~~~~
 
@@ -79,7 +70,8 @@ To install or specify where your major dependencies are, from the top-level dire
 
 This script will query you for each major dependency and install those that are not already installed. By default, it will install the dependencies to a local directory inside the scanner repo (it will not install system-wide).
 
-.. note:
+.. note::
+
    Make sure to follow the directions after `deps.sh finishes that tell you to
    add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH
 
@@ -97,7 +89,7 @@ Run the following commands from the top-level directory:
 
 Install scannerpy python package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Run the following commands from the top-level directory:
+Run the following command from the top-level directory:
 
 .. code-block:: bash
 
