@@ -8,9 +8,11 @@ functionality in Scanner, such as writing custom Ops or using :ref:`kubernetes`.
 .. toctree::
    :maxdepth: 2
 
-   handbook/concepts
-   handbook/distributed
    handbook/kubernetes
+
+
+.. handbook/concepts
+   handbook/distributed
    handbook/custom-ops
    handbook/custom-source
    handbook/custom-sink
