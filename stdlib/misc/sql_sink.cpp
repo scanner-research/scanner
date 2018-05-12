@@ -27,6 +27,15 @@ using nlohmann::json;
 
 namespace scanner {
 
+std::string join(const std::vector<std::string>& v, const std::string& c) {
+  std::stringstream ss;
+  for(size_t i = 0; i < v.size(); ++i) {
+    ss << v[i];
+    if(i != v.size() - 1) { ss << c; }
+  }
+  return ss.str();
+}
+
 class SQLSink : public Sink {
  public:
   SQLSink(const SinkConfig& config) : Sink(config) {
@@ -38,14 +47,10 @@ class SQLSink : public Sink {
   }
 
   void new_stream(const std::vector<u8>& args) {
-    scanner::proto::SQLSinkStreamArgs sargs;
-    if (args.size() != 0) {
-      bool parsed = sargs.ParseFromArray(args.data(), args.size());
-      if (!parsed) {
-        RESULT_ERROR(&valid_, "Could not parse SQLSinkStreamArgs");
-        return;
-      }
-      job_name_ = sargs.job_name();
+    bool parsed = sargs_.ParseFromArray(args.data(), args.size());
+    if (!parsed) {
+      RESULT_ERROR(&valid_, "Could not parse SQLSinkStreamArgs");
+      return;
     }
   }
 
@@ -54,7 +59,7 @@ class SQLSink : public Sink {
     if (job_table != "") {
       std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
       pqxx::work txn{*conn};
-      txn.exec(tfm::format("INSERT INTO %s (name) VALUES ('%s')", job_table, job_name_));
+      txn.exec(tfm::format("INSERT INTO %s (name) VALUES ('%s')", job_table, sargs_.job_name()));
       txn.commit();
     }
   }
@@ -68,14 +73,22 @@ class SQLSink : public Sink {
       json jrows = json::parse(std::string((char*)element.buffer, element.size));
 
       for (json& jrow : jrows) {
-        std::vector<std::string> updates;
+        std::map<std::string, std::string> updates;
         i64 id = -1;
         for (json::iterator it = jrow.begin(); it != jrow.end(); ++it) {
+          auto k = it.key();
+          auto v = it.value();
           try {
-            if (it.key() == "id") {
-              id = it.value();
+            if (k == "id") {
+              id = v;
             } else {
-              updates.push_back(tfm::format("%s = %s", it.key(), it.value()));
+              // Have to special case strings since SQL queries expect single quotes, while
+              // json to string formatter uses double quotes
+              if (v.is_string()) {
+                updates[k] = tfm::format("'%s'", v.get<std::string>());
+              } else {
+                updates[k] = tfm::format("%s", v);
+              }
             }
           } catch (nlohmann::detail::invalid_iterator) {
             LOG(FATAL) << "JSON had invalid structure. Each element should be a list of dictionaries.";
@@ -84,15 +97,25 @@ class SQLSink : public Sink {
 
         auto query = args_.query();
         std::string query_str;
-        if (id == -1) {
-          LOG(FATAL) << "TODO(wcrichto): insert case";
+        if (sargs_.insert()) {
+          std::vector<std::string> column_list;
+          std::vector<std::string> value_list;
+          for (auto it = updates.begin(); it != updates.end(); it++) {
+            column_list.push_back(it->first);
+            value_list.push_back(it->second);
+          }
+
+          query_str =
+              tfm::format("INSERT INTO %s (%s) VALUES (%s)", sargs_.table(),
+                          join(column_list, ", "), join(value_list, ", "));
         } else {
-          std::ostringstream stream;
-          std::copy(updates.begin(), updates.end(), std::ostream_iterator<std::string>(stream, ","));
-          std::string update_str = stream.str();
-          update_str.erase(update_str.length()-1);
-          query_str = tfm::format("UPDATE %s SET %s WHERE id = %d",
-                                  query.table(), update_str, id);
+          std::vector<std::string> update_list;
+          for (auto it = updates.begin(); it != updates.end(); it++) {
+            update_list.push_back(tfm::format("%s = %s", it->first, it->second));
+          }
+
+          LOG_IF(FATAL, id == -1) << "SQLSink updates must have an `id` field set to know which row to update.";
+          query_str = tfm::format("UPDATE %s SET %s WHERE id = %d", query.table(), join(update_list, ", "), id);
         }
 
         txn.exec(query_str);
@@ -104,7 +127,7 @@ class SQLSink : public Sink {
 
  private:
   scanner::proto::SQLSinkArgs args_;
-  std::string job_name_;
+  scanner::proto::SQLSinkStreamArgs sargs_;
   Result valid_;
 };
 
