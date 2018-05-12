@@ -16,8 +16,15 @@ notebook, if you're using Docker:
 If you installed Scanner yourself, then run:
 
 .. code-block:: bash
+
    cd path/to/scanner
    jupyter notebook --ip=0.0.0.0 --port=8888
+
+
+- This
+- is
+- a
+- list
 
 Then visit port 8888 on your server/localhost, click through to
 :code:`examples/Walkthrough.ipynb`, and follow the directions in the notebook.

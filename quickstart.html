@@ -34,6 +34,9 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="walkthrough.html" title="Interactive Jupyter Walkthrough"
              accesskey="N">next</a> |</li>
         <li class="right" >
@@ -125,14 +128,11 @@ later “bind” different videos to the inputs. We’ll see this in action in t
 <a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a> section.</p>
 <p>The <code class="code docutils literal notranslate"><span class="pre">frame</span></code> object returned by the <strong>Source</strong> represents the stream of frames that
 are stored in the table, and we’ll use it as the input to the next operation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="c1"># Select only some of the frames</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="c1"># Select every third frame</span>
 </pre></div>
 </div>
 <p>This is where we select only every third frame from the stream of frames we read
-from the <strong>Source</strong>. But here we only indicated that we should sample the stream
-<code class="code docutils literal notranslate"><span class="pre">frame</span></code>, not <em>how</em> to sample it. Just like with the <strong>Source</strong> above, we’ll
-“bind” the specific sampling pattern to the graph when we get to
-<a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a>.</p>
+from the <strong>Source</strong>.</p>
 <p>We then process the sampled frames by instantiating a Resize <strong>Op</strong> that will
 resize the frames in the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> stream to 640 x 480:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
@@ -148,7 +148,7 @@ by passing them into a column <strong>Sink</strong>:</p>
 </div>
 <p>Putting it all together, we have:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
-<span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="c1"># Select only some of the frames</span>
+<span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="c1"># Select every third frame</span>
 <span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
 <span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
 </pre></div>
@@ -164,14 +164,12 @@ to to execute the computation graph. We can perform this “binding” of argume
 to graph nodes using a <strong>Job</strong>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
     <span class="n">frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">),</span>
-    <span class="n">sampled_frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">sampler</span><span class="o">.</span><span class="n">stride</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
     <span class="n">output_frame</span><span class="p">:</span> <span class="s1">&#39;resized_table&#39;</span>
 <span class="p">})</span>
 </pre></div>
 </div>
 <p>Here, we say that the <code class="code docutils literal notranslate"><span class="pre">FrameColumn</span></code> indicated by <code class="code docutils literal notranslate"><span class="pre">frame</span></code> should read from the
-column ‘frame’ in the table ‘table_name’, the <code class="code docutils literal notranslate"><span class="pre">sampled_frame</span></code> should select
-every third frame (stride 3), and that the output table indicated by
+column ‘frame’ in the table ‘table_name’, and that the output table indicated by
 <code class="code docutils literal notranslate"><span class="pre">output_frame</span></code> should be called ‘resized_table’.</p>
 <p>In this example, we are only defining one job since we only have one video, but
 Scanner can process multiple jobs at the same time (given they use the same

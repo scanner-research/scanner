@@ -34,6 +34,9 @@
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="scanner.html" title="Scanner C++ API"
              accesskey="N">next</a> |</li>
         <li class="right" >
@@ -53,50 +56,1022 @@
 <h1>Scanner Python API<a class="headerlink" href="#scanner-python-api" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
-<div class="section" id="scannerpy-database-module">
-<h2>scannerpy.database module<a class="headerlink" href="#scannerpy-database-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.database">
+<span id="scannerpy-database-module"></span><h2>scannerpy.database module<a class="headerlink" href="#module-scannerpy.database" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.database.Database">
+<em class="property">class </em><code class="descclassname">scannerpy.database.</code><code class="descname">Database</code><span class="sig-paren">(</span><em>master=None</em>, <em>workers=None</em>, <em>start_cluster=True</em>, <em>config_path=None</em>, <em>config=None</em>, <em>debug=None</em>, <em>prefetch_table_metadata=True</em>, <em>no_workers_timeout=30</em>, <em>grpc_timeout=30</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Entrypoint for all Scanner operations.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>master</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – The address of the master process. The addresses should be formatted
+as ‘ip:port’. If the <cite>start_cluster</cite> flag is specified, the Database
+object will ssh into the provided address and start a master process.
+You should have ssh access to the target machine and scannerpy should
+be installed.</li>
+<li><strong>workers</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]]) – The list of addresses to spawn worker processes on. The addresses
+should be formatted as ‘ip:port’. Like with <cite>master</cite>, you should have
+ssh access to the target machine and scannerpy should be installed. If
+<cite>start_cluster</cite> is false, this parameter has no effect.</li>
+<li><strong>start_cluster</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, a master process and worker processes will be spawned at the
+addresses specified by <cite>master</cite> and <cite>workers</cite>, respectively.</li>
+<li><strong>config_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – Path to a Scanner configuration TOML, by default assumed to be
+‘~/.scanner/config.toml’.</li>
+<li><strong>config</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference internal" href="#scannerpy.config.Config" title="scannerpy.config.Config"><code class="xref py py-class docutils literal notranslate"><span class="pre">Config</span></code></a>]) – The scanner Config to use. If specified, config_path is ignored.</li>
+<li><strong>debug</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>]) – This flag is only relevant when <cite>start_cluster == True</cite>. If true, the
+master and worker servers are spawned in the same process as the
+invoking python code, enabling easy gdb-based debugging.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Other Parameters:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body"><ul class="first simple">
+<li><strong>prefetch_table_metadata</strong></li>
+<li><strong>no_workers_timeout</strong></li>
+<li><strong>grpc_timeout</strong></li>
+</ul>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><ul class="first last simple">
+<li><a class="reference internal" href="#module-scannerpy.config" title="scannerpy.config"><strong>config</strong></a> (<a class="reference internal" href="#scannerpy.config.Config" title="scannerpy.config.Config"><em>Config</em></a>) – The Config object used to initialize this Database.</li>
+<li><strong>ops</strong> (<a class="reference internal" href="#scannerpy.op.OpGenerator" title="scannerpy.op.OpGenerator"><em>OpGenerator</em></a>) – <p>Represents the set of available Ops. Ops can be created like so:</p>
+<p><cite>output = db.ops.ExampleOp(arg=’example’)</cite></p>
+<p>For a more detailed description, see <a class="reference internal" href="#scannerpy.op.OpGenerator" title="scannerpy.op.OpGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpGenerator</span></code></a></p>
+</li>
+<li><strong>sources</strong> (<a class="reference internal" href="#scannerpy.source.SourceGenerator" title="scannerpy.source.SourceGenerator"><em>SourceGenerator</em></a>) – Represents the set of available Sources. Sources are created just like Ops.
+See <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceGenerator</span></code></li>
+<li><strong>sinks</strong> (<a class="reference internal" href="#scannerpy.sink.SinkGenerator" title="scannerpy.sink.SinkGenerator"><em>SinkGenerator</em></a>) – Represents the set of available Sinks. Sinks are created just like Ops.
+See <code class="xref py py-class docutils literal notranslate"><span class="pre">SinkGenerator</span></code></li>
+<li><strong>streams</strong> (<em>StreamsGenerator</em>) – Used to specify which elements to sample from a sequence.
+See <code class="xref py py-class docutils literal notranslate"><span class="pre">StreamsGenerator</span></code></li>
+<li><a class="reference internal" href="#module-scannerpy.partitioner" title="scannerpy.partitioner"><strong>partitioner</strong></a> (<a class="reference internal" href="#scannerpy.partitioner.TaskPartitioner" title="scannerpy.partitioner.TaskPartitioner"><em>TaskPartitioner</em></a>) – Used to specify how to split the elements in a sequence when performing a
+slice operation. See <a class="reference internal" href="#scannerpy.partitioner.TaskPartitioner" title="scannerpy.partitioner.TaskPartitioner"><code class="xref py py-class docutils literal notranslate"><span class="pre">TaskPartitioner</span></code></a>.</li>
+<li><strong>protobufs</strong> (<a class="reference internal" href="#scannerpy.protobuf_generator.ProtobufGenerator" title="scannerpy.protobuf_generator.ProtobufGenerator"><em>ProtobufGenerator</em></a>) – Used to construct protobuf objects that handle serialization/deserialization
+of the outputs of Ops.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="scannerpy.database.Database.bulk_fetch_video_metadata">
+<code class="descname">bulk_fetch_video_metadata</code><span class="sig-paren">(</span><em>tables</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.bulk_fetch_video_metadata"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.bulk_fetch_video_metadata" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.delete_table">
+<code class="descname">delete_table</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.delete_table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.delete_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deletes a table from the database.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – The name of the table to delete.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.delete_tables">
+<code class="descname">delete_tables</code><span class="sig-paren">(</span><em>names</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.delete_tables"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.delete_tables" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deletes tables from the database.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>names</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – The names of the tables to delete.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.has_gpu">
+<code class="descname">has_gpu</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.has_gpu"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.has_gpu" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.has_table">
+<code class="descname">has_table</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.has_table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.has_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if a table exists in the database.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – The name of the table to check for.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">True if the table exists, false otherwise.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)">bool</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.ingest_videos">
+<code class="descname">ingest_videos</code><span class="sig-paren">(</span><em>videos</em>, <em>inplace=False</em>, <em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.ingest_videos"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.ingest_videos" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates tables from videos.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>videos</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]]) – The list of videos to ingest into the database. Each element in the
+list should be (‘table_name’, ‘path/to/video’).</li>
+<li><strong>inplace</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, ingests the videos without copying them into the database.
+Currently only supported for mp4 containers.</li>
+<li><strong>force</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, deletes existing tables with the same names.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference internal" href="#scannerpy.table.Table" title="scannerpy.table.Table"><code class="xref py py-class docutils literal notranslate"><span class="pre">Table</span></code></a>], <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]]]</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><strong>tables</strong> (<em>List[Table]</em>) – List of table objects for the ingested videos.</li>
+<li><strong>failures</strong> (<em>List[Tuple[str, str]]</em>) – List of (‘path/to/video’, ‘reason for failure’) tuples for each video
+which failed to ingest.</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.load_op">
+<code class="descname">load_op</code><span class="sig-paren">(</span><em>so_path</em>, <em>proto_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.load_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.load_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads a custom op into the Scanner runtime.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>so_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – Path to the custom op’s shared library (.so).</li>
+<li><strong>proto_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – Path to the custom op’s arguments protobuf if one exists.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ScannerException</span></code> – Raised when the master fails to load the op.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.new_table">
+<code class="descname">new_table</code><span class="sig-paren">(</span><em>name</em>, <em>columns</em>, <em>rows</em>, <em>fns=None</em>, <em>force=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.new_table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.new_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a new table from a list of rows.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – String name of the table to create</li>
+<li><strong>columns</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – List of names of table columns</li>
+<li><strong>rows</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bytes</span></code></a>]]) – List of rows with each row a list of elements corresponding
+to the specified columns. Elements must be strings of
+serialized representations of the data.</li>
+<li><strong>fns</strong> – </li>
+<li><strong>force</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The new table object.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.table.Table" title="scannerpy.table.Table">Table</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.profiler">
+<code class="descname">profiler</code><span class="sig-paren">(</span><em>job_name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.profiler" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.register_op">
+<code class="descname">register_op</code><span class="sig-paren">(</span><em>name</em>, <em>input_columns</em>, <em>output_columns</em>, <em>variadic_inputs=False</em>, <em>stencil=None</em>, <em>unbounded_state=False</em>, <em>bounded_state=None</em>, <em>proto_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.register_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.register_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register a new Op with the Scanner master.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – Name of the Op.</li>
+<li><strong>input_columns</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference internal" href="#scannerpy.common.ColumnType" title="scannerpy.common.ColumnType"><code class="xref py py-class docutils literal notranslate"><span class="pre">ColumnType</span></code></a>]]]) – A list of the inputs for this Op. Can be either the name of the input
+as a string or a tuple of (‘name’, ColumnType). If only the name is
+specified as a string, the ColumnType is assumed to be
+ColumnType.Blob.</li>
+<li><strong>output_columns</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference internal" href="#scannerpy.common.ColumnType" title="scannerpy.common.ColumnType"><code class="xref py py-class docutils literal notranslate"><span class="pre">ColumnType</span></code></a>]]]) – A list of the outputs for this Op. Can be either the name of the output
+as a string or a tuple of (‘name’, ColumnType). If only the name is
+specified as a string, the ColumnType is assumed to be
+ColumnType.Blob.</li>
+<li><strong>variadic_inputs</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, this Op may take a variable number of inputs and
+<cite>input_columns</cite> is ignored. Variadic inputs are specified as
+positional arguments when invoking the Op, instead of keyword
+arguments.</li>
+<li><strong>stencil</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]]) – Specifies the default stencil to use for the Op. If none, indicates
+that the the Op does not have the ability to stencil. A stencil of
+[0] should be specified if the Op can stencil but should not by
+default.</li>
+<li><strong>unbounded_state</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, indicates that the Op needs to see all previous elements
+of its input sequences before it can compute a given element. For
+example, to compute output element at index 100, the Op must have
+already produced elements 0-99. This option is mutually exclusive
+with <cite>bounded_state</cite>.</li>
+<li><strong>bounded_state</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – If true, indicates that the Op needs to see all previous elements
+of its input sequences before it can compute a given element. For
+example, to compute output element at index 100, the Op must have
+already produced elements 0-99. This option is mutually exclusive
+with <cite>bounded_state</cite>.</li>
+<li><strong>proto_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – Optional path to the proto file that describes the configuration
+arguments to this Op.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ScannerException</span></code> – Raised when the master fails to register the Op.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.register_python_kernel">
+<code class="descname">register_python_kernel</code><span class="sig-paren">(</span><em>op_name</em>, <em>device_type</em>, <em>kernel</em>, <em>batch=1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.register_python_kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.register_python_kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register a Python Kernel with the Scanner master.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>op_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – Name of the Op.</li>
+<li><strong>device_type</strong> (<a class="reference internal" href="#scannerpy.common.DeviceType" title="scannerpy.common.DeviceType"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceType</span></code></a>) – The device type of the resource this kernel uses.</li>
+<li><strong>kernel</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">function</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">builtin_function_or_method</span></code>, <a class="reference internal" href="#scannerpy.kernel.Kernel" title="scannerpy.kernel.Kernel"><code class="xref py py-class docutils literal notranslate"><span class="pre">Kernel</span></code></a>]) – The class or function that implements the kernel.</li>
+<li><strong>batch</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – Specifies a default for how many elements this kernel should batch
+over. If <cite>batch == 1</cite>, kernel is assume to not be able to batch.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ScannerException</span></code> – Raised when the master fails to register the kernel.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.run">
+<code class="descname">run</code><span class="sig-paren">(</span><em>output</em>, <em>jobs</em>, <em>force=False</em>, <em>work_packet_size=250</em>, <em>io_packet_size=-1</em>, <em>cpu_pool=None</em>, <em>gpu_pool=None</em>, <em>pipeline_instances_per_node=None</em>, <em>show_progress=True</em>, <em>profiling=False</em>, <em>load_sparsity_threshold=8</em>, <em>tasks_in_queue_per_pu=4</em>, <em>task_timeout=0</em>, <em>checkpoint_frequency=1000</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs a collection of jobs.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>output</strong> – </li>
+<li><strong>jobs</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference internal" href="#scannerpy.job.Job" title="scannerpy.job.Job"><code class="xref py py-class docutils literal notranslate"><span class="pre">Job</span></code></a>]) – </li>
+<li><strong>force</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
+<li><strong>work_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </li>
+<li><strong>io_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </li>
+<li><strong>cpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – </li>
+<li><strong>gpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – </li>
+<li><strong>pipeline_instances_per_node</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – </li>
+<li><strong>show_progress</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
+<li><strong>profiling</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Other Parameters:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body"><ul class="first simple">
+<li><strong>load_sparsity_threshold</strong></li>
+<li><strong>tasks_in_queue_per_pu</strong></li>
+<li><strong>task_timeout</strong></li>
+<li><strong>checkpoint_frequency</strong></li>
+</ul>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The new table object.</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.table.Table" title="scannerpy.table.Table">Table</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.start_master">
+<code class="descname">start_master</code><span class="sig-paren">(</span><em>master</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.start_master"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.start_master" title="Permalink to this definition">¶</a></dt>
+<dd><p>Starts a Scanner master.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>master</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – ssh-able address of the master node.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.start_workers">
+<code class="descname">start_workers</code><span class="sig-paren">(</span><em>workers</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.start_workers"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.start_workers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Starts Scanner workers.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>workers</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – list of ssh-able addresses of the worker nodes.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.stop_cluster">
+<code class="descname">stop_cluster</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.stop_cluster"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.stop_cluster" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stops the Scanner master and workers.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.summarize">
+<code class="descname">summarize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.summarize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.summarize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a human-readable summarization of the database state.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.table">
+<code class="descname">table</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieves a Table.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – Name of the table to retrieve.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The table object.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#scannerpy.table.Table" title="scannerpy.table.Table">Table</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.database.Database.wait_on_current_job">
+<code class="descname">wait_on_current_job</code><span class="sig-paren">(</span><em>show_progress=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.wait_on_current_job"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.wait_on_current_job" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.database.start_master">
+<code class="descclassname">scannerpy.database.</code><code class="descname">start_master</code><span class="sig-paren">(</span><em>port=None</em>, <em>config=None</em>, <em>config_path=None</em>, <em>block=False</em>, <em>watchdog=True</em>, <em>no_workers_timeout=30</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#start_master"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.start_master" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start a master server instance on this node.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>port</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The port number to start the master on. If unspecified, it will be
+read from the provided Config.</li>
+<li><strong>config</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference internal" href="#scannerpy.config.Config" title="scannerpy.config.Config"><code class="xref py py-class docutils literal notranslate"><span class="pre">Config</span></code></a>]) – The scanner Config to use. If specified, config_path is ignored.</li>
+<li><strong>config_path</strong> (<em>optional</em>) – Path to a Scanner configuration TOML, by default assumed to be
+<cite>~/.scanner/config.toml</cite>.</li>
+<li><strong>block</strong> (<em>optional</em>) – If true, will wait until the server is shutdown. Server will not
+shutdown currently unless wait_for_server_shutdown is eventually
+called.</li>
+<li><strong>watchdog</strong> (<em>optional</em>) – If true, the master will shutdown after a time interval if
+PokeWatchdog is not called.</li>
+<li><strong>no_workers_timeout</strong> (<em>optional</em>) – The interval after which the master will consider a job to have failed if
+it has no workers connected to it.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A cpp database instance.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.database.Database" title="scannerpy.database.Database">Database</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.database.start_worker">
+<code class="descclassname">scannerpy.database.</code><code class="descname">start_worker</code><span class="sig-paren">(</span><em>master_address</em>, <em>machine_params=None</em>, <em>port=None</em>, <em>config=None</em>, <em>config_path=None</em>, <em>block=False</em>, <em>watchdog=True</em>, <em>num_workers=None</em>, <em>db=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#start_worker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.start_worker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Starts a worker instance on this node.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>master_address</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>) – The address of the master server to connect this worker to. The expected
+format is ‘0.0.0.0:5000’ (ip:port).</li>
+<li><strong>machine_params</strong> – Describes the resources of the machine that the worker should manage. If
+left unspecified, the machine resources will be inferred.</li>
+<li><strong>config</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference internal" href="#scannerpy.config.Config" title="scannerpy.config.Config"><code class="xref py py-class docutils literal notranslate"><span class="pre">Config</span></code></a>]) – The Config object to use in creating the worker. If specified, config_path
+is ignored.</li>
+<li><strong>config_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.6)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – Path to a Scanner configuration TOML, by default assumed to be
+<cite>~/.scanner/config.toml</cite>.</li>
+<li><strong>block</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, will wait until the server is shutdown. Server will not shutdown
+currently unless wait_for_server_shutdown is eventually called.</li>
+<li><strong>watchdog</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, the worker will shutdown after a time interval if
+PokeWatchdog is not called.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Other Parameters:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body"><ul class="first simple">
+<li><strong>num_workers</strong> – Specifies the number of workers to create. If unspecified, only one is
+created. This is a legacy feature that exists to deal with kernels that
+can not be executed in the same process due to shared global state. By
+spawning multiple worker processes and using a single pipeline per worker,
+this limitation can be avoided.</li>
+<li><strong>db</strong> – This is for internal usage only.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A cpp database instance.</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#scannerpy.database.Database" title="scannerpy.database.Database">Database</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.database.worker_process">
+<code class="descclassname">scannerpy.database.</code><code class="descname">worker_process</code><span class="sig-paren">(</span><em>args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#worker_process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.worker_process" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
-<div class="section" id="scannerpy-config-module">
-<h2>scannerpy.config module<a class="headerlink" href="#scannerpy-config-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.config">
+<span id="scannerpy-config-module"></span><h2>scannerpy.config module<a class="headerlink" href="#module-scannerpy.config" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.config.Config">
+<em class="property">class </em><code class="descclassname">scannerpy.config.</code><code class="descname">Config</code><span class="sig-paren">(</span><em>config_path=None</em>, <em>db_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/config.html#Config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.config.Config" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="staticmethod">
+<dt id="scannerpy.config.Config.default_config">
+<em class="property">static </em><code class="descname">default_config</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/config.html#Config.default_config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.config.Config.default_config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="staticmethod">
+<dt id="scannerpy.config.Config.default_config_path">
+<em class="property">static </em><code class="descname">default_config_path</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/config.html#Config.default_config_path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.config.Config.default_config_path" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.config.mkdir_p">
+<code class="descclassname">scannerpy.config.</code><code class="descname">mkdir_p</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/config.html#mkdir_p"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.config.mkdir_p" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.config.read_line">
+<code class="descclassname">scannerpy.config.</code><code class="descname">read_line</code><span class="sig-paren">(</span><em>s</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/config.html#read_line"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.config.read_line" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
-<div class="section" id="scannerpy-op-module">
-<h2>scannerpy.op module<a class="headerlink" href="#scannerpy-op-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.op">
+<span id="scannerpy-op-module"></span><h2>scannerpy.op module<a class="headerlink" href="#module-scannerpy.op" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.op.Op">
+<em class="property">class </em><code class="descclassname">scannerpy.op.</code><code class="descname">Op</code><span class="sig-paren">(</span><em>db, name, inputs, device, batch=-1, warmup=-1, stencil=[0], args={}, extra=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#Op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.Op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="method">
+<dt id="scannerpy.op.Op.inputs">
+<code class="descname">inputs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#Op.inputs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.Op.inputs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.op.Op.outputs">
+<code class="descname">outputs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#Op.outputs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.Op.outputs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.op.Op.to_proto">
+<code class="descname">to_proto</code><span class="sig-paren">(</span><em>indices</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#Op.to_proto"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.Op.to_proto" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.op.OpColumn">
+<em class="property">class </em><code class="descclassname">scannerpy.op.</code><code class="descname">OpColumn</code><span class="sig-paren">(</span><em>db</em>, <em>op</em>, <em>col</em>, <em>typ</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#OpColumn"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.OpColumn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="method">
+<dt id="scannerpy.op.OpColumn.compress">
+<code class="descname">compress</code><span class="sig-paren">(</span><em>codec='video'</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#OpColumn.compress"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.OpColumn.compress" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.op.OpColumn.compress_default">
+<code class="descname">compress_default</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#OpColumn.compress_default"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.OpColumn.compress_default" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.op.OpColumn.compress_video">
+<code class="descname">compress_video</code><span class="sig-paren">(</span><em>quality=-1</em>, <em>bitrate=-1</em>, <em>keyframe_distance=-1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#OpColumn.compress_video"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.OpColumn.compress_video" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.op.OpColumn.lossless">
+<code class="descname">lossless</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#OpColumn.lossless"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.OpColumn.lossless" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.op.OpGenerator">
+<em class="property">class </em><code class="descclassname">scannerpy.op.</code><code class="descname">OpGenerator</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#OpGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.OpGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Creates Op instances to define a computation.</p>
+<p>When a particular op is requested from the generator, e.g.
+<cite>db.ops.Histogram</cite>, the generator does a dynamic lookup for the
+op in a C++ registry.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.op.register_python_op">
+<code class="descclassname">scannerpy.op.</code><code class="descname">register_python_op</code><span class="sig-paren">(</span><em>name=None</em>, <em>stencil=None</em>, <em>unbounded_state=False</em>, <em>bounded_state=None</em>, <em>device_type=&lt;DeviceType.CPU: 0&gt;</em>, <em>batch=1</em>, <em>proto_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#register_python_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.register_python_op" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
-<div class="section" id="scannerpy-source-module">
-<h2>scannerpy.source module<a class="headerlink" href="#scannerpy-source-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.source">
+<span id="scannerpy-source-module"></span><h2>scannerpy.source module<a class="headerlink" href="#module-scannerpy.source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.source.Source">
+<em class="property">class </em><code class="descclassname">scannerpy.source.</code><code class="descname">Source</code><span class="sig-paren">(</span><em>db</em>, <em>name</em>, <em>source_args={}</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/source.html#Source"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.source.Source" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="method">
+<dt id="scannerpy.source.Source.outputs">
+<code class="descname">outputs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/source.html#Source.outputs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.source.Source.outputs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.source.Source.to_proto">
+<code class="descname">to_proto</code><span class="sig-paren">(</span><em>indices</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/source.html#Source.to_proto"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.source.Source.to_proto" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.source.SourceGenerator">
+<em class="property">class </em><code class="descclassname">scannerpy.source.</code><code class="descname">SourceGenerator</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/source.html#SourceGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.source.SourceGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Creates Source instances to define a computation.</p>
+<p>When a particular Source is requested from the generator, e.g.
+<cite>db.source.Column</cite>, the generator does a dynamic lookup for the
+Source in the servers registry.</p>
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-sink-module">
-<h2>scannerpy.sink module<a class="headerlink" href="#scannerpy-sink-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.sink">
+<span id="scannerpy-sink-module"></span><h2>scannerpy.sink module<a class="headerlink" href="#module-scannerpy.sink" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.sink.Sink">
+<em class="property">class </em><code class="descclassname">scannerpy.sink.</code><code class="descname">Sink</code><span class="sig-paren">(</span><em>db</em>, <em>name</em>, <em>inputs</em>, <em>sink_args={}</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sink.html#Sink"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sink.Sink" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="method">
+<dt id="scannerpy.sink.Sink.inputs">
+<code class="descname">inputs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sink.html#Sink.inputs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sink.Sink.inputs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sink.Sink.to_proto">
+<code class="descname">to_proto</code><span class="sig-paren">(</span><em>indices</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sink.html#Sink.to_proto"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sink.Sink.to_proto" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.sink.SinkGenerator">
+<em class="property">class </em><code class="descclassname">scannerpy.sink.</code><code class="descname">SinkGenerator</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sink.html#SinkGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sink.SinkGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Creates Sink instances to define a computation.</p>
+<p>When a particular Sink is requested from the generator, e.g.
+<cite>db.sink.Column</cite>, the generator does a dynamic lookup for the
+Sink in the servers registry.</p>
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-job-module">
-<h2>scannerpy.job module<a class="headerlink" href="#scannerpy-job-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.job">
+<span id="scannerpy-job-module"></span><h2>scannerpy.job module<a class="headerlink" href="#module-scannerpy.job" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.job.Job">
+<em class="property">class </em><code class="descclassname">scannerpy.job.</code><code class="descname">Job</code><span class="sig-paren">(</span><em>op_args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/job.html#Job"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.job.Job" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A specification of a table to produce as output of a bulk job.</p>
+<dl class="method">
+<dt id="scannerpy.job.Job.op_args">
+<code class="descname">op_args</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/job.html#Job.op_args"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.job.Job.op_args" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-column-module">
-<h2>scannerpy.column module<a class="headerlink" href="#scannerpy-column-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.column">
+<span id="scannerpy-column-module"></span><h2>scannerpy.column module<a class="headerlink" href="#module-scannerpy.column" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.column.Column">
+<em class="property">class </em><code class="descclassname">scannerpy.column.</code><code class="descname">Column</code><span class="sig-paren">(</span><em>table</em>, <em>name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A column of a Table.</p>
+<dl class="method">
+<dt id="scannerpy.column.Column.id">
+<code class="descname">id</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.id" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.column.Column.keyframes">
+<code class="descname">keyframes</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.keyframes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.keyframes" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.column.Column.load">
+<code class="descname">load</code><span class="sig-paren">(</span><em>fn=None</em>, <em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads the results of a Scanner computation into Python.</p>
+<dl class="docutils">
+<dt>Kwargs:</dt>
+<dd><dl class="first last docutils">
+<dt>fn: Optional function to apply to the binary blobs as they are read</dt>
+<dd>in.</dd>
+</dl>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Generator that yields either a numpy array for frame columns or
+a binary blob for non-frame columns (optionally processed by the
+<cite>fn</cite>).</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.column.Column.name">
+<code class="descname">name</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.name"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.column.Column.save_mp4">
+<code class="descname">save_mp4</code><span class="sig-paren">(</span><em>output_name</em>, <em>fps=None</em>, <em>scale=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.save_mp4"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.save_mp4" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.column.Column.type">
+<code class="descname">type</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-common-module">
-<h2>scannerpy.common module<a class="headerlink" href="#scannerpy-common-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.common">
+<span id="scannerpy-common-module"></span><h2>scannerpy.common module<a class="headerlink" href="#module-scannerpy.common" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.common.ColumnType">
+<em class="property">class </em><code class="descclassname">scannerpy.common.</code><code class="descname">ColumnType</code><a class="reference internal" href="../_modules/scannerpy/common.html#ColumnType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.ColumnType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></a></p>
+<p>Enum for specifying what the type of a column is.</p>
+<dl class="attribute">
+<dt id="scannerpy.common.ColumnType.Blob">
+<code class="descname">Blob</code><em class="property"> = 0</em><a class="headerlink" href="#scannerpy.common.ColumnType.Blob" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="scannerpy.common.ColumnType.Video">
+<code class="descname">Video</code><em class="property"> = 1</em><a class="headerlink" href="#scannerpy.common.ColumnType.Video" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.common.DeviceHandle">
+<em class="property">class </em><code class="descclassname">scannerpy.common.</code><code class="descname">DeviceHandle</code><span class="sig-paren">(</span><em>device</em>, <em>device_id</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/common.html#DeviceHandle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.DeviceHandle" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.common.DeviceType">
+<em class="property">class </em><code class="descclassname">scannerpy.common.</code><code class="descname">DeviceType</code><a class="reference internal" href="../_modules/scannerpy/common.html#DeviceType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.DeviceType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></a></p>
+<p>Enum for specifying where an Op should run.</p>
+<dl class="attribute">
+<dt id="scannerpy.common.DeviceType.CPU">
+<code class="descname">CPU</code><em class="property"> = 0</em><a class="headerlink" href="#scannerpy.common.DeviceType.CPU" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="scannerpy.common.DeviceType.GPU">
+<code class="descname">GPU</code><em class="property"> = 1</em><a class="headerlink" href="#scannerpy.common.DeviceType.GPU" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.common.FrameType">
+<em class="property">class </em><code class="descclassname">scannerpy.common.</code><code class="descname">FrameType</code><a class="reference internal" href="../_modules/scannerpy/common.html#FrameType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.FrameType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="scannerpy.common.ScannerException">
+<em class="property">exception </em><code class="descclassname">scannerpy.common.</code><code class="descname">ScannerException</code><a class="reference internal" href="../_modules/scannerpy/common.html#ScannerException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.ScannerException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-kernel-module">
-<h2>scannerpy.kernel module<a class="headerlink" href="#scannerpy-kernel-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.kernel">
+<span id="scannerpy-kernel-module"></span><h2>scannerpy.kernel module<a class="headerlink" href="#module-scannerpy.kernel" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.kernel.Kernel">
+<em class="property">class </em><code class="descclassname">scannerpy.kernel.</code><code class="descname">Kernel</code><span class="sig-paren">(</span><em>config</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#Kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.Kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="method">
+<dt id="scannerpy.kernel.Kernel.close">
+<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#Kernel.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.Kernel.close" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.kernel.Kernel.execute">
+<code class="descname">execute</code><span class="sig-paren">(</span><em>input_columns</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#Kernel.execute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.Kernel.execute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.kernel.Kernel.new_stream">
+<code class="descname">new_stream</code><span class="sig-paren">(</span><em>args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#Kernel.new_stream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.Kernel.new_stream" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.kernel.Kernel.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#Kernel.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.Kernel.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="scannerpy.kernel.KernelConfig">
+<em class="property">class </em><code class="descclassname">scannerpy.kernel.</code><code class="descname">KernelConfig</code><span class="sig-paren">(</span><em>config</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#KernelConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.KernelConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-partitioner-module">
-<h2>scannerpy.partitioner module<a class="headerlink" href="#scannerpy-partitioner-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.partitioner">
+<span id="scannerpy-partitioner-module"></span><h2>scannerpy.partitioner module<a class="headerlink" href="#module-scannerpy.partitioner" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.partitioner.TaskPartitioner">
+<em class="property">class </em><code class="descclassname">scannerpy.partitioner.</code><code class="descname">TaskPartitioner</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Utility for specifying how to partition the output domain of a job into
+tasks.</p>
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.all">
+<code class="descname">all</code><span class="sig-paren">(</span><em>group_size=250</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.all"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.all" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.gather">
+<code class="descname">gather</code><span class="sig-paren">(</span><em>groups</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.gather"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.gather" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.range">
+<code class="descname">range</code><span class="sig-paren">(</span><em>start</em>, <em>end</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.range" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.ranges">
+<code class="descname">ranges</code><span class="sig-paren">(</span><em>intervals</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.ranges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.ranges" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.strided">
+<code class="descname">strided</code><span class="sig-paren">(</span><em>stride</em>, <em>group_size=250</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.strided"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.strided" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.strided_range">
+<code class="descname">strided_range</code><span class="sig-paren">(</span><em>start</em>, <em>end</em>, <em>stride</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.strided_range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.strided_range" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.partitioner.TaskPartitioner.strided_ranges">
+<code class="descname">strided_ranges</code><span class="sig-paren">(</span><em>intervals</em>, <em>stride</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner.strided_ranges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner.strided_ranges" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-profiler-module">
-<h2>scannerpy.profiler module<a class="headerlink" href="#scannerpy-profiler-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.profiler">
+<span id="scannerpy-profiler-module"></span><h2>scannerpy.profiler module<a class="headerlink" href="#module-scannerpy.profiler" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.profiler.Profiler">
+<em class="property">class </em><code class="descclassname">scannerpy.profiler.</code><code class="descname">Profiler</code><span class="sig-paren">(</span><em>db</em>, <em>job_id</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Contains profiling information about Scanner jobs.</p>
+<dl class="method">
+<dt id="scannerpy.profiler.Profiler.statistics">
+<code class="descname">statistics</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler.statistics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler.statistics" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.profiler.Profiler.total_time_interval">
+<code class="descname">total_time_interval</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler.total_time_interval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler.total_time_interval" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.profiler.Profiler.write_trace">
+<code class="descname">write_trace</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler.write_trace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler.write_trace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generates a trace file in Chrome format.</p>
+<p>To visualize the trace, visit [chrome://tracing](chrome://tracing) in
+Google Chrome and click “Load” in the top left to load the trace.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>path</strong> – Output path to write the trace.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.profiler.read_advance">
+<code class="descclassname">scannerpy.profiler.</code><code class="descname">read_advance</code><span class="sig-paren">(</span><em>fmt</em>, <em>buf</em>, <em>offset</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#read_advance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.read_advance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.profiler.unpack_string">
+<code class="descclassname">scannerpy.profiler.</code><code class="descname">unpack_string</code><span class="sig-paren">(</span><em>buf</em>, <em>offset</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#unpack_string"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.unpack_string" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
-<div class="section" id="scannerpy-protobuf-generator-module">
-<h2>scannerpy.protobuf_generator module<a class="headerlink" href="#scannerpy-protobuf-generator-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.protobuf_generator">
+<span id="scannerpy-protobuf-generator-module"></span><h2>scannerpy.protobuf_generator module<a class="headerlink" href="#module-scannerpy.protobuf_generator" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.protobuf_generator.ProtobufGenerator">
+<em class="property">class </em><code class="descclassname">scannerpy.protobuf_generator.</code><code class="descname">ProtobufGenerator</code><span class="sig-paren">(</span><em>cfg</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/protobuf_generator.html#ProtobufGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.protobuf_generator.ProtobufGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="method">
+<dt id="scannerpy.protobuf_generator.ProtobufGenerator.add_module">
+<code class="descname">add_module</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/protobuf_generator.html#ProtobufGenerator.add_module"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.protobuf_generator.ProtobufGenerator.add_module" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.protobuf_generator.python_to_proto">
+<code class="descclassname">scannerpy.protobuf_generator.</code><code class="descname">python_to_proto</code><span class="sig-paren">(</span><em>protos</em>, <em>proto_name</em>, <em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/protobuf_generator.html#python_to_proto"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.protobuf_generator.python_to_proto" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </div>
-<div class="section" id="scannerpy-sampler-module">
-<h2>scannerpy.sampler module<a class="headerlink" href="#scannerpy-sampler-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.sampler">
+<span id="scannerpy-sampler-module"></span><h2>scannerpy.sampler module<a class="headerlink" href="#module-scannerpy.sampler" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.sampler.Sampler">
+<em class="property">class </em><code class="descclassname">scannerpy.sampler.</code><code class="descname">Sampler</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Utility for specifying which frames of a video (or which rows of a table)
+to run a computation over.</p>
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.All">
+<code class="descname">All</code><span class="sig-paren">(</span><em>input</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.All"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.All" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.Gather">
+<code class="descname">Gather</code><span class="sig-paren">(</span><em>input</em>, <em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.Gather"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.Gather" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.Range">
+<code class="descname">Range</code><span class="sig-paren">(</span><em>input</em>, <em>start=None</em>, <em>end=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.Range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.Range" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.Ranges">
+<code class="descname">Ranges</code><span class="sig-paren">(</span><em>input</em>, <em>intervals=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.Ranges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.Ranges" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.Repeat">
+<code class="descname">Repeat</code><span class="sig-paren">(</span><em>input</em>, <em>spacing=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.Repeat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.Repeat" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.RepeatNull">
+<code class="descname">RepeatNull</code><span class="sig-paren">(</span><em>input</em>, <em>spacing=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.RepeatNull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.RepeatNull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.Stride">
+<code class="descname">Stride</code><span class="sig-paren">(</span><em>input</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.Stride"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.Stride" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.StridedRange">
+<code class="descname">StridedRange</code><span class="sig-paren">(</span><em>input</em>, <em>start=None</em>, <em>end=None</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.StridedRange"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.StridedRange" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.sampler.Sampler.StridedRanges">
+<code class="descname">StridedRanges</code><span class="sig-paren">(</span><em>input</em>, <em>intervals=None</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler.StridedRanges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler.StridedRanges" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="scannerpy-table-module">
-<h2>scannerpy.table module<a class="headerlink" href="#scannerpy-table-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy.table">
+<span id="scannerpy-table-module"></span><h2>scannerpy.table module<a class="headerlink" href="#module-scannerpy.table" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="scannerpy.table.Table">
+<em class="property">class </em><code class="descclassname">scannerpy.table.</code><code class="descname">Table</code><span class="sig-paren">(</span><em>db</em>, <em>name</em>, <em>id</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A table in a Database.</p>
+<p>Can be part of many Collection objects.</p>
+<dl class="method">
+<dt id="scannerpy.table.Table.column">
+<code class="descname">column</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.column"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.column" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.column_names">
+<code class="descname">column_names</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.column_names"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.column_names" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.committed">
+<code class="descname">committed</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.committed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.committed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.id">
+<code class="descname">id</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.id" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.load">
+<code class="descname">load</code><span class="sig-paren">(</span><em>columns</em>, <em>fn=None</em>, <em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.load" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.name">
+<code class="descname">name</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.name"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.num_rows">
+<code class="descname">num_rows</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.num_rows"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.num_rows" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.parent_rows">
+<code class="descname">parent_rows</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.parent_rows"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.parent_rows" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.table.Table.profiler">
+<code class="descname">profiler</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/table.html#Table.profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.table.Table.profiler" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-scannerpy">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-scannerpy" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
@@ -202,21 +1177,21 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="stdlib.html">Scanner Standard Library</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Scanner Python API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-database-module">scannerpy.database module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-config-module">scannerpy.config module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-op-module">scannerpy.op module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-source-module">scannerpy.source module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-sink-module">scannerpy.sink module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-job-module">scannerpy.job module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-column-module">scannerpy.column module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-common-module">scannerpy.common module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-kernel-module">scannerpy.kernel module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-partitioner-module">scannerpy.partitioner module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-profiler-module">scannerpy.profiler module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-protobuf-generator-module">scannerpy.protobuf_generator module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-sampler-module">scannerpy.sampler module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#scannerpy-table-module">scannerpy.table module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.database">scannerpy.database module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.config">scannerpy.config module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.op">scannerpy.op module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.source">scannerpy.source module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.sink">scannerpy.sink module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.job">scannerpy.job module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.column">scannerpy.column module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.common">scannerpy.common module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.kernel">scannerpy.kernel module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.partitioner">scannerpy.partitioner module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.profiler">scannerpy.profiler module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.protobuf_generator">scannerpy.protobuf_generator module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.sampler">scannerpy.sampler module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.table">scannerpy.table module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-scannerpy">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="scanner.html">Scanner C++ API</a></li>

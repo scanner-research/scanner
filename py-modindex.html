@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Docker &#8212; Scanner 0.0.1 documentation</title>
+    <title>Python Module Index &#8212; Scanner 0.0.1 documentation</title>
     <link rel="stylesheet" href="_static/readable.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -18,10 +18,11 @@
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Building Scanner from source" href="from_source.html" />
-    <link rel="prev" title="Installation" href="installation.html" />
+
    
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+
 
   </head><body>
   
@@ -34,16 +35,9 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="py-modindex.html" title="Python Module Index"
+          <a href="#" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="from_source.html" title="Building Scanner from source"
-             accesskey="N">next</a> |</li>
-        <li class="right" >
-          <a href="installation.html" title="Installation"
-             accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">Scanner 0.0.1 documentation</a> &#187;</li>
-          <li class="nav-item nav-item-1"><a href="installation.html" accesskey="U">Installation</a> &#187;</li> 
+        <li class="nav-item nav-item-0"><a href="index.html">Scanner 0.0.1 documentation</a> &#187;</li> 
       </ul>
     </div>  
 
@@ -52,40 +46,149 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="docker">
-<span id="id1"></span><h1>Docker<a class="headerlink" href="#docker" title="Permalink to this headline">¶</a></h1>
-<p>Docker is a service for managing containers, which you can think of as
-lightweight virtual machines. We provide prebuilt
-<a class="reference external" href="https://docs.docker.com">Docker</a> images containing Scanner and all its
-dependencies (e.g. OpenCV, Caffe) at
-<a class="reference external" href="https://hub.docker.com/r/scannerresearch/scanner/">scannerresearch/scanner</a>.</p>
-<p>To start using Scanner with Docker, first install
-<a class="reference external" href="https://docs.docker.com/install/">Docker</a>.</p>
-<p>If you have a GPU and you’re running on Linux, you should also install
-<a class="reference external" href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a> (which provides GPU
-support inside Docker containers) and then run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install --upgrade nvidia-docker-compose
-wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-nvidia-docker-compose pull gpu
-nvidia-docker-compose run --service-ports gpu /bin/bash
-</pre></div>
-</div>
-<p>Otherwise, if you do not have GPUs, you should run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install --upgrade docker-compose
-wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-docker-compose pull cpu
-docker-compose run --service-ports cpu /bin/bash
-</pre></div>
-</div>
-<p>If these commands were successful, you should now have bash session inside the
-docker container. To start using Scanner to process videos, check out
-<a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Getting Started</span></a>.</p>
-<p>The full set of docker configurations we provide are:
-- <cite>scannerresearch/scanner:cpu</cite> - CPU-only build
-- <cite>scannerresearch/scanner:gpu-8.0-cudnn6</cite> - CUDA 9.1, CUDNN 7
-- <cite>scannerresearch/scanner:gpu-8.0-cudnn6</cite> - CUDA 9.0, CUDNN 7
-- <cite>scannerresearch/scanner:gpu-8.0-cudnn6</cite> - CUDA 8.0, CUDNN 6</p>
-</div>
+
+   <h1>Python Module Index</h1>
+
+   <div class="modindex-jumpbox">
+   <a href="#cap-s"><strong>s</strong></a>
+   </div>
+
+   <table class="indextable modindextable">
+     <tr class="pcap"><td></td><td>&#160;</td><td></td></tr>
+     <tr class="cap" id="cap-s"><td></td><td>
+       <strong>s</strong></td><td></td></tr>
+     <tr>
+       <td><img src="_static/minus.png" class="toggler"
+              id="toggle-1" style="display: none" alt="-" /></td>
+       <td>
+       <a href="api/scannerpy.html#module-scannerpy"><code class="xref">scannerpy</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.column"><code class="xref">scannerpy.column</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.common"><code class="xref">scannerpy.common</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.config"><code class="xref">scannerpy.config</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.database"><code class="xref">scannerpy.database</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.job"><code class="xref">scannerpy.job</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.kernel"><code class="xref">scannerpy.kernel</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.op"><code class="xref">scannerpy.op</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.partitioner"><code class="xref">scannerpy.partitioner</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.profiler"><code class="xref">scannerpy.profiler</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.protobuf_generator"><code class="xref">scannerpy.protobuf_generator</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.sampler"><code class="xref">scannerpy.sampler</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.sink"><code class="xref">scannerpy.sink</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.source"><code class="xref">scannerpy.source</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib"><code class="xref">scannerpy.stdlib</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.bboxes"><code class="xref">scannerpy.stdlib.bboxes</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.build_flags"><code class="xref">scannerpy.stdlib.build_flags</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.montage"><code class="xref">scannerpy.stdlib.montage</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.net_descriptor"><code class="xref">scannerpy.stdlib.net_descriptor</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.pipelines"><code class="xref">scannerpy.stdlib.pipelines</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.pose_nms_kernel"><code class="xref">scannerpy.stdlib.pose_nms_kernel</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.poses"><code class="xref">scannerpy.stdlib.poses</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.util"><code class="xref">scannerpy.stdlib.util</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.video"><code class="xref">scannerpy.stdlib.video</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.stdlib.html#module-scannerpy.stdlib.writers"><code class="xref">scannerpy.stdlib.writers</code></a></td><td>
+       <em></em></td></tr>
+     <tr class="cg-1">
+       <td></td>
+       <td>&#160;&#160;&#160;
+       <a href="api/scannerpy.html#module-scannerpy.table"><code class="xref">scannerpy.table</code></a></td><td>
+       <em></em></td></tr>
+   </table>
 
 
           </div>
@@ -182,12 +285,8 @@ docker container. To start using Scanner to process videos, check out
      POSSIBILITY OF SUCH DAMAGE.
    -->
 <h3>Navigation</h3>
-<ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="installation.html">Installation</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Docker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="from_source.html">Building Scanner from source</a></li>
-</ul>
-</li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="programming-handbook.html">Programming Handbook</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
@@ -196,19 +295,8 @@ docker container. To start using Scanner to process videos, check out
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation index</a><ul>
-  <li><a href="installation.html">Installation</a><ul>
-      <li>Previous: <a href="installation.html" title="previous chapter">Installation</a></li>
-      <li>Next: <a href="from_source.html" title="next chapter">Building Scanner from source</a></li>
-  </ul></li>
   </ul></li>
 </ul>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="_sources/docker.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
 <div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
     <div class="searchformwrapper">
