@@ -130,10 +130,12 @@ class FilesSource : public Source {
       paths.push_back(a.path());
 
       std::unique_ptr<RandomReadFile> file;
-      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), a.path(), file));
+      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), a.path(), file),
+                   "while trying to make read file for " + a.path());
 
       u64 file_size = 0;
-      BACKOFF_FAIL(file->get_size(file_size));
+      BACKOFF_FAIL(file->get_size(file_size),
+                   "while trying to get size for " + file->path());
       total_size += file_size;
       sizes.push_back(file_size);
     }
@@ -145,7 +147,8 @@ class FilesSource : public Source {
     u64 offset = 0;
     for (size_t i = 0; i < element_args.size(); ++i) {
       std::unique_ptr<RandomReadFile> file;
-      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), paths[i], file));
+      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), paths[i], file),
+                   "while trying to make read file for " + paths[i]);
 
       u8* dest_buffer = block_buffer + offset;
       u64 pos = 0;

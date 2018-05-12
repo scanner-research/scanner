@@ -46,22 +46,24 @@ if not db.has_table(movie_name):
     db.ingest_videos([(movie_name, video_path)], force=True)
 input_table = db.table(movie_name)
 
-sampler = db.sampler.range(120, 480)
+sampler = db.streams.Range
+sampler_args = {'start': 120, 'end': 480}
 
 [poses_table] = pipelines.detect_poses(db, [input_table.column('frame')],
                                        sampler,
+                                       sampler_args,
                                        '{:s}_poses'.format(movie_name))
 
 print('Drawing on frames...')
 frame = db.sources.FrameColumn()
-sampled_frame = frame.sample()
+sampled_frame = sampler(frame)
 poses = db.sources.Column()
 drawn_frame = db.ops.PoseDraw(frame=sampled_frame, poses=poses)
 output = db.sinks.Column(columns={'frame': drawn_frame})
 job = Job(
     op_args={
         frame: input_table.column('frame'),
-        sampled_frame: sampler,
+        sampled_frame: sampler_args,
         poses: poses_table.column('poses'),
         output: movie_name + '_drawn_poses',
     })

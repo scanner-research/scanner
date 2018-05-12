@@ -1816,7 +1816,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::string profiler_file_name = bulk_job_profiler_path(job_id, node_id_);
   std::unique_ptr<WriteFile> profiler_output;
   BACKOFF_FAIL(
-      make_unique_write_file(storage_, profiler_file_name, profiler_output));
+      make_unique_write_file(storage_, profiler_file_name, profiler_output),
+      "while trying to make write file for " + profiler_file_name);
 
   i64 base_time_ns =
       std::chrono::time_point_cast<std::chrono::nanoseconds>(base_time)
@@ -1874,7 +1875,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                            save_thread_profilers[i]);
   }
 
-  BACKOFF_FAIL(profiler_output->save());
+  BACKOFF_FAIL(profiler_output->save(),
+               "while trying to save " + profiler_output->path());
 
   std::fflush(NULL);
   sync();

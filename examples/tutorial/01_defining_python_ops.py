@@ -67,7 +67,7 @@ frame = db.sources.FrameColumn()
 
 resized_frame_fn = db.ops.resize_fn(frame=frame, width=640, height=480)
 
-resized_frame_class = db.ops.ResizeClass(frame=frame, width=640, height=480)
+resized_frame_class = db.ops.ResizeClass(frame=frame, width=320, height=240)
 
 output = db.sinks.FrameColumn(columns={'frame1': resized_frame_fn,
                                        'frame2': resized_frame_class})
@@ -77,7 +77,13 @@ job = Job(op_args={
     output_op: 'example_python_op'
 })
 
-db.run(output=output, jobs=[job], force=True)
+[table] = db.run(output=output, jobs=[job], force=True)
+
+table.column('frame1').save_mp4('01_resized_fn')
+table.column('frame2').save_mp4('01_resized_class')
+
+print('Finished! Two videos were saved to the current directory: '
+      '01_resized_fn.mp4, 01_resized_class.mp4')
 
 # If you are trying to integrate with a C++ library or you want a more efficient
 # implementation for your Ops, you can also define Ops in C++. See the

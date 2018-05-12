@@ -19,18 +19,15 @@ if not db.has_table(video_name):
     db.ingest_videos([(video_name, video_path)])
 input_table = db.table(video_name)
 
-sampler = db.sampler.all()
-
 frame = db.sources.FrameColumn()
 flow = db.ops.OpticalFlow(
     frame = frame,
     device=DeviceType.CPU)
-sampled_flow = flow.sample()
+sampled_flow = db.streams.Range(flow, 0, 60)
 output = db.sinks.Column(columns={'flow': sampled_flow})
 
 job = Job(op_args={
     frame: input_table.column('frame'),
-    sampled_flow: sampler,
     output: input_table.name() + '_flow'
 })
 [output_table] = db.run(output=output, jobs=[job],

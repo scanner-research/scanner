@@ -1,5 +1,3 @@
-
-
 from scannerpy.common import *
 
 DEFAULT_GROUP_SIZE = 250

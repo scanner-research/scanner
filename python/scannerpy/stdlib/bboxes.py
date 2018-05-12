@@ -9,6 +9,29 @@ def proto_to_np(bboxes):
         box.track_score
     ] for box in bboxes])
 
+# Frome https://www.pyimagesearch.com/2016/11/07/intersection-over-union-iou-for-object-detection/
+def iou(bbox_a, bbox_b):
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(bbox_a.x1, bbox_b.x1)
+    yA = max(bbox_a.y1, bbox_b.y1)
+    xB = min(bbox_a.x2, bbox_b.x2)
+    yB = min(bbox_a.y2, bbox_b.y2)
+
+    # compute the area of intersection rectangle
+    interArea = (xB - xA + 1) * (yB - yA + 1)
+
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (bbox_a.x2 - bbox_a.x1 + 1) * (bbox_a.y2 - bbox_a.y1 + 1)
+    boxBArea = (bbox_b.x2 - bbox_b.x1 + 1) * (bbox_b.y2 - bbox_b.y1 + 1)
+
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+
+    # return the intersection over union value
+    return iou
 
 def nms(orig_boxes, overlapThresh):
     # if there are no boxes, return an empty list

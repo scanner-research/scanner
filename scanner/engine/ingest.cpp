@@ -315,21 +315,25 @@ bool parse_video_inplace(storehouse::StorageBackend* storage,
   // Create index column
   std::string index_path = table_item_output_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
+  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file),
+               "while trying to make write file for " + index_path);
 
   std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_metadata_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_metadata_path,
-                                      index_metadata_file));
+  BACKOFF_FAIL(
+      make_unique_write_file(storage, index_metadata_path, index_metadata_file),
+      "while trying to make write file for " + index_metadata_path);
   s_write<i64>(index_metadata_file.get(), frame);
   for (i64 i = 0; i < frame; ++i) {
     s_write(index_metadata_file.get(), sizeof(i64));
   }
-  BACKOFF_FAIL(index_metadata_file->save());
+  BACKOFF_FAIL(index_metadata_file->save(),
+               "while trying to save " + index_metadata_file->path());
   for (i64 i = 0; i < frame; ++i) {
     s_write(index_file.get(), i);
   }
-  BACKOFF_FAIL(index_file->save());
+  BACKOFF_FAIL(index_file->save(),
+               "while trying to save " + index_file->path());
 
   table_desc.add_end_rows(frame);
   video_descriptor.set_frames(frame);
@@ -430,7 +434,8 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 
   std::string data_path = table_item_output_path(table_id, 1, 0);
   std::unique_ptr<WriteFile> demuxed_bytestream{};
-  BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream));
+  BACKOFF_FAIL(make_unique_write_file(storage, data_path, demuxed_bytestream),
+               "while trying to make write file for " + data_path);
 
   video_descriptor.set_data_path(data_path);
   video_descriptor.set_inplace(false);
@@ -525,25 +530,31 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   cleanup_video_codec(state);
 
   // Save demuxed stream
-  BACKOFF_FAIL(demuxed_bytestream->save());
+  BACKOFF_FAIL(demuxed_bytestream->save(),
+               "while trying to save " + demuxed_bytestream->path());
 
   // Create index column
   std::string index_path = table_item_output_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file));
+  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file),
+               "while trying to make write file for " + index_path);
 
   std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
   std::unique_ptr<WriteFile> index_metadata_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_metadata_path, index_metadata_file));
+  BACKOFF_FAIL(
+      make_unique_write_file(storage, index_metadata_path, index_metadata_file),
+      "while trying to make write file for " + index_metadata_path);
   s_write<i64>(index_metadata_file.get(), frame);
   for (i64 i = 0; i < frame; ++i) {
     s_write(index_metadata_file.get(), sizeof(i64));
   }
-  BACKOFF_FAIL(index_metadata_file->save());
+  BACKOFF_FAIL(index_metadata_file->save(),
+               "while trying to save " + index_metadata_file->path());
   for (i64 i = 0; i < frame; ++i) {
     s_write(index_file.get(), i);
   }
-  BACKOFF_FAIL(index_file->save());
+  BACKOFF_FAIL(index_file->save(),
+               "while trying to save " + index_file->path());
 
   table_desc.add_end_rows(frame);
   video_descriptor.set_frames(frame);

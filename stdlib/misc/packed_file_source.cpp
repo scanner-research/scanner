@@ -90,12 +90,12 @@ class PackedFileEnumerator : public Enumerator {
     if (!init_) {
       // Read file and determine number of rows
       std::unique_ptr<RandomReadFile> file;
-      BACKOFF_FAIL(make_unique_random_read_file(
-          storage_.get(),
-          path_, file));
+      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), path_, file),
+                   "while trying to make read file for " + path_);
 
       u64 file_size = 0;
-      BACKOFF_FAIL(file->get_size(file_size));
+      BACKOFF_FAIL(file->get_size(file_size),
+                   "while trying to get file size for " + file->path());
 
       // Read number of elements in file
       u64 pos = 0;
@@ -188,7 +188,8 @@ class PackedFileSource : public Source {
     // Read the data
     std::unique_ptr<RandomReadFile> file;
     if (element_args.size() > 0) {
-      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), path, file));
+      BACKOFF_FAIL(make_unique_random_read_file(storage_.get(), path, file),
+                   "while trying to make read file for " + path);
     }
     u64 offset = 0;
     for (size_t i = 0; i < element_args.size(); ++i) {

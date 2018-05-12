@@ -312,12 +312,13 @@ void read_other_column(StorageBackend* storage, Profiler& profiler,
   std::vector<i64> element_sizes;
   {
     std::unique_ptr<RandomReadFile> file;
-    BACKOFF_FAIL(make_unique_random_read_file(
-        storage, table_item_metadata_path(table_id, column_id, item_id),
-        file));
+    const std::string metadata_path = table_item_metadata_path(table_id, column_id, item_id);
+    BACKOFF_FAIL(make_unique_random_read_file(storage, metadata_path, file),
+                 "while trying to read " + metadata_path);
 
     u64 file_size = 0;
-    BACKOFF_FAIL(file->get_size(file_size));
+    BACKOFF_FAIL(file->get_size(file_size),
+                 "while trying to get size for " + metadata_path);
 
     // Read number of elements in file
     u64 pos = 0;
@@ -337,12 +338,15 @@ void read_other_column(StorageBackend* storage, Profiler& profiler,
   }
 
   std::unique_ptr<RandomReadFile> file;
-  BACKOFF_FAIL(make_unique_random_read_file(
-      storage, table_item_output_path(table_id, column_id, item_id),
-      file));
+  const std::string& item_path = table_item_output_path(table_id, column_id,
+                                                   item_id);
+  {
+    BACKOFF_FAIL(make_unique_random_read_file(storage, item_path, file),
+                 "while trying to make read file for " + item_path);
+  }
 
   u64 file_size = 0;
-  BACKOFF_FAIL(file->get_size(file_size));
+  BACKOFF_FAIL(file->get_size(file_size), item_path);
 
   u64 pos = 0;
   // Determine start and end position of elements to read in file
