@@ -1209,8 +1209,8 @@ class Database(object):
         return result.videos
 
     def run(self,
-            output,
-            jobs: List[Job],
+            output: Sink,
+            jobs: Sequence[Job],
             force: bool = False,
             work_packet_size: int = 250,
             io_packet_size: int = -1,
@@ -1228,22 +1228,37 @@ class Database(object):
         Parameters
         ----------
         output
+          The Sink that should be processed.
 
         jobs
+          The set of jobs to process. All of these jobs should share the same
+          graph of operations.
 
         force
+          If the output tables already exist, overwrite them.
 
         work_packet_size
+          The size of the packets of intermediate elements to pass between
+          operations. This parameter only affects performance and should not
+          affect the output.
 
         io_packet_size
+          The size of the packets of elements to read and write from Sources and
+          sinks. This parameter only affects performance and should not
+          affect the output. When reading and writing to high latency storage
+          (such as the cloud), it is helpful to increase this value.
 
         cpu_pool
 
         gpu_pool
 
         pipeline_instances_per_node
+          The number of concurrent instances of the computation graph to
+          execute. If set to None, it will be automatically inferred based on
+          computation graph and the available machine resources.
 
         show_progress
+          If true, will display an ASCII progress bar measuring job status.
 
         profiling
 
@@ -1259,8 +1274,9 @@ class Database(object):
 
         Returns
         -------
-        Table
-          The new table object.
+        List[Table]
+          The new table objects if `output` is a db.sinks.Column, otherwise an
+          empty list.
         """
         assert isinstance(output, Sink)
 
