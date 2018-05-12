@@ -44,6 +44,7 @@ class SQLSink : public Sink {
       RESULT_ERROR(&valid_, "Could not parse SQLSinkArgs");
       return;
     }
+
   }
 
   void new_stream(const std::vector<u8>& args) {
@@ -52,10 +53,16 @@ class SQLSink : public Sink {
       RESULT_ERROR(&valid_, "Could not parse SQLSinkStreamArgs");
       return;
     }
+
+    if (args_.job_table() != "" && sargs_.job_name() == "") {
+      RESULT_ERROR(&valid_, "job_table was specified in SQLSinkArgs but job_name was not provided in SQLSinkStreamArgs");
+      return;
+    }
   }
 
   void finished() override {
-    std::string job_table = args_.query().job_table();
+    // If the user provided a job table, then save the stream's job name to the table as completed
+    std::string job_table = args_.job_table();
     if (job_table != "") {
       std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
       pqxx::work txn{*conn};
@@ -68,11 +75,14 @@ class SQLSink : public Sink {
     std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
     pqxx::work txn{*conn};
 
+    // Each element should be a list of JSON objects where each object is one row of the database.
     for (size_t i = 0; i < input_columns[0].size(); ++i) {
       auto& element = input_columns[0][i];
       json jrows = json::parse(std::string((char*)element.buffer, element.size));
 
       for (json& jrow : jrows) {
+        // For a given JSON object, collect all of the key/value pairs and serialize them
+        // into a SQL-injectable format
         std::map<std::string, std::string> updates;
         i64 id = -1;
         for (json::iterator it = jrow.begin(); it != jrow.end(); ++it) {
@@ -82,8 +92,8 @@ class SQLSink : public Sink {
             if (k == "id") {
               id = v;
             } else {
-              // Have to special case strings since SQL queries expect single quotes, while
-              // json to string formatter uses double quotes
+              // Have to special case strings since SQL queries expect single
+              // quotes, while json to string formatter uses double quotes
               if (v.is_string()) {
                 updates[k] = tfm::format("'%s'", v.get<std::string>());
               } else {
@@ -95,9 +105,9 @@ class SQLSink : public Sink {
           }
         }
 
-        auto query = args_.query();
-        std::string query_str;
-        if (sargs_.insert()) {
+        // Construct the SQL string for either inserting or updating the database
+        std::string update_str;
+        if (args_.insert()) {
           std::vector<std::string> column_list;
           std::vector<std::string> value_list;
           for (auto it = updates.begin(); it != updates.end(); it++) {
@@ -105,8 +115,8 @@ class SQLSink : public Sink {
             value_list.push_back(it->second);
           }
 
-          query_str =
-              tfm::format("INSERT INTO %s (%s) VALUES (%s)", sargs_.table(),
+          update_str =
+              tfm::format("INSERT INTO %s (%s) VALUES (%s)", args_.table(),
                           join(column_list, ", "), join(value_list, ", "));
         } else {
           std::vector<std::string> update_list;
@@ -115,13 +125,14 @@ class SQLSink : public Sink {
           }
 
           LOG_IF(FATAL, id == -1) << "SQLSink updates must have an `id` field set to know which row to update.";
-          query_str = tfm::format("UPDATE %s SET %s WHERE id = %d", query.table(), join(update_list, ", "), id);
+          update_str = tfm::format("UPDATE %s SET %s WHERE id = %d", args_.table(), join(update_list, ", "), id);
         }
 
-        txn.exec(query_str);
+        txn.exec(update_str);
       }
     }
 
+    // Only commit once all the changes have been made
     txn.commit();
   }
 

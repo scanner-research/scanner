@@ -85,7 +85,7 @@ class SQLSource : public Source {
       return;
     }
 
-    // Setup connection to database
+    // Query database for mapping from type IDs to type names
     std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
     pqxx::work txn{*conn};
     pqxx::result types = txn.exec("SELECT oid, typname FROM pg_type");
@@ -149,6 +149,7 @@ class SQLSource : public Source {
     size_t total_size = 0;
     std::vector<size_t> sizes;
 
+    // Collect requested outputs and serialize to JSON
     std::vector<std::string> rows_serialized;
     for (auto row_id : row_ids) {
       json jrows = json::array();
@@ -189,6 +190,7 @@ class SQLSource : public Source {
       #define ASSIGN_IF(NAME, TYPE) \
         if (typname == NAME) { jrow[name] = field.as<TYPE>(); assigned = true; }
 
+      // Left argument is the Postgres type name, right argument is the corresponding C++ type
       ASSIGN_IF("int4", i32);
       ASSIGN_IF("float8", f32);
       ASSIGN_IF("bool", bool);
