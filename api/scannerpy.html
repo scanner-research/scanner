@@ -106,8 +106,8 @@ invoking python code, enabling easy gdb-based debugging.</li>
 See <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceGenerator</span></code></li>
 <li><strong>sinks</strong> (<a class="reference internal" href="#scannerpy.sink.SinkGenerator" title="scannerpy.sink.SinkGenerator"><em>SinkGenerator</em></a>) – Represents the set of available Sinks. Sinks are created just like Ops.
 See <code class="xref py py-class docutils literal notranslate"><span class="pre">SinkGenerator</span></code></li>
-<li><strong>streams</strong> (<em>StreamsGenerator</em>) – Used to specify which elements to sample from a sequence.
-See <code class="xref py py-class docutils literal notranslate"><span class="pre">StreamsGenerator</span></code></li>
+<li><a class="reference internal" href="#module-scannerpy.streams" title="scannerpy.streams"><strong>streams</strong></a> (<a class="reference internal" href="#scannerpy.streams.StreamsGenerator" title="scannerpy.streams.StreamsGenerator"><em>StreamsGenerator</em></a>) – Used to specify which elements to sample from a sequence.
+See <a class="reference internal" href="#scannerpy.streams.StreamsGenerator" title="scannerpy.streams.StreamsGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">StreamsGenerator</span></code></a></li>
 <li><a class="reference internal" href="#module-scannerpy.partitioner" title="scannerpy.partitioner"><strong>partitioner</strong></a> (<a class="reference internal" href="#scannerpy.partitioner.TaskPartitioner" title="scannerpy.partitioner.TaskPartitioner"><em>TaskPartitioner</em></a>) – Used to specify how to split the elements in a sequence when performing a
 slice operation. See <a class="reference internal" href="#scannerpy.partitioner.TaskPartitioner" title="scannerpy.partitioner.TaskPartitioner"><code class="xref py py-class docutils literal notranslate"><span class="pre">TaskPartitioner</span></code></a>.</li>
 <li><strong>protobufs</strong> (<a class="reference internal" href="#scannerpy.protobuf_generator.ProtobufGenerator" title="scannerpy.protobuf_generator.ProtobufGenerator"><em>ProtobufGenerator</em></a>) – Used to construct protobuf objects that handle serialization/deserialization
@@ -623,6 +623,72 @@ op in a C++ registry.</p>
 <dt id="scannerpy.op.register_python_op">
 <code class="descclassname">scannerpy.op.</code><code class="descname">register_python_op</code><span class="sig-paren">(</span><em>name=None</em>, <em>stencil=None</em>, <em>unbounded_state=False</em>, <em>bounded_state=None</em>, <em>device_type=&lt;DeviceType.CPU: 0&gt;</em>, <em>batch=1</em>, <em>proto_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#register_python_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.register_python_op" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+</div>
+<div class="section" id="scannerpy-streams-module">
+<h2>scannerpy.streams module<a class="headerlink" href="#scannerpy-streams-module" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-scannerpy.streams"></span><dl class="class">
+<dt id="scannerpy.streams.StreamsGenerator">
+<em class="property">class </em><code class="descclassname">scannerpy.streams.</code><code class="descname">StreamsGenerator</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Utility for specifying which frames of a video (or which rows of a table)
+to run a computation over.</p>
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.All">
+<code class="descname">All</code><span class="sig-paren">(</span><em>input</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.All"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.All" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Gather">
+<code class="descname">Gather</code><span class="sig-paren">(</span><em>input</em>, <em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Gather"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Gather" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Range">
+<code class="descname">Range</code><span class="sig-paren">(</span><em>input</em>, <em>start=None</em>, <em>end=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Range" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Ranges">
+<code class="descname">Ranges</code><span class="sig-paren">(</span><em>input</em>, <em>intervals=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Ranges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Ranges" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Repeat">
+<code class="descname">Repeat</code><span class="sig-paren">(</span><em>input</em>, <em>spacing=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Repeat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Repeat" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.RepeatNull">
+<code class="descname">RepeatNull</code><span class="sig-paren">(</span><em>input</em>, <em>spacing=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.RepeatNull"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.RepeatNull" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Slice">
+<code class="descname">Slice</code><span class="sig-paren">(</span><em>input</em>, <em>partitioner=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Slice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Slice" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Stride">
+<code class="descname">Stride</code><span class="sig-paren">(</span><em>input</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Stride"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Stride" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.StridedRange">
+<code class="descname">StridedRange</code><span class="sig-paren">(</span><em>input</em>, <em>start=None</em>, <em>end=None</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.StridedRange"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.StridedRange" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.StridedRanges">
+<code class="descname">StridedRanges</code><span class="sig-paren">(</span><em>input</em>, <em>intervals=None</em>, <em>stride=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.StridedRanges"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.StridedRanges" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.streams.StreamsGenerator.Unslice">
+<code class="descname">Unslice</code><span class="sig-paren">(</span><em>input</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator.Unslice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator.Unslice" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
 
 </div>
 <div class="section" id="module-scannerpy.source">
@@ -1180,6 +1246,7 @@ to run a computation over.</p>
 <li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.database">scannerpy.database module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.config">scannerpy.config module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.op">scannerpy.op module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scannerpy-streams-module">scannerpy.streams module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.source">scannerpy.source module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.sink">scannerpy.sink module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-scannerpy.job">scannerpy.job module</a></li>
@@ -1197,7 +1264,7 @@ to run a computation over.</p>
 <li class="toctree-l2"><a class="reference internal" href="scanner.html">Scanner C++ API</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">Citation &amp; About</a></li>
 </ul>
 <h3>Related Topics</h3>
 <ul>
@@ -1208,13 +1275,6 @@ to run a computation over.</p>
   </ul></li>
   </ul></li>
 </ul>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="../_sources/api/scannerpy.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
 <div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
     <div class="searchformwrapper">
