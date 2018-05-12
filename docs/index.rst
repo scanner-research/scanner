@@ -3,12 +3,6 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. role:: python(code)
-   :language: python
-
-.. role:: bash(code)
-   :language: bash
-
 Scanner: Efficient Video Analysis at Scale
 ==========================================
 
@@ -20,6 +14,7 @@ Scanner: Efficient Video Analysis at Scale
            src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
        />
    </a>
+
 
 Scanner is a system for developing applications that efficiently process large video datasets. Scanner applications can run on a multi-core laptop, a server packed with multiple GPUs, or a large number of machines in the cloud. Scanner has been used for:
 
