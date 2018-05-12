@@ -230,13 +230,13 @@ def test_sample(db):
     # Range
     run_sampler_job(db.streams.Range, {'start': 0, 'end': 30}, 30)
     # Strided Range
-    run_sampler_job(db.streams.StridedRange,
-                    {'start': 0, 'end': 300, 'stride': 10},
-                    30)
+    run_sampler_job(db.streams.StridedRange, {
+        'start': 0,
+        'end': 300,
+        'stride': 10
+    }, 30)
     # Gather
-    run_sampler_job(db.streams.Gather,
-                    {'rows': [0, 150, 377, 500]},
-                    4)
+    run_sampler_job(db.streams.Gather, {'rows': [0, 150, 377, 500]}, 4)
 
 
 def test_space(db):
@@ -249,7 +249,9 @@ def test_space(db):
         job = Job(
             op_args={
                 frame: db.table('test1').column('frame'),
-                space_hist: {'spacing': spacing},
+                space_hist: {
+                    'spacing': spacing
+                },
                 output_op: 'test_space',
             })
 
@@ -290,11 +292,10 @@ def test_slice(db):
     slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
     unsliced_frame = db.streams.Unslice(slice_frame)
     output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_slicing',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_slicing',
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
 
@@ -314,16 +315,13 @@ def test_overlapping_slice(db):
         op_args={
             frame:
             db.table('test1').column('frame'),
-
             slice_frame:
             db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1),
-
             sample_frame: [
                 (0, 10),
                 (5, 15),
                 (5, 15),
             ],
-
             output_op:
             'test_slicing',
         })
@@ -343,11 +341,10 @@ def test_bounded_state(db):
     increment = db.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
     sampled_increment = db.streams.Gather(increment, [0, 10, 25, 26, 27])
     output_op = db.sinks.Column(columns={'integer': sampled_increment})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_slicing',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_slicing',
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
 
@@ -367,11 +364,10 @@ def test_unbounded_state(db):
     increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
     unsliced_increment = db.streams.Unslice(increment)
     output_op = db.sinks.Column(columns={'integer': unsliced_increment})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_slicing',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_slicing',
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
 
@@ -422,11 +418,10 @@ class TestOpticalFlow:
         flow_range = db.streams.Range(flow, 0, 50)
 
         out = db.sinks.Column(columns={'flow': flow_range})
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                out: 'test_flow',
-            })
+        job = Job(op_args={
+            frame: db.table('test1').column('frame'),
+            out: 'test_flow',
+        })
         return out, [job]
 
     def run(self, db, job):
@@ -449,11 +444,10 @@ def test_stencil(db):
     sample_frame = db.streams.Range(frame, 0, 1)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
     output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_sencil',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_sencil',
+    })
 
     tables = db.run(
         output_op, [job],
@@ -470,11 +464,10 @@ def test_stencil(db):
     sample_frame = db.streams.Range(frame, 0, 1)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
     output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_sencil',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_sencil',
+    })
 
     tables = db.run(
         output_op, [job],
@@ -486,11 +479,10 @@ def test_stencil(db):
     sample_frame = db.streams.Range(frame, 0, 2)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
     output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_sencil',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_sencil',
+    })
 
     tables = db.run(
         output_op, [job],
@@ -507,11 +499,10 @@ def test_stencil(db):
     flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
     sample_flow = db.streams.Range(flow, 0, 1)
     output_op = db.sinks.Column(columns={'flow': sample_flow})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_sencil',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_sencil',
+    })
 
     tables = db.run(
         output_op, [job],
@@ -530,11 +521,10 @@ def test_wider_than_packet_stencil(db):
     sample_frame = db.streams.Range(frame, 0, 3)
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
     output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_sencil',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_sencil',
+    })
 
     tables = db.run(
         output_op, [job],
@@ -689,11 +679,10 @@ def test_python_kernel(db):
     range_frame = db.streams.Range(frame, 0, 3)
     test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
     output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_hist'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     next(tables[0].load(['dummy']))
@@ -722,11 +711,10 @@ def test_python_batch_kernel(db):
     range_frame = db.streams.Range(frame, 0, 30)
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
     output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_hist'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     next(tables[0].load(['dummy']))
@@ -754,11 +742,10 @@ def test_python_stencil_kernel(db):
     range_frame = db.streams.Range(frame, 0, 30)
     test_out = db.ops.TestPyStencil(frame=range_frame)
     output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_hist'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     next(tables[0].load(['dummy']))
@@ -788,11 +775,10 @@ def test_python_stencil_batch_kernel(db):
     range_frame = db.streams.Range(frame, 0, 30)
     test_out = db.ops.TestPyStencilBatch(frame=range_frame, batch=50)
     output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_hist'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     next(tables[0].load(['dummy']))
@@ -831,11 +817,10 @@ def test_blur(db):
     range_frame = db.streams.Range(frame, 0, 30)
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame})
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_blur',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_blur',
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
@@ -854,11 +839,10 @@ def test_lossless(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame.lossless()})
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_blur_lossless'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_blur_lossless'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
@@ -872,11 +856,10 @@ def test_compress(db):
     compressed_frame = blurred_frame.compress('video', bitrate=1 * 1024 * 1024)
     output_op = db.sinks.Column(columns={'frame': compressed_frame})
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_blur_compressed'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_blur_compressed'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
@@ -889,11 +872,10 @@ def test_save_mp4(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output_op = db.sinks.Column(columns={'frame': blurred_frame})
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_save_mp4'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_save_mp4'
+    })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
@@ -1119,11 +1101,10 @@ def test_fault_tolerance(fault_db):
     sleep_frame = fault_db.ops.SleepFrame(ignore=range_frame)
     output_op = fault_db.sinks.Column(columns={'dummy': sleep_frame})
 
-    job = Job(
-        op_args={
-            frame: fault_db.table('test1').column('frame'),
-            output_op: 'test_fault',
-        })
+    job = Job(op_args={
+        frame: fault_db.table('test1').column('frame'),
+        output_op: 'test_fault',
+    })
 
     table = fault_db.run(
         output_op, [job],
@@ -1202,11 +1183,10 @@ def test_job_blacklist(blacklist_db):
     failed_output = db.ops.TestPyFail(frame=range_frame)
     output_op = db.sinks.Column(columns={'dummy': failed_output})
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_py_fail'
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_py_fail'
+    })
 
     tables = db.run(
         output_op, [job],
@@ -1251,11 +1231,10 @@ def test_job_timeout(timeout_db):
     sleep_frame = db.ops.SleepFrame(ignore=range_frame)
     output_op = db.sinks.Column(columns={'dummy': sleep_frame})
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_timeout',
-        })
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        output_op: 'test_timeout',
+    })
 
     table = db.run(
         output_op, [job],
@@ -1287,7 +1266,8 @@ def sql_db(db):
             "INSERT INTO test (a, b, c, d, e, f, grp) VALUES (30, 0, 'hi', 'hello', true, 2.0, 1)"
         )
         cur.execute('CREATE TABLE jobs (id serial PRIMARY KEY, name text)')
-        cur.execute('CREATE TABLE test2 (id serial PRIMARY KEY, b integer, s text)')
+        cur.execute(
+            'CREATE TABLE test2 (id serial PRIMARY KEY, b integer, s text)')
         conn.commit()
 
         sql_params = postgresql.dsn()
@@ -1313,28 +1293,29 @@ def add_one(config, row: bytes) -> bytes:
 def test_sql(sql_db):
     (db, sql_config, cur) = sql_db
 
-    sql_query = db.protobufs.SQLQuery(
-        fields='test.id as id, test.a, test.c, test.d, test.e, test.f',
-        table='test',
-        id='test.id',
-        group='test.id',
-        job_table='jobs')
-
-    row = db.sources.SQL(config=sql_config, query=sql_query)
+    row = db.sources.SQL(
+        config=sql_config,
+        query=db.protobufs.SQLQuery(
+            fields='test.id as id, test.a, test.c, test.d, test.e, test.f',
+            table='test',
+            id='test.id',
+            group='test.id'))
     row2 = db.ops.AddOne(row=row)
-    output_op = db.sinks.SQL(input=row2, config=sql_config, query=sql_query)
+    output_op = db.sinks.SQL(
+        input=row2,
+        config=sql_config,
+        table='test',
+        job_table='jobs',
+        insert=False)
 
-    job = Job(
-        op_args={
-            row: {
-                'filter': 'true'
-            },
-            output_op: {
-                'table': 'test',
-                'insert': False,
-                'job_name': 'foobar'
-            }
-        })
+    job = Job(op_args={
+        row: {
+            'filter': 'true'
+        },
+        output_op: {
+            'job_name': 'foobar'
+        }
+    })
     db.run(output_op, [job])
 
     cur.execute('SELECT b FROM test')
@@ -1343,33 +1324,32 @@ def test_sql(sql_db):
     cur.execute('SELECT name FROM jobs')
     assert cur.fetchone()[0] == 'foobar'
 
+@scannerpy.register_python_op(name='AddAll')
+def add_all(config, row: bytes) -> bytes:
+    row = json.loads(row.decode('utf-8'))
+    total = sum([r['a'] for r in row])
+    return json.dumps([{'id': r['id'], 'b': total} for r in row])
+
 
 def test_sql_grouped(sql_db):
     (db, sql_config, cur) = sql_db
 
-    sql_query = db.protobufs.SQLQuery(
-        fields='test.id as id, test.a',
-        table='test',
-        id='test.id',
-        group='test.grp')
+    row = db.sources.SQL(
+        config=sql_config,
+        query=db.protobufs.SQLQuery(
+            fields='test.id as id, test.a',
+            table='test',
+            id='test.id',
+            group='test.grp'))
+    row2 = db.ops.AddAll(row=row)
+    output_op = db.sinks.SQL(
+        input=row2, config=sql_config, table='test', insert=False)
 
-    row = db.sources.SQL(config=sql_config, query=sql_query)
-    row2 = db.ops.AddOne(row=row)
-    output_op = db.sinks.SQL(input=row2, config=sql_config, query=sql_query)
-
-    job = Job(op_args={
-        row: {
-            'filter': 'true'
-        },
-        output_op: {
-            'table': 'test',
-            'insert': False,
-        }
-    })
+    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
     db.run(output_op, [job])
 
     cur.execute('SELECT b FROM test')
-    assert cur.fetchone()[0] == 11
+    assert cur.fetchone()[0] == 30
 
 
 @scannerpy.register_python_op(name='SQLInsertTest')
@@ -1381,25 +1361,18 @@ def sql_insert_test(config, row: bytes) -> bytes:
 def test_sql_insert(sql_db):
     (db, sql_config, cur) = sql_db
 
-    sql_query = db.protobufs.SQLQuery(
-        fields='test.id as id, test.a',
-        table='test',
-        id='test.id',
-        group='test.grp')
-
-    row = db.sources.SQL(config=sql_config, query=sql_query)
+    row = db.sources.SQL(
+        config=sql_config,
+        query=db.protobufs.SQLQuery(
+            fields='test.id as id, test.a',
+            table='test',
+            id='test.id',
+            group='test.grp'))
     row2 = db.ops.SQLInsertTest(row=row)
-    output_op = db.sinks.SQL(input=row2, config=sql_config, query=sql_query)
+    output_op = db.sinks.SQL(
+        input=row2, config=sql_config, table='test2', insert=True)
 
-    job = Job(op_args={
-        row: {
-            'filter': 'true'
-        },
-        output_op: {
-            'table': 'test2',
-            'insert': True
-        }
-    })
+    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
     db.run(output_op, [job])
 
     cur.execute('SELECT s FROM test2')
