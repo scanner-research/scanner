@@ -15,7 +15,7 @@ import subprocess
 import cloudpickle
 import types
 from tqdm import tqdm
-from typing import Dict, List, Union, Tuple, Optional
+from typing import Sequence, List, Union, Tuple, Optional
 
 if sys.platform == 'linux' or sys.platform == 'linux2':
     import prctl
