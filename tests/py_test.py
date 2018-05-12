@@ -339,7 +339,7 @@ def test_bounded_state(db):
     warmup = 3
 
     frame = db.sources.FrameColumn()
-    increment = db.ops.TestIncrementBounded(ignore=frame, warmup=warmup)
+    increment = db.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
     sampled_increment = db.streams.Gather(increment, [0, 10, 25, 26, 27])
     output_op = db.sinks.Column(columns={'integer': sampled_increment})
     job = Job(
