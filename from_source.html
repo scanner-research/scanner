@@ -73,8 +73,8 @@ dependencies has a set of required system-level packages.</p>
 <p>To compile with CUDA support, it requires:</p>
 <blockquote>
 <div><ul class="simple">
-<li>[CUDA](<a class="reference external" href="https://developer.nvidia.com/cuda-downloads">https://developer.nvidia.com/cuda-downloads</a>) 8.0 or above</li>
-<li>[cuDNN](<a class="reference external" href="https://developer.nvidia.com/cudnn">https://developer.nvidia.com/cudnn</a>) v6.x or above</li>
+<li><a class="reference external" href="https://developer.nvidia.com/cuda-downloads">CUDA</a> 8.0 or above</li>
+<li><a class="reference external" href="https://developer.nvidia.com/cudnn">cuDNN</a> v6.x or above</li>
 </ul>
 </div></blockquote>
 <div class="section" id="install-system-level-packages">
@@ -112,13 +112,6 @@ dependencies has a set of required system-level packages.</p>
 </div>
 </div>
 </div>
-<div class="section" id="install-pip-dependencies">
-<h2>Install Pip Dependencies<a class="headerlink" href="#install-pip-dependencies" title="Permalink to this headline">¶</a></h2>
-<p>Scanner depends on several python packages installable via pip. From the top-level directory, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install -r requirements.txt
-</pre></div>
-</div>
-</div>
 <div class="section" id="run-deps-sh">
 <h2>Run deps.sh<a class="headerlink" href="#run-deps-sh" title="Permalink to this headline">¶</a></h2>
 <p>To install or specify where your major dependencies are, from the top-level directory run:</p>
@@ -126,6 +119,11 @@ dependencies has a set of required system-level packages.</p>
 </pre></div>
 </div>
 <p>This script will query you for each major dependency and install those that are not already installed. By default, it will install the dependencies to a local directory inside the scanner repo (it will not install system-wide).</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Make sure to follow the directions after <a href="#id1"><span class="problematic" id="id2">`</span></a>deps.sh finishes that tell you to
+add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH</p>
+</div>
 </div>
 <div class="section" id="build-scanner">
 <h2>Build Scanner<a class="headerlink" href="#build-scanner" title="Permalink to this headline">¶</a></h2>
@@ -139,11 +137,12 @@ make -j
 </div>
 <div class="section" id="install-scannerpy-python-package">
 <h2>Install scannerpy python package<a class="headerlink" href="#install-scannerpy-python-package" title="Permalink to this headline">¶</a></h2>
-<p>Run the following commands from the top-level directory:</p>
+<p>Run the following command from the top-level directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash ./build.sh
 </pre></div>
 </div>
-<p>Congratulations! You’ve installed the scannerpy package.</p>
+<p>Congratulations! You’ve installed the scannerpy package. To learn how to start
+using Scanner, check out <a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Getting Started</span></a>.</p>
 </div>
 </div>
 
@@ -251,7 +250,6 @@ make -j
 <li class="toctree-l4"><a class="reference internal" href="#macos">macOS</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#install-pip-dependencies">Install Pip Dependencies</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#run-deps-sh">Run deps.sh</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#build-scanner">Build Scanner</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#install-scannerpy-python-package">Install scannerpy python package</a></li>
