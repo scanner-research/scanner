@@ -95,4 +95,5 @@ Run the following command from the top-level directory:
 
    bash ./build.sh
 
-Congratulations! You've installed the scannerpy package.
+Congratulations! You've installed the scannerpy package. To learn how to start
+using Scanner, check out :ref:`getting-started`.
