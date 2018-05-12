@@ -1,7 +1,7 @@
+import scannerpy.op
+
 from scannerpy.common import *
 from typing import Sequence, Union, Tuple, Optional
-
-DEFAULT_TASK_SIZE = 125
 
 class StreamsGenerator:
     r"""Provides Ops for sampling elements from streams.
@@ -18,7 +18,9 @@ class StreamsGenerator:
     def __init__(self, db):
         self._db = db
 
-    def Slice(self, input: OpColumn, partitioner=None) -> OpColumn:
+    def Slice(self,
+              input: scannerpy.op.OpColumn,
+              partitioner=None) -> scannerpy.op.OpColumn:
         r"""Partitions a stream into independent substreams.
 
         Parameters
@@ -32,7 +34,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           A new stream which represents multiple substreams.
         """
         def arg_builder(partitioner=partitioner):
@@ -43,7 +45,7 @@ class StreamsGenerator:
                    'arg_builder': arg_builder,
                    'default': partitioner})
 
-    def Unslice(self, input: OpColumn) -> OpColumn:
+    def Unslice(self, input: scannerpy.op.OpColumn) -> scannerpy.op.OpColumn:
         r"""Joins substreams back together.
 
         Parameters
@@ -53,12 +55,12 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           A new stream which is the concatentation of the input substreams.
         """
         return self._db.ops.Unslice(col=input)
 
-    def All(self, input: OpColumn) -> OpColumn:
+    def All(self, input: scannerpy.op.OpColumn) -> scannerpy.op.OpColumn:
         r"""Samples all elements from the stream.
 
         Serves as an identity sampling function.
@@ -70,7 +72,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder():
@@ -83,7 +85,9 @@ class StreamsGenerator:
                    'arg_builder': arg_builder,
                    'default': {}})
 
-    def Stride(self, input: OpColumn, stride: int = None) -> OpColumn:
+    def Stride(self,
+               input: scannerpy.op.OpColumn,
+               stride: int = None) -> scannerpy.op.OpColumn:
         r"""Samples every n'th element from the stream, where n is the stride.
 
         Parameters
@@ -96,7 +100,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(stride=stride):
@@ -113,7 +117,10 @@ class StreamsGenerator:
                    'arg_builder': arg_builder,
                    'default': stride})
 
-    def Range(self, input, start=None, end=None):
+    def Range(self,
+              input: scannerpy.op.OpColumn,
+              start: int = None,
+              end: int = None) -> scannerpy.op.OpColumn:
         r"""Samples a range of elements from the input stream.
 
         Parameters
@@ -129,7 +136,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(start=start, end=end):
@@ -150,8 +157,9 @@ class StreamsGenerator:
                                                end is not None) else None})
 
 
-    def Ranges(self, input: OpColumn,
-               intervals: Sequence[Tuple[int, int]] = None) -> OpColumn:
+    def Ranges(self,
+               input: scannerpy.op.OpColumn,
+               intervals: Sequence[Tuple[int, int]] = None) -> scannerpy.op.OpColumn:
         r"""Samples multiple ranges of elements from the input stream.
 
         Parameters
@@ -165,7 +173,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
 
         Examples
@@ -192,10 +200,10 @@ class StreamsGenerator:
                    'default': intervals if intervals else None})
 
     def StridedRange(self,
-                     input: OpColumn,
+                     input: scannerpy.op.OpColumn,
                      start: int = None,
                      end: int = None,
-                     stride: int = None) -> OpColumn:
+                     stride: int = None) -> scannerpy.op.OpColumn:
         r"""Samples a strided range of elements from the input stream.
 
         Parameters
@@ -214,7 +222,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(start=start, end=end, stride=stride):
@@ -236,7 +244,10 @@ class StreamsGenerator:
                                                        stride is not None) else None})
 
 
-    def StridedRanges(self, input, intervals=None, stride=None):
+    def StridedRanges(self,
+                      input: scannerpy.op.OpColumn,
+                      intervals: Sequence[Tuple[int, int]] = None,
+                      stride: int = None) -> scannerpy.op.OpColumn:
         r"""Samples strided ranges of elements from the input stream.
 
         Parameters
@@ -253,7 +264,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(intervals=intervals, stride=stride):
@@ -274,7 +285,9 @@ class StreamsGenerator:
                    'default': (intervals, stride) if (intervals is not None and
                                                       stride is not None) else None})
 
-    def Gather(self, input: OpColumn, rows: Sequence[int] = None) -> OpColumn:
+    def Gather(self,
+               input: scannerpy.op.OpColumn,
+               rows: Sequence[int] = None) -> scannerpy.op.OpColumn:
         r"""Samples a list of elements from the input stream.
 
         Parameters
@@ -287,7 +300,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(rows=rows):
@@ -304,7 +317,9 @@ class StreamsGenerator:
                    'arg_builder': arg_builder,
                    'default': {'rows': rows}})
 
-    def RepeatNull(self, input: OpColumn, spacing: int = None) -> OpColumn:
+    def RepeatNull(self,
+                   input: scannerpy.op.OpColumn,
+                   spacing: int = None) -> scannerpy.op.OpColumn:
         r"""Expands a sequence by inserting nulls.
 
         Parameters
@@ -316,7 +331,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(spacing=spacing):
@@ -333,7 +348,9 @@ class StreamsGenerator:
                    'arg_builder': arg_builder,
                    'default': spacing})
 
-    def Repeat(self, input: OpColumn, spacing: int = None) -> OpColumn:
+    def Repeat(self,
+               input: scannerpy.op.OpColumn,
+               spacing: int = None) -> scannerpy.op.OpColumn:
         r"""Expands a sequence by repeating elements.
 
         Parameters
@@ -345,7 +362,7 @@ class StreamsGenerator:
 
         Returns
         -------
-        OpColumn
+        scannerpy.op.OpColumn
           The sampled stream.
         """
         def arg_builder(spacing=spacing):

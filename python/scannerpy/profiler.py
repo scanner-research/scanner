@@ -36,15 +36,17 @@ class Profiler:
             time, profs = self._parse_profiler_file(path)
             self._profilers[n] = (time, profs)
 
-    def write_trace(self, path):
+    def write_trace(self, path: str):
         """
         Generates a trace file in Chrome format.
 
-        To visualize the trace, visit [chrome://tracing](chrome://tracing) in
-        Google Chrome and click "Load" in the top left to load the trace.
+        To visualize the trace, visit chrome://tracing in Google Chrome and
+        click "Load" in the top left to load the trace.
 
-        Args:
-            path: Output path to write the trace.
+        Args
+        ----
+        path
+          Output path to write the trace.
         """
 
         # https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html
