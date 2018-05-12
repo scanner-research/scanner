@@ -42,11 +42,6 @@ What Scanner is not:
 
 - Scanner **is not** a new system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular languages like Cuda or Halide.  
 
-Paper citation
---------------
-Scanner will appear in the proceedings of SIGGRAPH 2018 as `"Scanner: Efficient Video Analysis at Scale <http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf>`__ by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
-
-
 .. toctree::
    :maxdepth: 2
    :includehidden:

@@ -37,7 +37,8 @@ docker container. To start using Scanner to process videos, check out
 :ref:`getting-started`.
 
 The full set of docker configurations we provide are:
-- `scannerresearch/scanner:cpu` - CPU-only build
-- `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.1, CUDNN 7
-- `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.0, CUDNN 7
-- `scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 8.0, CUDNN 6
+
+- :code:`scannerresearch/scanner:cpu` - CPU-only build
+- :code:`scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.1, CUDNN 7
+- :code:`scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 9.0, CUDNN 7
+- :code:`scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 8.0, CUDNN 6

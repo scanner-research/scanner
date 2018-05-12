@@ -19,10 +19,19 @@ scannerpy\.config module
     :undoc-members:
     :show-inheritance:
 
+
 scannerpy\.op module
 --------------------
 
 .. automodule:: scannerpy.op
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+scannerpy\.streams module
+--------------------
+
+.. automodule:: scannerpy.streams
     :members:
     :undoc-members:
     :show-inheritance:
