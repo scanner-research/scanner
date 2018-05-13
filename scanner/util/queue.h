@@ -20,41 +20,34 @@
 #include <deque>
 #include <mutex>
 
+#include "scanner/util/blockingconcurrentqueue.h"
+
 namespace scanner {
 
+using namespace moodycamel;
+
 template <typename T>
-class Queue {
+class Queue : public BlockingConcurrentQueue<T> {
  public:
-  Queue(int max_size = 4);
-  Queue(Queue<T>&& o);
+  Queue(size_t size=8) : BlockingConcurrentQueue<T>(size) {}
 
-  int size();
+  inline void clear() {
+    T t;
+    while (BlockingConcurrentQueue<T>::try_dequeue(t)) {}
+  }
 
-  template <typename... Args>
-  void emplace(Args&&... args);
+  inline size_t size() {
+    return BlockingConcurrentQueue<T>::size_approx();
+  }
 
-  void push(T item);
+  inline void push(T item) {
+    bool success = BlockingConcurrentQueue<T>::enqueue(item);
+    LOG_IF(FATAL, !success) << "Queue push failed";
+  }
 
-  bool try_pop(T& item);
-
-  void pop(T& item);
-
-  void peek(T& item);
-
-  void clear();
-
-  void wait_until_empty();
-
- private:
-  i32 max_size_;
-  std::mutex mutex_;
-  std::condition_variable empty_;
-  std::condition_variable not_empty_;
-  std::condition_variable not_full_;
-  std::deque<T> data_;
-  std::atomic<int> pop_waiters_{0};
-  std::atomic<int> push_waiters_{0};
+  inline void pop(T& item) {
+    BlockingConcurrentQueue<T>::wait_dequeue(item);
+  }
 };
-}
 
-#include "queue.inl"
+}
