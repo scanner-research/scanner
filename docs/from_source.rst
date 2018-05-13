@@ -1,7 +1,9 @@
+.. _from_source:
+
 Building Scanner from source
 ----------------------------
 
-Scanner provides a dependency script deps.sh to automatically install any or all
+Scanner provides a dependency script :code:`deps.sh` to automatically install any or all
 of its major dependencies if they are not already installed. Each of these
 dependencies has a set of required system-level packages.
 
@@ -72,7 +74,7 @@ This script will query you for each major dependency and install those that are 
 
 .. note::
 
-   Make sure to follow the directions after `deps.sh finishes that tell you to
+   Make sure to follow the directions after :code:`deps.sh` finishes that tell you to
    add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH
 
 Build Scanner
@@ -85,7 +87,7 @@ Run the following commands from the top-level directory:
    mkdir build
    cd build
    cmake ..
-   make -j
+   make -j$(nproc)
 
 Install scannerpy python package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -28,12 +28,12 @@ div.body {
     color: rgb(42, 45, 50);
 }
 
-div.body a.reference span {
+div.body a.reference  {
     color: #900;
     border-bottom: 1px dotted #900;
 }
 
-div.body a.reference:visited span {
+div.body a.reference:visited  {
     color: #700;
     border-bottom: 1px dotted #700;
 }
@@ -42,19 +42,19 @@ div.body a.reference:hover {
     text-decoration: none;
 }
 
-div.body a.reference:hover span {
+div.body a.reference:hover  {
     color: #d00;
     text-decoration: none;
     border-bottom-color: #d00;
 }
 
-div.body code.xref span {
+div.body code.xref  {
     font-weight: bold;
     border: none !important;
     color: black !important;
 }
 
-div.body code.xref:hover span {
+div.body code.xref:hover  {
     border: none !important;
     color: black !important;
     text-decoration: none !important;

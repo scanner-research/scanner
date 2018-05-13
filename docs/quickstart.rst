@@ -3,7 +3,7 @@
 Quickstart
 ==========
 
-To explain how Scanner is used, let's walkthrough a simple example that
+To explain how Scanner is used, let's walk through a simple example that
 reads frames from a video, selects every third frame, resizes them, and then
 creates a new video using those resized frames. If you'd like to run the code
 first, install Scanner (:ref:`installation`) and from the top-level Scanner
@@ -15,14 +15,14 @@ directory, run:
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 main.py
 
-After "main.py" exits, you should now have a resized version of
-"sample-clip.mp4" named "resized-video.mp4" in the current directory. Let's see
-how that happened by looking inside "main.py".
+After :code:`main.py` exits, you should now have a resized version of
+:code:`sample-clip.mp4` named :code:`resized-video.mp4` in the current directory. Let's see
+how that happened by looking inside :code:`main.py`.
 
 Starting up Scanner
 -------------------
-The first step in any Scanner program is to create a `Database` object.
-The `Database` object manages videos or other data that you have may have
+The first step in any Scanner program is to create a :py:class:`~scannerpy.database.Database` object.
+The :py:class:`~scannerpy.database.Database` object manages videos or other data that you have may have
 stored from data processing you've done in the past. The Database object also
 provides the API to construct and execute new video processing jobs.
 
@@ -37,14 +37,14 @@ Ingesting a video into the Database
 Scanner is designed to provide fast access to frames in videos, even under
 random access patterns. In order to provide this functionality, Scanner first
 needs to analyze the video to build an index on the video. For example, given
-an mp4 video named 'example.mp4', we can ingest this video as follow:
+an mp4 video named :code:`example.mp4`, we can ingest this video as follow:
 
 .. code-block:: python
 
-   db.ingest_videos([('example_table', 'example.mp4')])
+   db.ingest_videos([('table_name', 'example.mp4')])
 
-Scanner analyzes the file to build the index and creates a *table* for that
-video in the database. You can see the contents of the database by running:
+Scanner analyzes the file to build the index and creates a :py:class:`~scannerpy.table.Table` for that
+video in the Scanner database called :code:`table_name`. You can see the contents of the database by running:
 
 .. code-block:: python
 
@@ -55,7 +55,7 @@ video in the database. You can see the contents of the database by running:
    ---------------------------------------------------
    0  | table_name | 360    | index, frame | true
 
-Scanner can also read videos without copying them using the `inplace` flag.
+By default, ingest copies the video data into the Scanner database (located at :code:`~/.scanner/db` by default). However, Scanner can also read videos without copying them using the :code:`inplace` flag.
 
 .. code-block:: python
 
@@ -72,8 +72,8 @@ Defining a Computation Graph
 Now we can tell Scanner how to process the video by constructing a
 *computation graph*. A computation graph is a graph of input nodes (**Sources**),
 function nodes (**Ops**), and output nodes (**Sinks**). **Sources** can read data from
-the database (such as the table we ingested above) or from other sources of
-data, such as the filesystem. **Ops** represent functions that transform their
+the Scanner database (such as the table we ingested above) or from other sources of
+data, such as the filesystem or a SQL database. **Ops** represent functions that transform their
 inputs into new outputs. **Sinks**, like **Sources**, write data to the database or to
 other forms of persistent storage.
 
@@ -97,10 +97,10 @@ are stored in the table, and we'll use it as the input to the next operation:
 
 .. code-block:: python
 
-   sampled_frame = db.ops.Stride(frame, 3) # Select every third frame
+   sampled_frame = db.streams.Stride(input=frame, stride=3) # Select every third frame
 
 This is where we select only every third frame from the stream of frames we read
-from the **Source**.
+from the **Source**. This comes from a special class of ops (from :code:`db.streams`) that can change the size of a stream, as opposed to transforming inputs to outputs 1-to-1.
 
 We then process the sampled frames by instantiating a Resize **Op** that will
 resize the frames in the :code:`frame` stream to 640 x 480:
@@ -125,7 +125,7 @@ Putting it all together, we have:
 .. code-block:: python
 
    frame = db.sources.FrameColumn()
-   sampled_frame = db.ops.Stride(frame, 3) # Select every third frame
+   sampled_frame = db.streams.Stride(input=frame, stride=3)
    resized = db.ops.Resize(frame=sampled_frame, width=640, height=480)
    output_frame = db.sinks.Column(columns={'frame': resized})
 
@@ -150,13 +150,12 @@ to graph nodes using a **Job**:
    })
 
 Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the
-column 'frame' in the table 'table_name', and that the output table indicated by
-:code:`output_frame` should be called 'resized_table'.
+column :code:`frame` in the table :code:`"table_name"`, and that the output table indicated by
+:code:`output_frame` should be called :code:`"resized_table"`.
 
-In this example, we are only defining one job since we only have one video, but
-Scanner can process multiple jobs at the same time (given they use the same
-computation graph). When many jobs are provided, Scanner will process them all
-in parallel.
+In this example, we are only defining one job since we only have one video, but the purpose of
+this API design is so Scanner can process many jobs in parallel (given they use the same
+computation graph).
 
 Running a Job
 --------------
@@ -178,7 +177,7 @@ Reading the results of a Job
 ----------------------------
 
 We can directly read the results of job we just ran in our Python code by
-querying the 'frame' column on the table 'resized_table':
+querying the :code:`frame` column on the table :code:`resized_table`:
 
 .. code-block:: python
 
@@ -192,15 +191,17 @@ Saving a video file
 -------------------
 
 We can also directly save the frame column as an mp4 file by calling
-`save_mp4` on the 'frame' column:
+:code:`save_mp4` on the :code:`frame` column:
 
 .. code-block:: python
 
    db.table('resized_table').column('frame').save_mp4('resized-video')
 
 After this call returns, an mp4 video should be saved to the current working
-directory called 'resized-video.mp4' that consists of the resized frames
+directory called :code:`resized-video.mp4` that consists of the resized frames
 that we generated.
+
+That's a complete Scanner pipeline! To learn more about the features of Scanner, either follow our :ref:`walkthrough` or go through the extended :ref:`tutorial`.
 
 .. toctree::
    :maxdepth: 1

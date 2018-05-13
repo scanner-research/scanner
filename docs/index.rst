@@ -18,7 +18,7 @@ Scanner: Efficient Video Analysis at Scale
 
 Scanner is a system for developing applications that efficiently process large video datasets. Scanner applications can run on a multi-core laptop, a server packed with multiple GPUs, or a large number of machines in the cloud. Scanner has been used for:
 
-- **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames). 
+- **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).
 
 - **VR Video synthesis:** scaling the `Surround 360 VR video stitching software <https://github.com/scanner-research/Surround360>`__, which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
 
@@ -36,11 +36,9 @@ Scanner's key features include:
 
 - **First-class support for GPU acceleration:** Most image processing algorithms can benefit greatly from GPU execution, so Scanner provides first-class support for writing Ops that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
 
-- **Distributed execution:** Scanner can scale out applications to hundreds of machines, and is designed to be fault tolerant, so your applciations can use cheaper preemptible machines on cloud computing platforms.
+- **Distributed execution:** Scanner can scale out applications to hundreds of machines, and it is designed to be fault tolerant so your applications can use cheaper preemptible machines on cloud computing platforms.
 
-What Scanner is not:
-
-- Scanner **is not** a new system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular languages like Cuda or Halide.  
+Scanner **is not** a  system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as `OpenCV <https://docs.opencv.org/3.4.1/d1/dfb/intro.html>`__, `Caffe <http://caffe.berkeleyvision.org/>`__, `TensorFlow <http://tensorflow.org/>`__, etc. or have been implemented in high-performance domain-specific languages like `Cuda <https://developer.nvidia.com/cuda-zone>`__ or `Halide <http://halide-lang.org/>`__.
 
 .. toctree::
    :maxdepth: 2
@@ -51,4 +49,3 @@ What Scanner is not:
    programming-handbook
    api
    about
-
