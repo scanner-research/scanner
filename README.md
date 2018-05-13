@@ -2,19 +2,25 @@
 
 Scanner is a system for developing applications that efficiently process large video datasets. Scanner has been used for both video analysis and video snythesis tasks, such as:
 * **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).  We've used Scanner to run these tasks on hundreds of GPUs or thousands of CPUs on Google Compute Engine.
-* **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360), which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
+* **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360) to 100's of CPUs. This application processes fourteen 2048x2048 input videos to produce 8k omidirectional stereo video output for VR display.
 
 To learn more about Scanner, see the documentation below, check out our [various example applications](https://github.com/scanner-research/scanner/tree/master/examples), or read the SIGGRAPH 2018 Technical Paper: "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)" by Poms, Crichton, Hanrahan, and Fatahalian.
 
 ## Key Features
 
 Scanner's key features include:
-* **Computation graphs designed for video processing:** Similar to the execution model used by many modern ML frameworks, creating a Scanner application involves composing together functions (called Scanner Ops) into a dataflow graph. Scanner graphs process sequences of video frames. Scanner graphs support features useful for video processing, such as the ability to sparsely sample frames from a video, access to temporal sliding windows of frames, and propagate state across computations on successive frames (e.g., tracking). The Scanner runtime schedules computation graphs efficiently onto one or many machines.
-* **Random access to video frames:** Since Scanner's video data store has first-class knowledge of video formats, it can provide fast *random* access to compressed video frames.  This feature has proven useful in video data analytics applications that want to access a sparse set of frames from a video.
-* **First-class support for GPU acceleration:** Most image processing algorithms can benefit greatly from GPU execution, so Scanner provides first-class support for writing Ops that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
-* **Distributed execution:** Scanner can scale out applications to hundreds of machines, and is designed to be fault tolerant, so your applciations can use cheaper preemptible machines on cloud computing platforms.
 
-Scanner __is not__ a new system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular languages like Cuda or Halide.
+* **Video processing computations as dataflow graphs**.  Like many modern ML frameworks, Scanner structures video analysis tasks as dataflow graphs whose nodes produce and consume sequences of per-frame data. Scanner's embodiment of the dataflow model includes operators useful for video processing tasks such as sparse frame sampling (e.g., "frames known to contain a face"), sliding window frame access (e.g., stencils for temporal smoothing), and stateful processing across frames (e.g., tracking).
+
+* **Videos as logical tables** To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner's data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames. 
+
+* **First-class support for GPU acceleration:** Since many video processing algorithms benefit from GPU acceleration, Scanner provides first-class support for writing dataflow graph operations that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
+
+* **Fault tolerant, distributed execution:** Scanner applications can be run on the cores of a single machine, on a multi-GPU server, or scaled to hundreds of machines (potentially with heterogeneous numbers of GPUs), without significant source-level change.  Scanner also provides fault tolerance, so your applications can not only utilize many machines, but use cheaper preemptible machines on cloud computing platforms.
+
+What Scanner __is not__:
+
+Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like [Cuda](https://developer.nvidia.com/cuda-zone) or [Halide](http://halide-lang.org/).  Yes, you can write your dataflow graph operations in Python too. ;-)
 
 ## Documentation
 
@@ -26,6 +32,7 @@ are a few links to get you started:
 * [Programming Handbook](http://scanner.run/programming-handbook.html)
 * [API Reference](http://scanner.run/api.html)
 * [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)
+* [Scanner Examples](https://github.com/scanner-research/scanner/tree/master/examples)
 
 ## Example code
 
