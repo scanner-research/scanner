@@ -1,9 +1,10 @@
-# Scanner examples
+# Scanner Examples
 
 This directory contains simple examples and full applications that 
 demonstrate how to use Scanner. 
 
 ## Tutorials
+
 * [Walkthrough.ipynb](https://github.com/scanner-research/scanner/blob/master/examples/Walkthrough.ipynb): an IPython notebook that goes through a simple application (shot detection) using Scanner.
 * [List of Tutorials](https://github.com/scanner-research/scanner/blob/master/examples/tutorials): a set of well-commented files exploring different Scanner features in code.
 
@@ -18,7 +19,7 @@ jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
 
 Then in your browser, go to [http://localhost:8888/notebooks/Walkthrough.ipynb](http://localhost:8888/notebooks/Walkthrough.ipynb) and copy in the token from the console logs. Follow the instructions in the Jupyter notebook.
 
-## Applications
+## Example Applications
 
 * [face_detection](https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection): Detect all faces in a video, and then render a new video overlaying the face bounding boxes on the video.  
 * [shot_detection](https://github.com/scanner-research/scanner/blob/master/examples/apps/shot_detection): Segment a video into shots and then create a single image montage featuring one thumbnail for each shot. (Same application as the walkthrough.)
@@ -28,6 +29,7 @@ Then in your browser, go to [http://localhost:8888/notebooks/Walkthrough.ipynb](
 * [optical_flow](https://github.com/scanner-research/scanner/blob/master/examples/apps/optical_flow): Use OpenCV to compute flow fields within a video.
 
 ## How-Tos
+
 * [tensorflow](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/tensorflow): How to expose [TensorFlow](https://www.tensorflow.org/) computations as Scanner graph operations.
 * [caffe](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/caffe): How to use Caffe nets as Scanner graph operations.
 * [python_kernel](https://github.com/scanner-research/scanner/blob/master/examples/how-tos/python_kernel): How to implement Scanner graph ops in Python. 
