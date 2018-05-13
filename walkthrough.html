@@ -57,13 +57,14 @@
 <p>To get a more detailed understanding of how Scanner can be used in a real
 application, we recommend trying our Jupyter notebook tutorial. To start the
 notebook, if you’re using Docker:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install --upgrade docker-compose
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install --upgrade docker-compose
 wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
 docker-compose up cpu
 </pre></div>
 </div>
 <p>If you installed Scanner yourself, then run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> path/to/scanner
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install jupyter
+<span class="nb">cd</span> path/to/scanner
 jupyter notebook --ip<span class="o">=</span><span class="m">0</span>.0.0.0 --port<span class="o">=</span><span class="m">8888</span>
 </pre></div>
 </div>

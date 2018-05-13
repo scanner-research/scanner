@@ -53,8 +53,8 @@
           <div class="body" role="main">
             
   <div class="section" id="building-scanner-from-source">
-<h1>Building Scanner from source<a class="headerlink" href="#building-scanner-from-source" title="Permalink to this headline">¶</a></h1>
-<p>Scanner provides a dependency script deps.sh to automatically install any or all
+<span id="from-source"></span><h1>Building Scanner from source<a class="headerlink" href="#building-scanner-from-source" title="Permalink to this headline">¶</a></h1>
+<p>Scanner provides a dependency script <code class="code docutils literal notranslate"><span class="pre">deps.sh</span></code> to automatically install any or all
 of its major dependencies if they are not already installed. Each of these
 dependencies has a set of required system-level packages.</p>
 <dl class="docutils">
@@ -121,7 +121,7 @@ dependencies has a set of required system-level packages.</p>
 <p>This script will query you for each major dependency and install those that are not already installed. By default, it will install the dependencies to a local directory inside the scanner repo (it will not install system-wide).</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">Make sure to follow the directions after <a href="#id1"><span class="problematic" id="id2">`</span></a>deps.sh finishes that tell you to
+<p class="last">Make sure to follow the directions after <code class="code docutils literal notranslate"><span class="pre">deps.sh</span></code> finishes that tell you to
 add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH</p>
 </div>
 </div>
@@ -131,7 +131,7 @@ add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir build
 <span class="nb">cd</span> build
 cmake ..
-make -j
+make -j<span class="k">$(</span>nproc<span class="k">)</span>
 </pre></div>
 </div>
 </div>

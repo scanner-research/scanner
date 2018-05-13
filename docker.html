@@ -54,37 +54,21 @@
             
   <div class="section" id="docker">
 <span id="id1"></span><h1>Docker<a class="headerlink" href="#docker" title="Permalink to this headline">¶</a></h1>
-<p>Docker is a service for managing containers, which you can think of as
-lightweight virtual machines. We provide prebuilt
-<a class="reference external" href="https://docs.docker.com">Docker</a> images containing Scanner and all its
-dependencies (e.g. OpenCV, Caffe) at
-<a class="reference external" href="https://hub.docker.com/r/scannerresearch/scanner/">scannerresearch/scanner</a>.</p>
-<p>To start using Scanner with Docker, first install
-<a class="reference external" href="https://docs.docker.com/install/">Docker</a>.</p>
-<p>If you have a GPU and you’re running on Linux, you should also install
-<a class="reference external" href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a> (which provides GPU
-support inside Docker containers) and then run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install --upgrade nvidia-docker-compose
+<p><a class="reference external" href="https://docs.docker.com">Docker</a> is a service for managing containers, which you can think of as lightweight virtual machines. If you want to run Scanner in a distributed setting (e.g. on a cloud platform), Docker is essential for providing a consistent runtime environment on your worker machines, but it’s also useful for testing locally to avoid having to install all of Scanner’s dependencies. We provide prebuilt Docker images containing Scanner and all its dependencies (e.g. OpenCV, Caffe) at <a class="reference external" href="https://hub.docker.com/r/scannerresearch/scanner/">scannerresearch/scanner</a>.</p>
+<p>To start using Scanner with Docker, first install <a class="reference external" href="https://docs.docker.com/install/">Docker</a>. If you have a GPU and you’re running on Linux, you can install <a class="reference external" href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a> (which provides GPU support inside Docker containers). Then run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install --upgrade docker-compose
 wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-nvidia-docker-compose pull gpu
-nvidia-docker-compose run --service-ports gpu /bin/bash
-</pre></div>
-</div>
-<p>Otherwise, if you do not have GPUs, you should run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install --upgrade docker-compose
-wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
-docker-compose pull cpu
 docker-compose run --service-ports cpu /bin/bash
 </pre></div>
 </div>
-<p>If these commands were successful, you should now have bash session inside the
-docker container. To start using Scanner to process videos, check out
-<a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Getting Started</span></a>.</p>
+<p>If you installed nvidia-docker, then use <code class="code docutils literal notranslate"><span class="pre">gpu</span></code> intead of <code class="code docutils literal notranslate"><span class="pre">cpu</span></code> in the above <code class="code docutils literal notranslate"><span class="pre">docker-compose</span></code> commands.</p>
+<p>This installs the <a class="reference external" href="https://docs.docker.com/compose/overview/">docker-compose</a> utility which helps manage Docker containers. It uses the <code class="code docutils literal notranslate"><span class="pre">docker-compose.yml</span></code> configuration file to create an instance of the Scanner docker image.</p>
+<p>If these commands were successful, you should now have bash session inside the docker container. To start using Scanner to process videos, check out <a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Getting Started</span></a>.</p>
 <p>The full set of docker configurations we provide are:</p>
 <ul class="simple">
 <li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:cpu</span></code> - CPU-only build</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn6</span></code> - CUDA 9.1, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn6</span></code> - CUDA 9.0, CUDNN 7</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-9.1-cudnn7</span></code> - CUDA 9.1, CUDNN 7</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn7</span></code> - CUDA 8.0, CUDNN 7</li>
 <li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn6</span></code> - CUDA 8.0, CUDNN 6</li>
 </ul>
 </div>
