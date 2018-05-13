@@ -220,7 +220,7 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
 
   AVPacket* packet;
   if (ready_packet_queue_.size() > 0) {
-    ready_packet_queue_.peek(packet);
+    ready_packet_queue_.pop(packet);
   } else {
     return false;
   }
@@ -237,18 +237,16 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
     exit(1);
   }
 
-  // Make sure we have space for this packet, otherwise return
+  // Make sure we have space for this packet, otherwise put it back on the queue and return
   actual_packet_size = filtered_data_size;
   if (actual_packet_size > packet_size) {
+    ready_packet_queue_.push(packet);
     free(filtered_data);
     return true;
   }
 
   memcpy(packet_buffer, filtered_data, filtered_data_size);
   free(filtered_data);
-
-  // Only pop packet when we know we can copy it out
-  ready_packet_queue_.pop(packet);
   PACKET_FREE(packet);
 
   return ready_packet_queue_.size() > 0;
