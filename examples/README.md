@@ -1,12 +1,11 @@
 # Scanner examples
 
 This directory contains simple examples and full applications that 
-demonstrate how to use Scanner. We recommend starting with the
-[tutorials](https://github.com/scanner-research/scanner/blob/master/examples/tutorial).
+demonstrate how to use Scanner. 
 
 ## Tutorials
 * [Walkthrough.ipynb](https://github.com/scanner-research/scanner/blob/master/examples/Walkthrough.ipynb): an IPython notebook that goes through a simple application (shot detection) using Scanner.
-* [tutorial](https://github.com/scanner-research/scanner/blob/master/examples/tutorial): a set of well-commented files exploring different Scanner features in code.
+* [List of Tutorials](https://github.com/scanner-research/scanner/blob/master/examples/tutorials): a set of well-commented files exploring different Scanner features in code.
 
 If you want to run the notebook yourself so that you can interactively edit the
 code, run:
